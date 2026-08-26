@@ -2,6 +2,8 @@ name: Build & Release Extension
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -15,15 +17,38 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check version and remote tag
+        id: check_version
+        run: |
+          # Read version directly from manifest.json
+          VERSION=$(jq -r '.version' manifest.json)
+          TAG="v${VERSION}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+
+          # Check if tag already exists in remote
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "Tag ${TAG} already exists on remote."
+            # If triggered directly by tag push, we still build; otherwise skip
+            if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+              echo "Triggered by tag push, proceeding..."
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "No new version detected. Skipping release."
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "New version detected: ${TAG}! Will package and release."
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Package extension zip
+        if: steps.check_version.outputs.should_release == 'true'
         run: |
-          TAG_NAME="${{ github.ref_name }}"
-          # Default to v1.0.0 if run manually via workflow_dispatch without tag
-          if [ "$TAG_NAME" = "main" ] || [ -z "$TAG_NAME" ]; then
-            TAG_NAME="v1.0.0"
-          fi
-          ZIP_NAME="gemini-exporter-${TAG_NAME}.zip"
+          ZIP_NAME="gemini-exporter-${{ env.TAG }}.zip"
           echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
 
           zip -r "${ZIP_NAME}" \
@@ -42,10 +67,12 @@ jobs:
 
           ls -lh "${ZIP_NAME}"
 
-      - name: Create GitHub Release
+      - name: Create Tag and GitHub Release
+        if: steps.check_version.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          name: Gemini Exporter ${{ github.ref_name }}
+          tag_name: ${{ env.TAG }}
+          name: Gemini Exporter ${{ env.TAG }}
           files: ${{ env.ZIP_NAME }}
           generate_release_notes: true
           draft: false
