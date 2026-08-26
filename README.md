@@ -91,6 +91,14 @@ Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microso
 - **Credential Interception**: Intercepts the anti-CSRF token (`at`) and session identifier (`f.sid`) from native network requests in the MAIN world, avoiding raw Cookie exposure.
 - **Local Packaging**: All chat content and binary images are compressed and saved directly in the browser via JSZip, with zero remote relay servers.
 
+## 🔒 Privacy Policy
+
+Gemini Exporter is built with privacy as a foundational principle:
+- **100% Client-Side**: Operates entirely in your browser sandbox with zero remote telemetry, tracking, or data collection.
+- **Zero Credential Transmission**: Never collects, stores, or transmits your Google account credentials, cookies, or conversation contents.
+
+For our full policy, see [PRIVACY_POLICY.md](./PRIVACY_POLICY.md).
+
 ---
 
 ## 📄 Open Source License
