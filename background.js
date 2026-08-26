@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'ping') {
         sendResponse({
             ok: true,
-            ver: 'robust-1.3.6'
+            ver: chrome.runtime.getManifest()?.version || '1.0.0'
         });
         return;
     }

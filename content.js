@@ -557,7 +557,7 @@
         if (msg.action === 'ping') {
             sendResponse({
                 ok: true,
-                ver: 'v1.0.0',
+                ver: chrome.runtime.getManifest()?.version || '1.0.0',
                 count: document.querySelectorAll('a[href*="/app/"]').length,
                 deepRunning: !!window.__gemExporterDeepScanPromise
             });
