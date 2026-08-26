@@ -200,11 +200,18 @@
             const val = t(key);
             if (val) el.placeholder = val;
         });
-        // Language switcher button label
-        const btnLang = document.getElementById('btnLangToggle');
-        if (btnLang) {
-            btnLang.textContent = currentLang === 'zh' ? '🌐 English' : '🌐 中文';
-            btnLang.title = currentLang === 'zh' ? 'Switch to English' : '切换到简体中文';
+        // Language switch component state
+        const langToggle = document.getElementById('langToggle');
+        if (langToggle) {
+            langToggle.checked = (currentLang === 'en');
+        }
+        const labelZh = document.getElementById('labelLangZh');
+        const labelEn = document.getElementById('labelLangEn');
+        if (labelZh && labelEn) {
+            labelZh.style.color = currentLang === 'zh' ? 'var(--text, #f1f3fc)' : 'var(--muted, #8a92b2)';
+            labelZh.style.opacity = currentLang === 'zh' ? '1' : '0.6';
+            labelEn.style.color = currentLang === 'en' ? 'var(--text, #f1f3fc)' : 'var(--muted, #8a92b2)';
+            labelEn.style.opacity = currentLang === 'en' ? '1' : '0.6';
         }
     }
 

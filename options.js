@@ -1207,10 +1207,9 @@ document.addEventListener('DOMContentLoaded', () => {
     $('format')?.addEventListener('change', e => {
         chrome.storage.local.set({ gemini_export_format: e.target.value });
     });
-    $('btnLangToggle')?.addEventListener('click', async (e) => {
-        e.preventDefault();
+    $('langToggle')?.addEventListener('change', async (e) => {
+        const nextLang = e.target.checked ? 'en' : 'zh';
         if (typeof I18n !== 'undefined') {
-            const nextLang = I18n.getLang() === 'zh' ? 'en' : 'zh';
             await I18n.setLang(nextLang);
             updateZipUi();
             renderList(getSelected());

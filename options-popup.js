@@ -18,11 +18,10 @@
     }catch(e){ console.warn('[popup] updateCount err', e); }
   }
 
-  // Language toggle button
-  $('btnLangToggle')?.addEventListener('click', async (e) => {
-    e.preventDefault();
+  // Language switch toggle
+  $('langToggle')?.addEventListener('change', async (e) => {
+    const nextLang = e.target.checked ? 'en' : 'zh';
     if (typeof I18n !== 'undefined') {
-      const nextLang = I18n.getLang() === 'zh' ? 'en' : 'zh';
       await I18n.setLang(nextLang);
       updateCount();
     }
