@@ -1,0 +1,76 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Exporter",
+  "version": "1.3.16",
+  "description": "批量导出 Google Gemini 对话为 Markdown、JSON、TXT 或 ZIP 压缩包，支持附件与图片下载（非官方开源工具）。",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "downloads",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://*.googleusercontent.com/*",
+    "https://lh3.googleusercontent.com/*",
+    "https://lh3.google.com/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "js": [
+        "content_cred_bootstrap.js",
+        "gemini_client.js",
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "public/hook-credentials.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "public/hook-credentials.js",
+        "icons/*",
+        "lib/*"
+      ],
+      "matches": [
+        "https://gemini.google.com/*"
+      ]
+    }
+  ]
+}

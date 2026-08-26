@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gemini Exporter</title>
+<style>
+  :root{
+    --bg:#090a10;
+    --card:#12131d;
+    --card-inner:#0e0f17;
+    --border:#222436;
+    --border-focus:#3b4066;
+    --text:#f1f3fc;
+    --muted:#8a92b2;
+    --accent:#4f46e5;
+    --accent2:#06b6d4;
+    --ok:#10b981;
+    --warn:#f59e0b;
+  }
+  *{box-sizing:border-box;font-family:ui-sans-system,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  body{margin:0 auto;background:var(--bg);color:var(--text);padding:18px;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex:none;}
+  h1{font-size:18px;margin:0;font-weight:700;}
+  .sub{color:var(--muted);font-size:12px;margin-top:4px}
+  .row{display:flex;gap:12px;flex:1;overflow:hidden;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
+  .label{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.02em}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+  button{border:0;border-radius:10px;padding:9px 14px;font-weight:600;cursor:pointer;transition:all 0.15s ease}
+  .primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;box-shadow:0 2px 10px rgba(79,70,229,0.3)}
+  .primary:hover{opacity:.95;transform:translateY(-1px);box-shadow:0 4px 14px rgba(6,182,212,0.35)}
+  .primary:active{transform:translateY(0)}
+  .ghost{background:#171926;color:var(--text);border:1px solid var(--border)}
+  .ghost:hover{background:#1f2233;border-color:var(--border-focus)}
+  .ok{background:var(--ok);color:#062419}
+  .small{padding:6px 10px;font-size:12px}
+  button:disabled{opacity:.45;pointer-events:none}
+  input[type=checkbox]{accent-color:var(--accent)}
+  input[type=checkbox].toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 32px;
+    height: 18px;
+    background: #1e2030;
+    border-radius: 18px;
+    position: relative;
+    cursor: pointer;
+    outline: none;
+    margin: 0;
+    flex: none;
+    transition: background 0.2s;
+  }
+  input[type=checkbox].toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+  }
+  input[type=checkbox].toggle:checked {
+    background: linear-gradient(135deg,var(--accent),var(--accent2));
+  }
+  input[type=checkbox].toggle:checked::after {
+    transform: translateX(14px);
+    background: white;
+  }
+  .list{overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--card-inner)}
+  .item{display:flex;gap:8px;padding:8px;border-radius:8px;align-items:flex-start;transition:background 0.15s}
+  .item:hover{background:#1a1c2b}
+  .item input{margin-top:4px}
+  .item .title{flex:1;font-size:13px;line-height:1.35}
+  .item .meta{font-size:11px;color:var(--muted)}
+  .progress{height:8px;background:#161824;border-radius:99px;overflow:hidden;margin:10px 0;display:none}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s}
+  .log{font-size:12px;color:var(--muted);white-space:pre-wrap;max-height:160px;overflow:auto;background:var(--card-inner);border:1px solid var(--border);border-radius:8px;padding:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+  .badge{display:inline-block;background:#171929;border:1px solid var(--border);color:#a5b4fc;padding:2px 8px;border-radius:99px;font-size:11px;margin-left:6px}
+  select{background:var(--card-inner);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px}
+  select:focus{border-color:var(--border-focus);outline:none}
+  .stat{font-size:12px;color:var(--muted)}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Gemini Exporter <span id="ver" class="badge">v1.3.16</span> <span id="syncCount" class="badge">已同步 0</span></h1>
+  </div>
+</header>
+
+<div class="row">
+  <div class="card" style="flex:1; min-width:320px; display:flex; flex-direction:column; gap:12px; overflow:hidden; margin-bottom:0;">
+    <div class="label" style="flex:none;">导出设置</div>
+    
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
+      <label style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px; font-size:13px;">
+        <span style="color:var(--muted); white-space:nowrap;">格式</span>
+        <select id="format" style="flex:1;">
+          <option value="markdown" selected>Markdown (.md)</option>
+          <option value="json_openai">JSON (OpenAI格式)</option>
+          <option value="json">JSON (插件标准)</option>
+          <option value="json_raw">JSON (Gemini原始)</option>
+          <option value="txt">TXT</option>
+        </select>
+      </label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer;"><input type="checkbox" id="skipExported" class="toggle" checked> 跳过已导出 <button id="btnClearExported" class="ghost" style="padding:2px 6px; font-size:10px; margin-left:auto; border-radius:4px;" title="清除历史导出标记，允许重新导出全部">清除导出记录</button></label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer;"><input type="checkbox" id="includeIndex" class="toggle" checked> 含 _index.json</label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer;" title="下载对话中的图片与文件附件"><input type="checkbox" id="includeAssets" class="toggle" checked> 下载附件</label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer;" title="打包为 ZIP 文件下载"><input type="checkbox" id="includeZip" class="toggle"> 打包成 ZIP</label>
+    </div>
+
+    <div id="dirBox" style="display:flex; align-items:center; gap:10px; background:var(--card-inner); padding:8px 12px; border-radius:10px; border:1px solid var(--border); transition: opacity 0.25s, filter 0.25s;">
+      <button id="btnSetDir" class="ghost small" style="white-space:nowrap">设置目录...</button>
+      <div id="dirLabel" class="stat" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="当前目录">未设置目录</div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:4px;">
+      <button id="btnExport" class="primary" style="flex:1; padding:10px;">导出选中 → ZIP</button>
+      <button id="btnExportJson" class="ghost" style="flex:1; padding:10px;">仅导列表 JSON</button>
+    </div>
+    
+    <div style="text-align:center; min-height:28px;">
+      <button id="btnCancel" class="ghost small" style="display:none; border-color:#5a2a2a; color:#f0a0a0; margin:0 auto;">终止导出</button>
+    </div>
+    
+    <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
+    <div id="progText" class="stat" style="text-align:center; min-height:16px; line-height:16px;"></div>
+
+    <div style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
+      <div style="display:flex; gap:8px; align-items:center; flex:none;">
+        <select id="logLevel" title="级别" style="font-size:12px; padding:6px; border-radius:6px; background:#13131d;">
+          <option value="all">全部日志</option>
+          <option value="error">错误</option>
+          <option value="warn">警告</option>
+          <option value="info">信息</option>
+        </select>
+        <input id="logFilter" type="text" placeholder="过滤关键字 (-排除)" style="flex:1; background:#13131d; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; font-size:12px">
+        <button id="btnClearLog" class="ghost small">清空</button>
+      </div>
+      <div id="log" class="log" style="flex:1; overflow-y:auto;">就绪</div>
+    </div>
+  </div>
+
+  <div class="card" style="flex:1.4; min-width:340px; display:flex; flex-direction:column; overflow:hidden; margin-bottom:0;">
+    <div class="label" style="display:flex; flex-direction:column; gap:10px; margin-bottom:12px; margin-top:2px; flex:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span>会话列表 <span class="stat" id="lastSync" style="margin-left:8px;"></span></span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span id="selectedStat" class="stat" style="margin-right:4px;">已选 0 条</span>
+          <button id="btnSelectAll" class="ghost small">全选</button>
+          <button id="btnInvert" class="ghost small">反选</button>
+          <button id="btnSelectNone" class="ghost small">无</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; padding-bottom:4px; border-bottom:1px solid var(--border);">
+        <button id="btnIncrementalScan" class="primary small" title="增量获取最新会话">增量同步</button>
+        <button id="btnDeepScan" class="ghost small" title="全量扫描所有历史会话">全量扫描</button>
+        <button id="btnResync" class="ghost small" title="从当前页面刷新会话列表">刷新列表</button>
+        <div style="flex:1;"></div>
+        <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" title="清空本地所有会话数据">清空全部</button>
+      </div>
+    </div>
+    <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;">暂无会话数据，请打开 gemini.google.com 页面同步。</div>
+  </div>
+</div>
+
+<script src="lib/jszip.min.js"></script>
+<script src="options.js"></script>
+</body>
+</html>
