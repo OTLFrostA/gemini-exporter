@@ -14,9 +14,19 @@
       const data = await chrome.storage.local.get(['gemini_conversations','gemini_last_count']);
       const count = data.gemini_conversations?.length || data.gemini_last_count || 0;
       const badge = $('countBadge');
-      if(badge) badge.textContent = `已同步 ${count}`;
+      if(badge) badge.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', count) : `${count} synced`;
     }catch(e){ console.warn('[popup] updateCount err', e); }
   }
+
+  // Language toggle button
+  $('btnLangToggle')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (typeof I18n !== 'undefined') {
+      const nextLang = I18n.getLang() === 'zh' ? 'en' : 'zh';
+      await I18n.setLang(nextLang);
+      updateCount();
+    }
+  });
 
   // Open options/workbench page
   $('openOptions')?.addEventListener('click', (e)=>{
@@ -140,7 +150,7 @@
   chrome.runtime.onMessage.addListener((msg)=>{
     if(msg.action==='syncUpdate'){
       const badge = $('countBadge');
-      if(badge) badge.textContent = `已同步 ${msg.count}`;
+      if(badge) badge.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
     }
     if(msg.action==='exportProgress' || msg.action==='scanProgress'){
       const bar = $('bar');
@@ -152,8 +162,15 @@
     }
   });
 
-  // Init
-  updateCount();
+  // Init i18n and count
+  if (typeof I18n !== 'undefined') {
+    I18n.initLanguage().then(() => {
+      I18n.applyI18n();
+      updateCount();
+    });
+  } else {
+    updateCount();
+  }
   // Refresh count periodically
   setInterval(updateCount, 5000);
 })();

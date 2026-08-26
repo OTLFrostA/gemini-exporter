@@ -1,72 +1,77 @@
 # 🌌 Gemini Exporter
 
-> **强大、隐私安全、完全开源的 Google Gemini 对话批量导出与归档 Chrome 扩展。**  
-> 一键将你的全部 Gemini 历史对话导出为 Markdown、JSON（支持 OpenAI 格式）、TXT 或打包为包含图片附件的 ZIP 归档，无缝迁移至 Obsidian、Notion、Logseq 等本地知识库。
+<p align="left">
+  <b>English</b> | <a href="./README_zh.md">简体中文</a>
+</p>
+
+> **A powerful, privacy-first, fully open-source Chrome extension to batch export and archive your Google Gemini conversations.**  
+> Export all your chat history with one click into Markdown, JSON (including OpenAI-compatible format), TXT, or a ZIP bundle with images and attachments. Seamlessly migrate your conversations into Obsidian, Notion, Logseq, and other local personal knowledge bases.
 
 ---
 
-## 🌟 核心特性 (Features)
+## 🌟 Key Features
 
-- 🔒 **100% 本地运行与隐私零泄露**：
-  - 核心逻辑完全在浏览器本地沙箱中执行，**绝不上报任何凭据、Cookie 或对话文本至外部服务器**。
-- 📊 **专属批量工作台 (Options Workbench)**：
-  - 沉浸式深色模式管理面板，支持查看全部已同步对话列表。
-  - 支持按状态过滤：全部、已导出、未导出、有更新待重新导出、失败记录。
-- 📦 **多格式自由导出**：
-  - **Markdown (`.md`)**：完美排版，代码高亮，公式支持。
-  - **JSON**：包含完整上下文与元数据的原生结构。
-  - **JSON (OpenAI 格式)**：便于将对话直接喂给微调管道或第三方 LLM 工具。
-  - **纯文本 (`.txt`)**：轻量易读。
-- 🖼️ **完整支持图片与文件附件下载**：
-  - 自动嗅探并下载对话中的用户上传附件（PDF、DOCX、ZIP 等）以及 AI 生成图片（高清晰度源图）。
-  - 图片与附件自动规整至 `assets/` 资源目录并于 Markdown 中建立相对引用。
-- 🔄 **智能增量同步与变更感知**：
-  - 本地记录每一个对话的唯一 ID、更新时间与消息总数。
-  - 支持“跳过已导出记录”，当旧对话产生新回复时自动标记为“需要重新导出”，实现极致省时的增量备份。
-- ⚡ **无感就绪**：
-  - 无需申请官方 API Key，无需暴露 Google 账号密码；正常浏览 Gemini 页面即可全自动嗅探会话态并就绪。
+- 🔒 **100% Client-Side & Zero Privacy Leakage**:
+  - All processing runs completely inside your browser's local sandbox. **Never sends credentials, cookies, or chat messages to any third-party server.**
+- 📊 **Dedicated Batch Workbench (Options Page)**:
+  - An immersive dark-themed dashboard to view, filter, and manage all your synced conversations.
+  - Filter chats by status: *All*, *Exported*, *Needs Re-export*, *Unexported*, or *Failed*.
+  - Full **Bilingual Support (English / 简体中文)** with a 1-click language switcher in the header.
+- 📦 **Multiple Export Formats**:
+  - **Markdown (`.md`)**: Beautiful formatting, syntax highlighting for code blocks, and math equations.
+  - **JSON**: Native structured format containing complete turn metadata and timestamps.
+  - **JSON (OpenAI Format)**: Ready-to-use format for LLM fine-tuning pipelines and third-party tools.
+  - **Plain Text (`.txt`)**: Lightweight, clean, and easily readable.
+- 🖼️ **Full Support for Attachments & Images**:
+  - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution images.
+  - Assets are neatly organized into an `assets/` subfolder with relative references preserved in Markdown.
+- 🔄 **Smart Incremental Sync & Change Detection**:
+  - Locally records conversation IDs, update timestamps, and message counts.
+  - Supports "Skip already exported" mode. When an existing conversation receives new replies, it is automatically flagged as "Needs Re-export" for ultra-fast incremental backups.
+- ⚡ **Zero-Configuration Ready**:
+  - No official Gemini API key required. No account passwords exposed. Simply browse Google Gemini as usual, and session state is automatically detected.
 
 ---
 
-## 📥 安装指南 (Installation)
+## 📥 Installation
 
-适用于所有基于 Chromium 内核的现代浏览器（**Google Chrome**, **Microsoft Edge**, **Brave**, **Arc**, **Vivaldi** 等）。
+Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microsoft Edge**, **Brave**, **Arc**, **Vivaldi**, etc.).
 
-### 方式一：加载解压扩展（推荐）
+### Method 1: Load Unpacked Extension (Recommended)
 
-1. 下载或克隆本项目至本地：
+1. Clone or download this repository to your local machine:
    ```bash
    git clone https://github.com/OTLFrostA/gemini-exporter.git
    ```
-2. 打开浏览器的扩展管理页面：
-   - **Chrome**: 在地址栏输入 `chrome://extensions/`
-   - **Edge**: 在地址栏输入 `edge://extensions/`
-3. 开启右上角（或左侧）的 **“开发者模式” (Developer mode)**。
-4. 点击左上角的 **“加载已解压的扩展程序” (Load unpacked)**。
-5. 选择下载或克隆下来的项目文件夹，完成安装。
+2. Open your browser's extension management page:
+   - **Chrome**: Navigate to `chrome://extensions/`
+   - **Edge**: Navigate to `edge://extensions/`
+3. Enable **Developer mode** (toggle in the top-right or sidebar).
+4. Click **Load unpacked** in the top-left corner.
+5. Select the downloaded/cloned folder to finish installation.
 
 ---
 
-## 🚀 使用指南 (Usage)
+## 🚀 Usage Guide
 
-### 1. 快速单篇导出 (Popup)
-1. 在浏览器中打开并登录 [Google Gemini](https://gemini.google.com)。
-2. 点击右上角扩展栏的 **Gemini Exporter** 图标打开弹窗。
-3. 选择导出格式（Markdown / JSON / TXT），点击 **“只导当前页”** 即可瞬间将当前活跃对话下载至本地。
+### 1. Quick Single-Chat Export (Popup)
+1. Open and sign in to [Google Gemini](https://gemini.google.com).
+2. Click the **Gemini Exporter** icon in your browser toolbar to open the popup.
+3. Choose your desired format (Markdown / JSON / TXT), and click **"Export Current Page"** to download the active conversation instantly.
 
-### 2. 批量导出与增量同步 (Workbench)
-1. 在弹窗中点击 **“去工作台选 批量导出”**（或直接右键插件图标选择“选项”）。
-2. 在工作台中：
-   - 点击 **“重新 sync”** 或 **“强制从 Gemini 页拉取”**，工作台会自动汇总左侧所有历史对话。
-   - 勾选你需要导出的对话（支持“全选”、“只选未导出”、“只选已更新”）。
-   - 按需配置导出选项：是否下载图片、是否打包为单个 ZIP、目标子文件夹等。
-   - 点击 **“开始批量导出”**，静候浏览器自动批量保存文件。
+### 2. Batch Export & Incremental Sync (Workbench)
+1. Click **"Go to Workbench"** in the popup (or right-click the extension icon and select "Options").
+2. In the Workbench:
+   - Click **"Sync (Incremental)"** or **"Deep Scan Gemini Page"** to gather your chat history.
+   - Select the conversations you want to export (supports *Select All*, *Unexported Only*, *Updated Only*).
+   - Configure options: download assets, package as ZIP, custom folder, etc.
+   - Click **"Export Selected → ZIP"** (or Folder), and let the browser archive your chats.
 
 ---
 
-## 🛡️ 架构与安全性 (Architecture & Security)
+## 🛡️ Architecture & Security
 
-### 工作原理
+### How It Works
 ```
 [ Gemini Web (gemini.google.com) ]
          │ (Hook Credentials & Session Sniffing)
@@ -80,25 +85,25 @@
 [ Options Workbench UI / Local Storage / JSZip ]
          │ (File Generation & chrome.downloads)
          ▼
-[ 本地磁盘保存 (Markdown + Assets ZIP) ]
+[ Local Disk Save (Markdown + Assets ZIP) ]
 ```
 
-- **凭据捕获**：通过主世界（MAIN world）轻量拦截原生网络请求中携带的防 CSRF 标记（`at`）与会话 ID（`f.sid`），规避 Cookie 泄露。
-- **本地落盘**：所有对话内容与二进制图片均在本地浏览器中由 JSZip 直接打包下载，不经过任何中转后端。
+- **Credential Interception**: Intercepts the anti-CSRF token (`at`) and session identifier (`f.sid`) from native network requests in the MAIN world, avoiding raw Cookie exposure.
+- **Local Packaging**: All chat content and binary images are compressed and saved directly in the browser via JSZip, with zero remote relay servers.
 
 ---
 
-## 📄 开源许可证 (License)
+## 📄 Open Source License
 
-本项目遵循 **[MIT License](./LICENSE)** 开源。
+This project is licensed under the **[MIT License](./LICENSE)**.
 
-本项目使用的第三方开源组件：
-- **[JSZip](https://stuk.github.io/jszip/)** (v3.10.1) - Dual-licensed under MIT / GPLv3. 详情请参阅 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
+Third-party open-source components used in this project:
+- **[JSZip](https://stuk.github.io/jszip/)** (v3.10.1) - Dual-licensed under MIT / GPLv3. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for details.
 
 ---
 
-## ⚠️ 免责声明 (Disclaimer)
+## ⚠️ Disclaimer
 
-- **Gemini Exporter** 是一个由个人开发者维护的开源个人数据备份与知识归档工具，与 **Google** 或 **Google Gemini** 无任何官方关联、赞助或背书。
-- “Google”与“Gemini”是 Google LLC 的商标。
-- 本项目仅供个人学习、技术研究及私有数据归档使用，请勿用于任何商业倒卖或违反服务条款的行为。使用者应对其使用行为自行承担全部合规责任。
+- **Gemini Exporter** is an independent, open-source personal data archiving tool maintained by individual developers. It is **not affiliated with, sponsored by, or endorsed by Google LLC or Google Gemini**.
+- "Google" and "Gemini" are registered trademarks of Google LLC.
+- This project is intended for personal data backup, study, and research purposes only. Users are solely responsible for ensuring compliance with applicable terms of service.

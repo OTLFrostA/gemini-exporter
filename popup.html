@@ -25,25 +25,41 @@ select{width:100%;background:#0e0f17;border:1px solid var(--border);color:var(--
 </head>
 <body>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-  <div><b>Gemini Exporter</b> <span id="countBadge" class="badge">已同步 0</span></div>
-  <a href="#" id="openOptions" style="font-size:11px;color:var(--accent2);text-decoration:none">打开导出面板</a>
+  <div style="display:flex;align-items:center;gap:6px">
+    <b>Gemini Exporter</b>
+    <span id="countBadge" class="badge">0</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="btnLangToggle" class="ghost small" style="padding:2px 6px;font-size:10px;border-radius:6px;cursor:pointer">🌐 中文</button>
+    <a href="#" id="openOptions" style="font-size:11px;color:var(--accent2);text-decoration:none" data-i18n="openWorkbench">Open Workbench</a>
+  </div>
 </div>
 
 <div class="card">
-  <div class="label">说明</div>
-  <div style="font-size:11px; line-height:1.5; color:#b8bdd0">
+  <div class="label" data-i18n="noteLabel">说明</div>
+  <div style="font-size:11px; line-height:1.5; color:#b8bdd0" data-i18n="popupDesc">
     在 gemini.google.com 页面会自动同步会话列表。点击“去工作台选 批量导出”可进入导出面板进行批量管理和下载。
   </div>
 </div>
 
 <div class="card">
-  <div class="label">快捷导出</div>
-  <select id="format"><option value="markdown" selected>Markdown</option><option value="json_openai">JSON (OpenAI格式)</option><option value="json">JSON (插件标准)</option><option value="json_raw">JSON (Gemini原始)</option><option value="txt">TXT</option></select>
-  <div class="row"><button id="btnCurrent" class="ghost">只导当前页</button><button id="btnOptions" class="primary">去工作台选 批量导出</button></div>
+  <div class="label" data-i18n="quickExportLabel">快捷导出</div>
+  <select id="format">
+    <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
+    <option value="json_openai" data-i18n="fmtJsonOpenAI">JSON (OpenAI格式)</option>
+    <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
+    <option value="json_raw" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
+    <option value="txt" data-i18n="fmtTxt">TXT (.txt)</option>
+  </select>
+  <div class="row">
+    <button id="btnCurrent" class="ghost" data-i18n="btnCurrent">只导当前页</button>
+    <button id="btnOptions" class="primary" data-i18n="btnOptions">去工作台选 批量导出</button>
+  </div>
   <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
   <div id="log" class="log"></div>
 </div>
 
+<script src="i18n.js"></script>
 <script src="options-popup.js"></script>
 </body>
 </html>

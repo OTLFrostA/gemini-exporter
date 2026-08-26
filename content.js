@@ -26,10 +26,14 @@
             });
             return existing;
         }
+        let isZh = (navigator.language || '').toLowerCase().startsWith('zh');
+        chrome.storage.local.get(['gemini_exporter_lang'], d => {
+            if (d.gemini_exporter_lang) isZh = d.gemini_exporter_lang === 'zh';
+        });
         const div = document.createElement('div');
         div.id = 'geminiExportBadge';
-        div.innerHTML = '<span class="pulse"></span><span id="geminiExportBadgeText">初始化…</span>';
-        div.title = '点此打开批量导出页';
+        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${isZh ? '初始化…' : 'Initializing...'}</span>`;
+        div.title = isZh ? '点此打开批量导出页' : 'Click to open Export Workbench';
         div.addEventListener('click', () => {
             try {
                 const p = chrome.runtime.sendMessage({
@@ -61,14 +65,8 @@
                 txt.textContent = overrideText;
                 return;
             }
-            // avoid downgrading: if we're in middle of batch scan, show larger count
-            const curTxt = txt.textContent || '';
-            const m = curTxt.match(/(\d+)条/);
-            if (m && window.__gemExporterDeepScanPromise) {
-                const curNum = parseInt(m[0], 10);
-                if (curNum > mergedLen) mergedLen = curNum; // keep larger during deep scan
-            }
-            txt.textContent = `已同步 ${mergedLen} | 本次可见 ${visible}`;
+            const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
+            txt.textContent = isZh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
         } catch (e) {
             console.warn('[Gemini Exporter] updateBadge err', e);
         }

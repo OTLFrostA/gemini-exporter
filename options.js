@@ -290,12 +290,16 @@ function renderList(prevSelectedSet) {
     }
     if (!conversations.length) {
         console.log('[workbench] renderList empty -> placeholder');
-        list.innerHTML = '暂无会话数据，请打开 Gemini 页面后点击“抓取新会话”。';
+        list.innerHTML = typeof I18n !== 'undefined' ? I18n.t('emptyList') : 'No conversations found.';
         return;
     }
     console.log('[workbench] renderList', conversations.length, 'prevSelectedSet', prevSelectedSet instanceof Set ? prevSelectedSet.size : 'notSet');
     // FIX: never early return when prevSelectedSet empty - that's the 16 vs 0 bug.
     // prevSelectedSet empty means first load: should show all, checked = true by default.
+    const bNeedsReexport = typeof I18n !== 'undefined' ? I18n.t('badgeNeedsReexport') : 'Needs re-export';
+    const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
+    const bNew = typeof I18n !== 'undefined' ? I18n.t('badgeNew') : 'New';
+
     list.innerHTML = conversations.map((c, i) => {
         const rec = exportedIds[c.id];
         const isExported = !!rec;
@@ -321,10 +325,10 @@ function renderList(prevSelectedSet) {
             }
         }
         let badge = '';
-        if (isUpdated) badge = '<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">已更新·需重导</span>';
-        else if (isExported) badge = '<span class="badge" style="background:#1d3a2a;border-color:#2a5a3a;color:#8ae6b0">已导出</span>';
-        else badge = '<span class="badge" style="background:#2a3a4a;border-color:#3a4a5a;color:#8ab0e6">未导出</span>';
-        return `<label class="item"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">打开</a> | 最后见 ${c.lastSeen? new Date(c.lastSeen).toLocaleString():''} ${c.timestamp? '| 会话时间 '+ new Date(c.timestamp).toLocaleString():''} ${isUpdated? '| 上次导出 '+ new Date(rec.exportedAt).toLocaleString():''}</div></div></label>`;
+        if (isUpdated) badge = `<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">${bNeedsReexport}</span>`;
+        else if (isExported) badge = `<span class="badge" style="background:#1d3a2a;border-color:#2a5a3a;color:#8ae6b0">${bExported}</span>`;
+        else badge = `<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
+        return `<label class="item"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : ''}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
 }
@@ -333,7 +337,9 @@ function updateSelectedStat() {
     const checks = [...document.querySelectorAll('#list input[type=checkbox]:checked')];
     const total = conversations.length;
     const selEl = $('selectedStat');
-    if (selEl) selEl.textContent = `已选 ${checks.length} 条 / 共 ${total} 条`;
+    if (selEl) {
+        selEl.textContent = typeof I18n !== 'undefined' ? I18n.t('selectedStat', checks.length, total, total * 3) : `Selected: ${checks.length} / ${total}`;
+    }
     console.log('[workbench] selected', checks.length, '/', total);
 }
 
@@ -1161,7 +1167,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     }
     if (msg.action === 'syncUpdate') {
         const syncEl = $('syncCount');
-        if (syncEl) syncEl.textContent = `已同步 ${msg.count} 条`;
+        if (syncEl) syncEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
         console.log('[workbench] syncUpdate debounced received', msg.count, 'current', conversations.length, 'from', msg.from);
         // prevent flash: if count same, don't reload; if deep scan running (batchexecute), don't flash each page
         if (msg.count === conversations.length) return;
@@ -1176,6 +1182,12 @@ chrome.runtime.onMessage.addListener((msg) => {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[workbench] DOMContentLoaded');
+    if (typeof I18n !== 'undefined') {
+        I18n.initLanguage().then(() => {
+            I18n.applyI18n();
+            updateZipUi();
+        });
+    }
     const verEl = document.getElementById('ver');
     if (verEl) {
         try {
@@ -1195,16 +1207,22 @@ document.addEventListener('DOMContentLoaded', () => {
     $('format')?.addEventListener('change', e => {
         chrome.storage.local.set({ gemini_export_format: e.target.value });
     });
+    $('btnLangToggle')?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (typeof I18n !== 'undefined') {
+            const nextLang = I18n.getLang() === 'zh' ? 'en' : 'zh';
+            await I18n.setLang(nextLang);
+            updateZipUi();
+            renderList(getSelected());
+            updateSelectedStat();
+        }
+    });
     $('btnSelectAll').addEventListener('click', () => {
         document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = true);
         updateSelectedStat();
     });
     $('btnSelectNone').addEventListener('click', () => {
         document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = false);
-        updateSelectedStat();
-    });
-    $('btnInvert').addEventListener('click', () => {
-        document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = !c.checked);
         updateSelectedStat();
     });
     $('logFilter')?.addEventListener('input', renderLog);
@@ -1215,7 +1233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await requestDirHandle();
         } catch (e) {
-            log(`设置目录取消: ${e.message}`);
+            log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', e.message) : `Directory cancelled: ${e.message}`);
         }
     });
     if (typeof idb !== 'undefined') {
@@ -1231,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateZipUi = () => {
         if (!zipCheck) return;
         const isZip = zipCheck.checked;
-        $('btnExport').textContent = isZip ? '导出选中 → ZIP' : '导出选中 → 文件夹';
+        $('btnExport').textContent = isZip ? (typeof I18n !== 'undefined' ? I18n.t('btnExportZip') : 'Export Selected → ZIP') : (typeof I18n !== 'undefined' ? I18n.t('btnExportFolder') : 'Export Selected → Folder');
         const dirBox = $('dirBox');
         const btnSetDir = $('btnSetDir');
         if (dirBox) {
@@ -1350,20 +1368,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     $('btnClearExported').addEventListener('click', async () => {
-        if (!confirm('确定清空已导出记录？清空后将允许重新导出全部对话。')) return;
+        if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearExported') : 'Are you sure you want to clear export history?')) return;
         await chrome.storage.local.remove('exportedIds');
         exportedIds = {};
-        log('已清空已导出记录');
+        log(typeof I18n !== 'undefined' ? I18n.t('btnClearExported') : 'Export history cleared');
         renderList(new Set());
         updateSelectedStat();
     });
     $('btnClearAll').addEventListener('click', async () => {
-        if (!confirm('确定清空本地所有已同步的会话列表？')) return;
+        if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : 'Are you sure you want to clear all locally cached conversations?')) return;
         await chrome.storage.local.remove(['gemini_conversations', 'gemini_last_sync', 'gemini_last_count']);
         conversations = [];
         renderList(new Set());
         updateSelectedStat();
-        log('已清空所有会话数据');
+        log(typeof I18n !== 'undefined' ? I18n.t('btnClearAll') : 'Cache cleared');
     });
 
     console.log('[workbench] loadStore initial trigger done');
