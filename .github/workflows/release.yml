@@ -1,0 +1,52 @@
+name: Build & Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Package extension zip
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          # Default to v1.0.0 if run manually via workflow_dispatch without tag
+          if [ "$TAG_NAME" = "main" ] || [ -z "$TAG_NAME" ]; then
+            TAG_NAME="v1.0.0"
+          fi
+          ZIP_NAME="gemini-exporter-${TAG_NAME}.zip"
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+          zip -r "${ZIP_NAME}" \
+            manifest.json \
+            _locales \
+            icons \
+            lib \
+            public \
+            *.js \
+            *.css \
+            *.html \
+            LICENSE \
+            THIRD_PARTY_NOTICES.md \
+            README.md \
+            README_zh.md
+
+          ls -lh "${ZIP_NAME}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Gemini Exporter ${{ github.ref_name }}
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
