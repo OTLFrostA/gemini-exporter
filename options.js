@@ -1331,6 +1331,29 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSelectedStat();
         }
     });
+    // 开发者模式开关
+    const devToggle = $('devToggle');
+    if (devToggle) {
+        chrome.storage.local.get(['gemini_dev_mode'], (d) => {
+            const isDev = !!d.gemini_dev_mode;
+            devToggle.checked = isDev;
+            document.body.classList.toggle('dev-mode', isDev);
+            const labelDev = $('labelDevMode');
+            if (labelDev) labelDev.style.color = isDev ? 'var(--accent2)' : 'var(--muted)';
+        });
+        devToggle.addEventListener('change', (e) => {
+            const isDev = !!e.target.checked;
+            document.body.classList.toggle('dev-mode', isDev);
+            const labelDev = $('labelDevMode');
+            if (labelDev) labelDev.style.color = isDev ? 'var(--accent2)' : 'var(--muted)';
+            chrome.storage.local.set({ gemini_dev_mode: isDev });
+            if (isDev) {
+                log('🛠️ 开发者模式已启用：已显示深层探测与诊断工具');
+            } else {
+                log('🔒 开发者模式已关闭');
+            }
+        });
+    }
     $('btnSelectAll').addEventListener('click', () => {
         document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = true);
         updateSelectedStat();
