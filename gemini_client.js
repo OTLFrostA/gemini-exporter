@@ -176,12 +176,29 @@
                 }
             }
             if (!innerStr) {
-                console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
+                let bardError = null;
+                if (Array.isArray(top)) {
+                    for (let item of top) {
+                        if (Array.isArray(item) && item[5]) {
+                            let str5 = JSON.stringify(item[5]);
+                            if (str5.includes("BardErrorInfo")) {
+                                bardError = str5;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (bardError) {
+                    console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
+                } else {
+                    console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
+                }
                 return {
                     conversations: [],
                     nextPageToken: null,
                     _debug: {
-                        error: "NO_INNER_STR",
+                        error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
+                        bardError: bardError,
                         textLen: text?.length,
                         rawPreview: text?.slice(0, 500),
                         topParsed: top ? JSON.stringify(top).slice(0, 500) : null
@@ -897,8 +914,12 @@
                     }
                 }
                 if (!res.conversations || res.conversations.length === 0) {
-                    diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
-                    console.log(`[Gemini Exporter] getAllConversations reached empty page ${i + 1}, total: ${all.length}`);
+                    if (res?._debug?.bardError) {
+                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo 1096: 游标链已达服务端上限)`;
+                    } else {
+                        diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
+                    }
+                    console.log(`[Gemini Exporter] getAllConversations reached end at page ${i + 1}, total: ${all.length}, reason: ${diagLog.stopReason}`);
                     break;
                 }
                 if (onProgress) onProgress({
