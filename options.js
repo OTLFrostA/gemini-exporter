@@ -358,6 +358,7 @@ function __detectLevel(msg) {
     return 'info';
 }
 
+let __logPersistTimer = null;
 function log(msg, level) {
     level = level || __detectLevel(msg);
     const time = new Date().toLocaleTimeString();
@@ -370,6 +371,13 @@ function log(msg, level) {
     renderLog();
     const l = $('log');
     if (!l) console.log(`[workbench log ${level}]`, msg);
+
+    clearTimeout(__logPersistTimer);
+    __logPersistTimer = setTimeout(() => {
+        chrome.storage.local.set({
+            gemini_recent_logs: __logBuf.slice(0, 150)
+        }).catch(() => {});
+    }, 800);
 }
 
 function renderLog() {
@@ -403,6 +411,7 @@ function renderLog() {
 function clearLog() {
     __logBuf.length = 0;
     renderLog();
+    chrome.storage.local.remove(['gemini_recent_logs']).catch(() => {});
 }
 
 function getSelected() {
@@ -945,7 +954,9 @@ async function exportSelected() {
                             try {
                                 let toHighRes = (u) => {
                                     try {
-                                        if (!u || u.includes('/gg/')) return u;
+                                        if (u.includes('/gg/')) {
+                                            return u.includes('?') ? (u.includes('alr=yes') ? u : u + '&alr=yes') : u + '?alr=yes';
+                                        }
                                         let parts = u.split('?');
                                         let base = parts[0].replace(/=s\d+(?:-[^\?]+)*/i, '');
                                         let q = parts[1] ? parts[1] + '&alr=yes' : 'alr=yes';
@@ -954,8 +965,12 @@ async function exportSelected() {
                                         return u;
                                     }
                                 };
-                                let cands = [att.src, toHighRes(att.src), att.originalUrl].filter(Boolean);
-                                cands = [...new Set(cands)];
+                                let cands = [att.src, toHighRes(att.src), att.originalUrl];
+                                if (att.src && att.src.includes('/gg/')) {
+                                    let withAlr = att.src.includes('?') ? (att.src.includes('alr=yes') ? att.src : att.src + '&alr=yes') : att.src + '?alr=yes';
+                                    cands.push(withAlr);
+                                }
+                                cands = [...new Set(cands.filter(Boolean))];
 
                                 let bin = null;
                                 let lastStatus = '';
@@ -1432,6 +1447,28 @@ document.addEventListener('DOMContentLoaded', () => {
     $('logFilter')?.addEventListener('input', renderLog);
     $('logLevel')?.addEventListener('change', renderLog);
     $('btnClearLog')?.addEventListener('click', clearLog);
+    $('btnCopyLog')?.addEventListener('click', async () => {
+        const l = $('log');
+        if (!l) return;
+        try {
+            await navigator.clipboard.writeText(l.textContent);
+            const btn = $('btnCopyLog');
+            const orig = btn.textContent;
+            btn.textContent = '已复制!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        } catch {
+            const ta = document.createElement('textarea');
+            ta.value = l.textContent;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            const btn = $('btnCopyLog');
+            const orig = btn.textContent;
+            btn.textContent = '已复制!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        }
+    });
     $('btnExportDiag')?.addEventListener('click', async () => {
         try {
             const data = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);

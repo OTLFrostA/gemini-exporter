@@ -599,7 +599,10 @@
 
     function highResVariant(url) {
         try {
-            if (!url || url.includes('/gg/')) return url;
+            if (!url) return url;
+            if (url.includes('/gg/')) {
+                return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
+            }
             let [base, q = ""] = url.split("?");
             let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
             let suffix = q ? `${q}&alr=yes` : "alr=yes";

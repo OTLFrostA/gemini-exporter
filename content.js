@@ -1012,7 +1012,10 @@
             try {
                 const toHighRes = (url, variant = "s1024-rj") => {
                     try {
-                        if (!url || url.includes('/gg/')) return url;
+                        if (!url) return url;
+                        if (url.includes('/gg/')) {
+                            return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
+                        }
                         let [base, q = ""] = url.split("?");
                         let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
                         let suffix = q ? q + "&alr=yes" : "alr=yes";
@@ -1032,8 +1035,12 @@
                     return m ? m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
                 };
                 let candidates = msg.candidates && Array.isArray(msg.candidates) ? msg.candidates.slice() : [msg.url, toHighRes(msg.url)].filter(Boolean);
+                if (msg.url && msg.url.includes('/gg/')) {
+                    let withAlr = msg.url.includes('?') ? (msg.url.includes('alr=yes') ? msg.url : msg.url + '&alr=yes') : msg.url + '?alr=yes';
+                    candidates.push(withAlr);
+                }
                 let seen = new Set();
-                let queue = [...candidates];
+                let queue = [...new Set(candidates)];
                 while (queue.length) {
                     let u = queue.shift();
                     if (!u || seen.has(u)) continue;
@@ -1063,10 +1070,21 @@
                         if (ct.startsWith('text/plain') || ct.startsWith('text/html')) {
                             let txt = await r.text();
                             let inner = extractLh3(txt);
-                            if (inner && !seen.has(inner)) queue.push(inner);
-                            else if (txt.includes('googleusercontent')) {
+                            if (inner && !seen.has(inner)) {
+                                queue.push(inner);
+                                if (!inner.includes('alr=yes')) {
+                                    let innerAlr = inner.includes('?') ? inner + '&alr=yes' : inner + '?alr=yes';
+                                    if (!seen.has(innerAlr)) queue.push(innerAlr);
+                                }
+                            } else if (txt.includes('googleusercontent')) {
                                 let m2 = txt.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*/i);
-                                if (m2 && !seen.has(m2[0])) queue.push(m2[0]);
+                                if (m2 && !seen.has(m2[0])) {
+                                    queue.push(m2[0]);
+                                    if (!m2[0].includes('alr=yes')) {
+                                        let m2Alr = m2[0].includes('?') ? m2[0] + '&alr=yes' : m2[0] + '?alr=yes';
+                                        if (!seen.has(m2Alr)) queue.push(m2Alr);
+                                    }
+                                }
                             }
                             continue;
                         }
