@@ -155,9 +155,22 @@ async function loadStore(forceQuiet = false) {
         accountSlots = data.gemini_account_slots || {};
         updateAccountSlotSelector();
 
+        let incoming = data[convKey] || [];
+        if ((!incoming || !incoming.length) && slot !== 'u0') {
+            const u0Data = await chrome.storage.local.get(['gemini_conversations']);
+            if (u0Data.gemini_conversations && u0Data.gemini_conversations.length) {
+                console.log('[workbench] Slot', slot, 'is empty but u0 has', u0Data.gemini_conversations.length, 'chats. Falling back to u0.');
+                currentSlot = 'u0';
+                slot = 'u0';
+                convKey = 'gemini_conversations';
+                incoming = u0Data.gemini_conversations;
+                if ($('accountSlotSelect')) $('accountSlotSelect').value = 'u0';
+            }
+        }
+
         console.log('[workbench] loadStore raw', {
             slot,
-            count: data[convKey]?.length,
+            count: incoming?.length,
             last_count: data[countKey],
             has_sync: !!data[syncKey],
             exportedLen: Object.keys(data[expKey] || {}).length
@@ -171,7 +184,6 @@ async function loadStore(forceQuiet = false) {
         }
         const prevSelected = new Set(prevSelectedRaw);
         const hadLength = conversations.length;
-        let incoming = data[convKey] || [];
         exportedIds = data[expKey] || {};
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length);
@@ -1247,6 +1259,7 @@ chrome.runtime.onMessage.addListener((msg) => {
         const syncEl = $('syncCount');
         if (syncEl) syncEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
         console.log('[workbench] syncUpdate received', msg.count, 'current', conversations.length, 'slot', currentSlot, 'from', msg.from);
+        __lastRenderedSignature = null;
         debouncedLoadStore(false);
         return;
     }
@@ -1474,7 +1487,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
                 }
                 if (res?.slot) currentSlot = res.slot;
-                setTimeout(() => loadStore(false), 300);
+                __lastRenderedSignature = null;
+                setTimeout(() => loadStore(false), 200);
             });
         });
     }

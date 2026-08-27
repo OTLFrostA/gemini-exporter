@@ -142,7 +142,7 @@
                 }
             } catch {
                 let acc = candidate;
-                for (let j = i + 1; j < Math.min(i + 20, lines.length); j++) {
+                for (let j = i + 1; j < lines.length; j++) {
                     acc += lines[j];
                     try {
                         let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
@@ -748,12 +748,12 @@
             let body = new URLSearchParams();
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([50, pageToken, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([20, pageToken, [0, null, 1]]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([50, null, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([13, null, [0, null, 1]]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
