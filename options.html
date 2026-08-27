@@ -98,7 +98,7 @@
     </select>
   </div>
   <div style="display:flex; align-items:center; gap:8px;">
-    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="开发者模式 (调试/深层探测) / Developer Mode">
+    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="开发者模式 (诊断) / Developer Mode">
       <span id="labelDevMode" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s;">Dev</span>
       <input type="checkbox" id="devToggle" class="toggle">
     </label>
@@ -190,7 +190,6 @@
         <button id="btnIncrementalScan" class="primary small" data-i18n="btnIncrementalScan" data-i18n-title="btnIncrementalScanTip" title="快速拉取最近更新的会话（日常推荐，通常仅需 1~2 秒）">同步最新会话</button>
         <button id="btnDeepScan" class="ghost small" data-i18n="btnDeepScan" data-i18n-title="btnDeepScanTip" title="地毯式扫描并同步该账号下的所有历史会话（初次使用或换账号时推荐）">全量拉取历史</button>
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a;" data-i18n="btnStopScan" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
-        <button id="btnProbeAnchor" class="ghost small dev-only" style="color:#d8b4fe; border-color:#6355a4;" title="使用当前最老对话 ID 作为锚点，向 Google 探测深层历史">⚡ 深层探测</button>
         <div style="flex:1;"></div>
         <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
       </div>

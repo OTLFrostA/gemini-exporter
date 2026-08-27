@@ -366,14 +366,11 @@
     }
 
     function extractUserFiles(root) {
-        // 通用文件提取：Gemini 上传的 zip/pdf/docx 通常在 turn[2] 结构里，带 filename 和 URL，非 lh3，而是 drive/usercontent 或 blob
         let files = [];
         let seen = new Set();
 
         function walk(node) {
             if (Array.isArray(node)) {
-                // 猜测结构: [?, blobId?, fileName, url?, mime?, size?]
-                // fileName 常见检测
                 let name = (typeof node[2] === "string" && node[2].length > 2) ? node[2] : (typeof node[1] === "string" && node[1].includes('.') ? node[1] : "");
                 let url = "";
                 for (let v of node) {
@@ -382,18 +379,12 @@
                         break;
                     }
                 }
-                // mime
                 let mime = typeof node[11] === "string" ? node[11] : (typeof node[4] === "string" && node[4].includes('/') ? node[4] : "");
                 let isFile = /\.(zip|pdf|docx?|xlsx?|csv|txt|md|json|png|jpe?g|webp)$/i.test(name) && name.length < 120;
-                let isBlob = url.includes('blob:') || url.includes('drive.google');
-                // zip 特殊：mime application/zip 或 octet-stream
                 if (isFile && !seen.has(url + '|' + name)) {
-                    // 排除已识别为 image 的（image 走 image 通道）
                     let ext = name.split('.').pop().toLowerCase();
                     let isImgExt = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
                     if (!isImgExt || !url.includes('lh3.googleusercontent.com')) {
-                        // 去重
-                        // 仅当有 url 或 name 是 zip 等二进制时收
                         if (url || /\.(zip|pdf|docx?|xlsx)$/i.test(name)) {
                             seen.add(url + '|' + name);
                             files.push({
@@ -582,7 +573,6 @@
         try {
             let top = robustFirstPayload(text);
             if (!top) throw new Error("invalid");
-            // 更容忍：Gemini 最近改了序号，不一定在 [0][2]，遍历找第一个能解析成对话的 JSON 串
             let inner = null;
             if (top[0] && top[0][2]) {
                 try {
@@ -598,7 +588,6 @@
                         try {
                             let cand = JSON.parse(cell);
                             if (Array.isArray(cand) && cand.length && (Array.isArray(cand[0]) || typeof cand[0] === 'string')) {
-                                // 粗略判断像对话：第一个元素是 turns 数组或包含用户文本
                                 if (Array.isArray(cand[0]) || cand[0] === null) {
                                     inner = cand;
                                     break;
@@ -618,7 +607,7 @@
                 let ts = extractTurnTimestamp(turn) || Date.now();
                 let uText = turn?.[2]?.[0]?.[0] || "";
                 let uImgs = filterNewImages(extractImages(turn?.[2]), dedupSet);
-                let uFiles = extractUserFiles(turn?.[2]); // zip/pdf 等
+                let uFiles = extractUserFiles(turn?.[2]);
                 if (uText || uImgs.length || uFiles.length) {
                     msgs.push({
                         id: turn?.[0]?.[0] || "",
@@ -655,14 +644,12 @@
                             filteredImages = filterNewImages(chosenImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
                         if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);
-                        // dedup docs by chipUrl/id
                         let seenChip = new Set();
                         let docs = docsMeta.filter(docItem => {
                             let key = docItem.chipUrl || docItem.id;
                             if (seenChip.has(key)) return false;
                             let isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
                             let isHttp = docItem.id.includes("immersive_entry_chip") || docItem.id.startsWith("http");
-                            if (seenChip.has(key)) return false;
                             if (!isRc && isHttp) return false;
                             seenChip.add(key);
                             return true;
@@ -723,7 +710,6 @@
             let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/,'')}`;
             let times = turns.map(t => extractTurnTimestamp(t)).filter(x => Number.isFinite(x));
             let minTs = times.length ? Math.min(...times) : Date.now();
-            // convert images/docs to unified attachments for UI compatibility
             let allMsgs = msgs.map(m => {
                 let atts = [];
                 if (m.images)
@@ -823,43 +809,6 @@
             let txt = await resp.text();
             return parseList(txt);
         }
-        async probeAnchors(lastId, targetSid) {
-            const normId = String(lastId || "").replace(/^c_/, "");
-            const fullId = `c_${normId}`;
-            const probes = [
-                { name: "锚点 [0, id, 1]", filter: [0, normId, 1] },
-                { name: "锚点 [0, c_id, 1]", filter: [0, fullId, 1] },
-                { name: "倒序拉取 [0, null, 0]", filter: [0, null, 0] },
-                { name: "排序备选 [0, null, 2]", filter: [0, null, 2] },
-                { name: "历史归档 [1, null, 1]", filter: [1, null, 1] },
-                { name: "冷分类 [2, null, 1]", filter: [2, null, 1] }
-            ];
-            const results = [];
-            for (let p of probes) {
-                try {
-                    console.log(`[Gemini Exporter Probe] 正在测试 ${p.name}...`);
-                    const res = await this.getConversationList(null, targetSid, p.filter);
-                    const count = res?.conversations?.length || 0;
-                    const preview = (res?.conversations || []).slice(0, 3).map(c => `${c.title} (${c.id})`);
-                    results.push({
-                        name: p.name,
-                        success: count > 0,
-                        count,
-                        hasNext: !!res?.nextPageToken,
-                        preview,
-                        debug: res?._debug || null
-                    });
-                } catch (e) {
-                    results.push({
-                        name: p.name,
-                        success: false,
-                        error: e.message || String(e)
-                    });
-                }
-                await new Promise(r => setTimeout(r, 100));
-            }
-            return results;
-        }
         async getAllConversations(maxPages = 2000, onProgress, targetSid, opts) {
             if (!maxPages || typeof maxPages !== "number") maxPages = 2000;
             opts = opts || {};
@@ -893,7 +842,6 @@
                     console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
                     diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
                     if (all.length > 0) {
-                        // 网络异常或翻页到底时，保留已获取的全部会话，绝不抛出导致整盘丢弃
                         break;
                     }
                     throw err;
@@ -973,7 +921,6 @@
                     break;
                 }
                 token = res.nextPageToken;
-                // 适度节流（120ms），防止触发 Google 429 限流
                 const pageDelay = incremental ? 50 : 120;
                 await new Promise(r => setTimeout(r, pageDelay));
             }
