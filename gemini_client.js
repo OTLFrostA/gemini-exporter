@@ -338,6 +338,11 @@
                 let mime = typeof node[11] === "string" ? node[11] : void 0;
                 let token = typeof node[5] === "string" && node[5].startsWith("$AQ") ? node[5] : void 0;
                 let sizeArr = node.find(x => Array.isArray(x) && x.length >= 3 && typeof x[0] === "number" && typeof x[1] === "number" && typeof x[2] === "number" && x[0] > 100 && x[1] > 100 && x[2] > 1e3);
+                let isPlaceholder = /^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(sourceUrl);
+                if (isPlaceholder) {
+                    for (let child of node) walk(child);
+                    return;
+                }
                 let isGoogleHost = sourceUrl.includes("googleusercontent.com") || sourceUrl.includes("lh3.google.com") || sourceUrl.includes("ggpht");
                 let isExt = /\.(png|jpe?g|webp|gif)$/i.test(fileName);
                 let isMimeImg = typeof mime === "string" && mime.startsWith("image/");
@@ -560,6 +565,7 @@
 
     function highResVariant(url) {
         try {
+            if (!url || url.includes('/gg/')) return url;
             let [base, q = ""] = url.split("?");
             let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
             let suffix = q ? `${q}&alr=yes` : "alr=yes";

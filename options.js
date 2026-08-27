@@ -356,7 +356,13 @@ function renderLog() {
     const lv = $('logLevel')?.value || 'all';
     const q = ($('logFilter')?.value || '').trim().toLowerCase();
     let lines = __logBuf;
-    if (lv !== 'all') lines = lines.filter(x => x.level === lv);
+    if (lv === 'error') {
+        lines = lines.filter(x => x.level === 'error');
+    } else if (lv === 'warn') {
+        lines = lines.filter(x => x.level === 'warn' || x.level === 'error');
+    } else if (lv === 'info') {
+        lines = lines.filter(x => x.level === 'info');
+    }
     if (q) {
         const terms = q.split(/\s+/).filter(Boolean);
         lines = lines.filter(x => {
@@ -761,6 +767,7 @@ async function exportSelected() {
 
                     for (const att of m.attachments) {
                         if (att.type !== 'file') continue;
+                        if (att.url && att.url.includes('immersive_entry_chip') && !att.contentMarkdown) continue;
                         if (att.contentMarkdown) {
                             if (finalUseZip) {
                                 try {
@@ -776,10 +783,8 @@ async function exportSelected() {
                             let saved = false;
                             let failReason = '';
                             try {
-                                let tabs = await chrome.tabs.query({
-                                    url: 'https://gemini.google.com/*'
-                                });
-                                if (tabs.length) {
+                                let tab = await getGeminiTab(currentSlot);
+                                if (tab) {
                                     let candidates = [att.url, att.sourceUrl, att.src].filter(Boolean);
                                     candidates = [...new Set(candidates)];
 
@@ -804,7 +809,7 @@ async function exportSelected() {
                                     }
 
                                     let r2 = await new Promise(rv => {
-                                        chrome.tabs.sendMessage(tabs[0].id, {
+                                        chrome.tabs.sendMessage(tab.id, {
                                             action: 'getFileBlob',
                                             fileName: att.name || att.title,
                                             url: att.url || att.sourceUrl,
@@ -887,18 +892,20 @@ async function exportSelected() {
                                     file: att.name || att.title || att.localName,
                                     reason: failReason || 'unknown'
                                 });
-                                log(`附件下载失败: ${att.name || att.localName} (${failReason})`);
+                                log(`附件下载失败: ${att.name || att.localName} (${failReason})`, 'error');
                             }
                         });
                     }
 
                     for (const att of m.attachments) {
                         if (att.type !== 'image' || !att.src) continue;
+                        if (/^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(att.src)) continue;
 
                         attachmentQueue.push(async () => {
                             try {
                                 let toHighRes = (u) => {
                                     try {
+                                        if (!u || u.includes('/gg/')) return u;
                                         let parts = u.split('?');
                                         let base = parts[0].replace(/=s\d+(?:-[^\?]+)*/i, '');
                                         let q = parts[1] ? parts[1] + '&alr=yes' : 'alr=yes';
@@ -907,18 +914,16 @@ async function exportSelected() {
                                         return u;
                                     }
                                 };
-                                let cands = [toHighRes(att.src), att.src, att.originalUrl].filter(Boolean);
+                                let cands = [att.src, toHighRes(att.src), att.originalUrl].filter(Boolean);
                                 cands = [...new Set(cands)];
 
                                 let bin = null;
                                 let lastStatus = '';
 
-                                let tabs = await chrome.tabs.query({
-                                    url: 'https://gemini.google.com/*'
-                                });
-                                if (tabs.length) {
+                                let tab = await getGeminiTab(currentSlot);
+                                if (tab) {
                                     let r2 = await new Promise(rv => {
-                                        chrome.tabs.sendMessage(tabs[0].id, {
+                                        chrome.tabs.sendMessage(tab.id, {
                                             action: 'getImageBlob',
                                             candidates: cands,
                                             url: att.src
@@ -978,7 +983,7 @@ async function exportSelected() {
                                         file: att.localName || att.alt,
                                         reason
                                     });
-                                    log(`图片下载失败: ${att.localName || '未知'}`);
+                                    log(`图片下载失败: ${att.localName || '未知'} (${reason})`, 'error');
                                     return;
                                 }
 
@@ -994,7 +999,7 @@ async function exportSelected() {
                                     file: att.localName || att.alt,
                                     reason: ex.message
                                 });
-                                log(`图片下载失败: ${att.localName || '未知'}`);
+                                log(`图片下载失败: ${att.localName || '未知'} (${ex.message})`, 'error');
                             }
                         });
                     }
@@ -1081,15 +1086,15 @@ async function exportSelected() {
     }
 
     if (failedChats.length) {
-        log(`⚠️ 有 ${failedChats.length} 条对话导出失败`);
+        log(`⚠️ 有 ${failedChats.length} 条对话导出失败`, 'error');
         console.error('Failed ids:', failedChats);
     }
     if (failedAttachments.length) {
-        log(`⚠️ 有 ${failedAttachments.length} 个附件下载失败：`);
+        log(`⚠️ 有 ${failedAttachments.length} 个附件下载失败：`, 'error');
         for (const fa of failedAttachments.slice(0, 30)) {
             log(`  • [${fa.chat}] ${fa.file} - ${fa.reason}`, 'error');
         }
-        if (failedAttachments.length > 30) log(`  ... 还有 ${failedAttachments.length - 30} 个未列出`);
+        if (failedAttachments.length > 30) log(`  ... 还有 ${failedAttachments.length - 30} 个未列出`, 'error');
         console.error('Failed attachments JSON:', JSON.stringify(failedAttachments, null, 2));
     }
 
