@@ -320,7 +320,7 @@ function renderList(prevSelectedSet) {
         if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
         if (!rawTs && c.lastSeen) rawTs = new Date(c.lastSeen).getTime();
         const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '';
-        return `<label class="item"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
+        return `<label class="item" data-chat-id="${c.id}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
 }
@@ -763,9 +763,21 @@ async function exportSelected() {
                         chatTime: exportTs,
                         status: 'ok'
                     };
+                    exportedIds[chat.id] = curIds[chat.id];
                     chrome.storage.local.set({
                         [expKey]: curIds
                     }).catch(() => {});
+
+                    try {
+                        const badgeEl = document.querySelector(`[data-chat-id="${chat.id}"] .badge`);
+                        if (badgeEl) {
+                            const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
+                            badgeEl.style.background = '#1d3a2a';
+                            badgeEl.style.borderColor = '#2a5a3a';
+                            badgeEl.style.color = '#8ae6b0';
+                            badgeEl.textContent = bExported;
+                        }
+                    } catch {}
                 }
             } else {
                 failedChats.push(chat.id);
@@ -1115,6 +1127,13 @@ async function exportSelected() {
     $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} 条${attStr}，跳过 ${skipped} 条`;
     $('btnExport').disabled = false;
     setExportRunning(false);
+
+    // Sync exportedIds and refresh conversation list on the right
+    exportedIds = Object.assign({}, curIds);
+    const currentSelected = new Set(getSelected().map(x => x.id));
+    renderList(currentSelected);
+    updateSelectedStat();
+
     chrome.runtime.sendMessage({
         action: 'exportProgress',
         done: metaResults.length,
@@ -1223,6 +1242,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
     const slot = currentSlot || 'u0';
     const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
     const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+
+    if (changes[expKey] && !__exportRunning) {
+        exportedIds = changes[expKey].newValue || {};
+        const currentSelected = new Set(getSelected().map(x => x.id));
+        renderList(currentSelected);
+        updateSelectedStat();
+    }
+
     if (!(changes[convKey] || changes[countKey] || changes.gemini_account_slots)) return;
     let newCount = changes[convKey]?.newValue?.length ?? changes[countKey]?.newValue ?? null;
     console.log('[workbench] storage.onChanged debounced', area, Object.keys(changes), newCount);
