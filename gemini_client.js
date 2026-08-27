@@ -123,35 +123,72 @@
     }
 
     function robustFirstPayload(text) {
+        if (!text || typeof text !== "string") return null;
         let lines = text.split("\n");
+        let fallback = null;
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
-            if (!line.startsWith("[")) continue;
+            if (!line.includes("[")) continue;
+            let startIdx = line.indexOf("[");
+            let candidate = line.slice(startIdx);
             try {
-                let cleaned = line.replace(/[\x00-\x1F\x7F]/g, "").trim();
-                return JSON.parse(cleaned);
+                let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
+                let parsed = JSON.parse(cleaned);
+                if (Array.isArray(parsed)) {
+                    if (candidate.includes("MaZiqc") || candidate.includes("wrb.fr")) {
+                        return parsed;
+                    }
+                    if (!fallback) fallback = parsed;
+                }
             } catch {
-                let acc = line;
-                for (let j = i + 1; j < lines.length; j++) {
+                let acc = candidate;
+                for (let j = i + 1; j < Math.min(i + 20, lines.length); j++) {
                     acc += lines[j];
                     try {
                         let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
-                        return JSON.parse(c2);
+                        let p2 = JSON.parse(c2);
+                        if (Array.isArray(p2)) {
+                            if (acc.includes("MaZiqc") || acc.includes("wrb.fr")) {
+                                return p2;
+                            }
+                            if (!fallback) fallback = p2;
+                        }
                     } catch {}
                 }
             }
         }
-        return null;
+        return fallback;
     }
 
     function parseList(text) {
         try {
             let top = robustFirstPayload(text);
-            if (!top || !top[0] || !top[0][2]) return {
-                conversations: [],
-                nextPageToken: null
-            };
-            let inner = JSON.parse(top[0][2]);
+            let innerStr = null;
+            if (Array.isArray(top)) {
+                for (let item of top) {
+                    if (Array.isArray(item) && (item[1] === RPCS.LIST || item[1] === "MaZiqc" || item[0] === "wrb.fr") && item[2]) {
+                        innerStr = item[2];
+                        break;
+                    }
+                }
+                if (!innerStr && top[0] && top[0][2]) {
+                    innerStr = top[0][2];
+                }
+            }
+            if (!innerStr) {
+                console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
+                return {
+                    conversations: [],
+                    nextPageToken: null,
+                    _debug: {
+                        error: "NO_INNER_STR",
+                        textLen: text?.length,
+                        rawPreview: text?.slice(0, 500),
+                        topParsed: top ? JSON.stringify(top).slice(0, 500) : null
+                    }
+                };
+            }
+            let inner = JSON.parse(innerStr);
             let list = Array.isArray(inner[1]) ? inner[1] : (Array.isArray(inner[2]) ? inner[2] : []);
             let convs = [];
             for (let r of list) {
