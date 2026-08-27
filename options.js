@@ -1,6 +1,16 @@
 // options.js - Gemini Exporter workbench controller
 let conversations = [];
 let exportedIds = {};
+let currentSlot = 'u0';
+let accountSlots = {};
+
+const normId = id => String(id || '').replace(/^c_/, '');
+
+function getExportedRecord(id) {
+    if (!id || !exportedIds) return null;
+    const nid = normId(id);
+    return exportedIds[id] || exportedIds['c_' + nid] || exportedIds[nid] || null;
+}
 
 let __workbenchDebounceTimer = null;
 let __lastRenderedSignature = '';
@@ -29,19 +39,40 @@ function setExportRunning(running) {
 
 function mdContent(chat) {
     const format = $('format') ? $('format').value : 'markdown';
-    if (format === 'json') {
-        return {
-            content: JSON.stringify(chat, null, 2),
-            ext: 'json'
-        };
-    }
     if (format === 'json_openai') {
-        let openaiFormat = (chat.messages || []).map(m => ({
-            role: m.role === 'model' ? 'assistant' : 'user',
-            content: m.content || ''
-        }));
+        let openaiFormat = (chat.messages || []).map(m => {
+            let role = m.role === 'model' ? 'assistant' : 'user';
+            let text = m.content || '';
+            let imgs = (m.attachments || []).filter(a => a.type === 'image');
+            let item;
+            if (imgs.length > 0) {
+                let contentArr = [];
+                if (text) contentArr.push({ type: 'text', text });
+                for (let im of imgs) {
+                    contentArr.push({
+                        type: 'image_url',
+                        image_url: {
+                            url: im.localName || im.src || im.originalUrl
+                        }
+                    });
+                }
+                item = { role, content: contentArr };
+            } else {
+                item = { role, content: text };
+            }
+            if (m.thoughts) {
+                item.reasoning_content = m.thoughts;
+            }
+            return item;
+        });
         return {
-            content: JSON.stringify(openaiFormat, null, 2),
+            content: JSON.stringify({
+                id: chat.id,
+                title: chat.title,
+                url: chat.url,
+                created_at: chat.createdAt ? new Date(chat.createdAt).toISOString() : void 0,
+                messages: openaiFormat
+            }, null, 2),
             ext: 'json'
         };
     }
@@ -51,22 +82,12 @@ function mdContent(chat) {
             ext: 'json'
         };
     }
-    if (format === 'txt') {
-        let txt = `${chat.title || chat.id}\n${'='.repeat(40)}\nID: ${chat.id}\nURL: ${chat.url || ''}\n\n`;
-        if (!chat.messages || !chat.messages.length) {
-            txt += '(空对话或取回失败)\n';
-        }
-        for (const m of chat.messages || []) {
-            if (m.role === 'user') txt += `[你]:\n${m.content || ''}\n\n`;
-            else txt += `[Gemini]:\n${m.content || ''}\n\n`;
-            txt += '---\n\n';
-        }
+    if (format === 'json') {
         return {
-            content: txt,
-            ext: 'txt'
+            content: JSON.stringify(chat, null, 2),
+            ext: 'json'
         };
     }
-    // default: markdown
     return {
         content: toMarkdown(chat),
         ext: 'md'
@@ -93,34 +114,102 @@ function getSignature(list) {
     }
 }
 
-async function loadStore(forceQuiet = false) {
-    console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length);
+function updateAccountSlotSelector() {
+    const sel = $('accountSlotSelect');
+    if (!sel) return;
+    const slots = Object.keys(accountSlots || {});
+    if (slots.length <= 1 && (!slots.includes('u1') && !slots.includes('u2'))) {
+        sel.style.display = 'none';
+        return;
+    }
+    sel.style.display = 'inline-block';
+    let html = '';
+    const sorted = Array.from(new Set(['u0', ...slots])).sort();
+    for (const s of sorted) {
+        const info = accountSlots[s];
+        const label = info?.name || (s === 'u0' ? '默认账号 (u0)' : `账号 ${s.toUpperCase()}`);
+        const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
+        const selected = (s === currentSlot) ? 'selected' : '';
+        html += `<option value="${s}" ${selected}>${label}${count}</option>`;
+    }
+    sel.innerHTML = html;
+}
+
+async function findTabForSlot(slot) {
     try {
-        const data = await chrome.storage.local.get(['gemini_conversations', 'gemini_last_sync', 'exportedIds', 'gemini_last_count', 'gemini_credentials_map']);
+        const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        if (!tabs || !tabs.length) return null;
+        if (slot && slot !== 'u0') {
+            const slotNum = slot.replace('u', '');
+            const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
+            if (match) return match;
+        } else {
+            const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+            if (defMatch) return defMatch;
+        }
+        return tabs.find(t => t.active) || tabs[0];
+    } catch {
+        return null;
+    }
+}
+const getGeminiTab = findTabForSlot;
+
+async function loadStore(forceQuiet = false) {
+    console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length, 'slot', currentSlot);
+    try {
+        let slot = currentSlot || 'u0';
+        let convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        let syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
+        let expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        let countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+
+        const data = await chrome.storage.local.get([
+            convKey,
+            syncKey,
+            expKey,
+            countKey,
+            'gemini_account_slots',
+            'gemini_credentials_map'
+        ]);
+
+        accountSlots = data.gemini_account_slots || {};
+        updateAccountSlotSelector();
+
+        let incoming = data[convKey] || [];
+        if ((!incoming || !incoming.length) && slot !== 'u0') {
+            const u0Data = await chrome.storage.local.get(['gemini_conversations']);
+            if (u0Data.gemini_conversations && u0Data.gemini_conversations.length) {
+                console.log('[workbench] Slot', slot, 'is empty but u0 has', u0Data.gemini_conversations.length, 'chats. Falling back to u0.');
+                currentSlot = 'u0';
+                slot = 'u0';
+                convKey = 'gemini_conversations';
+                incoming = u0Data.gemini_conversations;
+                if ($('accountSlotSelect')) $('accountSlotSelect').value = 'u0';
+            }
+        }
+
         console.log('[workbench] loadStore raw', {
-            count: data.gemini_conversations?.length,
-            last_count: data.gemini_last_count,
-            has_sync: !!data.gemini_last_sync,
-            exportedLen: Object.keys(data.exportedIds || {}).length
+            slot,
+            count: incoming?.length,
+            last_count: data[countKey],
+            has_sync: !!data[syncKey],
+            exportedLen: Object.keys(data[expKey] || {}).length
         });
-        // 保留当前勾选 - robust handling of empty set
         let prevSelectedRaw = [];
         try {
-            prevSelectedRaw = getSelectedSafe().map(x => x.id);
-        } catch (e) {
+            prevSelectedRaw = getSelected().map(x => x.id);
+        } catch {
             prevSelectedRaw = [];
         }
         const prevSelected = new Set(prevSelectedRaw);
         const hadLength = conversations.length;
-        let incoming = data.gemini_conversations || [];
-        exportedIds = data.exportedIds || {};
+        exportedIds = data[expKey] || {};
         const incomingSig = getSignature(incoming);
-        const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length);
-        // If signature same and within 5s of last render, skip render to stop flash
-        if (sameSig && Date.now() - __lastRenderTime < 5000) {
+        const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
+        if (sameSig && Date.now() - __lastRenderTime < 500) {
             const lastSyncElFast = $('lastSync');
-            if (lastSyncElFast && data.gemini_last_sync) {
-                lastSyncElFast.textContent = `最后 sync: ${new Date(data.gemini_last_sync).toLocaleString()} | 共 ${incoming.length} 条`;
+            if (lastSyncElFast && data[syncKey]) {
+                lastSyncElFast.textContent = `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${incoming.length} 条`;
             }
             return;
         }
@@ -128,18 +217,28 @@ async function loadStore(forceQuiet = false) {
         const same = (hadLength === conversations.length);
         const lastSyncEl = $('lastSync');
         if (lastSyncEl) {
-            lastSyncEl.textContent = data.gemini_last_sync ? `最后 sync: ${new Date(data.gemini_last_sync).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
+            lastSyncEl.textContent = data[syncKey] ? `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
         }
         const _badIds = [];
-        conversations = (conversations || []).filter(c => {
+        const dedupMap = new Map();
+        (incoming || []).forEach(c => {
+            if (!c || !c.id) return;
+            const normId = String(c.id).replace(/^c_/, '').trim();
             const t = (c.title || '').trim();
             const u = (c.url || c.href || '').toString();
             if (/^Google Account/i.test(t) || /accounts\.google\.com|SignOutOptions/i.test(u)) {
                 _badIds.push(c.id);
-                return false;
+                return;
             }
-            return true;
+            c.id = normId;
+            if (!dedupMap.has(normId)) {
+                dedupMap.set(normId, c);
+            } else {
+                const old = dedupMap.get(normId);
+                dedupMap.set(normId, { ...old, ...c, id: normId });
+            }
         });
+        conversations = Array.from(dedupMap.values());
         conversations.sort((a, b) => {
             let tsA = a.timestamp;
             if (typeof tsA === 'string') tsA = new Date(tsA).getTime();
@@ -151,133 +250,36 @@ async function loadStore(forceQuiet = false) {
             if (!valB && b.lastSeen) valB = new Date(b.lastSeen).getTime();
             return valB - valA;
         });
-        if (_badIds.length) {
-            console.log('[workbench] 清理脏对话', _badIds.slice(0, 5));
+        if (_badIds.length || conversations.length !== incoming.length) {
             await chrome.storage.local.set({
-                gemini_conversations: conversations,
-                gemini_last_count: conversations.length,
-                gemini_last_sync: new Date().toISOString()
+                [convKey]: conversations,
+                [countKey]: conversations.length,
+                [syncKey]: new Date().toISOString()
             });
         }
         const syncCountEl = $('syncCount');
         if (syncCountEl) syncCountEl.textContent = `已同步 ${conversations.length} 条`;
-        console.log('[workbench] loadStore conversations', conversations.length, 'same?', same, 'sigSame?', sameSig, 'prevSelected size', prevSelected.size);
         renderList(prevSelected);
         __lastRenderedSignature = incomingSig;
         __lastRenderTime = Date.now();
         updateSelectedStat();
         if (!forceQuiet && !same) {
-            log(`已加载 ${conversations.length} 条对话 (已导出 ${Object.keys(exportedIds).length} 条)`);
+            const expCount = conversations.filter(c => !!getExportedRecord(c.id)).length;
+            log(`已加载 ${conversations.length} 条对话 (已导出 ${expCount} 条)`);
         }
-        // storage 空时被动拉取 - only if truly empty
         if (conversations.length === 0) {
-            console.log('[workbench] conversations empty, trying to pull from Gemini tab');
             try {
-                const tabs = await chrome.tabs.query({
-                    url: 'https://gemini.google.com/*'
-                });
-                if (tabs.length) {
-                    log('正在同步会话列表…');
-                    const tab = tabs[0];
-                    const tryViaMessage = () => new Promise(resolve => {
-                        chrome.tabs.sendMessage(tab.id, {
-                            action: 'getLinks'
-                        }, (res) => {
-                            if (chrome.runtime.lastError) {
-                                resolve({
-                                    ok: false,
-                                    err: chrome.runtime.lastError.message
-                                });
-                                return;
-                            }
-                            resolve({
-                                ok: true,
-                                res
-                            });
-                        });
+                const tab = await findTabForSlot(slot);
+                if (tab) {
+                    chrome.tabs.sendMessage(tab.id, { action: 'resync' }, (res) => {
+                        if (!chrome.runtime.lastError && res?.ok) {
+                            setTimeout(() => loadStore(true), 500);
+                        }
                     });
-                    (async () => {
-                        let r = await tryViaMessage();
-                        if (r.ok && r.res && r.res.links && r.res.links.length) {
-                            chrome.tabs.sendMessage(tab.id, {
-                                action: 'resync'
-                            }, (r2) => {
-                                if (chrome.runtime.lastError) {
-                                    log('同步失败: ' + chrome.runtime.lastError.message);
-                                    return;
-                                }
-                                setTimeout(loadStore, 900);
-                            });
-                            return;
-                        }
-                        console.log('[workbench] getLinks via msg failed/empty', r);
-                        try {
-                            let results = await chrome.scripting.executeScript({
-                                target: {
-                                    tabId: tab.id
-                                },
-                                func: () => {
-                                    try {
-                                        if (window.__gemExporterGetLinks) {
-                                            return window.__gemExporterGetLinks();
-                                        }
-                                        // fallback minimal scan
-                                        return [...document.querySelectorAll('a[href*=\"/app/\"]')].map(a => {
-                                            let href = a.getAttribute('href') || a.href || '';
-                                            let m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
-                                            if (!m) return null;
-                                            let id = (m[2] || m[1] || '').replace(/^c_/, '');
-                                            if (!id) return null;
-                                            return {
-                                                id,
-                                                title: (a.textContent || '').trim().slice(0, 80),
-                                                href: href.startsWith('http') ? href.split('?')[0] : 'https://gemini.google.com' + href.split('?')[0],
-                                                url: href.startsWith('http') ? href.split('?')[0] : 'https://gemini.google.com' + href.split('?')[0]
-                                            };
-                                        }).filter(Boolean).filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
-                                    } catch (e) {
-                                        return {
-                                            error: e.message
-                                        };
-                                    }
-                                }
-                            });
-                            let links = results && results[0] && results[0].result;
-                            if (links && Array.isArray(links) && links.length) {
-                                log(`已同步 ${links.length} 条对话`);
-                                console.log('[workbench] executeScript links', links.length);
-                                const now = new Date().toISOString();
-                                let toSave = links.map(c => ({
-                                    ...c,
-                                    lastSeen: now,
-                                    source: 'scripting-fallback'
-                                }));
-                                await chrome.storage.local.set({
-                                    gemini_conversations: toSave,
-                                    gemini_last_count: toSave.length,
-                                    gemini_last_sync: now
-                                });
-                                setTimeout(loadStore, 500);
-                            } else if (links && links.error) {
-                                log(`同步失败: ${links.error}`);
-                            } else {
-                                log('未获取到会话，请确保 Gemini 页面侧边栏已展开');
-                            }
-                        } catch (ex) {
-                            log(`同步异常: ${ex.message}，请刷新 Gemini 页面重试`);
-                            console.error('[workbench] scripting fallback err', ex);
-                        }
-                    })();
-                } else {
-                    log('未找到 Gemini 标签页，请先打开 gemini.google.com');
                 }
-            } catch (e) {
-                log('自动同步异常: ' + e.message);
-                console.error('[workbench] auto pull err', e);
-            }
+            } catch {}
         }
     } catch (e) {
-        console.error('[workbench] loadStore fatal err', e);
         log('数据加载异常: ' + e.message);
     }
 }
@@ -289,19 +291,16 @@ function renderList(prevSelectedSet) {
         return;
     }
     if (!conversations.length) {
-        console.log('[workbench] renderList empty -> placeholder');
         list.innerHTML = typeof I18n !== 'undefined' ? I18n.t('emptyList') : 'No conversations found.';
         return;
     }
-    console.log('[workbench] renderList', conversations.length, 'prevSelectedSet', prevSelectedSet instanceof Set ? prevSelectedSet.size : 'notSet');
-    // FIX: never early return when prevSelectedSet empty - that's the 16 vs 0 bug.
-    // prevSelectedSet empty means first load: should show all, checked = true by default.
     const bNeedsReexport = typeof I18n !== 'undefined' ? I18n.t('badgeNeedsReexport') : 'Needs re-export';
     const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
     const bNew = typeof I18n !== 'undefined' ? I18n.t('badgeNew') : 'New';
 
     list.innerHTML = conversations.map((c, i) => {
-        const rec = exportedIds[c.id];
+        const nid = normId(c.id);
+        const rec = getExportedRecord(c.id);
         const isExported = !!rec;
         let isUpdated = false;
         if (rec) {
@@ -321,14 +320,18 @@ function renderList(prevSelectedSet) {
             if (prevSelectedSet.size === 0) {
                 checked = true;
             } else {
-                checked = prevSelectedSet.has(c.id);
+                checked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
             }
         }
         let badge = '';
         if (isUpdated) badge = `<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">${bNeedsReexport}</span>`;
         else if (isExported) badge = `<span class="badge" style="background:#1d3a2a;border-color:#2a5a3a;color:#8ae6b0">${bExported}</span>`;
         else badge = `<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
-        return `<label class="item"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : ''}</div></div></label>`;
+        let rawTs = c.timestamp;
+        if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
+        if (!rawTs && c.lastSeen) rawTs = new Date(c.lastSeen).getTime();
+        const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '';
+        return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
 }
@@ -340,7 +343,6 @@ function updateSelectedStat() {
     if (selEl) {
         selEl.textContent = typeof I18n !== 'undefined' ? I18n.t('selectedStat', checks.length, total, total * 3) : `Selected: ${checks.length} / ${total}`;
     }
-    console.log('[workbench] selected', checks.length, '/', total);
 }
 
 const __logBuf = [];
@@ -356,6 +358,7 @@ function __detectLevel(msg) {
     return 'info';
 }
 
+let __logPersistTimer = null;
 function log(msg, level) {
     level = level || __detectLevel(msg);
     const time = new Date().toLocaleTimeString();
@@ -368,6 +371,13 @@ function log(msg, level) {
     renderLog();
     const l = $('log');
     if (!l) console.log(`[workbench log ${level}]`, msg);
+
+    clearTimeout(__logPersistTimer);
+    __logPersistTimer = setTimeout(() => {
+        chrome.storage.local.set({
+            gemini_recent_logs: __logBuf.slice(0, 150)
+        }).catch(() => {});
+    }, 800);
 }
 
 function renderLog() {
@@ -376,7 +386,13 @@ function renderLog() {
     const lv = $('logLevel')?.value || 'all';
     const q = ($('logFilter')?.value || '').trim().toLowerCase();
     let lines = __logBuf;
-    if (lv !== 'all') lines = lines.filter(x => x.level === lv);
+    if (lv === 'error') {
+        lines = lines.filter(x => x.level === 'error');
+    } else if (lv === 'warn') {
+        lines = lines.filter(x => x.level === 'warn' || x.level === 'error');
+    } else if (lv === 'info') {
+        lines = lines.filter(x => x.level === 'info');
+    }
     if (q) {
         const terms = q.split(/\s+/).filter(Boolean);
         lines = lines.filter(x => {
@@ -395,9 +411,10 @@ function renderLog() {
 function clearLog() {
     __logBuf.length = 0;
     renderLog();
+    chrome.storage.local.remove(['gemini_recent_logs']).catch(() => {});
 }
 
-function getSelectedSafe() {
+function getSelected() {
     try {
         const checks = [...document.querySelectorAll('#list input[type=checkbox]')];
         return checks.filter(c => c.checked).map(c => {
@@ -410,10 +427,6 @@ function getSelectedSafe() {
     } catch {
         return [];
     }
-}
-
-function getSelected() {
-    return getSelectedSafe();
 }
 
 
@@ -583,8 +596,10 @@ async function exportSelected() {
         lastSeen: s.lastSeen
     }));
     const CHUNK_SIZE = 1;
-    const store = await chrome.storage.local.get(['exportedIds']);
-    let curIds = store.exportedIds || {};
+    const slot = currentSlot || 'u0';
+    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+    const store = await chrome.storage.local.get([expKey]);
+    let curIds = store[expKey] || {};
 
     let batchDirHandle;
     let zip;
@@ -642,9 +657,33 @@ async function exportSelected() {
         }
     }
 
-    function updateSharedProgress() {
-        $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} | 附件 ${downloadedAssets}/${__globalTotalAssets||totalAssets}`;
+    let currentExportTitle = '';
+    let currentExportIdx = 0;
+
+    function updateSharedProgress(chatIdx, chatTitle) {
+        if (typeof chatIdx === 'number') currentExportIdx = chatIdx;
+        if (typeof chatTitle === 'string' && chatTitle) currentExportTitle = chatTitle;
+
+        const totalChats = payloadIds.length;
+        const current = Math.min(currentExportIdx, totalChats);
+        const pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
+        const bar = $('bar');
+        if (bar) bar.style.width = Math.min(Math.max(pct, 0), 100) + '%';
+
+        let text = `进度 ${current}/${totalChats} (${pct}%)`;
+        if (currentExportTitle) {
+            const shortTitle = currentExportTitle.length > 28 ? currentExportTitle.slice(0, 28) + '…' : currentExportTitle;
+            text += ` | 当前: ${shortTitle}`;
+        }
+        const attTotal = __globalTotalAssets || totalAssets;
+        if (attTotal > 0) {
+            text += ` | 附件: ${downloadedAssets}/${attTotal}`;
+        }
+        const pt = $('progText');
+        if (pt) pt.textContent = text;
     }
+
+    updateSharedProgress(0, '准备中…');
 
     let attachmentQueue = [];
     let isFetchingDone = false;
@@ -677,6 +716,10 @@ async function exportSelected() {
             break;
         }
         let chunk = payloadIds.slice(i, i + CHUNK_SIZE);
+        const curCandidate = chunk[0];
+        if (curCandidate) {
+            updateSharedProgress(i + 1, curCandidate.title || curCandidate.id);
+        }
 
         let res = await new Promise(resolve => {
             chrome.runtime.sendMessage({
@@ -685,7 +728,8 @@ async function exportSelected() {
                 format,
                 skipExported: skip,
                 globalOffset: i,
-                globalTotal: payloadIds.length
+                globalTotal: payloadIds.length,
+                accountSlot: currentSlot
             }, (response) => {
                 if (chrome.runtime.lastError) {
                     resolve({
@@ -732,21 +776,39 @@ async function exportSelected() {
                 if (!chat.error && !chat._empty) {
                     let exportTs = listC?.timestamp || chat.timestamp || Date.now();
                     if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
-                    curIds[chat.id] = {
+                    const nid = normId(chat.id);
+                    const record = {
                         title: listTitle,
                         exportedAt: new Date().toISOString(),
                         messageCount: chat.messageCount || chat.messages?.length || 0,
                         chatTime: exportTs,
                         status: 'ok'
                     };
+                    curIds[chat.id] = record;
+                    curIds[nid] = record;
+                    curIds['c_' + nid] = record;
+                    exportedIds[chat.id] = record;
+                    exportedIds[nid] = record;
+                    exportedIds['c_' + nid] = record;
                     chrome.storage.local.set({
-                        exportedIds: curIds
+                        [expKey]: curIds
                     }).catch(() => {});
+
+                    try {
+                        const badgeEl = document.querySelector(`[data-chat-id="${nid}"] .badge`);
+                        if (badgeEl) {
+                            const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
+                            badgeEl.style.background = '#1d3a2a';
+                            badgeEl.style.borderColor = '#2a5a3a';
+                            badgeEl.style.color = '#8ae6b0';
+                            badgeEl.textContent = bExported;
+                        }
+                    } catch {}
                 }
             } else {
                 failedChats.push(chat.id);
             }
-            updateSharedProgress();
+            updateSharedProgress(i + 1, listTitle);
 
             if (includeAssets && chat.messages && writeOk) {
                 for (const m of chat.messages) {
@@ -754,6 +816,7 @@ async function exportSelected() {
 
                     for (const att of m.attachments) {
                         if (att.type !== 'file') continue;
+                        if (att.url && att.url.includes('immersive_entry_chip') && !att.contentMarkdown) continue;
                         if (att.contentMarkdown) {
                             if (finalUseZip) {
                                 try {
@@ -769,10 +832,8 @@ async function exportSelected() {
                             let saved = false;
                             let failReason = '';
                             try {
-                                let tabs = await chrome.tabs.query({
-                                    url: 'https://gemini.google.com/*'
-                                });
-                                if (tabs.length) {
+                                let tab = await getGeminiTab(currentSlot);
+                                if (tab) {
                                     let candidates = [att.url, att.sourceUrl, att.src].filter(Boolean);
                                     candidates = [...new Set(candidates)];
 
@@ -797,7 +858,7 @@ async function exportSelected() {
                                     }
 
                                     let r2 = await new Promise(rv => {
-                                        chrome.tabs.sendMessage(tabs[0].id, {
+                                        chrome.tabs.sendMessage(tab.id, {
                                             action: 'getFileBlob',
                                             fileName: att.name || att.title,
                                             url: att.url || att.sourceUrl,
@@ -880,18 +941,22 @@ async function exportSelected() {
                                     file: att.name || att.title || att.localName,
                                     reason: failReason || 'unknown'
                                 });
-                                log(`附件下载失败: ${att.name || att.localName} (${failReason})`);
+                                log(`[${listTitle}] 附件下载失败: ${att.name || att.localName} (${failReason})`, 'error');
                             }
                         });
                     }
 
                     for (const att of m.attachments) {
                         if (att.type !== 'image' || !att.src) continue;
+                        if (/^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(att.src)) continue;
 
                         attachmentQueue.push(async () => {
                             try {
                                 let toHighRes = (u) => {
                                     try {
+                                        if (u.includes('/gg/')) {
+                                            return u.includes('?') ? (u.includes('alr=yes') ? u : u + '&alr=yes') : u + '?alr=yes';
+                                        }
                                         let parts = u.split('?');
                                         let base = parts[0].replace(/=s\d+(?:-[^\?]+)*/i, '');
                                         let q = parts[1] ? parts[1] + '&alr=yes' : 'alr=yes';
@@ -900,18 +965,20 @@ async function exportSelected() {
                                         return u;
                                     }
                                 };
-                                let cands = [toHighRes(att.src), att.src, att.originalUrl].filter(Boolean);
-                                cands = [...new Set(cands)];
+                                let cands = [att.src, toHighRes(att.src), att.originalUrl];
+                                if (att.src && att.src.includes('/gg/')) {
+                                    let withAlr = att.src.includes('?') ? (att.src.includes('alr=yes') ? att.src : att.src + '&alr=yes') : att.src + '?alr=yes';
+                                    cands.push(withAlr);
+                                }
+                                cands = [...new Set(cands.filter(Boolean))];
 
                                 let bin = null;
                                 let lastStatus = '';
 
-                                let tabs = await chrome.tabs.query({
-                                    url: 'https://gemini.google.com/*'
-                                });
-                                if (tabs.length) {
+                                let tab = await getGeminiTab(currentSlot);
+                                if (tab) {
                                     let r2 = await new Promise(rv => {
-                                        chrome.tabs.sendMessage(tabs[0].id, {
+                                        chrome.tabs.sendMessage(tab.id, {
                                             action: 'getImageBlob',
                                             candidates: cands,
                                             url: att.src
@@ -947,6 +1014,16 @@ async function exportSelected() {
                                                 }
                                             });
                                             if (r.ok) {
+                                                let ct = (r.headers.get('content-type') || '').toLowerCase();
+                                                if (ct.startsWith('text/plain') || ct.startsWith('text/html')) {
+                                                    let txt = await r.text();
+                                                    let m = txt.match(/https:\/\/[^\s"'<>\\]*(?:googleusercontent|google)\.com\/[^\s"'<>\\]+/i);
+                                                    if (m) {
+                                                        let nextUrl = m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&');
+                                                        if (!cands.includes(nextUrl)) cands.push(nextUrl);
+                                                    }
+                                                    continue;
+                                                }
                                                 let tempBlob = await r.blob();
                                                 if (tempBlob.size > 800) {
                                                     let ab = await tempBlob.arrayBuffer();
@@ -971,7 +1048,7 @@ async function exportSelected() {
                                         file: att.localName || att.alt,
                                         reason
                                     });
-                                    log(`图片下载失败: ${att.localName || '未知'}`);
+                                    log(`[${listTitle}] 图片下载失败: ${att.localName || '未知'} (${reason})`, 'error');
                                     return;
                                 }
 
@@ -987,7 +1064,7 @@ async function exportSelected() {
                                     file: att.localName || att.alt,
                                     reason: ex.message
                                 });
-                                log(`图片下载失败: ${att.localName || '未知'}`);
+                                log(`图片下载失败: ${att.localName || '未知'} (${ex.message})`, 'error');
                             }
                         });
                     }
@@ -1014,8 +1091,7 @@ async function exportSelected() {
 
     isFetchingDone = true;
     if (attachmentQueue.length > 0) {
-        let pt = document.getElementById('progText');
-        if (pt) pt.textContent += ' (正在下载剩余附件…)';
+        updateSharedProgress(payloadIds.length, '正在下载剩余附件…');
     }
     await Promise.all(consumerPool);
 
@@ -1075,22 +1151,31 @@ async function exportSelected() {
     }
 
     if (failedChats.length) {
-        log(`⚠️ 有 ${failedChats.length} 条对话导出失败`);
+        log(`⚠️ 有 ${failedChats.length} 条对话导出失败`, 'error');
         console.error('Failed ids:', failedChats);
     }
     if (failedAttachments.length) {
-        log(`⚠️ 有 ${failedAttachments.length} 个附件下载失败：`);
+        log(`⚠️ 有 ${failedAttachments.length} 个附件下载失败：`, 'error');
         for (const fa of failedAttachments.slice(0, 30)) {
             log(`  • [${fa.chat}] ${fa.file} - ${fa.reason}`, 'error');
         }
-        if (failedAttachments.length > 30) log(`  ... 还有 ${failedAttachments.length - 30} 个未列出`);
+        if (failedAttachments.length > 30) log(`  ... 还有 ${failedAttachments.length - 30} 个未列出`, 'error');
         console.error('Failed attachments JSON:', JSON.stringify(failedAttachments, null, 2));
     }
 
     $('bar').style.width = '100%';
-    $('progText').textContent = `完成 ${landedChats} 条，附件 ${downloadedAssets}/${totalAssets}${failedAttachments.length? ` (失败${failedAttachments.length})`:''}，跳过 ${skipped} 条`;
+    const finalAttTotal = __globalTotalAssets || totalAssets;
+    const attStr = finalAttTotal > 0 ? `，附件 ${downloadedAssets}/${finalAttTotal}${failedAttachments.length ? ` (失败${failedAttachments.length})` : ''}` : '';
+    $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} 条${attStr}，跳过 ${skipped} 条`;
     $('btnExport').disabled = false;
     setExportRunning(false);
+
+    // Sync exportedIds and refresh conversation list on the right
+    exportedIds = Object.assign({}, curIds);
+    const currentSelected = new Set(getSelected().map(x => x.id));
+    renderList(currentSelected);
+    updateSelectedStat();
+
     chrome.runtime.sendMessage({
         action: 'exportProgress',
         done: metaResults.length,
@@ -1103,28 +1188,92 @@ async function exportSelected() {
 
 function toMarkdown(chat) {
     if (chat.error) return `# ${chat.title}\n\n> 导出失败: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url}\n`;
-    let md = `# ${chat.title}\n\n> ID: ${chat.id} | 导出: ${new Date().toLocaleString()} | 来源: ${chat.url}`;
-    if (chat.attachmentCount) md += ` | 附件: ${chat.attachmentCount} 个`;
-    md += `\n\n---\n\n`;
-    if (!chat.messages || !chat.messages.length) md += `_空对话或取回失败_ 原始URL: ${chat.url}\n`;
-    for (const m of chat.messages || []) {
-        if (m.role === 'user') md += `## 🙋 你\n\n${m.content||''}\n\n`;
-        else md += `## 🤖 Gemini\n\n${m.content||''}\n\n`;
-        if (m.attachments && m.attachments.length) {
-            for (const att of m.attachments) {
-                if (att.type === 'image') {
-                    const local = att.localName || `assets/img.png`;
-                    if (att.isBlob) md += `> ![${att.alt||'图片'}](${local}) (blob 原链接需 content-script 转存)\n\n`;
-                    else md += `![${att.alt||'图片'}](${local}) <!-- ${att.src.slice(0,110)} -->\n\n`;
-                } else if (att.type === 'file') {
-                    const local = att.localName || `files/${att.name}`;
-                    if (att.url) md += `- 📎 [${att.name}](${local}) (原: ${att.url.slice(0,90)})\n`;
-                    else md += `- 📎 ${att.name} (上传文件)\n`;
+
+    // 1. YAML Frontmatter (Obsidian, Logseq, Notion compatible)
+    let createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
+    let updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
+    let safeYamlTitle = (chat.title || 'Untitled').replace(/"/g, '\\"');
+
+    let md = `---\n`;
+    md += `title: "${safeYamlTitle}"\n`;
+    md += `id: "${chat.id}"\n`;
+    md += `url: "${chat.url || ''}"\n`;
+    if (createdIso) md += `date: "${createdIso}"\n`;
+    if (updatedIso) md += `updated: "${updatedIso}"\n`;
+    md += `exported: "${new Date().toISOString()}"\n`;
+    md += `tags:\n  - gemini-export\n`;
+    md += `---\n\n`;
+
+    // 2. Document Title & Metadata Header
+    md += `# ${chat.title}\n\n`;
+    let metaBadges = [];
+    if (chat.url) metaBadges.push(`[🔗 对话链接](${chat.url})`);
+    metaBadges.push(`🆔 \`${chat.id}\``);
+    if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
+    if (chat.attachmentCount) metaBadges.push(`📎 附件 ${chat.attachmentCount} 个`);
+    md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
+
+    if (!chat.messages || !chat.messages.length) {
+        md += `_空对话或取回失败_ 原始URL: ${chat.url}\n`;
+        return md;
+    }
+
+    function renderAttachments(atts) {
+        let block = '';
+        for (const att of atts) {
+            if (att.type === 'image') {
+                const local = att.localName || `assets/image.jpg`;
+                const alt = (att.alt || att.name || '图片').replace(/[[\]]/g, '');
+                const online = att.src || att.originalUrl || '';
+                if (online && online.startsWith('http')) {
+                    block += `[![${alt}](${local})](${online})\n\n`;
+                } else {
+                    block += `![${alt}](${local})\n\n`;
                 }
+            } else if (att.type === 'file') {
+                const local = att.localName || `files/${att.name}`;
+                const name = att.title || att.name || '附件';
+                block += `- 📎 [${name}](${local})\n`;
             }
-            md += `\n`;
         }
-        if (m.role === 'model') md += `---\n\n`;
+        return block;
+    }
+
+    // 3. Messages rendering with timestamps, thoughts, images, citations
+    for (const m of chat.messages || []) {
+        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
+
+        if (m.role === 'user') {
+            md += `## 🙋 你\n\n`;
+            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
+            if (m.attachments && m.attachments.length) {
+                md += renderAttachments(m.attachments);
+            }
+            if (m.content) md += `${m.content}\n\n`;
+        } else {
+            md += `## 🤖 Gemini\n\n`;
+            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
+
+            if (m.thoughts && m.thoughts.trim()) {
+                md += `<details>\n<summary>🧠 思考过程</summary>\n\n${m.thoughts.trim()}\n\n</details>\n\n`;
+            }
+
+            if (m.content) md += `${m.content}\n\n`;
+
+            if (m.attachments && m.attachments.length) {
+                md += renderAttachments(m.attachments);
+            }
+
+            if (m.citations && m.citations.length) {
+                md += `> 🌐 **参考来源：**\n`;
+                m.citations.forEach((c, idx) => {
+                    md += `> [${idx + 1}] [${c.title || c.url}](${c.url})\n`;
+                });
+                md += `\n`;
+            }
+
+            md += `---\n\n`;
+        }
     }
     return md;
 }
@@ -1132,12 +1281,23 @@ function toMarkdown(chat) {
 // 监听 background 进度 - debounce to prevent workbench flashing on deep scan
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    if (!(changes.gemini_conversations || changes.gemini_last_count)) return;
-    let newCount = changes.gemini_conversations?.newValue?.length ?? changes.gemini_last_count?.newValue ?? null;
+    const slot = currentSlot || 'u0';
+    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+    const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+
+    if (changes[expKey] && !__exportRunning) {
+        exportedIds = changes[expKey].newValue || {};
+        const currentSelected = new Set(getSelected().map(x => x.id));
+        renderList(currentSelected);
+        updateSelectedStat();
+    }
+
+    if (!(changes[convKey] || changes[countKey] || changes.gemini_account_slots)) return;
+    let newCount = changes[convKey]?.newValue?.length ?? changes[countKey]?.newValue ?? null;
     console.log('[workbench] storage.onChanged debounced', area, Object.keys(changes), newCount);
     // skip if same signature as last render (deep scan writes same large set repeatedly)
-    if (newCount !== null && newCount === conversations.length) {
-        // still update time label but debounce full reload
+    if (newCount !== null && newCount === conversations.length && !changes.gemini_account_slots) {
         debouncedLoadStore(true);
         return;
     }
@@ -1155,24 +1315,33 @@ chrome.runtime.onMessage.addListener((msg) => {
         return;
     }
     if (msg.action === 'exportProgress') {
+        if (__exportRunning) {
+            log(`进度 [${msg.done}/${msg.total}]: ${msg.title || msg.id}`);
+            return;
+        }
         const progWrap = $('progWrap');
         if (progWrap) progWrap.style.display = 'block';
         const pct = msg.total ? Math.floor((msg.done / msg.total) * 100) : 0;
         let bar = $('bar');
         if (bar) bar.style.width = pct + '%';
         let pt = $('progText');
-        if (pt) pt.textContent = msg.title ? `[${msg.done}/${msg.total}] ${msg.title}` : `进度 ${msg.done}/${msg.total}`;
+        if (pt) pt.textContent = `进度 ${msg.done}/${msg.total} | 当前: ${msg.title || ''}`;
         log(`进度 ${msg.done}/${msg.total}: ${msg.title || msg.id}`);
         return;
     }
     if (msg.action === 'syncUpdate') {
+        if (msg.slot) {
+            currentSlot = msg.slot;
+        }
+        chrome.storage.local.get(['gemini_account_slots'], d => {
+            accountSlots = d.gemini_account_slots || {};
+            updateAccountSlotSelector();
+        });
         const syncEl = $('syncCount');
         if (syncEl) syncEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
-        console.log('[workbench] syncUpdate debounced received', msg.count, 'current', conversations.length, 'from', msg.from);
-        // prevent flash: if count same, don't reload; if deep scan running (batchexecute), don't flash each page
-        if (msg.count === conversations.length) return;
-        // debounce actual reload
-        debouncedLoadStore(true);
+        console.log('[workbench] syncUpdate received', msg.count, 'current', conversations.length, 'slot', currentSlot, 'from', msg.from);
+        __lastRenderedSignature = null;
+        debouncedLoadStore(false);
         return;
     }
     if (msg.action === 'assetProgress') {
@@ -1188,13 +1357,32 @@ document.addEventListener('DOMContentLoaded', () => {
             updateZipUi();
         });
     }
+
+    $('accountSlotSelect')?.addEventListener('change', (e) => {
+        currentSlot = e.target.value;
+        loadStore(false);
+    });
     const verEl = document.getElementById('ver');
     if (verEl) {
         try {
             verEl.textContent = 'v' + chrome.runtime.getManifest().version;
         } catch (e) {}
     }
-    loadStore();
+    // Auto-detect current active Gemini tab's slot
+    (async () => {
+        try {
+            const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+            const activeTab = tabs.find(t => t.active) || tabs[0];
+            if (activeTab?.url) {
+                const m = activeTab.url.match(/\/u\/(\d+)(?:\/|$)/);
+                if (m) {
+                    currentSlot = 'u' + m[1];
+                    console.log('[workbench] Auto-detected slot from active Gemini tab:', currentSlot);
+                }
+            }
+        } catch {}
+        loadStore();
+    })();
     chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip'], data => {
         if (data.gemini_export_format && $('format')) {
             $('format').value = data.gemini_export_format;
@@ -1210,12 +1398,54 @@ document.addEventListener('DOMContentLoaded', () => {
     $('langToggle')?.addEventListener('change', async (e) => {
         const nextLang = e.target.checked ? 'en' : 'zh';
         if (typeof I18n !== 'undefined') {
+            const listEl = $('list');
+            const savedScroll = listEl ? listEl.scrollTop : 0;
             await I18n.setLang(nextLang);
             updateZipUi();
-            renderList(getSelected());
+            const currentSelected = new Set(getSelected().map(x => x.id));
+            renderList(currentSelected);
+            if (listEl) listEl.scrollTop = savedScroll;
             updateSelectedStat();
         }
     });
+    // 开发者模式开关
+    function updateDevFormatUi(isDev) {
+        const opt = $('optFormatRaw');
+        if (opt) {
+            opt.hidden = !isDev;
+            opt.style.display = isDev ? '' : 'none';
+        }
+        const fmt = $('format');
+        if (fmt && !isDev && fmt.value === 'json_raw') {
+            fmt.value = 'markdown';
+            chrome.storage.local.set({ gemini_export_format: 'markdown' });
+        }
+    }
+
+    const devToggle = $('devToggle');
+    if (devToggle) {
+        chrome.storage.local.get(['gemini_dev_mode'], (d) => {
+            const isDev = !!d.gemini_dev_mode;
+            devToggle.checked = isDev;
+            document.body.classList.toggle('dev-mode', isDev);
+            const labelDev = $('labelDevMode');
+            if (labelDev) labelDev.style.color = isDev ? 'var(--accent2)' : 'var(--muted)';
+            updateDevFormatUi(isDev);
+        });
+        devToggle.addEventListener('change', (e) => {
+            const isDev = !!e.target.checked;
+            document.body.classList.toggle('dev-mode', isDev);
+            const labelDev = $('labelDevMode');
+            if (labelDev) labelDev.style.color = isDev ? 'var(--accent2)' : 'var(--muted)';
+            updateDevFormatUi(isDev);
+            chrome.storage.local.set({ gemini_dev_mode: isDev });
+            if (isDev) {
+                log('🛠️ 开发者模式已启用：已显示诊断工具与原始JSON选项');
+            } else {
+                log('🔒 开发者模式已关闭');
+            }
+        });
+    }
     $('btnSelectAll').addEventListener('click', () => {
         document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = true);
         updateSelectedStat();
@@ -1227,6 +1457,50 @@ document.addEventListener('DOMContentLoaded', () => {
     $('logFilter')?.addEventListener('input', renderLog);
     $('logLevel')?.addEventListener('change', renderLog);
     $('btnClearLog')?.addEventListener('click', clearLog);
+    $('btnCopyLog')?.addEventListener('click', async () => {
+        const l = $('log');
+        if (!l) return;
+        try {
+            await navigator.clipboard.writeText(l.textContent);
+            const btn = $('btnCopyLog');
+            const orig = btn.textContent;
+            btn.textContent = '已复制!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        } catch {
+            const ta = document.createElement('textarea');
+            ta.value = l.textContent;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            const btn = $('btnCopyLog');
+            const orig = btn.textContent;
+            btn.textContent = '已复制!';
+            setTimeout(() => btn.textContent = orig, 1500);
+        }
+    });
+    $('btnExportDiag')?.addEventListener('click', async () => {
+        try {
+            const data = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
+            const diag = data.gemini_last_sync_diagnostics;
+            if (!diag) {
+                alert('暂无诊断数据，请先点击「同步最新会话」或「全量拉取历史」');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(diag, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gemini_sync_diagnostics_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            log('已下载诊断日志文件: ' + a.download);
+        } catch (e) {
+            log('导出诊断日志失败: ' + e.message);
+        }
+    });
     $('btnExport').addEventListener('click', exportSelected);
     $('btnSetDir')?.addEventListener('click', async () => {
         try {
@@ -1291,84 +1565,113 @@ document.addEventListener('DOMContentLoaded', () => {
             }, () => {});
         });
     }
-    // 增量扫描按钮
+    // 终止同步按钮
+    const btnStopScan = $('btnStopScan');
+    if (btnStopScan) {
+        btnStopScan.addEventListener('click', async () => {
+            log('正在请求终止同步…');
+            $('progText').textContent = '正在终止同步…';
+            btnStopScan.disabled = true;
+            try {
+                chrome.runtime.sendMessage({
+                    action: 'abortSync',
+                    accountSlot: currentSlot
+                });
+                const tab = await findTabForSlot(currentSlot);
+                if (tab) {
+                    chrome.tabs.sendMessage(tab.id, { action: 'abortSync' }, () => {});
+                }
+            } catch (e) {}
+        });
+    }
+    // 同步最新会话按钮（增量）
     const btnIncr = $('btnIncrementalScan');
+    const btnDeep = document.getElementById('btnDeepScan');
     if (btnIncr) {
         btnIncr.addEventListener('click', async () => {
-            log('开始增量同步…');
+            log('开始同步最新会话…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '增量同步中…';
+            $('progText').textContent = '正在同步最新会话…';
             btnIncr.disabled = true;
+            if (btnDeep) btnDeep.disabled = true;
+            if (btnStopScan) {
+                btnStopScan.style.display = 'inline-block';
+                btnStopScan.disabled = false;
+            }
             chrome.runtime.sendMessage({
                 action: 'deepScan',
                 maxIter: 150,
-                mode: 'incremental'
+                mode: 'incremental',
+                accountSlot: currentSlot
             }, (res) => {
                 btnIncr.disabled = false;
+                if (btnDeep) btnDeep.disabled = false;
+                if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
-                    log('增量同步失败: ' + chrome.runtime.lastError.message);
+                    log('同步失败: ' + chrome.runtime.lastError.message);
                     $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
                     return;
                 }
-                log('增量同步完成，已更新列表');
+                log('同步完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
-                setTimeout(loadStore, 1000);
+                if (res?.diagnostics) {
+                    log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
+                    log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
+                }
+                if (res?.slot) currentSlot = res.slot;
+                __lastRenderedSignature = null;
+                setTimeout(() => loadStore(false), 200);
             });
         });
     }
-    // 深度扫描（全量）按钮
-    const btnDeep = document.getElementById('btnDeepScan');
+    // 全量拉取历史按钮
     if (btnDeep) {
         btnDeep.addEventListener('click', async () => {
-            log('开始深度扫描…');
+            log('开始全量拉取历史…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '深度扫描中…';
-            $('btnDeepScan').disabled = true;
+            $('progText').textContent = '正在全量拉取历史…';
+            btnDeep.disabled = true;
+            if (btnIncr) btnIncr.disabled = true;
+            if (btnStopScan) {
+                btnStopScan.style.display = 'inline-block';
+                btnStopScan.disabled = false;
+            }
             chrome.runtime.sendMessage({
                 action: 'deepScan',
                 maxIter: 150,
-                mode: 'full'
+                mode: 'full',
+                accountSlot: currentSlot
             }, (res) => {
-                $('btnDeepScan').disabled = false;
+                btnDeep.disabled = false;
+                if (btnIncr) btnIncr.disabled = false;
+                if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
-                    log('深度扫描失败: ' + chrome.runtime.lastError.message);
+                    log('全量拉取失败: ' + chrome.runtime.lastError.message);
                     $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
                     console.error('[workbench] deepScan err', chrome.runtime.lastError);
                     return;
                 }
-                log('深度扫描完成，已更新列表');
+                log('全量拉取完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
-                setTimeout(loadStore, 1000);
+                if (res?.diagnostics) {
+                    log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
+                    log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
+                }
+                if (res?.slot) currentSlot = res.slot;
+                __lastRenderedSignature = null;
+                setTimeout(() => loadStore(false), 200);
             });
         });
     }
-    $('btnResync').addEventListener('click', async () => {
-        log('正在重新同步…');
-        const [tab] = await chrome.tabs.query({
-            url: 'https://gemini.google.com/*'
-        });
-        if (!tab) {
-            alert('未找到 Gemini 标签页，请先打开 gemini.google.com');
-            return;
-        }
-        chrome.tabs.sendMessage(tab.id, {
-            action: 'resync'
-        }, (res) => {
-            if (chrome.runtime.lastError) {
-                log('重新同步失败: ' + chrome.runtime.lastError.message);
-                return;
-            }
-            log('重新同步完成');
-            setTimeout(loadStore, 800);
-        });
-    });
     $('btnClearExported').addEventListener('click', async () => {
         if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearExported') : 'Are you sure you want to clear export history?')) return;
-        await chrome.storage.local.remove('exportedIds');
+        const slot = currentSlot || 'u0';
+        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        await chrome.storage.local.remove(expKey);
         exportedIds = {};
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearExported') : 'Export history cleared');
         renderList(new Set());
@@ -1376,19 +1679,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('btnClearAll').addEventListener('click', async () => {
         if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : 'Are you sure you want to clear all locally cached conversations?')) return;
-        await chrome.storage.local.remove(['gemini_conversations', 'gemini_last_sync', 'gemini_last_count']);
+        const slot = currentSlot || 'u0';
+        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        const syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
+        const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+        await chrome.storage.local.remove([convKey, syncKey, countKey]);
+        if (accountSlots[slot]) {
+            accountSlots[slot].count = 0;
+            await chrome.storage.local.set({ gemini_account_slots: accountSlots });
+        }
         conversations = [];
+        updateAccountSlotSelector();
         renderList(new Set());
         updateSelectedStat();
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearAll') : 'Cache cleared');
     });
-
-    console.log('[workbench] loadStore initial trigger done');
 });
-
-// Manual test helper exposed for task requirement
-window.__workbenchDump = async () => {
-    const d = await chrome.storage.local.get(['gemini_conversations', 'gemini_last_count', 'gemini_last_sync']);
-    console.log('STORAGE_DUMP workbench', d.gemini_conversations?.length, d.gemini_last_count);
-    return d;
-};

@@ -11,10 +11,21 @@
   // Update synced count badge
   async function updateCount(){
     try{
-      const data = await chrome.storage.local.get(['gemini_conversations','gemini_last_count']);
-      const count = data.gemini_conversations?.length || data.gemini_last_count || 0;
+      let slot = 'u0';
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.url && tab.url.includes('gemini.google.com')) {
+        const m = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
+        if (m) slot = 'u' + m[1];
+      }
+      const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+      const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+      const data = await chrome.storage.local.get([convKey, countKey]);
+      const count = data[convKey]?.length || data[countKey] || 0;
       const badge = $('countBadge');
-      if(badge) badge.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', count) : `${count} synced`;
+      if(badge) {
+        const text = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', count) : `${count} synced`;
+        badge.textContent = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
+      }
     }catch(e){ console.warn('[popup] updateCount err', e); }
   }
 

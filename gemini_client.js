@@ -123,45 +123,121 @@
     }
 
     function robustFirstPayload(text) {
+        if (!text || typeof text !== "string") return null;
         let lines = text.split("\n");
+        let fallback = null;
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
-            if (!line.startsWith("[")) continue;
+            if (!line.includes("[")) continue;
+            let startIdx = line.indexOf("[");
+            let candidate = line.slice(startIdx);
             try {
-                let cleaned = line.replace(/[\x00-\x1F\x7F]/g, "").trim();
-                return JSON.parse(cleaned);
+                let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
+                let parsed = JSON.parse(cleaned);
+                if (Array.isArray(parsed)) {
+                    if (candidate.includes("MaZiqc") || candidate.includes("wrb.fr")) {
+                        return parsed;
+                    }
+                    if (!fallback) fallback = parsed;
+                }
             } catch {
-                let acc = line;
+                let acc = candidate;
                 for (let j = i + 1; j < lines.length; j++) {
                     acc += lines[j];
                     try {
                         let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
-                        return JSON.parse(c2);
+                        let p2 = JSON.parse(c2);
+                        if (Array.isArray(p2)) {
+                            if (acc.includes("MaZiqc") || acc.includes("wrb.fr")) {
+                                return p2;
+                            }
+                            if (!fallback) fallback = p2;
+                        }
                     } catch {}
                 }
             }
         }
-        return null;
+        return fallback;
     }
 
     function parseList(text) {
         try {
             let top = robustFirstPayload(text);
-            if (!top || !top[0] || !top[0][2]) return {
-                conversations: [],
-                nextPageToken: null
-            };
-            let inner = JSON.parse(top[0][2]);
+            let innerStr = null;
+            if (Array.isArray(top)) {
+                for (let item of top) {
+                    if (Array.isArray(item) && (item[1] === RPCS.LIST || item[1] === "MaZiqc" || item[0] === "wrb.fr") && item[2]) {
+                        innerStr = item[2];
+                        break;
+                    }
+                }
+                if (!innerStr && top[0] && top[0][2]) {
+                    innerStr = top[0][2];
+                }
+            }
+            if (!innerStr) {
+                let bardError = null;
+                if (Array.isArray(top)) {
+                    for (let item of top) {
+                        if (Array.isArray(item) && item[5]) {
+                            let str5 = JSON.stringify(item[5]);
+                            if (str5.includes("BardErrorInfo")) {
+                                bardError = str5;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (bardError) {
+                    console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
+                } else {
+                    console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
+                }
+                return {
+                    conversations: [],
+                    nextPageToken: null,
+                    _debug: {
+                        error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
+                        bardError: bardError,
+                        textLen: text?.length,
+                        rawPreview: text?.slice(0, 500),
+                        topParsed: top ? JSON.stringify(top).slice(0, 500) : null
+                    }
+                };
+            }
+            let inner = JSON.parse(innerStr);
             let list = Array.isArray(inner[1]) ? inner[1] : (Array.isArray(inner[2]) ? inner[2] : []);
             let convs = [];
             for (let r of list) {
                 if (!r || !Array.isArray(r) || r.length < 2) continue;
-                let id = r[0] || "",
+                let id = String(r[0] || "").replace(/^c_/, ""),
                     title = (r[1] || "").replace(/\\n/g, "");
                 if (title.endsWith("-")) title = title.slice(0, -1);
                 if (/^Google Account/i.test(title)) continue;
-                let ts = Date.now();
-                if (Array.isArray(r[5]) && r[5].length >= 2) ts = Math.round(r[5][0] * 1000);
+                let ts = null;
+                for (let elem of r) {
+                    if (typeof elem === 'number') {
+                        if (elem > 1577836800 && elem < 2500000000) {
+                            ts = Math.round(elem * 1000);
+                            break;
+                        } else if (elem > 1577836800000 && elem < 2500000000000) {
+                            ts = Math.round(elem);
+                            break;
+                        }
+                    } else if (Array.isArray(elem) && elem.length > 0 && typeof elem[0] === 'number') {
+                        let val = elem[0];
+                        if (val > 1577836800 && val < 2500000000) {
+                            ts = Math.round(val * 1000);
+                            break;
+                        } else if (val > 1577836800000 && val < 2500000000000) {
+                            ts = Math.round(val);
+                            break;
+                        }
+                    }
+                }
+                if (!ts && Array.isArray(r[5]) && r[5].length >= 1 && typeof r[5][0] === 'number') {
+                    ts = r[5][0] > 1e11 ? Math.round(r[5][0]) : Math.round(r[5][0] * 1000);
+                }
                 if (!id) continue;
                 convs.push({
                     id,
@@ -172,21 +248,42 @@
                 });
             }
             let token = null;
-            for (let v of inner) {
-                if (typeof v === "string" && v.length > 150) {
-                    token = v;
-                    break;
+            function checkToken(s) {
+                if (typeof s !== 'string') return null;
+                s = s.trim();
+                if (s.length >= 25 && !s.includes(' ') && !s.includes('\n') && !s.startsWith('http') && !s.startsWith('c_') && !s.startsWith('boq_') && !s.startsWith('Google Account')) {
+                    return s;
+                }
+                return null;
+            }
+            if (Array.isArray(inner)) {
+                for (let v of inner) {
+                    let found = checkToken(v);
+                    if (found) { token = found; break; }
+                    if (Array.isArray(v)) {
+                        for (let item of v) {
+                            let f2 = checkToken(item);
+                            if (f2) { token = f2; break; }
+                        }
+                        if (token) break;
+                    }
                 }
             }
             return {
                 conversations: convs,
-                nextPageToken: token || null
+                nextPageToken: token || null,
+                _debug: {
+                    innerTypes: Array.isArray(inner) ? inner.map((x, idx) => `${idx}:${typeof x}${Array.isArray(x) ? `[${x.length}]` : (typeof x === 'string' ? `(len:${x.length})` : '')}`) : typeof inner,
+                    stringsFound: Array.isArray(inner) ? inner.filter(x => typeof x === 'string').map(s => ({ len: s.length, preview: s.slice(0, 40) })) : [],
+                    hasToken: !!token
+                }
             };
         } catch (e) {
             console.warn("parseList fail", e);
             return {
                 conversations: [],
-                nextPageToken: null
+                nextPageToken: null,
+                _debug: { error: e.message }
             };
         }
     }
@@ -226,6 +323,40 @@
         });
     }
 
+    function extractThoughts(candidateBlock) {
+        if (!Array.isArray(candidateBlock)) return "";
+        let tArr = candidateBlock[37];
+        if (Array.isArray(tArr)) {
+            for (let item of tArr) {
+                if (Array.isArray(item) && typeof item[0] === 'string' && item[0].trim().length > 0) {
+                    return item[0].trim();
+                }
+            }
+        }
+        return "";
+    }
+
+    function extractCitations(candidateBlock) {
+        let out = [];
+        let seen = new Set();
+        if (!Array.isArray(candidateBlock) || !Array.isArray(candidateBlock[2])) return out;
+        function walk(node) {
+            if (Array.isArray(node)) {
+                if (node.length >= 2 && typeof node[0] === 'string' && node[0].startsWith('http') && typeof node[1] === 'string') {
+                    let url = node[0];
+                    let title = (node[1] || url).replace(/[\r\n]+/g, ' ').trim();
+                    if (!seen.has(url)) {
+                        seen.add(url);
+                        out.push({ url, title });
+                    }
+                }
+                for (let c of node) walk(c);
+            }
+        }
+        walk(candidateBlock[2]);
+        return out;
+    }
+
     function extractImages(root) {
         let extractedImages = [];
         let seenUrls = new Set();
@@ -239,8 +370,13 @@
                 let sourceUrl = typeof node[3] === "string" ? node[3] : "";
                 let fileName = typeof node[2] === "string" ? node[2] : "";
                 let mime = typeof node[11] === "string" ? node[11] : void 0;
-                let token = typeof node[5] === "string" && node[5].startsWith("$AQ") ? node[5] : void 0;
+                let token = typeof node[5] === "string" && (node[5].startsWith("$AQ") || node[5].startsWith("$AX")) ? node[5] : void 0;
                 let sizeArr = node.find(x => Array.isArray(x) && x.length >= 3 && typeof x[0] === "number" && typeof x[1] === "number" && typeof x[2] === "number" && x[0] > 100 && x[1] > 100 && x[2] > 1e3);
+                let isPlaceholder = /^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(sourceUrl);
+                if (isPlaceholder) {
+                    for (let child of node) walk(child);
+                    return;
+                }
                 let isGoogleHost = sourceUrl.includes("googleusercontent.com") || sourceUrl.includes("lh3.google.com") || sourceUrl.includes("ggpht");
                 let isExt = /\.(png|jpe?g|webp|gif)$/i.test(fileName);
                 let isMimeImg = typeof mime === "string" && mime.startsWith("image/");
@@ -269,36 +405,35 @@
     }
 
     function extractUserFiles(root) {
-        // 通用文件提取：Gemini 上传的 zip/pdf/docx 通常在 turn[2] 结构里，带 filename 和 URL，非 lh3，而是 drive/usercontent 或 blob
         let files = [];
         let seen = new Set();
 
         function walk(node) {
             if (Array.isArray(node)) {
-                // 猜测结构: [?, blobId?, fileName, url?, mime?, size?]
-                // fileName 常见检测
                 let name = (typeof node[2] === "string" && node[2].length > 2) ? node[2] : (typeof node[1] === "string" && node[1].includes('.') ? node[1] : "");
-                let url = "";
-                for (let v of node) {
-                    if (typeof v === "string" && (v.startsWith('https://') && (v.includes('googleusercontent.com') || v.includes('drive.google.com') || v.includes('lh3.google')))) {
-                        url = v;
-                        break;
+                let urls = [];
+                function findUrls(n) {
+                    if (!n) return;
+                    if (typeof n === 'string') {
+                        if (n.startsWith('https://') && (n.includes('googleusercontent.com') || n.includes('usercontent.google.com') || n.includes('drive.google.com') || n.includes('lh3.google'))) {
+                            urls.push(n);
+                        }
+                    } else if (Array.isArray(n)) {
+                        for (let sub of n) findUrls(sub);
                     }
                 }
-                // mime
+                findUrls(node);
+                let url = urls.find(u => u.includes('contribution.usercontent.google.com') || u.includes('/download')) || urls.find(u => u.includes('/upload') || u.includes('/viewer')) || urls[0] || "";
                 let mime = typeof node[11] === "string" ? node[11] : (typeof node[4] === "string" && node[4].includes('/') ? node[4] : "");
                 let isFile = /\.(zip|pdf|docx?|xlsx?|csv|txt|md|json|png|jpe?g|webp)$/i.test(name) && name.length < 120;
-                let isBlob = url.includes('blob:') || url.includes('drive.google');
-                // zip 特殊：mime application/zip 或 octet-stream
-                if (isFile && !seen.has(url + '|' + name)) {
-                    // 排除已识别为 image 的（image 走 image 通道）
+                if (isFile) {
                     let ext = name.split('.').pop().toLowerCase();
                     let isImgExt = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
                     if (!isImgExt || !url.includes('lh3.googleusercontent.com')) {
-                        // 去重
-                        // 仅当有 url 或 name 是 zip 等二进制时收
-                        if (url || /\.(zip|pdf|docx?|xlsx)$/i.test(name)) {
-                            seen.add(url + '|' + name);
+                        let existing = files.find(f => f.fileName === name);
+                        if (existing) {
+                            if (!existing.sourceUrl && url) existing.sourceUrl = url;
+                        } else if (url || /\.(zip|pdf|docx?|xlsx)$/i.test(name)) {
                             files.push({
                                 id: `file:${files.length}:${name}`,
                                 fileName: name,
@@ -472,6 +607,10 @@
 
     function highResVariant(url) {
         try {
+            if (!url) return url;
+            if (url.includes('/gg/')) {
+                return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
+            }
             let [base, q = ""] = url.split("?");
             let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
             let suffix = q ? `${q}&alr=yes` : "alr=yes";
@@ -485,7 +624,6 @@
         try {
             let top = robustFirstPayload(text);
             if (!top) throw new Error("invalid");
-            // 更容忍：Gemini 最近改了序号，不一定在 [0][2]，遍历找第一个能解析成对话的 JSON 串
             let inner = null;
             if (top[0] && top[0][2]) {
                 try {
@@ -501,7 +639,6 @@
                         try {
                             let cand = JSON.parse(cell);
                             if (Array.isArray(cand) && cand.length && (Array.isArray(cand[0]) || typeof cand[0] === 'string')) {
-                                // 粗略判断像对话：第一个元素是 turns 数组或包含用户文本
                                 if (Array.isArray(cand[0]) || cand[0] === null) {
                                     inner = cand;
                                     break;
@@ -521,7 +658,7 @@
                 let ts = extractTurnTimestamp(turn) || Date.now();
                 let uText = turn?.[2]?.[0]?.[0] || "";
                 let uImgs = filterNewImages(extractImages(turn?.[2]), dedupSet);
-                let uFiles = extractUserFiles(turn?.[2]); // zip/pdf 等
+                let uFiles = extractUserFiles(turn?.[2]);
                 if (uText || uImgs.length || uFiles.length) {
                     msgs.push({
                         id: turn?.[0]?.[0] || "",
@@ -558,14 +695,12 @@
                             filteredImages = filterNewImages(chosenImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
                         if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);
-                        // dedup docs by chipUrl/id
                         let seenChip = new Set();
                         let docs = docsMeta.filter(docItem => {
                             let key = docItem.chipUrl || docItem.id;
                             if (seenChip.has(key)) return false;
                             let isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
                             let isHttp = docItem.id.includes("immersive_entry_chip") || docItem.id.startsWith("http");
-                            if (seenChip.has(key)) return false;
                             if (!isRc && isHttp) return false;
                             seenChip.add(key);
                             return true;
@@ -600,11 +735,15 @@
                                 console.warn("doc parse err", er);
                             }
                         }
-                        if (responseText || filteredImages.length || docDetails.length) {
+                        let thoughts = extractThoughts(candidateBlock);
+                        let citations = extractCitations(candidateBlock);
+                        if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({
                                 id: candidateId || turn?.[0]?.[0] || "",
                                 role: "model",
                                 content: responseText || "",
+                                thoughts: thoughts || void 0,
+                                citations: citations.length ? citations : void 0,
                                 timestamp: ts,
                                 images: filteredImages.length ? filteredImages.map(img => ({
                                     ...img,
@@ -626,7 +765,6 @@
             let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/,'')}`;
             let times = turns.map(t => extractTurnTimestamp(t)).filter(x => Number.isFinite(x));
             let minTs = times.length ? Math.min(...times) : Date.now();
-            // convert images/docs to unified attachments for UI compatibility
             let allMsgs = msgs.map(m => {
                 let atts = [];
                 if (m.images)
@@ -673,10 +811,16 @@
     }
 
     class GeminiAPIClient {
+        constructor() {
+            this.aborted = false;
+        }
+        abort() {
+            this.aborted = true;
+        }
         getApiUrl(s) {
             return getApiUrl(s);
         }
-        async getConversationList(pageToken, targetSid) {
+        async getConversationList(pageToken, targetSid, customFilter) {
             let cred = await resolveCred(targetSid);
             let api = getApiUrl(cred.accountSlot || "default");
             let params = new URLSearchParams({
@@ -688,14 +832,15 @@
                 rt: "c"
             });
             let body = new URLSearchParams();
+            const filter = customFilter || [0, null, 1];
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([20, pageToken, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, pageToken, filter]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([13, null, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, null, filter]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
@@ -724,13 +869,47 @@
             opts = opts || {};
             const existingMap = opts.existingMap || null;
             const incremental = !!opts.incremental;
-            const unchangedThreshold = opts.unchangedThreshold || 20;
+            const unchangedThreshold = opts.unchangedThreshold || 5;
             let all = [],
                 seen = new Set(),
                 token = null;
             let unchangedStreak = 0;
+            const diagLog = {
+                startTime: new Date().toISOString(),
+                maxPages,
+                incremental,
+                totalPagesFetched: 0,
+                totalConversations: 0,
+                stopReason: '已达到最大页数限制',
+                pageHistory: []
+            };
+            this.aborted = false;
             for (let i = 0; i < maxPages; i++) {
-                let res = await this.getConversationList(token, targetSid);
+                if (this.aborted) {
+                    diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
+                    console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
+                    break;
+                }
+                let res;
+                try {
+                    res = await this.getConversationList(token, targetSid);
+                } catch (err) {
+                    console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
+                    diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
+                    if (all.length > 0) {
+                        break;
+                    }
+                    throw err;
+                }
+                diagLog.totalPagesFetched = i + 1;
+                diagLog.pageHistory.push({
+                    page: i + 1,
+                    requestedToken: token ? { len: token.length, preview: token.slice(0, 20) + '...' } : null,
+                    count: res?.conversations?.length || 0,
+                    hasNextPageToken: !!res?.nextPageToken,
+                    nextTokenPreview: res?.nextPageToken ? { len: res.nextPageToken.length, preview: res.nextPageToken.slice(0, 20) + '...' } : null,
+                    debugInfo: res?._debug || null
+                });
                 let added = 0;
                 for (let c of res.conversations) {
                     if (!seen.has(c.id)) {
@@ -753,6 +932,9 @@
                                 unchangedStreak = 0;
                             }
                             if (unchangedStreak >= unchangedThreshold) {
+                                diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
+                                diagLog.totalConversations = all.length;
+                                diagLog.endTime = new Date().toISOString();
                                 if (onProgress) onProgress({
                                     page: i + 1,
                                     added,
@@ -765,25 +947,44 @@
                                     conversations: all,
                                     total: all.length,
                                     stoppedEarly: true,
-                                    unchangedStreak
+                                    unchangedStreak,
+                                    diagnostics: diagLog
                                 };
                             }
                         }
                     }
                 }
+                if (!res.conversations || res.conversations.length === 0) {
+                    if (res?._debug?.bardError) {
+                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo 1096: 游标链已达服务端上限)`;
+                    } else {
+                        diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
+                    }
+                    console.log(`[Gemini Exporter] getAllConversations reached end at page ${i + 1}, total: ${all.length}, reason: ${diagLog.stopReason}`);
+                    break;
+                }
                 if (onProgress) onProgress({
                     page: i + 1,
                     added,
                     total: all.length,
-                    hasMore: !!res.nextPageToken
+                    hasMore: !!res.nextPageToken,
+                    batch: res.conversations
                 });
-                if (!res.nextPageToken) break;
+                if (!res.nextPageToken) {
+                    diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
+                    console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, no nextPageToken in response`);
+                    break;
+                }
                 token = res.nextPageToken;
-                await new Promise(r => setTimeout(r, 350 + Math.random() * 180));
+                const pageDelay = incremental ? 50 : 120;
+                await new Promise(r => setTimeout(r, pageDelay));
             }
+            diagLog.totalConversations = all.length;
+            diagLog.endTime = new Date().toISOString();
             return {
                 conversations: all,
-                total: all.length
+                total: all.length,
+                diagnostics: diagLog
             };
         }
         async fetchConversationPage(conversationId, pageToken, targetSid) {

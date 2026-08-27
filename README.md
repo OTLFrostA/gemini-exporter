@@ -110,6 +110,15 @@ Third-party open-source components used in this project:
 
 ---
 
+## 📌 Known Issues & Limitations
+
+- **Google Gemini API Sliding Window Ceiling (~600–650 Conversations)**:
+  - **Symptom**: For accounts with a large number of conversations, full sync typically stops after retrieving approximately 600–650 conversations, unable to paginate further into older history;
+  - **Root Cause (Google API Defect)**: In-depth reverse engineering shows that Google Gemini's web conversation listing RPC (`MaZiqc`) uses an accumulative stateless cursor. The continuation token accumulates ~14 bytes of traversal state per conversation. Upon reaching ~650 conversations, the token size hits Google's ~9KB server-side API gateway parameter limit, causing Google to abort with `BardErrorInfo 1096` (**Note: even on the official `gemini.google.com` interface, manually scrolling down the sidebar will crash the page at the same threshold**);
+  - **Recommendation**: The extension features **real-time streaming persistence** and a **Stop Sync** button to ensure all retrieved conversations are safely saved. We recommend using **"Sync Latest"** for regular incremental backups, and using Google Takeout for comprehensive archiving of older history.
+
+---
+
 ## ⚠️ Disclaimer
 
 - **Gemini Exporter** is an independent, open-source personal data archiving tool maintained by individual developers. It is **not affiliated with, sponsored by, or endorsed by Google LLC or Google Gemini**.
