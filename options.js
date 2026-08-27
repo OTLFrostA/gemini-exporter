@@ -1325,6 +1325,28 @@ document.addEventListener('DOMContentLoaded', () => {
     $('logFilter')?.addEventListener('input', renderLog);
     $('logLevel')?.addEventListener('change', renderLog);
     $('btnClearLog')?.addEventListener('click', clearLog);
+    $('btnExportDiag')?.addEventListener('click', async () => {
+        try {
+            const data = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
+            const diag = data.gemini_last_sync_diagnostics;
+            if (!diag) {
+                alert('暂无诊断数据，请先点击「同步最新会话」或「全量拉取历史」');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(diag, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gemini_sync_diagnostics_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '_')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            log('已下载诊断日志文件: ' + a.download);
+        } catch (e) {
+            log('导出诊断日志失败: ' + e.message);
+        }
+    });
     $('btnExport').addEventListener('click', exportSelected);
     $('btnSetDir')?.addEventListener('click', async () => {
         try {
@@ -1413,6 +1435,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 log('同步完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
+                if (res?.diagnostics) {
+                    log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
+                    log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
+                }
                 if (res?.slot) currentSlot = res.slot;
                 setTimeout(() => loadStore(false), 300);
             });
@@ -1443,6 +1469,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 log('全量拉取完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
+                if (res?.diagnostics) {
+                    log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
+                    log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
+                }
                 if (res?.slot) currentSlot = res.slot;
                 setTimeout(() => loadStore(false), 300);
             });

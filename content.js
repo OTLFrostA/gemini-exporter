@@ -250,6 +250,12 @@
                 unchangedThreshold: 5
             });
             
+            if (all && all.diagnostics) {
+                try {
+                    await chrome.storage.local.set({ gemini_last_sync_diagnostics: all.diagnostics });
+                } catch {}
+            }
+            
             if (all && all.conversations && all.conversations.length) {
                 let mergedLen = await upsertConversations(all.conversations, 'batchexecute');
                 const badge = document.getElementById('geminiExportBadgeText');
@@ -265,7 +271,10 @@
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
-                return mergedLen;
+                return {
+                    count: mergedLen,
+                    diagnostics: all.diagnostics
+                };
             }
         } catch (e) {
             console.debug('[Gemini Exporter] batch exec fail, will fallback scroll', e.message || e);
@@ -442,7 +451,7 @@
         // Wrap whole scan in a promise stored globally
         const scanPromise = (async () => {
             try {
-                let batchCount = await tryBatchExecuteFull(
+                let batchRes = await tryBatchExecuteFull(
                     mode === 'full' ? {
                         forceFull: true
                     } : mode === 'incremental' ? {
@@ -452,13 +461,15 @@
                 // tryBatchExecuteFull leaves running true only if it succeeded via inner path;
                 // if it returned count, we can finish early
                 const { slot, convKey, countKey } = getStorageKeys();
-                if (batchCount && batchCount > 0) {
+                const bCount = typeof batchRes === 'number' ? batchRes : batchRes?.count;
+                if (bCount && bCount > 0) {
                     return {
                         success: true,
                         slot,
-                        count: batchCount,
-                        totalMerged: batchCount,
-                        source: 'batchexecute'
+                        count: bCount,
+                        totalMerged: bCount,
+                        source: 'batchexecute',
+                        diagnostics: batchRes?.diagnostics || null
                     };
                 }
 

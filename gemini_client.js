@@ -195,13 +195,19 @@
             }
             return {
                 conversations: convs,
-                nextPageToken: token || null
+                nextPageToken: token || null,
+                _debug: {
+                    innerTypes: Array.isArray(inner) ? inner.map((x, idx) => `${idx}:${typeof x}${Array.isArray(x) ? `[${x.length}]` : (typeof x === 'string' ? `(len:${x.length})` : '')}`) : typeof inner,
+                    stringsFound: Array.isArray(inner) ? inner.filter(x => typeof x === 'string').map(s => ({ len: s.length, preview: s.slice(0, 40) })) : [],
+                    hasToken: !!token
+                }
             };
         } catch (e) {
             console.warn("parseList fail", e);
             return {
                 conversations: [],
-                nextPageToken: null
+                nextPageToken: null,
+                _debug: { error: e.message }
             };
         }
     }
@@ -744,18 +750,37 @@
                 seen = new Set(),
                 token = null;
             let unchangedStreak = 0;
+            const diagLog = {
+                startTime: new Date().toISOString(),
+                maxPages,
+                incremental,
+                totalPagesFetched: 0,
+                totalConversations: 0,
+                stopReason: '已达到最大页数限制',
+                pageHistory: []
+            };
             for (let i = 0; i < maxPages; i++) {
                 let res;
                 try {
                     res = await this.getConversationList(token, targetSid);
                 } catch (err) {
                     console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
+                    diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
                     if (all.length > 0) {
                         // 网络异常或翻页到底时，保留已获取的全部会话，绝不抛出导致整盘丢弃
                         break;
                     }
                     throw err;
                 }
+                diagLog.totalPagesFetched = i + 1;
+                diagLog.pageHistory.push({
+                    page: i + 1,
+                    requestedToken: token ? { len: token.length, preview: token.slice(0, 20) + '...' } : null,
+                    count: res?.conversations?.length || 0,
+                    hasNextPageToken: !!res?.nextPageToken,
+                    nextTokenPreview: res?.nextPageToken ? { len: res.nextPageToken.length, preview: res.nextPageToken.slice(0, 20) + '...' } : null,
+                    debugInfo: res?._debug || null
+                });
                 let added = 0;
                 for (let c of res.conversations) {
                     if (!seen.has(c.id)) {
@@ -778,6 +803,9 @@
                                 unchangedStreak = 0;
                             }
                             if (unchangedStreak >= unchangedThreshold) {
+                                diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
+                                diagLog.totalConversations = all.length;
+                                diagLog.endTime = new Date().toISOString();
                                 if (onProgress) onProgress({
                                     page: i + 1,
                                     added,
@@ -790,13 +818,15 @@
                                     conversations: all,
                                     total: all.length,
                                     stoppedEarly: true,
-                                    unchangedStreak
+                                    unchangedStreak,
+                                    diagnostics: diagLog
                                 };
                             }
                         }
                     }
                 }
                 if (!res.conversations || res.conversations.length === 0) {
+                    diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                     console.log(`[Gemini Exporter] getAllConversations reached empty page ${i + 1}, total: ${all.length}`);
                     break;
                 }
@@ -807,6 +837,7 @@
                     hasMore: !!res.nextPageToken
                 });
                 if (!res.nextPageToken) {
+                    diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
                     console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, no nextPageToken in response`);
                     break;
                 }
@@ -815,9 +846,12 @@
                 const pageDelay = incremental ? 50 : 120;
                 await new Promise(r => setTimeout(r, pageDelay));
             }
+            diagLog.totalConversations = all.length;
+            diagLog.endTime = new Date().toISOString();
             return {
                 conversations: all,
-                total: all.length
+                total: all.length,
+                diagnostics: diagLog
             };
         }
         async fetchConversationPage(conversationId, pageToken, targetSid) {
