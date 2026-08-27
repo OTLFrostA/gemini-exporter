@@ -323,6 +323,40 @@
         });
     }
 
+    function extractThoughts(candidateBlock) {
+        if (!Array.isArray(candidateBlock)) return "";
+        let tArr = candidateBlock[37];
+        if (Array.isArray(tArr)) {
+            for (let item of tArr) {
+                if (Array.isArray(item) && typeof item[0] === 'string' && item[0].trim().length > 0) {
+                    return item[0].trim();
+                }
+            }
+        }
+        return "";
+    }
+
+    function extractCitations(candidateBlock) {
+        let out = [];
+        let seen = new Set();
+        if (!Array.isArray(candidateBlock) || !Array.isArray(candidateBlock[2])) return out;
+        function walk(node) {
+            if (Array.isArray(node)) {
+                if (node.length >= 2 && typeof node[0] === 'string' && node[0].startsWith('http') && typeof node[1] === 'string') {
+                    let url = node[0];
+                    let title = (node[1] || url).replace(/[\r\n]+/g, ' ').trim();
+                    if (!seen.has(url)) {
+                        seen.add(url);
+                        out.push({ url, title });
+                    }
+                }
+                for (let c of node) walk(c);
+            }
+        }
+        walk(candidateBlock[2]);
+        return out;
+    }
+
     function extractImages(root) {
         let extractedImages = [];
         let seenUrls = new Set();
@@ -690,11 +724,15 @@
                                 console.warn("doc parse err", er);
                             }
                         }
-                        if (responseText || filteredImages.length || docDetails.length) {
+                        let thoughts = extractThoughts(candidateBlock);
+                        let citations = extractCitations(candidateBlock);
+                        if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({
                                 id: candidateId || turn?.[0]?.[0] || "",
                                 role: "model",
                                 content: responseText || "",
+                                thoughts: thoughts || void 0,
+                                citations: citations.length ? citations : void 0,
                                 timestamp: ts,
                                 images: filteredImages.length ? filteredImages.map(img => ({
                                     ...img,

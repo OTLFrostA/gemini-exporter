@@ -31,19 +31,40 @@ function setExportRunning(running) {
 
 function mdContent(chat) {
     const format = $('format') ? $('format').value : 'markdown';
-    if (format === 'json') {
-        return {
-            content: JSON.stringify(chat, null, 2),
-            ext: 'json'
-        };
-    }
     if (format === 'json_openai') {
-        let openaiFormat = (chat.messages || []).map(m => ({
-            role: m.role === 'model' ? 'assistant' : 'user',
-            content: m.content || ''
-        }));
+        let openaiFormat = (chat.messages || []).map(m => {
+            let role = m.role === 'model' ? 'assistant' : 'user';
+            let text = m.content || '';
+            let imgs = (m.attachments || []).filter(a => a.type === 'image');
+            let item;
+            if (imgs.length > 0) {
+                let contentArr = [];
+                if (text) contentArr.push({ type: 'text', text });
+                for (let im of imgs) {
+                    contentArr.push({
+                        type: 'image_url',
+                        image_url: {
+                            url: im.localName || im.src || im.originalUrl
+                        }
+                    });
+                }
+                item = { role, content: contentArr };
+            } else {
+                item = { role, content: text };
+            }
+            if (m.thoughts) {
+                item.reasoning_content = m.thoughts;
+            }
+            return item;
+        });
         return {
-            content: JSON.stringify(openaiFormat, null, 2),
+            content: JSON.stringify({
+                id: chat.id,
+                title: chat.title,
+                url: chat.url,
+                created_at: chat.createdAt ? new Date(chat.createdAt).toISOString() : void 0,
+                messages: openaiFormat
+            }, null, 2),
             ext: 'json'
         };
     }
@@ -53,22 +74,12 @@ function mdContent(chat) {
             ext: 'json'
         };
     }
-    if (format === 'txt') {
-        let txt = `${chat.title || chat.id}\n${'='.repeat(40)}\nID: ${chat.id}\nURL: ${chat.url || ''}\n\n`;
-        if (!chat.messages || !chat.messages.length) {
-            txt += '(空对话或取回失败)\n';
-        }
-        for (const m of chat.messages || []) {
-            if (m.role === 'user') txt += `[你]:\n${m.content || ''}\n\n`;
-            else txt += `[Gemini]:\n${m.content || ''}\n\n`;
-            txt += '---\n\n';
-        }
+    if (format === 'json') {
         return {
-            content: txt,
-            ext: 'txt'
+            content: JSON.stringify(chat, null, 2),
+            ext: 'json'
         };
     }
-    // default: markdown
     return {
         content: toMarkdown(chat),
         ext: 'md'
@@ -1116,28 +1127,92 @@ async function exportSelected() {
 
 function toMarkdown(chat) {
     if (chat.error) return `# ${chat.title}\n\n> 导出失败: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url}\n`;
-    let md = `# ${chat.title}\n\n> ID: ${chat.id} | 导出: ${new Date().toLocaleString()} | 来源: ${chat.url}`;
-    if (chat.attachmentCount) md += ` | 附件: ${chat.attachmentCount} 个`;
-    md += `\n\n---\n\n`;
-    if (!chat.messages || !chat.messages.length) md += `_空对话或取回失败_ 原始URL: ${chat.url}\n`;
-    for (const m of chat.messages || []) {
-        if (m.role === 'user') md += `## 🙋 你\n\n${m.content||''}\n\n`;
-        else md += `## 🤖 Gemini\n\n${m.content||''}\n\n`;
-        if (m.attachments && m.attachments.length) {
-            for (const att of m.attachments) {
-                if (att.type === 'image') {
-                    const local = att.localName || `assets/img.png`;
-                    if (att.isBlob) md += `> ![${att.alt||'图片'}](${local}) (blob 原链接需 content-script 转存)\n\n`;
-                    else md += `![${att.alt||'图片'}](${local}) <!-- ${att.src.slice(0,110)} -->\n\n`;
-                } else if (att.type === 'file') {
-                    const local = att.localName || `files/${att.name}`;
-                    if (att.url) md += `- 📎 [${att.name}](${local}) (原: ${att.url.slice(0,90)})\n`;
-                    else md += `- 📎 ${att.name} (上传文件)\n`;
+
+    // 1. YAML Frontmatter (Obsidian, Logseq, Notion compatible)
+    let createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
+    let updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
+    let safeYamlTitle = (chat.title || 'Untitled').replace(/"/g, '\\"');
+
+    let md = `---\n`;
+    md += `title: "${safeYamlTitle}"\n`;
+    md += `id: "${chat.id}"\n`;
+    md += `url: "${chat.url || ''}"\n`;
+    if (createdIso) md += `date: "${createdIso}"\n`;
+    if (updatedIso) md += `updated: "${updatedIso}"\n`;
+    md += `exported: "${new Date().toISOString()}"\n`;
+    md += `tags:\n  - gemini-export\n`;
+    md += `---\n\n`;
+
+    // 2. Document Title & Metadata Header
+    md += `# ${chat.title}\n\n`;
+    let metaBadges = [];
+    if (chat.url) metaBadges.push(`[🔗 对话链接](${chat.url})`);
+    metaBadges.push(`🆔 \`${chat.id}\``);
+    if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
+    if (chat.attachmentCount) metaBadges.push(`📎 附件 ${chat.attachmentCount} 个`);
+    md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
+
+    if (!chat.messages || !chat.messages.length) {
+        md += `_空对话或取回失败_ 原始URL: ${chat.url}\n`;
+        return md;
+    }
+
+    function renderAttachments(atts) {
+        let block = '';
+        for (const att of atts) {
+            if (att.type === 'image') {
+                const local = att.localName || `assets/image.jpg`;
+                const alt = (att.alt || att.name || '图片').replace(/[[\]]/g, '');
+                const online = att.src || att.originalUrl || '';
+                if (online && online.startsWith('http')) {
+                    block += `[![${alt}](${local})](${online})\n\n`;
+                } else {
+                    block += `![${alt}](${local})\n\n`;
                 }
+            } else if (att.type === 'file') {
+                const local = att.localName || `files/${att.name}`;
+                const name = att.title || att.name || '附件';
+                block += `- 📎 [${name}](${local})\n`;
             }
-            md += `\n`;
         }
-        if (m.role === 'model') md += `---\n\n`;
+        return block;
+    }
+
+    // 3. Messages rendering with timestamps, thoughts, images, citations
+    for (const m of chat.messages || []) {
+        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
+
+        if (m.role === 'user') {
+            md += `## 🙋 你\n\n`;
+            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
+            if (m.attachments && m.attachments.length) {
+                md += renderAttachments(m.attachments);
+            }
+            if (m.content) md += `${m.content}\n\n`;
+        } else {
+            md += `## 🤖 Gemini\n\n`;
+            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
+
+            if (m.thoughts && m.thoughts.trim()) {
+                md += `<details>\n<summary>🧠 思考过程</summary>\n\n${m.thoughts.trim()}\n\n</details>\n\n`;
+            }
+
+            if (m.content) md += `${m.content}\n\n`;
+
+            if (m.attachments && m.attachments.length) {
+                md += renderAttachments(m.attachments);
+            }
+
+            if (m.citations && m.citations.length) {
+                md += `> 🌐 **参考来源：**\n`;
+                m.citations.forEach((c, idx) => {
+                    md += `> [${idx + 1}] [${c.title || c.url}](${c.url})\n`;
+                });
+                md += `\n`;
+            }
+
+            md += `---\n\n`;
+        }
     }
     return md;
 }
@@ -1264,6 +1339,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     // 开发者模式开关
+    function updateDevFormatUi(isDev) {
+        const opt = $('optFormatRaw');
+        if (opt) {
+            opt.hidden = !isDev;
+            opt.style.display = isDev ? '' : 'none';
+        }
+        const fmt = $('format');
+        if (fmt && !isDev && fmt.value === 'json_raw') {
+            fmt.value = 'markdown';
+            chrome.storage.local.set({ gemini_export_format: 'markdown' });
+        }
+    }
+
     const devToggle = $('devToggle');
     if (devToggle) {
         chrome.storage.local.get(['gemini_dev_mode'], (d) => {
@@ -1272,15 +1360,17 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.toggle('dev-mode', isDev);
             const labelDev = $('labelDevMode');
             if (labelDev) labelDev.style.color = isDev ? 'var(--accent2)' : 'var(--muted)';
+            updateDevFormatUi(isDev);
         });
         devToggle.addEventListener('change', (e) => {
             const isDev = !!e.target.checked;
             document.body.classList.toggle('dev-mode', isDev);
             const labelDev = $('labelDevMode');
             if (labelDev) labelDev.style.color = isDev ? 'var(--accent2)' : 'var(--muted)';
+            updateDevFormatUi(isDev);
             chrome.storage.local.set({ gemini_dev_mode: isDev });
             if (isDev) {
-                log('🛠️ 开发者模式已启用：已显示诊断工具');
+                log('🛠️ 开发者模式已启用：已显示诊断工具与原始JSON选项');
             } else {
                 log('🔒 开发者模式已关闭');
             }
