@@ -23,10 +23,6 @@ function $(id) {
     return document.getElementById(id)
 }
 
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms))
-}
-
 function setExportRunning(running) {
     const btnExport = $('btnExport');
     const btnCancel = $('btnCancel');
