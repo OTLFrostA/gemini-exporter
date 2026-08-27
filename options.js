@@ -356,7 +356,13 @@ function renderLog() {
     const lv = $('logLevel')?.value || 'all';
     const q = ($('logFilter')?.value || '').trim().toLowerCase();
     let lines = __logBuf;
-    if (lv !== 'all') lines = lines.filter(x => x.level === lv);
+    if (lv === 'error') {
+        lines = lines.filter(x => x.level === 'error');
+    } else if (lv === 'warn') {
+        lines = lines.filter(x => x.level === 'warn' || x.level === 'error');
+    } else if (lv === 'info') {
+        lines = lines.filter(x => x.level === 'info');
+    }
     if (q) {
         const terms = q.split(/\s+/).filter(Boolean);
         lines = lines.filter(x => {
@@ -620,9 +626,33 @@ async function exportSelected() {
         }
     }
 
-    function updateSharedProgress() {
-        $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} | 附件 ${downloadedAssets}/${__globalTotalAssets||totalAssets}`;
+    let currentExportTitle = '';
+    let currentExportIdx = 0;
+
+    function updateSharedProgress(chatIdx, chatTitle) {
+        if (typeof chatIdx === 'number') currentExportIdx = chatIdx;
+        if (typeof chatTitle === 'string' && chatTitle) currentExportTitle = chatTitle;
+
+        const totalChats = payloadIds.length;
+        const current = Math.min(currentExportIdx, totalChats);
+        const pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
+        const bar = $('bar');
+        if (bar) bar.style.width = Math.min(Math.max(pct, 0), 100) + '%';
+
+        let text = `进度 ${current}/${totalChats} (${pct}%)`;
+        if (currentExportTitle) {
+            const shortTitle = currentExportTitle.length > 28 ? currentExportTitle.slice(0, 28) + '…' : currentExportTitle;
+            text += ` | 当前: ${shortTitle}`;
+        }
+        const attTotal = __globalTotalAssets || totalAssets;
+        if (attTotal > 0) {
+            text += ` | 附件: ${downloadedAssets}/${attTotal}`;
+        }
+        const pt = $('progText');
+        if (pt) pt.textContent = text;
     }
+
+    updateSharedProgress(0, '准备中…');
 
     let attachmentQueue = [];
     let isFetchingDone = false;
@@ -655,6 +685,10 @@ async function exportSelected() {
             break;
         }
         let chunk = payloadIds.slice(i, i + CHUNK_SIZE);
+        const curCandidate = chunk[0];
+        if (curCandidate) {
+            updateSharedProgress(i + 1, curCandidate.title || curCandidate.id);
+        }
 
         let res = await new Promise(resolve => {
             chrome.runtime.sendMessage({
@@ -725,7 +759,7 @@ async function exportSelected() {
             } else {
                 failedChats.push(chat.id);
             }
-            updateSharedProgress();
+            updateSharedProgress(i + 1, listTitle);
 
             if (includeAssets && chat.messages && writeOk) {
                 for (const m of chat.messages) {
@@ -733,6 +767,7 @@ async function exportSelected() {
 
                     for (const att of m.attachments) {
                         if (att.type !== 'file') continue;
+                        if (att.url && att.url.includes('immersive_entry_chip') && !att.contentMarkdown) continue;
                         if (att.contentMarkdown) {
                             if (finalUseZip) {
                                 try {
@@ -748,10 +783,8 @@ async function exportSelected() {
                             let saved = false;
                             let failReason = '';
                             try {
-                                let tabs = await chrome.tabs.query({
-                                    url: 'https://gemini.google.com/*'
-                                });
-                                if (tabs.length) {
+                                let tab = await getGeminiTab(currentSlot);
+                                if (tab) {
                                     let candidates = [att.url, att.sourceUrl, att.src].filter(Boolean);
                                     candidates = [...new Set(candidates)];
 
@@ -776,7 +809,7 @@ async function exportSelected() {
                                     }
 
                                     let r2 = await new Promise(rv => {
-                                        chrome.tabs.sendMessage(tabs[0].id, {
+                                        chrome.tabs.sendMessage(tab.id, {
                                             action: 'getFileBlob',
                                             fileName: att.name || att.title,
                                             url: att.url || att.sourceUrl,
@@ -859,18 +892,20 @@ async function exportSelected() {
                                     file: att.name || att.title || att.localName,
                                     reason: failReason || 'unknown'
                                 });
-                                log(`附件下载失败: ${att.name || att.localName} (${failReason})`);
+                                log(`附件下载失败: ${att.name || att.localName} (${failReason})`, 'error');
                             }
                         });
                     }
 
                     for (const att of m.attachments) {
                         if (att.type !== 'image' || !att.src) continue;
+                        if (/^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(att.src)) continue;
 
                         attachmentQueue.push(async () => {
                             try {
                                 let toHighRes = (u) => {
                                     try {
+                                        if (!u || u.includes('/gg/')) return u;
                                         let parts = u.split('?');
                                         let base = parts[0].replace(/=s\d+(?:-[^\?]+)*/i, '');
                                         let q = parts[1] ? parts[1] + '&alr=yes' : 'alr=yes';
@@ -879,18 +914,16 @@ async function exportSelected() {
                                         return u;
                                     }
                                 };
-                                let cands = [toHighRes(att.src), att.src, att.originalUrl].filter(Boolean);
+                                let cands = [att.src, toHighRes(att.src), att.originalUrl].filter(Boolean);
                                 cands = [...new Set(cands)];
 
                                 let bin = null;
                                 let lastStatus = '';
 
-                                let tabs = await chrome.tabs.query({
-                                    url: 'https://gemini.google.com/*'
-                                });
-                                if (tabs.length) {
+                                let tab = await getGeminiTab(currentSlot);
+                                if (tab) {
                                     let r2 = await new Promise(rv => {
-                                        chrome.tabs.sendMessage(tabs[0].id, {
+                                        chrome.tabs.sendMessage(tab.id, {
                                             action: 'getImageBlob',
                                             candidates: cands,
                                             url: att.src
@@ -950,7 +983,7 @@ async function exportSelected() {
                                         file: att.localName || att.alt,
                                         reason
                                     });
-                                    log(`图片下载失败: ${att.localName || '未知'}`);
+                                    log(`图片下载失败: ${att.localName || '未知'} (${reason})`, 'error');
                                     return;
                                 }
 
@@ -966,7 +999,7 @@ async function exportSelected() {
                                     file: att.localName || att.alt,
                                     reason: ex.message
                                 });
-                                log(`图片下载失败: ${att.localName || '未知'}`);
+                                log(`图片下载失败: ${att.localName || '未知'} (${ex.message})`, 'error');
                             }
                         });
                     }
@@ -993,8 +1026,7 @@ async function exportSelected() {
 
     isFetchingDone = true;
     if (attachmentQueue.length > 0) {
-        let pt = document.getElementById('progText');
-        if (pt) pt.textContent += ' (正在下载剩余附件…)';
+        updateSharedProgress(payloadIds.length, '正在下载剩余附件…');
     }
     await Promise.all(consumerPool);
 
@@ -1054,20 +1086,22 @@ async function exportSelected() {
     }
 
     if (failedChats.length) {
-        log(`⚠️ 有 ${failedChats.length} 条对话导出失败`);
+        log(`⚠️ 有 ${failedChats.length} 条对话导出失败`, 'error');
         console.error('Failed ids:', failedChats);
     }
     if (failedAttachments.length) {
-        log(`⚠️ 有 ${failedAttachments.length} 个附件下载失败：`);
+        log(`⚠️ 有 ${failedAttachments.length} 个附件下载失败：`, 'error');
         for (const fa of failedAttachments.slice(0, 30)) {
             log(`  • [${fa.chat}] ${fa.file} - ${fa.reason}`, 'error');
         }
-        if (failedAttachments.length > 30) log(`  ... 还有 ${failedAttachments.length - 30} 个未列出`);
+        if (failedAttachments.length > 30) log(`  ... 还有 ${failedAttachments.length - 30} 个未列出`, 'error');
         console.error('Failed attachments JSON:', JSON.stringify(failedAttachments, null, 2));
     }
 
     $('bar').style.width = '100%';
-    $('progText').textContent = `完成 ${landedChats} 条，附件 ${downloadedAssets}/${totalAssets}${failedAttachments.length? ` (失败${failedAttachments.length})`:''}，跳过 ${skipped} 条`;
+    const finalAttTotal = __globalTotalAssets || totalAssets;
+    const attStr = finalAttTotal > 0 ? `，附件 ${downloadedAssets}/${finalAttTotal}${failedAttachments.length ? ` (失败${failedAttachments.length})` : ''}` : '';
+    $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} 条${attStr}，跳过 ${skipped} 条`;
     $('btnExport').disabled = false;
     setExportRunning(false);
     chrome.runtime.sendMessage({
@@ -1136,13 +1170,17 @@ chrome.runtime.onMessage.addListener((msg) => {
         return;
     }
     if (msg.action === 'exportProgress') {
+        if (__exportRunning) {
+            log(`进度 [${msg.done}/${msg.total}]: ${msg.title || msg.id}`);
+            return;
+        }
         const progWrap = $('progWrap');
         if (progWrap) progWrap.style.display = 'block';
         const pct = msg.total ? Math.floor((msg.done / msg.total) * 100) : 0;
         let bar = $('bar');
         if (bar) bar.style.width = pct + '%';
         let pt = $('progText');
-        if (pt) pt.textContent = msg.title ? `[${msg.done}/${msg.total}] ${msg.title}` : `进度 ${msg.done}/${msg.total}`;
+        if (pt) pt.textContent = `进度 ${msg.done}/${msg.total} | 当前: ${msg.title || ''}`;
         log(`进度 ${msg.done}/${msg.total}: ${msg.title || msg.id}`);
         return;
     }

@@ -470,7 +470,7 @@
                 if (!container) {
                     try {
                         const _p = chrome.runtime.sendMessage({
-                            action: 'exportProgress',
+                            action: 'scanProgress',
                             done: 0,
                             total: effectiveMax,
                             title: '未找到滚动容器，请先展开侧边栏'
@@ -1012,6 +1012,7 @@
             try {
                 const toHighRes = (url, variant = "s1024-rj") => {
                     try {
+                        if (!url || url.includes('/gg/')) return url;
                         let [base, q = ""] = url.split("?");
                         let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
                         let suffix = q ? q + "&alr=yes" : "alr=yes";
@@ -1030,7 +1031,7 @@
                     let m = text.match(/https:\/\/lh3\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
                     return m ? m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
                 };
-                let candidates = msg.candidates && Array.isArray(msg.candidates) ? msg.candidates.slice() : [toHighRes(msg.url), msg.url].filter(Boolean);
+                let candidates = msg.candidates && Array.isArray(msg.candidates) ? msg.candidates.slice() : [msg.url, toHighRes(msg.url)].filter(Boolean);
                 let seen = new Set();
                 let queue = [...candidates];
                 while (queue.length) {
