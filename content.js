@@ -119,18 +119,31 @@
                 const { slot, convKey, countKey, syncKey } = getStorageKeys();
                 const data = await chrome.storage.local.get([convKey, syncKey, 'gemini_account_slots']);
                 const existing = data[convKey] || [];
-                const map = new Map(existing.map(c => [c.id, c]));
+                const map = new Map();
+                existing.forEach(c => {
+                    if (!c || !c.id) return;
+                    const normId = String(c.id).replace(/^c_/, '').trim();
+                    c.id = normId;
+                    map.set(normId, c);
+                });
                 let now = Date.now();
                 let changed = 0;
 
                 incomingItems.forEach((c, idx) => {
                     if (!c || !c.id) return;
-                    const old = map.get(c.id);
-                    if (!old || old.title !== c.title) changed++;
-                    map.set(c.id, {
+                    const normId = String(c.id).replace(/^c_/, '').trim();
+                    c.id = normId;
+                    const old = map.get(normId);
+                    if (!old) {
+                        changed++;
+                    } else if (old.title !== c.title) {
+                        changed++;
+                    }
+                    map.set(normId, {
                         ...(old || {}),
                         ...c,
-                        lastSeen: new Date(now - idx).toISOString(),
+                        id: normId,
+                        lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
                         source: source || (old && old.source) || 'unknown',
                         accountSlot: slot
                     });

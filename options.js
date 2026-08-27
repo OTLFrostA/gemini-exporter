@@ -190,15 +190,25 @@ async function loadStore(forceQuiet = false) {
             lastSyncEl.textContent = data[syncKey] ? `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
         }
         const _badIds = [];
-        conversations = (conversations || []).filter(c => {
+        const dedupMap = new Map();
+        (incoming || []).forEach(c => {
+            if (!c || !c.id) return;
+            const normId = String(c.id).replace(/^c_/, '').trim();
             const t = (c.title || '').trim();
             const u = (c.url || c.href || '').toString();
             if (/^Google Account/i.test(t) || /accounts\.google\.com|SignOutOptions/i.test(u)) {
                 _badIds.push(c.id);
-                return false;
+                return;
             }
-            return true;
+            c.id = normId;
+            if (!dedupMap.has(normId)) {
+                dedupMap.set(normId, c);
+            } else {
+                const old = dedupMap.get(normId);
+                dedupMap.set(normId, { ...old, ...c, id: normId });
+            }
         });
+        conversations = Array.from(dedupMap.values());
         conversations.sort((a, b) => {
             let tsA = a.timestamp;
             if (typeof tsA === 'string') tsA = new Date(tsA).getTime();
@@ -210,8 +220,8 @@ async function loadStore(forceQuiet = false) {
             if (!valB && b.lastSeen) valB = new Date(b.lastSeen).getTime();
             return valB - valA;
         });
-        if (_badIds.length) {
-            console.log('[workbench] 清理脏对话', _badIds.slice(0, 5));
+        if (_badIds.length || conversations.length !== incoming.length) {
+            console.log('[workbench] 清理脏对话与合并重复项', incoming.length, '->', conversations.length);
             await chrome.storage.local.set({
                 [convKey]: conversations,
                 [countKey]: conversations.length,

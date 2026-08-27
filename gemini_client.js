@@ -156,7 +156,7 @@
             let convs = [];
             for (let r of list) {
                 if (!r || !Array.isArray(r) || r.length < 2) continue;
-                let id = r[0] || "",
+                let id = String(r[0] || "").replace(/^c_/, ""),
                     title = (r[1] || "").replace(/\\n/g, "");
                 if (title.endsWith("-")) title = title.slice(0, -1);
                 if (/^Google Account/i.test(title)) continue;
