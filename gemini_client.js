@@ -172,10 +172,26 @@
                 });
             }
             let token = null;
-            for (let v of inner) {
-                if (typeof v === "string" && v.length > 150) {
-                    token = v;
-                    break;
+            if (Array.isArray(inner)) {
+                for (let v of inner) {
+                    if (typeof v === "string") {
+                        let s = v.trim();
+                        if (s.length >= 20 && !s.includes(" ") && !s.includes("\n") && !s.startsWith("http") && !s.startsWith("boq_") && !s.startsWith("Google Account")) {
+                            token = s;
+                            break;
+                        }
+                    } else if (Array.isArray(v)) {
+                        for (let item of v) {
+                            if (typeof item === "string") {
+                                let s = item.trim();
+                                if (s.length >= 25 && !s.includes(" ") && !s.includes("\n") && !s.startsWith("http") && !s.startsWith("c_") && !s.startsWith("boq_")) {
+                                    token = s;
+                                    break;
+                                }
+                            }
+                        }
+                        if (token) break;
+                    }
                 }
             }
             return {
@@ -690,12 +706,12 @@
             let body = new URLSearchParams();
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([20, pageToken, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, pageToken, [0, null, 1]]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([13, null, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, null, [0, null, 1]]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
