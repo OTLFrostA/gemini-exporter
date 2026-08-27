@@ -129,8 +129,23 @@
           // markdown
           let md = `# ${chat.title||chat.id}\n\n> ID: ${chat.id} | 导出: ${new Date().toLocaleString()} | 来源: ${chat.url}\n\n---\n\n`;
           for(const msg of chat.messages||[]){
-            if(msg.role==='user') md += `## 🙋 你\n\n${msg.content||''}\n\n`;
-            else md += `## 🤖 Gemini\n\n${msg.content||''}\n\n---\n\n`;
+            if(msg.role==='user') {
+              md += `## 🙋 你\n\n${msg.content||''}\n\n`;
+            } else {
+              md += `## 🤖 Gemini\n\n`;
+              if (msg.thinking && msg.thinking.trim()) {
+                md += `<details><summary>🧠 思考过程</summary>\n\n${msg.thinking.trim()}\n\n</details>\n\n`;
+              }
+              md += `${msg.content||''}\n\n`;
+              if (msg.citations && msg.citations.length) {
+                md += `> 🌐 **参考来源：**\n`;
+                for (const c of msg.citations) {
+                  md += `> - [${c.title || c.url}](${c.url})\n`;
+                }
+                md += `\n`;
+              }
+              md += `---\n\n`;
+            }
           }
           content = md;
           ext = 'md';
