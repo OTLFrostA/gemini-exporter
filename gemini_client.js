@@ -711,12 +711,12 @@
             let body = new URLSearchParams();
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([20, pageToken, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, pageToken, [0, null, 1]]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([13, null, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, null, [0, null, 1]]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
