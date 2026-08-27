@@ -941,7 +941,7 @@ async function exportSelected() {
                                     file: att.name || att.title || att.localName,
                                     reason: failReason || 'unknown'
                                 });
-                                log(`附件下载失败: ${att.name || att.localName} (${failReason})`, 'error');
+                                log(`[${listTitle}] 附件下载失败: ${att.name || att.localName} (${failReason})`, 'error');
                             }
                         });
                     }
@@ -1038,7 +1038,7 @@ async function exportSelected() {
                                         file: att.localName || att.alt,
                                         reason
                                     });
-                                    log(`图片下载失败: ${att.localName || '未知'} (${reason})`, 'error');
+                                    log(`[${listTitle}] 图片下载失败: ${att.localName || '未知'} (${reason})`, 'error');
                                     return;
                                 }
 

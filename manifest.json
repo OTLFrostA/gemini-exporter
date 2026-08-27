@@ -14,6 +14,8 @@
   "host_permissions": [
     "https://gemini.google.com/*",
     "https://*.googleusercontent.com/*",
+    "https://*.usercontent.google.com/*",
+    "https://drive.google.com/*",
     "https://lh3.googleusercontent.com/*",
     "https://lh3.google.com/*"
   ],
