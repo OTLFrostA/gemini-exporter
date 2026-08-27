@@ -17,7 +17,11 @@ button{flex:1;border:0;border-radius:9px;padding:10px 12px;font-weight:600;curso
 .ghost{background:#171926;color:var(--text);border:1px solid var(--border)}
 .ghost:hover{background:#1f2233}
 select{width:100%;background:#0e0f17;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;margin-bottom:8px}
-.log{font-size:11px;color:var(--muted);white-space:pre-wrap;max-height:90px;overflow:auto;font-family:ui-monospace,monospace}
+.log{font-size:11px;color:var(--muted);white-space:pre-wrap;max-height:90px;overflow:auto;font-family:ui-monospace,monospace;scrollbar-width:thin;scrollbar-color:#282c44 transparent}
+.log::-webkit-scrollbar{width:5px}
+.log::-webkit-scrollbar-track{background:transparent}
+.log::-webkit-scrollbar-thumb{background:#282c44;border-radius:99px}
+.log::-webkit-scrollbar-thumb:hover{background:#4a5280}
 .badge{font-size:10px;background:#171929;border:1px solid var(--border);color:#a5b4fc;padding:2px 7px;border-radius:99px}
 .progress{height:6px;background:#161824;border-radius:99px;overflow:hidden;margin-top:8px;display:none}
 .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .2s}
