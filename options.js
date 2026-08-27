@@ -186,9 +186,9 @@ async function loadStore(forceQuiet = false) {
         const hadLength = conversations.length;
         exportedIds = data[expKey] || {};
         const incomingSig = getSignature(incoming);
-        const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length);
-        // If signature same and within 5s of last render, skip render to stop flash
-        if (sameSig && Date.now() - __lastRenderTime < 5000) {
+        const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
+        // If signature same and within 500ms of last render, skip render to stop flash
+        if (sameSig && Date.now() - __lastRenderTime < 500) {
             const lastSyncElFast = $('lastSync');
             if (lastSyncElFast && data[syncKey]) {
                 lastSyncElFast.textContent = `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${incoming.length} 条`;
@@ -406,7 +406,11 @@ function renderList(prevSelectedSet) {
         if (isUpdated) badge = `<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">${bNeedsReexport}</span>`;
         else if (isExported) badge = `<span class="badge" style="background:#1d3a2a;border-color:#2a5a3a;color:#8ae6b0">${bExported}</span>`;
         else badge = `<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
-        return `<label class="item"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${c.lastSeen ? new Date(c.lastSeen).toLocaleDateString() : ''}</div></div></label>`;
+        let rawTs = c.timestamp;
+        if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
+        if (!rawTs && c.lastSeen) rawTs = new Date(c.lastSeen).getTime();
+        const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '';
+        return `<label class="item"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
 }
@@ -1424,8 +1428,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }, () => {});
         });
     }
+    // 终止同步按钮
+    const btnStopScan = $('btnStopScan');
+    if (btnStopScan) {
+        btnStopScan.addEventListener('click', async () => {
+            log('正在请求终止同步…');
+            $('progText').textContent = '正在终止同步…';
+            btnStopScan.disabled = true;
+            try {
+                chrome.runtime.sendMessage({
+                    action: 'abortSync',
+                    accountSlot: currentSlot
+                });
+                const tab = await findTabForSlot(currentSlot);
+                if (tab) {
+                    chrome.tabs.sendMessage(tab.id, { action: 'abortSync' }, () => {});
+                }
+            } catch (e) {}
+        });
+    }
     // 同步最新会话按钮（增量）
     const btnIncr = $('btnIncrementalScan');
+    const btnDeep = document.getElementById('btnDeepScan');
     if (btnIncr) {
         btnIncr.addEventListener('click', async () => {
             log('开始同步最新会话…');
@@ -1433,6 +1457,11 @@ document.addEventListener('DOMContentLoaded', () => {
             $('bar').style.width = '5%';
             $('progText').textContent = '正在同步最新会话…';
             btnIncr.disabled = true;
+            if (btnDeep) btnDeep.disabled = true;
+            if (btnStopScan) {
+                btnStopScan.style.display = 'inline-block';
+                btnStopScan.disabled = false;
+            }
             chrome.runtime.sendMessage({
                 action: 'deepScan',
                 maxIter: 150,
@@ -1440,6 +1469,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 accountSlot: currentSlot
             }, (res) => {
                 btnIncr.disabled = false;
+                if (btnDeep) btnDeep.disabled = false;
+                if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
                     log('同步失败: ' + chrome.runtime.lastError.message);
                     $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
@@ -1453,26 +1484,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
                 }
                 if (res?.slot) currentSlot = res.slot;
-                setTimeout(() => loadStore(false), 300);
+                __lastRenderedSignature = null;
+                setTimeout(() => loadStore(false), 200);
             });
         });
     }
     // 全量拉取历史按钮
-    const btnDeep = document.getElementById('btnDeepScan');
     if (btnDeep) {
         btnDeep.addEventListener('click', async () => {
             log('开始全量拉取历史…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
             $('progText').textContent = '正在全量拉取历史…';
-            $('btnDeepScan').disabled = true;
+            btnDeep.disabled = true;
+            if (btnIncr) btnIncr.disabled = true;
+            if (btnStopScan) {
+                btnStopScan.style.display = 'inline-block';
+                btnStopScan.disabled = false;
+            }
             chrome.runtime.sendMessage({
                 action: 'deepScan',
                 maxIter: 150,
                 mode: 'full',
                 accountSlot: currentSlot
             }, (res) => {
-                $('btnDeepScan').disabled = false;
+                btnDeep.disabled = false;
+                if (btnIncr) btnIncr.disabled = false;
+                if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
                     log('全量拉取失败: ' + chrome.runtime.lastError.message);
                     $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;

@@ -143,6 +143,7 @@
                         ...(old || {}),
                         ...c,
                         id: normId,
+                        timestamp: c.timestamp || (old && old.timestamp) || null,
                         lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
                         source: source || (old && old.source) || 'unknown',
                         accountSlot: slot
@@ -150,7 +151,11 @@
                 });
 
                 const merged = Array.from(map.values());
-                merged.sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
+                merged.sort((a, b) => {
+                    let tsA = a.timestamp ? (typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : a.timestamp) : (a.lastSeen ? new Date(a.lastSeen).getTime() : 0);
+                    let tsB = b.timestamp ? (typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : b.timestamp) : (b.lastSeen ? new Date(b.lastSeen).getTime() : 0);
+                    return tsB - tsA;
+                });
 
                 const slotsMeta = data.gemini_account_slots || {};
                 slotsMeta[slot] = {
@@ -226,6 +231,9 @@
             if (forceOpts?.forceFull) useIncremental = false;
             if (forceOpts?.forceIncremental) useIncremental = true;
             
+            window.__gemExporterAborted = false;
+            if (client) client.aborted = false;
+            let saveQueue = Promise.resolve();
             let all = await client.getAllConversations(forceOpts?.maxPages || 2000, (prog) => {
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) {
@@ -244,11 +252,17 @@
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
+
+                // Stream progressive save to storage so UI updates immediately in real-time!
+                if (prog.batch && prog.batch.length) {
+                    saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute'));
+                }
             }, null, {
                 existingMap: beforeMap,
                 incremental: useIncremental,
                 unchangedThreshold: 5
             });
+            await saveQueue;
             
             if (all && all.diagnostics) {
                 try {
@@ -702,6 +716,16 @@
                 success: false,
                 error: e.message
             }));
+            return true;
+        }
+        if (msg.action === 'abortSync' || msg.action === 'stopScan') {
+            console.log('[Gemini Exporter] abortSync received, stopping active scan');
+            if (window.geminiClient) {
+                window.geminiClient.aborted = true;
+            }
+            window.__gemExporterAborted = true;
+            window.__gemExporterDeepScanPromise = null;
+            sendResponse({ ok: true, aborted: true });
             return true;
         }
         if (msg.action === 'getScrollContainer') {

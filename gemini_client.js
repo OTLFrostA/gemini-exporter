@@ -197,8 +197,30 @@
                     title = (r[1] || "").replace(/\\n/g, "");
                 if (title.endsWith("-")) title = title.slice(0, -1);
                 if (/^Google Account/i.test(title)) continue;
-                let ts = Date.now();
-                if (Array.isArray(r[5]) && r[5].length >= 2) ts = Math.round(r[5][0] * 1000);
+                let ts = null;
+                for (let elem of r) {
+                    if (typeof elem === 'number') {
+                        if (elem > 1577836800 && elem < 2500000000) {
+                            ts = Math.round(elem * 1000);
+                            break;
+                        } else if (elem > 1577836800000 && elem < 2500000000000) {
+                            ts = Math.round(elem);
+                            break;
+                        }
+                    } else if (Array.isArray(elem) && elem.length > 0 && typeof elem[0] === 'number') {
+                        let val = elem[0];
+                        if (val > 1577836800 && val < 2500000000) {
+                            ts = Math.round(val * 1000);
+                            break;
+                        } else if (val > 1577836800000 && val < 2500000000000) {
+                            ts = Math.round(val);
+                            break;
+                        }
+                    }
+                }
+                if (!ts && Array.isArray(r[5]) && r[5].length >= 1 && typeof r[5][0] === 'number') {
+                    ts = r[5][0] > 1e11 ? Math.round(r[5][0]) : Math.round(r[5][0] * 1000);
+                }
                 if (!id) continue;
                 convs.push({
                     id,
@@ -731,6 +753,12 @@
     }
 
     class GeminiAPIClient {
+        constructor() {
+            this.aborted = false;
+        }
+        abort() {
+            this.aborted = true;
+        }
         getApiUrl(s) {
             return getApiUrl(s);
         }
@@ -796,7 +824,13 @@
                 stopReason: '已达到最大页数限制',
                 pageHistory: []
             };
+            this.aborted = false;
             for (let i = 0; i < maxPages; i++) {
+                if (this.aborted) {
+                    diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
+                    console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
+                    break;
+                }
                 let res;
                 try {
                     res = await this.getConversationList(token, targetSid);
@@ -871,7 +905,8 @@
                     page: i + 1,
                     added,
                     total: all.length,
-                    hasMore: !!res.nextPageToken
+                    hasMore: !!res.nextPageToken,
+                    batch: res.conversations
                 });
                 if (!res.nextPageToken) {
                     diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;

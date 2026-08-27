@@ -71,6 +71,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } catch {}
         return true;
     }
+    if (msg.action === 'abortSync') {
+        __bgAborted = true;
+        console.log('[Robust BG] abortSync received, notifying Gemini tab');
+        sendToGeminiTab({ action: 'abortSync' }, msg.accountSlot).catch(() => {});
+        try {
+            sendResponse({ ok: true, aborted: true });
+        } catch {}
+        return true;
+    }
     if (msg.action === 'ping') {
         sendResponse({
             ok: true,
