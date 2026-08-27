@@ -80,6 +80,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         } catch {}
         return true;
     }
+    if (msg.action === 'probeAnchors') {
+        sendToGeminiTab({
+            action: 'probeAnchors',
+            lastId: msg.lastId,
+            targetSid: msg.targetSid
+        }, msg.accountSlot).then(sendResponse).catch(e => sendResponse({ ok: false, error: e.message }));
+        return true;
+    }
     if (msg.action === 'ping') {
         sendResponse({
             ok: true,

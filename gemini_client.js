@@ -779,7 +779,7 @@
         getApiUrl(s) {
             return getApiUrl(s);
         }
-        async getConversationList(pageToken, targetSid) {
+        async getConversationList(pageToken, targetSid, customFilter) {
             let cred = await resolveCred(targetSid);
             let api = getApiUrl(cred.accountSlot || "default");
             let params = new URLSearchParams({
@@ -791,14 +791,15 @@
                 rt: "c"
             });
             let body = new URLSearchParams();
+            const filter = customFilter || [0, null, 1];
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([50, pageToken, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, pageToken, filter]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([50, null, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, null, filter]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
@@ -821,6 +822,43 @@
             }
             let txt = await resp.text();
             return parseList(txt);
+        }
+        async probeAnchors(lastId, targetSid) {
+            const normId = String(lastId || "").replace(/^c_/, "");
+            const fullId = `c_${normId}`;
+            const probes = [
+                { name: "锚点 [0, id, 1]", filter: [0, normId, 1] },
+                { name: "锚点 [0, c_id, 1]", filter: [0, fullId, 1] },
+                { name: "倒序拉取 [0, null, 0]", filter: [0, null, 0] },
+                { name: "排序备选 [0, null, 2]", filter: [0, null, 2] },
+                { name: "历史归档 [1, null, 1]", filter: [1, null, 1] },
+                { name: "冷分类 [2, null, 1]", filter: [2, null, 1] }
+            ];
+            const results = [];
+            for (let p of probes) {
+                try {
+                    console.log(`[Gemini Exporter Probe] 正在测试 ${p.name}...`);
+                    const res = await this.getConversationList(null, targetSid, p.filter);
+                    const count = res?.conversations?.length || 0;
+                    const preview = (res?.conversations || []).slice(0, 3).map(c => `${c.title} (${c.id})`);
+                    results.push({
+                        name: p.name,
+                        success: count > 0,
+                        count,
+                        hasNext: !!res?.nextPageToken,
+                        preview,
+                        debug: res?._debug || null
+                    });
+                } catch (e) {
+                    results.push({
+                        name: p.name,
+                        success: false,
+                        error: e.message || String(e)
+                    });
+                }
+                await new Promise(r => setTimeout(r, 100));
+            }
+            return results;
         }
         async getAllConversations(maxPages = 2000, onProgress, targetSid, opts) {
             if (!maxPages || typeof maxPages !== "number") maxPages = 2000;

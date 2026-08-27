@@ -728,6 +728,14 @@
             sendResponse({ ok: true, aborted: true });
             return true;
         }
+        if (msg.action === 'probeAnchors') {
+            (async () => {
+                const client = window.geminiClient || new GeminiAPIClient();
+                const res = await client.probeAnchors(msg.lastId, msg.targetSid);
+                sendResponse({ ok: true, results: res });
+            })().catch(e => sendResponse({ ok: false, error: e.message }));
+            return true;
+        }
         if (msg.action === 'getScrollContainer') {
             const c = getScrollContainer();
             sendResponse({

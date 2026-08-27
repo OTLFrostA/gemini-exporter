@@ -1364,6 +1364,47 @@ document.addEventListener('DOMContentLoaded', () => {
             log('导出诊断日志失败: ' + e.message);
         }
     });
+    $('btnProbeAnchor')?.addEventListener('click', async () => {
+        if (!conversations.length) {
+            alert('当前列表暂无对话，请先执行一次「全量拉取历史」以获取基准数据');
+            return;
+        }
+        const lastConv = conversations[conversations.length - 1];
+        log(`[深层探测] 正在以第 ${conversations.length} 条最老会话 [${lastConv.title}] (${lastConv.id}) 作为锚点，向 Google 探测深层历史…`);
+        $('btnProbeAnchor').disabled = true;
+        try {
+            chrome.runtime.sendMessage({
+                action: 'probeAnchors',
+                lastId: lastConv.id,
+                accountSlot: currentSlot
+            }, (res) => {
+                $('btnProbeAnchor').disabled = false;
+                if (!res || !res.ok) {
+                    log('[深层探测] 探测调用失败: ' + (res?.error || '无响应'));
+                    return;
+                }
+                const results = res.results || [];
+                log(`[深层探测] 探测完成，测试结果如下：`);
+                let anyHit = false;
+                for (let r of results) {
+                    if (r.success && r.count > 0) {
+                        anyHit = true;
+                        log(`  ✅ 模式 [${r.name}] 成功返回 ${r.count} 条！样例: ${r.preview?.join(' | ')}`);
+                    } else {
+                        log(`  ❌ 模式 [${r.name}]: ${r.error || (r.debug ? JSON.stringify(r.debug) : '0 条')}`);
+                    }
+                }
+                if (anyHit) {
+                    log(`🎉 恭喜！发现可用的深层历史穿透参数！`);
+                } else {
+                    log(`ℹ️ Google 本轮测试参数均未直接放行，请见上述明细。`);
+                }
+            });
+        } catch (e) {
+            $('btnProbeAnchor').disabled = false;
+            log('[深层探测] 错误: ' + e.message);
+        }
+    });
     $('btnExport').addEventListener('click', exportSelected);
     $('btnSetDir')?.addEventListener('click', async () => {
         try {
