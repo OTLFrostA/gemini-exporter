@@ -4,6 +4,14 @@ let exportedIds = {};
 let currentSlot = 'u0';
 let accountSlots = {};
 
+const normId = id => String(id || '').replace(/^c_/, '');
+
+function getExportedRecord(id) {
+    if (!id || !exportedIds) return null;
+    const nid = normId(id);
+    return exportedIds[id] || exportedIds['c_' + nid] || exportedIds[nid] || null;
+}
+
 let __workbenchDebounceTimer = null;
 let __lastRenderedSignature = '';
 let __lastRenderTime = 0;
@@ -148,11 +156,11 @@ async function findTabForSlot(slot) {
 async function loadStore(forceQuiet = false) {
     console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length, 'slot', currentSlot);
     try {
-        const slot = currentSlot || 'u0';
-        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-        const syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
-        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-        const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+        let slot = currentSlot || 'u0';
+        let convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        let syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
+        let expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        let countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
 
         const data = await chrome.storage.local.get([
             convKey,
@@ -255,7 +263,8 @@ async function loadStore(forceQuiet = false) {
         __lastRenderTime = Date.now();
         updateSelectedStat();
         if (!forceQuiet && !same) {
-            log(`已加载 ${conversations.length} 条对话 (已导出 ${Object.keys(exportedIds).length} 条)`);
+            const expCount = conversations.filter(c => !!getExportedRecord(c.id)).length;
+            log(`已加载 ${conversations.length} 条对话 (已导出 ${expCount} 条)`);
         }
         if (conversations.length === 0) {
             try {
@@ -289,7 +298,8 @@ function renderList(prevSelectedSet) {
     const bNew = typeof I18n !== 'undefined' ? I18n.t('badgeNew') : 'New';
 
     list.innerHTML = conversations.map((c, i) => {
-        const rec = exportedIds[c.id];
+        const nid = normId(c.id);
+        const rec = getExportedRecord(c.id);
         const isExported = !!rec;
         let isUpdated = false;
         if (rec) {
@@ -309,7 +319,7 @@ function renderList(prevSelectedSet) {
             if (prevSelectedSet.size === 0) {
                 checked = true;
             } else {
-                checked = prevSelectedSet.has(c.id);
+                checked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
             }
         }
         let badge = '';
@@ -320,7 +330,7 @@ function renderList(prevSelectedSet) {
         if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
         if (!rawTs && c.lastSeen) rawTs = new Date(c.lastSeen).getTime();
         const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '';
-        return `<label class="item" data-chat-id="${c.id}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
+        return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
 }
@@ -756,20 +766,26 @@ async function exportSelected() {
                 if (!chat.error && !chat._empty) {
                     let exportTs = listC?.timestamp || chat.timestamp || Date.now();
                     if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
-                    curIds[chat.id] = {
+                    const nid = normId(chat.id);
+                    const record = {
                         title: listTitle,
                         exportedAt: new Date().toISOString(),
                         messageCount: chat.messageCount || chat.messages?.length || 0,
                         chatTime: exportTs,
                         status: 'ok'
                     };
-                    exportedIds[chat.id] = curIds[chat.id];
+                    curIds[chat.id] = record;
+                    curIds[nid] = record;
+                    curIds['c_' + nid] = record;
+                    exportedIds[chat.id] = record;
+                    exportedIds[nid] = record;
+                    exportedIds['c_' + nid] = record;
                     chrome.storage.local.set({
                         [expKey]: curIds
                     }).catch(() => {});
 
                     try {
-                        const badgeEl = document.querySelector(`[data-chat-id="${chat.id}"] .badge`);
+                        const badgeEl = document.querySelector(`[data-chat-id="${nid}"] .badge`);
                         if (badgeEl) {
                             const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
                             badgeEl.style.background = '#1d3a2a';
