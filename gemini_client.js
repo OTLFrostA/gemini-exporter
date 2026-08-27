@@ -411,21 +411,29 @@
         function walk(node) {
             if (Array.isArray(node)) {
                 let name = (typeof node[2] === "string" && node[2].length > 2) ? node[2] : (typeof node[1] === "string" && node[1].includes('.') ? node[1] : "");
-                let url = "";
-                for (let v of node) {
-                    if (typeof v === "string" && (v.startsWith('https://') && (v.includes('googleusercontent.com') || v.includes('drive.google.com') || v.includes('lh3.google')))) {
-                        url = v;
-                        break;
+                let urls = [];
+                function findUrls(n) {
+                    if (!n) return;
+                    if (typeof n === 'string') {
+                        if (n.startsWith('https://') && (n.includes('googleusercontent.com') || n.includes('usercontent.google.com') || n.includes('drive.google.com') || n.includes('lh3.google'))) {
+                            urls.push(n);
+                        }
+                    } else if (Array.isArray(n)) {
+                        for (let sub of n) findUrls(sub);
                     }
                 }
+                findUrls(node);
+                let url = urls.find(u => u.includes('contribution.usercontent.google.com') || u.includes('/download')) || urls.find(u => u.includes('/upload') || u.includes('/viewer')) || urls[0] || "";
                 let mime = typeof node[11] === "string" ? node[11] : (typeof node[4] === "string" && node[4].includes('/') ? node[4] : "");
                 let isFile = /\.(zip|pdf|docx?|xlsx?|csv|txt|md|json|png|jpe?g|webp)$/i.test(name) && name.length < 120;
-                if (isFile && !seen.has(url + '|' + name)) {
+                if (isFile) {
                     let ext = name.split('.').pop().toLowerCase();
                     let isImgExt = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
                     if (!isImgExt || !url.includes('lh3.googleusercontent.com')) {
-                        if (url || /\.(zip|pdf|docx?|xlsx)$/i.test(name)) {
-                            seen.add(url + '|' + name);
+                        let existing = files.find(f => f.fileName === name);
+                        if (existing) {
+                            if (!existing.sourceUrl && url) existing.sourceUrl = url;
+                        } else if (url || /\.(zip|pdf|docx?|xlsx)$/i.test(name)) {
                             files.push({
                                 id: `file:${files.length}:${name}`,
                                 fileName: name,
