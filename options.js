@@ -152,6 +152,7 @@ async function findTabForSlot(slot) {
         return null;
     }
 }
+const getGeminiTab = findTabForSlot;
 
 async function loadStore(forceQuiet = false) {
     console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length, 'slot', currentSlot);
