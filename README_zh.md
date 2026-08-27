@@ -1,4 +1,4 @@
-# 🌌 Gemini Exporter - Batch Export Chats (Free)
+# 🌌 Gemini Exporter
 
 <p align="left">
   <a href="./README.md">English</a> | <b>简体中文</b>
