@@ -118,11 +118,9 @@
       <label style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px; font-size:13px; height:32px;">
         <span style="color:var(--muted); white-space:nowrap;" data-i18n="format">格式</span>
         <select id="format" style="flex:1; height:32px; padding:4px 8px;">
-          <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
+          <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (完整信息 .md)</option>
           <option value="json_openai" data-i18n="fmtJsonOpenAI">JSON (OpenAI格式)</option>
-          <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
-          <option value="json_raw" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
-          <option value="txt" data-i18n="fmtTxt">TXT (.txt)</option>
+          <option value="json_raw" id="optFormatRaw" class="dev-only" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
         </select>
       </label>
       <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap; overflow:hidden;">
