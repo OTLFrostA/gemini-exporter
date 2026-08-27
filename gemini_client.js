@@ -724,7 +724,7 @@
             opts = opts || {};
             const existingMap = opts.existingMap || null;
             const incremental = !!opts.incremental;
-            const unchangedThreshold = opts.unchangedThreshold || 20;
+            const unchangedThreshold = opts.unchangedThreshold || 5;
             let all = [],
                 seen = new Set(),
                 token = null;
@@ -779,7 +779,9 @@
                 });
                 if (!res.nextPageToken) break;
                 token = res.nextPageToken;
-                await new Promise(r => setTimeout(r, 350 + Math.random() * 180));
+                // 增量模式零等待；全量扫描保留 60ms 极轻节流防 429
+                const pageDelay = incremental ? 0 : 60;
+                if (pageDelay > 0) await new Promise(r => setTimeout(r, pageDelay));
             }
             return {
                 conversations: all,

@@ -234,7 +234,7 @@
             }, null, {
                 existingMap: beforeMap,
                 incremental: useIncremental,
-                unchangedThreshold: 20
+                unchangedThreshold: 5
             });
             
             if (all && all.conversations && all.conversations.length) {
