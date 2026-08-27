@@ -195,9 +195,14 @@
             if (typeof GeminiAPIClient === 'undefined' && typeof window.GeminiAPIClient === 'undefined') return null;
             let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
             let client = new C();
+            if (typeof ensureCreds === 'function') {
+                try { await ensureCreds(); } catch {}
+            }
             let map = (await chrome.storage.local.get(['gemini_credentials_map'])).gemini_credentials_map || {};
             if (!Object.keys(map).length) {
-                return null;
+                let at = typeof extractAtFromPage === 'function' ? extractAtFromPage() : '';
+                if (!at && typeof window.__gemExporterExtractAt === 'function') at = window.__gemExporterExtractAt();
+                if (!at) return null;
             }
             
             const { convKey } = getStorageKeys();
@@ -442,14 +447,20 @@
                     };
                 }
 
-                console.log('[Gemini Exporter] scrollToBottomLoadAll start max', maxIter);
+                const isIncremental = (mode === 'incremental');
+                const effectiveMax = isIncremental ? Math.min(maxIter, 8) : maxIter;
+                const { convKey } = getStorageKeys();
+                const stored = (await chrome.storage.local.get([convKey]))[convKey] || [];
+                const storedIdSet = new Set(stored.map(c => c.id));
+
+                console.log('[Gemini Exporter] scrollToBottomLoadAll start max', effectiveMax, 'mode', mode, 'storedCount', storedIdSet.size);
                 const container = getScrollContainer();
                 if (!container) {
                     try {
                         const _p = chrome.runtime.sendMessage({
                             action: 'exportProgress',
                             done: 0,
-                            total: maxIter,
+                            total: effectiveMax,
                             title: '未找到滚动容器，请先展开侧边栏'
                         });
                         if (_p && _p.catch) _p.catch(() => {});
@@ -463,7 +474,7 @@
                 let lastCount = getConversationLinks().length;
                 let stable = 0;
                 let totalFound = lastCount;
-                for (let i = 0; i < maxIter; i++) {
+                for (let i = 0; i < effectiveMax; i++) {
                     try {
                         const btns = container.querySelectorAll('button');
                         for (const b of btns) {
@@ -472,7 +483,7 @@
                                 if (b.getAttribute('aria-label') && b.getAttribute('aria-label').includes('Toggle')) continue;
                                 if (b.offsetParent === null) continue;
                                 b.click();
-                                await sleep(350);
+                                await sleep(150);
                             }
                         }
                         try {
@@ -501,26 +512,35 @@
                                 bubbles: true
                             }));
                         } catch {}
-                        const delay = 350 + Math.floor(Math.random() * 150);
+                        const delay = isIncremental ? 160 : (200 + Math.floor(Math.random() * 80));
                         await sleep(delay);
-                        // during deep scan, we temporarily allow syncOnce but only to merge visible into larger set (flag off briefly)
-                        await syncOnce();
+
                         const curLinks = getConversationLinks();
                         const curCount = curLinks.length;
                         totalFound = Math.max(totalFound, curCount);
+
+                        // 增量同步智能早退：如果当前可见的尾部会话已全部存在于本地存储，说明已对接历史，立即停止
+                        if (isIncremental && storedIdSet.size > 0 && curLinks.length >= 10) {
+                            const tail = curLinks.slice(-10);
+                            if (tail.every(l => storedIdSet.has(l.id))) {
+                                console.log('[Gemini Exporter] Incremental early exit: tail items already known at round', i + 1);
+                                break;
+                            }
+                        }
+
                         try {
                             const _p = chrome.runtime.sendMessage({
                                 action: 'scanProgress',
                                 done: i + 1,
-                                total: maxIter,
-                                percent: Math.floor(((i + 1) / maxIter) * 100),
+                                total: effectiveMax,
+                                percent: Math.floor(((i + 1) / effectiveMax) * 100),
                                 count: totalFound,
-                                title: `正在扫描第 ${i + 1}/${maxIter} 轮 (已发现 ${totalFound} 条)`
+                                title: `正在扫描 (${totalFound} 条)…`
                             });
                             if (_p && _p.catch) _p.catch(() => {});
                         } catch (e) {}
                         const badgeTxt = document.getElementById('geminiExportBadgeText');
-                        if (badgeTxt) badgeTxt.textContent = `深度扫描中 | 已发现 ${totalFound} 条`;
+                        if (badgeTxt) badgeTxt.textContent = `同步中 | 已获取 ${totalFound} 条`;
 
                         if (curCount === lastCount) {
                             stable++;
@@ -535,7 +555,7 @@
                         tryExpandRecents();
                     } catch (e) {
                         console.warn('[Robust scroll iter error]', e.message || e);
-                        await sleep(250);
+                        await sleep(100);
                     }
                 }
                 const finalLinks = getConversationLinks();
@@ -544,8 +564,8 @@
                 try {
                     const _p = chrome.runtime.sendMessage({
                         action: 'scanProgress',
-                        done: maxIter,
-                        total: maxIter,
+                        done: effectiveMax,
+                        total: effectiveMax,
                         percent: 100,
                         count: finalLinks.length,
                         title: `扫描完成，共 ${finalLinks.length} 条`
