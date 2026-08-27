@@ -1284,9 +1284,13 @@ document.addEventListener('DOMContentLoaded', () => {
     $('langToggle')?.addEventListener('change', async (e) => {
         const nextLang = e.target.checked ? 'en' : 'zh';
         if (typeof I18n !== 'undefined') {
+            const listEl = $('list');
+            const savedScroll = listEl ? listEl.scrollTop : 0;
             await I18n.setLang(nextLang);
             updateZipUi();
-            renderList(getSelected());
+            const currentSelected = new Set(getSelectedSafe().map(x => x.id));
+            renderList(currentSelected);
+            if (listEl) listEl.scrollTop = savedScroll;
             updateSelectedStat();
         }
     });
