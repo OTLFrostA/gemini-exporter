@@ -157,16 +157,15 @@
     <div id="progText" class="stat" style="text-align:center; min-height:16px; line-height:16px;"></div>
 
     <div style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
-      <div style="display:flex; gap:8px; align-items:center; flex:none;">
-        <select id="logLevel" title="级别" style="font-size:12px; padding:6px; border-radius:6px; background:var(--card-inner);">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:none;">
+        <select id="logLevel" title="级别" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">
           <option value="all" data-i18n="logLevelAll">全部日志</option>
           <option value="info" data-i18n="logLevelInfo">简要日志</option>
           <option value="warn" data-i18n="logLevelWarn">仅错误</option>
         </select>
-        <input id="logFilter" type="text" placeholder="过滤关键字 (-排除)" style="flex:1; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; font-size:12px">
-        <button id="btnClearLog" class="ghost small">清空</button>
-        <button id="btnExportDiag" class="ghost small" title="导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)" style="color:#78a9ff;">导出诊断</button>
-        <button id="btnProbeAnchor" class="ghost small" title="尝试使用锚点或倒序向 Google 探测 2025 年及更深历史" style="color:#a5b4fc;">深层探测</button>
+        <input id="logFilter" type="text" placeholder="过滤关键字 (-排除)" style="flex:1; min-width:80px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 8px; font-size:11px">
+        <button id="btnClearLog" class="ghost small" style="padding:3px 8px; font-size:11px;">清空</button>
+        <button id="btnExportDiag" class="ghost small" title="导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)" style="color:#78a9ff; padding:3px 8px; font-size:11px;">导出诊断</button>
       </div>
       <div id="log" class="log" style="flex:1; overflow-y:auto;">就绪</div>
     </div>
@@ -186,6 +185,7 @@
         <button id="btnIncrementalScan" class="primary small" data-i18n="btnIncrementalScan" data-i18n-title="btnIncrementalScanTip" title="快速拉取最近更新的会话（日常推荐，通常仅需 1~2 秒）">同步最新会话</button>
         <button id="btnDeepScan" class="ghost small" data-i18n="btnDeepScan" data-i18n-title="btnDeepScanTip" title="地毯式扫描并同步该账号下的所有历史会话（初次使用或换账号时推荐）">全量拉取历史</button>
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a;" data-i18n="btnStopScan" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
+        <button id="btnProbeAnchor" class="ghost small" style="color:#d8b4fe; border-color:#6355a4;" title="使用当前最老对话 ID 作为锚点，向 Google 探测深层历史">⚡ 深层探测</button>
         <div style="flex:1;"></div>
         <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
       </div>
