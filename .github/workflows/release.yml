@@ -46,10 +46,23 @@ jobs:
           echo "Current version in manifest.json: ${CURRENT_VER}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VER"
 
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          LATEST_TAG_VER="${LATEST_TAG#v}"
+          echo "Latest git tag: ${LATEST_TAG} (ver: ${LATEST_TAG_VER})"
+
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF_NAME}"
             VERSION="${TAG#v}"
             echo "Triggered by tag push: ${TAG}"
+          elif [ "${{ github.event_name }}" != "workflow_dispatch" ] && [ "$CURRENT_VER" != "$LATEST_TAG_VER" ] && [ -n "$CURRENT_VER" ]; then
+            echo "Version in manifest.json (${CURRENT_VER}) is already updated compared to latest tag (${LATEST_TAG_VER}). Using manifest.json version directly."
+            NEW_VER="${CURRENT_VER}"
+            TAG="v${NEW_VER}"
+            VERSION="${NEW_VER}"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "Release ${TAG}"
+            git push origin main --follow-tags
           else
             BUMP_TYPE="patch"
 
@@ -89,7 +102,9 @@ jobs:
 
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git commit -am "chore(release): bump version to ${TAG} [skip ci]"
+            if ! git diff --quiet manifest.json; then
+              git commit -am "chore(release): bump version to ${TAG} [skip ci]"
+            fi
             git tag -a "${TAG}" -m "Release ${TAG}"
             git push origin main --follow-tags
           fi
