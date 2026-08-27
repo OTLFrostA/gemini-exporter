@@ -449,7 +449,7 @@
 
                 const isIncremental = (mode === 'incremental');
                 const effectiveMax = isIncremental ? Math.min(maxIter, 8) : maxIter;
-                const { convKey } = getStorageKeys();
+                const { convKey, countKey } = getStorageKeys();
                 const stored = (await chrome.storage.local.get([convKey]))[convKey] || [];
                 const storedIdSet = new Set(stored.map(c => c.id));
 
@@ -560,7 +560,6 @@
                 }
                 const finalLinks = getConversationLinks();
                 await syncOnce();
-                const { convKey, countKey } = getStorageKeys();
                 const store = await chrome.storage.local.get([convKey, countKey]);
                 const finalCount = store[convKey]?.length || store[countKey] || finalLinks.length;
                 console.log('[Gemini Exporter] scrollToBottomLoadAll done visible', finalLinks.length, 'totalMerged', finalCount);
@@ -585,7 +584,6 @@
                 window.__gemExporterDeepScanPromise = null;
                 // final badge stabilize
                 try {
-                    const { convKey } = getStorageKeys();
                     let r = await chrome.storage.local.get([convKey]);
                     let c = r[convKey]?.length || 0;
                     updateBadge(c, getConversationLinks().length, `已同步 ${c} 条 ✓`);
