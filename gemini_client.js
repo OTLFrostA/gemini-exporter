@@ -370,7 +370,7 @@
                 let sourceUrl = typeof node[3] === "string" ? node[3] : "";
                 let fileName = typeof node[2] === "string" ? node[2] : "";
                 let mime = typeof node[11] === "string" ? node[11] : void 0;
-                let token = typeof node[5] === "string" && node[5].startsWith("$AQ") ? node[5] : void 0;
+                let token = typeof node[5] === "string" && (node[5].startsWith("$AQ") || node[5].startsWith("$AX")) ? node[5] : void 0;
                 let sizeArr = node.find(x => Array.isArray(x) && x.length >= 3 && typeof x[0] === "number" && typeof x[1] === "number" && typeof x[2] === "number" && x[0] > 100 && x[1] > 100 && x[2] > 1e3);
                 let isPlaceholder = /^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(sourceUrl);
                 if (isPlaceholder) {
