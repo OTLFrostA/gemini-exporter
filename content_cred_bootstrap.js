@@ -1,23 +1,17 @@
-// content_cred_bootstrap.js - CSP-safe credential bootstrap (no inline code)
-// Relies on manifest world:MAIN public/hook-credentials.js for main capture
-// Dynamic injection removed since it is handled by manifest world:MAIN
-
+// content_cred_bootstrap.js - Credential bootstrap
 function extractAtFromPage() {
     try {
-        // 1. global caches
         try {
             if (window.__gemExporterExtractedAt && typeof window.__gemExporterExtractedAt === 'string' && window.__gemExporterExtractedAt.length > 15) return window.__gemExporterExtractedAt;
             if (window.__geminiAt && typeof window.__geminiAt === 'string' && window.__geminiAt.length > 15) return window.__geminiAt;
         } catch {}
-        // 2. WIZ global
+
         try {
-            if (window._WIZ_global_data && window._WIZ_global_data.SNlM0e) return window._WIZ_global_data.SNlM0e;
-            if (window.WIZ_global_data && window.WIZ_global_data.SNlM0e) return window.WIZ_global_data.SNlM0e;
-            // sometimes __WIZ_global_data under window
-            const w = window;
-            if (w.__WIZ_global_data && w.__WIZ_global_data.SNlM0e) return w.__WIZ_global_data.SNlM0e;
+            if (window._WIZ_global_data?.SNlM0e) return window._WIZ_global_data.SNlM0e;
+            if (window.WIZ_global_data?.SNlM0e) return window.WIZ_global_data.SNlM0e;
+            if (window.__WIZ_global_data?.SNlM0e) return window.__WIZ_global_data.SNlM0e;
         } catch {}
-        // 3. scripts parse
+
         let scripts = document.querySelectorAll('script');
         for (let s of scripts) {
             let txt = s.textContent || '';
@@ -25,28 +19,14 @@ function extractAtFromPage() {
             let m = txt.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
             if (m && m[1].length > 10) return m[1];
             let m2 = txt.match(/"at"\s*:\s*"([^"]{20,})"/);
-            if (m2 && m2[1].length > 15 && m2[1].indexOf('%') === -1 && !m2[1].includes('\\')) return m2[1];
-            // new pattern boq_ token sometimes in cfb2h?
+            if (m2 && m2[1].length > 15 && !m2[1].includes('%') && !m2[1].includes('\\')) return m2[1];
             let m3 = txt.match(/"cfb2h"\s*:\s*"([^"]+)"/);
-            if (m3 && m3[1].startsWith('A') && m3[1].length > 15) {
-                // cfb2h is at token in some builds
-                return m3[1];
-            }
+            if (m3 && m3[1].startsWith('A') && m3[1].length > 15) return m3[1];
         }
-        // 4. localStorage / sessionStorage guesses
+
         try {
             let ls = localStorage.getItem('SNlM0e') || sessionStorage.getItem('SNlM0e');
             if (ls) return ls;
-            // gemini at sometimes stored under other keys, scan
-            for (let i = 0; i < localStorage.length && i < 60; i++) {
-                let k = localStorage.key(i);
-                if (!k) continue;
-                let v = localStorage.getItem(k) || '';
-                if (v.length > 30 && v.length < 2000 && v.includes('AF')) {
-                    let mm = v.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
-                    if (mm) return mm[1];
-                }
-            }
         } catch {}
     } catch (e) {
         console.warn('extractAt fail', e);
@@ -178,17 +158,8 @@ try {
     window.__gemExporterEnsureCreds = ensureCreds;
 } catch {}
 ensureCreds();
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        ensureCreds();
-    }, 1200);
-    setTimeout(() => {
-        ensureCreds();
-    }, 3500);
-});
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(ensureCreds, 600);
-});
+document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });
+window.addEventListener('load', () => ensureCreds(), { once: true });
 
 // 监听 GEMINI_CREDENTIALS
 window.addEventListener('message', async (e) => {

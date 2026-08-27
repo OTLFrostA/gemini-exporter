@@ -1,31 +1,19 @@
 // content.js - Gemini Exporter content script
-// Handles conversation synchronization and in-page detail extraction
 (() => {
-    // ---- Global flags (survive hot reload) ----
     if (typeof window.__gemExporterDeepScanPromise === 'undefined') window.__gemExporterDeepScanPromise = null;
 
     if (window.__gemExporterInjected) {
-        console.log('[Gemini Exporter] hot reload detected - re-init badge & scan');
         try {
             document.getElementById('geminiExportBadge')?.remove();
         } catch {}
-        // Do NOT clear running flag on hot reload – keep deep scan protection
         window.__gemExporterInjected = false;
         window.__gemExporterScrollAll = null;
     }
     window.__gemExporterInjected = true;
-    console.log('[Gemini Exporter] injected at', document.readyState);
 
-    // ----- Helpers: badge -----
     function ensureBadge() {
         let existing = document.getElementById('geminiExportBadge');
-        if (existing) {
-            // remove duplicate badges if any (loop bug leftover)
-            document.querySelectorAll('#geminiExportBadge').forEach((el, i) => {
-                if (i > 0) el.remove();
-            });
-            return existing;
-        }
+        if (existing) return existing;
         let isZh = (navigator.language || '').toLowerCase().startsWith('zh');
         chrome.storage.local.get(['gemini_exporter_lang'], d => {
             if (d.gemini_exporter_lang) isZh = d.gemini_exporter_lang === 'zh';
@@ -401,21 +389,6 @@
         return document.scrollingElement || document.documentElement;
     }
 
-    window.__gemExporterDumpStorage = async () => {
-        try {
-            let r = await chrome.storage.local.get(['gemini_conversations', 'gemini_last_count', 'gemini_last_sync']);
-            console.log('STORAGE_DUMP', JSON.stringify({
-                count: r.gemini_conversations?.length,
-                last_count: r.gemini_last_count,
-                has_sync: !!r.gemini_last_sync,
-                sample: r.gemini_conversations?.slice(0, 2)
-            }));
-            return r;
-        } catch (e) {
-            console.warn('STORAGE_DUMP err', e);
-        }
-    };
-
     async function syncOnce() {
         try {
             const links = getConversationLinks();
@@ -534,7 +507,6 @@
                         try {
                             document.documentElement.scrollTop = document.documentElement.scrollHeight;
                         } catch {}
-                        // 把所有可能的侧边栏容器都滚到底，避免只滚了一个导致卡在 29
                         try {
                             document.querySelectorAll('mat-sidenav-content, [data-test-id="sidenav-content"], #sidenav-section-content-chats, div[role="navigation"], bard-sidenav').forEach(el => {
                                 try {
@@ -558,11 +530,9 @@
                         const curCount = curLinks.length;
                         totalFound = Math.max(totalFound, curCount);
 
-                        // 增量同步智能早退：如果当前可见的尾部会话已全部存在于本地存储，说明已对接历史，立即停止
                         if (isIncremental && storedIdSet.size > 0 && curLinks.length >= 10) {
                             const tail = curLinks.slice(-10);
                             if (tail.every(l => storedIdSet.has(l.id))) {
-                                console.log('[Gemini Exporter] Incremental early exit: tail items already known at round', i + 1);
                                 break;
                             }
                         }
@@ -652,27 +622,23 @@
     window.addEventListener('load', () => {
         ensureBadge();
         syncOnce();
-        setTimeout(syncOnce, 2000);
-        setTimeout(syncOnce, 5000);
     });
 
     window.addEventListener('popstate', () => {
         setTimeout(() => {
             refreshInitialBadge();
             syncOnce();
-        }, 500);
+        }, 300);
     });
 
     if (document.readyState !== 'loading') {
         ensureBadge();
-        setTimeout(syncOnce, 800);
+        syncOnce();
     } else {
         document.addEventListener('DOMContentLoaded', () => {
             ensureBadge();
             syncOnce();
-        }, {
-            once: true
-        });
+        }, { once: true });
     }
 
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -701,7 +667,7 @@
             }));
             return true;
         }
-        if (msg.action === 'deepScan' || msg.action === 'scrollToBottom') {
+        if (msg.action === 'deepScan') {
             if (window.__gemExporterDeepScanPromise) {
                 sendResponse({
                     success: true,
@@ -718,22 +684,13 @@
             }));
             return true;
         }
-        if (msg.action === 'abortSync' || msg.action === 'stopScan') {
-            console.log('[Gemini Exporter] abortSync received, stopping active scan');
+        if (msg.action === 'abortSync') {
             if (window.geminiClient) {
                 window.geminiClient.aborted = true;
             }
             window.__gemExporterAborted = true;
             window.__gemExporterDeepScanPromise = null;
             sendResponse({ ok: true, aborted: true });
-            return true;
-        }
-        if (msg.action === 'probeAnchors') {
-            (async () => {
-                const client = window.geminiClient || new GeminiAPIClient();
-                const res = await client.probeAnchors(msg.lastId, msg.targetSid);
-                sendResponse({ ok: true, results: res });
-            })().catch(e => sendResponse({ ok: false, error: e.message }));
             return true;
         }
         if (msg.action === 'getScrollContainer') {
@@ -746,7 +703,7 @@
             });
             return true;
         }
-        if (msg.action === 'getConversationDetail' || msg.action === 'fetchChat') {
+        if (msg.action === 'getConversationDetail') {
             const cid = msg.conversationId || msg.id;
             if (!cid) {
                 sendResponse({
@@ -789,14 +746,14 @@
             })();
             return true;
         }
-        // --- Image/File blob handlers (merged from second listener) ---
-        if (msg.action !== 'getImageBlob' && msg.action !== 'getFileBlob') return;
         if (msg.action === 'getFileBlob') {
             handleGetFileBlob(msg, sendResponse);
             return true;
         }
-        handleGetImageBlob(msg, sendResponse);
-        return true;
+        if (msg.action === 'getImageBlob') {
+            handleGetImageBlob(msg, sendResponse);
+            return true;
+        }
     });
 
     function cleanText(t) {
