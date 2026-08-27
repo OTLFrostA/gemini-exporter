@@ -1126,23 +1126,14 @@ async function exportSelected() {
             });
             const url = URL.createObjectURL(content);
             const zName = exportFolderName + '.zip';
-            if (chrome.downloads && chrome.downloads.download) {
-                chrome.downloads.download({
-                    url: url,
-                    filename: zName,
-                    saveAs: true
-                }, () => {
-                    URL.revokeObjectURL(url);
-                    log('ZIP 打包完成，已开始下载');
-                });
-            } else {
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = zName;
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
-                log('ZIP 打包完成，已开始下载');
-            }
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = zName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            log('ZIP 打包完成，已开始下载');
         } catch (e) {
             log(`ZIP 生成失败: ${e.message}`);
         }
