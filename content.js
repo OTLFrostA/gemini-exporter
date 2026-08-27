@@ -470,7 +470,7 @@
                 if (!container) {
                     try {
                         const _p = chrome.runtime.sendMessage({
-                            action: 'exportProgress',
+                            action: 'scanProgress',
                             done: 0,
                             total: effectiveMax,
                             title: '未找到滚动容器，请先展开侧边栏'

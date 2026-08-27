@@ -620,9 +620,33 @@ async function exportSelected() {
         }
     }
 
-    function updateSharedProgress() {
-        $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} | 附件 ${downloadedAssets}/${__globalTotalAssets||totalAssets}`;
+    let currentExportTitle = '';
+    let currentExportIdx = 0;
+
+    function updateSharedProgress(chatIdx, chatTitle) {
+        if (typeof chatIdx === 'number') currentExportIdx = chatIdx;
+        if (typeof chatTitle === 'string' && chatTitle) currentExportTitle = chatTitle;
+
+        const totalChats = payloadIds.length;
+        const current = Math.min(currentExportIdx, totalChats);
+        const pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
+        const bar = $('bar');
+        if (bar) bar.style.width = Math.min(Math.max(pct, 0), 100) + '%';
+
+        let text = `进度 ${current}/${totalChats} (${pct}%)`;
+        if (currentExportTitle) {
+            const shortTitle = currentExportTitle.length > 28 ? currentExportTitle.slice(0, 28) + '…' : currentExportTitle;
+            text += ` | 当前: ${shortTitle}`;
+        }
+        const attTotal = __globalTotalAssets || totalAssets;
+        if (attTotal > 0) {
+            text += ` | 附件: ${downloadedAssets}/${attTotal}`;
+        }
+        const pt = $('progText');
+        if (pt) pt.textContent = text;
     }
+
+    updateSharedProgress(0, '准备中…');
 
     let attachmentQueue = [];
     let isFetchingDone = false;
@@ -655,6 +679,10 @@ async function exportSelected() {
             break;
         }
         let chunk = payloadIds.slice(i, i + CHUNK_SIZE);
+        const curCandidate = chunk[0];
+        if (curCandidate) {
+            updateSharedProgress(i + 1, curCandidate.title || curCandidate.id);
+        }
 
         let res = await new Promise(resolve => {
             chrome.runtime.sendMessage({
@@ -725,7 +753,7 @@ async function exportSelected() {
             } else {
                 failedChats.push(chat.id);
             }
-            updateSharedProgress();
+            updateSharedProgress(i + 1, listTitle);
 
             if (includeAssets && chat.messages && writeOk) {
                 for (const m of chat.messages) {
@@ -993,8 +1021,7 @@ async function exportSelected() {
 
     isFetchingDone = true;
     if (attachmentQueue.length > 0) {
-        let pt = document.getElementById('progText');
-        if (pt) pt.textContent += ' (正在下载剩余附件…)';
+        updateSharedProgress(payloadIds.length, '正在下载剩余附件…');
     }
     await Promise.all(consumerPool);
 
@@ -1067,7 +1094,9 @@ async function exportSelected() {
     }
 
     $('bar').style.width = '100%';
-    $('progText').textContent = `完成 ${landedChats} 条，附件 ${downloadedAssets}/${totalAssets}${failedAttachments.length? ` (失败${failedAttachments.length})`:''}，跳过 ${skipped} 条`;
+    const finalAttTotal = __globalTotalAssets || totalAssets;
+    const attStr = finalAttTotal > 0 ? `，附件 ${downloadedAssets}/${finalAttTotal}${failedAttachments.length ? ` (失败${failedAttachments.length})` : ''}` : '';
+    $('progText').textContent = `完成 ${landedChats}/${payloadIds.length} 条${attStr}，跳过 ${skipped} 条`;
     $('btnExport').disabled = false;
     setExportRunning(false);
     chrome.runtime.sendMessage({
@@ -1136,13 +1165,17 @@ chrome.runtime.onMessage.addListener((msg) => {
         return;
     }
     if (msg.action === 'exportProgress') {
+        if (__exportRunning) {
+            log(`进度 [${msg.done}/${msg.total}]: ${msg.title || msg.id}`);
+            return;
+        }
         const progWrap = $('progWrap');
         if (progWrap) progWrap.style.display = 'block';
         const pct = msg.total ? Math.floor((msg.done / msg.total) * 100) : 0;
         let bar = $('bar');
         if (bar) bar.style.width = pct + '%';
         let pt = $('progText');
-        if (pt) pt.textContent = msg.title ? `[${msg.done}/${msg.total}] ${msg.title}` : `进度 ${msg.done}/${msg.total}`;
+        if (pt) pt.textContent = `进度 ${msg.done}/${msg.total} | 当前: ${msg.title || ''}`;
         log(`进度 ${msg.done}/${msg.total}: ${msg.title || msg.id}`);
         return;
     }
