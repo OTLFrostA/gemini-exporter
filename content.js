@@ -560,25 +560,26 @@
                 }
                 const finalLinks = getConversationLinks();
                 await syncOnce();
-                console.log('[Gemini Exporter] scrollToBottomLoadAll done visible', finalLinks.length);
+                const { convKey, countKey } = getStorageKeys();
+                const store = await chrome.storage.local.get([convKey, countKey]);
+                const finalCount = store[convKey]?.length || store[countKey] || finalLinks.length;
+                console.log('[Gemini Exporter] scrollToBottomLoadAll done visible', finalLinks.length, 'totalMerged', finalCount);
                 try {
                     const _p = chrome.runtime.sendMessage({
                         action: 'scanProgress',
                         done: effectiveMax,
                         total: effectiveMax,
                         percent: 100,
-                        count: finalLinks.length,
-                        title: `扫描完成，共 ${finalLinks.length} 条`
+                        count: finalCount,
+                        title: `同步完成，账号共 ${finalCount} 条会话`
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {};
-                const { convKey, countKey } = getStorageKeys();
-                const store = await chrome.storage.local.get([convKey, countKey]);
-                const finalCount = store[convKey]?.length || store[countKey] || finalLinks.length;
                 return {
                     success: true,
-                    count: finalLinks.length,
-                    totalMerged: finalCount
+                    count: finalCount,
+                    totalMerged: finalCount,
+                    visibleCount: finalLinks.length
                 };
             } finally {
                 window.__gemExporterDeepScanPromise = null;
