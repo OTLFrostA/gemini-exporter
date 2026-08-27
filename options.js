@@ -1365,79 +1365,63 @@ document.addEventListener('DOMContentLoaded', () => {
             }, () => {});
         });
     }
-    // 增量扫描按钮
+    // 同步最新会话按钮（增量）
     const btnIncr = $('btnIncrementalScan');
     if (btnIncr) {
         btnIncr.addEventListener('click', async () => {
-            log('开始增量同步…');
+            log('开始同步最新会话…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '增量同步中…';
+            $('progText').textContent = '正在同步最新会话…';
             btnIncr.disabled = true;
             chrome.runtime.sendMessage({
                 action: 'deepScan',
                 maxIter: 150,
-                mode: 'incremental'
+                mode: 'incremental',
+                accountSlot: currentSlot
             }, (res) => {
                 btnIncr.disabled = false;
                 if (chrome.runtime.lastError) {
-                    log('增量同步失败: ' + chrome.runtime.lastError.message);
+                    log('同步失败: ' + chrome.runtime.lastError.message);
                     $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
                     return;
                 }
-                log('增量同步完成，已更新列表');
+                log('同步完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
                 setTimeout(loadStore, 1000);
             });
         });
     }
-    // 深度扫描（全量）按钮
+    // 全量拉取历史按钮
     const btnDeep = document.getElementById('btnDeepScan');
     if (btnDeep) {
         btnDeep.addEventListener('click', async () => {
-            log('开始深度扫描…');
+            log('开始全量拉取历史…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '深度扫描中…';
+            $('progText').textContent = '正在全量拉取历史…';
             $('btnDeepScan').disabled = true;
             chrome.runtime.sendMessage({
                 action: 'deepScan',
                 maxIter: 150,
-                mode: 'full'
+                mode: 'full',
+                accountSlot: currentSlot
             }, (res) => {
                 $('btnDeepScan').disabled = false;
                 if (chrome.runtime.lastError) {
-                    log('深度扫描失败: ' + chrome.runtime.lastError.message);
+                    log('全量拉取失败: ' + chrome.runtime.lastError.message);
                     $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
                     console.error('[workbench] deepScan err', chrome.runtime.lastError);
                     return;
                 }
-                log('深度扫描完成，已更新列表');
+                log('全量拉取完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
                 setTimeout(loadStore, 1000);
             });
         });
     }
-    $('btnResync').addEventListener('click', async () => {
-        log('正在重新同步…');
-        const tab = await findTabForSlot(currentSlot);
-        if (!tab) {
-            alert('未找到 Gemini 标签页，请先打开 gemini.google.com');
-            return;
-        }
-        chrome.tabs.sendMessage(tab.id, {
-            action: 'resync'
-        }, (res) => {
-            if (chrome.runtime.lastError) {
-                log('重新同步失败: ' + chrome.runtime.lastError.message);
-                return;
-            }
-            log('重新同步完成');
-            setTimeout(loadStore, 800);
-        });
-    });
     $('btnClearExported').addEventListener('click', async () => {
         if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearExported') : 'Are you sure you want to clear export history?')) return;
         const slot = currentSlot || 'u0';
