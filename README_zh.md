@@ -4,6 +4,12 @@
   <a href="./README.md">English</a> | <b>简体中文</b>
 </p>
 
+<p align="left">
+  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf" target="_blank">
+    <img src="https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome 网上应用店">
+  </a>
+</p>
+
 > **强大、隐私安全、完全开源的 Google Gemini 对话批量导出与归档 Chrome 扩展。**  
 > 一键将你的全部 Gemini 历史对话导出为 Markdown、JSON（支持 OpenAI 格式）、TXT 或打包为包含图片附件的 ZIP 归档，无缝迁移至 Obsidian、Notion、Logseq 等本地知识库。
 
