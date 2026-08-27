@@ -1014,6 +1014,16 @@ async function exportSelected() {
                                                 }
                                             });
                                             if (r.ok) {
+                                                let ct = (r.headers.get('content-type') || '').toLowerCase();
+                                                if (ct.startsWith('text/plain') || ct.startsWith('text/html')) {
+                                                    let txt = await r.text();
+                                                    let m = txt.match(/https:\/\/[^\s"'<>\\]*(?:googleusercontent|google)\.com\/[^\s"'<>\\]+/i);
+                                                    if (m) {
+                                                        let nextUrl = m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&');
+                                                        if (!cands.includes(nextUrl)) cands.push(nextUrl);
+                                                    }
+                                                    continue;
+                                                }
                                                 let tempBlob = await r.blob();
                                                 if (tempBlob.size > 800) {
                                                     let ab = await tempBlob.arrayBuffer();
