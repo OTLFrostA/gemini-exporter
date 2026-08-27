@@ -451,9 +451,11 @@
                 );
                 // tryBatchExecuteFull leaves running true only if it succeeded via inner path;
                 // if it returned count, we can finish early
+                const { slot, convKey, countKey } = getStorageKeys();
                 if (batchCount && batchCount > 0) {
                     return {
                         success: true,
+                        slot,
                         count: batchCount,
                         totalMerged: batchCount,
                         source: 'batchexecute'
@@ -462,7 +464,6 @@
 
                 const isIncremental = (mode === 'incremental');
                 const effectiveMax = isIncremental ? Math.min(maxIter, 8) : maxIter;
-                const { convKey, countKey } = getStorageKeys();
                 const stored = (await chrome.storage.local.get([convKey]))[convKey] || [];
                 const storedIdSet = new Set(stored.map(c => c.id));
 
@@ -589,6 +590,7 @@
                 } catch (e) {};
                 return {
                     success: true,
+                    slot,
                     count: finalCount,
                     totalMerged: finalCount,
                     visibleCount: finalLinks.length

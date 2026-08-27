@@ -1237,21 +1237,17 @@ chrome.runtime.onMessage.addListener((msg) => {
         return;
     }
     if (msg.action === 'syncUpdate') {
-        const slot = currentSlot || 'u0';
-        if (msg.slot && msg.slot !== slot) {
-            chrome.storage.local.get(['gemini_account_slots'], d => {
-                accountSlots = d.gemini_account_slots || {};
-                updateAccountSlotSelector();
-            });
-            return;
+        if (msg.slot) {
+            currentSlot = msg.slot;
         }
+        chrome.storage.local.get(['gemini_account_slots'], d => {
+            accountSlots = d.gemini_account_slots || {};
+            updateAccountSlotSelector();
+        });
         const syncEl = $('syncCount');
         if (syncEl) syncEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
-        console.log('[workbench] syncUpdate debounced received', msg.count, 'current', conversations.length, 'from', msg.from);
-        // prevent flash: if count same, don't reload; if deep scan running (batchexecute), don't flash each page
-        if (msg.count === conversations.length) return;
-        // debounce actual reload
-        debouncedLoadStore(true);
+        console.log('[workbench] syncUpdate received', msg.count, 'current', conversations.length, 'slot', currentSlot, 'from', msg.from);
+        debouncedLoadStore(false);
         return;
     }
     if (msg.action === 'assetProgress') {
@@ -1278,7 +1274,21 @@ document.addEventListener('DOMContentLoaded', () => {
             verEl.textContent = 'v' + chrome.runtime.getManifest().version;
         } catch (e) {}
     }
-    loadStore();
+    // Auto-detect current active Gemini tab's slot
+    (async () => {
+        try {
+            const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+            const activeTab = tabs.find(t => t.active) || tabs[0];
+            if (activeTab?.url) {
+                const m = activeTab.url.match(/\/u\/(\d+)(?:\/|$)/);
+                if (m) {
+                    currentSlot = 'u' + m[1];
+                    console.log('[workbench] Auto-detected slot from active Gemini tab:', currentSlot);
+                }
+            }
+        } catch {}
+        loadStore();
+    })();
     chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip'], data => {
         if (data.gemini_export_format && $('format')) {
             $('format').value = data.gemini_export_format;
@@ -1403,7 +1413,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 log('同步完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
-                setTimeout(loadStore, 1000);
+                if (res?.slot) currentSlot = res.slot;
+                setTimeout(() => loadStore(false), 300);
             });
         });
     }
@@ -1432,7 +1443,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 log('全量拉取完成，已更新列表');
                 $('bar').style.width = '100%';
                 $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
-                setTimeout(loadStore, 1000);
+                if (res?.slot) currentSlot = res.slot;
+                setTimeout(() => loadStore(false), 300);
             });
         });
     }

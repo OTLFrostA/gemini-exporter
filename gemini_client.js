@@ -176,7 +176,7 @@
                 for (let v of inner) {
                     if (typeof v === "string") {
                         let s = v.trim();
-                        if (s.length >= 20 && !s.includes(" ") && !s.includes("\n") && !s.startsWith("http") && !s.startsWith("boq_") && !s.startsWith("Google Account")) {
+                        if (s.length >= 50 && !s.includes(" ") && !s.includes("\n") && !s.startsWith("http") && !s.startsWith("boq_") && !s.startsWith("Google Account")) {
                             token = s;
                             break;
                         }
@@ -184,7 +184,7 @@
                         for (let item of v) {
                             if (typeof item === "string") {
                                 let s = item.trim();
-                                if (s.length >= 25 && !s.includes(" ") && !s.includes("\n") && !s.startsWith("http") && !s.startsWith("c_") && !s.startsWith("boq_")) {
+                                if (s.length >= 50 && !s.includes(" ") && !s.includes("\n") && !s.startsWith("http") && !s.startsWith("c_") && !s.startsWith("boq_")) {
                                     token = s;
                                     break;
                                 }
@@ -746,7 +746,17 @@
                 token = null;
             let unchangedStreak = 0;
             for (let i = 0; i < maxPages; i++) {
-                let res = await this.getConversationList(token, targetSid);
+                let res;
+                try {
+                    res = await this.getConversationList(token, targetSid);
+                } catch (err) {
+                    console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
+                    if (all.length > 0) {
+                        // 网络异常或翻页到底时，保留已获取的全部会话，绝不抛出导致整盘丢弃
+                        break;
+                    }
+                    throw err;
+                }
                 let added = 0;
                 for (let c of res.conversations) {
                     if (!seen.has(c.id)) {
@@ -795,9 +805,9 @@
                 });
                 if (!res.nextPageToken) break;
                 token = res.nextPageToken;
-                // 增量模式零等待；全量扫描保留 60ms 极轻节流防 429
-                const pageDelay = incremental ? 0 : 60;
-                if (pageDelay > 0) await new Promise(r => setTimeout(r, pageDelay));
+                // 适度节流（120ms），防止触发 Google 429 限流
+                const pageDelay = incremental ? 50 : 120;
+                await new Promise(r => setTimeout(r, pageDelay));
             }
             return {
                 conversations: all,
