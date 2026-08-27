@@ -3,17 +3,25 @@
 console.log('[Gemini Exporter] Background service worker ready');
 let __bgAborted = false;
 
-function getGeminiTab() {
+function getGeminiTab(slot) {
     return chrome.tabs.query({
         url: 'https://gemini.google.com/*'
     }).then(tabs => {
         if (!tabs.length) return null;
+        if (slot && slot !== 'u0') {
+            const slotNum = slot.replace('u', '');
+            const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
+            if (match) return match;
+        } else if (slot === 'u0') {
+            const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+            if (defMatch) return defMatch;
+        }
         return tabs.find(t => t.active) || tabs[0];
     });
 }
 
-function sendToGeminiTab(msg) {
-    return getGeminiTab().then(tab => {
+function sendToGeminiTab(msg, slot) {
+    return getGeminiTab(slot).then(tab => {
         if (!tab) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
         return new Promise((resolve, reject) => {
             chrome.tabs.sendMessage(tab.id, msg, (res) => {
@@ -49,7 +57,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (msg.action === 'fetchBatch') {
         __bgAborted = false;
-        fetchBatch(msg.ids, msg.format, msg.skipExported, sendResponse, msg.globalOffset, msg.globalTotal);
+        fetchBatch(msg.ids, msg.format, msg.skipExported, sendResponse, msg.globalOffset, msg.globalTotal, msg.accountSlot);
         return true;
     }
     if (msg.action === 'cancelExport') {
@@ -78,7 +86,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     action: 'deepScan',
                     maxIter: msg.maxIter || 150,
                     mode: msg.mode || 'auto'
-                });
+                }, msg.accountSlot);
                 sendResponse(res);
             } catch (e) {
                 sendResponse({
@@ -96,7 +104,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     action: 'deepScan',
                     maxIter: msg.maxIter || 150,
                     mode: msg.mode || 'auto'
-                });
+                }, msg.accountSlot);
                 sendResponse(res || {
                     success: true
                 });
@@ -137,6 +145,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             try {
                 const _p = chrome.runtime.sendMessage({
                     action: 'syncUpdate',
+                    slot: msg.slot,
                     count: msg.count,
                     newCount: msg.newCount || msg.count,
                     from: msg.from || 'dom'
@@ -159,14 +168,17 @@ function toMs(v) {
     const n = Date.parse(v);
     return Number.isFinite(n) ? n : 0;
 }
-async function fetchBatch(list, format, skipExported, portSendResponse, globalOffset = 0, globalTotal = 0) {
-    const {
-        exportedIds = {}, gemini_conversations = []
-    } = await chrome.storage.local.get(['exportedIds', 'gemini_conversations']);
+async function fetchBatch(list, format, skipExported, portSendResponse, globalOffset = 0, globalTotal = 0, accountSlot = 'u0') {
+    const slot = accountSlot || 'u0';
+    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+    const store = await chrome.storage.local.get([expKey, convKey]);
+    const exportedIds = store[expKey] || {};
+    const conversations = store[convKey] || [];
     let toFetch = list;
     if (skipExported) {
         const normId = id => String(id || '').replace(/^c_/, '');
-        const convMap = new Map((gemini_conversations || []).map(c => [normId(c.id), c]));
+        const convMap = new Map(conversations.map(c => [normId(c.id), c]));
         const recMap = new Map(Object.entries(exportedIds).map(([id, r]) => [normId(id), r]));
         toFetch = list.filter(x => {
             if (/^Google Account/i.test(x.title || '') || /accounts\.google\.com|SignOutOptions/i.test(x.url || '')) return false;
@@ -182,10 +194,8 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
         });
     }
 
-    const tabs = await chrome.tabs.query({
-        url: 'https://gemini.google.com/*'
-    });
-    if (!tabs.length) {
+    const tab = await getGeminiTab(slot);
+    if (!tab) {
         portSendResponse({
             success: false,
             error: '请先打开 gemini.google.com，保持登录状态'
@@ -207,7 +217,7 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                 data = await sendToGeminiTab({
                     action: 'getConversationDetail',
                     conversationId: item.id
-                });
+                }, slot);
             } catch (tabErr) {
                 data = {
                     success: false,

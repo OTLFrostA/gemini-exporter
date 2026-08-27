@@ -1,6 +1,8 @@
 // options.js - Gemini Exporter workbench controller
 let conversations = [];
 let exportedIds = {};
+let currentSlot = 'u0';
+let accountSlots = {};
 
 let __workbenchDebounceTimer = null;
 let __lastRenderedSignature = '';
@@ -93,15 +95,72 @@ function getSignature(list) {
     }
 }
 
-async function loadStore(forceQuiet = false) {
-    console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length);
+function updateAccountSlotSelector() {
+    const sel = $('accountSlotSelect');
+    if (!sel) return;
+    const slots = Object.keys(accountSlots || {});
+    if (slots.length <= 1 && (!slots.includes('u1') && !slots.includes('u2'))) {
+        sel.style.display = 'none';
+        return;
+    }
+    sel.style.display = 'inline-block';
+    let html = '';
+    const sorted = Array.from(new Set(['u0', ...slots])).sort();
+    for (const s of sorted) {
+        const info = accountSlots[s];
+        const label = info?.name || (s === 'u0' ? '默认账号 (u0)' : `账号 ${s.toUpperCase()}`);
+        const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
+        const selected = (s === currentSlot) ? 'selected' : '';
+        html += `<option value="${s}" ${selected}>${label}${count}</option>`;
+    }
+    sel.innerHTML = html;
+}
+
+async function findTabForSlot(slot) {
     try {
-        const data = await chrome.storage.local.get(['gemini_conversations', 'gemini_last_sync', 'exportedIds', 'gemini_last_count', 'gemini_credentials_map']);
+        const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        if (!tabs || !tabs.length) return null;
+        if (slot && slot !== 'u0') {
+            const slotNum = slot.replace('u', '');
+            const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
+            if (match) return match;
+        } else {
+            const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+            if (defMatch) return defMatch;
+        }
+        return tabs.find(t => t.active) || tabs[0];
+    } catch {
+        return null;
+    }
+}
+
+async function loadStore(forceQuiet = false) {
+    console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length, 'slot', currentSlot);
+    try {
+        const slot = currentSlot || 'u0';
+        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        const syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
+        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+
+        const data = await chrome.storage.local.get([
+            convKey,
+            syncKey,
+            expKey,
+            countKey,
+            'gemini_account_slots',
+            'gemini_credentials_map'
+        ]);
+
+        accountSlots = data.gemini_account_slots || {};
+        updateAccountSlotSelector();
+
         console.log('[workbench] loadStore raw', {
-            count: data.gemini_conversations?.length,
-            last_count: data.gemini_last_count,
-            has_sync: !!data.gemini_last_sync,
-            exportedLen: Object.keys(data.exportedIds || {}).length
+            slot,
+            count: data[convKey]?.length,
+            last_count: data[countKey],
+            has_sync: !!data[syncKey],
+            exportedLen: Object.keys(data[expKey] || {}).length
         });
         // 保留当前勾选 - robust handling of empty set
         let prevSelectedRaw = [];
@@ -112,15 +171,15 @@ async function loadStore(forceQuiet = false) {
         }
         const prevSelected = new Set(prevSelectedRaw);
         const hadLength = conversations.length;
-        let incoming = data.gemini_conversations || [];
-        exportedIds = data.exportedIds || {};
+        let incoming = data[convKey] || [];
+        exportedIds = data[expKey] || {};
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length);
         // If signature same and within 5s of last render, skip render to stop flash
         if (sameSig && Date.now() - __lastRenderTime < 5000) {
             const lastSyncElFast = $('lastSync');
-            if (lastSyncElFast && data.gemini_last_sync) {
-                lastSyncElFast.textContent = `最后 sync: ${new Date(data.gemini_last_sync).toLocaleString()} | 共 ${incoming.length} 条`;
+            if (lastSyncElFast && data[syncKey]) {
+                lastSyncElFast.textContent = `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${incoming.length} 条`;
             }
             return;
         }
@@ -128,7 +187,7 @@ async function loadStore(forceQuiet = false) {
         const same = (hadLength === conversations.length);
         const lastSyncEl = $('lastSync');
         if (lastSyncEl) {
-            lastSyncEl.textContent = data.gemini_last_sync ? `最后 sync: ${new Date(data.gemini_last_sync).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
+            lastSyncEl.textContent = data[syncKey] ? `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
         }
         const _badIds = [];
         conversations = (conversations || []).filter(c => {
@@ -154,9 +213,9 @@ async function loadStore(forceQuiet = false) {
         if (_badIds.length) {
             console.log('[workbench] 清理脏对话', _badIds.slice(0, 5));
             await chrome.storage.local.set({
-                gemini_conversations: conversations,
-                gemini_last_count: conversations.length,
-                gemini_last_sync: new Date().toISOString()
+                [convKey]: conversations,
+                [countKey]: conversations.length,
+                [syncKey]: new Date().toISOString()
             });
         }
         const syncCountEl = $('syncCount');
@@ -173,12 +232,9 @@ async function loadStore(forceQuiet = false) {
         if (conversations.length === 0) {
             console.log('[workbench] conversations empty, trying to pull from Gemini tab');
             try {
-                const tabs = await chrome.tabs.query({
-                    url: 'https://gemini.google.com/*'
-                });
-                if (tabs.length) {
+                const tab = await findTabForSlot(slot);
+                if (tab) {
                     log('正在同步会话列表…');
-                    const tab = tabs[0];
                     const tryViaMessage = () => new Promise(resolve => {
                         chrome.tabs.sendMessage(tab.id, {
                             action: 'getLinks'
@@ -583,8 +639,10 @@ async function exportSelected() {
         lastSeen: s.lastSeen
     }));
     const CHUNK_SIZE = 1;
-    const store = await chrome.storage.local.get(['exportedIds']);
-    let curIds = store.exportedIds || {};
+    const slot = currentSlot || 'u0';
+    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+    const store = await chrome.storage.local.get([expKey]);
+    let curIds = store[expKey] || {};
 
     let batchDirHandle;
     let zip;
@@ -685,7 +743,8 @@ async function exportSelected() {
                 format,
                 skipExported: skip,
                 globalOffset: i,
-                globalTotal: payloadIds.length
+                globalTotal: payloadIds.length,
+                accountSlot: currentSlot
             }, (response) => {
                 if (chrome.runtime.lastError) {
                     resolve({
@@ -740,7 +799,7 @@ async function exportSelected() {
                         status: 'ok'
                     };
                     chrome.storage.local.set({
-                        exportedIds: curIds
+                        [expKey]: curIds
                     }).catch(() => {});
                 }
             } else {
@@ -1132,12 +1191,14 @@ function toMarkdown(chat) {
 // 监听 background 进度 - debounce to prevent workbench flashing on deep scan
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    if (!(changes.gemini_conversations || changes.gemini_last_count)) return;
-    let newCount = changes.gemini_conversations?.newValue?.length ?? changes.gemini_last_count?.newValue ?? null;
+    const slot = currentSlot || 'u0';
+    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+    const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+    if (!(changes[convKey] || changes[countKey] || changes.gemini_account_slots)) return;
+    let newCount = changes[convKey]?.newValue?.length ?? changes[countKey]?.newValue ?? null;
     console.log('[workbench] storage.onChanged debounced', area, Object.keys(changes), newCount);
     // skip if same signature as last render (deep scan writes same large set repeatedly)
-    if (newCount !== null && newCount === conversations.length) {
-        // still update time label but debounce full reload
+    if (newCount !== null && newCount === conversations.length && !changes.gemini_account_slots) {
         debouncedLoadStore(true);
         return;
     }
@@ -1166,6 +1227,14 @@ chrome.runtime.onMessage.addListener((msg) => {
         return;
     }
     if (msg.action === 'syncUpdate') {
+        const slot = currentSlot || 'u0';
+        if (msg.slot && msg.slot !== slot) {
+            chrome.storage.local.get(['gemini_account_slots'], d => {
+                accountSlots = d.gemini_account_slots || {};
+                updateAccountSlotSelector();
+            });
+            return;
+        }
         const syncEl = $('syncCount');
         if (syncEl) syncEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
         console.log('[workbench] syncUpdate debounced received', msg.count, 'current', conversations.length, 'from', msg.from);
@@ -1188,6 +1257,11 @@ document.addEventListener('DOMContentLoaded', () => {
             updateZipUi();
         });
     }
+
+    $('accountSlotSelect')?.addEventListener('change', (e) => {
+        currentSlot = e.target.value;
+        loadStore(false);
+    });
     const verEl = document.getElementById('ver');
     if (verEl) {
         try {
@@ -1348,9 +1422,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     $('btnResync').addEventListener('click', async () => {
         log('正在重新同步…');
-        const [tab] = await chrome.tabs.query({
-            url: 'https://gemini.google.com/*'
-        });
+        const tab = await findTabForSlot(currentSlot);
         if (!tab) {
             alert('未找到 Gemini 标签页，请先打开 gemini.google.com');
             return;
@@ -1368,7 +1440,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('btnClearExported').addEventListener('click', async () => {
         if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearExported') : 'Are you sure you want to clear export history?')) return;
-        await chrome.storage.local.remove('exportedIds');
+        const slot = currentSlot || 'u0';
+        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        await chrome.storage.local.remove(expKey);
         exportedIds = {};
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearExported') : 'Export history cleared');
         renderList(new Set());
@@ -1376,8 +1450,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('btnClearAll').addEventListener('click', async () => {
         if (!confirm(typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : 'Are you sure you want to clear all locally cached conversations?')) return;
-        await chrome.storage.local.remove(['gemini_conversations', 'gemini_last_sync', 'gemini_last_count']);
+        const slot = currentSlot || 'u0';
+        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        const syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
+        const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+        await chrome.storage.local.remove([convKey, syncKey, countKey]);
+        if (accountSlots[slot]) {
+            accountSlots[slot].count = 0;
+            await chrome.storage.local.set({ gemini_account_slots: accountSlots });
+        }
         conversations = [];
+        updateAccountSlotSelector();
         renderList(new Set());
         updateSelectedStat();
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearAll') : 'Cache cleared');
