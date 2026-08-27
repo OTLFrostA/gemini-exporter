@@ -4,6 +4,12 @@
   <b>English</b> | <a href="./README_zh.md">简体中文</a>
 </p>
 
+<p align="left">
+  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf" target="_blank">
+    <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Web Store">
+  </a>
+</p>
+
 > **A powerful, privacy-first, fully open-source Chrome extension to batch export and archive your Google Gemini conversations.**  
 > Export all your chat history with one click into Markdown, JSON (including OpenAI-compatible format), TXT, or a ZIP bundle with images and attachments. Seamlessly migrate your conversations into Obsidian, Notion, Logseq, and other local personal knowledge bases.
 
