@@ -115,16 +115,6 @@
           content = JSON.stringify(chat._raw || chat, null, 2);
           ext = 'json';
           mime = 'application/json';
-        } else if(format === 'txt'){
-          let txt = `${chat.title || chat.id}\n${'='.repeat(40)}\nID: ${chat.id}\nURL: ${chat.url}\n\n`;
-          for(const msg of chat.messages||[]){
-            if(msg.role==='user') txt += `[你]:\n${msg.content||''}\n\n`;
-            else txt += `[Gemini]:\n${msg.content||''}\n\n`;
-            txt += '---\n\n';
-          }
-          content = txt;
-          ext = 'txt';
-          mime = 'text/plain';
         } else {
           // markdown
           let md = `# ${chat.title||chat.id}\n\n> ID: ${chat.id} | 导出: ${new Date().toLocaleString()} | 来源: ${chat.url}\n\n---\n\n`;
