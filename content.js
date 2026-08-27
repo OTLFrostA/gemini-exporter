@@ -43,7 +43,40 @@
             } catch {}
         });
         (document.body || document.documentElement).appendChild(div);
+        refreshInitialBadge();
         return div;
+    }
+
+    function getAccountSlot() {
+        const m = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
+        return m ? ('u' + m[1]) : 'u0';
+    }
+
+    function getStorageKeys() {
+        const slot = getAccountSlot();
+        if (slot === 'u0') {
+            return {
+                slot,
+                convKey: 'gemini_conversations',
+                countKey: 'gemini_last_count',
+                syncKey: 'gemini_last_sync'
+            };
+        }
+        return {
+            slot,
+            convKey: `gemini_conversations_${slot}`,
+            countKey: `gemini_last_count_${slot}`,
+            syncKey: `gemini_last_sync_${slot}`
+        };
+    }
+
+    async function refreshInitialBadge() {
+        try {
+            const { convKey, countKey } = getStorageKeys();
+            const store = await chrome.storage.local.get([convKey, countKey]);
+            const c = store[convKey]?.length ?? store[countKey] ?? 0;
+            if (c > 0) updateBadge(c, 0);
+        } catch {}
     }
 
     function ensureBadgeAndText() {
@@ -58,7 +91,8 @@
     function updateBadge(mergedLen, visible, overrideText) {
         try {
             const {
-                txt
+                txt,
+                badge
             } = ensureBadgeAndText();
             if (!txt) return;
             if (overrideText) {
@@ -67,6 +101,10 @@
             }
             const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
             txt.textContent = isZh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
+            const slot = getAccountSlot();
+            if (badge && slot !== 'u0') {
+                badge.title = (isZh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`);
+            }
         } catch (e) {
             console.warn('[Gemini Exporter] updateBadge err', e);
         }
@@ -75,32 +113,61 @@
     let __storageWriteQueue = Promise.resolve();
 
     function upsertConversations(incomingItems, source) {
+        if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
         __storageWriteQueue = __storageWriteQueue.then(async () => {
             try {
-                const data = await chrome.storage.local.get(['gemini_conversations']);
-                const existing = data.gemini_conversations || [];
-                const map = new Map(existing.map(c => [c.id, c]));
+                const { slot, convKey, countKey, syncKey } = getStorageKeys();
+                const data = await chrome.storage.local.get([convKey, syncKey, 'gemini_account_slots']);
+                const existing = data[convKey] || [];
+                const map = new Map();
+                existing.forEach(c => {
+                    if (!c || !c.id) return;
+                    const normId = String(c.id).replace(/^c_/, '').trim();
+                    c.id = normId;
+                    map.set(normId, c);
+                });
                 let now = Date.now();
                 let changed = 0;
 
                 incomingItems.forEach((c, idx) => {
-                    const old = map.get(c.id);
-                    if (!old || old.title !== c.title) changed++;
-                    map.set(c.id, {
+                    if (!c || !c.id) return;
+                    const normId = String(c.id).replace(/^c_/, '').trim();
+                    c.id = normId;
+                    const old = map.get(normId);
+                    if (!old) {
+                        changed++;
+                    } else if (old.title !== c.title) {
+                        changed++;
+                    }
+                    map.set(normId, {
                         ...(old || {}),
                         ...c,
-                        lastSeen: new Date(now - idx).toISOString(),
-                        source: source || (old && old.source) || 'unknown'
+                        id: normId,
+                        timestamp: c.timestamp || (old && old.timestamp) || null,
+                        lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
+                        source: source || (old && old.source) || 'unknown',
+                        accountSlot: slot
                     });
                 });
 
                 const merged = Array.from(map.values());
-                merged.sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''));
+                merged.sort((a, b) => {
+                    let tsA = a.timestamp ? (typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : a.timestamp) : (a.lastSeen ? new Date(a.lastSeen).getTime() : 0);
+                    let tsB = b.timestamp ? (typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : b.timestamp) : (b.lastSeen ? new Date(b.lastSeen).getTime() : 0);
+                    return tsB - tsA;
+                });
+
+                const slotsMeta = data.gemini_account_slots || {};
+                slotsMeta[slot] = {
+                    slot,
+                    name: slot === 'u0' ? '默认账号 (u0)' : `账号 ${slot.toUpperCase()}`,
+                    count: merged.length,
+                    lastSync: new Date().toISOString()
+                };
 
                 // Throttle storage writes if nothing actually changed (no new chats, no title updates)
-                // This prevents spamming chrome.storage.onChanged which causes options.html to flash
                 if (changed === 0 && incomingItems.length > 0) {
-                    let lastSyncStr = data.gemini_last_sync || '';
+                    let lastSyncStr = data[syncKey] || '';
                     let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
                     if (Date.now() - lastSyncTime < 5000) {
                         updateBadge(merged.length, incomingItems.length);
@@ -109,14 +176,16 @@
                 }
 
                 await chrome.storage.local.set({
-                    gemini_conversations: merged,
-                    gemini_last_sync: new Date().toISOString(),
-                    gemini_last_count: merged.length
+                    [convKey]: merged,
+                    [syncKey]: new Date().toISOString(),
+                    [countKey]: merged.length,
+                    gemini_account_slots: slotsMeta
                 });
 
                 try {
                     const p = chrome.runtime.sendMessage({
                         action: 'syncUpdate',
+                        slot,
                         count: merged.length,
                         newCount: incomingItems.length,
                         from: source
@@ -127,6 +196,7 @@
                 updateBadge(merged.length, incomingItems.length);
                 return merged.length;
             } catch (e) {
+                if (e?.message?.includes('Extension context invalidated')) return 0;
                 console.error('[Gemini Exporter] upsertConversations failed', e);
             }
         });
@@ -143,18 +213,27 @@
             if (typeof GeminiAPIClient === 'undefined' && typeof window.GeminiAPIClient === 'undefined') return null;
             let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
             let client = new C();
+            if (typeof ensureCreds === 'function') {
+                try { await ensureCreds(); } catch {}
+            }
             let map = (await chrome.storage.local.get(['gemini_credentials_map'])).gemini_credentials_map || {};
             if (!Object.keys(map).length) {
-                return null;
+                let at = typeof extractAtFromPage === 'function' ? extractAtFromPage() : '';
+                if (!at && typeof window.__gemExporterExtractAt === 'function') at = window.__gemExporterExtractAt();
+                if (!at) return null;
             }
             
-            const freshBefore = await chrome.storage.local.get(['gemini_conversations']);
-            const beforeList = freshBefore.gemini_conversations || [];
+            const { convKey } = getStorageKeys();
+            const freshBefore = await chrome.storage.local.get([convKey]);
+            const beforeList = freshBefore[convKey] || [];
             const beforeMap = new Map(beforeList.map(c => [c.id, c]));
             let useIncremental = beforeList.length > 30;
             if (forceOpts?.forceFull) useIncremental = false;
             if (forceOpts?.forceIncremental) useIncremental = true;
             
+            window.__gemExporterAborted = false;
+            if (client) client.aborted = false;
+            let saveQueue = Promise.resolve();
             let all = await client.getAllConversations(forceOpts?.maxPages || 2000, (prog) => {
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) {
@@ -173,11 +252,23 @@
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
+
+                // Stream progressive save to storage so UI updates immediately in real-time!
+                if (prog.batch && prog.batch.length) {
+                    saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute'));
+                }
             }, null, {
                 existingMap: beforeMap,
                 incremental: useIncremental,
-                unchangedThreshold: 20
+                unchangedThreshold: 5
             });
+            await saveQueue;
+            
+            if (all && all.diagnostics) {
+                try {
+                    await chrome.storage.local.set({ gemini_last_sync_diagnostics: all.diagnostics });
+                } catch {}
+            }
             
             if (all && all.conversations && all.conversations.length) {
                 let mergedLen = await upsertConversations(all.conversations, 'batchexecute');
@@ -194,7 +285,10 @@
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
-                return mergedLen;
+                return {
+                    count: mergedLen,
+                    diagnostics: all.diagnostics
+                };
             }
         } catch (e) {
             console.debug('[Gemini Exporter] batch exec fail, will fallback scroll', e.message || e);
@@ -371,7 +465,7 @@
         // Wrap whole scan in a promise stored globally
         const scanPromise = (async () => {
             try {
-                let batchCount = await tryBatchExecuteFull(
+                let batchRes = await tryBatchExecuteFull(
                     mode === 'full' ? {
                         forceFull: true
                     } : mode === 'incremental' ? {
@@ -380,23 +474,32 @@
                 );
                 // tryBatchExecuteFull leaves running true only if it succeeded via inner path;
                 // if it returned count, we can finish early
-                if (batchCount && batchCount > 0) {
+                const { slot, convKey, countKey } = getStorageKeys();
+                const bCount = typeof batchRes === 'number' ? batchRes : batchRes?.count;
+                if (bCount && bCount > 0) {
                     return {
                         success: true,
-                        count: batchCount,
-                        totalMerged: batchCount,
-                        source: 'batchexecute'
+                        slot,
+                        count: bCount,
+                        totalMerged: bCount,
+                        source: 'batchexecute',
+                        diagnostics: batchRes?.diagnostics || null
                     };
                 }
 
-                console.log('[Gemini Exporter] scrollToBottomLoadAll start max', maxIter);
+                const isIncremental = (mode === 'incremental');
+                const effectiveMax = isIncremental ? Math.min(maxIter, 8) : maxIter;
+                const stored = (await chrome.storage.local.get([convKey]))[convKey] || [];
+                const storedIdSet = new Set(stored.map(c => c.id));
+
+                console.log('[Gemini Exporter] scrollToBottomLoadAll start max', effectiveMax, 'mode', mode, 'storedCount', storedIdSet.size);
                 const container = getScrollContainer();
                 if (!container) {
                     try {
                         const _p = chrome.runtime.sendMessage({
                             action: 'exportProgress',
                             done: 0,
-                            total: maxIter,
+                            total: effectiveMax,
                             title: '未找到滚动容器，请先展开侧边栏'
                         });
                         if (_p && _p.catch) _p.catch(() => {});
@@ -410,7 +513,7 @@
                 let lastCount = getConversationLinks().length;
                 let stable = 0;
                 let totalFound = lastCount;
-                for (let i = 0; i < maxIter; i++) {
+                for (let i = 0; i < effectiveMax; i++) {
                     try {
                         const btns = container.querySelectorAll('button');
                         for (const b of btns) {
@@ -419,7 +522,7 @@
                                 if (b.getAttribute('aria-label') && b.getAttribute('aria-label').includes('Toggle')) continue;
                                 if (b.offsetParent === null) continue;
                                 b.click();
-                                await sleep(350);
+                                await sleep(150);
                             }
                         }
                         try {
@@ -448,26 +551,35 @@
                                 bubbles: true
                             }));
                         } catch {}
-                        const delay = 350 + Math.floor(Math.random() * 150);
+                        const delay = isIncremental ? 160 : (200 + Math.floor(Math.random() * 80));
                         await sleep(delay);
-                        // during deep scan, we temporarily allow syncOnce but only to merge visible into larger set (flag off briefly)
-                        await syncOnce();
+
                         const curLinks = getConversationLinks();
                         const curCount = curLinks.length;
                         totalFound = Math.max(totalFound, curCount);
+
+                        // 增量同步智能早退：如果当前可见的尾部会话已全部存在于本地存储，说明已对接历史，立即停止
+                        if (isIncremental && storedIdSet.size > 0 && curLinks.length >= 10) {
+                            const tail = curLinks.slice(-10);
+                            if (tail.every(l => storedIdSet.has(l.id))) {
+                                console.log('[Gemini Exporter] Incremental early exit: tail items already known at round', i + 1);
+                                break;
+                            }
+                        }
+
                         try {
                             const _p = chrome.runtime.sendMessage({
                                 action: 'scanProgress',
                                 done: i + 1,
-                                total: maxIter,
-                                percent: Math.floor(((i + 1) / maxIter) * 100),
+                                total: effectiveMax,
+                                percent: Math.floor(((i + 1) / effectiveMax) * 100),
                                 count: totalFound,
-                                title: `正在扫描第 ${i + 1}/${maxIter} 轮 (已发现 ${totalFound} 条)`
+                                title: `正在扫描 (${totalFound} 条)…`
                             });
                             if (_p && _p.catch) _p.catch(() => {});
                         } catch (e) {}
                         const badgeTxt = document.getElementById('geminiExportBadgeText');
-                        if (badgeTxt) badgeTxt.textContent = `深度扫描中 | 已发现 ${totalFound} 条`;
+                        if (badgeTxt) badgeTxt.textContent = `同步中 | 已获取 ${totalFound} 条`;
 
                         if (curCount === lastCount) {
                             stable++;
@@ -482,35 +594,38 @@
                         tryExpandRecents();
                     } catch (e) {
                         console.warn('[Robust scroll iter error]', e.message || e);
-                        await sleep(250);
+                        await sleep(100);
                     }
                 }
                 const finalLinks = getConversationLinks();
                 await syncOnce();
-                console.log('[Gemini Exporter] scrollToBottomLoadAll done visible', finalLinks.length);
+                const store = await chrome.storage.local.get([convKey, countKey]);
+                const finalCount = store[convKey]?.length || store[countKey] || finalLinks.length;
+                console.log('[Gemini Exporter] scrollToBottomLoadAll done visible', finalLinks.length, 'totalMerged', finalCount);
                 try {
                     const _p = chrome.runtime.sendMessage({
                         action: 'scanProgress',
-                        done: maxIter,
-                        total: maxIter,
+                        done: effectiveMax,
+                        total: effectiveMax,
                         percent: 100,
-                        count: finalLinks.length,
-                        title: `扫描完成，共 ${finalLinks.length} 条`
+                        count: finalCount,
+                        title: `同步完成，账号共 ${finalCount} 条会话`
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {};
-                const finalCount = (await chrome.storage.local.get(['gemini_last_count'])).gemini_last_count || finalLinks.length;
                 return {
                     success: true,
-                    count: finalLinks.length,
-                    totalMerged: finalCount
+                    slot,
+                    count: finalCount,
+                    totalMerged: finalCount,
+                    visibleCount: finalLinks.length
                 };
             } finally {
                 window.__gemExporterDeepScanPromise = null;
                 // final badge stabilize
                 try {
-                    let r = await chrome.storage.local.get(['gemini_conversations']);
-                    let c = r.gemini_conversations?.length || 0;
+                    let r = await chrome.storage.local.get([convKey]);
+                    let c = r[convKey]?.length || 0;
                     updateBadge(c, getConversationLinks().length, `已同步 ${c} 条 ✓`);
                 } catch {}
             }
@@ -541,6 +656,13 @@
         setTimeout(syncOnce, 5000);
     });
 
+    window.addEventListener('popstate', () => {
+        setTimeout(() => {
+            refreshInitialBadge();
+            syncOnce();
+        }, 500);
+    });
+
     if (document.readyState !== 'loading') {
         ensureBadge();
         setTimeout(syncOnce, 800);
@@ -557,7 +679,7 @@
         if (msg.action === 'ping') {
             sendResponse({
                 ok: true,
-                ver: chrome.runtime.getManifest()?.version || '1.0.0',
+                ver: chrome.runtime.getManifest()?.version || '1.1.0',
                 count: document.querySelectorAll('a[href*="/app/"]').length,
                 deepRunning: !!window.__gemExporterDeepScanPromise
             });
@@ -594,6 +716,24 @@
                 success: false,
                 error: e.message
             }));
+            return true;
+        }
+        if (msg.action === 'abortSync' || msg.action === 'stopScan') {
+            console.log('[Gemini Exporter] abortSync received, stopping active scan');
+            if (window.geminiClient) {
+                window.geminiClient.aborted = true;
+            }
+            window.__gemExporterAborted = true;
+            window.__gemExporterDeepScanPromise = null;
+            sendResponse({ ok: true, aborted: true });
+            return true;
+        }
+        if (msg.action === 'probeAnchors') {
+            (async () => {
+                const client = window.geminiClient || new GeminiAPIClient();
+                const res = await client.probeAnchors(msg.lastId, msg.targetSid);
+                sendResponse({ ok: true, results: res });
+            })().catch(e => sendResponse({ ok: false, error: e.message }));
             return true;
         }
         if (msg.action === 'getScrollContainer') {

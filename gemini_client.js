@@ -123,45 +123,121 @@
     }
 
     function robustFirstPayload(text) {
+        if (!text || typeof text !== "string") return null;
         let lines = text.split("\n");
+        let fallback = null;
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
-            if (!line.startsWith("[")) continue;
+            if (!line.includes("[")) continue;
+            let startIdx = line.indexOf("[");
+            let candidate = line.slice(startIdx);
             try {
-                let cleaned = line.replace(/[\x00-\x1F\x7F]/g, "").trim();
-                return JSON.parse(cleaned);
+                let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
+                let parsed = JSON.parse(cleaned);
+                if (Array.isArray(parsed)) {
+                    if (candidate.includes("MaZiqc") || candidate.includes("wrb.fr")) {
+                        return parsed;
+                    }
+                    if (!fallback) fallback = parsed;
+                }
             } catch {
-                let acc = line;
+                let acc = candidate;
                 for (let j = i + 1; j < lines.length; j++) {
                     acc += lines[j];
                     try {
                         let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
-                        return JSON.parse(c2);
+                        let p2 = JSON.parse(c2);
+                        if (Array.isArray(p2)) {
+                            if (acc.includes("MaZiqc") || acc.includes("wrb.fr")) {
+                                return p2;
+                            }
+                            if (!fallback) fallback = p2;
+                        }
                     } catch {}
                 }
             }
         }
-        return null;
+        return fallback;
     }
 
     function parseList(text) {
         try {
             let top = robustFirstPayload(text);
-            if (!top || !top[0] || !top[0][2]) return {
-                conversations: [],
-                nextPageToken: null
-            };
-            let inner = JSON.parse(top[0][2]);
+            let innerStr = null;
+            if (Array.isArray(top)) {
+                for (let item of top) {
+                    if (Array.isArray(item) && (item[1] === RPCS.LIST || item[1] === "MaZiqc" || item[0] === "wrb.fr") && item[2]) {
+                        innerStr = item[2];
+                        break;
+                    }
+                }
+                if (!innerStr && top[0] && top[0][2]) {
+                    innerStr = top[0][2];
+                }
+            }
+            if (!innerStr) {
+                let bardError = null;
+                if (Array.isArray(top)) {
+                    for (let item of top) {
+                        if (Array.isArray(item) && item[5]) {
+                            let str5 = JSON.stringify(item[5]);
+                            if (str5.includes("BardErrorInfo")) {
+                                bardError = str5;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (bardError) {
+                    console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
+                } else {
+                    console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
+                }
+                return {
+                    conversations: [],
+                    nextPageToken: null,
+                    _debug: {
+                        error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
+                        bardError: bardError,
+                        textLen: text?.length,
+                        rawPreview: text?.slice(0, 500),
+                        topParsed: top ? JSON.stringify(top).slice(0, 500) : null
+                    }
+                };
+            }
+            let inner = JSON.parse(innerStr);
             let list = Array.isArray(inner[1]) ? inner[1] : (Array.isArray(inner[2]) ? inner[2] : []);
             let convs = [];
             for (let r of list) {
                 if (!r || !Array.isArray(r) || r.length < 2) continue;
-                let id = r[0] || "",
+                let id = String(r[0] || "").replace(/^c_/, ""),
                     title = (r[1] || "").replace(/\\n/g, "");
                 if (title.endsWith("-")) title = title.slice(0, -1);
                 if (/^Google Account/i.test(title)) continue;
-                let ts = Date.now();
-                if (Array.isArray(r[5]) && r[5].length >= 2) ts = Math.round(r[5][0] * 1000);
+                let ts = null;
+                for (let elem of r) {
+                    if (typeof elem === 'number') {
+                        if (elem > 1577836800 && elem < 2500000000) {
+                            ts = Math.round(elem * 1000);
+                            break;
+                        } else if (elem > 1577836800000 && elem < 2500000000000) {
+                            ts = Math.round(elem);
+                            break;
+                        }
+                    } else if (Array.isArray(elem) && elem.length > 0 && typeof elem[0] === 'number') {
+                        let val = elem[0];
+                        if (val > 1577836800 && val < 2500000000) {
+                            ts = Math.round(val * 1000);
+                            break;
+                        } else if (val > 1577836800000 && val < 2500000000000) {
+                            ts = Math.round(val);
+                            break;
+                        }
+                    }
+                }
+                if (!ts && Array.isArray(r[5]) && r[5].length >= 1 && typeof r[5][0] === 'number') {
+                    ts = r[5][0] > 1e11 ? Math.round(r[5][0]) : Math.round(r[5][0] * 1000);
+                }
                 if (!id) continue;
                 convs.push({
                     id,
@@ -172,21 +248,42 @@
                 });
             }
             let token = null;
-            for (let v of inner) {
-                if (typeof v === "string" && v.length > 150) {
-                    token = v;
-                    break;
+            function checkToken(s) {
+                if (typeof s !== 'string') return null;
+                s = s.trim();
+                if (s.length >= 25 && !s.includes(' ') && !s.includes('\n') && !s.startsWith('http') && !s.startsWith('c_') && !s.startsWith('boq_') && !s.startsWith('Google Account')) {
+                    return s;
+                }
+                return null;
+            }
+            if (Array.isArray(inner)) {
+                for (let v of inner) {
+                    let found = checkToken(v);
+                    if (found) { token = found; break; }
+                    if (Array.isArray(v)) {
+                        for (let item of v) {
+                            let f2 = checkToken(item);
+                            if (f2) { token = f2; break; }
+                        }
+                        if (token) break;
+                    }
                 }
             }
             return {
                 conversations: convs,
-                nextPageToken: token || null
+                nextPageToken: token || null,
+                _debug: {
+                    innerTypes: Array.isArray(inner) ? inner.map((x, idx) => `${idx}:${typeof x}${Array.isArray(x) ? `[${x.length}]` : (typeof x === 'string' ? `(len:${x.length})` : '')}`) : typeof inner,
+                    stringsFound: Array.isArray(inner) ? inner.filter(x => typeof x === 'string').map(s => ({ len: s.length, preview: s.slice(0, 40) })) : [],
+                    hasToken: !!token
+                }
             };
         } catch (e) {
             console.warn("parseList fail", e);
             return {
                 conversations: [],
-                nextPageToken: null
+                nextPageToken: null,
+                _debug: { error: e.message }
             };
         }
     }
@@ -673,10 +770,16 @@
     }
 
     class GeminiAPIClient {
+        constructor() {
+            this.aborted = false;
+        }
+        abort() {
+            this.aborted = true;
+        }
         getApiUrl(s) {
             return getApiUrl(s);
         }
-        async getConversationList(pageToken, targetSid) {
+        async getConversationList(pageToken, targetSid, customFilter) {
             let cred = await resolveCred(targetSid);
             let api = getApiUrl(cred.accountSlot || "default");
             let params = new URLSearchParams({
@@ -688,14 +791,15 @@
                 rt: "c"
             });
             let body = new URLSearchParams();
+            const filter = customFilter || [0, null, 1];
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([20, pageToken, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, pageToken, filter]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([13, null, [0, null, 1]]), null, "generic"]
+                        [RPCS.LIST, JSON.stringify([50, null, filter]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
@@ -719,18 +823,90 @@
             let txt = await resp.text();
             return parseList(txt);
         }
+        async probeAnchors(lastId, targetSid) {
+            const normId = String(lastId || "").replace(/^c_/, "");
+            const fullId = `c_${normId}`;
+            const probes = [
+                { name: "锚点 [0, id, 1]", filter: [0, normId, 1] },
+                { name: "锚点 [0, c_id, 1]", filter: [0, fullId, 1] },
+                { name: "倒序拉取 [0, null, 0]", filter: [0, null, 0] },
+                { name: "排序备选 [0, null, 2]", filter: [0, null, 2] },
+                { name: "历史归档 [1, null, 1]", filter: [1, null, 1] },
+                { name: "冷分类 [2, null, 1]", filter: [2, null, 1] }
+            ];
+            const results = [];
+            for (let p of probes) {
+                try {
+                    console.log(`[Gemini Exporter Probe] 正在测试 ${p.name}...`);
+                    const res = await this.getConversationList(null, targetSid, p.filter);
+                    const count = res?.conversations?.length || 0;
+                    const preview = (res?.conversations || []).slice(0, 3).map(c => `${c.title} (${c.id})`);
+                    results.push({
+                        name: p.name,
+                        success: count > 0,
+                        count,
+                        hasNext: !!res?.nextPageToken,
+                        preview,
+                        debug: res?._debug || null
+                    });
+                } catch (e) {
+                    results.push({
+                        name: p.name,
+                        success: false,
+                        error: e.message || String(e)
+                    });
+                }
+                await new Promise(r => setTimeout(r, 100));
+            }
+            return results;
+        }
         async getAllConversations(maxPages = 2000, onProgress, targetSid, opts) {
             if (!maxPages || typeof maxPages !== "number") maxPages = 2000;
             opts = opts || {};
             const existingMap = opts.existingMap || null;
             const incremental = !!opts.incremental;
-            const unchangedThreshold = opts.unchangedThreshold || 20;
+            const unchangedThreshold = opts.unchangedThreshold || 5;
             let all = [],
                 seen = new Set(),
                 token = null;
             let unchangedStreak = 0;
+            const diagLog = {
+                startTime: new Date().toISOString(),
+                maxPages,
+                incremental,
+                totalPagesFetched: 0,
+                totalConversations: 0,
+                stopReason: '已达到最大页数限制',
+                pageHistory: []
+            };
+            this.aborted = false;
             for (let i = 0; i < maxPages; i++) {
-                let res = await this.getConversationList(token, targetSid);
+                if (this.aborted) {
+                    diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
+                    console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
+                    break;
+                }
+                let res;
+                try {
+                    res = await this.getConversationList(token, targetSid);
+                } catch (err) {
+                    console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
+                    diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
+                    if (all.length > 0) {
+                        // 网络异常或翻页到底时，保留已获取的全部会话，绝不抛出导致整盘丢弃
+                        break;
+                    }
+                    throw err;
+                }
+                diagLog.totalPagesFetched = i + 1;
+                diagLog.pageHistory.push({
+                    page: i + 1,
+                    requestedToken: token ? { len: token.length, preview: token.slice(0, 20) + '...' } : null,
+                    count: res?.conversations?.length || 0,
+                    hasNextPageToken: !!res?.nextPageToken,
+                    nextTokenPreview: res?.nextPageToken ? { len: res.nextPageToken.length, preview: res.nextPageToken.slice(0, 20) + '...' } : null,
+                    debugInfo: res?._debug || null
+                });
                 let added = 0;
                 for (let c of res.conversations) {
                     if (!seen.has(c.id)) {
@@ -753,6 +929,9 @@
                                 unchangedStreak = 0;
                             }
                             if (unchangedStreak >= unchangedThreshold) {
+                                diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
+                                diagLog.totalConversations = all.length;
+                                diagLog.endTime = new Date().toISOString();
                                 if (onProgress) onProgress({
                                     page: i + 1,
                                     added,
@@ -765,25 +944,45 @@
                                     conversations: all,
                                     total: all.length,
                                     stoppedEarly: true,
-                                    unchangedStreak
+                                    unchangedStreak,
+                                    diagnostics: diagLog
                                 };
                             }
                         }
                     }
                 }
+                if (!res.conversations || res.conversations.length === 0) {
+                    if (res?._debug?.bardError) {
+                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo 1096: 游标链已达服务端上限)`;
+                    } else {
+                        diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
+                    }
+                    console.log(`[Gemini Exporter] getAllConversations reached end at page ${i + 1}, total: ${all.length}, reason: ${diagLog.stopReason}`);
+                    break;
+                }
                 if (onProgress) onProgress({
                     page: i + 1,
                     added,
                     total: all.length,
-                    hasMore: !!res.nextPageToken
+                    hasMore: !!res.nextPageToken,
+                    batch: res.conversations
                 });
-                if (!res.nextPageToken) break;
+                if (!res.nextPageToken) {
+                    diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
+                    console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, no nextPageToken in response`);
+                    break;
+                }
                 token = res.nextPageToken;
-                await new Promise(r => setTimeout(r, 350 + Math.random() * 180));
+                // 适度节流（120ms），防止触发 Google 429 限流
+                const pageDelay = incremental ? 50 : 120;
+                await new Promise(r => setTimeout(r, pageDelay));
             }
+            diagLog.totalConversations = all.length;
+            diagLog.endTime = new Date().toISOString();
             return {
                 conversations: all,
-                total: all.length
+                total: all.length,
+                diagnostics: diagLog
             };
         }
         async fetchConversationPage(conversationId, pageToken, targetSid) {
