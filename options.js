@@ -53,58 +53,12 @@ function setExportRunning(running) {
 
 function mdContent(chat) {
     const format = $('format') ? $('format').value : 'markdown';
-    if (format === 'json_openai') {
-        let openaiFormat = (chat.messages || []).map(m => {
-            let role = m.role === 'model' ? 'assistant' : 'user';
-            let text = m.content || '';
-            let imgs = (m.attachments || []).filter(a => a.type === 'image');
-            let item;
-            if (imgs.length > 0) {
-                let contentArr = [];
-                if (text) contentArr.push({ type: 'text', text });
-                for (let im of imgs) {
-                    contentArr.push({
-                        type: 'image_url',
-                        image_url: {
-                            url: im.localName || im.src || im.originalUrl
-                        }
-                    });
-                }
-                item = { role, content: contentArr };
-            } else {
-                item = { role, content: text };
-            }
-            if (m.thoughts) {
-                item.reasoning_content = m.thoughts;
-            }
-            return item;
-        });
-        return {
-            content: JSON.stringify({
-                id: chat.id,
-                title: chat.title,
-                url: chat.url,
-                created_at: chat.createdAt ? new Date(chat.createdAt).toISOString() : void 0,
-                messages: openaiFormat
-            }, null, 2),
-            ext: 'json'
-        };
-    }
-    if (format === 'json_raw') {
-        return {
-            content: JSON.stringify(chat._raw || chat, null, 2),
-            ext: 'json'
-        };
-    }
-    if (format === 'json') {
-        return {
-            content: JSON.stringify(chat, null, 2),
-            ext: 'json'
-        };
+    if (typeof ChatFormatter !== 'undefined') {
+        return ChatFormatter.formatContent(chat, format);
     }
     return {
         content: toMarkdown(chat),
-        ext: 'md'
+        ext: format.startsWith('json') ? 'json' : 'md'
     };
 }
 
@@ -1229,96 +1183,11 @@ async function exportSelected() {
 
 
 function toMarkdown(chat) {
+    if (typeof ChatFormatter !== 'undefined') {
+        return ChatFormatter.toMarkdown(chat);
+    }
     if (chat.error) return `# ${chat.title}\n\n> 导出失败: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url}\n`;
-
-    // 1. YAML Frontmatter (Obsidian, Logseq, Notion compatible)
-    let createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
-    let updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
-    let safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
-    let safeYamlTitle = safeTitleClean.replace(/"/g, '\\"');
-
-    let md = `---\n`;
-    md += `title: "${safeYamlTitle}"\n`;
-    md += `id: "${chat.id}"\n`;
-    md += `url: "${chat.url || ''}"\n`;
-    if (createdIso) md += `date: "${createdIso}"\n`;
-    if (updatedIso) md += `updated: "${updatedIso}"\n`;
-    md += `exported: "${new Date().toISOString()}"\n`;
-    md += `tags:\n  - gemini-export\n`;
-    md += `---\n\n`;
-
-    // 2. Document Title & Metadata Header
-    md += `# ${safeTitleClean}\n\n`;
-    let metaBadges = [];
-    if (chat.url) metaBadges.push(`[🔗 对话链接](${chat.url})`);
-    metaBadges.push(`🆔 \`${chat.id}\``);
-    if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
-    if (chat.attachmentCount) metaBadges.push(`📎 附件 ${chat.attachmentCount} 个`);
-    md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
-
-    if (!chat.messages || !chat.messages.length) {
-        md += `_空对话或取回失败_ 原始URL: ${chat.url}\n`;
-        return md;
-    }
-
-    function renderAttachments(atts) {
-        let block = '';
-        for (const att of atts) {
-            if (att.type === 'image') {
-                const local = att.localName || `assets/image.jpg`;
-                const alt = (att.alt || att.name || '图片').replace(/[[\]]/g, '');
-                const online = att.src || att.originalUrl || '';
-                if (online && online.startsWith('http')) {
-                    block += `[![${alt}](${local})](${online})\n\n`;
-                } else {
-                    block += `![${alt}](${local})\n\n`;
-                }
-            } else if (att.type === 'file') {
-                const local = att.localName || `files/${att.name}`;
-                const name = att.title || att.name || '附件';
-                block += `- 📎 [${name}](${local})\n`;
-            }
-        }
-        return block;
-    }
-
-    // 3. Messages rendering with timestamps, thoughts, images, citations
-    for (const m of chat.messages || []) {
-        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
-
-        if (m.role === 'user') {
-            md += `## 🙋 你\n\n`;
-            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
-            if (m.attachments && m.attachments.length) {
-                md += renderAttachments(m.attachments);
-            }
-            if (m.content) md += `${m.content}\n\n`;
-        } else {
-            md += `## 🤖 Gemini\n\n`;
-            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
-
-            if (m.thoughts && m.thoughts.trim()) {
-                md += `<details>\n<summary>🧠 思考过程</summary>\n\n${m.thoughts.trim()}\n\n</details>\n\n`;
-            }
-
-            if (m.content) md += `${m.content}\n\n`;
-
-            if (m.attachments && m.attachments.length) {
-                md += renderAttachments(m.attachments);
-            }
-
-            if (m.citations && m.citations.length) {
-                md += `> 🌐 **参考来源：**\n`;
-                m.citations.forEach((c, idx) => {
-                    md += `> [${idx + 1}] [${c.title || c.url}](${c.url})\n`;
-                });
-                md += `\n`;
-            }
-
-            md += `---\n\n`;
-        }
-    }
-    return md;
+    return `# ${chat.title || 'Untitled'}\n\n${(chat.messages || []).map(m => m.content || '').join('\n\n')}`;
 }
 
 // 监听 background 进度 - debounce to prevent workbench flashing on deep scan
