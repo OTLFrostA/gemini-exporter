@@ -221,8 +221,8 @@ async function loadStore(forceQuiet = false) {
         } catch {
             prevSelectedRaw = [];
         }
-        const prevSelected = new Set(prevSelectedRaw);
         const hadLength = conversations.length;
+        const prevSelected = hadLength === 0 ? null : new Set(prevSelectedRaw);
         exportedIds = data[expKey] || {};
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
@@ -344,11 +344,7 @@ function renderList(prevSelectedSet) {
         const safeTitle = (c.title || '').replace(/</g, '&lt;');
         let checked = true;
         if (prevSelectedSet instanceof Set) {
-            if (prevSelectedSet.size === 0) {
-                checked = true;
-            } else {
-                checked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
-            }
+            checked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         }
         let badge = '';
         if (isUpdated) badge = `<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">${bNeedsReexport}</span>`;
@@ -539,6 +535,7 @@ function sanitizeFileName(name, fallback = 'untitled') {
     s = s.replace(/^\.+|\.+$/g, '');
     s = s.trim();
     if (!s) return fallback;
+    if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
     if (s.length > 80) s = s.slice(0, 80).trim();
     return s;
 }
@@ -1237,7 +1234,8 @@ function toMarkdown(chat) {
     // 1. YAML Frontmatter (Obsidian, Logseq, Notion compatible)
     let createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
     let updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
-    let safeYamlTitle = (chat.title || 'Untitled').replace(/"/g, '\\"');
+    let safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
+    let safeYamlTitle = safeTitleClean.replace(/"/g, '\\"');
 
     let md = `---\n`;
     md += `title: "${safeYamlTitle}"\n`;
@@ -1250,7 +1248,7 @@ function toMarkdown(chat) {
     md += `---\n\n`;
 
     // 2. Document Title & Metadata Header
-    md += `# ${chat.title}\n\n`;
+    md += `# ${safeTitleClean}\n\n`;
     let metaBadges = [];
     if (chat.url) metaBadges.push(`[🔗 对话链接](${chat.url})`);
     metaBadges.push(`🆔 \`${chat.id}\``);
@@ -1719,7 +1717,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await chrome.storage.local.remove(expKey);
         exportedIds = {};
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearExported') : 'Export history cleared');
-        renderList(new Set());
+        const currentSelected = new Set(getSelected().map(x => x.id));
+        renderList(currentSelected);
         updateSelectedStat();
     });
     $('btnClearAll').addEventListener('click', async () => {
