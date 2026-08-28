@@ -73,26 +73,27 @@
   }
   /* Modern Sleek WebKit Scrollbars (No standard scrollbar-color/width to avoid Chrome disabling WebKit engine) */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #2b304c;
+    background: #333857;
     border-radius: 99px;
     border: 2px solid transparent;
     background-clip: padding-box;
+    min-height: 48px;
     transition: background-color 0.2s;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #434970;
+    background: #4f588c;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:active {
-    background: #4f46e5;
+    background: #6366f1;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
@@ -100,7 +101,7 @@
   .list{overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--card-inner)}
   #list::-webkit-scrollbar,
   .list::-webkit-scrollbar {
-    width: 8px !important;
+    width: 10px !important;
   }
   #list::-webkit-scrollbar-track,
   .list::-webkit-scrollbar-track {
@@ -110,14 +111,15 @@
   }
   #list::-webkit-scrollbar-thumb,
   .list::-webkit-scrollbar-thumb {
-    background: #333857 !important;
+    background: #3b4266 !important;
     border-radius: 99px !important;
     border: 2px solid rgba(14, 15, 23, 0.8) !important;
     background-clip: padding-box !important;
+    min-height: 48px !important;
   }
   #list::-webkit-scrollbar-thumb:hover,
   .list::-webkit-scrollbar-thumb:hover {
-    background: #4f588c !important;
+    background: #596499 !important;
   }
   #list::-webkit-scrollbar-thumb:active,
   .list::-webkit-scrollbar-thumb:active {
