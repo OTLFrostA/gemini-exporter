@@ -16,6 +16,7 @@ let __workbenchDebounceTimer = null;
 let __lastRenderedSignature = '';
 let __lastRenderTime = 0;
 let __exportAborted = false;
+let __exportRunning = false;
 let __globalTotalAssets = 0;
 let __globalDownloadedAssets = 0;
 
@@ -24,6 +25,7 @@ function $(id) {
 }
 
 function setExportRunning(running) {
+    __exportRunning = !!running;
     const btnExport = $('btnExport');
     const btnCancel = $('btnCancel');
     if (btnExport) btnExport.disabled = running;
