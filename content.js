@@ -173,7 +173,7 @@
                 const slotsMeta = data.gemini_account_slots || {};
                 slotsMeta[slot] = {
                     slot,
-                    name: slot === 'u0' ? '默认账号 (u0)' : `账号 ${slot.toUpperCase()}`,
+                    name: slot === 'u0' ? 'Default Account (u0)' : `Account ${slot.toUpperCase()}`,
                     count: merged.length,
                     lastSync: new Date().toISOString()
                 };
