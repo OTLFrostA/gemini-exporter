@@ -98,6 +98,22 @@
         }
     }
 
+    function isRealTitle(title, id) {
+        if (!title || typeof title !== 'string') return false;
+        let t = title.trim();
+        if (t.length < 2) return false;
+        if (id) {
+            let cleanId = String(id).replace(/^c_/, '').trim();
+            let cleanT = t.replace(/^c_/, '').trim();
+            if (cleanT === cleanId) return false;
+            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+        }
+        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+        if (/^Google Account/i.test(t)) return false;
+        if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+        return true;
+    }
+
     let __storageWriteQueue = Promise.resolve();
 
     function upsertConversations(incomingItems, source) {
@@ -122,15 +138,24 @@
                     const normId = String(c.id).replace(/^c_/, '').trim();
                     c.id = normId;
                     const old = map.get(normId);
+
+                    let resolvedTitle = old?.title;
+                    if (isRealTitle(c.title, normId)) {
+                        resolvedTitle = c.title.trim().slice(0, 120);
+                    } else if (!isRealTitle(old?.title, normId)) {
+                        resolvedTitle = c.title || old?.title || '未命名对话';
+                    }
+
                     if (!old) {
                         changed++;
-                    } else if (old.title !== c.title) {
+                    } else if (old.title !== resolvedTitle || (!old.timestamp && c.timestamp)) {
                         changed++;
                     }
                     map.set(normId, {
                         ...(old || {}),
                         ...c,
                         id: normId,
+                        title: resolvedTitle,
                         timestamp: c.timestamp || (old && old.timestamp) || null,
                         lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
                         source: source || (old && old.source) || 'unknown',
@@ -309,9 +334,74 @@
         }
     });
 
+    function parseNaturalDate(str) {
+        if (!str || typeof str !== 'string') return null;
+        str = str.trim();
+        if (!str) return null;
+
+        // 1. Direct ISO / standard parseable string (e.g. 2025-11-28)
+        if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(str)) {
+            let t = Date.parse(str);
+            if (!isNaN(t)) return t;
+        }
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+
+        // 2. Relative time: Yesterday / 昨天
+        if (/^(yesterday|\u6628\u5929)$/i.test(str)) {
+            return Date.now() - 86400000;
+        }
+        let mRel = str.match(/^(\d+)\s*(days?|\u5929|hours?|\u5c0f\u65f6|months?|\u4e2a\u6708|\u6708|years?|\u5e74)\s*(?:ago|\u524d)$/i);
+        if (mRel) {
+            let n = parseInt(mRel[1], 10);
+            let u = mRel[2].toLowerCase();
+            if (u.startsWith('h') || u.includes('\u5c0f\u65f6')) return Date.now() - n * 3600000;
+            if (u.startsWith('d') || u.includes('\u5929')) return Date.now() - n * 86400000;
+            if (u.startsWith('m') || u.includes('\u6708')) return Date.now() - n * 30 * 86400000;
+            if (u.startsWith('y') || u.includes('\u5e74')) return Date.now() - n * 365 * 86400000;
+        }
+
+        // 3. Chinese format: 2025年11月28日 or 8月7日
+        let mZh = str.match(/^(?:(\d{4})\u5e74\s*)?(\d{1,2})\u6708\s*(\d{1,2})\u65e5?/);
+        if (mZh) {
+            let y = mZh[1] ? parseInt(mZh[1], 10) : currentYear;
+            let m = parseInt(mZh[2], 10) - 1;
+            let d = parseInt(mZh[3], 10);
+            let dt = new Date(y, m, d, 12, 0, 0);
+            if (!mZh[1] && dt.getTime() > now.getTime() + 86400000) {
+                dt.setFullYear(currentYear - 1);
+            }
+            return dt.getTime();
+        }
+
+        // 4. English format: 'Aug 7', 'Nov 28, 2025', 'Aug 7, 2026'
+        let mEn = str.match(/^([A-Za-z]{3,9})\s+(\d{1,2})(?:,\s*(\d{4}))?$/);
+        if (mEn) {
+            let monthStr = mEn[1];
+            let day = parseInt(mEn[2], 10);
+            let year = mEn[3] ? parseInt(mEn[3], 10) : currentYear;
+            let dt = new Date(year + ' ' + monthStr + ' ' + day + ' 12:00:00');
+            if (!isNaN(dt.getTime())) {
+                if (!mEn[3] && dt.getTime() > now.getTime() + 86400000) {
+                    dt.setFullYear(currentYear - 1);
+                }
+                return dt.getTime();
+            }
+        }
+
+        // 5. General fallback
+        let gen = Date.parse(str);
+        if (!isNaN(gen)) return gen;
+        return null;
+    }
+
     // ----- 1. DOM scan -----
     function getConversationLinks() {
         const sels = [
+            'search-snippet a',
+            'a.snippet-container',
+            '.search-results-list a',
             'a[href*="/app/"]',
             '[data-test-id="conversation"] a',
             'bard-sidenav a[href*="/app/"]',
@@ -335,7 +425,15 @@
             if (raw.length < 8) return null;
             if (/^(search|images|videos|app)$/i.test(raw)) return null;
             let id = raw.replace(/^c_/, '');
-            let title = (a.textContent || a.getAttribute('aria-label') || '').trim().split('\n')[0].trim();
+
+            // 1. Precise Title Extraction (Priority to .title element to avoid snippet match text)
+            let title = '';
+            const titleEl = a.querySelector('.title') || a.querySelector('[class*="title"]') || a.closest('search-snippet')?.querySelector('.title');
+            if (titleEl) {
+                title = titleEl.textContent.trim();
+            } else {
+                title = (a.textContent || a.getAttribute('aria-label') || '').trim().split('\n')[0].trim();
+            }
             title = title.replace(/\s{2,}/g, ' ').trim();
             if (!title || title.length < 2) {
                 let pp = a.closest('[title]');
@@ -346,11 +444,21 @@
             let abs = href.startsWith('http') ? href.split('?')[0] : 'https://gemini.google.com' + href.split('?')[0];
             if (/accounts\.google\.com|SignOutOptions/i.test(href) || /accounts\.google\.com/i.test(abs)) return null;
             if (/^Google Account/i.test(title)) return null;
+
+            // 2. Precise Date / Timestamp Extraction
+            let timestamp = null;
+            const dateEl = a.querySelector('.date') || a.querySelector('[class*="date"]') || a.querySelector('time') || a.querySelector('[datetime]') || a.closest('search-snippet')?.querySelector('.date');
+            if (dateEl) {
+                const dateStr = (dateEl.getAttribute('datetime') || dateEl.textContent || '').trim();
+                timestamp = parseNaturalDate(dateStr);
+            }
+
             return {
                 id,
                 title: title.slice(0, 90),
                 href: abs,
-                url: abs
+                url: abs,
+                timestamp: timestamp || null
             };
         }).filter(Boolean).filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
     }
@@ -361,13 +469,13 @@
             if (m && m.scrollHeight > m.clientHeight + 20) return m;
         } catch {}
         const sels = [
+            '.search-results-list',
             '#sidenav-section-content-chats',
             '[data-test-id="sidenav-content"]',
             'bard-sidenav[aria-label="Side Navigation"]',
             'nav[aria-label="Main"]',
             'div[role="navigation"]',
             'div[class*="chat-history"]',
-            'div[class*="conversation-list"]'
         ];
         for (const sel of sels) {
             const el = document.querySelector(sel);

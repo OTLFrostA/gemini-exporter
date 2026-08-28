@@ -16,18 +16,32 @@ let __workbenchDebounceTimer = null;
 let __lastRenderedSignature = '';
 let __lastRenderTime = 0;
 let __exportAborted = false;
+let __exportRunning = false;
 let __globalTotalAssets = 0;
 let __globalDownloadedAssets = 0;
 
 function $(id) {
-    return document.getElementById(id)
+    return document.getElementById(id);
 }
 
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms))
+function isRealTitle(title, id) {
+    if (!title || typeof title !== 'string') return false;
+    let t = title.trim();
+    if (t.length < 2) return false;
+    if (id) {
+        let cleanId = String(id).replace(/^c_/, '').trim();
+        let cleanT = t.replace(/^c_/, '').trim();
+        if (cleanT === cleanId) return false;
+        if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+    }
+    if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+    if (/^Google Account/i.test(t)) return false;
+    if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+    return true;
 }
 
 function setExportRunning(running) {
+    __exportRunning = !!running;
     const btnExport = $('btnExport');
     const btnCancel = $('btnCancel');
     if (btnExport) btnExport.disabled = running;
@@ -235,7 +249,13 @@ async function loadStore(forceQuiet = false) {
                 dedupMap.set(normId, c);
             } else {
                 const old = dedupMap.get(normId);
-                dedupMap.set(normId, { ...old, ...c, id: normId });
+                let bestT = c.title;
+                if (isRealTitle(old?.title, normId) && !isRealTitle(c.title, normId)) {
+                    bestT = old.title;
+                } else if (!isRealTitle(old?.title, normId) && isRealTitle(c.title, normId)) {
+                    bestT = c.title;
+                }
+                dedupMap.set(normId, { ...old, ...c, id: normId, title: bestT });
             }
         });
         conversations = Array.from(dedupMap.values());
@@ -246,9 +266,10 @@ async function loadStore(forceQuiet = false) {
             if (typeof tsB === 'string') tsB = new Date(tsB).getTime();
             let valA = tsA || 0;
             let valB = tsB || 0;
-            if (!valA && a.lastSeen) valA = new Date(a.lastSeen).getTime();
-            if (!valB && b.lastSeen) valB = new Date(b.lastSeen).getTime();
-            return valB - valA;
+            if (valA !== valB) return valB - valA;
+            let lsA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+            let lsB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+            return lsB - lsA;
         });
         if (_badIds.length || conversations.length !== incoming.length) {
             await chrome.storage.local.set({
@@ -329,8 +350,7 @@ function renderList(prevSelectedSet) {
         else badge = `<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
         let rawTs = c.timestamp;
         if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
-        if (!rawTs && c.lastSeen) rawTs = new Date(c.lastSeen).getTime();
-        const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '';
+        const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '-';
         return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
@@ -749,17 +769,34 @@ async function exportSelected() {
 
         skipped += (res.skipped || 0);
         const chunkResults = res.results || [];
-
+        let convsNeedSave = false;
         for (const chat of chunkResults) {
             if (__exportAborted) break;
             totalAssets += chat.attachmentCount || 0;
-            __globalTotalAssets = totalAssets;
+            const listC = conversations.find(c => c.id === chat.id) || null;
+            let finalTitle = chat.title || chat.id;
+            if (isRealTitle(listC?.title, chat.id)) {
+                finalTitle = listC.title;
+            } else if (isRealTitle(chat.title, chat.id)) {
+                finalTitle = chat.title;
+                if (listC) {
+                    listC.title = finalTitle;
+                    convsNeedSave = true;
+                    try {
+                        const titleEl = document.querySelector(`[data-chat-id="${normId(chat.id)}"] .title div`);
+                        if (titleEl) {
+                            const b = titleEl.querySelector('.badge');
+                            titleEl.innerHTML = `${finalTitle.replace(/</g, '&lt;')} ${b ? b.outerHTML : ''}`;
+                        }
+                    } catch {}
+                }
+            }
+            chat.title = finalTitle;
+            const listTitle = finalTitle;
             let {
                 content,
                 ext
             } = mdContent(chat);
-            const listC = conversations.find(c => c.id === chat.id) || null;
-            const listTitle = listC?.title || chat.title || chat.id;
             const prevExportedAt = curIds[chat.id]?.exportedAt || null;
             const safeBase = sanitizeFileName(listTitle, chat.id);
             const fileName = `${safeBase}_${chat.id.slice(-6)}.${ext}`;
@@ -1087,6 +1124,9 @@ async function exportSelected() {
             });
             chat.messages = null; // 释放内存
         }
+        if (convsNeedSave) {
+            await chrome.storage.local.set({ [convKey]: conversations }).catch(() => {});
+        }
     }
 
     isFetchingDone = true;
@@ -1126,23 +1166,14 @@ async function exportSelected() {
             });
             const url = URL.createObjectURL(content);
             const zName = exportFolderName + '.zip';
-            if (chrome.downloads && chrome.downloads.download) {
-                chrome.downloads.download({
-                    url: url,
-                    filename: zName,
-                    saveAs: true
-                }, () => {
-                    URL.revokeObjectURL(url);
-                    log('ZIP 打包完成，已开始下载');
-                });
-            } else {
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = zName;
-                a.click();
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
-                log('ZIP 打包完成，已开始下载');
-            }
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = zName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            log('ZIP 打包完成，已开始下载');
         } catch (e) {
             log(`ZIP 生成失败: ${e.message}`);
         }

@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Gemini Exporter",
+    "message": "Gemini Exporter - Batch Export Chats (Free)",
     "description": "The name of the extension."
   },
   "extDesc": {
-    "message": "Export Google Gemini chats to Markdown, JSON, TXT, or ZIP archives with attachments and images (Unofficial tool).",
+    "message": "Batch export Google Gemini chats to Markdown, JSON, TXT, or ZIP with images & attachments. Privacy-first, open-source & free.",
     "description": "The description of the extension."
   }
 }

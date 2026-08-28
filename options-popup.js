@@ -97,6 +97,14 @@
         const chat = res.data || res;
         if(!chat.id) chat.id = convId;
         if(!chat.url) chat.url = `https://gemini.google.com/app/${convId}`;
+        if(!chat.title || chat.title === 'Untitled conversation') {
+          try {
+            const data = await chrome.storage.local.get(['gemini_conversations']);
+            const list = data.gemini_conversations || [];
+            const found = list.find(c => c.id === convId || c.id === `c_${convId}`);
+            if (found && found.title) chat.title = found.title;
+          } catch {}
+        }
 
         let content, ext, mime;
         if(format === 'json'){
@@ -115,22 +123,27 @@
           content = JSON.stringify(chat._raw || chat, null, 2);
           ext = 'json';
           mime = 'application/json';
-        } else if(format === 'txt'){
-          let txt = `${chat.title || chat.id}\n${'='.repeat(40)}\nID: ${chat.id}\nURL: ${chat.url}\n\n`;
-          for(const msg of chat.messages||[]){
-            if(msg.role==='user') txt += `[你]:\n${msg.content||''}\n\n`;
-            else txt += `[Gemini]:\n${msg.content||''}\n\n`;
-            txt += '---\n\n';
-          }
-          content = txt;
-          ext = 'txt';
-          mime = 'text/plain';
         } else {
           // markdown
           let md = `# ${chat.title||chat.id}\n\n> ID: ${chat.id} | 导出: ${new Date().toLocaleString()} | 来源: ${chat.url}\n\n---\n\n`;
           for(const msg of chat.messages||[]){
-            if(msg.role==='user') md += `## 🙋 你\n\n${msg.content||''}\n\n`;
-            else md += `## 🤖 Gemini\n\n${msg.content||''}\n\n---\n\n`;
+            if(msg.role==='user') {
+              md += `## 🙋 你\n\n${msg.content||''}\n\n`;
+            } else {
+              md += `## 🤖 Gemini\n\n`;
+              if (msg.thinking && msg.thinking.trim()) {
+                md += `<details><summary>🧠 思考过程</summary>\n\n${msg.thinking.trim()}\n\n</details>\n\n`;
+              }
+              md += `${msg.content||''}\n\n`;
+              if (msg.citations && msg.citations.length) {
+                md += `> 🌐 **参考来源：**\n`;
+                for (const c of msg.citations) {
+                  md += `> - [${c.title || c.url}](${c.url})\n`;
+                }
+                md += `\n`;
+              }
+              md += `---\n\n`;
+            }
           }
           content = md;
           ext = 'md';

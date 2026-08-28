@@ -11,7 +11,7 @@
 </p>
 
 > **A powerful, privacy-first, fully open-source Chrome extension to batch export and archive your Google Gemini conversations.**  
-> Export all your chat history with one click into Markdown, JSON (including OpenAI-compatible format), TXT, or a ZIP bundle with images and attachments. Seamlessly migrate your conversations into Obsidian, Notion, Logseq, and other local personal knowledge bases.
+> Export all your chat history with one click into Markdown, JSON (including OpenAI-compatible format), or a ZIP bundle with images and attachments. Seamlessly migrate your conversations into Obsidian, Notion, Logseq, and other local personal knowledge bases.
 
 ---
 
@@ -20,14 +20,13 @@
 - 🔒 **100% Client-Side & Zero Privacy Leakage**:
   - All processing runs completely inside your browser's local sandbox. **Never sends credentials, cookies, or chat messages to any third-party server.**
 - 📊 **Dedicated Batch Workbench (Options Page)**:
-  - An immersive dark-themed dashboard to view, filter, and manage all your synced conversations.
+  - An intuitive dark-themed dashboard to view, filter, and manage all your synced conversations.
   - Filter chats by status: *All*, *Exported*, *Needs Re-export*, *Unexported*, or *Failed*.
   - Full **Bilingual Support (English / 简体中文)** with a 1-click language switcher in the header.
 - 📦 **Multiple Export Formats**:
-  - **Markdown (`.md`)**: Beautiful formatting, syntax highlighting for code blocks, and math equations.
-  - **JSON**: Native structured format containing complete turn metadata and timestamps.
+  - **Markdown (`.md`)**: Beautiful formatting, syntax-highlighted code blocks, math equations, collapsible thinking details (`<details>`), and web citations.
   - **JSON (OpenAI Format)**: Ready-to-use format for LLM fine-tuning pipelines and third-party tools.
-  - **Plain Text (`.txt`)**: Lightweight, clean, and easily readable.
+  - **JSON (Raw / Complete Metadata)**: Complete structured payload containing raw timestamps and conversation metadata.
 - 🖼️ **Full Support for Attachments & Images**:
   - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution images.
   - Assets are neatly organized into an `assets/` subfolder with relative references preserved in Markdown.
@@ -43,18 +42,24 @@
 
 Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microsoft Edge**, **Brave**, **Arc**, **Vivaldi**, etc.).
 
-### Method 1: Load Unpacked Extension (Recommended)
+### Method 1: Install from Chrome Web Store (Recommended)
 
-1. Clone or download this repository to your local machine:
+Install directly from the official Chrome Web Store with one click:
+
+👉 **[Get Gemini Exporter on Chrome Web Store](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf)**
+
+### Method 2: Load Unpacked Extension (Developer / Source Code)
+
+1. Clone this repository to your local machine:
    ```bash
    git clone https://github.com/OTLFrostA/gemini-exporter.git
    ```
 2. Open your browser's extension management page:
    - **Chrome**: Navigate to `chrome://extensions/`
    - **Edge**: Navigate to `edge://extensions/`
-3. Enable **Developer mode** (toggle in the top-right or sidebar).
+3. Enable **Developer mode** (toggle in the top-right corner).
 4. Click **Load unpacked** in the top-left corner.
-5. Select the downloaded/cloned folder to finish installation.
+5. Select the cloned repository folder to finish installation.
 
 ---
 
@@ -63,15 +68,15 @@ Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microso
 ### 1. Quick Single-Chat Export (Popup)
 1. Open and sign in to [Google Gemini](https://gemini.google.com).
 2. Click the **Gemini Exporter** icon in your browser toolbar to open the popup.
-3. Choose your desired format (Markdown / JSON / TXT), and click **"Export Current Page"** to download the active conversation instantly.
+3. Choose your desired format (Markdown / JSON), and click **"Export Current Page"** to download the active conversation instantly.
 
 ### 2. Batch Export & Incremental Sync (Workbench)
 1. Click **"Go to Workbench"** in the popup (or right-click the extension icon and select "Options").
 2. In the Workbench:
-   - Click **"Sync (Incremental)"** or **"Deep Scan Gemini Page"** to gather your chat history.
+   - Click **"Sync Latest"** for fast incremental sync, or **"Deep Scan"** to gather your entire chat history.
    - Select the conversations you want to export (supports *Select All*, *Unexported Only*, *Updated Only*).
    - Configure options: download assets, package as ZIP, custom folder, etc.
-   - Click **"Export Selected → ZIP"** (or Folder), and let the browser archive your chats.
+   - Click **"Export Selected → ZIP"** (or Folder) to archive your chats.
 
 ---
 
@@ -89,13 +94,13 @@ Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microso
          │ (Native batchexecute RPCs)
          ▼
 [ Options Workbench UI / Local Storage / JSZip ]
-         │ (File Generation & chrome.downloads)
+         │ (File Generation & Native DOM / FileSystem API)
          ▼
 [ Local Disk Save (Markdown + Assets ZIP) ]
 ```
 
 - **Credential Interception**: Intercepts the anti-CSRF token (`at`) and session identifier (`f.sid`) from native network requests in the MAIN world, avoiding raw Cookie exposure.
-- **Local Packaging**: All chat content and binary images are compressed and saved directly in the browser via JSZip, with zero remote relay servers.
+- **Local Packaging**: All chat content and binary images are compressed and saved directly in the browser via JSZip and modern web APIs, requiring zero excessive browser permissions.
 
 ## 🔒 Privacy Policy
 

@@ -71,7 +71,60 @@
     transform: translateX(14px);
     background: white;
   }
+  /* Modern Sleek WebKit Scrollbars (No standard scrollbar-color/width to avoid Chrome disabling WebKit engine) */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333857;
+    border-radius: 99px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    min-height: 48px;
+    transition: background-color 0.2s;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #4f588c;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background: #6366f1;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
   .list{overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--card-inner)}
+  #list::-webkit-scrollbar,
+  .list::-webkit-scrollbar {
+    width: 10px !important;
+  }
+  #list::-webkit-scrollbar-track,
+  .list::-webkit-scrollbar-track {
+    background: rgba(14, 15, 23, 0.8) !important;
+    border-radius: 99px !important;
+    margin: 4px 0 !important;
+  }
+  #list::-webkit-scrollbar-thumb,
+  .list::-webkit-scrollbar-thumb {
+    background: #3b4266 !important;
+    border-radius: 99px !important;
+    border: 2px solid rgba(14, 15, 23, 0.8) !important;
+    background-clip: padding-box !important;
+    min-height: 48px !important;
+  }
+  #list::-webkit-scrollbar-thumb:hover,
+  .list::-webkit-scrollbar-thumb:hover {
+    background: #596499 !important;
+  }
+  #list::-webkit-scrollbar-thumb:active,
+  .list::-webkit-scrollbar-thumb:active {
+    background: #6366f1 !important;
+  }
   .item{display:flex;gap:8px;padding:8px;border-radius:8px;align-items:flex-start;transition:background 0.15s}
   .item:hover{background:#1a1c2b}
   .item input{margin-top:4px}
@@ -92,7 +145,7 @@
 <body>
 <header>
   <div style="display:flex; align-items:center; gap:8px;">
-    <h1>Gemini Exporter <span id="ver" class="badge">v1.1.0</span> <span id="syncCount" class="badge">已同步 0</span></h1>
+    <h1>Gemini Exporter <span id="ver" class="badge"></span> <span id="syncCount" class="badge">已同步 0</span></h1>
     <select id="accountSlotSelect" style="display:none; font-size:11px; padding:3px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer;">
       <option value="u0">默认账号 (u0)</option>
     </select>
@@ -159,7 +212,7 @@
     <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
     <div id="progText" class="stat" style="text-align:center; min-height:16px; line-height:16px;"></div>
 
-    <div style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
+    <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:none;">
         <select id="logLevel" title="级别" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">
           <option value="all" data-i18n="logLevelAll">全部日志</option>
