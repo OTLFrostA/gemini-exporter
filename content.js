@@ -687,7 +687,7 @@
                         total: effectiveMax,
                         percent: 100,
                         count: finalCount,
-                        title: `同步完成，账号共 ${finalCount} 条会话`
+                        title: (isZh ? `同步完成，账号共 ${finalCount} 条会话` : `Sync complete, total ${finalCount} conversations`)
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {};
