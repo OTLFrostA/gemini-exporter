@@ -80,7 +80,14 @@
             btnExportDiag: "导出诊断",
             btnExportDiagTip: "导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)",
             copied: "已复制!",
-            fmtJsonStandard: "JSON (插件标准)"
+            fmtJsonStandard: "JSON (插件标准)",
+            popupExporting: "正在导出当前页…",
+            popupNotGemini: "当前页不是 gemini.google.com，请先打开 Gemini 对话页",
+            popupNoChatId: "当前页未打开具体对话 (URL 中没找到对话 ID)",
+            popupFoundChat: "找到对话 ID: {0}，正在抓取内容…",
+            popupFetchFailed: "抓取失败: {0}",
+            popupExported: "已导出: {0} ({1} 条消息)",
+            popupExportError: "导出异常: {0}"
         },
         en: {
             extName: "Gemini Exporter",
@@ -161,7 +168,14 @@
             logReady: "Ready",
             btnExportDiag: "Export Diagnostics",
             btnExportDiagTip: "Export detailed diagnostic report (cursors, payloads & stop reasons)",
-            copied: "Copied!"
+            copied: "Copied!",
+            popupExporting: "Exporting current page...",
+            popupNotGemini: "Current page is not gemini.google.com. Please open a Gemini chat page.",
+            popupNoChatId: "No conversation found in current tab URL.",
+            popupFoundChat: "Found conversation ID: {0}, fetching content...",
+            popupFetchFailed: "Fetch failed: {0}",
+            popupExported: "Exported: {0} ({1} messages)",
+            popupExportError: "Export error: {0}"
         }
     };
 
