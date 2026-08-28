@@ -478,7 +478,7 @@ async function verifyPermission(fileHandle, readWrite) {
 }
 
 async function requestDirHandle(saveToIdb = true) {
-    if (!window.showDirectoryPicker) throw new Error('浏览器不支持 showDirectoryPicker');
+    if (!window.showDirectoryPicker) throw new Error(typeof I18n !== 'undefined' ? I18n.t('browserNoDirPicker') : 'Directory picker not supported');
     const handle = await window.showDirectoryPicker({
         id: 'gemini_export_dir',
         mode: 'readwrite'
@@ -525,7 +525,7 @@ function toIso(v) {
 async function exportSelected() {
     const selected = getSelected();
     if (!selected.length) {
-        alert('未选中任何会话');
+        alert(typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!');
         return;
     }
     const format = $('format').value;
@@ -578,7 +578,7 @@ async function exportSelected() {
     log(`开始导出 ${selected.length} 条对话…`);
     $('progWrap').style.display = 'block';
     $('bar').style.width = '0%';
-    $('progText').textContent = '准备中…';
+    $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('progPreparing') : 'Preparing...';
 
     let totalAssets = 0;
     let downloadedAssets = 0;
@@ -682,7 +682,7 @@ async function exportSelected() {
         if (pt) pt.textContent = text;
     }
 
-    updateSharedProgress(0, '准备中…');
+    updateSharedProgress(0, typeof I18n !== 'undefined' ? I18n.t('progPreparing') : 'Preparing...');
 
     let attachmentQueue = [];
     let isFetchingDone = false;
@@ -1118,7 +1118,7 @@ async function exportSelected() {
 
     isFetchingDone = true;
     if (attachmentQueue.length > 0) {
-        updateSharedProgress(payloadIds.length, '正在下载剩余附件…');
+        updateSharedProgress(payloadIds.length, typeof I18n !== 'undefined' ? I18n.t('progDownloadingAssets') : 'Downloading remaining assets...');
     }
     await Promise.all(consumerPool);
 
@@ -1245,7 +1245,7 @@ chrome.runtime.onMessage.addListener((msg) => {
         let pt = $('progText');
         let pct = typeof msg.percent === 'number' ? msg.percent : (msg.total ? Math.floor((msg.done / msg.total) * 100) : 50);
         if (bar) bar.style.width = Math.min(Math.max(pct, 5), 100) + '%';
-        if (pt) pt.textContent = msg.title || `正在同步 (${msg.count || msg.done} 条)…`;
+        if (pt) pt.textContent = msg.title || (typeof I18n !== 'undefined' ? I18n.t('progSyncing', msg.count || msg.done) : `Syncing (${msg.count || msg.done} items)...`);
         return;
     }
     if (msg.action === 'exportProgress') {
@@ -1259,7 +1259,7 @@ chrome.runtime.onMessage.addListener((msg) => {
         let bar = $('bar');
         if (bar) bar.style.width = pct + '%';
         let pt = $('progText');
-        if (pt) pt.textContent = `进度 ${msg.done}/${msg.total} | 当前: ${msg.title || ''}`;
+        if (pt) pt.textContent = typeof I18n !== 'undefined' ? I18n.t('progSyncProgress', msg.done, msg.total, msg.title || '') : `Progress ${msg.done}/${msg.total} | Current: ${msg.title || ''}`;
         log(`进度 ${msg.done}/${msg.total}: ${msg.title || msg.id}`);
         return;
     }
@@ -1426,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
             const diag = data.gemini_last_sync_diagnostics;
             if (!diag) {
-                alert('暂无诊断数据，请先点击「同步最新会话」或「全量拉取历史」');
+                alert(typeof I18n !== 'undefined' ? I18n.t('noDiagData') : 'No diagnostic data yet.');
                 return;
             }
             const blob = new Blob([JSON.stringify(diag, null, 2)], { type: 'application/json' });
@@ -1512,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnStopScan) {
         btnStopScan.addEventListener('click', async () => {
             log('正在请求终止同步…');
-            $('progText').textContent = '正在终止同步…';
+            $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : 'Stopping sync...';
             btnStopScan.disabled = true;
             try {
                 chrome.runtime.sendMessage({
@@ -1534,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             log('开始同步最新会话…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '正在同步最新会话…';
+            $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('syncingLatest') : 'Syncing latest conversations...';
             btnIncr.disabled = true;
             if (btnDeep) btnDeep.disabled = true;
             if (btnStopScan) {
@@ -1552,12 +1552,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
                     log('同步失败: ' + chrome.runtime.lastError.message);
-                    $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
+                    $('progText').textContent = (typeof I18n !== 'undefined' ? I18n.t('failedPrefix') : 'Failed') + ': ' + chrome.runtime.lastError.message;
                     return;
                 }
                 log('同步完成，已更新列表');
                 $('bar').style.width = '100%';
-                $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
+                $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', res?.totalMerged || res?.count || '0') : ('Done, synced ' + (res?.totalMerged || res?.count || '0') + ' conversations');
                 if (res?.diagnostics) {
                     log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
                     log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
@@ -1574,7 +1574,7 @@ document.addEventListener('DOMContentLoaded', () => {
             log('开始全量拉取历史…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '正在全量拉取历史…';
+            $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : 'Full deep sync in progress...';
             btnDeep.disabled = true;
             if (btnIncr) btnIncr.disabled = true;
             if (btnStopScan) {
@@ -1592,13 +1592,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
                     log('全量拉取失败: ' + chrome.runtime.lastError.message);
-                    $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
+                    $('progText').textContent = (typeof I18n !== 'undefined' ? I18n.t('failedPrefix') : 'Failed') + ': ' + chrome.runtime.lastError.message;
                     console.error('[workbench] deepScan err', chrome.runtime.lastError);
                     return;
                 }
                 log('全量拉取完成，已更新列表');
                 $('bar').style.width = '100%';
-                $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
+                $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', res?.totalMerged || res?.count || '0') : ('Done, synced ' + (res?.totalMerged || res?.count || '0') + ' conversations');
                 if (res?.diagnostics) {
                     log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
                     log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
