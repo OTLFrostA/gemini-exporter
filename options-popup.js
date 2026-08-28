@@ -74,7 +74,9 @@
         log('当前页不是 gemini.google.com，请先打开 Gemini 对话页');
         return;
       }
-      // Extract conversation ID from URL
+      // Extract conversation ID and slot from URL
+      const slotMatch = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
+      const slot = slotMatch ? ('u' + slotMatch[1]) : 'u0';
       const m = tab.url.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
       if(!m){
         log('当前页未打开具体对话 (URL 中没找到对话 ID)');
@@ -84,7 +86,7 @@
       log(`找到对话 ID: ${convId}，正在抓取内容…`);
       if(bar) bar.style.width = '40%';
 
-      chrome.runtime.sendMessage({action:'fetchChat', conversationId: convId}, (res)=>{
+      chrome.runtime.sendMessage({action:'fetchChat', conversationId: convId, accountSlot: slot}, (res)=>{
         if(chrome.runtime.lastError){
           log('抓取失败: '+chrome.runtime.lastError.message);
           return;
@@ -150,7 +152,7 @@
           mime = 'text/markdown';
         }
 
-        const safeTitle = (chat.title||chat.id).replace(/[<>:"/\\|?*]+/g,'_').slice(0,60);
+        const safeTitle = (chat.title||chat.id).replace(/[\r\n]+/g,' ').replace(/[<>:"/\\|?*]+/g,'_').trim().slice(0,60);
         const fileName = `${safeTitle}_${convId.slice(-6)}.${ext}`;
         const blob = new Blob([content], {type: mime});
         const url = URL.createObjectURL(blob);
@@ -162,6 +164,24 @@
 
         if(bar) bar.style.width = '100%';
         log(`已导出: ${fileName} (${chat.messages?.length||0} 条消息)`);
+
+        try {
+          const nid = String(convId).replace(/^c_/, '').trim();
+          const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+          const expData = await chrome.storage.local.get([expKey]);
+          const curExp = expData[expKey] || {};
+          const rec = {
+            title: chat.title || convId,
+            exportedAt: new Date().toISOString(),
+            messageCount: chat.messages?.length || 0,
+            chatTime: chat.timestamp || Date.now(),
+            status: 'ok'
+          };
+          curExp[convId] = rec;
+          curExp[nid] = rec;
+          curExp['c_' + nid] = rec;
+          await chrome.storage.local.set({ [expKey]: curExp });
+        } catch {}
       });
     }catch(e){
       log('导出异常: '+e.message);

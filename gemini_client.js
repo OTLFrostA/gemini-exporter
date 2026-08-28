@@ -1076,8 +1076,10 @@
             if (!first) throw new Error("no data");
             let minTs = first.createdAt || Date.now();
             let attachmentCount = msgs.reduce((a, m) => a + (m.attachmentCount || 0), 0);
+            let cleanId = String(conversationId).replace(/^c_/, '').trim();
             return {
                 ...first,
+                id: cleanId,
                 messages: msgs,
                 messageCount: msgs.length,
                 timestamp: minTs,

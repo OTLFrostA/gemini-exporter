@@ -191,13 +191,19 @@ async function loadStore(forceQuiet = false) {
 
         let incoming = data[convKey] || [];
         if ((!incoming || !incoming.length) && slot !== 'u0') {
-            const u0Data = await chrome.storage.local.get(['gemini_conversations']);
+            const u0Data = await chrome.storage.local.get(['gemini_conversations', 'exportedIds', 'gemini_last_sync', 'gemini_last_count']);
             if (u0Data.gemini_conversations && u0Data.gemini_conversations.length) {
                 console.log('[workbench] Slot', slot, 'is empty but u0 has', u0Data.gemini_conversations.length, 'chats. Falling back to u0.');
                 currentSlot = 'u0';
                 slot = 'u0';
                 convKey = 'gemini_conversations';
+                expKey = 'exportedIds';
+                syncKey = 'gemini_last_sync';
+                countKey = 'gemini_last_count';
                 incoming = u0Data.gemini_conversations;
+                data.exportedIds = u0Data.exportedIds;
+                data.gemini_last_sync = u0Data.gemini_last_sync;
+                data.gemini_last_count = u0Data.gemini_last_count;
                 if ($('accountSlotSelect')) $('accountSlotSelect').value = 'u0';
             }
         }
@@ -215,8 +221,8 @@ async function loadStore(forceQuiet = false) {
         } catch {
             prevSelectedRaw = [];
         }
-        const prevSelected = new Set(prevSelectedRaw);
         const hadLength = conversations.length;
+        const prevSelected = hadLength === 0 ? null : new Set(prevSelectedRaw);
         exportedIds = data[expKey] || {};
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
@@ -338,11 +344,7 @@ function renderList(prevSelectedSet) {
         const safeTitle = (c.title || '').replace(/</g, '&lt;');
         let checked = true;
         if (prevSelectedSet instanceof Set) {
-            if (prevSelectedSet.size === 0) {
-                checked = true;
-            } else {
-                checked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
-            }
+            checked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         }
         let badge = '';
         if (isUpdated) badge = `<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">${bNeedsReexport}</span>`;
@@ -533,6 +535,7 @@ function sanitizeFileName(name, fallback = 'untitled') {
     s = s.replace(/^\.+|\.+$/g, '');
     s = s.trim();
     if (!s) return fallback;
+    if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
     if (s.length > 80) s = s.slice(0, 80).trim();
     return s;
 }
@@ -770,10 +773,14 @@ async function exportSelected() {
         skipped += (res.skipped || 0);
         const chunkResults = res.results || [];
         let convsNeedSave = false;
-        for (const chat of chunkResults) {
+        for (let cIdx = 0; cIdx < chunkResults.length; cIdx++) {
+            const chat = chunkResults[cIdx];
             if (__exportAborted) break;
             totalAssets += chat.attachmentCount || 0;
-            const listC = conversations.find(c => c.id === chat.id) || null;
+            const requestedItem = chunk[cIdx] || chunk[0] || {};
+            const nid = normId(requestedItem.id || chat.id);
+            chat.id = nid;
+            const listC = conversations.find(c => normId(c.id) === nid) || null;
             let finalTitle = chat.title || chat.id;
             if (isRealTitle(listC?.title, chat.id)) {
                 finalTitle = listC.title;
@@ -782,13 +789,6 @@ async function exportSelected() {
                 if (listC) {
                     listC.title = finalTitle;
                     convsNeedSave = true;
-                    try {
-                        const titleEl = document.querySelector(`[data-chat-id="${normId(chat.id)}"] .title div`);
-                        if (titleEl) {
-                            const b = titleEl.querySelector('.badge');
-                            titleEl.innerHTML = `${finalTitle.replace(/</g, '&lt;')} ${b ? b.outerHTML : ''}`;
-                        }
-                    } catch {}
                 }
             }
             chat.title = finalTitle;
@@ -797,7 +797,7 @@ async function exportSelected() {
                 content,
                 ext
             } = mdContent(chat);
-            const prevExportedAt = curIds[chat.id]?.exportedAt || null;
+            const prevExportedAt = curIds[nid]?.exportedAt || curIds[chat.id]?.exportedAt || null;
             const safeBase = sanitizeFileName(listTitle, chat.id);
             const fileName = `${safeBase}_${chat.id.slice(-6)}.${ext}`;
 
@@ -813,7 +813,6 @@ async function exportSelected() {
                 if (!chat.error && !chat._empty) {
                     let exportTs = listC?.timestamp || chat.timestamp || Date.now();
                     if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
-                    const nid = normId(chat.id);
                     const record = {
                         title: listTitle,
                         exportedAt: new Date().toISOString(),
@@ -832,20 +831,32 @@ async function exportSelected() {
                     }).catch(() => {});
 
                     try {
-                        const badgeEl = document.querySelector(`[data-chat-id="${nid}"] .badge`);
-                        if (badgeEl) {
+                        const itemEl = document.querySelector(`[data-chat-id="${nid}"]`);
+                        if (itemEl) {
+                            const titleDiv = itemEl.querySelector('.title > div');
                             const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
-                            badgeEl.style.background = '#1d3a2a';
-                            badgeEl.style.borderColor = '#2a5a3a';
-                            badgeEl.style.color = '#8ae6b0';
-                            badgeEl.textContent = bExported;
+                            if (titleDiv) {
+                                let badgeEl = titleDiv.querySelector('.badge');
+                                if (!badgeEl) {
+                                    badgeEl = document.createElement('span');
+                                    badgeEl.className = 'badge';
+                                    titleDiv.appendChild(badgeEl);
+                                }
+                                badgeEl.style.background = '#1d3a2a';
+                                badgeEl.style.borderColor = '#2a5a3a';
+                                badgeEl.style.color = '#8ae6b0';
+                                badgeEl.textContent = bExported;
+                                if (finalTitle) {
+                                    titleDiv.innerHTML = `${finalTitle.replace(/</g, '&lt;')} ${badgeEl.outerHTML}`;
+                                }
+                            }
                         }
                     } catch {}
                 }
             } else {
                 failedChats.push(chat.id);
             }
-            updateSharedProgress(i + 1, listTitle);
+            updateSharedProgress(i + cIdx + 1, listTitle);
 
             if (includeAssets && chat.messages && writeOk) {
                 for (const m of chat.messages) {
@@ -1223,7 +1234,8 @@ function toMarkdown(chat) {
     // 1. YAML Frontmatter (Obsidian, Logseq, Notion compatible)
     let createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
     let updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
-    let safeYamlTitle = (chat.title || 'Untitled').replace(/"/g, '\\"');
+    let safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
+    let safeYamlTitle = safeTitleClean.replace(/"/g, '\\"');
 
     let md = `---\n`;
     md += `title: "${safeYamlTitle}"\n`;
@@ -1236,7 +1248,7 @@ function toMarkdown(chat) {
     md += `---\n\n`;
 
     // 2. Document Title & Metadata Header
-    md += `# ${chat.title}\n\n`;
+    md += `# ${safeTitleClean}\n\n`;
     let metaBadges = [];
     if (chat.url) metaBadges.push(`[🔗 对话链接](${chat.url})`);
     metaBadges.push(`🆔 \`${chat.id}\``);
@@ -1705,7 +1717,8 @@ document.addEventListener('DOMContentLoaded', () => {
         await chrome.storage.local.remove(expKey);
         exportedIds = {};
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearExported') : 'Export history cleared');
-        renderList(new Set());
+        const currentSelected = new Set(getSelected().map(x => x.id));
+        renderList(currentSelected);
         updateSelectedStat();
     });
     $('btnClearAll').addEventListener('click', async () => {

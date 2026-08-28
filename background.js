@@ -177,7 +177,7 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
 
             if (data && data.success) {
                 let chat = data.data || data.chat || data;
-                if (!chat.id) chat.id = item.id;
+                chat.id = item.id;
                 chat.title = item.title || chat.title;
                 if (!chat.url) chat.url = item.url || `https://gemini.google.com/app/${item.id}`;
 
