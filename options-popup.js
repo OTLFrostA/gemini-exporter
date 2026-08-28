@@ -162,6 +162,23 @@
 
         if(bar) bar.style.width = '100%';
         log(`已导出: ${fileName} (${chat.messages?.length||0} 条消息)`);
+
+        try {
+          const nid = String(convId).replace(/^c_/, '').trim();
+          const expData = await chrome.storage.local.get(['exportedIds']);
+          const curExp = expData.exportedIds || {};
+          const rec = {
+            title: chat.title || convId,
+            exportedAt: new Date().toISOString(),
+            messageCount: chat.messages?.length || 0,
+            chatTime: chat.timestamp || Date.now(),
+            status: 'ok'
+          };
+          curExp[convId] = rec;
+          curExp[nid] = rec;
+          curExp['c_' + nid] = rec;
+          await chrome.storage.local.set({ exportedIds: curExp });
+        } catch {}
       });
     }catch(e){
       log('导出异常: '+e.message);
