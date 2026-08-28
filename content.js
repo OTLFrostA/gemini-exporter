@@ -98,6 +98,22 @@
         }
     }
 
+    function isRealTitle(title, id) {
+        if (!title || typeof title !== 'string') return false;
+        let t = title.trim();
+        if (t.length < 2) return false;
+        if (id) {
+            let cleanId = String(id).replace(/^c_/, '').trim();
+            let cleanT = t.replace(/^c_/, '').trim();
+            if (cleanT === cleanId) return false;
+            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+        }
+        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+        if (/^Google Account/i.test(t)) return false;
+        if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+        return true;
+    }
+
     let __storageWriteQueue = Promise.resolve();
 
     function upsertConversations(incomingItems, source) {
@@ -122,16 +138,24 @@
                     const normId = String(c.id).replace(/^c_/, '').trim();
                     c.id = normId;
                     const old = map.get(normId);
+
+                    let resolvedTitle = old?.title;
+                    if (isRealTitle(c.title, normId)) {
+                        resolvedTitle = c.title.trim().slice(0, 120);
+                    } else if (!isRealTitle(old?.title, normId)) {
+                        resolvedTitle = c.title || old?.title || '未命名对话';
+                    }
+
                     if (!old) {
                         changed++;
-                    } else if (old.title !== c.title || (!old.timestamp && c.timestamp)) {
+                    } else if (old.title !== resolvedTitle || (!old.timestamp && c.timestamp)) {
                         changed++;
                     }
                     map.set(normId, {
                         ...(old || {}),
                         ...c,
                         id: normId,
-                        title: (c.title && c.title !== '未命名对话' && !c.title.startsWith('未命名对话(')) ? c.title : (old && old.title) || c.title,
+                        title: resolvedTitle,
                         timestamp: c.timestamp || (old && old.timestamp) || null,
                         lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
                         source: source || (old && old.source) || 'unknown',

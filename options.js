@@ -21,7 +21,23 @@ let __globalTotalAssets = 0;
 let __globalDownloadedAssets = 0;
 
 function $(id) {
-    return document.getElementById(id)
+    return document.getElementById(id);
+}
+
+function isRealTitle(title, id) {
+    if (!title || typeof title !== 'string') return false;
+    let t = title.trim();
+    if (t.length < 2) return false;
+    if (id) {
+        let cleanId = String(id).replace(/^c_/, '').trim();
+        let cleanT = t.replace(/^c_/, '').trim();
+        if (cleanT === cleanId) return false;
+        if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+    }
+    if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+    if (/^Google Account/i.test(t)) return false;
+    if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+    return true;
 }
 
 function setExportRunning(running) {
@@ -233,7 +249,13 @@ async function loadStore(forceQuiet = false) {
                 dedupMap.set(normId, c);
             } else {
                 const old = dedupMap.get(normId);
-                dedupMap.set(normId, { ...old, ...c, id: normId });
+                let bestT = c.title;
+                if (isRealTitle(old?.title, normId) && !isRealTitle(c.title, normId)) {
+                    bestT = old.title;
+                } else if (!isRealTitle(old?.title, normId) && isRealTitle(c.title, normId)) {
+                    bestT = c.title;
+                }
+                dedupMap.set(normId, { ...old, ...c, id: normId, title: bestT });
             }
         });
         conversations = Array.from(dedupMap.values());
@@ -747,13 +769,30 @@ async function exportSelected() {
 
         skipped += (res.skipped || 0);
         const chunkResults = res.results || [];
-
+        let convsNeedSave = false;
         for (const chat of chunkResults) {
             if (__exportAborted) break;
             totalAssets += chat.attachmentCount || 0;
             const listC = conversations.find(c => c.id === chat.id) || null;
-            const listTitle = (listC && listC.title && listC.title !== '未命名对话' && !listC.title.startsWith('未命名对话(')) ? listC.title : (chat.title || chat.id);
-            chat.title = listTitle;
+            let finalTitle = chat.title || chat.id;
+            if (isRealTitle(listC?.title, chat.id)) {
+                finalTitle = listC.title;
+            } else if (isRealTitle(chat.title, chat.id)) {
+                finalTitle = chat.title;
+                if (listC) {
+                    listC.title = finalTitle;
+                    convsNeedSave = true;
+                    try {
+                        const titleEl = document.querySelector(`[data-chat-id="${normId(chat.id)}"] .title div`);
+                        if (titleEl) {
+                            const b = titleEl.querySelector('.badge');
+                            titleEl.innerHTML = `${finalTitle.replace(/</g, '&lt;')} ${b ? b.outerHTML : ''}`;
+                        }
+                    } catch {}
+                }
+            }
+            chat.title = finalTitle;
+            const listTitle = finalTitle;
             let {
                 content,
                 ext
@@ -1084,6 +1123,9 @@ async function exportSelected() {
                 lastUpdatedAt: lastUpdatedAt
             });
             chat.messages = null; // 释放内存
+        }
+        if (convsNeedSave) {
+            await chrome.storage.local.set({ [convKey]: conversations }).catch(() => {});
         }
     }
 
