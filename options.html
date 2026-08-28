@@ -71,44 +71,57 @@
     transform: translateX(14px);
     background: white;
   }
-  /* Modern Sleek Scrollbar */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: #282c44 transparent;
-  }
+  /* Modern Sleek WebKit Scrollbars (No standard scrollbar-color/width to avoid Chrome disabling WebKit engine) */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #25283d;
+    background: #2b304c;
     border-radius: 99px;
-    transition: background 0.2s;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background-color 0.2s;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #434970;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:active {
     background: #4f46e5;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
+
   .list{overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--card-inner)}
+  #list::-webkit-scrollbar,
   .list::-webkit-scrollbar {
-    width: 6px;
+    width: 8px !important;
   }
+  #list::-webkit-scrollbar-track,
   .list::-webkit-scrollbar-track {
-    background: rgba(14, 15, 23, 0.6);
-    border-radius: 99px;
-    margin: 6px 0;
+    background: rgba(14, 15, 23, 0.8) !important;
+    border-radius: 99px !important;
+    margin: 4px 0 !important;
   }
+  #list::-webkit-scrollbar-thumb,
   .list::-webkit-scrollbar-thumb {
-    background: #2b304c;
-    border-radius: 99px;
+    background: #333857 !important;
+    border-radius: 99px !important;
+    border: 2px solid rgba(14, 15, 23, 0.8) !important;
+    background-clip: padding-box !important;
   }
+  #list::-webkit-scrollbar-thumb:hover,
   .list::-webkit-scrollbar-thumb:hover {
-    background: #4a5280;
+    background: #4f588c !important;
+  }
+  #list::-webkit-scrollbar-thumb:active,
+  .list::-webkit-scrollbar-thumb:active {
+    background: #6366f1 !important;
   }
   .item{display:flex;gap:8px;padding:8px;border-radius:8px;align-items:flex-start;transition:background 0.15s}
   .item:hover{background:#1a1c2b}
