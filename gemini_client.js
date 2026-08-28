@@ -528,6 +528,39 @@
         return "";
     }
 
+    function extractConversationTitle(inner, turns) {
+        if (inner && Array.isArray(inner)) {
+            for (let i = 1; i < inner.length; i++) {
+                let item = inner[i];
+                if (typeof item === "string" && item.length > 1 && !item.startsWith("tC") && !item.startsWith("c_") && !item.includes("http") && !/^[0-9a-f-]{16,}$/i.test(item)) {
+                    let cleaned = item.replace(/[\r\n]+/g, " ").trim();
+                    if (cleaned.length >= 2 && !/^Google Account/i.test(cleaned)) {
+                        return cleaned.slice(0, 120);
+                    }
+                }
+                if (Array.isArray(item)) {
+                    for (let sub of item) {
+                        if (typeof sub === "string" && sub.length > 1 && !sub.startsWith("tC") && !sub.startsWith("c_") && !sub.includes("http") && !/^[0-9a-f-]{16,}$/i.test(sub)) {
+                            let cleaned = sub.replace(/[\r\n]+/g, " ").trim();
+                            if (cleaned.length >= 2 && !/^Google Account/i.test(cleaned)) {
+                                return cleaned.slice(0, 120);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (turns && turns.length) {
+            for (let i = turns.length - 1; i >= 0; i--) {
+                let uPrompt = turns[i]?.[2]?.[0]?.[0];
+                if (typeof uPrompt === "string" && uPrompt.trim().length > 1) {
+                    return uPrompt.trim().replace(/[\r\n]+/g, " ").slice(0, 120);
+                }
+            }
+        }
+        return "Untitled conversation";
+    }
+
     function findDocContentById(inner, id) {
         let res = null;
         function search(node) {
@@ -758,8 +791,7 @@
                 }
             }
             let convId = extractConversationId(inner, turns);
-            let title = turns?.[0]?.[2]?.[0]?.[0] || "Untitled conversation";
-            if (typeof title !== "string") title = "Untitled conversation";
+            let title = extractConversationTitle(inner, turns);
             let nextToken = null;
             if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
             let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/,'')}`;

@@ -97,6 +97,14 @@
         const chat = res.data || res;
         if(!chat.id) chat.id = convId;
         if(!chat.url) chat.url = `https://gemini.google.com/app/${convId}`;
+        if(!chat.title || chat.title === 'Untitled conversation') {
+          try {
+            const data = await chrome.storage.local.get(['gemini_conversations']);
+            const list = data.gemini_conversations || [];
+            const found = list.find(c => c.id === convId || c.id === `c_${convId}`);
+            if (found && found.title) chat.title = found.title;
+          } catch {}
+        }
 
         let content, ext, mime;
         if(format === 'json'){

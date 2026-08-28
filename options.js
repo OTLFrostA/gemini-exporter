@@ -751,13 +751,13 @@ async function exportSelected() {
         for (const chat of chunkResults) {
             if (__exportAborted) break;
             totalAssets += chat.attachmentCount || 0;
-            __globalTotalAssets = totalAssets;
+            const listC = conversations.find(c => c.id === chat.id) || null;
+            const listTitle = (listC && listC.title && listC.title !== '未命名对话' && !listC.title.startsWith('未命名对话(')) ? listC.title : (chat.title || chat.id);
+            chat.title = listTitle;
             let {
                 content,
                 ext
             } = mdContent(chat);
-            const listC = conversations.find(c => c.id === chat.id) || null;
-            const listTitle = listC?.title || chat.title || chat.id;
             const prevExportedAt = curIds[chat.id]?.exportedAt || null;
             const safeBase = sanitizeFileName(listTitle, chat.id);
             const fileName = `${safeBase}_${chat.id.slice(-6)}.${ext}`;
