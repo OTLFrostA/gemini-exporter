@@ -97,7 +97,9 @@ function updateAccountSlotSelector() {
     const accLabel = typeof I18n !== 'undefined' ? I18n.t('accountSlot') : 'Account';
     for (const s of sorted) {
         const info = accountSlots[s];
-        const label = info?.name || (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`);
+        const rawName = info?.name || '';
+        const isDefaultAutoName = !rawName || /^账号\s*u\d+/i.test(rawName) || /^account\s*u\d+/i.test(rawName) || /^默认账号/i.test(rawName) || /^default account/i.test(rawName);
+        const label = isDefaultAutoName ? (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`) : rawName;
         const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
         const selected = (s === currentSlot) ? 'selected' : '';
         html += `<option value="${s}" ${selected}>${label}${count}</option>`;
@@ -492,7 +494,13 @@ async function requestDirHandle(saveToIdb = true) {
 function updateDirLabel() {
     const label = $('dirLabel');
     if (label) {
-        label.textContent = __globalDirHandle ? `当前目录: ${__globalDirHandle.name}` : '未设置目录';
+        if (__globalDirHandle && __globalDirHandle.name) {
+            label.textContent = typeof I18n !== 'undefined'
+                ? I18n.t('dirCurrent', __globalDirHandle.name)
+                : `Current folder: ${__globalDirHandle.name}`;
+        } else {
+            label.textContent = typeof I18n !== 'undefined' ? I18n.t('dirNotSet') : 'Directory not set';
+        }
     }
 }
 
@@ -1329,6 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await I18n.setLang(nextLang);
             updateAccountSlotSelector();
             updateZipUi();
+            updateDirLabel();
             const syncCountEl = $('syncCount');
             if (syncCountEl) syncCountEl.textContent = I18n.t('syncedBadge', conversations.length);
             const lastSyncEl = $('lastSync');
