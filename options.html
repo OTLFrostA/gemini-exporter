@@ -71,7 +71,45 @@
     transform: translateX(14px);
     background: white;
   }
+  /* Modern Sleek Scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #282c44 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #25283d;
+    border-radius: 99px;
+    transition: background 0.2s;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #434970;
+  }
+  ::-webkit-scrollbar-thumb:active {
+    background: #4f46e5;
+  }
   .list{overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--card-inner)}
+  .list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .list::-webkit-scrollbar-track {
+    background: rgba(14, 15, 23, 0.6);
+    border-radius: 99px;
+    margin: 6px 0;
+  }
+  .list::-webkit-scrollbar-thumb {
+    background: #2b304c;
+    border-radius: 99px;
+  }
+  .list::-webkit-scrollbar-thumb:hover {
+    background: #4a5280;
+  }
   .item{display:flex;gap:8px;padding:8px;border-radius:8px;align-items:flex-start;transition:background 0.15s}
   .item:hover{background:#1a1c2b}
   .item input{margin-top:4px}
