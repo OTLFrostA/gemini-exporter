@@ -191,13 +191,19 @@ async function loadStore(forceQuiet = false) {
 
         let incoming = data[convKey] || [];
         if ((!incoming || !incoming.length) && slot !== 'u0') {
-            const u0Data = await chrome.storage.local.get(['gemini_conversations']);
+            const u0Data = await chrome.storage.local.get(['gemini_conversations', 'exportedIds', 'gemini_last_sync', 'gemini_last_count']);
             if (u0Data.gemini_conversations && u0Data.gemini_conversations.length) {
                 console.log('[workbench] Slot', slot, 'is empty but u0 has', u0Data.gemini_conversations.length, 'chats. Falling back to u0.');
                 currentSlot = 'u0';
                 slot = 'u0';
                 convKey = 'gemini_conversations';
+                expKey = 'exportedIds';
+                syncKey = 'gemini_last_sync';
+                countKey = 'gemini_last_count';
                 incoming = u0Data.gemini_conversations;
+                data.exportedIds = u0Data.exportedIds;
+                data.gemini_last_sync = u0Data.gemini_last_sync;
+                data.gemini_last_count = u0Data.gemini_last_count;
                 if ($('accountSlotSelect')) $('accountSlotSelect').value = 'u0';
             }
         }
@@ -770,10 +776,14 @@ async function exportSelected() {
         skipped += (res.skipped || 0);
         const chunkResults = res.results || [];
         let convsNeedSave = false;
-        for (const chat of chunkResults) {
+        for (let cIdx = 0; cIdx < chunkResults.length; cIdx++) {
+            const chat = chunkResults[cIdx];
             if (__exportAborted) break;
             totalAssets += chat.attachmentCount || 0;
-            const listC = conversations.find(c => c.id === chat.id) || null;
+            const requestedItem = chunk[cIdx] || chunk[0] || {};
+            const nid = normId(requestedItem.id || chat.id);
+            chat.id = nid;
+            const listC = conversations.find(c => normId(c.id) === nid) || null;
             let finalTitle = chat.title || chat.id;
             if (isRealTitle(listC?.title, chat.id)) {
                 finalTitle = listC.title;
@@ -782,13 +792,6 @@ async function exportSelected() {
                 if (listC) {
                     listC.title = finalTitle;
                     convsNeedSave = true;
-                    try {
-                        const titleEl = document.querySelector(`[data-chat-id="${normId(chat.id)}"] .title div`);
-                        if (titleEl) {
-                            const b = titleEl.querySelector('.badge');
-                            titleEl.innerHTML = `${finalTitle.replace(/</g, '&lt;')} ${b ? b.outerHTML : ''}`;
-                        }
-                    } catch {}
                 }
             }
             chat.title = finalTitle;
@@ -797,7 +800,7 @@ async function exportSelected() {
                 content,
                 ext
             } = mdContent(chat);
-            const prevExportedAt = curIds[chat.id]?.exportedAt || null;
+            const prevExportedAt = curIds[nid]?.exportedAt || curIds[chat.id]?.exportedAt || null;
             const safeBase = sanitizeFileName(listTitle, chat.id);
             const fileName = `${safeBase}_${chat.id.slice(-6)}.${ext}`;
 
@@ -813,7 +816,6 @@ async function exportSelected() {
                 if (!chat.error && !chat._empty) {
                     let exportTs = listC?.timestamp || chat.timestamp || Date.now();
                     if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
-                    const nid = normId(chat.id);
                     const record = {
                         title: listTitle,
                         exportedAt: new Date().toISOString(),
@@ -832,20 +834,32 @@ async function exportSelected() {
                     }).catch(() => {});
 
                     try {
-                        const badgeEl = document.querySelector(`[data-chat-id="${nid}"] .badge`);
-                        if (badgeEl) {
+                        const itemEl = document.querySelector(`[data-chat-id="${nid}"]`);
+                        if (itemEl) {
+                            const titleDiv = itemEl.querySelector('.title > div');
                             const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
-                            badgeEl.style.background = '#1d3a2a';
-                            badgeEl.style.borderColor = '#2a5a3a';
-                            badgeEl.style.color = '#8ae6b0';
-                            badgeEl.textContent = bExported;
+                            if (titleDiv) {
+                                let badgeEl = titleDiv.querySelector('.badge');
+                                if (!badgeEl) {
+                                    badgeEl = document.createElement('span');
+                                    badgeEl.className = 'badge';
+                                    titleDiv.appendChild(badgeEl);
+                                }
+                                badgeEl.style.background = '#1d3a2a';
+                                badgeEl.style.borderColor = '#2a5a3a';
+                                badgeEl.style.color = '#8ae6b0';
+                                badgeEl.textContent = bExported;
+                                if (finalTitle) {
+                                    titleDiv.innerHTML = `${finalTitle.replace(/</g, '&lt;')} ${badgeEl.outerHTML}`;
+                                }
+                            }
                         }
                     } catch {}
                 }
             } else {
                 failedChats.push(chat.id);
             }
-            updateSharedProgress(i + 1, listTitle);
+            updateSharedProgress(i + cIdx + 1, listTitle);
 
             if (includeAssets && chat.messages && writeOk) {
                 for (const m of chat.messages) {
