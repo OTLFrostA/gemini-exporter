@@ -244,9 +244,10 @@ async function loadStore(forceQuiet = false) {
             if (typeof tsB === 'string') tsB = new Date(tsB).getTime();
             let valA = tsA || 0;
             let valB = tsB || 0;
-            if (!valA && a.lastSeen) valA = new Date(a.lastSeen).getTime();
-            if (!valB && b.lastSeen) valB = new Date(b.lastSeen).getTime();
-            return valB - valA;
+            if (valA !== valB) return valB - valA;
+            let lsA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+            let lsB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+            return lsB - lsA;
         });
         if (_badIds.length || conversations.length !== incoming.length) {
             await chrome.storage.local.set({
@@ -327,8 +328,7 @@ function renderList(prevSelectedSet) {
         else badge = `<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
         let rawTs = c.timestamp;
         if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
-        if (!rawTs && c.lastSeen) rawTs = new Date(c.lastSeen).getTime();
-        const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '';
+        const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '-';
         return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
