@@ -61,7 +61,7 @@
   // "只导当前页" button
   $('btnCurrent')?.addEventListener('click', async ()=>{
     const format = $('format')?.value || 'markdown';
-    log('正在导出当前页…');
+    log(typeof I18n !== 'undefined' ? I18n.t('popupExporting') : '正在导出当前页…');
     const progWrap = $('progWrap');
     const bar = $('bar');
     if(progWrap) progWrap.style.display = 'block';
@@ -71,7 +71,7 @@
       const tabs = await chrome.tabs.query({active:true, currentWindow:true});
       const tab = tabs[0];
       if(!tab || !tab.url || !tab.url.includes('gemini.google.com')){
-        log('当前页不是 gemini.google.com，请先打开 Gemini 对话页');
+        log(typeof I18n !== 'undefined' ? I18n.t('popupNotGemini') : '当前页不是 gemini.google.com，请先打开 Gemini 对话页');
         return;
       }
       // Extract conversation ID and slot from URL
@@ -79,20 +79,20 @@
       const slot = slotMatch ? ('u' + slotMatch[1]) : 'u0';
       const m = tab.url.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
       if(!m){
-        log('当前页未打开具体对话 (URL 中没找到对话 ID)');
+        log(typeof I18n !== 'undefined' ? I18n.t('popupNoChatId') : '当前页未打开具体对话 (URL 中没找到对话 ID)');
         return;
       }
       const convId = m[2].replace(/^c_/,'');
-      log(`找到对话 ID: ${convId}，正在抓取内容…`);
+      log(typeof I18n !== 'undefined' ? I18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
       if(bar) bar.style.width = '40%';
 
-      chrome.runtime.sendMessage({action:'fetchChat', conversationId: convId, accountSlot: slot}, (res)=>{
+      chrome.runtime.sendMessage({action:'fetchChat', conversationId: convId, accountSlot: slot}, async (res)=>{
         if(chrome.runtime.lastError){
-          log('抓取失败: '+chrome.runtime.lastError.message);
+          log(typeof I18n !== 'undefined' ? I18n.t('popupFetchFailed', chrome.runtime.lastError.message) : ('抓取失败: '+chrome.runtime.lastError.message));
           return;
         }
         if(!res || !res.success){
-          log('抓取失败: '+(res?.error || '未知错误'));
+          log(typeof I18n !== 'undefined' ? I18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: '+(res?.error || '未知错误')));
           return;
         }
         if(bar) bar.style.width = '80%';
@@ -101,56 +101,20 @@
         if(!chat.url) chat.url = `https://gemini.google.com/app/${convId}`;
         if(!chat.title || chat.title === 'Untitled conversation') {
           try {
-            const data = await chrome.storage.local.get(['gemini_conversations']);
-            const list = data.gemini_conversations || [];
+            const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+            const data = await chrome.storage.local.get([convKey]);
+            const list = data[convKey] || [];
             const found = list.find(c => c.id === convId || c.id === `c_${convId}`);
             if (found && found.title) chat.title = found.title;
           } catch {}
         }
 
-        let content, ext, mime;
-        if(format === 'json'){
-          content = JSON.stringify(chat, null, 2);
-          ext = 'json';
-          mime = 'application/json';
-        } else if(format === 'json_openai'){
-          let openaiFormat = (chat.messages || []).map(m => ({
-            role: m.role === 'model' ? 'assistant' : 'user',
-            content: m.content || ''
-          }));
-          content = JSON.stringify(openaiFormat, null, 2);
-          ext = 'json';
-          mime = 'application/json';
-        } else if(format === 'json_raw'){
-          content = JSON.stringify(chat._raw || chat, null, 2);
-          ext = 'json';
-          mime = 'application/json';
-        } else {
-          // markdown
-          let md = `# ${chat.title||chat.id}\n\n> ID: ${chat.id} | 导出: ${new Date().toLocaleString()} | 来源: ${chat.url}\n\n---\n\n`;
-          for(const msg of chat.messages||[]){
-            if(msg.role==='user') {
-              md += `## 🙋 你\n\n${msg.content||''}\n\n`;
-            } else {
-              md += `## 🤖 Gemini\n\n`;
-              if (msg.thinking && msg.thinking.trim()) {
-                md += `<details><summary>🧠 思考过程</summary>\n\n${msg.thinking.trim()}\n\n</details>\n\n`;
-              }
-              md += `${msg.content||''}\n\n`;
-              if (msg.citations && msg.citations.length) {
-                md += `> 🌐 **参考来源：**\n`;
-                for (const c of msg.citations) {
-                  md += `> - [${c.title || c.url}](${c.url})\n`;
-                }
-                md += `\n`;
-              }
-              md += `---\n\n`;
-            }
-          }
-          content = md;
-          ext = 'md';
-          mime = 'text/markdown';
-        }
+        const formatted = (typeof ChatFormatter !== 'undefined')
+          ? ChatFormatter.formatContent(chat, format)
+          : { content: JSON.stringify(chat, null, 2), ext: 'json', mime: 'application/json' };
+        const content = formatted.content;
+        const ext = formatted.ext;
+        const mime = formatted.mime;
 
         const safeTitle = (chat.title||chat.id).replace(/[\r\n]+/g,' ').replace(/[<>:"/\\|?*]+/g,'_').trim().slice(0,60);
         const fileName = `${safeTitle}_${convId.slice(-6)}.${ext}`;
@@ -163,7 +127,7 @@
         setTimeout(()=>URL.revokeObjectURL(url), 3000);
 
         if(bar) bar.style.width = '100%';
-        log(`已导出: ${fileName} (${chat.messages?.length||0} 条消息)`);
+        log(typeof I18n !== 'undefined' ? I18n.t('popupExported', fileName, chat.messages?.length||0) : `已导出: ${fileName} (${chat.messages?.length||0} 条消息)`);
 
         try {
           const nid = String(convId).replace(/^c_/, '').trim();
@@ -184,7 +148,7 @@
         } catch {}
       });
     }catch(e){
-      log('导出异常: '+e.message);
+      log(typeof I18n !== 'undefined' ? I18n.t('popupExportError', e.message) : ('导出异常: '+e.message));
       console.error('[popup] export current err', e);
     }
   });

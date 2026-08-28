@@ -53,58 +53,12 @@ function setExportRunning(running) {
 
 function mdContent(chat) {
     const format = $('format') ? $('format').value : 'markdown';
-    if (format === 'json_openai') {
-        let openaiFormat = (chat.messages || []).map(m => {
-            let role = m.role === 'model' ? 'assistant' : 'user';
-            let text = m.content || '';
-            let imgs = (m.attachments || []).filter(a => a.type === 'image');
-            let item;
-            if (imgs.length > 0) {
-                let contentArr = [];
-                if (text) contentArr.push({ type: 'text', text });
-                for (let im of imgs) {
-                    contentArr.push({
-                        type: 'image_url',
-                        image_url: {
-                            url: im.localName || im.src || im.originalUrl
-                        }
-                    });
-                }
-                item = { role, content: contentArr };
-            } else {
-                item = { role, content: text };
-            }
-            if (m.thoughts) {
-                item.reasoning_content = m.thoughts;
-            }
-            return item;
-        });
-        return {
-            content: JSON.stringify({
-                id: chat.id,
-                title: chat.title,
-                url: chat.url,
-                created_at: chat.createdAt ? new Date(chat.createdAt).toISOString() : void 0,
-                messages: openaiFormat
-            }, null, 2),
-            ext: 'json'
-        };
-    }
-    if (format === 'json_raw') {
-        return {
-            content: JSON.stringify(chat._raw || chat, null, 2),
-            ext: 'json'
-        };
-    }
-    if (format === 'json') {
-        return {
-            content: JSON.stringify(chat, null, 2),
-            ext: 'json'
-        };
+    if (typeof ChatFormatter !== 'undefined') {
+        return ChatFormatter.formatContent(chat, format);
     }
     return {
         content: toMarkdown(chat),
-        ext: 'md'
+        ext: format.startsWith('json') ? 'json' : 'md'
     };
 }
 
@@ -139,9 +93,13 @@ function updateAccountSlotSelector() {
     sel.style.display = 'inline-block';
     let html = '';
     const sorted = Array.from(new Set(['u0', ...slots])).sort();
+    const defLabel = typeof I18n !== 'undefined' ? I18n.t('defaultAccount') : 'Default Account (u0)';
+    const accLabel = typeof I18n !== 'undefined' ? I18n.t('accountSlot') : 'Account';
     for (const s of sorted) {
         const info = accountSlots[s];
-        const label = info?.name || (s === 'u0' ? '默认账号 (u0)' : `账号 ${s.toUpperCase()}`);
+        const rawName = info?.name || '';
+        const isDefaultAutoName = !rawName || /^账号\s*u\d+/i.test(rawName) || /^account\s*u\d+/i.test(rawName) || /^默认账号/i.test(rawName) || /^default account/i.test(rawName);
+        const label = isDefaultAutoName ? (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`) : rawName;
         const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
         const selected = (s === currentSlot) ? 'selected' : '';
         html += `<option value="${s}" ${selected}>${label}${count}</option>`;
@@ -224,12 +182,16 @@ async function loadStore(forceQuiet = false) {
         const hadLength = conversations.length;
         const prevSelected = hadLength === 0 ? null : new Set(prevSelectedRaw);
         exportedIds = data[expKey] || {};
+        __lastSyncRaw = data[syncKey];
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
         if (sameSig && Date.now() - __lastRenderTime < 500) {
             const lastSyncElFast = $('lastSync');
             if (lastSyncElFast && data[syncKey]) {
-                lastSyncElFast.textContent = `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${incoming.length} 条`;
+                const syncFmtFast = typeof I18n !== 'undefined'
+                    ? I18n.t('lastSync', new Date(data[syncKey]).toLocaleString(), incoming.length)
+                    : `Last sync: ${new Date(data[syncKey]).toLocaleString()} | Total: ${incoming.length}`;
+                lastSyncElFast.textContent = syncFmtFast;
             }
             return;
         }
@@ -237,7 +199,13 @@ async function loadStore(forceQuiet = false) {
         const same = (hadLength === conversations.length);
         const lastSyncEl = $('lastSync');
         if (lastSyncEl) {
-            lastSyncEl.textContent = data[syncKey] ? `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
+            if (data[syncKey]) {
+                lastSyncEl.textContent = typeof I18n !== 'undefined'
+                    ? I18n.t('lastSync', new Date(data[syncKey]).toLocaleString(), conversations.length)
+                    : `Last sync: ${new Date(data[syncKey]).toLocaleString()} | Total: ${conversations.length}`;
+            } else {
+                lastSyncEl.textContent = conversations.length ? (typeof I18n !== 'undefined' ? I18n.t('selectedStat', 0, conversations.length) : `${conversations.length} total`) : '';
+            }
         }
         const _badIds = [];
         const dedupMap = new Map();
@@ -285,7 +253,9 @@ async function loadStore(forceQuiet = false) {
             });
         }
         const syncCountEl = $('syncCount');
-        if (syncCountEl) syncCountEl.textContent = `已同步 ${conversations.length} 条`;
+        if (syncCountEl) {
+            syncCountEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', conversations.length) : `${conversations.length} synced`;
+        }
         renderList(prevSelected);
         __lastRenderedSignature = incomingSig;
         __lastRenderTime = Date.now();
@@ -508,7 +478,7 @@ async function verifyPermission(fileHandle, readWrite) {
 }
 
 async function requestDirHandle(saveToIdb = true) {
-    if (!window.showDirectoryPicker) throw new Error('浏览器不支持 showDirectoryPicker');
+    if (!window.showDirectoryPicker) throw new Error(typeof I18n !== 'undefined' ? I18n.t('browserNoDirPicker') : 'Directory picker not supported');
     const handle = await window.showDirectoryPicker({
         id: 'gemini_export_dir',
         mode: 'readwrite'
@@ -524,7 +494,13 @@ async function requestDirHandle(saveToIdb = true) {
 function updateDirLabel() {
     const label = $('dirLabel');
     if (label) {
-        label.textContent = __globalDirHandle ? `当前目录: ${__globalDirHandle.name}` : '未设置目录';
+        if (__globalDirHandle && __globalDirHandle.name) {
+            label.textContent = typeof I18n !== 'undefined'
+                ? I18n.t('dirCurrent', __globalDirHandle.name)
+                : `Current folder: ${__globalDirHandle.name}`;
+        } else {
+            label.textContent = typeof I18n !== 'undefined' ? I18n.t('dirNotSet') : 'Directory not set';
+        }
     }
 }
 
@@ -549,7 +525,7 @@ function toIso(v) {
 async function exportSelected() {
     const selected = getSelected();
     if (!selected.length) {
-        alert('未选中任何会话');
+        alert(typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!');
         return;
     }
     const format = $('format').value;
@@ -602,7 +578,7 @@ async function exportSelected() {
     log(`开始导出 ${selected.length} 条对话…`);
     $('progWrap').style.display = 'block';
     $('bar').style.width = '0%';
-    $('progText').textContent = '准备中…';
+    $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('progPreparing') : 'Preparing...';
 
     let totalAssets = 0;
     let downloadedAssets = 0;
@@ -706,7 +682,7 @@ async function exportSelected() {
         if (pt) pt.textContent = text;
     }
 
-    updateSharedProgress(0, '准备中…');
+    updateSharedProgress(0, typeof I18n !== 'undefined' ? I18n.t('progPreparing') : 'Preparing...');
 
     let attachmentQueue = [];
     let isFetchingDone = false;
@@ -1142,7 +1118,7 @@ async function exportSelected() {
 
     isFetchingDone = true;
     if (attachmentQueue.length > 0) {
-        updateSharedProgress(payloadIds.length, '正在下载剩余附件…');
+        updateSharedProgress(payloadIds.length, typeof I18n !== 'undefined' ? I18n.t('progDownloadingAssets') : 'Downloading remaining assets...');
     }
     await Promise.all(consumerPool);
 
@@ -1229,96 +1205,11 @@ async function exportSelected() {
 
 
 function toMarkdown(chat) {
+    if (typeof ChatFormatter !== 'undefined') {
+        return ChatFormatter.toMarkdown(chat);
+    }
     if (chat.error) return `# ${chat.title}\n\n> 导出失败: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url}\n`;
-
-    // 1. YAML Frontmatter (Obsidian, Logseq, Notion compatible)
-    let createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
-    let updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
-    let safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
-    let safeYamlTitle = safeTitleClean.replace(/"/g, '\\"');
-
-    let md = `---\n`;
-    md += `title: "${safeYamlTitle}"\n`;
-    md += `id: "${chat.id}"\n`;
-    md += `url: "${chat.url || ''}"\n`;
-    if (createdIso) md += `date: "${createdIso}"\n`;
-    if (updatedIso) md += `updated: "${updatedIso}"\n`;
-    md += `exported: "${new Date().toISOString()}"\n`;
-    md += `tags:\n  - gemini-export\n`;
-    md += `---\n\n`;
-
-    // 2. Document Title & Metadata Header
-    md += `# ${safeTitleClean}\n\n`;
-    let metaBadges = [];
-    if (chat.url) metaBadges.push(`[🔗 对话链接](${chat.url})`);
-    metaBadges.push(`🆔 \`${chat.id}\``);
-    if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
-    if (chat.attachmentCount) metaBadges.push(`📎 附件 ${chat.attachmentCount} 个`);
-    md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
-
-    if (!chat.messages || !chat.messages.length) {
-        md += `_空对话或取回失败_ 原始URL: ${chat.url}\n`;
-        return md;
-    }
-
-    function renderAttachments(atts) {
-        let block = '';
-        for (const att of atts) {
-            if (att.type === 'image') {
-                const local = att.localName || `assets/image.jpg`;
-                const alt = (att.alt || att.name || '图片').replace(/[[\]]/g, '');
-                const online = att.src || att.originalUrl || '';
-                if (online && online.startsWith('http')) {
-                    block += `[![${alt}](${local})](${online})\n\n`;
-                } else {
-                    block += `![${alt}](${local})\n\n`;
-                }
-            } else if (att.type === 'file') {
-                const local = att.localName || `files/${att.name}`;
-                const name = att.title || att.name || '附件';
-                block += `- 📎 [${name}](${local})\n`;
-            }
-        }
-        return block;
-    }
-
-    // 3. Messages rendering with timestamps, thoughts, images, citations
-    for (const m of chat.messages || []) {
-        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
-
-        if (m.role === 'user') {
-            md += `## 🙋 你\n\n`;
-            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
-            if (m.attachments && m.attachments.length) {
-                md += renderAttachments(m.attachments);
-            }
-            if (m.content) md += `${m.content}\n\n`;
-        } else {
-            md += `## 🤖 Gemini\n\n`;
-            if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
-
-            if (m.thoughts && m.thoughts.trim()) {
-                md += `<details>\n<summary>🧠 思考过程</summary>\n\n${m.thoughts.trim()}\n\n</details>\n\n`;
-            }
-
-            if (m.content) md += `${m.content}\n\n`;
-
-            if (m.attachments && m.attachments.length) {
-                md += renderAttachments(m.attachments);
-            }
-
-            if (m.citations && m.citations.length) {
-                md += `> 🌐 **参考来源：**\n`;
-                m.citations.forEach((c, idx) => {
-                    md += `> [${idx + 1}] [${c.title || c.url}](${c.url})\n`;
-                });
-                md += `\n`;
-            }
-
-            md += `---\n\n`;
-        }
-    }
-    return md;
+    return `# ${chat.title || 'Untitled'}\n\n${(chat.messages || []).map(m => m.content || '').join('\n\n')}`;
 }
 
 // 监听 background 进度 - debounce to prevent workbench flashing on deep scan
@@ -1354,7 +1245,7 @@ chrome.runtime.onMessage.addListener((msg) => {
         let pt = $('progText');
         let pct = typeof msg.percent === 'number' ? msg.percent : (msg.total ? Math.floor((msg.done / msg.total) * 100) : 50);
         if (bar) bar.style.width = Math.min(Math.max(pct, 5), 100) + '%';
-        if (pt) pt.textContent = msg.title || `正在同步 (${msg.count || msg.done} 条)…`;
+        if (pt) pt.textContent = msg.title || (typeof I18n !== 'undefined' ? I18n.t('progSyncing', msg.count || msg.done) : `Syncing (${msg.count || msg.done} items)...`);
         return;
     }
     if (msg.action === 'exportProgress') {
@@ -1368,7 +1259,7 @@ chrome.runtime.onMessage.addListener((msg) => {
         let bar = $('bar');
         if (bar) bar.style.width = pct + '%';
         let pt = $('progText');
-        if (pt) pt.textContent = `进度 ${msg.done}/${msg.total} | 当前: ${msg.title || ''}`;
+        if (pt) pt.textContent = typeof I18n !== 'undefined' ? I18n.t('progSyncProgress', msg.done, msg.total, msg.title || '') : `Progress ${msg.done}/${msg.total} | Current: ${msg.title || ''}`;
         log(`进度 ${msg.done}/${msg.total}: ${msg.title || msg.id}`);
         return;
     }
@@ -1444,7 +1335,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const listEl = $('list');
             const savedScroll = listEl ? listEl.scrollTop : 0;
             await I18n.setLang(nextLang);
+            updateAccountSlotSelector();
             updateZipUi();
+            updateDirLabel();
+            const syncCountEl = $('syncCount');
+            if (syncCountEl) syncCountEl.textContent = I18n.t('syncedBadge', conversations.length);
+            const lastSyncEl = $('lastSync');
+            if (lastSyncEl && typeof __lastSyncRaw !== 'undefined' && __lastSyncRaw) {
+                lastSyncEl.textContent = I18n.t('lastSync', new Date(__lastSyncRaw).toLocaleString(), conversations.length);
+            }
             const currentSelected = new Set(getSelected().map(x => x.id));
             renderList(currentSelected);
             if (listEl) listEl.scrollTop = savedScroll;
@@ -1503,12 +1402,13 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btnCopyLog')?.addEventListener('click', async () => {
         const l = $('log');
         if (!l) return;
+        const copiedText = typeof I18n !== 'undefined' ? I18n.t('copied') : 'Copied!';
+        const origText = typeof I18n !== 'undefined' ? I18n.t('btnCopyLog') : 'Copy';
         try {
             await navigator.clipboard.writeText(l.textContent);
             const btn = $('btnCopyLog');
-            const orig = btn.textContent;
-            btn.textContent = '已复制!';
-            setTimeout(() => btn.textContent = orig, 1500);
+            btn.textContent = copiedText;
+            setTimeout(() => btn.textContent = origText, 1500);
         } catch {
             const ta = document.createElement('textarea');
             ta.value = l.textContent;
@@ -1517,9 +1417,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.execCommand('copy');
             document.body.removeChild(ta);
             const btn = $('btnCopyLog');
-            const orig = btn.textContent;
-            btn.textContent = '已复制!';
-            setTimeout(() => btn.textContent = orig, 1500);
+            btn.textContent = copiedText;
+            setTimeout(() => btn.textContent = origText, 1500);
         }
     });
     $('btnExportDiag')?.addEventListener('click', async () => {
@@ -1527,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
             const diag = data.gemini_last_sync_diagnostics;
             if (!diag) {
-                alert('暂无诊断数据，请先点击「同步最新会话」或「全量拉取历史」');
+                alert(typeof I18n !== 'undefined' ? I18n.t('noDiagData') : 'No diagnostic data yet.');
                 return;
             }
             const blob = new Blob([JSON.stringify(diag, null, 2)], { type: 'application/json' });
@@ -1613,7 +1512,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnStopScan) {
         btnStopScan.addEventListener('click', async () => {
             log('正在请求终止同步…');
-            $('progText').textContent = '正在终止同步…';
+            $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : 'Stopping sync...';
             btnStopScan.disabled = true;
             try {
                 chrome.runtime.sendMessage({
@@ -1635,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             log('开始同步最新会话…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '正在同步最新会话…';
+            $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('syncingLatest') : 'Syncing latest conversations...';
             btnIncr.disabled = true;
             if (btnDeep) btnDeep.disabled = true;
             if (btnStopScan) {
@@ -1653,12 +1552,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
                     log('同步失败: ' + chrome.runtime.lastError.message);
-                    $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
+                    $('progText').textContent = (typeof I18n !== 'undefined' ? I18n.t('failedPrefix') : 'Failed') + ': ' + chrome.runtime.lastError.message;
                     return;
                 }
                 log('同步完成，已更新列表');
                 $('bar').style.width = '100%';
-                $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
+                $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', res?.totalMerged || res?.count || '0') : ('Done, synced ' + (res?.totalMerged || res?.count || '0') + ' conversations');
                 if (res?.diagnostics) {
                     log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
                     log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);
@@ -1675,7 +1574,7 @@ document.addEventListener('DOMContentLoaded', () => {
             log('开始全量拉取历史…');
             $('progWrap').style.display = 'block';
             $('bar').style.width = '5%';
-            $('progText').textContent = '正在全量拉取历史…';
+            $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : 'Full deep sync in progress...';
             btnDeep.disabled = true;
             if (btnIncr) btnIncr.disabled = true;
             if (btnStopScan) {
@@ -1693,13 +1592,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (btnStopScan) btnStopScan.style.display = 'none';
                 if (chrome.runtime.lastError) {
                     log('全量拉取失败: ' + chrome.runtime.lastError.message);
-                    $('progText').textContent = '失败: ' + chrome.runtime.lastError.message;
+                    $('progText').textContent = (typeof I18n !== 'undefined' ? I18n.t('failedPrefix') : 'Failed') + ': ' + chrome.runtime.lastError.message;
                     console.error('[workbench] deepScan err', chrome.runtime.lastError);
                     return;
                 }
                 log('全量拉取完成，已更新列表');
                 $('bar').style.width = '100%';
-                $('progText').textContent = '完成，已同步 ' + (res?.totalMerged || res?.count || '未知') + ' 条';
+                $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', res?.totalMerged || res?.count || '0') : ('Done, synced ' + (res?.totalMerged || res?.count || '0') + ' conversations');
                 if (res?.diagnostics) {
                     log(`[诊断] 停止原因: ${res.diagnostics.stopReason}`);
                     log(`[诊断] 翻页 ${res.diagnostics.totalPagesFetched} 次，共 ${res.diagnostics.totalConversations} 条。可点击左侧「导出诊断」下载完整 JSON。`);

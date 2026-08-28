@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Gemini Exporter - Batch Export Chats (Free)",
+    "message": "Gemini Exporter - 免费批量导出全部对话",
     "description": "扩展程序名称。"
   },
   "extDesc": {
-    "message": "一键批量导出 Google Gemini 对话为 Markdown、JSON、TXT 或 ZIP，完整保存图片附件。本地运行，安全开源免费。",
+    "message": "免费一键批量导出 Google Gemini 全部对话为 Markdown（适配 Obsidian/Notion）、JSON 或 ZIP，完整保存图片附件。本地隐私安全。",
     "description": "扩展程序描述。"
   }
 }
