@@ -93,9 +93,11 @@ function updateAccountSlotSelector() {
     sel.style.display = 'inline-block';
     let html = '';
     const sorted = Array.from(new Set(['u0', ...slots])).sort();
+    const defLabel = typeof I18n !== 'undefined' ? I18n.t('defaultAccount') : 'Default Account (u0)';
+    const accLabel = typeof I18n !== 'undefined' ? I18n.t('accountSlot') : 'Account';
     for (const s of sorted) {
         const info = accountSlots[s];
-        const label = info?.name || (s === 'u0' ? '默认账号 (u0)' : `账号 ${s.toUpperCase()}`);
+        const label = info?.name || (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`);
         const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
         const selected = (s === currentSlot) ? 'selected' : '';
         html += `<option value="${s}" ${selected}>${label}${count}</option>`;
@@ -178,12 +180,16 @@ async function loadStore(forceQuiet = false) {
         const hadLength = conversations.length;
         const prevSelected = hadLength === 0 ? null : new Set(prevSelectedRaw);
         exportedIds = data[expKey] || {};
+        __lastSyncRaw = data[syncKey];
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
         if (sameSig && Date.now() - __lastRenderTime < 500) {
             const lastSyncElFast = $('lastSync');
             if (lastSyncElFast && data[syncKey]) {
-                lastSyncElFast.textContent = `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${incoming.length} 条`;
+                const syncFmtFast = typeof I18n !== 'undefined'
+                    ? I18n.t('lastSync', new Date(data[syncKey]).toLocaleString(), incoming.length)
+                    : `Last sync: ${new Date(data[syncKey]).toLocaleString()} | Total: ${incoming.length}`;
+                lastSyncElFast.textContent = syncFmtFast;
             }
             return;
         }
@@ -191,7 +197,13 @@ async function loadStore(forceQuiet = false) {
         const same = (hadLength === conversations.length);
         const lastSyncEl = $('lastSync');
         if (lastSyncEl) {
-            lastSyncEl.textContent = data[syncKey] ? `最后 sync: ${new Date(data[syncKey]).toLocaleString()} | 共 ${conversations.length} 条` : (conversations.length ? `共 ${conversations.length} 条 (无时间戳)` : '');
+            if (data[syncKey]) {
+                lastSyncEl.textContent = typeof I18n !== 'undefined'
+                    ? I18n.t('lastSync', new Date(data[syncKey]).toLocaleString(), conversations.length)
+                    : `Last sync: ${new Date(data[syncKey]).toLocaleString()} | Total: ${conversations.length}`;
+            } else {
+                lastSyncEl.textContent = conversations.length ? (typeof I18n !== 'undefined' ? I18n.t('selectedStat', 0, conversations.length) : `${conversations.length} total`) : '';
+            }
         }
         const _badIds = [];
         const dedupMap = new Map();
@@ -239,7 +251,9 @@ async function loadStore(forceQuiet = false) {
             });
         }
         const syncCountEl = $('syncCount');
-        if (syncCountEl) syncCountEl.textContent = `已同步 ${conversations.length} 条`;
+        if (syncCountEl) {
+            syncCountEl.textContent = typeof I18n !== 'undefined' ? I18n.t('syncedBadge', conversations.length) : `${conversations.length} synced`;
+        }
         renderList(prevSelected);
         __lastRenderedSignature = incomingSig;
         __lastRenderTime = Date.now();
@@ -1313,7 +1327,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const listEl = $('list');
             const savedScroll = listEl ? listEl.scrollTop : 0;
             await I18n.setLang(nextLang);
+            updateAccountSlotSelector();
             updateZipUi();
+            const syncCountEl = $('syncCount');
+            if (syncCountEl) syncCountEl.textContent = I18n.t('syncedBadge', conversations.length);
+            const lastSyncEl = $('lastSync');
+            if (lastSyncEl && typeof __lastSyncRaw !== 'undefined' && __lastSyncRaw) {
+                lastSyncEl.textContent = I18n.t('lastSync', new Date(__lastSyncRaw).toLocaleString(), conversations.length);
+            }
             const currentSelected = new Set(getSelected().map(x => x.id));
             renderList(currentSelected);
             if (listEl) listEl.scrollTop = savedScroll;
@@ -1372,12 +1393,13 @@ document.addEventListener('DOMContentLoaded', () => {
     $('btnCopyLog')?.addEventListener('click', async () => {
         const l = $('log');
         if (!l) return;
+        const copiedText = typeof I18n !== 'undefined' ? I18n.t('copied') : 'Copied!';
+        const origText = typeof I18n !== 'undefined' ? I18n.t('btnCopyLog') : 'Copy';
         try {
             await navigator.clipboard.writeText(l.textContent);
             const btn = $('btnCopyLog');
-            const orig = btn.textContent;
-            btn.textContent = '已复制!';
-            setTimeout(() => btn.textContent = orig, 1500);
+            btn.textContent = copiedText;
+            setTimeout(() => btn.textContent = origText, 1500);
         } catch {
             const ta = document.createElement('textarea');
             ta.value = l.textContent;
@@ -1386,9 +1408,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.execCommand('copy');
             document.body.removeChild(ta);
             const btn = $('btnCopyLog');
-            const orig = btn.textContent;
-            btn.textContent = '已复制!';
-            setTimeout(() => btn.textContent = orig, 1500);
+            btn.textContent = copiedText;
+            setTimeout(() => btn.textContent = origText, 1500);
         }
     });
     $('btnExportDiag')?.addEventListener('click', async () => {

@@ -145,9 +145,9 @@
 <body>
 <header>
   <div style="display:flex; align-items:center; gap:8px;">
-    <h1>Gemini Exporter <span id="ver" class="badge"></span> <span id="syncCount" class="badge">已同步 0</span></h1>
+    <h1>Gemini Exporter <span id="ver" class="badge"></span> <span id="syncCount" class="badge"></span></h1>
     <select id="accountSlotSelect" style="display:none; font-size:11px; padding:3px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer;">
-      <option value="u0">默认账号 (u0)</option>
+      <option value="u0" data-i18n="defaultAccount">默认账号 (u0)</option>
     </select>
   </div>
   <div style="display:flex; align-items:center; gap:8px;">
@@ -220,12 +220,12 @@
           <option value="warn" data-i18n="logLevelWarn">警告及错误</option>
           <option value="error" data-i18n="logLevelError">仅错误</option>
         </select>
-        <input id="logFilter" type="text" placeholder="过滤关键字 (-排除)" style="flex:1; min-width:80px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 8px; font-size:11px">
-        <button id="btnCopyLog" class="ghost small" style="padding:3px 8px; font-size:11px;">复制</button>
-        <button id="btnClearLog" class="ghost small" style="padding:3px 8px; font-size:11px;">清空</button>
-        <button id="btnExportDiag" class="ghost small dev-only" title="导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)" style="color:#78a9ff; padding:3px 8px; font-size:11px;">导出诊断</button>
+        <input id="logFilter" type="text" placeholder="过滤关键字 (-排除)" data-i18n-placeholder="logFilterPlaceholder" style="flex:1; min-width:80px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 8px; font-size:11px">
+        <button id="btnCopyLog" class="ghost small" style="padding:3px 8px; font-size:11px;" data-i18n="btnCopyLog">复制</button>
+        <button id="btnClearLog" class="ghost small" style="padding:3px 8px; font-size:11px;" data-i18n="btnClearLog">清空</button>
+        <button id="btnExportDiag" class="ghost small dev-only" data-i18n="btnExportDiag" data-i18n-title="btnExportDiagTip" title="导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)" style="color:#78a9ff; padding:3px 8px; font-size:11px;">导出诊断</button>
       </div>
-      <div id="log" class="log" style="flex:1; overflow-y:auto;">就绪</div>
+      <div id="log" class="log" style="flex:1; overflow-y:auto;" data-i18n="logReady">就绪</div>
     </div>
   </div>
 

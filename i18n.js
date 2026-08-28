@@ -67,7 +67,19 @@
             badgeExported: "已导出",
             badgeNew: "未导出",
             dirCancelled: "设置目录取消: {0}",
-            currentTabMissing: "未找到当前打开的 Gemini 标签页，请先打开 gemini.google.com"
+            currentTabMissing: "未找到当前打开的 Gemini 标签页，请先打开 gemini.google.com",
+            defaultAccount: "默认账号 (u0)",
+            accountSlot: "账号",
+            lastSync: "最后 sync: {0} | 共 {1} 条",
+            notSynced: "未同步",
+            btnCopyLog: "复制",
+            btnClearLog: "清空",
+            logFilterPlaceholder: "过滤关键字 (-排除)",
+            logReady: "就绪",
+            btnExportDiag: "导出诊断",
+            btnExportDiagTip: "导出本次同步底层的详细诊断报告 (包含翻页游标、请求体与停滞原因)",
+            copied: "已复制!",
+            fmtJsonStandard: "JSON (插件标准)"
         },
         en: {
             extName: "Gemini Exporter",
@@ -83,6 +95,7 @@
             format: "Format",
             fmtMarkdown: "Markdown (.md)",
             fmtJsonOpenAI: "JSON (OpenAI format)",
+            fmtJsonStandard: "JSON (Standard)",
             fmtJsonRaw: "JSON (Raw Gemini)",
             skipExported: "Skip Exported",
             btnClearExported: "Clear",
@@ -135,7 +148,18 @@
             badgeExported: "Exported",
             badgeNew: "New",
             dirCancelled: "Directory setup cancelled: {0}",
-            currentTabMissing: "No active Gemini tab found. Please open gemini.google.com first."
+            currentTabMissing: "No active Gemini tab found. Please open gemini.google.com first.",
+            defaultAccount: "Default Account (u0)",
+            accountSlot: "Account",
+            lastSync: "Last sync: {0} | Total: {1}",
+            notSynced: "Not synced",
+            btnCopyLog: "Copy",
+            btnClearLog: "Clear",
+            logFilterPlaceholder: "Filter logs (-exclude)",
+            logReady: "Ready",
+            btnExportDiag: "Export Diagnostics",
+            btnExportDiagTip: "Export detailed diagnostic report (cursors, payloads & stop reasons)",
+            copied: "Copied!"
         }
     };
 
