@@ -78,18 +78,62 @@
                 const local = att.localName || `assets/image.jpg`;
                 const alt = String(att.alt || att.name || '图片').replace(/[[\]]/g, '');
                 const online = att.src || att.originalUrl || '';
-                if (online && online.startsWith('http')) {
+                if (online && online.startsWith('http') && !online.includes('googleusercontent.com/immersive_entry_chip')) {
                     block += `[![${alt}](${local})](${online})\n\n`;
                 } else {
                     block += `![${alt}](${local})\n\n`;
                 }
             } else if (att.type === 'file') {
                 const local = att.localName || `files/${att.name || 'attachment'}`;
-                const name = att.title || att.name || '附件';
+                let name = att.title || att.name || '附件';
+                if (/^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(name)) {
+                    name = '📑 深度研究报告 (Deep Research Report)';
+                }
                 block += `- 📎 [${name}](${local})\n\n`;
             }
         }
         return block;
+    }
+
+    /**
+     * Sanitize message body content from Google internal placeholder URLs
+     */
+    function cleanMessageBody(text) {
+        if (!text || typeof text !== 'string') return '';
+        return text.replace(/https?:\/\/googleusercontent\.com\/(immersive_entry_chip|deep_research_confirmation_content)\/\d+/gi, '').trim();
+    }
+
+    /**
+     * Intelligently detect and encapsulate unfenced raw code in user messages.
+     */
+    function sanitizeUserPrompt(text) {
+        if (!text || typeof text !== 'string') return '';
+        let cleaned = cleanMessageBody(text);
+        if (!cleaned) return '';
+
+        // If message has raw userscript or ultra-long code without markdown code fence
+        if (!cleaned.includes('```') && (cleaned.includes('// ==UserScript==') || cleaned.length > 400)) {
+            const lines = cleaned.split('\n');
+            let outLines = [];
+            let inFence = false;
+            for (let line of lines) {
+                let s = line.trim();
+                if (s.startsWith('// ==UserScript==') && !inFence) {
+                    outLines.push('```javascript');
+                    outLines.push(line);
+                    inFence = true;
+                } else if (s.length > 400 && !inFence && (s.includes('function(') || s.includes('var ') || s.includes('const ') || s.includes('\\x'))) {
+                    outLines.push('```javascript');
+                    outLines.push(line);
+                    outLines.push('```');
+                } else {
+                    outLines.push(line);
+                }
+            }
+            if (inFence) outLines.push('```');
+            return outLines.join('\n');
+        }
+        return cleaned;
     }
 
     /**
@@ -152,8 +196,9 @@
                     md += renderAttachments(m.attachments);
                 }
 
-                if (m.content && m.content.trim()) {
-                    md += `${m.content.trim()}\n\n`;
+                const userBody = sanitizeUserPrompt(m.content);
+                if (userBody) {
+                    md += `${userBody}\n\n`;
                 }
             } else {
                 md += `## 🤖 Gemini\n\n`;
@@ -165,9 +210,10 @@
                     md += `<details>\n<summary>🧠 思考过程</summary>\n\n${thoughts}\n\n</details>\n\n`;
                 }
 
-                // AI Answer Content with Heading Hierarchy Protection
-                if (m.content && m.content.trim()) {
-                    const adjusted = adjustHeadingHierarchy(m.content.trim(), 2);
+                // AI Answer Content with Heading Hierarchy Protection and Chip Sanitization
+                const modelBody = cleanMessageBody(m.content);
+                if (modelBody) {
+                    const adjusted = adjustHeadingHierarchy(modelBody, 2);
                     md += `${adjusted}\n\n`;
                 }
 

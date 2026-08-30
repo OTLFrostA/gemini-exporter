@@ -458,13 +458,19 @@
         let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
         function pushMeta(metaObj) {
-            if (metaObj.id && metaObj.title) out.push({
-                id: metaObj.id,
-                title: metaObj.title,
-                chipUrl: metaObj.chipUrl,
-                createdAt: metaObj.createdAt,
-                contentId: metaObj.contentId
-            });
+            if (metaObj.id && metaObj.title) {
+                let cleanTitle = metaObj.title;
+                if (/^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(cleanTitle)) {
+                    cleanTitle = "";
+                }
+                out.push({
+                    id: metaObj.id,
+                    title: cleanTitle,
+                    chipUrl: metaObj.chipUrl,
+                    createdAt: metaObj.createdAt,
+                    contentId: metaObj.contentId
+                });
+            }
         }
 
         function walk(node) {
@@ -474,7 +480,8 @@
                 if (Array.isArray(item) && item.length >= 4 && Array.isArray(item[0]) && item[0].length > 0 && typeof item[0][0] === "string" && item[0][0].includes("immersive_entry_chip") && typeof item[1] === "string" && typeof item[2] === "string" && typeof item[3] === "string") {
                     let chipUrl = item[0][0],
                         id = item[2],
-                        title = item[3];
+                        rawTitle = item[3];
+                    let title = /^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(rawTitle) ? "" : rawTitle;
                     let createdAt;
                     if (Array.isArray(item[5]) && typeof item[5][0] === "number") createdAt = 1000 * item[5][0];
                     let contentId = typeof item[4] === "string" && item[4].length > 10 ? item[4] : void 0;
@@ -491,10 +498,10 @@
                         let chip = flat.find(x => x.includes("immersive_entry_chip"));
                         if (chip) {
                             let uuid = flat.find(x => uuidRe.test(x));
-                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length > 3 && !x.includes("c_") && !x.includes(".html"));
+                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length > 3 && !x.includes("c_") && !x.includes(".html") && !/^(我已经完成了研究|我拟定了一个研究方案|I've completed)/i.test(x));
                             pushMeta({
                                 id: uuid || flat.find(x => x.includes("rc_")) || chip,
-                                title: title || "Document",
+                                title: title || "",
                                 chipUrl: chip
                             });
                         }
@@ -751,16 +758,32 @@
                                         contentMarkdown: void 0
                                     };
                                     let md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
+                                    
+                                    // Extract title from markdown heading if meta title is missing or generic caption
+                                    let docTitle = metaItem.title || "";
+                                    if (!docTitle || /^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(docTitle) || docTitle === "Document") {
+                                        if (md) {
+                                            let hMatch = md.match(/^#\s+(.+)$/m);
+                                            if (hMatch && hMatch[1].trim()) {
+                                                docTitle = hMatch[1].trim();
+                                            }
+                                        }
+                                    }
+                                    if (!docTitle || /^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(docTitle)) {
+                                        docTitle = `深度研究报告_${String(metaItem.id || 'doc').replace(/[^a-zA-Z0-9_-]/g, '').slice(-6)}`;
+                                    }
+
+                                    let isInternalChip = metaItem.chipUrl && /googleusercontent\.com\/(immersive_entry_chip|deep_research)/i.test(metaItem.chipUrl);
                                     return {
                                         id: metaItem.id,
-                                        title: metaItem.title,
+                                        title: docTitle,
                                         createdAt: metaItem.createdAt,
-                                        chipUrl: metaItem.chipUrl,
+                                        chipUrl: isInternalChip ? "" : (metaItem.chipUrl || ""),
                                         sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                                         links: [...parsedPrimary.links, ...parsedAlt.links],
                                         contentMarkdown: md,
-                                        url: metaItem.chipUrl || "",
-                                        localName: `files/${(metaItem.title || metaItem.id).replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
+                                        url: isInternalChip ? "" : (metaItem.chipUrl || ""),
+                                        localName: `files/${docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
                                         type: "file"
                                     };
                                 }).filter(Boolean);
@@ -770,6 +793,10 @@
                         }
                         let thoughts = extractThoughts(candidateBlock);
                         let citations = extractCitations(candidateBlock);
+                        // Clean Google internal Deep Research / Canvas placeholder pseudo-URLs from text
+                        if (responseText) {
+                            responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(immersive_entry_chip|deep_research_confirmation_content)\/\d+/gi, '').trim();
+                        }
                         if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({
                                 id: candidateId || turn?.[0]?.[0] || "",
