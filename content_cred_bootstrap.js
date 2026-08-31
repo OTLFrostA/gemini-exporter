@@ -161,9 +161,10 @@ ensureCreds();
 document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });
 window.addEventListener('load', () => ensureCreds(), { once: true });
 
-// 监听 GEMINI_CREDENTIALS
+// 监听 GEMINI_CREDENTIALS - 仅接收同源 MAIN world 消息
 window.addEventListener('message', async (e) => {
     if (e.source !== window) return;
+    if (e.origin !== location.origin) return;
     if (e.data && e.data.type === 'GEMINI_CREDENTIALS') {
         if (!isExtAlive()) return;
         try {

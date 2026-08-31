@@ -85,7 +85,7 @@
                             lastUsed: Date.now(),
                             from: 'SNlM0e'
                         }
-                    }, '*');
+                    }, location.origin);
                     break;
                 }
             }

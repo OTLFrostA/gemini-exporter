@@ -29,6 +29,7 @@
     if (typeof module === 'object' && module.exports) {
         module.exports = { isRealTitle };
     } else {
-        global.GeminiUtils = { isRealTitle };
+        global.GeminiUtils = global.GeminiUtils || {};
+        global.GeminiUtils.isRealTitle = isRealTitle;
     }
-})(typeof self !== 'undefined' ? self : this);
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
