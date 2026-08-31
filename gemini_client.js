@@ -591,6 +591,9 @@
             if (markdownContent) return;
             if (typeof element === "string") {
                 let trimmed = element.trim();
+                if (trimmed.includes("immersive_entry_chip") || trimmed.includes("googleusercontent.com/immersive")) {
+                    return;
+                }
                 if ((trimmed.startsWith("# ") || trimmed.startsWith("## ") || (trimmed.includes("\n") && trimmed.length > 80))) {
                     markdownContent = trimmed;
                     return;
@@ -620,6 +623,9 @@
                         if (result) return;
                         if (typeof element === "string") {
                             let trimmed = element.trim();
+                            if (trimmed.includes("immersive_entry_chip") || trimmed.includes("googleusercontent.com/immersive")) {
+                                return;
+                            }
                             if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || (trimmed.includes("\n") && trimmed.length > 120)) {
                                 result = trimmed;
                                 return;
@@ -751,16 +757,31 @@
                                         contentMarkdown: void 0
                                     };
                                     let md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
+                                    if (!md || md.includes("immersive_entry_chip") || md.includes("googleusercontent.com/immersive")) {
+                                        return null;
+                                    }
+                                    if (responseText && md.trim() === responseText.trim()) {
+                                        return null;
+                                    }
+                                    let docTitle = (metaItem.title || "").trim();
+                                    if (!docTitle || docTitle === "Document" || /^im_[a-f0-9]+$/i.test(docTitle) || /^rc_[a-f0-9]+$/i.test(docTitle) || /^r_[a-f0-9]+$/i.test(docTitle)) {
+                                        let firstLineMatch = md.match(/^#\s+(.+)$/m);
+                                        if (firstLineMatch && firstLineMatch[1]) {
+                                            docTitle = firstLineMatch[1].trim();
+                                        } else {
+                                            docTitle = "Document";
+                                        }
+                                    }
                                     return {
                                         id: metaItem.id,
-                                        title: metaItem.title,
+                                        title: docTitle,
                                         createdAt: metaItem.createdAt,
                                         chipUrl: metaItem.chipUrl,
                                         sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                                         links: [...parsedPrimary.links, ...parsedAlt.links],
                                         contentMarkdown: md,
                                         url: metaItem.chipUrl || "",
-                                        localName: `files/${(metaItem.title || metaItem.id).replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
+                                        localName: `files/${(docTitle || 'document').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
                                         type: "file"
                                     };
                                 }).filter(Boolean);
@@ -815,6 +836,7 @@
                         name: d.title || d.id,
                         title: d.title,
                         url: d.url || d.chipUrl,
+                        chipUrl: d.chipUrl,
                         localName: d.localName,
                         contentMarkdown: d.contentMarkdown
                     });

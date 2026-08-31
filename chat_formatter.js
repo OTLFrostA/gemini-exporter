@@ -68,6 +68,39 @@
     }
 
     /**
+     * Replace Google Immersive / Canvas placeholder URLs (e.g. http://googleusercontent.com/immersive_entry_chip/0)
+     * with standard Markdown links pointing to the exported local document file.
+     * @param {string} text - Message text
+     * @param {Array} [attachments] - Message attachments array
+     * @returns {string} - Cleaned message text with local document links
+     */
+    function resolveImmersiveChips(text, attachments) {
+        if (!text || typeof text !== 'string') return text || '';
+        if (!text.includes('immersive_entry_chip') && !text.includes('googleusercontent.com/immersive')) {
+            return text;
+        }
+
+        const docAtts = (attachments || []).filter(a => a.type === 'file' && (a.contentMarkdown || (a.localName && a.localName.endsWith('.md'))));
+
+        return text.replace(/https?:\/\/[^\s<>"']*googleusercontent\.com\/immersive_entry_chip\/(\d+)/gi, (match, p1) => {
+            const idx = parseInt(p1, 10);
+            let matchedDoc = null;
+            if (docAtts.length > 0) {
+                matchedDoc = docAtts.find(d => d.chipUrl && d.chipUrl.includes(`immersive_entry_chip/${idx}`)) ||
+                             docAtts.find(d => d.url && d.url.includes(`immersive_entry_chip/${idx}`)) ||
+                             docAtts[idx] ||
+                             docAtts[0];
+            }
+            if (matchedDoc) {
+                const docName = matchedDoc.title || matchedDoc.name || '独立文档';
+                const docPath = matchedDoc.localName || `files/${docName}.md`;
+                return `[📄 **独立文档：${docName}**](${docPath})`;
+            }
+            return `> 📄 **[已生成独立长文档/画布内容]**`;
+        });
+    }
+
+    /**
      * Render message attachments in Markdown format.
      */
     function renderAttachments(atts) {
@@ -153,7 +186,8 @@
                 }
 
                 if (m.content && m.content.trim()) {
-                    md += `${m.content.trim()}\n\n`;
+                    const resolved = resolveImmersiveChips(m.content.trim(), m.attachments);
+                    md += `${resolved}\n\n`;
                 }
             } else {
                 md += `## 🤖 Gemini\n\n`;
@@ -165,9 +199,10 @@
                     md += `<details>\n<summary>🧠 思考过程</summary>\n\n${thoughts}\n\n</details>\n\n`;
                 }
 
-                // AI Answer Content with Heading Hierarchy Protection
+                // AI Answer Content with Heading Hierarchy Protection and Chip Resolution
                 if (m.content && m.content.trim()) {
-                    const adjusted = adjustHeadingHierarchy(m.content.trim(), 2);
+                    const resolved = resolveImmersiveChips(m.content.trim(), m.attachments);
+                    const adjusted = adjustHeadingHierarchy(resolved, 2);
                     md += `${adjusted}\n\n`;
                 }
 
@@ -198,7 +233,7 @@
     function toOpenAIJson(chat) {
         const messages = (chat.messages || []).map(m => {
             const role = m.role === 'model' ? 'assistant' : 'user';
-            const text = m.content || '';
+            const text = resolveImmersiveChips(m.content || '', m.attachments);
             const imgs = (m.attachments || []).filter(a => a.type === 'image');
             const item = {};
 
@@ -275,6 +310,7 @@
 
     return {
         adjustHeadingHierarchy,
+        resolveImmersiveChips,
         renderAttachments,
         toMarkdown,
         toOpenAIJson,
