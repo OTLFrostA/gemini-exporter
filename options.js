@@ -840,8 +840,11 @@ async function exportSelected() {
 
                     for (const att of m.attachments) {
                         if (att.type !== 'file') continue;
-                        if (att.url && att.url.includes('immersive_entry_chip') && !att.contentMarkdown) continue;
+                        if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
                         if (att.contentMarkdown) {
+                            if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
+                                continue;
+                            }
                             if (finalUseZip) {
                                 try {
                                     folder.file(att.localName, att.contentMarkdown);
