@@ -752,12 +752,35 @@ async function exportSelected() {
         const chunkResults = res.results || [];
         let convsNeedSave = false;
         for (let cIdx = 0; cIdx < chunkResults.length; cIdx++) {
-            const chat = chunkResults[cIdx];
+            let chat = chunkResults[cIdx];
             if (__exportAborted) break;
-            totalAssets += chat.attachmentCount || 0;
             const requestedItem = chunk[cIdx] || chunk[0] || {};
-            const nid = normId(requestedItem.id || chat.id);
+            const nid = normId(requestedItem.id || chat?.id);
+            if (!chat) chat = { id: nid, title: requestedItem.title };
             chat.id = nid;
+
+            // ⚡ 如果云端 API 获取失败或无消息，尝试从 Takeout 离线问答记录无损兜底恢复
+            if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0) && typeof getTakeoutOfflineChat === 'function') {
+                const fbChat = getTakeoutOfflineChat(nid);
+                if (fbChat && fbChat.messages && fbChat.messages.length > 0) {
+                    chat = {
+                        ...fbChat,
+                        id: nid,
+                        title: isRealTitle(chat.title, nid) ? chat.title : fbChat.title,
+                        url: `https://gemini.google.com/app/${nid}`
+                    };
+                    delete chat.error;
+                    delete chat._empty;
+                    log(`[${chat.title || nid}] ⚡ 已自动从 Takeout 离线记录恢复问答并导出`, 'info');
+                }
+            }
+
+            if (chat.error || chat._empty) {
+                failedChats.push(chat.id);
+                continue;
+            }
+
+            totalAssets += chat.attachmentCount || 0;
             const listC = conversations.find(c => normId(c.id) === nid) || null;
             let finalTitle = chat.title || chat.id;
             if (isRealTitle(listC?.title, chat.id)) {
@@ -1713,6 +1736,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 let __takeoutMediaMap = {};
 let __takeoutGlobalMedia = {};
+let __takeoutConvCache = {};
+
+function getTakeoutOfflineChat(chatId) {
+    if (!chatId) return null;
+    const nid = normId(chatId);
+    return __takeoutConvCache[nid] || null;
+}
 
 async function getTakeoutFallbackMedia(chatId, filenameOrId) {
     if (!filenameOrId) return null;
@@ -1810,6 +1840,7 @@ async function parseTakeoutZip(file) {
 
         __takeoutMediaMap = {};
         __takeoutGlobalMedia = {};
+        __takeoutConvCache = {};
         let totalMediaCount = 0;
 
         for (const [path, fObj] of Object.entries(zip.files)) {
@@ -1872,6 +1903,25 @@ async function parseTakeoutZip(file) {
                 if (!isNaN(dt.getTime())) ts = dt.getTime();
             }
 
+            // 提取 AI 回答长文本与格式
+            const contentCellMatch = block.match(/<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">([\s\S]*?)<\/div>/i);
+            let responseHtml = '';
+            if (contentCellMatch) {
+                const rawCc = contentCellMatch[1];
+                const parts = rawCc.split(/<br\s*\/?>|\n/);
+                const respParts = [];
+                let started = false;
+                for (const p of parts) {
+                    if (started) {
+                        respParts.push(p);
+                    } else if (/<p>|<pre>|<table>|<h1>|<h2>|<h3>|<ul>|<ol>|<strong>|<em>|<code>/i.test(p)) {
+                        started = true;
+                        respParts.push(p);
+                    }
+                }
+                responseHtml = respParts.join('\n').trim();
+            }
+
             const rawMediaMatches = block.match(/(?:src|href)=["']([^#"'>]+?)["']/gi) || [];
             const localMediaNames = [];
             for (const raw of rawMediaMatches) {
@@ -1890,6 +1940,22 @@ async function parseTakeoutZip(file) {
                 }
             }
 
+            const turnMsgs = [];
+            if (promptText) {
+                turnMsgs.push({
+                    role: 'user',
+                    content: promptText,
+                    timestamp: ts || Date.now()
+                });
+            }
+            if (responseHtml) {
+                turnMsgs.push({
+                    role: 'model',
+                    content: responseHtml,
+                    timestamp: (ts ? ts + 2000 : Date.now())
+                });
+            }
+
             for (const cleanId of foundIds) {
                 if (!__takeoutMediaMap[cleanId]) __takeoutMediaMap[cleanId] = [];
                 for (const refName of localMediaNames) {
@@ -1904,6 +1970,20 @@ async function parseTakeoutZip(file) {
                             }
                         }
                     }
+                }
+
+                if (!__takeoutConvCache[cleanId]) {
+                    __takeoutConvCache[cleanId] = {
+                        id: cleanId,
+                        title: promptText ? promptText.split('\n')[0].slice(0, 80) : 'Takeout conversation',
+                        messages: [...turnMsgs],
+                        timestamp: ts,
+                        messageCount: turnMsgs.length,
+                        source: 'takeout-offline'
+                    };
+                } else if (turnMsgs.length > 0) {
+                    __takeoutConvCache[cleanId].messages.push(...turnMsgs);
+                    __takeoutConvCache[cleanId].messageCount = __takeoutConvCache[cleanId].messages.length;
                 }
 
                 if (!extractedMap[cleanId]) {

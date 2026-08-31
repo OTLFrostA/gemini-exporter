@@ -68,28 +68,35 @@
     };
 
     // Also expose SNlM0e fallback for content script
-    setTimeout(() => {
+    function broadcastAt() {
         try {
-            let scripts = document.querySelectorAll('script');
-            for (let s of scripts) {
-                if (!s.textContent) continue;
-                let m = s.textContent.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
-                if (m) {
-                    window.postMessage({
-                        type: 'GEMINI_CREDENTIALS',
-                        payload: {
-                            at: m[1],
-                            sid: '',
-                            bl: '',
-                            accountSlot: (location.pathname.match(/\/u\/(\d+)/)?.[1] ? 'u' + RegExp.$1 : 'default'),
-                            lastUsed: Date.now(),
-                            from: 'SNlM0e'
-                        }
-                    }, location.origin);
-                    break;
+            let at = window.WIZ_global_data?.SNlM0e || window._WIZ_global_data?.SNlM0e || '';
+            let bl = window.WIZ_global_data?.cfb2h || window._WIZ_global_data?.cfb2h || '';
+            if (!at) {
+                let scripts = document.querySelectorAll('script');
+                for (let s of scripts) {
+                    if (!s.textContent) continue;
+                    let m = s.textContent.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+                    if (m) { at = m[1]; break; }
                 }
             }
+            if (at) {
+                window.postMessage({
+                    type: 'GEMINI_CREDENTIALS',
+                    payload: {
+                        at,
+                        sid: '',
+                        bl,
+                        accountSlot: (location.pathname.match(/\/u\/(\d+)/)?.[1] ? 'u' + RegExp.$1 : 'default'),
+                        lastUsed: Date.now(),
+                        from: 'MAIN_WIZ'
+                    }
+                }, location.origin);
+            }
         } catch {}
-    }, 1800);
+    }
+    broadcastAt();
+    setTimeout(broadcastAt, 400);
+    setTimeout(broadcastAt, 1500);
     console.log('[HookCred] installed (no inline)');
 })();
