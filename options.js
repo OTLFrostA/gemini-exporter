@@ -283,6 +283,8 @@ async function loadStore(forceQuiet = false) {
     }
 }
 
+let __chatSearchFilter = '';
+
 function renderList(prevSelectedSet) {
     const list = $('list');
     if (!list) {
@@ -290,14 +292,28 @@ function renderList(prevSelectedSet) {
         return;
     }
     if (!conversations.length) {
-        list.innerHTML = typeof I18n !== 'undefined' ? I18n.t('emptyList') : 'No conversations found.';
+        list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n !== 'undefined' ? I18n.t('emptyList') : 'No conversations found.'}</div>`;
         return;
     }
+
+    const q = (__chatSearchFilter || '').trim().toLowerCase();
+    const filteredConvs = q ? conversations.filter(c => {
+        const title = (c.title || '').toLowerCase();
+        const id = String(c.id || '').toLowerCase();
+        return title.includes(q) || id.includes(q);
+    }) : conversations;
+
+    if (!filteredConvs.length) {
+        list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n !== 'undefined' ? I18n.t('emptyList') : 'No matching conversations found.'}</div>`;
+        return;
+    }
+
     const bNeedsReexport = typeof I18n !== 'undefined' ? I18n.t('badgeNeedsReexport') : 'Needs re-export';
     const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
     const bNew = typeof I18n !== 'undefined' ? I18n.t('badgeNew') : 'New';
 
-    list.innerHTML = conversations.map((c, i) => {
+    list.innerHTML = filteredConvs.map(c => {
+        const origIdx = conversations.indexOf(c);
         const nid = normId(c.id);
         const rec = getExportedRecord(c.id);
         const isExported = !!rec;
@@ -325,7 +341,7 @@ function renderList(prevSelectedSet) {
         let rawTs = c.timestamp;
         if (typeof rawTs === 'string') rawTs = new Date(rawTs).getTime();
         const dateStr = rawTs ? new Date(rawTs).toLocaleDateString() : '-';
-        return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${i}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank">Open</a> | ${dateStr}</div></div></label>`;
+        return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank" onclick="event.stopPropagation()">Open</a> | ${dateStr}</div></div></label>`;
     }).join('');
     list.querySelectorAll('input[type=checkbox]').forEach(cb => cb.addEventListener('change', updateSelectedStat));
 }
@@ -335,7 +351,7 @@ function updateSelectedStat() {
     const total = conversations.length;
     const selEl = $('selectedStat');
     if (selEl) {
-        selEl.textContent = typeof I18n !== 'undefined' ? I18n.t('selectedStat', checks.length, total, total * 3) : `Selected: ${checks.length} / ${total}`;
+        selEl.textContent = typeof I18n !== 'undefined' ? I18n.t('selectedStat', checks.length, total) : `Selected: ${checks.length} / ${total}`;
     }
 }
 
@@ -874,9 +890,19 @@ async function exportSelected() {
                             if (finalUseZip) {
                                 try {
                                     folder.file(att.localName, att.contentMarkdown);
+                                    downloadedAssets++;
+                                    __globalDownloadedAssets = downloadedAssets;
+                                    updateSharedProgress();
                                 } catch {}
                             } else {
-                                attachmentQueue.push(async () => await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown));
+                                attachmentQueue.push(async () => {
+                                    const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
+                                    if (ok) {
+                                        downloadedAssets++;
+                                        __globalDownloadedAssets = downloadedAssets;
+                                        updateSharedProgress();
+                                    }
+                                });
                             }
                             continue;
                         }
@@ -1458,12 +1484,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    $('btnSelectAll').addEventListener('click', () => {
+    $('chatSearchInput')?.addEventListener('input', (e) => {
+        __chatSearchFilter = e.target.value;
+        const prevSel = new Set(getSelected().map(x => x.id));
+        renderList(prevSel);
+        updateSelectedStat();
+    });
+    $('btnSelectAll')?.addEventListener('click', () => {
         document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = true);
         updateSelectedStat();
     });
-    $('btnSelectNone').addEventListener('click', () => {
+    $('btnSelectNone')?.addEventListener('click', () => {
         document.querySelectorAll('#list input[type=checkbox]').forEach(c => c.checked = false);
+        updateSelectedStat();
+    });
+    $('btnSelectUnexported')?.addEventListener('click', () => {
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+            const c = conversations[parseInt(cb.dataset.idx)];
+            if (!c) return;
+            const rec = getExportedRecord(c.id);
+            cb.checked = !rec;
+        });
+        updateSelectedStat();
+    });
+    $('btnSelectUpdated')?.addEventListener('click', () => {
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+            const c = conversations[parseInt(cb.dataset.idx)];
+            if (!c) return;
+            const rec = getExportedRecord(c.id);
+            let isUpdated = false;
+            if (rec) {
+                let cTs = typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : c.timestamp;
+                let rTs = typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : rec.exportedAt;
+                if (cTs && rTs && cTs > rTs + 60000) isUpdated = true;
+            }
+            cb.checked = isUpdated;
+        });
         updateSelectedStat();
     });
     $('logFilter')?.addEventListener('input', renderLog);
@@ -1877,16 +1933,15 @@ async function parseTakeoutZip(file) {
 
         for (let i = 1; i < rawBlocks.length; i++) {
             const block = rawBlocks[i];
-            const linkMatches = Array.from(block.matchAll(/https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/([a-zA-Z0-9_-]{12,64})/g));
+            const linkMatches = Array.from(block.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g));
             if (!linkMatches.length) continue;
 
             const foundIds = [];
             for (const lm of linkMatches) {
-                const fullId = lm[1];
-                const hexMatch = fullId.replace(/^c_/, '').match(/^[0-9a-fA-F]{16}/);
-                if (hexMatch) {
-                    const cleanId = hexMatch[0].toLowerCase();
-                    if (!foundIds.includes(cleanId)) foundIds.push(cleanId);
+                const fullId = lm[1].replace(/^c_/, '').trim();
+                const cleanId = fullId.toLowerCase();
+                if (cleanId.length >= 8 && !foundIds.includes(cleanId)) {
+                    foundIds.push(cleanId);
                 }
             }
             if (!foundIds.length) continue;
@@ -2147,8 +2202,12 @@ async function restoreFullBackup(file) {
             : 'Restoring backup will replace current conversations and export markers. Continue?';
         if (!confirm(confirmMsg)) return;
 
+        const activeCreds = await chrome.storage.local.get(['gemini_credentials_map', 'gemini_credentials', 'gemini_exporter_lang']);
         await chrome.storage.local.clear();
-        await chrome.storage.local.set(targetData);
+        await chrome.storage.local.set({
+            ...activeCreds,
+            ...targetData
+        });
 
         const restoredCount = (targetData.gemini_conversations || targetData.gemini_conversations_u0 || []).length;
         const msg = typeof I18n !== 'undefined'
