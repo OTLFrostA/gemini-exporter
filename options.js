@@ -1021,18 +1021,35 @@ async function exportSelected() {
                             try {
                                 let toHighRes = (u) => {
                                     try {
+                                        if (!u || typeof u !== 'string') return u;
+                                        // Never mutate Google Maps / Places photo CDN signatures
+                                        if (u.includes('gps-cs-s') || u.includes('/p/AF1Qip') || u.includes('googleapis.com') || (u.includes('=w') && u.includes('-h'))) {
+                                            return u;
+                                        }
                                         if (u.includes('/gg/')) {
                                             return u.includes('?') ? (u.includes('alr=yes') ? u : u + '&alr=yes') : u + '?alr=yes';
                                         }
-                                        let parts = u.split('?');
-                                        let base = parts[0].replace(/=s\d+(?:-[^\?]+)*/i, '');
-                                        let q = parts[1] ? parts[1] + '&alr=yes' : 'alr=yes';
-                                        return base + '=s1024-rj?' + q;
+                                        if (u.includes('=s')) {
+                                            let parts = u.split('?');
+                                            let base = parts[0].replace(/=s\d+(?:-[^\?]+)*/i, '');
+                                            let q = parts[1] ? parts[1] + '&alr=yes' : 'alr=yes';
+                                            return base + '=s1024-rj?' + q;
+                                        }
+                                        return u;
                                     } catch {
                                         return u;
                                     }
                                 };
-                                let cands = [att.src, toHighRes(att.src), att.originalUrl];
+                                let rawUrl = att.originalUrl || att.sourceUrl || att.src;
+                                let cands = [
+                                    rawUrl, // 1. 原始完整 URL 优先（保持 Maps/Places CDN 完整签名）
+                                    att.src,
+                                    att.resolvedUrl,
+                                    toHighRes(rawUrl)
+                                ];
+                                if (rawUrl && rawUrl.includes('?')) {
+                                    cands.push(rawUrl.split('?')[0]);
+                                }
                                 if (att.src && att.src.includes('/gg/')) {
                                     let withAlr = att.src.includes('?') ? (att.src.includes('alr=yes') ? att.src : att.src + '&alr=yes') : att.src + '?alr=yes';
                                     cands.push(withAlr);

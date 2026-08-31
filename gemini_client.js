@@ -647,14 +647,21 @@
 
     function highResVariant(url) {
         try {
-            if (!url) return url;
+            if (!url || typeof url !== 'string') return url;
+            // Never corrupt Maps / Streetview / Grounding Place / Places photo signatures
+            if (url.includes('gps-cs-s') || url.includes('/p/AF1Qip') || url.includes('googleapis.com') || (url.includes('=w') && url.includes('-h'))) {
+                return url;
+            }
             if (url.includes('/gg/')) {
                 return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
             }
-            let [base, q = ""] = url.split("?");
-            let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
-            let suffix = q ? `${q}&alr=yes` : "alr=yes";
-            return `${stripped}=s1024-rj?${suffix}`;
+            if (url.includes('=s')) {
+                let [base, q = ""] = url.split("?");
+                let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
+                let suffix = q ? `${q}&alr=yes` : "alr=yes";
+                return `${stripped}=s1024-rj?${suffix}`;
+            }
+            return url;
         } catch {
             return url;
         }
@@ -715,6 +722,9 @@
                         timestamp: ts,
                         images: uImgs.length ? uImgs.map(i => ({
                             ...i,
+                            sourceUrl: i.sourceUrl,
+                            originalUrl: i.sourceUrl,
+                            src: i.sourceUrl,
                             resolvedUrl: highResVariant(i.sourceUrl),
                             localName: `assets/${(i.fileName||'img.jpg').replace(/[\\/:*?"<>|]/g,'_')}`,
                             type: "image",
@@ -817,6 +827,9 @@
                                 timestamp: ts,
                                 images: filteredImages.length ? filteredImages.map(img => ({
                                     ...img,
+                                    sourceUrl: img.sourceUrl,
+                                    originalUrl: img.sourceUrl,
+                                    src: img.sourceUrl,
                                     resolvedUrl: highResVariant(img.sourceUrl),
                                     localName: `assets/${(img.fileName || 'img.jpg').replace(/[\\/:*?"<>|]/g, '_')}`,
                                     type: "image"
