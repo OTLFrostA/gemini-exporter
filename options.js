@@ -24,21 +24,23 @@ function $(id) {
     return document.getElementById(id);
 }
 
-function isRealTitle(title, id) {
-    if (!title || typeof title !== 'string') return false;
-    let t = title.trim();
-    if (t.length < 2) return false;
-    if (id) {
-        let cleanId = String(id).replace(/^c_/, '').trim();
-        let cleanT = t.replace(/^c_/, '').trim();
-        if (cleanT === cleanId) return false;
-        if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-    }
-    if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-    if (/^Google Account/i.test(t)) return false;
-    if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
-    return true;
-}
+const isRealTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle)
+    ? GeminiUtils.isRealTitle
+    : function isRealTitle(title, id) {
+        if (!title || typeof title !== 'string') return false;
+        let t = title.trim();
+        if (t.length < 2) return false;
+        if (id) {
+            let cleanId = String(id).replace(/^c_/, '').trim();
+            let cleanT = t.replace(/^c_/, '').trim();
+            if (cleanT === cleanId) return false;
+            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+        }
+        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+        if (/^Google Account/i.test(t)) return false;
+        if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+        return true;
+    };
 
 function setExportRunning(running) {
     __exportRunning = !!running;

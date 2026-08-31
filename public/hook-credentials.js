@@ -43,7 +43,7 @@
                 window.postMessage({
                     type: 'GEMINI_CREDENTIALS',
                     payload
-                }, '*');
+                }, location.origin);
             }
         } catch {}
     }
@@ -85,7 +85,7 @@
                             lastUsed: Date.now(),
                             from: 'SNlM0e'
                         }
-                    }, '*');
+                    }, location.origin);
                     break;
                 }
             }
