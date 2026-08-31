@@ -801,9 +801,11 @@
                         }
                         let thoughts = extractThoughts(candidateBlock);
                         let citations = extractCitations(candidateBlock);
-                        // Clean Google internal Deep Research / Canvas placeholder pseudo-URLs from text
+                        // Clean Google internal Deep Research / Canvas / Tool placeholder pseudo-URLs from text
                         if (responseText) {
-                            responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(immersive_entry_chip|deep_research_confirmation_content)\/\d+/gi, '').trim();
+                            responseText = responseText.replace(/(?:^|\n)\s*https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n]*)?\s*(?=\n|$)/gi, '\n');
+                            responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
+                            responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '').trim();
                         }
                         if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({
