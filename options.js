@@ -1967,10 +1967,17 @@ async function parseTakeoutZip(file) {
         const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
         const syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
 
+        if (!accountSlots[slot]) {
+            accountSlots[slot] = { name: slot === 'u0' ? '默认账号' : `账号 ${slot.toUpperCase()}`, count: conversations.length };
+        } else {
+            accountSlots[slot].count = conversations.length;
+        }
+
         await chrome.storage.local.set({
             [convKey]: conversations,
             [countKey]: conversations.length,
-            [syncKey]: new Date().toISOString()
+            [syncKey]: new Date().toISOString(),
+            gemini_account_slots: accountSlots
         });
 
         $('bar').style.width = '100%';
@@ -1982,9 +1989,9 @@ async function parseTakeoutZip(file) {
         log(successMsg, 'info');
 
         __lastRenderedSignature = null;
+        updateAccountSlotSelector();
         renderList(new Set());
         updateSelectedStat();
-        updateSyncCountBadge();
 
         setTimeout(() => {
             $('progWrap').style.display = 'none';
