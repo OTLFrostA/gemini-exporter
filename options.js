@@ -777,6 +777,7 @@ async function exportSelected() {
 
             if (chat.error || chat._empty) {
                 failedChats.push(chat.id);
+                log(`[${chat.title || nid}] 导出跳过: ${chat.error || '云端返回内容为空且无本地离线记录'}`, 'warn');
                 continue;
             }
 

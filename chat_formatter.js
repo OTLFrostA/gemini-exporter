@@ -76,7 +76,7 @@
         for (const att of atts) {
             if (att.type === 'image') {
                 const local = att.localName || `assets/image.jpg`;
-                const alt = String(att.alt || att.name || '鍥剧墖').replace(/[[\]]/g, '');
+                const alt = String(att.alt || att.name || '图片').replace(/[[\]]/g, '');
                 const online = att.src || att.originalUrl || '';
                 if (online && online.startsWith('http') && !online.includes('googleusercontent.com/immersive_entry_chip')) {
                     block += `[![${alt}](${local})](${online})\n\n`;
@@ -85,11 +85,11 @@
                 }
             } else if (att.type === 'file') {
                 const local = att.localName || `files/${att.name || 'attachment'}`;
-                let name = att.title || att.name || '闄勪欢';
-                if (/^(鎴戝凡缁忓畬鎴愪簡鐮旂┒|鎴戞嫙瀹氫簡涓€涓爺绌舵柟妗坾I've completed your research|Here is a research plan)/i.test(name)) {
-                    name = '馃搼 娣卞害鐮旂┒鎶ュ憡 (Deep Research Report)';
+                let name = att.title || att.name || '附件';
+                if (/^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(name)) {
+                    name = '📑 深度研究报告 (Deep Research Report)';
                 }
-                block += `- 馃搸 [${name}](${local})\n\n`;
+                block += `- 📎 [${name}](${local})\n\n`;
             }
         }
         return block;
@@ -146,7 +146,7 @@
     function toMarkdown(chat, opts = {}) {
         if (!chat) return '';
         if (chat.error) {
-            return `# ${chat.title || 'Untitled'}\n\n> 瀵煎嚭澶辫触: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url || ''}\n`;
+            return `# ${chat.title || 'Untitled'}\n\n> 导出失败: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url || ''}\n`;
         }
 
         const safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
@@ -169,17 +169,17 @@
         // 2. Document Title & Metadata Badges
         md += `# ${safeTitleClean}\n\n`;
         const metaBadges = [];
-        if (convUrl) metaBadges.push(`[馃敆 瀵硅瘽閾炬帴](${convUrl})`);
-        if (chat.id) metaBadges.push(`馃啍 \`${chat.id}\``);
-        if (createdIso) metaBadges.push(`馃搮 ${new Date(chat.createdAt).toLocaleString()}`);
-        if (chat.attachmentCount) metaBadges.push(`馃搸 闄勪欢 ${chat.attachmentCount} 涓猔);
+        if (convUrl) metaBadges.push(`[🔗 对话链接](${convUrl})`);
+        if (chat.id) metaBadges.push(`🆔 \`${chat.id}\``);
+        if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
+        if (chat.attachmentCount) metaBadges.push(`📎 附件 ${chat.attachmentCount} 个`);
         if (metaBadges.length > 0) {
-            md += `> ${metaBadges.join(' 路 ')}\n\n---\n\n`;
+            md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
         }
 
         const messages = chat.messages || [];
         if (!messages.length) {
-            md += `_绌哄璇濇垨鍙栧洖澶辫触_ 鍘熷URL: ${convUrl}\n`;
+            md += `_空对话或取回失败_ 原始URL: ${convUrl}\n`;
             return md;
         }
 
@@ -189,8 +189,8 @@
             const role = m.role === 'user' ? 'user' : 'model';
 
             if (role === 'user') {
-                md += `## 馃檵 浣燶n\n`;
-                if (timeStr) md += `> 鈴憋笍 ${timeStr}\n\n`;
+                md += `## 👤 你\n\n`;
+                if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
                 if (m.attachments && m.attachments.length) {
                     md += renderAttachments(m.attachments);
@@ -201,13 +201,13 @@
                     md += `${userBody}\n\n`;
                 }
             } else {
-                md += `## 馃 Gemini\n\n`;
-                if (timeStr) md += `> 鈴憋笍 ${timeStr}\n\n`;
+                md += `## 🤖 Gemini\n\n`;
+                if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
                 // Thinking Process (Isolated with double blank lines for strict Markdown parsers)
                 const thoughts = (m.thoughts || m.thinking || '').trim();
                 if (thoughts) {
-                    md += `<details>\n<summary>馃 鎬濊€冭繃绋?/summary>\n\n${thoughts}\n\n</details>\n\n`;
+                    md += `<details>\n<summary>🧠 思考过程</summary>\n\n${thoughts}\n\n</details>\n\n`;
                 }
 
                 // AI Answer Content with Heading Hierarchy Protection and Chip Sanitization
@@ -223,9 +223,9 @@
 
                 // Citations / Sources
                 if (m.citations && m.citations.length) {
-                    md += `> 馃寪 **鍙傝€冩潵婧愶細**\n`;
+                    md += `> 🌐 **参考来源：**\n`;
                     m.citations.forEach((c, idx) => {
-                        const citeTitle = c.title || c.url || `鏉ユ簮 ${idx + 1}`;
+                        const citeTitle = c.title || c.url || `来源 ${idx + 1}`;
                         md += `> [${idx + 1}] [${citeTitle}](${c.url})\n`;
                     });
                     md += `\n`;
