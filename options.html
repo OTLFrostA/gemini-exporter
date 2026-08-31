@@ -205,6 +205,12 @@
       <button id="btnExportJson" class="ghost" style="flex:1; height:40px; padding:0;" data-i18n="btnOnlyJson">仅导列表 JSON</button>
     </div>
     
+    <div style="display:flex; gap:8px; margin-top:6px;">
+      <button id="btnBackupData" class="ghost small" style="flex:1; padding:4px 6px; font-size:11px;" data-i18n="btnBackup" data-i18n-title="btnBackupTip" title="导出完整会话列表与设置备份文件 (.json)">💾 备份数据</button>
+      <button id="btnRestoreData" class="ghost small" style="flex:1; padding:4px 6px; font-size:11px;" data-i18n="btnRestore" data-i18n-title="btnRestoreTip" title="从 JSON 备份文件恢复全部会话底账与设置">📂 恢复备份</button>
+      <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
+    </div>
+    
     <div style="text-align:center; min-height:28px;">
       <button id="btnCancel" class="ghost small" style="display:none; border-color:#5a2a2a; color:#f0a0a0; margin:0 auto;" data-i18n="btnCancel">终止导出</button>
     </div>
@@ -242,6 +248,8 @@
       <div style="display:flex; gap:8px; align-items:center; padding-bottom:4px; border-bottom:1px solid var(--border); height:34px; box-sizing:border-box;">
         <button id="btnIncrementalScan" class="primary small" data-i18n="btnIncrementalScan" data-i18n-title="btnIncrementalScanTip" title="快速拉取最近更新的会话（日常推荐，通常仅需 1~2 秒）">同步最新会话</button>
         <button id="btnDeepScan" class="ghost small" data-i18n="btnDeepScan" data-i18n-title="btnDeepScanTip" title="地毯式扫描并同步该账号下的所有历史会话（初次使用或换账号时推荐）">全量拉取历史</button>
+        <button id="btnImportTakeout" class="ghost small" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="读取 Google Takeout 压缩包，自动补全历史无法扫描的远古对话，并加载离线附件兜底池">📥 导入 Takeout</button>
+        <input type="file" id="takeoutFileInput" accept=".zip" style="display:none;">
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a;" data-i18n="btnStopScan" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
         <div style="flex:1;"></div>
         <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>

@@ -30,6 +30,11 @@
 - 🖼️ **Full Support for Attachments & Images**:
   - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution images.
   - Assets are neatly organized into an `assets/` subfolder with relative references preserved in Markdown.
+- 📥 **Google Takeout Integration & Legacy Chat Recovery (Takeout ZIP Import)**:
+  - Directly load your Google Takeout archive (`takeout-*.zip`) to recover legacy conversations truncated by Gemini's cloud UI pagination limits.
+  - **Offline Media Fallback Pool**: Automatically indexes offline media from the ZIP, seamlessly replacing any failed online asset downloads (e.g., due to expired tokens or 403 errors).
+- 💾 **1-Click Full Backup & Restore**:
+  - Export your complete conversation catalog and export states into a standardized JSON backup file, enabling effortless migration across browsers and devices.
 - 🔄 **Smart Incremental Sync & Change Detection**:
   - Locally records conversation IDs, update timestamps, and message counts.
   - Supports "Skip already exported" mode. When an existing conversation receives new replies, it is automatically flagged as "Needs Re-export" for ultra-fast incremental backups.

@@ -964,6 +964,20 @@ async function exportSelected() {
                                     failReason = ex.message || 'fetch exception';
                                 }
                             }
+                            if (!saved && typeof getTakeoutFallbackMedia === 'function') {
+                                try {
+                                    let fallbackBin = await getTakeoutFallbackMedia(chat.id, att.localName || att.name || att.title || att.url);
+                                    if (fallbackBin && fallbackBin.length > 0) {
+                                        if (finalUseZip) folder.file(att.localName, fallbackBin);
+                                        else await writeFileDirect(att.localName || att.name || `files/${att.name}`, fallbackBin);
+                                        downloadedAssets++;
+                                        __globalDownloadedAssets = downloadedAssets;
+                                        updateSharedProgress();
+                                        saved = true;
+                                        log(`[${listTitle}] ⚡ 已从 Takeout 离线池成功恢复文档: ${att.localName || att.name}`, 'info');
+                                    }
+                                } catch (fbErr) {}
+                            }
                             if (!saved) {
                                 failedAttachments.push({
                                     chat: listTitle,
@@ -1068,6 +1082,16 @@ async function exportSelected() {
                                             lastStatus = e.message;
                                         }
                                     }
+                                }
+
+                                if (!bin && typeof getTakeoutFallbackMedia === 'function') {
+                                    try {
+                                        let fallbackBin = await getTakeoutFallbackMedia(chat.id, att.localName || att.alt || att.src);
+                                        if (fallbackBin && fallbackBin.length > 0) {
+                                            bin = fallbackBin;
+                                            log(`[${listTitle}] ⚡ 已从 Takeout 离线池成功恢复图片: ${att.localName || '未知'}`, 'info');
+                                        }
+                                    } catch (fbErr) {}
                                 }
 
                                 if (!bin) {
@@ -1642,4 +1666,346 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSelectedStat();
         log(typeof I18n !== 'undefined' ? I18n.t('btnClearAll') : 'Cache cleared');
     });
+
+    // 📥 导入 Google Takeout ZIP
+    const btnImportTakeout = $('btnImportTakeout');
+    const takeoutFileInput = $('takeoutFileInput');
+    if (btnImportTakeout && takeoutFileInput) {
+        btnImportTakeout.addEventListener('click', () => {
+            takeoutFileInput.value = '';
+            takeoutFileInput.click();
+        });
+        takeoutFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) {
+                await parseTakeoutZip(file);
+            }
+        });
+    }
+
+    // 💾 备份与 📂 恢复数据
+    const btnBackupData = $('btnBackupData');
+    const btnRestoreData = $('btnRestoreData');
+    const restoreFileInput = $('restoreFileInput');
+
+    if (btnBackupData) {
+        btnBackupData.addEventListener('click', async () => {
+            await exportFullBackup();
+        });
+    }
+
+    if (btnRestoreData && restoreFileInput) {
+        btnRestoreData.addEventListener('click', () => {
+            restoreFileInput.value = '';
+            restoreFileInput.click();
+        });
+        restoreFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) {
+                await restoreFullBackup(file);
+            }
+        });
+    }
 });
+
+// ==========================================
+// 📦 Google Takeout ZIP 解析与离线媒体缓存池
+// ==========================================
+let __takeoutMediaMap = {};
+let __takeoutGlobalMedia = {};
+
+async function getTakeoutFallbackMedia(chatId, filenameOrId) {
+    if (!filenameOrId) return null;
+    const nid = normId(chatId);
+    let target = String(filenameOrId).replace(/^.*[\\\/]/, '');
+    let targetStem = target.replace(/\.[^/.]+$/, '').toLowerCase();
+
+    const convMedia = __takeoutMediaMap[nid];
+    if (convMedia && convMedia.length) {
+        for (const item of convMedia) {
+            let itemStem = item.filename.replace(/\.[^/.]+$/, '').toLowerCase();
+            let cleanItemStem = itemStem.replace(/-[0-9a-fA-F]{16}$/i, '');
+            if (cleanItemStem === targetStem || targetStem.startsWith(cleanItemStem) || cleanItemStem.startsWith(targetStem)) {
+                try {
+                    let bin = await item.fileObj.async('uint8array');
+                    if (bin && bin.length > 0) return bin;
+                } catch {}
+            }
+        }
+        if (convMedia.length === 1 && (/^image(?:-\d+)?$/i.test(targetStem) || /^file/i.test(targetStem))) {
+            try {
+                let bin = await convMedia[0].fileObj.async('uint8array');
+                if (bin && bin.length > 0) return bin;
+            } catch {}
+        }
+    }
+
+    if (__takeoutGlobalMedia[targetStem]) {
+        try {
+            let bin = await __takeoutGlobalMedia[targetStem].async('uint8array');
+            if (bin && bin.length > 0) return bin;
+        } catch {}
+    }
+
+    for (const [stem, fileObj] of Object.entries(__takeoutGlobalMedia)) {
+        if (stem.length > 5 && (stem.includes(targetStem) || targetStem.includes(stem))) {
+            try {
+                let bin = await fileObj.async('uint8array');
+                if (bin && bin.length > 0) return bin;
+            } catch {}
+        }
+    }
+
+    return null;
+}
+
+async function parseTakeoutZip(file) {
+    if (typeof JSZip === 'undefined') {
+        log('JSZip 库未加载，无法解析 ZIP', 'error');
+        alert('JSZip 库未加载，无法解析 ZIP');
+        return;
+    }
+    const parsingMsg = typeof I18n !== 'undefined' ? I18n.t('takeoutParsing') : 'Parsing Takeout ZIP archive...';
+    log(parsingMsg, 'info');
+    $('progWrap').style.display = 'block';
+    $('bar').style.width = '15%';
+    $('progText').textContent = parsingMsg;
+
+    try {
+        const zip = await JSZip.loadAsync(file);
+        $('bar').style.width = '40%';
+
+        let activityFile = null;
+        for (const filename of Object.keys(zip.files)) {
+            if (/MyActivity\.html$/i.test(filename) && /Gemini/i.test(filename)) {
+                activityFile = zip.files[filename];
+                break;
+            }
+        }
+        if (!activityFile) {
+            for (const filename of Object.keys(zip.files)) {
+                if (/MyActivity\.html$/i.test(filename)) {
+                    activityFile = zip.files[filename];
+                    break;
+                }
+            }
+        }
+
+        if (!activityFile) {
+            const notFoundMsg = typeof I18n !== 'undefined' ? I18n.t('takeoutNotFound') : 'Gemini Apps activity (MyActivity.html) not found in ZIP';
+            log(notFoundMsg, 'error');
+            $('progWrap').style.display = 'none';
+            alert(notFoundMsg);
+            return;
+        }
+
+        const htmlText = await activityFile.async('text');
+        $('bar').style.width = '70%';
+
+        __takeoutMediaMap = {};
+        __takeoutGlobalMedia = {};
+        let totalMediaCount = 0;
+
+        for (const [path, fObj] of Object.entries(zip.files)) {
+            if (fObj.dir || path.endsWith('.html') || path.endsWith('.json')) continue;
+            let filename = path.replace(/^.*[\\\/]/, '');
+            let stem = filename.replace(/\.[^/.]+$/, '').toLowerCase();
+            let cleanStem = stem.replace(/-[0-9a-fA-F]{16}$/i, '');
+            __takeoutGlobalMedia[cleanStem] = fObj;
+            __takeoutGlobalMedia[stem] = fObj;
+            totalMediaCount++;
+        }
+
+        const cellRegex = /<div class="outer-cell mdl-cell mdl-cell--12-col mdl-shadow--2dp">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
+        let match;
+        const extractedMap = {};
+
+        while ((match = cellRegex.exec(htmlText)) !== null) {
+            const block = match[1];
+            const linkMatch = block.match(/https:\/\/gemini\.google\.com\/(?:u\/\d+\/)?app\/([a-zA-Z0-9_-]{12,64})/);
+            if (!linkMatch) continue;
+
+            const fullId = linkMatch[1];
+            const hexMatch = fullId.replace(/^c_/, '').match(/^[0-9a-fA-F]{16}/);
+            if (!hexMatch) continue;
+            const cleanId = hexMatch[0].toLowerCase();
+
+            let promptText = '';
+            const promptMatch = block.match(/Prompted\s*([\s\S]*?)(?:<br\s*\/?>|\n)/);
+            if (promptMatch) {
+                promptText = promptMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\u202f/g, ' ').trim();
+            }
+
+            let ts = null;
+            const timeMatch = block.match(/([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}(?::\d{2})?\s*[\u202f\s]*(?:AM|PM)\s*[A-Z]*)/);
+            if (timeMatch) {
+                let cleanT = timeMatch[1].replace(/\s+[A-Z]{3,4}$/, '').replace(/[\u202f\xa0]/g, ' ').trim();
+                let dt = new Date(cleanT);
+                if (!isNaN(dt.getTime())) ts = dt.getTime();
+            }
+
+            const mediaRefs = block.match(/(?:src|href)=["']([^"']+\.(?:png|jpg|jpeg|wav|pdf|txt|c))["']/gi) || [];
+            const noExtRefs = block.match(/(?:src|href)=["'](image-[0-9a-fA-F]{16})["']/gi) || [];
+            const allMediaRefs = [...mediaRefs, ...noExtRefs].map(r => r.replace(/^(?:src|href)=["']/, '').replace(/["']$/, '').replace(/^.*[\\\/]/, ''));
+
+            if (!__takeoutMediaMap[cleanId]) __takeoutMediaMap[cleanId] = [];
+            for (const refName of allMediaRefs) {
+                for (const [path, fObj] of Object.entries(zip.files)) {
+                    if (path.endsWith(refName)) {
+                        __takeoutMediaMap[cleanId].push({ filename: refName, fileObj: fObj });
+                        break;
+                    }
+                }
+            }
+
+            if (!extractedMap[cleanId]) {
+                extractedMap[cleanId] = {
+                    id: cleanId,
+                    title: promptText ? promptText.split('\n')[0].slice(0, 80) : 'Untitled conversation',
+                    url: `https://gemini.google.com/app/${cleanId}`,
+                    href: `https://gemini.google.com/app/${cleanId}`,
+                    timestamp: ts,
+                    lastSeen: ts ? new Date(ts).toISOString() : '',
+                    accountSlot: currentSlot || 'u0',
+                    source: 'takeout-import'
+                };
+            } else {
+                if (promptText && (!extractedMap[cleanId].title || extractedMap[cleanId].title.startsWith('Untitled'))) {
+                    extractedMap[cleanId].title = promptText.split('\n')[0].slice(0, 80);
+                }
+                if (ts && (!extractedMap[cleanId].timestamp || ts > extractedMap[cleanId].timestamp)) {
+                    extractedMap[cleanId].timestamp = ts;
+                    extractedMap[cleanId].lastSeen = new Date(ts).toISOString();
+                }
+            }
+        }
+
+        const takeoutList = Object.values(extractedMap);
+        if (!takeoutList.length) {
+            log('Takeout 中未解析到任何有效对话', 'warn');
+            $('progWrap').style.display = 'none';
+            return;
+        }
+
+        let existingMap = new Map();
+        for (const c of conversations) {
+            existingMap.set(normId(c.id).toLowerCase(), c);
+        }
+
+        let newAddedCount = 0;
+        for (const item of takeoutList) {
+            const nid = normId(item.id).toLowerCase();
+            if (!existingMap.has(nid)) {
+                existingMap.set(nid, item);
+                newAddedCount++;
+            } else {
+                const exist = existingMap.get(nid);
+                if ((!exist.title || exist.title.startsWith('Untitled')) && item.title && !item.title.startsWith('Untitled')) {
+                    exist.title = item.title;
+                }
+                if (!exist.timestamp && item.timestamp) {
+                    exist.timestamp = item.timestamp;
+                    exist.lastSeen = item.lastSeen;
+                }
+            }
+        }
+
+        conversations = Array.from(existingMap.values());
+        conversations.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        const slot = currentSlot || 'u0';
+        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
+        const syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
+
+        await chrome.storage.local.set({
+            [convKey]: conversations,
+            [countKey]: conversations.length,
+            [syncKey]: new Date().toISOString()
+        });
+
+        $('bar').style.width = '100%';
+        const successMsg = typeof I18n !== 'undefined'
+            ? I18n.t('takeoutSuccess', takeoutList.length, newAddedCount, totalMediaCount)
+            : `Successfully imported ${takeoutList.length} chats (${newAddedCount} new) with ${totalMediaCount} offline assets ready!`;
+
+        $('progText').textContent = successMsg;
+        log(successMsg, 'info');
+
+        __lastRenderedSignature = null;
+        renderList(new Set());
+        updateSelectedStat();
+        updateSyncCountBadge();
+
+        setTimeout(() => {
+            $('progWrap').style.display = 'none';
+        }, 3000);
+
+    } catch (err) {
+        console.error('[Takeout Parse Error]', err);
+        const errMsg = typeof I18n !== 'undefined' ? I18n.t('takeoutError', err.message) : `Takeout parse error: ${err.message}`;
+        log(errMsg, 'error');
+        $('progText').textContent = errMsg;
+        $('progWrap').style.display = 'none';
+    }
+}
+
+async function exportFullBackup() {
+    try {
+        const allData = await chrome.storage.local.get(null);
+        const backupPayload = {
+            app: 'gemini-exporter',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            data: allData
+        };
+        const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+        a.href = url;
+        a.download = `gemini_exporter_backup_${dateStr}_${timeStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        log(typeof I18n !== 'undefined' ? I18n.t('backupSuccess') : 'Backup file downloaded successfully', 'info');
+    } catch (err) {
+        log(`备份失败: ${err.message}`, 'error');
+    }
+}
+
+async function restoreFullBackup(file) {
+    try {
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        const targetData = payload.data || payload;
+
+        if (!targetData || (!targetData.gemini_conversations && !targetData.gemini_conversations_u0 && !targetData.exportedIds)) {
+            alert('无效的备份文件格式！未找到有效的会话记录。');
+            return;
+        }
+
+        const confirmMsg = typeof I18n !== 'undefined'
+            ? I18n.t('restoreConfirm')
+            : 'Restoring backup will replace current conversations and export markers. Continue?';
+        if (!confirm(confirmMsg)) return;
+
+        await chrome.storage.local.clear();
+        await chrome.storage.local.set(targetData);
+
+        const restoredCount = (targetData.gemini_conversations || targetData.gemini_conversations_u0 || []).length;
+        const msg = typeof I18n !== 'undefined'
+            ? I18n.t('restoreSuccess', restoredCount)
+            : `Successfully restored ${restoredCount} conversations!`;
+        alert(msg);
+        location.reload();
+    } catch (err) {
+        console.error('[Restore Error]', err);
+        const errMsg = typeof I18n !== 'undefined' ? I18n.t('restoreFailed', err.message) : `Restore failed: ${err.message}`;
+        alert(errMsg);
+        log(errMsg, 'error');
+    }
+}
