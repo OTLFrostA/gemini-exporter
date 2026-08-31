@@ -43,7 +43,7 @@
                 window.postMessage({
                     type: 'GEMINI_CREDENTIALS',
                     payload
-                }, '*');
+                }, location.origin);
             }
         } catch {}
     }

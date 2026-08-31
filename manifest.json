@@ -41,6 +41,7 @@
         "content.css"
       ],
       "js": [
+        "utils.js",
         "content_cred_bootstrap.js",
         "gemini_client.js",
         "content.js"
