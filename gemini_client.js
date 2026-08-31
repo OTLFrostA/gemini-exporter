@@ -135,7 +135,7 @@
                 let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
                 let parsed = JSON.parse(cleaned);
                 if (Array.isArray(parsed)) {
-                    if (candidate.includes("MaZiqc") || candidate.includes("wrb.fr")) {
+                    if (candidate.includes("MaZiqc") || candidate.includes("hNvQHb") || candidate.includes("wrb.fr") || candidate.includes("CNgdBe")) {
                         return parsed;
                     }
                     if (!fallback) fallback = parsed;
@@ -148,7 +148,7 @@
                         let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
                         let p2 = JSON.parse(c2);
                         if (Array.isArray(p2)) {
-                            if (acc.includes("MaZiqc") || acc.includes("wrb.fr")) {
+                            if (acc.includes("MaZiqc") || acc.includes("hNvQHb") || acc.includes("wrb.fr") || acc.includes("CNgdBe")) {
                                 return p2;
                             }
                             if (!fallback) fallback = p2;
@@ -665,7 +665,17 @@
             let top = robustFirstPayload(text);
             if (!top) throw new Error("invalid");
             let inner = null;
-            if (top[0] && top[0][2]) {
+            if (Array.isArray(top)) {
+                for (let item of top) {
+                    if (Array.isArray(item) && (item[1] === RPCS.DETAIL || item[1] === "hNvQHb" || item[0] === "wrb.fr") && item[2]) {
+                        try {
+                            inner = JSON.parse(item[2]);
+                            break;
+                        } catch {}
+                    }
+                }
+            }
+            if (!inner && top[0] && top[0][2]) {
                 try {
                     inner = JSON.parse(top[0][2]);
                 } catch {}
@@ -678,11 +688,9 @@
                         if (!cell.trim().startsWith('[')) continue;
                         try {
                             let cand = JSON.parse(cell);
-                            if (Array.isArray(cand) && cand.length && (Array.isArray(cand[0]) || typeof cand[0] === 'string')) {
-                                if (Array.isArray(cand[0]) || cand[0] === null) {
-                                    inner = cand;
-                                    break;
-                                }
+                            if (Array.isArray(cand) && cand.length && (Array.isArray(cand[0]) || typeof cand[0] === 'string' || cand[0] === null)) {
+                                inner = cand;
+                                break;
                             }
                         } catch {}
                     }

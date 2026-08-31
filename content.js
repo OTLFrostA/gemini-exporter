@@ -823,12 +823,13 @@
                 return true;
             }
             (async () => {
+                let batchError = null;
                 try {
                     let clientCtor = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : (window.GeminiAPIClient || null);
                     if (clientCtor && clientCtor.prototype.getConversationDetail) {
                         let client = new clientCtor();
                         let detail = await client.getConversationDetail(cid, msg.targetSid || null);
-                        if (detail && detail.messages) {
+                        if (detail && detail.messages && detail.messages.length > 0) {
                             sendResponse({
                                 success: true,
                                 data: detail,
@@ -838,21 +839,26 @@
                         }
                     }
                 } catch (e) {
-                    console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e.message);
+                    batchError = e.message || String(e);
+                    console.warn('[Gemini Exporter] batchexecute detail fail:', cid, e);
                 }
                 try {
                     let chat = await contentFetchChatDetail(cid);
-                    sendResponse({
-                        success: true,
-                        data: chat,
-                        source: 'dom'
-                    });
+                    if (chat && chat.messages && chat.messages.length > 0) {
+                        sendResponse({
+                            success: true,
+                            data: chat,
+                            source: 'dom'
+                        });
+                        return;
+                    }
                 } catch (e) {
-                    sendResponse({
-                        success: false,
-                        error: e.message || String(e)
-                    });
+                    console.warn('[Gemini Exporter] DOM detail fail:', cid, e);
                 }
+                sendResponse({
+                    success: false,
+                    error: batchError ? `API 失败: ${batchError}` : '无法获取对话内容 (API与当前DOM均为空)'
+                });
             })();
             return true;
         }
