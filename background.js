@@ -186,34 +186,33 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                 const isEmptyFail = !hasContent && !chat.error;
 
                 if (isEmptyFail || chat.error) {
+                    const failReason = chat.error || '云端返回内容为空';
                     results.push({
                         id: chat.id || item.id,
                         title: chat.title || item.title,
                         url: chat.url || item.url,
-                        error: chat.error || '空对话或取回失败',
+                        error: failReason,
                         messages: chat.messages || [],
                         messageCount: msgCount,
                         _empty: true
                     });
-                    ++done;
-                    notifyProgress(done, (chat.title || item.title) + ' (获取失败)', chat.id || item.id);
                 } else {
                     results.push(chat);
-                    ++done;
-                    notifyProgress(done, chat.title, chat.id);
                 }
             } else {
+                const failReason = data?.error || data?.message || '未知错误';
+                console.warn(`[Gemini Exporter BG] detail fetch failed for ${item.id} (${item.title}):`, failReason);
                 results.push({
                     id: item.id,
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${item.id}`,
-                    error: data?.error || data?.message || '未知错误',
+                    error: failReason,
                     messages: [],
                     messageCount: 0
                 });
-                ++done;
-                notifyProgress(done, item.title + ' (失败)', item.id);
             }
+            ++done;
+            notifyProgress(done, item.title, item.id);
             await new Promise(r => setTimeout(r, 180 + Math.random() * 120));
         } catch (e) {
             results.push({
@@ -223,7 +222,7 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                 messages: []
             });
             ++done;
-            notifyProgress(done, item.title + ' (异常)', item.id);
+            notifyProgress(done, item.title, item.id);
         }
     }
     portSendResponse({

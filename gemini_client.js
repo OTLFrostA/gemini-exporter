@@ -1066,6 +1066,7 @@
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid);
             let api = getApiUrl(cred.accountSlot || "default");
+            console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
             let params = new URLSearchParams({
                 rpcids: RPCS.DETAIL,
                 "source-path": "/app",
@@ -1099,10 +1100,18 @@
                 try {
                     snippet = (await resp.text()).slice(0, 320);
                 } catch {}
+                console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
             }
             let text = await resp.text();
-            return parseDetail(text);
+            try {
+                let parsed = parseDetail(text);
+                console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
+                return parsed;
+            } catch (err) {
+                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, 'raw text snippet:', text.slice(0, 400));
+                throw new Error(`解析详情失败 (${err.message}): ${text.slice(0, 100)}`);
+            }
         }
         async getConversationDetail(conversationId, targetSid) {
             let msgs = [];
