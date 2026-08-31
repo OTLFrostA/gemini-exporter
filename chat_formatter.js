@@ -96,11 +96,17 @@
     }
 
     /**
-     * Sanitize message body content from Google internal placeholder URLs
+     * Sanitize message body content from Google internal placeholder URLs and tool anchors
      */
     function cleanMessageBody(text) {
         if (!text || typeof text !== 'string') return '';
-        return text.replace(/https?:\/\/googleusercontent\.com\/(immersive_entry_chip|deep_research_confirmation_content)\/\d+/gi, '').trim();
+        // 1. Remove standalone internal marker pseudo-URLs (e.g. map_content, map_location_reference, immersive_entry_chip, etc.)
+        let cleaned = text.replace(/(?:^|\n)\s*https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n]*)?\s*(?=\n|$)/gi, '\n');
+        // 2. Convert internal reference links like [东京都](http://googleusercontent.com/map_location_reference/0) to clean plain text 东京都
+        cleaned = cleaned.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
+        // 3. Remove inline remaining internal URLs
+        cleaned = cleaned.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '');
+        return cleaned.trim();
     }
 
     /**
