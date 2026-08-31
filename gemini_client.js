@@ -947,14 +947,16 @@
                 incremental,
                 totalPagesFetched: 0,
                 totalConversations: 0,
-                stopReason: '宸茶揪鍒版渶澶ч〉鏁伴檺鍒?,
+                stopReason: '就绪（尚未触发同步）',
                 pageHistory: []
             };
             this.aborted = false;
+            let reachedMax = true;
             for (let i = 0; i < maxPages; i++) {
                 if (this.aborted) {
-                    diagLog.stopReason = `鐢ㄦ埛鎵嬪姩缁堟鍚屾 (宸叉媺鍙?${i} 椤碉紝鍏?${all.length} 鏉?`;
+                    diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
                     console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
+                    reachedMax = false;
                     break;
                 }
                 let res;
@@ -962,7 +964,8 @@
                     res = await this.getConversationList(token, targetSid);
                 } catch (err) {
                     console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
-                    diagLog.stopReason = `缃戠粶鎴栨湇鍔″紓甯? ${err.message || err}`;
+                    diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
+                    reachedMax = false;
                     if (all.length > 0) {
                         break;
                     }
@@ -999,7 +1002,7 @@
                                 unchangedStreak = 0;
                             }
                             if (unchangedStreak >= unchangedThreshold) {
-                                diagLog.stopReason = `澧為噺鍚屾鍛戒腑杩炵画 ${unchangedStreak} 鏉″凡瀛樺湪鍘嗗彶锛屾棭閫€缁堟`;
+                                diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
                                 diagLog.totalConversations = all.length;
                                 diagLog.endTime = new Date().toISOString();
                                 if (onProgress) onProgress({
@@ -1008,7 +1011,7 @@
                                     total: all.length,
                                     hasMore: false,
                                     stoppedEarly: true,
-                                    reason: '澧為噺鍚屾瀹屾垚'
+                                    reason: '增量同步完成'
                                 });
                                 return {
                                     conversations: all,
@@ -1023,10 +1026,11 @@
                 }
                 if (!res.conversations || res.conversations.length === 0) {
                     if (res?._debug?.bardError) {
-                        diagLog.stopReason = `Google 鏈嶅姟绔炕椤靛埌杈炬瀬闄?(BardErrorInfo 1096: 娓告爣閾惧凡杈炬湇鍔＄涓婇檺)`;
+                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     } else {
-                        diagLog.stopReason = `绗?${i + 1} 椤佃繑鍥?0 鏉℃暟鎹紝Google 鏈嶅姟绔凡鏃犳洿鏃╁巻鍙瞏;
+                        diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                     }
+                    reachedMax = false;
                     console.log(`[Gemini Exporter] getAllConversations reached end at page ${i + 1}, total: ${all.length}, reason: ${diagLog.stopReason}`);
                     break;
                 }
@@ -1038,13 +1042,17 @@
                     batch: res.conversations
                 });
                 if (!res.nextPageToken) {
-                    diagLog.stopReason = `绗?${i + 1} 椤垫湭杩斿洖涓嬮〉娓告爣 nextPageToken锛孏oogle 鏈嶅姟绔父鏍囧凡鍒板簳`;
+                    diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
+                    reachedMax = false;
                     console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, no nextPageToken in response`);
                     break;
                 }
                 token = res.nextPageToken;
                 const pageDelay = incremental ? 50 : 120;
                 await new Promise(r => setTimeout(r, pageDelay));
+            }
+            if (reachedMax && maxPages > 0) {
+                diagLog.stopReason = `已达到最大页数限制 (${maxPages} 页)`;
             }
             diagLog.totalConversations = all.length;
             diagLog.endTime = new Date().toISOString();
