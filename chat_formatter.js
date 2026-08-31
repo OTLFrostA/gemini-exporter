@@ -70,13 +70,13 @@
     /**
      * Render message attachments in Markdown format.
      */
-    function renderAttachments(atts) {
+    function renderAttachments(atts, isEn = false) {
         if (!atts || !Array.isArray(atts) || !atts.length) return '';
         let block = '';
         for (const att of atts) {
             if (att.type === 'image') {
                 const local = att.localName || `assets/image.jpg`;
-                const alt = String(att.alt || att.name || '图片').replace(/[[\]]/g, '');
+                const alt = String(att.alt || att.name || (isEn ? 'Image' : '图片')).replace(/[[\]]/g, '');
                 const online = att.src || att.originalUrl || '';
                 if (online && online.startsWith('http') && !online.includes('googleusercontent.com/immersive_entry_chip')) {
                     block += `[![${alt}](${local})](${online})\n\n`;
@@ -85,9 +85,9 @@
                 }
             } else if (att.type === 'file') {
                 const local = att.localName || `files/${att.name || 'attachment'}`;
-                let name = att.title || att.name || '附件';
+                let name = att.title || att.name || (isEn ? 'Attachment' : '附件');
                 if (/^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(name)) {
-                    name = '📑 深度研究报告 (Deep Research Report)';
+                    name = isEn ? '📑 Deep Research Report' : '📑 深度研究报告 (Deep Research Report)';
                 }
                 block += `- 📎 [${name}](${local})\n\n`;
             }
@@ -100,11 +100,11 @@
      */
     function cleanMessageBody(text) {
         if (!text || typeof text !== 'string') return '';
-        // 1. Remove standalone internal marker pseudo-URLs (e.g. map_content, map_location_reference, immersive_entry_chip, etc.)
+        // 1. Remove standalone tool/chip placeholder URL lines
         let cleaned = text.replace(/(?:^|\n)\s*https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n]*)?\s*(?=\n|$)/gi, '\n');
-        // 2. Convert internal reference links like [东京都](http://googleusercontent.com/map_location_reference/0) to clean plain text 东京都
+        // 2. Unwrap Markdown links pointing to internal placeholders: [Text](https://googleusercontent.com/...) -> Text
         cleaned = cleaned.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
-        // 3. Remove inline remaining internal URLs
+        // 3. Remove any remaining inline pseudo URLs
         cleaned = cleaned.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '');
         return cleaned.trim();
     }
@@ -151,12 +151,15 @@
      */
     function toMarkdown(chat, opts = {}) {
         if (!chat) return '';
+        const isEn = (opts.lang === 'en') || (typeof I18n !== 'undefined' && I18n.getLang && I18n.getLang() === 'en');
+
         if (chat.error) {
-            return `# ${chat.title || 'Untitled'}\n\n> 导出失败: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url || ''}\n`;
+            const failTitle = isEn ? 'Export Failed' : '导出失败';
+            return `# ${chat.title || 'Untitled'}\n\n> ${failTitle}: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url || ''}\n`;
         }
 
         const safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
-        const safeYamlTitle = safeTitleClean.replace(/"/g, '\\"');
+        const safeYamlTitle = safeTitleClean.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
         const updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
         const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${String(chat.id).replace(/^c_/, '')}` : '');
@@ -175,17 +178,19 @@
         // 2. Document Title & Metadata Badges
         md += `# ${safeTitleClean}\n\n`;
         const metaBadges = [];
-        if (convUrl) metaBadges.push(`[🔗 对话链接](${convUrl})`);
+        const linkText = isEn ? '🔗 Chat Link' : '🔗 对话链接';
+        if (convUrl) metaBadges.push(`[${linkText}](${convUrl})`);
         if (chat.id) metaBadges.push(`🆔 \`${chat.id}\``);
         if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
-        if (chat.attachmentCount) metaBadges.push(`📎 附件 ${chat.attachmentCount} 个`);
+        if (chat.attachmentCount) metaBadges.push(isEn ? `📎 ${chat.attachmentCount} attachments` : `📎 附件 ${chat.attachmentCount} 个`);
         if (metaBadges.length > 0) {
             md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
         }
 
         const messages = chat.messages || [];
         if (!messages.length) {
-            md += `_空对话或取回失败_ 原始URL: ${convUrl}\n`;
+            const emptyNotice = isEn ? '_Empty conversation or fetch failed_' : '_空对话或取回失败_';
+            md += `${emptyNotice} URL: ${convUrl}\n`;
             return md;
         }
 
@@ -195,11 +200,11 @@
             const role = m.role === 'user' ? 'user' : 'model';
 
             if (role === 'user') {
-                md += `## 👤 你\n\n`;
+                md += isEn ? `## 👤 You\n\n` : `## 👤 你\n\n`;
                 if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
                 if (m.attachments && m.attachments.length) {
-                    md += renderAttachments(m.attachments);
+                    md += renderAttachments(m.attachments, isEn);
                 }
 
                 const userBody = sanitizeUserPrompt(m.content);
@@ -213,7 +218,8 @@
                 // Thinking Process (Isolated with double blank lines for strict Markdown parsers)
                 const thoughts = (m.thoughts || m.thinking || '').trim();
                 if (thoughts) {
-                    md += `<details>\n<summary>🧠 思考过程</summary>\n\n${thoughts}\n\n</details>\n\n`;
+                    const thoughtSummary = isEn ? '🧠 Thinking Process' : '🧠 思考过程';
+                    md += `<details>\n<summary>${thoughtSummary}</summary>\n\n${thoughts}\n\n</details>\n\n`;
                 }
 
                 // AI Answer Content with Heading Hierarchy Protection and Chip Sanitization
@@ -224,14 +230,15 @@
                 }
 
                 if (m.attachments && m.attachments.length) {
-                    md += renderAttachments(m.attachments);
+                    md += renderAttachments(m.attachments, isEn);
                 }
 
                 // Citations / Sources
                 if (m.citations && m.citations.length) {
-                    md += `> 🌐 **参考来源：**\n`;
+                    const sourceHeader = isEn ? `> 🌐 **Sources:**\n` : `> 🌐 **参考来源：**\n`;
+                    md += sourceHeader;
                     m.citations.forEach((c, idx) => {
-                        const citeTitle = c.title || c.url || `来源 ${idx + 1}`;
+                        const citeTitle = c.title || c.url || (isEn ? `Source ${idx + 1}` : `来源 ${idx + 1}`);
                         md += `> [${idx + 1}] [${citeTitle}](${c.url})\n`;
                     });
                     md += `\n`;
@@ -296,7 +303,7 @@
      * @param {string} formatType - 'markdown' | 'json_openai' | 'json' | 'json_raw'
      * @returns {{ content: string, ext: string, mime: string }}
      */
-    function formatContent(chat, formatType = 'markdown') {
+    function formatContent(chat, formatType = 'markdown', opts = {}) {
         if (formatType === 'json_openai') {
             return {
                 content: toOpenAIJson(chat),
@@ -319,7 +326,7 @@
             };
         }
         return {
-            content: toMarkdown(chat),
+            content: toMarkdown(chat, opts),
             ext: 'md',
             mime: 'text/markdown'
         };

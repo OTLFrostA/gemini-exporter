@@ -100,13 +100,14 @@
         } else if (pageBl && vals[0] && !vals[0].bl) {
             vals[0].bl = pageBl;
         }
+        const normSlot = s => (s === 'u0' || !s ? 'default' : s);
         if (targetSid && map[targetSid]) return {
             ...map[targetSid],
             bl: map[targetSid].bl || pageBl || BL_FALLBACK,
             at: map[targetSid].at || pageAt || ""
         };
-        let cur = detectSlot();
-        let f = vals.filter(v => (v.accountSlot || "default") === cur);
+        let cur = normSlot(detectSlot());
+        let f = vals.filter(v => normSlot(v.accountSlot) === cur);
         let arr = f.length ? f : vals;
         arr.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
         if (arr[0]) return {
@@ -189,7 +190,7 @@
                     }
                 }
                 if (bardError) {
-                    console.log("[Gemini Exporter] Google 鏈嶅姟绔炕椤靛埌杈炬瀬闄?(BardErrorInfo):", bardError);
+                    console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
                 } else {
                     console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
                 }
@@ -293,7 +294,9 @@
         let candidates = [turnData?.[4], turnData?.[5], turnData?.[turnData.length - 1]];
         for (let candidate of candidates) {
             if (Array.isArray(candidate) && typeof candidate[0] === "number" && candidate[0] > 1e9) {
-                let timestampSec = candidate[0];
+                let val = candidate[0];
+                if (val > 1e11) return Math.round(val);
+                let timestampSec = val;
                 let timestampNano = typeof candidate[1] === "number" ? candidate[1] : 0;
                 return 1000 * timestampSec + Math.floor(timestampNano / 1e6);
             }
@@ -453,6 +456,8 @@
         return files;
     }
 
+    const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
+
     function extractDocumentsMeta(root) {
         let out = [];
         let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
@@ -460,7 +465,7 @@
         function pushMeta(metaObj) {
             if (metaObj.id && metaObj.title) {
                 let cleanTitle = metaObj.title;
-                if (/^(鎴戝凡缁忓畬鎴愪簡鐮旂┒|鎴戞嫙瀹氫簡涓€涓爺绌舵柟妗坾I've completed your research|Here is a research plan)/i.test(cleanTitle)) {
+                if (RESEARCH_PROMPT_PREFIX_RE.test(cleanTitle)) {
                     cleanTitle = "";
                 }
                 out.push({
@@ -481,7 +486,7 @@
                     let chipUrl = item[0][0],
                         id = item[2],
                         rawTitle = item[3];
-                    let title = /^(鎴戝凡缁忓畬鎴愪簡鐮旂┒|鎴戞嫙瀹氫簡涓€涓爺绌舵柟妗坾I've completed your research|Here is a research plan)/i.test(rawTitle) ? "" : rawTitle;
+                    let title = RESEARCH_PROMPT_PREFIX_RE.test(rawTitle) ? "" : rawTitle;
                     let createdAt;
                     if (Array.isArray(item[5]) && typeof item[5][0] === "number") createdAt = 1000 * item[5][0];
                     let contentId = typeof item[4] === "string" && item[4].length > 10 ? item[4] : void 0;
@@ -498,7 +503,7 @@
                         let chip = flat.find(x => x.includes("immersive_entry_chip"));
                         if (chip) {
                             let uuid = flat.find(x => uuidRe.test(x));
-                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length > 3 && !x.includes("c_") && !x.includes(".html") && !/^(鎴戝凡缁忓畬鎴愪簡鐮旂┒|鎴戞嫙瀹氫簡涓€涓爺绌舵柟妗坾I've completed)/i.test(x));
+                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length > 3 && !x.includes("c_") && !x.includes(".html") && !RESEARCH_PROMPT_PREFIX_RE.test(x));
                             pushMeta({
                                 id: uuid || flat.find(x => x.includes("rc_")) || chip,
                                 title: title || "",
@@ -699,6 +704,8 @@
             }
             if (!inner) throw new Error("invalid");
             let turns = inner?.[0] || [];
+            let convId = extractConversationId(inner, turns);
+            let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
             let msgs = [];
             let dedupSet = new Set();
             let rev = [...turns].reverse();
@@ -716,7 +723,7 @@
                         images: uImgs.length ? uImgs.map(i => ({
                             ...i,
                             resolvedUrl: highResVariant(i.sourceUrl),
-                            localName: `assets/${(i.fileName||'img.jpg').replace(/[\\/:*?"<>|]/g,'_')}`,
+                            localName: `assets/${shortScope}${(i.fileName||'img.jpg').replace(/[\\/:*?"<>|]/g,'_')}`,
                             type: "image",
                             isImage: true
                         })) : void 0,
@@ -726,7 +733,7 @@
                             fileName: f.fileName,
                             sourceUrl: f.sourceUrl,
                             url: f.sourceUrl,
-                            localName: `files/${f.fileName.replace(/[\\/:*?"<>|]/g,'_')}`,
+                            localName: `files/${shortScope}${f.fileName.replace(/[\\/:*?"<>|]/g,'_')}`,
                             type: "file"
                         })) : void 0
                     });
@@ -769,7 +776,7 @@
                                     
                                     // Extract title from markdown heading if meta title is missing or generic caption
                                     let docTitle = metaItem.title || "";
-                                    if (!docTitle || /^(鎴戝凡缁忓畬鎴愪簡鐮旂┒|鎴戞嫙瀹氫簡涓€涓爺绌舵柟妗坾I've completed your research|Here is a research plan)/i.test(docTitle) || docTitle === "Document") {
+                                    if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
                                         if (md) {
                                             let hMatch = md.match(/^#\s+(.+)$/m);
                                             if (hMatch && hMatch[1].trim()) {
@@ -777,8 +784,8 @@
                                             }
                                         }
                                     }
-                                    if (!docTitle || /^(鎴戝凡缁忓畬鎴愪簡鐮旂┒|鎴戞嫙瀹氫簡涓€涓爺绌舵柟妗坾I've completed your research|Here is a research plan)/i.test(docTitle)) {
-                                        docTitle = `娣卞害鐮旂┒鎶ュ憡_${String(metaItem.id || 'doc').replace(/[^a-zA-Z0-9_-]/g, '').slice(-6)}`;
+                                    if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle)) {
+                                        docTitle = `深度研究报告_${String(metaItem.id || 'doc').replace(/[^a-zA-Z0-9_-]/g, '').slice(-6)}`;
                                     }
 
                                     let isInternalChip = metaItem.chipUrl && /googleusercontent\.com\/(immersive_entry_chip|deep_research)/i.test(metaItem.chipUrl);
@@ -791,7 +798,7 @@
                                         links: [...parsedPrimary.links, ...parsedAlt.links],
                                         contentMarkdown: md,
                                         url: isInternalChip ? "" : (metaItem.chipUrl || ""),
-                                        localName: `files/${docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
+                                        localName: `files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
                                         type: "file"
                                     };
                                 }).filter(Boolean);
@@ -818,7 +825,7 @@
                                 images: filteredImages.length ? filteredImages.map(img => ({
                                     ...img,
                                     resolvedUrl: highResVariant(img.sourceUrl),
-                                    localName: `assets/${(img.fileName || 'img.jpg').replace(/[\\/:*?"<>|]/g, '_')}`,
+                                    localName: `assets/${shortScope}${(img.fileName || 'img.jpg').replace(/[\\/:*?"<>|]/g, '_')}`,
                                     type: "image"
                                 })) : void 0,
                                 documents: docDetails.length ? docDetails : void 0
@@ -827,7 +834,7 @@
                     }
                 }
             }
-            let convId = extractConversationId(inner, turns);
+            if (!convId) convId = extractConversationId(inner, turns);
             let title = extractConversationTitle(inner, turns);
             let nextToken = null;
             if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
@@ -840,7 +847,7 @@
                     for (let im of m.images) atts.push({
                         type: "image",
                         src: im.resolvedUrl || im.sourceUrl,
-                        localName: im.localName || `assets/${im.fileName}`,
+                        localName: im.localName || `assets/${shortScope}${im.fileName}`,
                         alt: im.fileName,
                         isBlob: false,
                         isImage: true,
@@ -1128,7 +1135,10 @@
                 attempts++;
             } while (token && attempts < 20);
             if (!first) throw new Error("no data");
-            let minTs = first.createdAt || Date.now();
+            
+            let allTimestamps = msgs.map(m => m.timestamp).filter(x => typeof x === 'number' && Number.isFinite(x) && x > 0);
+            let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || Date.now());
+            let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : minTs;
             let attachmentCount = msgs.reduce((a, m) => a + (m.attachmentCount || 0), 0);
             let cleanId = String(conversationId).replace(/^c_/, '').trim();
             return {
@@ -1139,6 +1149,7 @@
                 timestamp: minTs,
                 createdAt: minTs,
                 chatTime: minTs,
+                updatedAt: maxTs,
                 attachmentCount
             };
         }
