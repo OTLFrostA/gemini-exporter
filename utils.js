@@ -83,14 +83,87 @@
         return t;
     }
 
+    const TITLE_SOURCE_PRIORITY = ['rpc', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
+
+    /**
+     * Resolve the most authoritative valid title from a chat object with multi-tier source slots.
+     * @param {Object} chat - Conversation object
+     * @returns {{ title: string, source: string }}
+     */
+    function resolveTitle(chat) {
+        if (!chat) return { title: '未命名对话', source: 'default' };
+        const id = chat.id || '';
+
+        // 1. Traverse tiered title slots in priority order
+        if (chat.titles && typeof chat.titles === 'object') {
+            for (const source of TITLE_SOURCE_PRIORITY) {
+                if (source === 'legacy' || source === 'default') continue;
+                const raw = chat.titles[source];
+                if (!raw) continue;
+                const clean = cleanTitle(raw);
+                if (clean && isRealTitle(clean, id)) {
+                    return { title: clean, source: source };
+                }
+            }
+        }
+
+        // 2. Legacy fallback to chat.title
+        const legacyClean = cleanTitle(chat.title);
+        if (legacyClean && isRealTitle(legacyClean, id)) {
+            return { title: legacyClean, source: chat.titleSource || 'legacy' };
+        }
+
+        // 3. Fallback to Takeout Prompt if present in chat.titles
+        if (chat.titles && chat.titles.takeout) {
+            const rawTakeout = cleanTitle(chat.titles.takeout);
+            if (rawTakeout) return { title: rawTakeout, source: 'takeout' };
+        }
+
+        return { title: '未命名对话', source: 'default' };
+    }
+
+    /**
+     * Set a title into a specific source tier slot without destroying other tiers,
+     * and automatically re-calculate the chat.title and chat.titleSource.
+     * @param {Object} chat - Conversation object to update
+     * @param {string} source - Tier name ('rpc' | 'dom' | 'takeout' | 'sniff')
+     * @param {string} rawTitle - Raw title string
+     * @returns {{ title: string, source: string }} The resolved title and source
+     */
+    function setTitleBySource(chat, source, rawTitle) {
+        if (!chat) return { title: '未命名对话', source: 'default' };
+        chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
+        const cleaned = cleanTitle(rawTitle);
+        if (cleaned && isRealTitle(cleaned, chat.id)) {
+            chat.titles[source] = cleaned;
+        } else if (source === 'takeout' && cleaned) {
+            chat.titles[source] = cleaned;
+        }
+        const resolved = resolveTitle(chat);
+        chat.title = resolved.title;
+        chat.titleSource = resolved.source;
+        return resolved;
+    }
+
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
-        module.exports = { isRealTitle, cleanTitle, sanitizeFileName, normId };
+        module.exports = {
+            isRealTitle,
+            cleanTitle,
+            sanitizeFileName,
+            normId,
+            resolveTitle,
+            setTitleBySource,
+            TITLE_SOURCE_PRIORITY
+        };
     } else {
         global.GeminiUtils = global.GeminiUtils || {};
         global.GeminiUtils.isRealTitle = isRealTitle;
         global.GeminiUtils.cleanTitle = cleanTitle;
         global.GeminiUtils.sanitizeFileName = sanitizeFileName;
         global.GeminiUtils.normId = normId;
+        global.GeminiUtils.resolveTitle = resolveTitle;
+        global.GeminiUtils.setTitleBySource = setTitleBySource;
+        global.GeminiUtils.TITLE_SOURCE_PRIORITY = TITLE_SOURCE_PRIORITY;
     }
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));

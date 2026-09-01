@@ -36,6 +36,25 @@
         return true;
     }
 
+    function cleanTitle(rawTitle) {
+        try {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(rawTitle);
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(rawTitle);
+            if (typeof require !== 'undefined') {
+                const u = require('./utils.js');
+                if (u && u.cleanTitle) return u.cleanTitle(rawTitle);
+            }
+        } catch {}
+        if (!rawTitle || typeof rawTitle !== 'string') return '';
+        let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
+        t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        t = t.trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
+        return t;
+    }
+
     function robustFirstPayload(text) {
         if (!text || typeof text !== "string") return null;
         let lines = text.split("\n");
@@ -143,9 +162,13 @@
                 else if (typeof item[5] === "number") count = item[5];
                 if (id) {
                     let cleanId = String(id).replace(/^c_/, '').trim();
+                    const cleanT = cleanTitle(title || cleanId);
+                    const isReal = isRealTitle(cleanT, cleanId);
                     convs.push({
                         id: cleanId,
-                        title: title || cleanId,
+                        title: cleanT,
+                        titleSource: isReal ? 'rpc' : 'default',
+                        titles: { rpc: cleanT },
                         createdAt: createTs || fallbackTime,
                         updatedAt: updateTs || fallbackTime,
                         chatTime: fallbackTime,
@@ -753,9 +776,13 @@
                     if (isRealTitle(candidate, convId)) title = candidate;
                 }
             }
+            const cleanT = cleanTitle(title || convId);
+            const isReal = isRealTitle(cleanT, convId);
             return {
                 id: convId,
-                title,
+                title: cleanT,
+                titleSource: isReal ? 'rpc' : 'default',
+                titles: { rpc: cleanT },
                 messages: allMsgs,
                 createdAt: minTs,
                 chatTime: minTs,
