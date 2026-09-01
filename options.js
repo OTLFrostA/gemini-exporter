@@ -47,10 +47,19 @@
         } catch {}
         if (!t || typeof t !== 'string') return '';
         let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
         s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
         s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-        return s.trim();
+        s = s.trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
+        return s;
     };
+
+    const resolveTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
+        ? GeminiUtils.resolveTitle
+        : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.resolveTitle)
+            ? globalThis.GeminiUtils.resolveTitle
+            : (chat) => ({ title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' }));
 
     let __workbenchDebounceTimer = null;
     let __lastRenderedSignature = '';
@@ -136,28 +145,55 @@
                 return;
             }
 
-            // Deduplicate and sanitize titles
+            // Deduplicate and sanitize titles with resolveTitle
             const dedupMap = new Map();
             let hasDirtyTitles = false;
             (incoming || []).forEach(c => {
                 if (!c || !c.id) return;
                 const nid = normId(c.id);
-                const rawT = (c.title || '').trim();
-                const cleanT = cleanTitle(rawT);
-                if (rawT !== cleanT) hasDirtyTitles = true;
-                const t = cleanT;
                 const u = (c.url || c.href || '').toString();
-                if (/^Google Account/i.test(t) || /accounts\.google\.com|SignOutOptions/i.test(u)) return;
+                if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
+
+                const old = dedupMap.get(nid);
+                const mergedTitles = { ...(old?.titles || {}), ...(c.titles || {}) };
+                if (c.titleSource && c.title) {
+                    const cleanT = cleanTitle(c.title);
+                    if (cleanT && (isRealTitle(cleanT, nid) || c.titleSource === 'takeout')) {
+                        mergedTitles[c.titleSource] = cleanT;
+                    }
+                } else if (c.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
+                    const cleanT = cleanTitle(c.title);
+                    if (cleanT && isRealTitle(cleanT, nid)) {
+                        mergedTitles.legacy = cleanT;
+                    }
+                }
+
+                const tempChat = {
+                    id: nid,
+                    titles: mergedTitles,
+                    title: c.title || old?.title,
+                    titleSource: c.titleSource || old?.titleSource
+                };
+
+                const resolved = resolveTitle(tempChat);
+                if (c.title !== resolved.title || c.titleSource !== resolved.source) hasDirtyTitles = true;
+
                 c.id = nid;
-                c.title = t;
+                c.titles = mergedTitles;
+                c.title = resolved.title;
+                c.titleSource = resolved.source;
+
                 if (!dedupMap.has(nid)) {
                     dedupMap.set(nid, c);
                 } else {
-                    const old = dedupMap.get(nid);
-                    let bestT = c.title;
-                    if (isRealTitle(old?.title, nid) && !isRealTitle(c.title, nid)) bestT = old.title;
-                    else if (!isRealTitle(old?.title, nid) && isRealTitle(c.title, nid)) bestT = c.title;
-                    dedupMap.set(nid, { ...old, ...c, id: nid, title: cleanTitle(bestT) });
+                    dedupMap.set(nid, {
+                        ...old,
+                        ...c,
+                        id: nid,
+                        titles: mergedTitles,
+                        title: resolved.title,
+                        titleSource: resolved.source
+                    });
                 }
             });
 

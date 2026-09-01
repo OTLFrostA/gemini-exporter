@@ -269,10 +269,13 @@
                     }
                 }
 
+                const promptTitle = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : 'Takeout conversation';
                 if (!__takeoutConvCache[cleanId]) {
                     __takeoutConvCache[cleanId] = {
                         id: cleanId,
-                        title: promptText ? promptText.split('\n')[0].slice(0, 80) : 'Takeout conversation',
+                        title: promptTitle,
+                        titleSource: 'takeout',
+                        titles: { takeout: promptTitle },
                         messages: [...turnMsgs],
                         timestamp: ts,
                         messageCount: turnMsgs.length,
@@ -286,12 +289,15 @@
                 if (!extractedMap[cleanId]) {
                     extractedMap[cleanId] = {
                         id: cleanId,
-                        title: promptText ? promptText.split('\n')[0].slice(0, 80) : 'Untitled conversation',
+                        title: promptTitle,
+                        titleSource: 'takeout',
+                        titles: { takeout: promptTitle },
                         url: `https://gemini.google.com/app/${cleanId}`,
                         href: `https://gemini.google.com/app/${cleanId}`,
                         timestamp: ts,
                         lastSeen: ts ? new Date(ts).toISOString() : '',
-                        source: 'takeout-import'
+                        source: 'takeout-import',
+                        messageCount: turnMsgs.length
                     };
                 } else {
                     if (promptText && (!extractedMap[cleanId].title || extractedMap[cleanId].title.startsWith('Untitled'))) {

@@ -29,6 +29,12 @@
         return s.trim();
     };
 
+    const resolveTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
+        ? GeminiUtils.resolveTitle
+        : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.resolveTitle)
+            ? globalThis.GeminiUtils.resolveTitle
+            : (chat) => ({ title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' }));
+
     function render(conversations, exportedIds, prevSelectedSet, searchFilter) {
         const list = $('list');
         if (!list) return;
@@ -37,7 +43,7 @@
             return;
         }
         const q = (searchFilter||'').trim().toLowerCase();
-        const filtered = q ? conversations.filter(c=> (cleanTitle(c.title)||'').toLowerCase().includes(q) || String(c.id||'').toLowerCase().includes(q)) : conversations;
+        const filtered = q ? conversations.filter(c=> (resolveTitle(c).title||'').toLowerCase().includes(q) || String(c.id||'').toLowerCase().includes(q)) : conversations;
         if (!filtered.length) {
             list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n!=='undefined'?I18n.t('emptyList'):'No matching conversations found.'}</div>`;
             return;
@@ -65,7 +71,7 @@
                     if(cTs&&rTs&&cTs>rTs+60000) isUpdated=true;
                 }catch{}
             }
-            const safeTitle=(cleanTitle(c.title)||c.id||'').replace(/</g,'&lt;');
+            const safeTitle=(resolveTitle(c).title||c.id||'').replace(/</g,'&lt;');
             let checked=true;
             if(prevSelectedSet instanceof Set) checked = prevSelectedSet.has(c.id)||prevSelectedSet.has(nid)||prevSelectedSet.has('c_'+nid);
             let badge='';
