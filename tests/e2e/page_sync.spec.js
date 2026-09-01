@@ -158,4 +158,53 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     expect(itemText).toContain('微服务与分布式事务设计');
     expect(itemText).not.toContain('Google Gemini');
   });
+
+  test('should NOT overwrite existing conversation title with "Google Gemini" while page is in initial loading state', async ({ context, extensionId }) => {
+    // 1. Seed existing chat with Takeout prompt title
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.waitForLoadState('domcontentloaded');
+
+    await optionsPage.evaluate(async () => {
+      const convs = [
+        { id: 'loading_chat_777', title: '如何用Rust实现异步Actor模型', timestamp: 1670000000000 }
+      ];
+      await chrome.storage.local.set({ gemini_conversations: convs });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+
+    // 2. Open page when it is in initial loading state: document.title is literally "Google Gemini" and no DOM chat elements yet
+    const geminiPage = await context.newPage();
+    await geminiPage.route('https://gemini.google.com/app/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html; charset=utf-8',
+        body: `<!DOCTYPE html>
+        <html>
+        <head>
+          <title>Google Gemini</title>
+        </head>
+        <body>
+          <div class="loading-spinner">Loading...</div>
+        </body>
+        </html>`
+      });
+    });
+
+    await geminiPage.goto('https://gemini.google.com/app/loading_chat_777');
+    await geminiPage.waitForLoadState('domcontentloaded');
+    await geminiPage.waitForTimeout(600);
+
+    // 3. Verify that storage and options page RETAINED the real title and NEVER became "Google Gemini"
+    const storageData = await optionsPage.evaluate(async () => {
+      return await chrome.storage.local.get(['gemini_conversations']);
+    });
+    const chat = storageData.gemini_conversations.find(c => c.id === 'loading_chat_777');
+    expect(chat).toBeTruthy();
+    expect(chat.title).toBe('如何用Rust实现异步Actor模型');
+    expect(chat.title).not.toBe('Google Gemini');
+    expect(chat.title).not.toBe('Gemini');
+  });
 });

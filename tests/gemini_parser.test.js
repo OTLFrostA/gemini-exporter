@@ -8,6 +8,10 @@ test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle('Untitled'), false);
     assert.strictEqual(isRealTitle('未命名'), false);
     assert.strictEqual(isRealTitle('New chat'), false);
+    assert.strictEqual(isRealTitle('Gemini'), false);
+    assert.strictEqual(isRealTitle('Google Gemini'), false);
+    assert.strictEqual(isRealTitle('Google Bard'), false);
+    assert.strictEqual(isRealTitle('Google AI'), false);
     assert.strictEqual(isRealTitle('39d5b41870e49a67'), false);
     assert.strictEqual(isRealTitle('c_39d5b41870e49a67'), false);
     assert.strictEqual(isRealTitle('我拟定了一个研究方案'), false);
@@ -16,6 +20,10 @@ test('gemini_parser - isRealTitle', () => {
 });
 
 test('utils - cleanTitle brand suffix and prefix stripping', () => {
+    assert.strictEqual(cleanTitle('Google Gemini'), '');
+    assert.strictEqual(cleanTitle('Gemini'), '');
+    assert.strictEqual(cleanTitle('Google Bard'), '');
+    assert.strictEqual(cleanTitle('Google AI'), '');
     assert.strictEqual(cleanTitle('量子计算的基本原理 - Google Gemini'), '量子计算的基本原理');
     assert.strictEqual(cleanTitle('深度学习架构 - Gemini'), '深度学习架构');
     assert.strictEqual(cleanTitle('Python 性能优化 | Google Gemini'), 'Python 性能优化');
