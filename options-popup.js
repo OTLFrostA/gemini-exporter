@@ -10,6 +10,17 @@
     l.textContent = `[${time}] ${msg}\n` + l.textContent.slice(0,2000);
   }
 
+  function cleanTitle(rawTitle) {
+    if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) {
+      return GeminiUtils.cleanTitle(rawTitle);
+    }
+    if (!rawTitle || typeof rawTitle !== 'string') return '';
+    let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+    t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+    t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+    return t.trim();
+  }
+
   function sanitizeFileName(name, fallback = 'untitled') {
     if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName) {
       return GeminiUtils.sanitizeFileName(name, fallback);
@@ -163,11 +174,12 @@
         const chat = res.data || res;
         if(!chat.id) chat.id = convId;
         if(!chat.url) chat.url = `https://gemini.google.com/app/${convId}`;
+        chat.title = cleanTitle(chat.title);
         if(!chat.title || chat.title === 'Untitled conversation') {
           try {
             const list = Storage ? await Storage.getConversations(slot) : [];
             const found = list.find(c => c.id === convId || c.id === `c_${convId}`);
-            if (found && found.title) chat.title = found.title;
+            if (found && found.title) chat.title = cleanTitle(found.title);
           } catch {}
         }
 
@@ -178,7 +190,7 @@
         const ext = formatted.ext;
         const mime = formatted.mime;
 
-        const safeTitle = sanitizeFileName(chat.title || chat.id, 'conversation');
+        const safeTitle = sanitizeFileName(cleanTitle(chat.title || chat.id), 'conversation');
         const fileName = `${safeTitle}_${convId.slice(-6)}.${ext}`;
         const blob = new Blob([content], {type: mime});
         const url = URL.createObjectURL(blob);
