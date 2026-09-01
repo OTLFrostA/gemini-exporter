@@ -57,12 +57,29 @@
   }
 
   // Language switch toggle
-  $('langToggle')?.addEventListener('change', async (e) => {
-    const nextLang = e.target.checked ? 'en' : 'zh';
+  const handleLangChange = async (targetLang) => {
     if (typeof I18n !== 'undefined') {
-      await I18n.setLang(nextLang);
+      await I18n.setLang(targetLang);
       updateCount();
     }
+  };
+
+  $('langToggle')?.addEventListener('change', async (e) => {
+    handleLangChange(e.target.checked ? 'en' : 'zh');
+  });
+
+  $('labelLangZh')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if ($('langToggle')) $('langToggle').checked = false;
+    handleLangChange('zh');
+  });
+
+  $('labelLangEn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if ($('langToggle')) $('langToggle').checked = true;
+    handleLangChange('en');
   });
 
   // Open options/workbench page
