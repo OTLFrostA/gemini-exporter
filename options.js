@@ -428,7 +428,6 @@ async function exportSelected() {
         if (!allowedFormats.includes(format)) format = 'markdown';
         try { const devOn = document.body.classList.contains('dev-mode'); if (format === 'json_raw' && !devOn) format = 'markdown'; } catch {}
     }
-    } catch {}
     const skip = $('skipExported').checked;
     const includeIndex = $('includeIndex').checked;
     const includeAssets = $('includeAssets') ? $('includeAssets').checked : true;
