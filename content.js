@@ -71,15 +71,65 @@
         } catch {}
     }
 
+    function extractActiveChatTitle(activeId) {
+        if (!activeId) return null;
+        // 1. From document.title (e.g. "量子计算的基本原理 - Gemini")
+        if (document.title) {
+            let t = document.title.replace(/\s*[-–—|]\s*Gemini.*$/i, '').replace(/^Gemini\s*[-–—|]\s*/i, '').trim();
+            if (isRealTitle(t, activeId)) return t;
+        }
+        // 2. From DOM conversation title / header elements
+        const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
+        for (const el of titleEls) {
+            let t = (el.textContent || '').trim();
+            if (isRealTitle(t, activeId)) return t;
+        }
+        // 3. From active sidebar element
+        const activeLink = document.querySelector(`a[href*="${activeId}"]`);
+        if (activeLink) {
+            let t = (activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '').trim();
+            if (isRealTitle(t, activeId)) return t;
+        }
+        // 4. From first user query on the page
+        const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
+        if (firstUserQuery) {
+            let t = (firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' ');
+            if (isRealTitle(t, activeId)) return t;
+        }
+        return null;
+    }
+
     async function syncOnce() {
         try {
-            if (!Scraper || typeof Scraper.getConversationLinks !== 'function') return 0;
-            const links = Scraper.getConversationLinks();
-            if (!links || !links.length) {
-                if (typeof Scraper.tryExpandRecents === 'function') Scraper.tryExpandRecents();
+            const items = [];
+            // 1. Check current active page chat
+            const m = location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
+            if (m) {
+                const activeId = m[2].replace(/^c_/, '');
+                const activeTitle = extractActiveChatTitle(activeId);
+                if (activeTitle) {
+                    items.push({
+                        id: activeId,
+                        title: activeTitle,
+                        url: `https://gemini.google.com/app/${activeId}`,
+                        href: `https://gemini.google.com/app/${activeId}`,
+                        timestamp: Date.now()
+                    });
+                }
+            }
+
+            // 2. Collect from sidebar links
+            if (Scraper && typeof Scraper.getConversationLinks === 'function') {
+                const links = Scraper.getConversationLinks() || [];
+                items.push(...links);
+            }
+
+            if (!items.length) {
+                if (typeof Scraper?.tryExpandRecents === 'function') Scraper.tryExpandRecents();
                 return 0;
             }
-            const dedup = links.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
+
+            const dedup = items.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
             let mergedLen = await upsertConversations(dedup, 'dom-sync');
             return mergedLen;
         } catch (e) {
@@ -457,12 +507,30 @@
         syncOnce();
     }, 3000);
 
+    let __lastObservedUrl = location.href;
+    setInterval(() => {
+        if (location.href !== __lastObservedUrl) {
+            __lastObservedUrl = location.href;
+            setTimeout(syncOnce, 500);
+            setTimeout(syncOnce, 1500);
+        }
+    }, 500);
+
     window.addEventListener('popstate', () => {
         setTimeout(() => {
             refreshInitialBadge();
             syncOnce();
         }, 300);
     });
+
+    try {
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            new MutationObserver(() => {
+                syncOnce();
+            }).observe(titleEl, { childList: true, characterData: true, subtree: true });
+        }
+    } catch {}
 
     if (document.readyState !== 'loading') {
         autoInitSync();
