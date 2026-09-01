@@ -11,24 +11,28 @@
     'use strict';
 
     function sanitizeFileName(name, fallback = 'untitled') {
+        // 统一委托至 GeminiUtils 单一源，避免多处截断(70 vs 80)与扩展名不一致
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName) {
+            return GeminiUtils.sanitizeFileName(name, fallback);
+        }
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.sanitizeFileName) {
+            return globalThis.GeminiUtils.sanitizeFileName(name, fallback);
+        }
         if (!name) return fallback;
         let s = String(name).replace(/[\r\n\t\f\v]+/g, ' ').replace(/[\u0000-\u001F\u007F-\u009F]/g, '_');
+        s = s.replace(/\.\.\//g, '_').replace(/\.\.\\/g, '_');
         s = s.replace(/[<>:"/\\|?*]+/g, '_');
-        // Replace consecutive dots (e.g. "...", "..") with "_" to satisfy Chrome FileSystemDirectoryHandle
         s = s.replace(/\.{2,}/g, '_');
         s = s.replace(/^\.+|\.+$/g, '');
         s = s.trim();
         if (!s) return fallback;
         if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
-
-        // Separate extension if present
         let ext = '';
         const lastDot = s.lastIndexOf('.');
         if (lastDot > 0 && s.length - lastDot <= 6) {
             ext = s.slice(lastDot);
             s = s.slice(0, lastDot);
         }
-
         if (s.length > 70) s = s.slice(0, 70).trim();
         s = s.replace(/[\.\s_]+$/g, '').trim();
         if (!s) s = fallback;
@@ -48,8 +52,9 @@
 
     async function ensureSubDir(root, subPath) {
         let cur = root;
-        const parts = subPath.split('/').filter(Boolean);
+        const parts = subPath.split('/').filter(Boolean).filter(p => p !== '.' && p !== '..').map(p => sanitizeFileName(p, 'dir'));
         for (let p of parts) {
+            if (!p || p === '.' || p === '..') continue;
             cur = await cur.getDirectoryHandle(p, { create: true });
         }
         return cur;
@@ -73,10 +78,12 @@
     class ExportEngine {
         constructor() {
             this.aborted = false;
+            this._abortController = null;
         }
 
         abort() {
             this.aborted = true;
+            try { this._abortController && this._abortController.abort(); } catch {}
         }
 
         async run(options, callbacks = {}) {
@@ -100,6 +107,8 @@
             const onItemExported = callbacks.onItemExported || (() => {});
 
             this.aborted = false;
+            this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const abortSignal = this._abortController ? this._abortController.signal : null;
 
             if (!selected.length) {
                 throw new Error('No items selected');
@@ -142,6 +151,14 @@
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
+                    // 持久句柄权限校验，过期则回退
+                    if (dirHandle.queryPermission) {
+                        const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+                        if (perm !== 'granted') {
+                            const req = dirHandle.requestPermission ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
+                            if (req !== 'granted') throw new Error('Directory permission not granted: ' + req);
+                        }
+                    }
                     if (dirHandle.name === exportFolderName) {
                         batchDirHandle = dirHandle;
                     } else {
@@ -149,20 +166,24 @@
                     }
                 } catch (e) {
                     onLog(`创建子文件夹失败: ${e.message}`, 'warn');
+                    if (e.name === 'NotAllowedError' || String(e.message).includes('permission')) {
+                        onLog('目录句柄权限失效，请重新授权文件夹', 'warn');
+                    }
                     batchDirHandle = dirHandle;
                 }
             }
 
             async function writeFileDirect(localName, data) {
                 try {
-                    const parts = localName.split('/');
+                    // 防路径穿越：过滤 .. 与 .，且对每段 sanitize
+                    const parts = localName.split('/').filter(Boolean).filter(p => p !== '.' && p !== '..');
                     let fileName = parts.pop();
                     fileName = sanitizeFileName(fileName, 'file');
-                    const dirPath = parts.join('/');
+                    if (fileName === '.' || fileName === '..') fileName = 'file';
+                    const dirPath = parts.map(p => sanitizeFileName(p, 'dir')).filter(Boolean).join('/');
                     let targetDir = batchDirHandle;
                     if (dirPath) {
-                        const cleanParts = dirPath.split('/').map(p => sanitizeFileName(p, 'dir')).filter(Boolean);
-                        targetDir = await ensureSubDir(batchDirHandle, cleanParts.join('/'));
+                        targetDir = await ensureSubDir(batchDirHandle, dirPath);
                     }
                     const fh = await targetDir.getFileHandle(fileName, { create: true });
                     const wr = await fh.createWritable();
@@ -204,16 +225,24 @@
             const MAX_CONCURRENT = 4;
 
             const processAttachmentQueue = async () => {
-                while (!this.aborted && (!isFetchingDone || attachmentQueue.length > 0)) {
+                while (!this.aborted && !(abortSignal && abortSignal.aborted) && (!isFetchingDone || attachmentQueue.length > 0)) {
+                    if (this.aborted || (abortSignal && abortSignal.aborted)) break;
                     if (attachmentQueue.length === 0 || activeDownloads >= MAX_CONCURRENT) {
-                        await new Promise(r => setTimeout(r, 100));
+                        // 可中断的等待
+                        await new Promise(r => {
+                            let t = setTimeout(r, 100);
+                            if (abortSignal) abortSignal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
+                        });
                         continue;
                     }
+                    if (abortSignal && abortSignal.aborted) break;
                     const task = attachmentQueue.shift();
                     activeDownloads++;
                     try {
                         await task();
-                    } catch (e) {}
+                    } catch (e) {
+                        if (abortSignal && abortSignal.aborted) break;
+                    }
                     activeDownloads--;
                 }
             };
@@ -223,11 +252,18 @@
                 consumerPool.push(processAttachmentQueue());
             }
 
-            const isRealTitle = typeof globalThis.isRealTitle === 'function' ? globalThis.isRealTitle : (t => Boolean(t && t !== 'Untitled' && t !== '未命名'));
+            const isRealTitle = (() => {
+                try {
+                    if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle;
+                    if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle;
+                    if (typeof globalThis !== 'undefined' && typeof globalThis.isRealTitle === 'function') return globalThis.isRealTitle;
+                } catch {}
+                return (t, id) => Boolean(t && typeof t === 'string' && t.trim().length >= 2 && t !== 'Untitled' && t !== '未命名');
+            })();
 
             const CHUNK_SIZE = 1;
             for (let i = 0; i < payloadIds.length; i += CHUNK_SIZE) {
-                if (this.aborted) {
+                if (this.aborted || (abortSignal && abortSignal.aborted)) {
                     onLog('已终止导出', 'warn');
                     break;
                 }
@@ -267,7 +303,7 @@
 
                 for (let cIdx = 0; cIdx < chunkResults.length; cIdx++) {
                     let chat = chunkResults[cIdx];
-                    if (this.aborted) break;
+                    if (this.aborted || (abortSignal && abortSignal.aborted)) break;
                     const requestedItem = chunk[cIdx] || chunk[0] || {};
                     const nid = normId(requestedItem.id || chat?.id);
                     if (!chat) chat = { id: nid, title: requestedItem.title };
@@ -553,7 +589,11 @@
             }
 
             isFetchingDone = true;
-            await Promise.all(consumerPool);
+            try {
+                await Promise.all(consumerPool);
+            } catch (e) {
+                if (this.aborted) onLog('附件下载因终止而中断', 'warn');
+            }
 
             if (includeIndex && metaResults.length > 0) {
                 let indexContent = `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`;
