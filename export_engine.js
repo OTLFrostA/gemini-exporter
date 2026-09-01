@@ -553,6 +553,55 @@
                 }
             }
 
+            // 🛠️ 开发者模式或有错误发生时，自动将全部会话日志与错误详情写入导出目录
+            let isDevMode = false;
+            try {
+                const devData = await chrome.storage.local.get(['gemini_dev_mode']);
+                isDevMode = !!devData?.gemini_dev_mode;
+            } catch {}
+
+            if (isDevMode || failedChats.length > 0 || failedAttachments.length > 0) {
+                let fullLogText = `=======================================================\n`;
+                fullLogText += ` Gemini Exporter Session Log (Dev Mode)\n`;
+                fullLogText += ` Time: ${new Date().toISOString()}\n`;
+                fullLogText += ` Summary: Landed ${landedChats}/${payloadIds.length} chats, Assets ${downloadedAssets}/${totalAssets}, Skipped ${skipped}\n`;
+                fullLogText += ` Failed Chats: ${failedChats.length}, Failed Assets: ${failedAttachments.length}\n`;
+                fullLogText += `=======================================================\n\n`;
+
+                if (failedChats.length > 0) {
+                    fullLogText += `[FAILED CONVERSATIONS]\n`;
+                    for (const fc of failedChats) {
+                        fullLogText += `  - ${fc}\n`;
+                    }
+                    fullLogText += `\n`;
+                }
+
+                if (failedAttachments.length > 0) {
+                    fullLogText += `[FAILED ASSETS / ATTACHMENTS]\n`;
+                    for (const fa of failedAttachments) {
+                        fullLogText += `  - Chat: "${fa.chat}" | File: "${fa.file}" | Reason: ${fa.reason}\n`;
+                    }
+                    fullLogText += `\n`;
+                }
+
+                try {
+                    if (useZip) {
+                        folder.file('_export_dev.log', fullLogText);
+                        if (failedAttachments.length || failedChats.length) {
+                            folder.file('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
+                        }
+                    } else {
+                        await writeFileDirect('_export_dev.log', fullLogText);
+                        if (failedAttachments.length || failedChats.length) {
+                            await writeFileDirect('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
+                        }
+                    }
+                    onLog('🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
+                } catch (logWriteErr) {
+                    console.error('Failed to write _export_dev.log', logWriteErr);
+                }
+            }
+
             if (useZip) {
                 const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
                 onLog('正在打包 ZIP 压缩包…', 'info');
