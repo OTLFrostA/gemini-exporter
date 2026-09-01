@@ -58,7 +58,12 @@ function sendToGeminiTab(msg, slot) {
         return new Promise((resolve, reject) => {
             chrome.tabs.sendMessage(tab.id, msg, (res) => {
                 if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
+                    const raw = chrome.runtime.lastError.message || '';
+                    if (raw.includes('Receiving end does not exist')) {
+                        reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）- ' + raw));
+                    } else {
+                        reject(new Error(raw));
+                    }
                 } else {
                     resolve(res);
                 }
