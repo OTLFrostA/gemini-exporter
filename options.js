@@ -89,8 +89,9 @@
     }
 
     // Store & List Loader
-    async function loadStore(forceQuiet = false) {
+    async function loadStore(force = false) {
         try {
+            window.__workbenchLoadStore = loadStore;
             if (!Store) return;
             const slot = Store.getCurrentSlot() || 'u0';
             const { conversations: incoming, exportedIds, accountSlots } = await Store.loadStore(slot);
@@ -112,7 +113,7 @@
             const currentList = Store.getConversations();
             const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === currentList.length && currentList.length > 0);
 
-            if (sameSig && Date.now() - __lastRenderTime < 500) {
+            if (!force && sameSig && Date.now() - __lastRenderTime < 500) {
                 const lastSyncElFast = $('lastSync');
                 if (lastSyncElFast && lastSyncVal) {
                     const syncFmtFast = typeof I18n !== 'undefined'
@@ -911,6 +912,7 @@
 
         // 19. Initial Data & Directory Restore
         await restoreSavedDirHandle();
+        try { window.__workbenchLoadStore = loadStore; } catch {}
         await loadStore();
     }
 

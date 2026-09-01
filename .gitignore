@@ -19,3 +19,8 @@ scratch/
 *.zip
 *.crx
 *.pem
+
+# Node & Test artifacts
+node_modules/
+test-results/
+playwright-report/

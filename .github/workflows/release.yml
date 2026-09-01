@@ -123,6 +123,7 @@ jobs:
             icons \
             lib \
             public \
+            src \
             *.js \
             *.css \
             *.html \
