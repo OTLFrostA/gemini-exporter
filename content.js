@@ -234,9 +234,11 @@
             if (forceOpts?.forceFull) useIncremental = false;
             if (forceOpts?.forceIncremental) useIncremental = true;
 
+            const effectiveMaxPages = forceOpts?.maxPages || (useIncremental ? 2 : 2000);
+
             window.__gemExporterAborted = false;
             let saveQueue = Promise.resolve();
-            let all = await client.getAllConversations(forceOpts?.maxPages || 2000, (prog) => {
+            let all = await client.getAllConversations(effectiveMaxPages, (prog) => {
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) {
                     if (prog.stoppedEarly) badge.textContent = `已同步 ${prog.total} 条 ✓`;
@@ -409,7 +411,7 @@
         setTimeout(async () => {
             try {
                 if (!window.__gemExporterDeepScanPromise) {
-                    await tryBatchExecuteFull({ forceIncremental: true });
+                    await tryBatchExecuteFull({ forceIncremental: true, maxPages: 1 });
                 }
             } catch {}
         }, 1500);
