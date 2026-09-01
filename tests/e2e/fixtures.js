@@ -8,18 +8,13 @@ const isHeaded = process.argv.includes('--headed');
 const test = base.extend({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
-      headless: false,
+      headless: false, // Don't use legacy headless
       args: [
+        ...(isHeaded ? [] : ['--headless=new']), // Use Chrome's new headless architecture for full extension support with zero UI popups
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
         '--no-sandbox',
-        '--disable-setuid-sandbox',
-        ...(isHeaded ? [] : [
-          '--window-position=-3000,-3000',
-          '--window-size=1280,800',
-          '--no-first-run',
-          '--no-default-browser-check'
-        ])
+        '--disable-setuid-sandbox'
       ],
     });
     await use(context);
@@ -28,7 +23,7 @@ const test = base.extend({
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();
     if (!background) {
-      background = await context.waitForEvent('serviceworker');
+      background = await context.waitForEvent('serviceworker', { timeout: 10000 });
     }
     const extensionId = background.url().split('/')[2];
     await use(extensionId);
