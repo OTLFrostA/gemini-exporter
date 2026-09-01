@@ -1,24 +1,15 @@
 name: Build & Release Extension
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - main
   push:
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
-      bump_type:
-        description: 'Version bump type (patch, minor, major)'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+      tag:
+        description: 'Release tag to build (e.g. v1.4.0, leave empty to use manifest.json version)'
+        required: false
+        default: ''
       publish_to_store:
         description: 'Submit to Chrome Web Store for review (false = draft only)'
         required: true
@@ -27,7 +18,6 @@ on:
 
 jobs:
   build-and-release:
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -36,77 +26,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && 'main' || github.ref }}
           fetch-depth: 0
 
-      - name: Determine version and bump
+      - name: Determine version from tag
         id: version_step
         run: |
-          CURRENT_VER=$(jq -r '.version' manifest.json)
-          echo "Current version in manifest.json: ${CURRENT_VER}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VER"
-
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          LATEST_TAG_VER="${LATEST_TAG#v}"
-          echo "Latest git tag: ${LATEST_TAG} (ver: ${LATEST_TAG_VER})"
-
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF_NAME}"
             VERSION="${TAG#v}"
-            echo "Triggered by tag push: ${TAG}"
-          elif [ "${{ github.event_name }}" != "workflow_dispatch" ] && [ "$CURRENT_VER" != "$LATEST_TAG_VER" ] && [ -n "$CURRENT_VER" ]; then
-            echo "Version in manifest.json (${CURRENT_VER}) is already updated compared to latest tag (${LATEST_TAG_VER}). Using manifest.json version directly."
-            NEW_VER="${CURRENT_VER}"
-            TAG="v${NEW_VER}"
-            VERSION="${NEW_VER}"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "${TAG}" -m "Release ${TAG}"
-            git push origin main --follow-tags
+            echo "Triggered by git tag push: ${TAG}"
+          elif [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+            VERSION="${TAG#v}"
+            echo "Triggered by manual workflow_dispatch with tag: ${TAG}"
           else
-            BUMP_TYPE="patch"
-
-            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              BUMP_TYPE="${{ github.event.inputs.bump_type }}"
-              echo "Manual trigger with bump type: ${BUMP_TYPE}"
-            else
-              PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
-              PR_TITLE="${{ github.event.pull_request.title }}"
-              echo "PR Labels: ${PR_LABELS}"
-              echo "PR Title: ${PR_TITLE}"
-
-              if echo "$PR_LABELS" | grep -qi "major" || echo "$PR_TITLE" | grep -qiE "(^|[\s\[(])major([\])\s:]|breaking)"; then
-                BUMP_TYPE="major"
-              elif echo "$PR_LABELS" | grep -qi "minor" || echo "$PR_TITLE" | grep -qiE "(^|[\s\[(])minor([\])\s:]|feat(\(.*\))?:)"; then
-                BUMP_TYPE="minor"
-              else
-                BUMP_TYPE="patch"
-              fi
-            fi
-
-            echo "Determined bump type: ${BUMP_TYPE}"
-
-            if [ "$BUMP_TYPE" = "major" ]; then
-              NEW_VER="$((MAJOR + 1)).0.0"
-            elif [ "$BUMP_TYPE" = "minor" ]; then
-              NEW_VER="${MAJOR}.$((MINOR + 1)).0"
-            else
-              NEW_VER="${MAJOR}.${MINOR}.$((PATCH + 1))"
-            fi
-
-            TAG="v${NEW_VER}"
-            VERSION="${NEW_VER}"
-            echo "Calculated new version: ${NEW_VER} (${TAG})"
-
-            jq --arg v "$NEW_VER" '.version = $v' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
-
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            if ! git diff --quiet manifest.json; then
-              git commit -am "chore(release): bump version to ${TAG} [skip ci]"
-            fi
-            git tag -a "${TAG}" -m "Release ${TAG}"
-            git push origin main --follow-tags
+            MANIFEST_VER=$(jq -r '.version' manifest.json)
+            TAG="v${MANIFEST_VER}"
+            VERSION="${MANIFEST_VER}"
+            echo "Triggered manually, using manifest.json version: ${TAG}"
           fi
 
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
@@ -169,4 +106,4 @@ jobs:
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          publish: true
+          publish: ${{ github.event.inputs.publish_to_store || true }}
