@@ -331,7 +331,7 @@
             console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
             let params = new URLSearchParams({
                 rpcids: `${RPCS.DETAIL},${RPCS.LIST}`,
-                "source-path": `/app/${id.replace(/^c_/, '')}`,
+                "source-path": "/app",
                 bl: cred.bl || BL_FALLBACK,
                 "f.sid": cred.sid || generateFallbackSid(),
                 _reqid: Math.floor(1e5 * Math.random()).toString(),

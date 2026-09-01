@@ -718,6 +718,20 @@
                 }
             }
             if (!turns) turns = [];
+            // Detect "metadata-only" response: inner = [null, null, [[conv_id_str, title, ...]]]
+            // This is a known pattern where hNvQHb returns list-style metadata instead of turns.
+            // It typically happens when source-path is set to the conversation-specific URL,
+            // causing the server to return a lightweight metadata-only payload.
+            const isMetadataOnly = !turns.length
+                && inner[0] === null && inner[1] === null
+                && Array.isArray(inner[2]) && inner[2].length > 0
+                && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
+            if (isMetadataOnly) {
+                console.warn('[Parser] hNvQHb returned metadata-only payload (no turns). ' +
+                    'inner[2][0] looks like a list-format row, not a turns array. ' +
+                    'conv:', inner[2][0]?.[0], 'title:', inner[2][0]?.[1],
+                    'rc_count:', inner[2][0]?.filter(x => typeof x === 'string' && x.startsWith('rc_')).length);
+            }
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
             let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
