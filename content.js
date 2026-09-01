@@ -88,28 +88,28 @@
 
     function extractActiveChatTitle(activeId) {
         if (!activeId) return null;
-        // 1. From document.title (e.g. "量子计算的基本原理 - Google Gemini")
-        if (document.title) {
-            let t = cleanTitle(document.title);
-            if (isRealTitle(t, activeId)) return t;
-        }
-        // 2. From DOM conversation title / header elements
+        // 1. From DOM conversation title / header elements (Tier: 'dom')
         const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
         for (const el of titleEls) {
             let t = cleanTitle(el.textContent || '');
-            if (isRealTitle(t, activeId)) return t;
+            if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
         }
-        // 3. From active sidebar element
+        // 2. From active sidebar element (Tier: 'dom')
         const activeLink = document.querySelector(`a[href*="${activeId}"]`);
         if (activeLink) {
             let t = cleanTitle(activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '');
-            if (isRealTitle(t, activeId)) return t;
+            if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
         }
-        // 4. From first user query on the page
+        // 3. From first user query on the page (Tier: 'sniff')
         const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
         if (firstUserQuery) {
             let t = cleanTitle((firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' '));
-            if (isRealTitle(t, activeId)) return t;
+            if (isRealTitle(t, activeId)) return { title: t, source: 'sniff' };
+        }
+        // 4. From document.title only if it is a real title (Tier: 'sniff')
+        if (document.title) {
+            let t = cleanTitle(document.title);
+            if (isRealTitle(t, activeId)) return { title: t, source: 'sniff' };
         }
         return null;
     }
@@ -121,11 +121,15 @@
             const m = location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
             if (m) {
                 const activeId = m[2].replace(/^c_/, '');
-                const activeTitle = extractActiveChatTitle(activeId);
-                if (activeTitle) {
+                const activeTitleObj = extractActiveChatTitle(activeId);
+                if (activeTitleObj && activeTitleObj.title) {
+                    const titlesMap = {};
+                    titlesMap[activeTitleObj.source] = activeTitleObj.title;
                     items.push({
                         id: activeId,
-                        title: activeTitle,
+                        title: activeTitleObj.title,
+                        titleSource: activeTitleObj.source,
+                        titles: titlesMap,
                         url: `https://gemini.google.com/app/${activeId}`,
                         href: `https://gemini.google.com/app/${activeId}`
                     });
@@ -138,15 +142,10 @@
                 items.push(...links);
             }
 
-            if (!items.length) {
-                if (typeof Scraper?.tryExpandRecents === 'function') Scraper.tryExpandRecents();
-                return 0;
-            }
-
-            const dedup = items.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
-            let mergedLen = await upsertConversations(dedup, 'dom-sync');
-            return mergedLen;
+            if (!items.length) return 0;
+            return await upsertConversations(items, 'page-sync');
         } catch (e) {
+            console.debug('[Gemini Exporter] syncOnce err', e);
             return 0;
         }
     }
@@ -201,6 +200,12 @@
                 return true;
             }));
 
+    const resolveTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
+        ? GeminiUtils.resolveTitle
+        : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.resolveTitle)
+            ? globalThis.GeminiUtils.resolveTitle
+            : (chat) => ({ title: chat?.title || '未命名对话', source: 'default' }));
+
     let __storageWriteQueue = Promise.resolve();
 
     function upsertConversations(incomingItems, source) {
@@ -225,12 +230,32 @@
                     c.id = nid;
                     const old = map.get(nid);
 
-                    let resolvedTitle = old?.title;
-                    if (isRealTitle(c.title, nid)) {
-                        resolvedTitle = c.title.trim().slice(0, 120);
-                    } else if (!isRealTitle(old?.title, nid)) {
-                        resolvedTitle = c.title || old?.title || '未命名对话';
+                    const mergedTitles = { ...(old?.titles || {}) };
+                    if (c.titles && typeof c.titles === 'object') {
+                        Object.assign(mergedTitles, c.titles);
                     }
+                    if (c.titleSource && c.title) {
+                        const cleanT = cleanTitle(c.title);
+                        if (cleanT && (isRealTitle(cleanT, nid) || c.titleSource === 'takeout')) {
+                            mergedTitles[c.titleSource] = cleanT;
+                        }
+                    } else if (c.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
+                        const cleanT = cleanTitle(c.title);
+                        if (cleanT && isRealTitle(cleanT, nid)) {
+                            mergedTitles.legacy = cleanT;
+                        }
+                    }
+
+                    const tempChat = {
+                        id: nid,
+                        titles: mergedTitles,
+                        title: c.title || old?.title,
+                        titleSource: c.titleSource || old?.titleSource
+                    };
+
+                    const resolved = resolveTitle(tempChat);
+                    const resolvedTitle = resolved.title;
+                    const resolvedSource = resolved.source;
 
                     if (!old) {
                         changed++;
@@ -241,7 +266,9 @@
                         ...(old || {}),
                         ...c,
                         id: nid,
+                        titles: mergedTitles,
                         title: resolvedTitle,
+                        titleSource: resolvedSource,
                         timestamp: (old && old.timestamp) ? old.timestamp : (c.timestamp || null),
                         lastSeen: (old && old.lastSeen) || (c.lastSeen || new Date(now - idx).toISOString()),
                         source: source || (old && old.source) || 'unknown',
@@ -415,6 +442,8 @@
                                 await upsertConversations([{
                                     id: nid,
                                     title: title,
+                                    titleSource: 'rpc',
+                                    titles: { rpc: title },
                                     url: `https://gemini.google.com/app/${nid}`,
                                     href: `https://gemini.google.com/app/${nid}`,
                                     timestamp: detailRes.timestamp || Date.now()
@@ -513,9 +542,15 @@
                         if (Storage) {
                             const list = await Storage.getConversations(slot);
                             const item = list.find(c => normId(c.id) === nid);
-                            if (item && item.title !== chatObj.title) {
-                                item.title = chatObj.title;
-                                await Storage.setConversations(slot, list);
+                            if (item) {
+                                item.titles = item.titles || {};
+                                item.titles.rpc = chatObj.title;
+                                const resolved = resolveTitle(item);
+                                if (item.title !== resolved.title || item.titleSource !== resolved.source) {
+                                    item.title = resolved.title;
+                                    item.titleSource = resolved.source;
+                                    await Storage.setConversations(slot, list);
+                                }
                             }
                         }
                     } catch (err) {
