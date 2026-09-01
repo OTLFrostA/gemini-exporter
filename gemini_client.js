@@ -328,20 +328,22 @@
             let api = getApiUrl(cred.accountSlot || "default");
             console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
             let params = new URLSearchParams({
-                rpcids: RPCS.DETAIL,
-                "source-path": "/app",
+                rpcids: `${RPCS.DETAIL},${RPCS.LIST}`,
+                "source-path": `/app/${id.replace(/^c_/, '')}`,
                 bl: cred.bl || BL_FALLBACK,
                 "f.sid": cred.sid || generateFallbackSid(),
                 _reqid: Math.floor(1e5 * Math.random()).toString(),
                 rt: "c"
             });
             let body = new URLSearchParams();
-            let inner = JSON.stringify([id, 10, pageToken || null, 1, [1],
+            let innerDetail = JSON.stringify([id, 10, pageToken || null, 1, [1],
                 [4], null, 1
             ]);
+            let innerMeta = JSON.stringify([1, null, [null, null, 1, null, 1, id]]);
             let fReq = JSON.stringify([
                 [
-                    [RPCS.DETAIL, inner, null, "generic"]
+                    [RPCS.DETAIL, innerDetail, null, "generic"],
+                    [RPCS.LIST, innerMeta, null, "generic"]
                 ]
             ]);
             body.append("f.req", fReq);

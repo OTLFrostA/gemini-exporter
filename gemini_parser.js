@@ -563,6 +563,34 @@
         return citations;
     }
 
+    function extractMetaTitleFromTop(top, targetConvId) {
+        if (!Array.isArray(top)) return null;
+        const normId = id => String(id || '').replace(/^c_/, '').trim();
+        const targetNid = normId(targetConvId);
+        for (let item of top) {
+            if (Array.isArray(item) && item[0] === "wrb.fr" && (item[1] === "MaZiqc" || item[1] === "b7Lged") && typeof item[2] === "string") {
+                try {
+                    let metaInner = JSON.parse(item[2]);
+                    let list = Array.isArray(metaInner[1]) ? metaInner[1] : (Array.isArray(metaInner[2]) ? metaInner[2] : []);
+                    for (let entry of list) {
+                        if (Array.isArray(entry)) {
+                            let id = entry[0];
+                            let rawTitle = entry[1];
+                            let nid = normId(id);
+                            if (!targetNid || !nid || nid === targetNid) {
+                                let cleanT = cleanTitle(rawTitle);
+                                if (isRealTitle(cleanT, nid || targetNid)) {
+                                    return cleanT;
+                                }
+                            }
+                        }
+                    }
+                } catch {}
+            }
+        }
+        return null;
+    }
+
     function parseDetail(text, targetConvId) {
         try {
             let top = robustFirstPayload(text);
@@ -628,24 +656,51 @@
                         documents: uFiles.length ? uFiles.map(f => ({
                             id: f.id,
                             title: f.fileName,
-                            fileName: f.fileName,
-                            sourceUrl: f.sourceUrl,
+                            createdAt: ts,
+                            chipUrl: "",
+                            sections: [],
+                            links: [],
+                            contentMarkdown: void 0,
                             url: f.sourceUrl,
-                            localName: `files/${shortScope}${f.fileName.replace(/[\\/:*?"<>|]/g, '_')}`,
+                            localName: `files/${shortScope}${(f.fileName || 'doc.md').replace(/[\\/:*?"<>|]/g, '_')}`,
                             type: "file"
                         })) : void 0
                     });
                 }
-                let assistantBlock = turn?.[3]?.[0];
-                if (Array.isArray(assistantBlock) && assistantBlock.length > 0) {
-                    let candidateBlock = assistantBlock[0];
-                    if (Array.isArray(candidateBlock) && candidateBlock.length > 1) {
-                        let candidateId = candidateBlock[0] || "",
-                            responseText = candidateBlock[1]?.[0] || "",
-                            selectionIndex = extractImageSelectionIndex(responseText),
-                            allImages = extractImages(candidateBlock),
-                            chosenImages = typeof selectionIndex === "number" && allImages[selectionIndex] ? [allImages[selectionIndex]] : allImages,
-                            filteredImages = filterNewImages(chosenImages, dedupSet);
+                let candList = turn?.[3] || [];
+                if (Array.isArray(candList)) {
+                    for (let cand of candList) {
+                        let candidateId = cand?.[0] || "";
+                        let candidateBlock = cand?.[1] || cand;
+                        let responseText = "";
+                        let candParts = cand?.[1]?.[0] || cand?.[1] || cand?.[0];
+                        if (Array.isArray(candParts)) {
+                            for (let part of candParts) {
+                                if (typeof part === "string") responseText += part;
+                                else if (Array.isArray(part) && typeof part[0] === "string") responseText += part[0];
+                            }
+                        } else if (typeof candParts === "string") {
+                            responseText = candParts;
+                        }
+                        if (!responseText) {
+                            let textArr = [];
+                            let textWalk = function(node) {
+                                if (!node || typeof node !== "object") return;
+                                if (Array.isArray(node)) {
+                                    if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0 && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
+                                        if (!textArr.includes(node[0])) textArr.push(node[0]);
+                                    }
+                                    for (let item of node) textWalk(item);
+                                } else {
+                                    for (let k in node)
+                                        if (Object.prototype.hasOwnProperty.call(node, k)) textWalk(node[k]);
+                                }
+                            };
+                            textWalk(cand);
+                            responseText = textArr.join("\n\n");
+                        }
+                        let candImages = extractImages(candidateBlock);
+                        let filteredImages = filterNewImages(candImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
                         if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);
                         let seenChip = new Set();
@@ -732,6 +787,8 @@
                 }
             }
             if (!convId) convId = extractConversationId(inner, turns);
+            if (convId === "c_unknown" && targetConvId) convId = targetConvId;
+            let metaTitle = extractMetaTitleFromTop(top, convId || targetConvId);
             let titleObj = extractConversationTitle(inner, turns);
             let nextToken = null;
             if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
@@ -776,10 +833,10 @@
                     messageCount: 1
                 };
             });
-            let cleanT = cleanTitle(titleObj.title || convId);
+            let cleanT = metaTitle || cleanTitle(titleObj.title || convId);
             let isReal = isRealTitle(cleanT, convId);
-            let finalSource = isReal ? titleObj.source : 'default';
-            if (!isReal) {
+            let finalSource = metaTitle ? 'rpc' : (isReal ? titleObj.source : 'default');
+            if (!isReal && !metaTitle) {
                 let firstUser = allMsgs.find(m => m.role === 'user' && m.content && m.content.trim());
                 if (firstUser) {
                     let candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
@@ -792,6 +849,9 @@
             const titlesMap = {};
             if (finalSource !== 'default' && cleanT) {
                 titlesMap[finalSource] = cleanT;
+            }
+            if (metaTitle) {
+                titlesMap.rpc = metaTitle;
             }
             return {
                 id: convId,
