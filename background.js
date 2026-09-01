@@ -98,6 +98,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 
+    if (msg.action === 'stopDeepScan') {
+        __bgAborted = true;
+        sendToGeminiTab({ action: 'stopDeepScan' }, msg.accountSlot)
+            .then(r => sendResponse(r || { ok: true, aborted: true }))
+            .catch(() => sendResponse({ ok: true, aborted: true }));
+        return true;
+    }
+
+    if (msg.action === 'scanProgress') {
+        chrome.runtime.sendMessage(msg).catch(() => {});
+        return;
+    }
+
     if (msg.action === 'syncUpdate') {
         chrome.runtime.sendMessage({
             action: 'syncUpdate',

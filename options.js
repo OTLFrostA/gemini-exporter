@@ -816,29 +816,95 @@ async function initWorkbench() {
 
     // 11. Sync Actions
     $('btnIncrementalScan')?.addEventListener('click', () => {
+        const progWrap = $('progWrap');
+        const bar = $('bar');
+        const progText = $('progText');
+        const btnStop = $('btnStopScan');
+        if (progWrap) progWrap.style.display = 'block';
+        if (bar) bar.style.width = '5%';
+        if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncingLatest') : '正在同步最新会话...';
+        if (btnStop) btnStop.style.display = 'inline-flex';
+        if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = true;
+        if ($('btnDeepScan')) $('btnDeepScan').disabled = true;
+
         chrome.runtime.sendMessage({ action: 'deepScan', mode: 'incremental', accountSlot: currentSlot }, (res) => {
+            if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = false;
+            if ($('btnDeepScan')) $('btnDeepScan').disabled = false;
+            if (btnStop) btnStop.style.display = 'none';
+
+            if (chrome.runtime.lastError) {
+                const err = chrome.runtime.lastError.message;
+                log(`增量同步失败: ${err}`, 'error');
+                if (progText) progText.textContent = `失败: ${err}`;
+                return;
+            }
             if (res && res.success) {
-                log(`增量同步完成，新增 ${res.added || 0} 条`);
+                const count = res.count || res.total || 0;
+                log(`增量同步完成，共 ${count} 条`);
+                if (bar) bar.style.width = '100%';
+                if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `增量同步完成，共 ${count} 条`;
+                setTimeout(() => {
+                    if (progWrap) progWrap.style.display = 'none';
+                    if (bar) bar.style.width = '0%';
+                    if (progText) progText.textContent = '';
+                }, 2500);
                 loadStore();
             } else {
-                log(`同步失败: ${res ? res.error : '未知错误'}`, 'error');
+                const err = res ? res.error : '未知错误';
+                log(`同步失败: ${err}`, 'error');
+                if (progText) progText.textContent = `同步失败: ${err}`;
             }
         });
     });
 
     $('btnDeepScan')?.addEventListener('click', () => {
+        const progWrap = $('progWrap');
+        const bar = $('bar');
+        const progText = $('progText');
+        const btnStop = $('btnStopScan');
+        if (progWrap) progWrap.style.display = 'block';
+        if (bar) bar.style.width = '5%';
+        if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
+        if (btnStop) btnStop.style.display = 'inline-flex';
+        if ($('btnDeepScan')) $('btnDeepScan').disabled = true;
+        if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = true;
+
         chrome.runtime.sendMessage({ action: 'deepScan', mode: 'full', accountSlot: currentSlot }, (res) => {
+            if ($('btnDeepScan')) $('btnDeepScan').disabled = false;
+            if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = false;
+            if (btnStop) btnStop.style.display = 'none';
+
+            if (chrome.runtime.lastError) {
+                const err = chrome.runtime.lastError.message;
+                log(`全量扫描失败: ${err}`, 'error');
+                if (progText) progText.textContent = `失败: ${err}`;
+                return;
+            }
             if (res && res.success) {
-                log(`全量拉取完成，共 ${res.total || 0} 条`);
+                const count = res.count || res.total || 0;
+                log(`全量拉取完成，共 ${count} 条`);
+                if (bar) bar.style.width = '100%';
+                if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `全量拉取完成，共 ${count} 条`;
+                setTimeout(() => {
+                    if (progWrap) progWrap.style.display = 'none';
+                    if (bar) bar.style.width = '0%';
+                    if (progText) progText.textContent = '';
+                }, 2500);
                 loadStore();
             } else {
-                log(`全量拉取失败: ${res ? res.error : '未知错误'}`, 'error');
+                const err = res ? res.error : '未知错误';
+                log(`全量拉取失败: ${err}`, 'error');
+                if (progText) progText.textContent = `全量拉取失败: ${err}`;
             }
         });
     });
 
     $('btnStopScan')?.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: currentSlot });
+        chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: currentSlot }, () => {
+            log('已发送终止同步指令');
+            const progText = $('progText');
+            if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...';
+        });
     });
 
     // 12. Backup & Restore
@@ -881,7 +947,24 @@ async function initWorkbench() {
 
     $('btnExportDiag')?.addEventListener('click', exportDiagnostics);
 
-    // 15. Initial Data Load
+    // 15. Broadcast Listener for Progress & Live Updates
+    chrome.runtime.onMessage.addListener((msg) => {
+        if (msg.action === 'scanProgress') {
+            const progWrap = $('progWrap');
+            const bar = $('bar');
+            const progText = $('progText');
+            if (progWrap) progWrap.style.display = 'block';
+            let pct = typeof msg.percent === 'number' ? msg.percent : 50;
+            if (bar) bar.style.width = Math.min(Math.max(pct, 5), 100) + '%';
+            if (progText && msg.title) progText.textContent = msg.title;
+            if (msg.title) log(msg.title);
+        }
+        if (msg.action === 'syncUpdate') {
+            loadStore(true);
+        }
+    });
+
+    // 16. Initial Data Load
     await loadStore();
 }
 
