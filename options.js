@@ -588,60 +588,6 @@
         }
     }
 
-    // Backup & Restore
-    async function exportFullBackup() {
-        try {
-            const allData = await chrome.storage.local.get(null);
-            const jsonStr = JSON.stringify({
-                exportedAt: new Date().toISOString(),
-                version: chrome.runtime.getManifest()?.version || '1.3.1',
-                data: allData
-            }, null, 2);
-            const blob = new Blob([jsonStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `gemini_exporter_backup_${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 10000);
-            log(typeof I18n !== 'undefined' ? I18n.t('backupSuccess') : '备份文件已生成并开始下载', 'info');
-        } catch (e) {
-            log(typeof I18n !== 'undefined' ? I18n.t('backupFailed', e.message) : `备份失败: ${e.message}`, 'error');
-        }
-    }
-
-    async function restoreFullBackup(file) {
-        try {
-            const text = await file.text();
-            const payload = JSON.parse(text);
-            const targetData = payload.data || payload;
-
-            if (!targetData || (!targetData.gemini_conversations && !targetData.gemini_conversations_u0 && !targetData.exportedIds)) {
-                log(typeof I18n !== 'undefined' ? I18n.t('restoreInvalidFormat') : '无效的备份文件格式！', 'error');
-                if ($('progText')) $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('restoreInvalidFormat') : '无效的备份文件格式！';
-                return;
-            }
-
-            const confirmMsg = typeof I18n !== 'undefined'
-                ? I18n.t('restoreConfirm')
-                : 'Restoring backup will replace current conversations and export markers. Continue?';
-            if (!confirm(confirmMsg)) return;
-
-            const activeCreds = await chrome.storage.local.get(['gemini_credentials_map', 'gemini_credentials', 'gemini_exporter_lang']);
-            await chrome.storage.local.clear();
-            await chrome.storage.local.set({
-                ...activeCreds,
-                ...targetData
-            });
-
-            const restoredCount = (targetData.gemini_conversations || targetData.gemini_conversations_u0 || []).length;
-            log(typeof I18n !== 'undefined' ? I18n.t('restoreSuccess', restoredCount) : `恢复成功！共导入 ${restoredCount} 条会话。`, 'info');
-            location.reload();
-        } catch (err) {
-            log(typeof I18n !== 'undefined' ? I18n.t('restoreFailed', err.message) : `恢复失败: ${err.message}`, 'error');
-        }
-    }
-
     function exportListJson() {
         const convs = Store ? Store.getConversations() : [];
         const sel = List ? List.getSelected(convs) : [];
@@ -901,8 +847,6 @@
             if ($('btnStopScan')) $('btnStopScan').style.display = running ? 'inline-flex' : 'none';
             if ($('btnExport')) $('btnExport').disabled = !!running;
             if ($('btnImportTakeout')) $('btnImportTakeout').disabled = !!running;
-            if ($('btnBackupData')) $('btnBackupData').disabled = !!running;
-            if ($('btnRestoreData')) $('btnRestoreData').disabled = !!running;
             if ($('btnSetDir')) $('btnSetDir').disabled = !!running;
             if ($('btnClearExported')) $('btnClearExported').disabled = !!running;
             if ($('btnClearAll')) $('btnClearAll').disabled = !!running;
@@ -996,15 +940,7 @@
             });
         });
 
-        // 15. Backup & Restore
-        $('btnBackupData')?.addEventListener('click', exportFullBackup);
-        $('btnRestoreData')?.addEventListener('click', () => $('restoreFileInput')?.click());
-        $('restoreFileInput')?.addEventListener('change', (e) => {
-            const f = e.target.files && e.target.files[0];
-            if (f) restoreFullBackup(f);
-        });
-
-        // 16. Clear Cache
+        // 15. Clear Cache
         $('btnClearExported')?.addEventListener('click', async () => {
             const slot = Store ? Store.getCurrentSlot() : 'u0';
             if (Store) await Store.clearExported(slot);
