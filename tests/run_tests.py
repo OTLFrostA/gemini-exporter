@@ -100,7 +100,7 @@ def test_javascript_syntax():
                 js_files.append(os.path.join(root, file))
 
     jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
-    node_bin = shutil.which("node")
+    node_bin = shutil.which("node") or (os.path.expanduser("~/.local/node/bin/node") if os.path.exists(os.path.expanduser("~/.local/node/bin/node")) else None)
 
     for js_path in sorted(js_files):
         rel_path = os.path.relpath(js_path, BASE_DIR)
@@ -119,15 +119,18 @@ def test_javascript_unit_tests():
     import subprocess
     import glob
     import shutil
+    import tempfile
 
     jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
-    node_bin = shutil.which("node")
+    node_bin = shutil.which("node") or (os.path.expanduser("~/.local/node/bin/node") if os.path.exists(os.path.expanduser("~/.local/node/bin/node")) else None)
 
     test_files = sorted(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")))
 
     # Preload files for mock fs in JSC
     file_map = {}
     for root, dirs, files in os.walk(BASE_DIR):
+        if any(x in root for x in ["node_modules", ".git", "playwright"]):
+            continue
         for f in files:
             if f.endswith((".js", ".html", ".json", ".md")):
                 p = os.path.join(root, f)

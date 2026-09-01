@@ -40,6 +40,18 @@
                 return true;
             });
 
+    const cleanTitle = (t) => {
+        try {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
+        } catch {}
+        if (!t || typeof t !== 'string') return '';
+        let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        return s.trim();
+    };
+
     let __workbenchDebounceTimer = null;
     let __lastRenderedSignature = '';
     let __lastRenderTime = 0;
@@ -89,8 +101,9 @@
     }
 
     // Store & List Loader
-    async function loadStore(forceQuiet = false) {
+    async function loadStore(force = false) {
         try {
+            window.__workbenchLoadStore = loadStore;
             if (!Store) return;
             const slot = Store.getCurrentSlot() || 'u0';
             const { conversations: incoming, exportedIds, accountSlots } = await Store.loadStore(slot);
@@ -112,7 +125,7 @@
             const currentList = Store.getConversations();
             const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === currentList.length && currentList.length > 0);
 
-            if (sameSig && Date.now() - __lastRenderTime < 500) {
+            if (!force && sameSig && Date.now() - __lastRenderTime < 500) {
                 const lastSyncElFast = $('lastSync');
                 if (lastSyncElFast && lastSyncVal) {
                     const syncFmtFast = typeof I18n !== 'undefined'
@@ -125,13 +138,18 @@
 
             // Deduplicate and sanitize titles
             const dedupMap = new Map();
+            let hasDirtyTitles = false;
             (incoming || []).forEach(c => {
                 if (!c || !c.id) return;
                 const nid = normId(c.id);
-                const t = (c.title || '').trim();
+                const rawT = (c.title || '').trim();
+                const cleanT = cleanTitle(rawT);
+                if (rawT !== cleanT) hasDirtyTitles = true;
+                const t = cleanT;
                 const u = (c.url || c.href || '').toString();
                 if (/^Google Account/i.test(t) || /accounts\.google\.com|SignOutOptions/i.test(u)) return;
                 c.id = nid;
+                c.title = t;
                 if (!dedupMap.has(nid)) {
                     dedupMap.set(nid, c);
                 } else {
@@ -139,11 +157,16 @@
                     let bestT = c.title;
                     if (isRealTitle(old?.title, nid) && !isRealTitle(c.title, nid)) bestT = old.title;
                     else if (!isRealTitle(old?.title, nid) && isRealTitle(c.title, nid)) bestT = c.title;
-                    dedupMap.set(nid, { ...old, ...c, id: nid, title: bestT });
+                    dedupMap.set(nid, { ...old, ...c, id: nid, title: cleanTitle(bestT) });
                 }
             });
 
             const processed = Array.from(dedupMap.values());
+            if (hasDirtyTitles && Storage) {
+                // Auto-scrub historical dirty titles in storage
+                Storage.setConversations(slot, processed).catch(() => {});
+            }
+
             processed.sort((a, b) => {
                 let tsA = a.timestamp;
                 if (typeof tsA === 'string') tsA = new Date(tsA).getTime();
@@ -911,6 +934,7 @@
 
         // 19. Initial Data & Directory Restore
         await restoreSavedDirHandle();
+        try { window.__workbenchLoadStore = loadStore; } catch {}
         await loadStore();
     }
 

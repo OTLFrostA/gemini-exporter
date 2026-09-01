@@ -17,6 +17,18 @@
             return true;
         });
 
+    const cleanTitle = (t) => {
+        try {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
+        } catch {}
+        if (!t || typeof t !== 'string') return '';
+        let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        return s.trim();
+    };
+
     function render(conversations, exportedIds, prevSelectedSet, searchFilter) {
         const list = $('list');
         if (!list) return;
@@ -25,7 +37,7 @@
             return;
         }
         const q = (searchFilter||'').trim().toLowerCase();
-        const filtered = q ? conversations.filter(c=> (c.title||'').toLowerCase().includes(q) || String(c.id||'').toLowerCase().includes(q)) : conversations;
+        const filtered = q ? conversations.filter(c=> (cleanTitle(c.title)||'').toLowerCase().includes(q) || String(c.id||'').toLowerCase().includes(q)) : conversations;
         if (!filtered.length) {
             list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n!=='undefined'?I18n.t('emptyList'):'No matching conversations found.'}</div>`;
             return;
@@ -53,7 +65,7 @@
                     if(cTs&&rTs&&cTs>rTs+60000) isUpdated=true;
                 }catch{}
             }
-            const safeTitle=(c.title||'').replace(/</g,'&lt;');
+            const safeTitle=(cleanTitle(c.title)||c.id||'').replace(/</g,'&lt;');
             let checked=true;
             if(prevSelectedSet instanceof Set) checked = prevSelectedSet.has(c.id)||prevSelectedSet.has(nid)||prevSelectedSet.has('c_'+nid);
             let badge='';

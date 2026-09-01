@@ -14,11 +14,19 @@
         return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
     }
 
+    function cleanTitle(raw) {
+        if (!raw || typeof raw !== 'string') return '';
+        let t = raw.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        return t.trim();
+    }
+
     function parseDoc(doc, id, url) {
-        let title = doc.title ? doc.title.replace(/ - Gemini.*$/i, '').trim() : '';
+        let title = doc.title ? cleanTitle(doc.title) : '';
         if (!title || title === 'Gemini') {
             let h = doc.querySelector('title');
-            if (h) title = h.textContent.trim().slice(0, 60);
+            if (h) title = cleanTitle(h.textContent.trim().slice(0, 60));
         }
         if (!title) title = id;
         const messages = [];

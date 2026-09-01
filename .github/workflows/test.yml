@@ -16,14 +16,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
-      - name: Run Node Native Tests
-        run: npm test
+      - name: Install dependencies
+        run: npm install
 
-      - name: Run Python Integration Tests
-        run: python3 tests/run_tests.py
+      - name: Install Playwright Chromium & System Dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Unit Tests & Syntax Verification
+        run: npm run test:unit
+
+      - name: Run Playwright E2E Test Suite
+        run: xvfb-run --auto-servernum npm run test:e2e
