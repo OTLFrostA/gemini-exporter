@@ -67,17 +67,51 @@
         list.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change', updateStat.bind(null, conversations)));
     }
 
-    function updateStat(conversations){
-        const checks=[...document.querySelectorAll('#list input[type=checkbox]:checked')];
-        const total=(conversations||[]).length;
-        const selEl=$('selectedStat');
-        if(selEl) selEl.textContent=typeof I18n!=='undefined'?I18n.t('selectedStat',checks.length,total):`Selected: ${checks.length} / ${total}`;
+    function selectAll(conversations) {
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => { cb.checked = true; });
+        updateStat(conversations);
     }
 
-    function getSelected(conversations){
-        const checks=document.querySelectorAll('#list input[type=checkbox]:checked');
-        return Array.from(checks).map(cb=>conversations[parseInt(cb.dataset.idx)]).filter(Boolean);
+    function deselectAll(conversations) {
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => { cb.checked = false; });
+        updateStat(conversations);
     }
 
-    return { render, updateStat, getSelected, isRealTitle };
+    function selectUnexported(conversations, exportedIds) {
+        const convList = conversations || [];
+        const expMap = exportedIds || {};
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+            const idx = parseInt(cb.dataset.idx);
+            const c = convList[idx];
+            if (!c) { cb.checked = false; return; }
+            const nid = String(c.id || '').replace(/^c_/, '');
+            const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+            cb.checked = !rec;
+        });
+        updateStat(conversations);
+    }
+
+    function selectNeedsUpdate(conversations, exportedIds) {
+        const convList = conversations || [];
+        const expMap = exportedIds || {};
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+            const idx = parseInt(cb.dataset.idx);
+            const c = convList[idx];
+            if (!c) { cb.checked = false; return; }
+            const nid = String(c.id || '').replace(/^c_/, '');
+            const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+            let needsUpdate = false;
+            if (rec) {
+                try {
+                    let cTs = typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : c.timestamp;
+                    let rTs = typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : rec.exportedAt;
+                    if (cTs && rTs && cTs > rTs + 60000) needsUpdate = true;
+                } catch {}
+            }
+            cb.checked = needsUpdate;
+        });
+        updateStat(conversations);
+    }
+
+    return { render, updateStat, getSelected, selectAll, deselectAll, selectUnexported, selectNeedsUpdate, isRealTitle };
 }));

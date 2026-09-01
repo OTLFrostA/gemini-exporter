@@ -9,7 +9,7 @@
     let currentSlot = 'u0';
     let accountSlots = {};
 
-    const Storage = (typeof StorageService !== 'undefined') ? StorageService : (typeof window !== 'undefined' && window.StorageService) || null;
+    const getStorage = () => (typeof StorageService !== 'undefined' ? StorageService : (typeof window !== 'undefined' && window.StorageService) || null);
 
     const normId = id => String(id || '').replace(/^c_/, '');
 
@@ -28,9 +28,21 @@
         return exportedIds[id] || exportedIds['c_' + nid] || exportedIds[nid] || null;
     }
 
+    function getSignature(list) {
+        const l = list || conversations;
+        if (!l || !l.length) return 'empty';
+        try {
+            const ids = l.map(c => c.id);
+            if (ids.length <= 6) return ids.join('|') + '|' + ids.length;
+            return ids.slice(0, 3).join(',') + '|' + ids.slice(-3).join(',') + '|len=' + ids.length + '|s=' + ids.reduce((a, b) => a + (String(b).charCodeAt(0) || 0), 0) % 10000;
+        } catch {
+            return 'err-' + (l.length || 0);
+        }
+    }
+
     async function loadStore(slotOverride) {
         const slot = slotOverride || currentSlot || 'u0';
-        const storage = (typeof StorageService !== 'undefined') ? StorageService : (typeof window !== 'undefined' ? window.StorageService : null);
+        const storage = getStorage();
         const slots = storage ? await storage.getAccountSlots() : ((await chrome.storage.local.get(['gemini_account_slots'])).gemini_account_slots || {});
         setAccountSlots(slots);
 
@@ -49,9 +61,19 @@
         return { conversations: incoming, exportedIds: expIds, slot, accountSlots: slots };
     }
 
+    async function getLastSync(slot) {
+        const s = slot || currentSlot || 'u0';
+        const storage = getStorage();
+        if (storage && storage.getLastSync) return await storage.getLastSync(s);
+        const syncKey = s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`;
+        const countKey = s === 'u0' ? 'gemini_last_sync_count' : `gemini_last_sync_count_${s}`;
+        const data = await chrome.storage.local.get([syncKey, countKey]);
+        return { timestamp: data[syncKey] || null, count: data[countKey] || 0 };
+    }
+
     async function saveConversations(slot, list) {
         const s = slot || currentSlot;
-        const storage = (typeof StorageService !== 'undefined') ? StorageService : (typeof window !== 'undefined' ? window.StorageService : null);
+        const storage = getStorage();
         if (storage) await storage.setConversations(s, list);
         else {
             const convKey = s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`;
@@ -62,7 +84,7 @@
 
     async function saveExportedIds(slot, map) {
         const s = slot || currentSlot;
-        const storage = (typeof StorageService !== 'undefined') ? StorageService : (typeof window !== 'undefined' ? window.StorageService : null);
+        const storage = getStorage();
         if (storage) await storage.setExportedIds(s, map);
         else {
             const expKey = s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
@@ -73,13 +95,37 @@
 
     async function clearExported(slot) {
         const s = slot || currentSlot;
-        const storage = (typeof StorageService !== 'undefined') ? StorageService : (typeof window !== 'undefined' ? window.StorageService : null);
+        const storage = getStorage();
         if (storage && storage.setExportedIds) await storage.setExportedIds(s, {});
         else {
             const expKey = s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
             await chrome.storage.local.remove([expKey]);
         }
-        setExportedIds({});
+        if (s === currentSlot) setExportedIds({});
+    }
+
+    async function clearAll(slot) {
+        const s = slot || currentSlot;
+        const storage = getStorage();
+        if (storage && storage.setConversations) await storage.setConversations(s, []);
+        else {
+            const convKey = s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`;
+            await chrome.storage.local.remove([convKey]);
+        }
+        if (s === currentSlot) setConversations([]);
+    }
+
+    async function getDevMode() {
+        const storage = getStorage();
+        if (storage && storage.getDevMode) return await storage.getDevMode();
+        const d = await chrome.storage.local.get(['gemini_dev_mode']);
+        return !!d.gemini_dev_mode;
+    }
+
+    async function setDevMode(devOn) {
+        const storage = getStorage();
+        if (storage && storage.setDevMode) await storage.setDevMode(devOn);
+        else await chrome.storage.local.set({ gemini_dev_mode: !!devOn });
     }
 
     return {
@@ -87,8 +133,9 @@
         getExportedIds, setExportedIds,
         getCurrentSlot, setCurrentSlot,
         getAccountSlots, setAccountSlots,
-        getExportedRecord,
-        loadStore, saveConversations, saveExportedIds, clearExported,
+        getExportedRecord, getSignature,
+        loadStore, getLastSync, saveConversations, saveExportedIds, clearExported, clearAll,
+        getDevMode, setDevMode,
         normId
     };
 }));

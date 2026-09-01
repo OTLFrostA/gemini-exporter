@@ -7,35 +7,42 @@
     let activeEngine = null;
     let exportRunning = false;
 
-    function setRunning(running){
-        exportRunning=!!running;
-        const btnExport=document.getElementById('btnExport');
-        const btnCancel=document.getElementById('btnCancel');
-        if(btnExport) btnExport.disabled=running;
-        if(btnCancel) btnCancel.style.display=running?'':'none';
-        if(!running){
-            const pw=document.getElementById('progWrap');
-            if(pw) pw.style.display='none';
+    function $(id) { return typeof document !== 'undefined' ? document.getElementById(id) : null; }
+
+    function setRunning(running) {
+        exportRunning = !!running;
+        const btnExport = $('btnExport');
+        const btnCancel = $('btnCancel');
+        if (btnExport) btnExport.disabled = !!running;
+        if (btnCancel) btnCancel.style.display = running ? '' : 'none';
+        if (!running) {
+            const pw = $('progWrap');
+            if (pw) pw.style.display = 'none';
         }
     }
 
-    function isRunning(){ return exportRunning; }
-    function getActiveEngine(){ return activeEngine; }
+    function isRunning() { return exportRunning; }
+    function getActiveEngine() { return activeEngine; }
 
-    async function runExport({ selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }, callbacks){
+    async function runExport({ selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }, callbacks) {
         setRunning(true);
-        activeEngine = new ( (typeof ExportEngine!=='undefined' ? ExportEngine.ExportEngine : null) || ExportEngine)();
-        try{
+        const engineClass = (typeof ExportEngine !== 'undefined' && ExportEngine.ExportEngine) ? ExportEngine.ExportEngine : (typeof ExportEngine !== 'undefined' ? ExportEngine : null);
+        if (!engineClass) {
+            setRunning(false);
+            throw new Error('ExportEngine is not loaded');
+        }
+        activeEngine = new engineClass();
+        try {
             const result = await activeEngine.run({ selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }, callbacks);
             return result;
         } finally {
             setRunning(false);
-            activeEngine=null;
+            activeEngine = null;
         }
     }
 
-    function abort(){
-        if(activeEngine) activeEngine.abort();
+    function abort() {
+        if (activeEngine) activeEngine.abort();
     }
 
     return { setRunning, isRunning, getActiveEngine, runExport, abort };
