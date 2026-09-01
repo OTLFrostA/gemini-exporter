@@ -44,7 +44,13 @@ def test_module_exports():
         "export_engine.js": ["ExportEngine", "sanitizeFileName"],
         "storage_service.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync"],
         "asset_fetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
-        "dom_scraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"]
+        "dom_scraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
+        "src/core/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "STORAGE_KEYS"],
+        "src/core/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
+        "src/ui/state/conversationsStore.js": ["getConversations", "setConversations", "getExportedIds", "loadStore", "getLastSync", "clearExported", "clearAll"],
+        "src/ui/views/listView.js": ["render", "updateStat", "getSelected", "selectAll", "deselectAll", "selectUnexported", "selectNeedsUpdate"],
+        "src/ui/views/logView.js": ["init", "log", "clear", "render", "getBuffer"],
+        "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"]
     }
     for filename, symbols in files.items():
         with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:
