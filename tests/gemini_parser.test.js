@@ -1,0 +1,34 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const { GeminiResponseParserClass, isRealTitle } = require('../gemini_parser.js');
+
+test('gemini_parser - isRealTitle', () => {
+    assert.strictEqual(isRealTitle(''), false);
+    assert.strictEqual(isRealTitle('Untitled'), false);
+    assert.strictEqual(isRealTitle('未命名'), false);
+    assert.strictEqual(isRealTitle('New chat'), false);
+    assert.strictEqual(isRealTitle('39d5b41870e49a67'), false);
+    assert.strictEqual(isRealTitle('c_39d5b41870e49a67'), false);
+    assert.strictEqual(isRealTitle('我拟定了一个研究方案'), false);
+    assert.strictEqual(isRealTitle('量子计算的基本原理'), true);
+    assert.strictEqual(isRealTitle('AI Prompt Engineering Guide'), true);
+});
+
+test('gemini_parser - highResVariant', () => {
+    const orig = 'https://lh3.googleusercontent.com/abc=s256';
+    const high = GeminiResponseParserClass.highResVariant(orig);
+    assert.strictEqual(high, 'https://lh3.googleusercontent.com/abc=s0');
+
+    // Never mutate Google Places / Maps photo CDN signatures
+    const places = 'https://lh3.googleusercontent.com/places/v1/media/xyz';
+    assert.strictEqual(GeminiResponseParserClass.highResVariant(places), places);
+});
+
+test('gemini_parser - parseList with valid batchexecute RPC text', () => {
+    const mockRpc = `)]}'\n\n[["wrb.fr","MaZiqc","[null,[[\"c_1234567890abcdef\",\"Test Title\",[1700000000,0],[1700000000,0],5]],\"tC_token123\"]"]`;
+    const res = GeminiResponseParserClass.parseList(mockRpc);
+    assert.strictEqual(res.conversations.length, 1);
+    assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
+    assert.strictEqual(res.conversations[0].title, 'Test Title');
+    assert.strictEqual(res.nextPageToken, 'tC_token123');
+});

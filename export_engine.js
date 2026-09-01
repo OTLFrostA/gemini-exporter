@@ -564,7 +564,7 @@
                     folder.file('00_INDEX.md', indexContent);
                     folder.file('meta.json', JSON.stringify({
                         exportedAt: new Date().toISOString(),
-                        version: '1.2.5',
+                        version: '1.3.0',
                         total: metaResults.length,
                         conversations: metaResults
                     }, null, 2));
@@ -572,7 +572,7 @@
                     await writeFileDirect('00_INDEX.md', indexContent);
                     await writeFileDirect('meta.json', JSON.stringify({
                         exportedAt: new Date().toISOString(),
-                        version: '1.2.5',
+                        version: '1.3.0',
                         total: metaResults.length,
                         conversations: metaResults
                     }, null, 2));
