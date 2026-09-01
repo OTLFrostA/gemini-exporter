@@ -421,12 +421,13 @@ async function exportSelected() {
         if ($('progText')) $('progText').textContent = noSelMsg;
         return;
     }
-    let format = $('format') ? $('format').value : 'markdown';
-    const allowedFormats = ['markdown', 'json_openai', 'json', 'json_raw'];
-    if (!allowedFormats.includes(format)) format = 'markdown';
-    try {
-        const devOn = document.body.classList.contains('dev-mode');
-        if (format === 'json_raw' && !devOn) format = 'markdown';
+    let format = (typeof FormatStore !== 'undefined' && FormatStore.getFormatFromSelect) ? FormatStore.getFormatFromSelect($('format')) : ($('format') ? $('format').value : 'markdown');
+    // fallback if FormatStore not loaded
+    if (typeof FormatStore === 'undefined') {
+        const allowedFormats = ['markdown', 'json_openai', 'json', 'json_raw'];
+        if (!allowedFormats.includes(format)) format = 'markdown';
+        try { const devOn = document.body.classList.contains('dev-mode'); if (format === 'json_raw' && !devOn) format = 'markdown'; } catch {}
+    }
     } catch {}
     const skip = $('skipExported').checked;
     const includeIndex = $('includeIndex').checked;
@@ -757,34 +758,46 @@ async function initWorkbench() {
         }
     };
 
-    function normalizeFormat(val, isDev) {
-        const allowed = ['markdown', 'json_openai', 'json', 'json_raw'];
-        if (!allowed.includes(val)) return 'markdown';
-        if (val === 'json_raw' && !isDev) return 'markdown';
-        return val;
-    }
-
-    chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip', 'gemini_dev_mode'], data => {
-        const isDev = !!data.gemini_dev_mode;
-        if (data.gemini_export_format && $('format')) {
-            const sel = $('format');
-            const normalized = normalizeFormat(data.gemini_export_format, isDev);
-            const valid = Array.from(sel.options).some(o => o.value === normalized);
-            if (valid) sel.value = normalized;
-            else sel.value = 'markdown';
-            if (normalized !== data.gemini_export_format) {
-                chrome.storage.local.set({ gemini_export_format: normalized });
+    // --- Layered: delegate format persistence to src/core/formatStore.js if loaded ---
+    if (typeof FormatStore !== 'undefined' && FormatStore.loadFormat) {
+        FormatStore.loadFormat($('format')).then(() => {
+            // zip handling still here
+            chrome.storage.local.get(['gemini_export_zip'], data => {
+                if (typeof data.gemini_export_zip !== 'undefined' && zipCheck) {
+                    zipCheck.checked = data.gemini_export_zip;
+                    updateZipUi();
+                }
+            });
+        });
+        FormatStore.bindFormatSelect($('format'));
+    } else {
+        function normalizeFormat(val, isDev) {
+            const allowed = ['markdown', 'json_openai', 'json', 'json_raw'];
+            if (!allowed.includes(val)) return 'markdown';
+            if (val === 'json_raw' && !isDev) return 'markdown';
+            return val;
+        }
+        chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip', 'gemini_dev_mode'], data => {
+            const isDev = !!data.gemini_dev_mode;
+            if (data.gemini_export_format && $('format')) {
+                const sel = $('format');
+                const normalized = normalizeFormat(data.gemini_export_format, isDev);
+                const valid = Array.from(sel.options).some(o => o.value === normalized);
+                if (valid) sel.value = normalized;
+                else sel.value = 'markdown';
+                if (normalized !== data.gemini_export_format) {
+                    chrome.storage.local.set({ gemini_export_format: normalized });
+                }
             }
-        }
-        if (typeof data.gemini_export_zip !== 'undefined' && zipCheck) {
-            zipCheck.checked = data.gemini_export_zip;
-            updateZipUi();
-        }
-    });
-
-    $('format')?.addEventListener('change', e => {
-        chrome.storage.local.set({ gemini_export_format: e.target.value });
-    });
+            if (typeof data.gemini_export_zip !== 'undefined' && zipCheck) {
+                zipCheck.checked = data.gemini_export_zip;
+                updateZipUi();
+            }
+        });
+        $('format')?.addEventListener('change', e => {
+            chrome.storage.local.set({ gemini_export_format: e.target.value });
+        });
+    }
 
     if (zipCheck) {
         zipCheck.addEventListener('change', () => {
@@ -834,7 +847,7 @@ async function initWorkbench() {
         handleLangChange('en');
     });
 
-    // 6. Dev Mode Switch Handlers
+    // 6. Dev Mode Switch Handlers - layered: delegate to FormatStore
     const handleDevChange = async (devOn) => {
         console.log('[workbench] Switching dev mode to:', devOn);
         document.body.classList.toggle('dev-mode', devOn);
@@ -842,11 +855,16 @@ async function initWorkbench() {
         if (labelDev) {
             labelDev.style.color = devOn ? 'var(--accent2, #06b6d4)' : 'var(--muted, #8a92b2)';
         }
-        if (devOn) renderLog();
-        const fmtSel = $('format');
-        if (!devOn && fmtSel && fmtSel.value === 'json_raw') {
-            fmtSel.value = 'markdown';
-            chrome.storage.local.set({ gemini_export_format: 'markdown' });
+        if (devOn && typeof LogView !== 'undefined') LogView.render();
+        else if (devOn) renderLog();
+        if (typeof FormatStore !== 'undefined' && FormatStore.handleDevToggle) {
+            await FormatStore.handleDevToggle(devOn, $('format'));
+        } else {
+            const fmtSel = $('format');
+            if (!devOn && fmtSel && fmtSel.value === 'json_raw') {
+                fmtSel.value = 'markdown';
+                chrome.storage.local.set({ gemini_export_format: 'markdown' });
+            }
         }
         if (Storage) await Storage.setDevMode(devOn);
         else await chrome.storage.local.set({ gemini_dev_mode: devOn });

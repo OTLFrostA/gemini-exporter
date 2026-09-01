@@ -101,23 +101,21 @@
     chrome.runtime.openOptionsPage();
   });
 
-  const ALLOWED_FORMATS = ['markdown', 'json_openai', 'json', 'json_raw'];
-  chrome.storage.local.get(['gemini_export_format'], data => {
-    if (data.gemini_export_format && $('format')) {
-      const v = data.gemini_export_format;
-      const sel = $('format');
-      const valid = ALLOWED_FORMATS.includes(v) && Array.from(sel.options).some(o => o.value === v);
-      if (valid) {
-        sel.value = v;
-      } else {
-        sel.value = 'markdown';
-        chrome.storage.local.set({ gemini_export_format: 'markdown' });
+  const ALLOWED_FORMATS = (typeof FormatStore !== 'undefined' ? FormatStore.ALLOWED_FORMATS : ['markdown', 'json_openai', 'json', 'json_raw']);
+  if (typeof FormatStore !== 'undefined' && FormatStore.loadFormat) {
+    FormatStore.loadFormat($('format'));
+    FormatStore.bindFormatSelect($('format'));
+  } else {
+    chrome.storage.local.get(['gemini_export_format'], data => {
+      if (data.gemini_export_format && $('format')) {
+        const v = data.gemini_export_format;
+        const sel = $('format');
+        const valid = ALLOWED_FORMATS.includes(v) && Array.from(sel.options).some(o => o.value === v);
+        if (valid) sel.value = v; else { sel.value = 'markdown'; chrome.storage.local.set({ gemini_export_format: 'markdown' }); }
       }
-    }
-  });
-  $('format')?.addEventListener('change', e => {
-    chrome.storage.local.set({ gemini_export_format: e.target.value });
-  });
+    });
+    $('format')?.addEventListener('change', e => { chrome.storage.local.set({ gemini_export_format: e.target.value }); });
+  }
 
   // "去工作台选 批量导出" button
   $('btnOptions')?.addEventListener('click', ()=>{
@@ -126,8 +124,8 @@
 
   // "只导当前页" button
   $('btnCurrent')?.addEventListener('click', async ()=>{
-    let format = $('format')?.value || 'markdown';
-    if (!ALLOWED_FORMATS.includes(format)) format = 'markdown';
+    let format = (typeof FormatStore !== 'undefined' && FormatStore.getFormatFromSelect) ? FormatStore.getFormatFromSelect($('format')) : ($('format')?.value || 'markdown');
+    if (typeof FormatStore === 'undefined' && !ALLOWED_FORMATS.includes(format)) format = 'markdown';
     log(typeof I18n !== 'undefined' ? I18n.t('popupExporting') : '正在导出当前页…');
     const progWrap = $('progWrap');
     const bar = $('bar');
