@@ -747,7 +747,9 @@ async function initWorkbench() {
 
     chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip'], data => {
         if (data.gemini_export_format && $('format')) {
-            $('format').value = data.gemini_export_format;
+            const sel = $('format');
+            const valid = Array.from(sel.options).some(o => o.value === data.gemini_export_format);
+            if (valid) sel.value = data.gemini_export_format;
         }
         if (typeof data.gemini_export_zip !== 'undefined' && zipCheck) {
             zipCheck.checked = data.gemini_export_zip;

@@ -103,7 +103,9 @@
 
   chrome.storage.local.get(['gemini_export_format'], data => {
     if (data.gemini_export_format && $('format')) {
-      $('format').value = data.gemini_export_format;
+      const sel = $('format');
+      const valid = Array.from(sel.options).some(o => o.value === data.gemini_export_format);
+      if (valid) sel.value = data.gemini_export_format;
     }
   });
   $('format')?.addEventListener('change', e => {
