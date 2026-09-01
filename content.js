@@ -354,26 +354,85 @@
         return null;
     }
 
-    // Network ids hook listener
+    // Network batchexecute & ids hook listener
     window.addEventListener('message', async (event) => {
+        if (event.origin !== location.origin) return;
         const d = event.data;
-        if (!d || d.type !== '__gemExporterNetworkIds') return;
-        const ids = d.ids || [];
-        if (!ids.length) return;
-        try {
-            let mockItems = ids.map(id => ({
-                id,
-                title: '未命名对话(' + id.slice(0, 6) + ')',
-                href: `https://gemini.google.com/app/${id}`,
-                url: `https://gemini.google.com/app/${id}`
-            }));
-            let mergedLen = await upsertConversations(mockItems, 'network:' + (d.source || ''));
-            if (!window.__gemExporterDeepScanPromise) {
-                const badgeTxt = document.getElementById('geminiExportBadgeText');
-                if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
-                else ensureBadge();
+        if (!d) return;
+
+        // 1. Captured batchexecute response (Sidebar scroll, search, page load, opening any chat)
+        if (d.type === 'GEMINI_NETWORK_BATCHEXECUTE') {
+            const { text, slot } = d.payload || {};
+            if (!text) return;
+            try {
+                let parser = (typeof GeminiResponseParserClass !== 'undefined') ? GeminiResponseParserClass : (typeof globalThis.GeminiResponseParserClass !== 'undefined' ? globalThis.GeminiResponseParserClass : null);
+                if (!parser) return;
+
+                // If response contains conversation list (sidebar scroll or search)
+                if (text.includes('MaZiqc')) {
+                    try {
+                        const listRes = parser.parseList(text);
+                        if (listRes && listRes.conversations && listRes.conversations.length) {
+                            await upsertConversations(listRes.conversations, 'network-list');
+                        }
+                    } catch (e) {
+                        console.debug('[Gemini Exporter] parseList err', e);
+                    }
+                }
+
+                // If response contains conversation detail (opening any chat)
+                if (text.includes('hNvQHb')) {
+                    try {
+                        const detailRes = parser.parseDetail(text);
+                        if (detailRes && detailRes.id) {
+                            const nid = String(detailRes.id).replace(/^c_/, '').trim();
+                            let title = detailRes.title;
+                            if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
+                                const firstUser = detailRes.messages.find(m => m.role === 'user' && m.content && m.content.trim());
+                                if (firstUser) {
+                                    const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                                    if (isRealTitle(candidate, nid)) title = candidate;
+                                }
+                            }
+                            if (isRealTitle(title, nid)) {
+                                await upsertConversations([{
+                                    id: nid,
+                                    title: title,
+                                    url: `https://gemini.google.com/app/${nid}`,
+                                    href: `https://gemini.google.com/app/${nid}`,
+                                    timestamp: detailRes.timestamp || Date.now()
+                                }], 'network-detail');
+                            }
+                        }
+                    } catch (e) {
+                        console.debug('[Gemini Exporter] parseDetail err', e);
+                    }
+                }
+            } catch (err) {
+                console.debug('[Gemini Exporter] batchexecute hook process error', err);
             }
-        } catch (e) {}
+            return;
+        }
+
+        // 2. Fallback network ids hook listener
+        if (d.type === '__gemExporterNetworkIds') {
+            const ids = d.ids || [];
+            if (!ids.length) return;
+            try {
+                let mockItems = ids.map(id => ({
+                    id,
+                    title: '未命名对话(' + id.slice(0, 6) + ')',
+                    href: `https://gemini.google.com/app/${id}`,
+                    url: `https://gemini.google.com/app/${id}`
+                }));
+                let mergedLen = await upsertConversations(mockItems, 'network:' + (d.source || ''));
+                if (!window.__gemExporterDeepScanPromise) {
+                    const badgeTxt = document.getElementById('geminiExportBadgeText');
+                    if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
+                    else ensureBadge();
+                }
+            } catch (e) {}
+        }
     });
 
     // Message router
