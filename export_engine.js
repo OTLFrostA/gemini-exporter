@@ -12,14 +12,27 @@
 
     function sanitizeFileName(name, fallback = 'untitled') {
         if (!name) return fallback;
-        let s = String(name).replace(/[\r\n]+/g, ' ').replace(/[\u0000-\u001F\u007F]/g, '_');
+        let s = String(name).replace(/[\r\n\t\f\v]+/g, ' ').replace(/[\u0000-\u001F\u007F-\u009F]/g, '_');
         s = s.replace(/[<>:"/\\|?*]+/g, '_');
+        // Replace consecutive dots (e.g. "...", "..") with "_" to satisfy Chrome FileSystemDirectoryHandle
+        s = s.replace(/\.{2,}/g, '_');
         s = s.replace(/^\.+|\.+$/g, '');
         s = s.trim();
         if (!s) return fallback;
         if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
-        if (s.length > 80) s = s.slice(0, 80).trim();
-        return s;
+
+        // Separate extension if present
+        let ext = '';
+        const lastDot = s.lastIndexOf('.');
+        if (lastDot > 0 && s.length - lastDot <= 6) {
+            ext = s.slice(lastDot);
+            s = s.slice(0, lastDot);
+        }
+
+        if (s.length > 70) s = s.slice(0, 70).trim();
+        s = s.replace(/[\.\s_]+$/g, '').trim();
+        if (!s) s = fallback;
+        return s + ext;
     }
 
     function normId(id) {
