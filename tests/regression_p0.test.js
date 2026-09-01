@@ -128,3 +128,12 @@ test('regression: background Receiving end error must hint refresh', () => {
     assert.ok(bgContent.includes('Receiving end does not exist'), 'should handle Receiving end');
     assert.ok(bgContent.includes('刷新 gemini.google.com'), 'should hint refresh after reload');
 });
+
+// P0-9: 停止同步必须双同步 window 标志与 client 实例
+test('regression: stop sync must sync window flag and active client', () => {
+    const clientContent = fs.readFileSync(path.join(__dirname, '../gemini_client.js'), 'utf8');
+    const contentContent = fs.readFileSync(path.join(__dirname, '../content.js'), 'utf8');
+    assert.ok(clientContent.includes('window.__gemExporterAborted') && clientContent.includes('isAborted'), 'gemini_client should check window abort flag');
+    assert.ok(contentContent.includes('__gemExporterActiveClient'), 'content should store active client');
+    assert.ok(contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()'), 'stopDeepScan should abort active client');
+});

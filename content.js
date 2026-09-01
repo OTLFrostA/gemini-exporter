@@ -326,6 +326,8 @@
             let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
             if (!C) return null;
             let client = new C();
+            // 暴露给 stopDeepScan 处理器，确保 window 标志与 client 实例双同步
+            window.__gemExporterActiveClient = client;
             const slot = getAccountSlot();
             const beforeList = Storage ? await Storage.getConversations(slot) : [];
             const beforeMap = new Map(beforeList.map(c => [c.id, c]));
@@ -392,6 +394,7 @@
         } catch (e) {
             console.debug('[Gemini Exporter] batch exec fail', e.message || e);
         } finally {
+            window.__gemExporterActiveClient = null;
             window.__gemExporterDeepScanPromise = null;
             if (_resolve) _resolve();
         }
@@ -506,6 +509,7 @@
 
         if (msg.action === 'stopDeepScan') {
             window.__gemExporterAborted = true;
+            try { window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort(); } catch {}
             sendResponse({ ok: true, aborted: true });
             return true;
         }

@@ -211,9 +211,11 @@
                 pageHistory: []
             };
             this.aborted = false;
+            // 兼容 content.js 的 window 全局中止标志（旧链路仅置 window 标志，未调 client.abort）
+            const isAborted = () => this.aborted || (typeof window !== 'undefined' && window.__gemExporterAborted) || (typeof globalThis !== 'undefined' && globalThis.__gemExporterAborted);
             let reachedMax = true;
             for (let i = 0; i < maxPages; i++) {
-                if (this.aborted) {
+                if (isAborted()) {
                     diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
                     console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
                     reachedMax = false;
