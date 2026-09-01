@@ -677,12 +677,23 @@ async function initWorkbench() {
 
     // 5. Language Switch Handlers
     const handleLangChange = async (targetLang) => {
+        console.log('[workbench] Switching language to:', targetLang);
         if (typeof I18n !== 'undefined') {
             await I18n.setLang(targetLang);
             updateAccountSlotSelector();
             renderList();
             updateSelectedStat();
             updateZipUi();
+            const syncCountEl = $('syncCount');
+            if (syncCountEl && conversations.length) {
+                syncCountEl.textContent = I18n.t('syncedBadge', conversations.length);
+            }
+            if (typeof __lastSyncRaw !== 'undefined' && __lastSyncRaw) {
+                const lastSyncEl = $('lastSync');
+                if (lastSyncEl) {
+                    lastSyncEl.textContent = I18n.t('lastSync', new Date(__lastSyncRaw).toLocaleString(), conversations.length);
+                }
+            }
         }
     };
 
@@ -706,6 +717,7 @@ async function initWorkbench() {
 
     // 6. Dev Mode Switch Handlers
     const handleDevChange = async (devOn) => {
+        console.log('[workbench] Switching dev mode to:', devOn);
         document.body.classList.toggle('dev-mode', devOn);
         const labelDev = $('labelDevMode');
         if (labelDev) {
