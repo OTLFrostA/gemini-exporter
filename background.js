@@ -277,6 +277,9 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
 
                 if (isEmptyFail || chat.error) {
                     const failReason = chat.error || '云端返回内容为空';
+                    // 保留 _raw/_debug 供 export_engine 写入诊断
+                    const debugSnippet = chat._raw ? JSON.stringify(chat._raw).slice(0, 800) : (chat._debug ? JSON.stringify(chat._debug).slice(0, 800) : null);
+                    if (isEmptyFail) console.warn(`[Gemini Exporter BG] empty detail for ${item.id} (${item.title}) _raw_len=${debugSnippet?.length || 0} hasMessages=${!!chat.messages}`);
                     results.push({
                         id: chat.id || item.id,
                         title: chat.title || item.title,
@@ -284,7 +287,9 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                         error: failReason,
                         messages: chat.messages || [],
                         messageCount: msgCount,
-                        _empty: true
+                        _empty: true,
+                        _debug: debugSnippet,
+                        _raw: chat._raw || null
                     });
                 } else {
                     results.push(chat);

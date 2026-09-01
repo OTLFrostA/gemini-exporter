@@ -588,11 +588,16 @@
                 try {
                     if (Scraper) {
                         let chat = await Scraper.contentFetchChatDetail(cid);
-                        if (chat && chat.messages) {
+                        if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
                             await persistDetailTitle(chat);
+                            sendResponse({ success: true, data: chat, source: 'dom' });
+                            return;
+                        } else {
+                            console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
+                            // 仍返回，让上游标记为 _empty 并携带调试信息
+                            sendResponse({ success: true, data: { ...chat, _empty: true, error: chat?.error || 'DOM 返回内容为空', _debug_dom_empty: true }, source: 'dom' });
+                            return;
                         }
-                        sendResponse({ success: true, data: chat, source: 'dom' });
-                        return;
                     }
                 } catch (e) {
                     sendResponse({ success: false, error: e.message || String(e) });
