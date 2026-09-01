@@ -52,20 +52,31 @@ function getGeminiTab(slot) {
     });
 }
 
-function sendToGeminiTab(msg, slot) {
+function sendToGeminiTab(msg, slot, timeoutMs = 25000) {
     return getGeminiTab(slot).then(tab => {
         if (!tab) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
         return new Promise((resolve, reject) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
+                }
+            }, timeoutMs);
             chrome.tabs.sendMessage(tab.id, msg, (res) => {
-                if (chrome.runtime.lastError) {
-                    const raw = chrome.runtime.lastError.message || '';
-                    if (raw.includes('Receiving end does not exist')) {
-                        reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）- ' + raw));
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    if (chrome.runtime.lastError) {
+                        const raw = chrome.runtime.lastError.message || '';
+                        if (raw.includes('Receiving end does not exist')) {
+                            reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）- ' + raw));
+                        } else {
+                            reject(new Error(raw));
+                        }
                     } else {
-                        reject(new Error(raw));
+                        resolve(res);
                     }
-                } else {
-                    resolve(res);
                 }
             });
         });

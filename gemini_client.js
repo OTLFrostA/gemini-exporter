@@ -352,16 +352,29 @@
                 ? JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"]]])
                 : JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"], [RPCS.LIST, innerMeta, null, "generic"]]]);
             body.append("f.req", fReq);
-            if (cred.at) body.append("at", cred.at);
-            let resp = await fetch(`${api}?${params}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-                    "X-Same-Domain": "1"
-                },
-                body: body.toString(),
-                credentials: "include"
-            });
+            let controller = null;
+            let timeoutId = null;
+            if (typeof AbortController !== 'undefined') {
+                controller = new AbortController();
+                timeoutId = setTimeout(() => {
+                    try { controller.abort(); } catch {}
+                }, 15000);
+            }
+            let resp;
+            try {
+                resp = await fetch(`${api}?${params}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                        "X-Same-Domain": "1"
+                    },
+                    body: body.toString(),
+                    credentials: "include",
+                    signal: controller ? controller.signal : undefined
+                });
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
             if (!resp.ok) {
                 let snippet = "";
                 try {

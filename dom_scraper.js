@@ -191,10 +191,24 @@
         } catch (e) { if (isDevMode) console.warn('[DOM] live parse exception', e); }
 
         const url = `https://gemini.google.com/app/${id}`;
-        const resp = await fetch(url, {
-            credentials: 'include',
-            headers: { 'Accept': 'text/html' }
-        });
+        let controller = null;
+        let timeoutId = null;
+        if (typeof AbortController !== 'undefined') {
+            controller = new AbortController();
+            timeoutId = setTimeout(() => {
+                try { controller.abort(); } catch {}
+            }, 15000);
+        }
+        let resp;
+        try {
+            resp = await fetch(url, {
+                credentials: 'include',
+                headers: { 'Accept': 'text/html' },
+                signal: controller ? controller.signal : undefined
+            });
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
         if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
         const html = await resp.text();
         if (isDevMode && (!html || html.length < 200)) {
