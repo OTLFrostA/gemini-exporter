@@ -251,10 +251,20 @@
         return /googleusercontent\.com\/(immersive_entry_chip|deep_research|map_content|map_location|grounding_content|web_search|youtube_content|flights_content|hotels_content|workspace_content)/i.test(u);
     }
 
-    function extractImages(obj) {
+    function extractImages(obj, seqRef) {
         let images = [],
-            seenKeys = new Set(),
-            fallbackCounter = 1;
+            seenKeys = new Set();
+        // seqRef: { value: number } 全局递增，避免跨 turn 同名覆盖（P0）
+        let counter = seqRef && typeof seqRef.value === 'number' ? seqRef : { value: 1 };
+
+        function inferExt(url) {
+            try {
+                let u = String(url).split('?')[0].split('#')[0];
+                let m = u.match(/\.([a-z0-9]{3,4})$/i);
+                if (m && /^(jpg|jpeg|png|webp|gif|bmp)$/i.test(m[1])) return '.' + m[1].toLowerCase().replace('jpeg','jpg');
+            } catch {}
+            return '.jpg';
+        }
 
         function walk(node) {
             if (!node || typeof node !== "object") return;
@@ -265,8 +275,12 @@
                         height = node[2];
                     if (!isInternalChipUrl(sourceUrl)) {
                         let token = typeof node[3] === "string" ? node[3] : void 0;
-                        let fileName = `image-${fallbackCounter++}.jpg`;
-                        let mimeType = "image/jpeg";
+                        // 使用全局序号 + URL hash 片段保证跨 turn 唯一
+                        let ext = inferExt(sourceUrl);
+                        let hashFrag = '';
+                        try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi,'').slice(0,4); } catch {}
+                        let fileName = `image-${counter.value++}${hashFrag ? '-'+hashFrag : ''}${ext}`;
+                        let mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
                         let key = getImageDedupKey({
                             sourceUrl,
                             token
@@ -634,11 +648,12 @@
             let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
             let msgs = [];
             let dedupSet = new Set();
+            let imageSeq = { value: 1 };
             let rev = [...turns].reverse();
             for (let turn of rev) {
                 let ts = extractTurnTimestamp(turn) || Date.now();
                 let uText = turn?.[2]?.[0]?.[0] || "";
-                let uImgs = filterNewImages(extractImages(turn?.[2]), dedupSet);
+                let uImgs = filterNewImages(extractImages(turn?.[2], imageSeq), dedupSet);
                 let uFiles = extractUserFiles(turn?.[2]);
                 if (uText || uImgs.length || uFiles.length) {
                     msgs.push({
@@ -699,7 +714,7 @@
                             textWalk(cand);
                             responseText = textArr.join("\n\n");
                         }
-                        let candImages = extractImages(candidateBlock);
+                        let candImages = extractImages(candidateBlock, imageSeq);
                         let filteredImages = filterNewImages(candImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
                         if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);

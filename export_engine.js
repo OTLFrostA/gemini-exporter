@@ -90,6 +90,14 @@
         return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
     }
 
+    function sanitizeZipPath(p) {
+        if (!p) return p;
+        return p.split('/').map(seg => {
+            if (!seg || seg === '.' || seg === '..') return '_';
+            return sanitizeFileName(seg, 'file');
+        }).filter(Boolean).join('/');
+    }
+
     async function ensureSubDir(root, subPath) {
         let cur = root;
         const parts = subPath.split('/').filter(Boolean).filter(p => p !== '.' && p !== '..').map(p => sanitizeFileName(p, 'dir'));
@@ -361,8 +369,13 @@
                 });
 
                 if (!res || !res.success) {
-                    onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', res ? res.error : 'unknown') : `抓取对话失败: ${res ? res.error : '未知错误'}`, 'warn');
-                    failedChats.push(...chunk.map(c => c.id));
+                    const fetchErr = res ? res.error : 'unknown';
+                    onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', fetchErr) : `抓取对话失败: ${fetchErr}`, 'warn');
+                    // 记录详细失败原因，避免静默丢失（P0 修复）
+                    for (const c of chunk) {
+                        failedChats.push({ id: c.id, title: c.title || c.id, error: fetchErr });
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', c.title || c.id, fetchErr) : `[${c.title || c.id}] 导出跳过: ${fetchErr}`, 'warn');
+                    }
                     continue;
                 }
 
@@ -395,8 +408,9 @@
                     }
 
                     if (chat.error || chat._empty) {
-                        failedChats.push(chat.id);
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || nid, chat.error || 'Empty response') : `[${chat.title || nid}] 导出跳过: ${chat.error || '云端返回内容为空且无本地离线记录'}`, 'warn');
+                        const errMsg = chat.error || 'Empty response (云端返回内容为空且无本地离线记录)';
+                        failedChats.push({ id: chat.id || nid, title: chat.title || nid, error: errMsg });
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || nid, errMsg) : `[${chat.title || nid}] 导出跳过: ${errMsg}`, 'warn');
                         continue;
                     }
 
@@ -528,7 +542,7 @@
                                     }
                                     if (useZip) {
                                         try {
-                                            folder.file(att.localName, att.contentMarkdown);
+                                            folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
                                             downloadedAssets++;
                                             updateProgress();
                                         } catch {}
@@ -568,7 +582,7 @@
                                                 });
                                                 if (r && r.success && r.dataBase64) {
                                                     if (useZip) {
-                                                        folder.file(att.localName, r.dataBase64, { base64: true });
+                                                        folder.file(sanitizeZipPath(att.localName), r.dataBase64, { base64: true });
                                                         saved = true;
                                                     } else {
                                                         const binStr = atob(r.dataBase64);
@@ -592,7 +606,7 @@
                                             let offlineBin = await takeoutEngine.getTakeoutFallbackMedia(chat.id, att.localName || att.fileName || att.title);
                                             if (offlineBin && offlineBin.length > 0) {
                                                 if (useZip) {
-                                                    folder.file(att.localName, offlineBin);
+                                                    folder.file(sanitizeZipPath(att.localName), offlineBin);
                                                     saved = true;
                                                 } else {
                                                     saved = await writeFileDirect(att.localName, offlineBin);
@@ -638,7 +652,7 @@
                                                 });
                                                 if (r && r.success && r.dataBase64) {
                                                     if (useZip) {
-                                                        folder.file(img.localName, r.dataBase64, { base64: true });
+                                                        folder.file(sanitizeZipPath(img.localName), r.dataBase64, { base64: true });
                                                         saved = true;
                                                     } else {
                                                         const binStr = atob(r.dataBase64);
@@ -660,7 +674,7 @@
                                                 let offlineBin = await takeoutEngine.getTakeoutFallbackMedia(chat.id, img.localName || img.fileName);
                                                 if (offlineBin && offlineBin.length > 0) {
                                                     if (useZip) {
-                                                        folder.file(img.localName, offlineBin);
+                                                        folder.file(sanitizeZipPath(img.localName), offlineBin);
                                                         saved = true;
                                                     } else {
                                                         saved = await writeFileDirect(img.localName, offlineBin);
@@ -752,7 +766,11 @@
                 if (failedChats.length > 0) {
                     fullLogText += `[FAILED CONVERSATIONS]\n`;
                     for (const fc of failedChats) {
-                        fullLogText += `  - ${fc}\n`;
+                        if (typeof fc === 'string') {
+                            fullLogText += `  - ${fc}\n`;
+                        } else {
+                            fullLogText += `  - ${fc.id || fc.chatId || 'unknown'} | "${(fc.title || fc.chatTitle || '').slice(0,60)}" | ${fc.error || fc.reason || 'unknown'}\n`;
+                        }
                     }
                     fullLogText += `\n`;
                 }
