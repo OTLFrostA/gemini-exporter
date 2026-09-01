@@ -82,11 +82,39 @@ def test_i18n_keys():
         assert not missing_en, f"Missing in en ({html_file}): {missing_en}"
     print("  ✓ i18n keys complete and matched across all HTML templates")
 
+def test_javascript_syntax():
+    import subprocess
+    import shutil
+    js_files = []
+    for root, dirs, files in os.walk(BASE_DIR):
+        if any(x in root for x in ["node_modules", ".git", "lib"]):
+            continue
+        for file in files:
+            if file.endswith(".js"):
+                js_files.append(os.path.join(root, file))
+
+    jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
+    node_bin = shutil.which("node")
+
+    for js_path in sorted(js_files):
+        rel_path = os.path.relpath(js_path, BASE_DIR)
+        with open(js_path, "r", encoding="utf-8") as f:
+            code = f.read()
+        if node_bin:
+            res = subprocess.run([node_bin, "-c", js_path], capture_output=True, text=True)
+            assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr}"
+        elif os.path.exists(jsc_bin):
+            script = f"new Function({json.dumps(code)});"
+            res = subprocess.run([jsc_bin, "-e", script], capture_output=True, text=True)
+            assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr or res.stdout}"
+    print(f"  ✓ Syntax validated across {len(js_files)} JavaScript files")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
 test_module_exports()
 test_i18n_keys()
+test_javascript_syntax()
 
 print("=" * 60)
 print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
