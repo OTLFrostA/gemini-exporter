@@ -80,7 +80,8 @@
             else badge=`<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
             let rawTs=c.timestamp; if(typeof rawTs==='string') rawTs=new Date(rawTs).getTime();
             const dateStr=rawTs?new Date(rawTs).toLocaleDateString():'-';
-            return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank" class="open-link">Open</a> | ${dateStr}</div></div></label>`;
+            const openTxt = typeof I18n !== 'undefined' ? I18n.t('openLink') : 'Open';
+            return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank" class="open-link">${openTxt}</a> | ${dateStr}</div></div></label>`;
         }).join('');
         list.querySelectorAll('a.open-link').forEach(a=>a.addEventListener('click', e=>e.stopPropagation()));
         list.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change', updateStat.bind(null, conversations)));
