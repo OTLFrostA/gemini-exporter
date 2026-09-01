@@ -400,6 +400,9 @@
                             const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
                             if (isRealTitle(candidate, chat.id)) {
                                 chat.title = candidate;
+                                chat.titleSource = 'sniff';
+                                chat.titles = chat.titles || {};
+                                chat.titles.sniff = candidate;
                             }
                         }
                     }

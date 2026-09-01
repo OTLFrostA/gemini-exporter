@@ -67,9 +67,10 @@
         const storage = getStorage();
         if (storage && storage.getLastSync) return await storage.getLastSync(s);
         const syncKey = s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`;
-        const countKey = s === 'u0' ? 'gemini_last_sync_count' : `gemini_last_sync_count_${s}`;
-        const data = await chrome.storage.local.get([syncKey, countKey]);
-        return { timestamp: data[syncKey] || null, count: data[countKey] || 0 };
+        const countKey = s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`;
+        const countKeyLegacy = s === 'u0' ? 'gemini_last_sync_count' : `gemini_last_sync_count_${s}`;
+        const data = await chrome.storage.local.get([syncKey, countKey, countKeyLegacy]);
+        return { timestamp: data[syncKey] || null, count: (typeof data[countKey] === 'number' ? data[countKey] : data[countKeyLegacy]) || 0 };
     }
 
     async function saveConversations(slot, list) {
