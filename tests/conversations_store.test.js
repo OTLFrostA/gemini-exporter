@@ -49,10 +49,13 @@ test('conversationsStore - getSignature', () => {
     const sigEmpty = ConversationsStore.getSignature([]);
     assert.strictEqual(sigEmpty, 'empty');
 
-    const sigA = ConversationsStore.getSignature([{ id: 'a' }, { id: 'b' }]);
-    const sigB = ConversationsStore.getSignature([{ id: 'a' }, { id: 'b' }]);
+    const sigA = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'b', title: 'Title 2' }]);
+    const sigB = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'b', title: 'Title 2' }]);
     assert.strictEqual(sigA, sigB);
 
-    const sigC = ConversationsStore.getSignature([{ id: 'a' }, { id: 'c' }]);
+    const sigC = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'c', title: 'Title 2' }]);
     assert.ok(sigA !== sigC);
+
+    const sigD = ConversationsStore.getSignature([{ id: 'a', title: 'Real Title' }, { id: 'b', title: 'Title 2' }]);
+    assert.ok(sigA !== sigD);
 });

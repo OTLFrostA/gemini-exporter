@@ -333,6 +333,17 @@
 
                     totalAssets += chat.attachmentCount || 0;
                     const listC = conversations.find(c => normId(c.id) === nid) || null;
+
+                    if (!isRealTitle(chat.title, chat.id) && Array.isArray(chat.messages)) {
+                        const firstUser = chat.messages.find(m => m.role === 'user' && m.content && m.content.trim());
+                        if (firstUser) {
+                            const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                            if (isRealTitle(candidate, chat.id)) {
+                                chat.title = candidate;
+                            }
+                        }
+                    }
+
                     let finalTitle = chat.title || listC?.title || chat.id;
 
                     if (isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
@@ -340,7 +351,7 @@
                         if (listC && listC.title !== finalTitle) {
                             listC.title = finalTitle;
                             convsNeedSave = true;
-                            onTitleUpdated(chat.id, finalTitle);
+                            onTitleUpdated(nid, finalTitle);
                         }
                     } else if (isRealTitle(listC?.title, chat.id)) {
                         finalTitle = listC.title;
