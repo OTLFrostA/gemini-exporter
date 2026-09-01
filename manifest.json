@@ -42,9 +42,12 @@
       ],
       "js": [
         "utils.js",
+        "storage_service.js",
         "gemini_parser.js",
         "content_cred_bootstrap.js",
         "gemini_client.js",
+        "dom_scraper.js",
+        "asset_fetcher.js",
         "content.js"
       ],
       "run_at": "document_start",

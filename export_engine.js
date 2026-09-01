@@ -109,9 +109,13 @@
             }));
 
             const slot = currentSlot || 'u0';
-            const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-            const store = await chrome.storage.local.get([expKey]);
-            let curIds = store[expKey] || {};
+            const Storage = (typeof StorageService !== 'undefined') ? StorageService : (globalThis.StorageService || null);
+            let curIds = Storage ? await Storage.getExportedIds(slot) : {};
+            if (!Storage) {
+                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                const store = await chrome.storage.local.get([expKey]);
+                curIds = store[expKey] || {};
+            }
 
             let batchDirHandle;
             let zip;
@@ -329,7 +333,12 @@
                             exportedIds[chat.id] = record;
                             exportedIds[nid] = record;
                             exportedIds['c_' + nid] = record;
-                            chrome.storage.local.set({ [expKey]: curIds });
+                            if (Storage) {
+                                await Storage.saveExportRecord(slot, chat.id, record);
+                            } else {
+                                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                                chrome.storage.local.set({ [expKey]: curIds });
+                            }
                             onItemExported(chat.id, record);
                         }
                     }
@@ -518,8 +527,12 @@
                 }
 
                 if (convsNeedSave) {
-                    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-                    chrome.storage.local.set({ [convKey]: conversations });
+                    if (Storage) {
+                        await Storage.setConversations(slot, conversations);
+                    } else {
+                        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+                        chrome.storage.local.set({ [convKey]: conversations });
+                    }
                 }
             }
 
