@@ -83,7 +83,32 @@
             return (pos & 4) ? -1 : 1;
         });
         for (const node of sorted) {
-            const isUser = node.tagName.toLowerCase() === 'user-query';
+            const tagName = node.tagName.toLowerCase();
+            // Determine role: native custom elements use tagName; fallback selectors expose
+            // role via data-message-author-role or can be inferred from child structure.
+            const roleAttr = (node.getAttribute && node.getAttribute('data-message-author-role')) || '';
+            let isUser = tagName === 'user-query' || roleAttr === 'user';
+            let isModel = tagName === 'model-response' || roleAttr === 'model';
+            // For generic article / div containers from fallback selectors, try to infer
+            // role from child elements (data-test-id hints are the most reliable signal).
+            if (!isUser && !isModel && fallbackUsed) {
+                if (node.querySelector('[data-test-id*="user-query"], .query-text-line, .query-text')) {
+                    isUser = true;
+                } else if (node.querySelector('[data-test-id*="model-response"], .markdown, message-content')) {
+                    isModel = true;
+                } else {
+                    // Last resort: check nested data-message-author-role on child elements
+                    const innerRole = node.querySelector('[data-message-author-role]');
+                    if (innerRole) {
+                        const r = innerRole.getAttribute('data-message-author-role');
+                        if (r === 'user') isUser = true;
+                        else if (r === 'model') isModel = true;
+                    }
+                }
+            }
+            // Skip unresolvable nodes when using fallback selectors
+            if (!isUser && !isModel) continue;
+
             let text = '';
             if (isUser) {
                 const q = node.querySelector('.query-text-line, .query-text, [data-test-id="query-text"], p');

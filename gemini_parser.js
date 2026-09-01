@@ -609,8 +609,13 @@
         try {
             let top = robustFirstPayload(text);
             // 全量埋点：记录所有潜在数据源，供通用 parser 提炼（Dev 模式或空结果时必打）
-            const isDevBody = typeof document !== 'undefined' && document.body && document.body.classList.contains('dev-mode');
-            const shouldVerbose = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll || isDevBody)) || !text || text.length < 500;
+            // NOTE: parseDetail runs in the Gemini page content-script context; the 'dev-mode'
+            // CSS class is applied to the *options* page document.body — a different document.
+            // content.js reads gemini_dev_mode from storage and sets window.__gemExporterDevMode
+            // so we check that global flag instead of document.body.classList.
+            const isDevMode = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll))
+                || (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
+            const shouldVerbose = isDevMode || !text || text.length < 500;
             if (shouldVerbose || (Array.isArray(top) && top.length > 1)) {
                 try {
                     const summary = Array.isArray(top) ? top.map((it,i) => {

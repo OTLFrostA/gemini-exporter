@@ -26,15 +26,22 @@
     }
 
     try {
-        chrome.storage.local.get(['gemini_exporter_lang'], d => {
+        chrome.storage.local.get(['gemini_exporter_lang', 'gemini_dev_mode'], d => {
             if (d.gemini_exporter_lang) currentLang = d.gemini_exporter_lang;
             else currentLang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+            // Expose dev mode flag so gemini_parser.js (content-script context) can detect it.
+            // The options page applies the 'dev-mode' CSS class to *its own* document.body,
+            // which is inaccessible here; reading storage is the only reliable bridge.
+            window.__gemExporterDevMode = !!d.gemini_dev_mode;
             refreshInitialBadge();
         });
         chrome.storage.onChanged.addListener((changes, area) => {
             if (area === 'local' && changes.gemini_exporter_lang) {
                 currentLang = changes.gemini_exporter_lang.newValue || 'zh';
                 refreshInitialBadge();
+            }
+            if (area === 'local' && changes.gemini_dev_mode) {
+                window.__gemExporterDevMode = !!changes.gemini_dev_mode.newValue;
             }
         });
     } catch {}

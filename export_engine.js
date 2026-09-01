@@ -775,7 +775,7 @@
 
             if (isDevMode || failedChats.length > 0 || failedAttachments.length > 0) {
                 let fullLogText = `=======================================================\n`;
-                fullLogText += ` Gemini Exporter Session Log (Dev Mode)\n`;
+                fullLogText += ` Gemini Exporter Session Log${isDevMode ? ' (Dev Mode)' : ' (Error Report)'}\n`;
                 fullLogText += ` Time: ${new Date().toISOString()}\n`;
                 fullLogText += ` Summary: Landed ${landedChats}/${payloadIds.length} chats, Assets ${downloadedAssets}/${totalAssets}, Skipped ${skipped}\n`;
                 fullLogText += ` Failed Chats: ${failedChats.length}, Failed Assets: ${failedAttachments.length}\n`;
@@ -787,7 +787,20 @@
                         if (typeof fc === 'string') {
                             fullLogText += `  - ${fc}\n`;
                         } else {
-                            fullLogText += `  - ${fc.id || fc.chatId || 'unknown'} | "${(fc.title || fc.chatTitle || '').slice(0,60)}" | ${fc.error || fc.reason || 'unknown'}\n`;
+                            const fcId = fc.id || fc.chatId || 'unknown';
+                            const fcTitle = (fc.title || fc.chatTitle || '').slice(0, 60);
+                            const fcErr = fc.error || fc.reason || 'unknown';
+                            fullLogText += `  - ${fcId} | "${fcTitle}" | ${fcErr}\n`;
+                            // Include structured debug block if available (new format)
+                            if (fc.debug && typeof fc.debug === 'object') {
+                                try {
+                                    fullLogText += `    [debug] ${JSON.stringify(fc.debug).slice(0, 800)}\n`;
+                                } catch {}
+                            } else if (fc.raw && typeof fc.raw === 'object') {
+                                try {
+                                    fullLogText += `    [raw_preview] ${JSON.stringify(fc.raw).slice(0, 400)}\n`;
+                                } catch {}
+                            }
                         }
                     }
                     fullLogText += `\n`;
@@ -801,16 +814,40 @@
                     fullLogText += `\n`;
                 }
 
+                // Full structured JSON dump (always in dev mode, only errors otherwise)
+                const sessionJson = {
+                    exportedAt: new Date().toISOString(),
+                    isDevMode,
+                    summary: {
+                        total: payloadIds.length,
+                        landed: landedChats,
+                        failed: failedChats.length,
+                        skipped,
+                        assetsTotal: totalAssets,
+                        assetsDownloaded: downloadedAssets,
+                        assetsFailed: failedAttachments.length
+                    },
+                    failedChats,
+                    failedAttachments
+                };
+
                 try {
                     if (useZip) {
                         folder.file('_export_dev.log', fullLogText);
+                        // Always write errors JSON when there are failures; also write full session JSON in dev mode
                         if (failedAttachments.length || failedChats.length) {
-                            folder.file('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
+                            folder.file('_export_errors.json', JSON.stringify(sessionJson, null, 2));
+                        }
+                        if (isDevMode) {
+                            folder.file('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
                         }
                     } else {
                         await writeFileDirect('_export_dev.log', fullLogText);
                         if (failedAttachments.length || failedChats.length) {
-                            await writeFileDirect('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
+                            await writeFileDirect('_export_errors.json', JSON.stringify(sessionJson, null, 2));
+                        }
+                        if (isDevMode) {
+                            await writeFileDirect('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
                         }
                     }
                     onLog(typeof I18n !== 'undefined' ? I18n.t('logDevLogWritten') : '🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
