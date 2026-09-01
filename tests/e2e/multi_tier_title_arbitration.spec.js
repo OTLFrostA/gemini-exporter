@@ -108,6 +108,99 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
         await window.__workbenchLoadStore(true);
       }
     });
-    await expect(targetItem).toContainText('官方服务端RPC最终权威标题');
+  });
+
+  test('should propagate sniffed firstUser prompt as sniff titleSource and update titles.sniff during export', async ({ context, extensionId }) => {
+    // 1. Open mock Gemini page in background with credentials
+    const geminiPage = await context.newPage();
+    await geminiPage.route('https://gemini.google.com/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: `<!DOCTYPE html>
+        <html>
+        <head>
+          <script>
+            window._WIZ_global_data = {
+              SNlM0e: 'mock_at_token_sniff',
+              cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
+            };
+          </script>
+        </head>
+        <body>Gemini Mock Session Active</body>
+        </html>`
+      });
+    });
+
+    const turns = [
+      [
+        ["c_sniff_test_chat_888"],
+        "turn_id_1",
+        [["如何构建高性能分布式缓存系统？"]],
+        [
+          [
+            ["rc_cand_1", ["构建高性能分布式缓存需要注意以下几点..."]]
+          ]
+        ]
+      ]
+    ];
+    const mockDetailInner = JSON.stringify([
+      turns,
+      "tC_next_token",
+      "" // Empty RPC title to trigger firstUser sniff fallback
+    ]);
+    const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
+
+    await geminiPage.route('**/batchexecute*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: mockRpcResponse
+      });
+    });
+
+    await geminiPage.goto('https://gemini.google.com/app');
+    await geminiPage.waitForLoadState('domcontentloaded');
+
+    // 2. Open options workbench and seed with untitled conversation
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.waitForLoadState('domcontentloaded');
+
+    await optionsPage.evaluate(async () => {
+      const initialConvs = [
+        {
+          id: 'sniff_test_chat_888',
+          title: '未命名对话',
+          titleSource: 'default',
+          titles: {},
+          timestamp: 1670000000000
+        }
+      ];
+      await chrome.storage.local.set({ gemini_conversations: initialConvs, exportedIds: {} });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+
+    const targetItem = optionsPage.locator('[data-chat-id="sniff_test_chat_888"]');
+    await expect(targetItem).toContainText('未命名对话');
+
+    // 3. Select all items and trigger export
+    await optionsPage.click('#btnSelectAll');
+    const exportBtn = optionsPage.locator('#btnExport');
+    await exportBtn.click();
+
+    // 4. Verify title updated in workbench and storage with titleSource = 'sniff' and titles.sniff set
+    await expect(targetItem).toContainText('如何构建高性能分布式缓存系统？');
+
+    const storageData = await optionsPage.evaluate(async () => {
+      return await chrome.storage.local.get(['gemini_conversations']);
+    });
+    const chat = storageData.gemini_conversations.find(c => c.id === 'sniff_test_chat_888');
+    expect(chat).toBeTruthy();
+    expect(chat.title).toBe('如何构建高性能分布式缓存系统？');
+    expect(chat.titleSource).toBe('sniff');
+    expect(chat.titles.sniff).toBe('如何构建高性能分布式缓存系统？');
   });
 });

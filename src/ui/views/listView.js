@@ -35,6 +35,16 @@
             ? globalThis.GeminiUtils.resolveTitle
             : (chat) => ({ title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' }));
 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function render(conversations, exportedIds, prevSelectedSet, searchFilter) {
         const list = $('list');
         if (!list) return;
@@ -71,7 +81,7 @@
                     if(cTs&&rTs&&cTs>rTs+60000) isUpdated=true;
                 }catch{}
             }
-            const safeTitle=(resolveTitle(c).title||c.id||'').replace(/</g,'&lt;');
+            const safeTitle = escapeHtml(resolveTitle(c).title || c.id || '');
             let checked=true;
             if(prevSelectedSet instanceof Set) checked = prevSelectedSet.has(c.id)||prevSelectedSet.has(nid)||prevSelectedSet.has('c_'+nid);
             let badge='';

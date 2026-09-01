@@ -15,6 +15,10 @@
     let __takeoutConvCache = {};
 
     function normId(id) {
+        try {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.normId) return GeminiUtils.normId(id);
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.normId) return globalThis.GeminiUtils.normId(id);
+        } catch {}
         if (!id) return '';
         return String(id).replace(/^c_/, '').trim();
     }
@@ -158,8 +162,7 @@
 
             const foundIds = [];
             for (const lm of linkMatches) {
-                const fullId = lm[1].replace(/^c_/, '').trim();
-                const cleanId = fullId.toLowerCase();
+                const cleanId = normId(lm[1]);
                 if (cleanId.length >= 8 && !foundIds.includes(cleanId)) {
                     foundIds.push(cleanId);
                 }
@@ -167,10 +170,16 @@
             if (!foundIds.length) continue;
 
             let promptText = '';
-            const promptMatch = block.match(/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)\s*([\s\S]*?)(?:<br\s*\/?>|\n)/i)
-                || block.match(/<div class="content-cell[^>]*>([\s\S]*?)(?:<br\s*\/?>|\n)/i);
+            let hasExplicitPrompt = false;
+            const promptMatch = block.match(/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)\s*([\s\S]*?)(?:<br\s*\/?>|\n)/i);
             if (promptMatch) {
+                hasExplicitPrompt = true;
                 promptText = promptMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
+            } else {
+                const contentCellMatchFallback = block.match(/<div class="content-cell[^>]*>([\s\S]*?)(?:<br\s*\/?>|\n)/i);
+                if (contentCellMatchFallback) {
+                    promptText = contentCellMatchFallback[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
+                }
             }
 
             let ts = null;
@@ -279,11 +288,18 @@
                         messages: [...turnMsgs],
                         timestamp: ts,
                         messageCount: turnMsgs.length,
-                        source: 'takeout-offline'
+                        source: 'takeout-offline',
+                        hasExplicitPrompt
                     };
                 } else if (turnMsgs.length > 0) {
                     __takeoutConvCache[cleanId].messages.push(...turnMsgs);
                     __takeoutConvCache[cleanId].messageCount = __takeoutConvCache[cleanId].messages.length;
+                    if (hasExplicitPrompt && !__takeoutConvCache[cleanId].hasExplicitPrompt && promptTitle) {
+                        __takeoutConvCache[cleanId].title = promptTitle;
+                        __takeoutConvCache[cleanId].titles = __takeoutConvCache[cleanId].titles || {};
+                        __takeoutConvCache[cleanId].titles.takeout = promptTitle;
+                        __takeoutConvCache[cleanId].hasExplicitPrompt = true;
+                    }
                 }
 
                 if (!extractedMap[cleanId]) {
@@ -297,11 +313,28 @@
                         timestamp: ts,
                         lastSeen: ts ? new Date(ts).toISOString() : '',
                         source: 'takeout-import',
-                        messageCount: turnMsgs.length
+                        messageCount: turnMsgs.length,
+                        hasExplicitPrompt
                     };
                 } else {
-                    if (promptText && (!extractedMap[cleanId].title || extractedMap[cleanId].title.startsWith('Untitled'))) {
-                        extractedMap[cleanId].title = promptText.split('\n')[0].slice(0, 80);
+                    const cleanPrompt = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : '';
+                    const shouldUpdate = cleanPrompt && (
+                        (hasExplicitPrompt && !extractedMap[cleanId].hasExplicitPrompt) ||
+                        !extractedMap[cleanId].title ||
+                        extractedMap[cleanId].title.startsWith('Untitled') ||
+                        extractedMap[cleanId].title === 'Takeout conversation'
+                    );
+                    if (shouldUpdate) {
+                        extractedMap[cleanId].title = cleanPrompt;
+                        extractedMap[cleanId].titles = extractedMap[cleanId].titles || {};
+                        extractedMap[cleanId].titles.takeout = cleanPrompt;
+                        if (hasExplicitPrompt) extractedMap[cleanId].hasExplicitPrompt = true;
+                        if (__takeoutConvCache[cleanId]) {
+                            __takeoutConvCache[cleanId].title = cleanPrompt;
+                            __takeoutConvCache[cleanId].titles = __takeoutConvCache[cleanId].titles || {};
+                            __takeoutConvCache[cleanId].titles.takeout = cleanPrompt;
+                            if (hasExplicitPrompt) __takeoutConvCache[cleanId].hasExplicitPrompt = true;
+                        }
                     }
                     if (ts && (!extractedMap[cleanId].timestamp || ts > extractedMap[cleanId].timestamp)) {
                         extractedMap[cleanId].timestamp = ts;
