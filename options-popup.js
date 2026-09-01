@@ -192,8 +192,9 @@
         log(typeof I18n !== 'undefined' ? I18n.t('popupExported', fileName, chat.messages?.length||0) : `已导出: ${fileName} (${chat.messages?.length||0} 条消息)`);
 
         try {
+          const finalTitle = chat.title || convId;
           const rec = {
-            title: chat.title || convId,
+            title: finalTitle,
             exportedAt: new Date().toISOString(),
             messageCount: chat.messages?.length || 0,
             chatTime: chat.timestamp || Date.now(),
@@ -201,6 +202,13 @@
           };
           if (Storage) {
             await Storage.saveExportRecord(slot, convId, rec);
+            const list = await Storage.getConversations(slot);
+            const normId = id => String(id || '').replace(/^c_/, '').trim();
+            const item = list.find(c => normId(c.id) === normId(convId));
+            if (item && finalTitle !== convId && item.title !== finalTitle) {
+              item.title = finalTitle;
+              await Storage.setConversations(slot, list);
+            }
           } else {
             const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
             const expData = await chrome.storage.local.get([expKey]);
