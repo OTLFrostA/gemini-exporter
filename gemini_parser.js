@@ -648,9 +648,11 @@
                 const candidates = [inner?.[1], inner?.[2], inner?.[3]];
                 for (const cand of candidates) {
                     if (Array.isArray(cand) && cand.length > 0 && Array.isArray(cand[0])) {
-                        // 粗略校验：首元素包含 c_ 或 user 文本
+                        // 严格校验：候选需像 turns（首元素为 [c_id, r_id] 且含 user 文本或 candidate）
                         try {
-                            if (JSON.stringify(cand).includes('c_') || JSON.stringify(cand).includes('user')) {
+                            const first = cand[0];
+                            const looksLikeTurn = Array.isArray(first) && Array.isArray(first[0]) && typeof first[0][0] === 'string' && first[0][0].startsWith('c_') && (JSON.stringify(cand).includes('rc_') || JSON.stringify(cand).includes('user'));
+                            if (looksLikeTurn) {
                                 turns = cand;
                                 break;
                             }
@@ -894,6 +896,12 @@
             if (metaTitle) {
                 titlesMap.rpc = metaTitle;
             }
+            let _debug = null;
+            if (!allMsgs.length) {
+                try {
+                    _debug = { turnsLen: turns?.length || 0, innerKeys: inner ? Object.keys(inner) : null, innerPreview: JSON.stringify(inner).slice(0, 1500), topPreview: top ? JSON.stringify(top).slice(0, 800) : null };
+                } catch {}
+            }
             return {
                 id: convId,
                 title: cleanT,
@@ -906,7 +914,8 @@
                 url,
                 nextPageToken: nextToken,
                 attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
-                _raw: inner
+                _raw: inner,
+                _debug
             };
         } catch (e) {
             throw new Error("detail parse fail: " + e.message);

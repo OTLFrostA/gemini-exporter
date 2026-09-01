@@ -585,8 +585,9 @@
                             return;
                         } else if (detail) {
                             const rawKeys = detail._raw ? Object.keys(detail._raw) : [];
-                            const rawPreview = detail._raw ? JSON.stringify(detail._raw).slice(0, 600) : '';
-                            batchexecuteEmptyDebug = { rawKeys, rawPreview, messagesLen: detail.messages?.length, hasRaw: !!detail._raw };
+                            const rawPreview = detail._raw ? JSON.stringify(detail._raw).slice(0, 4000) : '';
+                            const topPreview = detail._raw ? JSON.stringify(detail).slice(0, 1000) : '';
+                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.messages?.length, hasRaw: !!detail._raw, titleSeen: detail.title };
                             console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
                         }
                     }
