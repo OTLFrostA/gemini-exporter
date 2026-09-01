@@ -212,10 +212,15 @@
         return url.replace(/=w\d+(-h\d+)?(-p|-k|-no)?.*$/i, "=s0").replace(/=s\d+(-p|-k|-no)?.*$/i, "=s0");
     }
 
+    function isInternalChipUrl(u) {
+        if (!u || typeof u !== 'string') return false;
+        return /googleusercontent\.com\/(immersive_entry_chip|deep_research|map_content|map_location|grounding_content|web_search|youtube_content|flights_content|hotels_content|workspace_content)/i.test(u);
+    }
+
     function extractImages(obj) {
-        let images = [];
-        let seenKeys = new Set();
-        let fallbackCounter = 1;
+        let images = [],
+            seenKeys = new Set(),
+            fallbackCounter = 1;
 
         function walk(node) {
             if (!node || typeof node !== "object") return;
@@ -224,7 +229,7 @@
                     let sourceUrl = node[0],
                         width = node[1],
                         height = node[2];
-                    if (!sourceUrl.includes("immersive_entry_chip") && !sourceUrl.includes("deep_research") && !sourceUrl.includes("map_location_reference") && !sourceUrl.includes("grounding_content")) {
+                    if (!isInternalChipUrl(sourceUrl)) {
                         let token = typeof node[3] === "string" ? node[3] : void 0;
                         let fileName = `image-${fallbackCounter++}.jpg`;
                         let mimeType = "image/jpeg";
@@ -264,17 +269,21 @@
             for (let item of node) {
                 if (Array.isArray(item)) {
                     if (item.length >= 3 && typeof item[0] === 'string' && item[0].startsWith('http') && typeof item[1] === 'string' && item[1].includes('.')) {
-                        files.push({
-                            sourceUrl: item[0],
-                            fileName: item[1],
-                            id: item[2] || item[1]
-                        });
+                        if (!isInternalChipUrl(item[0])) {
+                            files.push({
+                                sourceUrl: item[0],
+                                fileName: item[1],
+                                id: item[2] || item[1]
+                            });
+                        }
                     } else if (item.length >= 2 && typeof item[0] === 'string' && item[0].startsWith('http') && typeof item[1] === 'string' && (item[0].includes('googleusercontent') || item[0].includes('drive.google'))) {
-                        files.push({
-                            sourceUrl: item[0],
-                            fileName: item[1] || 'attachment',
-                            id: item[0]
-                        });
+                        if (!isInternalChipUrl(item[0])) {
+                            files.push({
+                                sourceUrl: item[0],
+                                fileName: item[1] || 'attachment',
+                                id: item[0]
+                            });
+                        }
                     }
                     walk(item);
                 }
@@ -631,20 +640,21 @@
                                         docTitle = `深度研究报告_${String(metaItem.id || 'doc').replace(/[^a-zA-Z0-9_-]/g, '').slice(-6)}`;
                                     }
 
-                                    let isInternalChip = metaItem.chipUrl && /googleusercontent\.com\/(immersive_entry_chip|deep_research)/i.test(metaItem.chipUrl);
+                                    if (!md) return null;
+
                                     return {
                                         id: metaItem.id,
                                         title: docTitle,
                                         createdAt: metaItem.createdAt,
-                                        chipUrl: isInternalChip ? "" : (metaItem.chipUrl || ""),
+                                        chipUrl: "",
                                         sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                                         links: [...parsedPrimary.links, ...parsedAlt.links],
                                         contentMarkdown: md,
-                                        url: isInternalChip ? "" : (metaItem.chipUrl || ""),
+                                        url: "",
                                         localName: `files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
                                         type: "file"
                                     };
-                                }).filter(d => Boolean(d && (d.contentMarkdown || (d.url && !d.url.includes('immersive_entry_chip')))));
+                                }).filter(Boolean);
                             } catch (er) {
                                 console.warn("doc parse err", er);
                             }
@@ -685,25 +695,35 @@
             let minTs = times.length ? Math.min(...times) : Date.now();
             let allMsgs = msgs.map(m => {
                 let atts = [];
-                if (m.images)
-                    for (let im of m.images) atts.push({
-                        type: "image",
-                        src: im.resolvedUrl || im.sourceUrl,
-                        localName: im.localName || `assets/${shortScope}${im.fileName}`,
-                        alt: im.fileName,
-                        isBlob: false,
-                        isImage: true,
-                        originalUrl: im.sourceUrl
-                    });
-                if (m.documents)
-                    for (let d of m.documents) atts.push({
-                        type: "file",
-                        name: d.title || d.id,
-                        title: d.title,
-                        url: d.url || d.chipUrl,
-                        localName: d.localName,
-                        contentMarkdown: d.contentMarkdown
-                    });
+                if (m.images) {
+                    for (let im of m.images) {
+                        if (im.resolvedUrl || im.sourceUrl) {
+                            atts.push({
+                                type: "image",
+                                src: im.resolvedUrl || im.sourceUrl,
+                                localName: im.localName || `assets/${shortScope}${im.fileName}`,
+                                alt: im.fileName,
+                                isBlob: false,
+                                isImage: true,
+                                originalUrl: im.sourceUrl
+                            });
+                        }
+                    }
+                }
+                if (m.documents) {
+                    for (let d of m.documents) {
+                        if (d.contentMarkdown || (d.url && !isInternalChipUrl(d.url))) {
+                            atts.push({
+                                type: "file",
+                                name: d.title || d.id,
+                                title: d.title,
+                                url: d.url || d.sourceUrl,
+                                localName: d.localName,
+                                contentMarkdown: d.contentMarkdown
+                            });
+                        }
+                    }
+                }
                 return {
                     ...m,
                     attachments: atts.length ? atts : void 0,
