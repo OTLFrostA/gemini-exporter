@@ -156,3 +156,21 @@ test('gemini_parser - parseDetail with hNvQHb only falls back gracefully', () =>
     assert.strictEqual(parsed.titleSource, 'rpc');
     assert.strictEqual(parsed.messages.length, 2);
 });
+
+test('gemini_parser - parseDetail with metadata-only payload returns empty messages and retains raw', () => {
+    const mockMetaOnlyInner = [
+        null,
+        null,
+        [["c_meta_only_456", "仅元数据标题", null, null, null, [1774139824, 809290000], null, null, null, 2]]
+    ];
+    const topPayload = [
+        ["wrb.fr", "hNvQHb", JSON.stringify(mockMetaOnlyInner)]
+    ];
+    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+
+    const parsed = GeminiResponseParserClass.parseDetail(rawText, 'meta_only_456');
+    assert.strictEqual(parsed.id.replace(/^c_/, ''), 'meta_only_456');
+    assert.strictEqual(parsed.messages.length, 0);
+    assert.ok(parsed._raw);
+    assert.strictEqual(parsed._raw[2][0][0], 'c_meta_only_456');
+});

@@ -324,13 +324,18 @@
                 diagnostics: diagLog
             };
         }
-        async fetchConversationPage(conversationId, pageToken, targetSid) {
+        async fetchConversationPage(conversationId, pageToken, targetSid, opts) {
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid);
             let api = getApiUrl(cred.accountSlot || "default");
-            console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
+            const isDevMode = (typeof globalThis !== 'undefined' && globalThis.__gemExporterDevMode)
+                || (typeof window !== 'undefined' && window.__gemExporterDevMode);
+            if (isDevMode) {
+                console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
+            }
+            const detailOnly = !!(opts && opts.detailOnly);
             let params = new URLSearchParams({
-                rpcids: `${RPCS.DETAIL},${RPCS.LIST}`,
+                rpcids: detailOnly ? RPCS.DETAIL : `${RPCS.DETAIL},${RPCS.LIST}`,
                 "source-path": "/app",
                 bl: cred.bl || BL_FALLBACK,
                 "f.sid": cred.sid || generateFallbackSid(),
@@ -338,16 +343,14 @@
                 rt: "c"
             });
             let body = new URLSearchParams();
-            let innerDetail = JSON.stringify([id, 10, pageToken || null, 1, [1],
-                [4], null, 1
-            ]);
+            // opts.altParams: use alternative innerDetail format for metadata-only retry
+            let innerDetail = (opts && opts.altParams)
+                ? JSON.stringify([id, null, pageToken || null, 1, [1], [4], null, 1])
+                : JSON.stringify([id, 10, pageToken || null, 1, [1], [4], null, 1]);
             let innerMeta = JSON.stringify([1, null, [null, null, 1, null, 1, id]]);
-            let fReq = JSON.stringify([
-                [
-                    [RPCS.DETAIL, innerDetail, null, "generic"],
-                    [RPCS.LIST, innerMeta, null, "generic"]
-                ]
-            ]);
+            let fReq = detailOnly
+                ? JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"]]])
+                : JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"], [RPCS.LIST, innerMeta, null, "generic"]]]);
             body.append("f.req", fReq);
             if (cred.at) body.append("at", cred.at);
             let resp = await fetch(`${api}?${params}`, {
@@ -370,7 +373,9 @@
             let text = await resp.text();
             try {
                 let parsed = getParser().parseDetail(text, conversationId);
-                console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
+                if (isDevMode) {
+                    console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
+                }
                 return parsed;
             } catch (err) {
                 console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, 'raw text snippet:', text.slice(0, 400));
@@ -391,6 +396,38 @@
             } while (token && attempts < 20);
             if (!first) throw new Error("no data");
             
+            // If the primary request returned metadata-only (no messages, but raw data present),
+            // do one retry with DETAIL-only RPC and alternative innerDetail params.
+            if (!msgs.length && first._raw) {
+                const inner = first._raw;
+                const looksMetadataOnly = Array.isArray(inner) && inner[0] === null && inner[1] === null
+                    && Array.isArray(inner[2]) && inner[2].length > 0
+                    && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
+                if (looksMetadataOnly) {
+                    try {
+                        const retry = await this.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true });
+                        if (retry && retry.messages && retry.messages.length > 0) {
+                            const primaryTitle = first.title;
+                            const primaryTitles = first.titles;
+                            const primarySource = first.titleSource;
+                            msgs = retry.messages;
+                            first = retry;
+                            if (primarySource === 'rpc' && primaryTitle && primaryTitle !== '未命名对话' && first.titleSource !== 'rpc') {
+                                first.title = primaryTitle;
+                                first.titles = { ...(first.titles || {}), ...(primaryTitles || {}) };
+                                first.titleSource = 'rpc';
+                            }
+                        }
+                    } catch (retryErr) {
+                        const isDevMode = (typeof globalThis !== 'undefined' && globalThis.__gemExporterDevMode)
+                            || (typeof window !== 'undefined' && window.__gemExporterDevMode);
+                        if (isDevMode) {
+                            console.warn('[Gemini Exporter Client] metadata-only retry also failed:', retryErr.message);
+                        }
+                    }
+                }
+            }
+
             let allTimestamps = msgs.map(m => m.timestamp).filter(x => typeof x === 'number' && Number.isFinite(x) && x > 0);
             let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || Date.now());
             let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : minTs;

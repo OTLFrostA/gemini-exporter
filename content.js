@@ -595,12 +595,16 @@
                             const rawPreview = detail._raw ? JSON.stringify(detail._raw).slice(0, 4000) : '';
                             const topPreview = detail._raw ? JSON.stringify(detail).slice(0, 1000) : '';
                             batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.messages?.length, hasRaw: !!detail._raw, titleSeen: detail.title };
-                            console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
+                            if (window.__gemExporterDevMode) {
+                                console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
+                            }
                         }
                     }
                 } catch (e) {
                     batchexecuteEmptyDebug = { error: e.message };
-                    console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e.message);
+                    if (window.__gemExporterDevMode) {
+                        console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e.message);
+                    }
                 }
                 try {
                     if (Scraper) {
@@ -610,7 +614,9 @@
                             sendResponse({ success: true, data: chat, source: 'dom' });
                             return;
                         } else {
-                            console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
+                            if (window.__gemExporterDevMode) {
+                                console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
+                            }
                             // 合并 batchexecute 与 DOM 的诊断，一并返回给 background
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null };
                             sendResponse({ success: true, data: { ...chat, _empty: true, error: chat?.error || 'DOM 返回内容为空', _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
