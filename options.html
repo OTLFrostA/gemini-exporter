@@ -261,6 +261,14 @@
         <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
       </div>
     </div>
+    <!-- 导出状态与中断恢复横幅 (Export Session Recovery Banner) -->
+    <div id="exportSessionBanner" style="display:none; background:var(--card-inner); border:1px solid #3b4066; border-radius:10px; padding:10px 14px; margin-bottom:10px; align-items:center; justify-content:space-between; gap:12px; font-size:12px; flex:none;">
+      <div id="exportSessionText" style="color:var(--text); flex:1; overflow:hidden; text-overflow:ellipsis;"></div>
+      <div style="display:flex; gap:8px; align-items:center; flex:none;">
+        <button id="btnResumeExport" class="primary small" style="padding:3px 10px; font-size:11px;">▶️ 继续导出未完成项</button>
+        <button id="btnDismissExportBanner" class="ghost small" style="padding:3px 8px; font-size:11px;">✕ 关闭</button>
+      </div>
+    </div>
     <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;" data-i18n="emptyList">暂无会话数据，请打开 gemini.google.com 页面同步。</div>
   </div>
 </div>
