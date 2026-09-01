@@ -155,8 +155,9 @@
                 if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
 
                 const old = dedupMap.get(nid);
-                //  scrub 已污染的 "Google Gemini" 标题
-                const isBad = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(String(t).trim());
+                //  scrub 已污染的 "Google Gemini" 标题（含隐形字符）
+                const cleanForBad = t => String(t||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
+                const isBad = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
                 if (isBad(c.title)) c.title = '';
                 if (c.titles) {
                     for (const k of Object.keys(c.titles)) if (isBad(c.titles[k])) delete c.titles[k];

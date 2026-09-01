@@ -436,8 +436,9 @@
                     let finalTitle = chat.title || listC?.title || chat.id;
 
                     if (listC) {
-                        // 防御：绝不允许 "Google Gemini" 等品牌词覆盖已有标题
-                        const isBadBrand = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(String(t).trim());
+                        // 防御：绝不允许 "Google Gemini" 等品牌词覆盖已有标题（含 U+200E 隐形字符）
+                        const cleanForBad = t => String(t||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
+                        const isBadBrand = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
                         listC.titles = listC.titles || {};
                         for (const [k,v] of Object.entries(listC.titles)) {
                             if (isBadBrand(v)) delete listC.titles[k];
@@ -452,7 +453,8 @@
                             listC.titles[chat.titleSource] = cleanTitle(chat.title);
                         }
                         const resolved = resolveTitle(listC);
-                        if (resolved.title && /^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(resolved.title.trim())) {
+                        const cleanResolved = String(resolved.title||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
+                        if (resolved.title && /^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(cleanResolved)) {
                             console.warn('[Export] skip bad brand resolved title', nid, resolved.title);
                         } else if (listC.title !== resolved.title || listC.titleSource !== resolved.source) {
                             listC.title = resolved.title;
