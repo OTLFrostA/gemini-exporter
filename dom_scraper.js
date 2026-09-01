@@ -175,9 +175,13 @@
                 let pp = a.closest('[title]');
                 if (pp) title = pp.getAttribute('title').trim();
             }
+            const cleanT = cleanTitle(title || '未命名对话');
+            const isReal = isRealTitle(cleanT, id);
             return {
                 id,
-                title: title || '未命名对话',
+                title: cleanT,
+                titleSource: isReal ? 'dom' : 'default',
+                titles: isReal ? { dom: cleanT } : {},
                 url: `https://gemini.google.com/app/${id}`,
                 href: `https://gemini.google.com/app/${id}`
             };
