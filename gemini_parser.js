@@ -377,9 +377,13 @@
     function extractConversationTitle(inner, turns) {
         if (typeof inner[2] === "string" && inner[2].length > 0 && inner[2] !== "c_" && !inner[2].startsWith("tC")) return inner[2];
         if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC")) return inner[1];
-        if (Array.isArray(turns) && turns[0]) {
-            let uText = turns[0]?.[2]?.[0]?.[0];
-            if (typeof uText === "string" && uText.trim()) return uText.slice(0, 30).trim();
+        if (Array.isArray(turns)) {
+            for (let t of turns) {
+                let uText = t?.[2]?.[0]?.[0];
+                if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
+                    return uText.slice(0, 60).trim();
+                }
+            }
         }
         return "Untitled Conversation";
     }
@@ -737,6 +741,13 @@
                     messageCount: 1
                 };
             });
+            if (!isRealTitle(title, convId)) {
+                let firstUser = allMsgs.find(m => m.role === 'user' && m.content && m.content.trim());
+                if (firstUser) {
+                    let candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                    if (isRealTitle(candidate, convId)) title = candidate;
+                }
+            }
             return {
                 id: convId,
                 title,

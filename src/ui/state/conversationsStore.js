@@ -32,9 +32,10 @@
         const l = list || conversations;
         if (!l || !l.length) return 'empty';
         try {
-            const ids = l.map(c => c.id);
-            if (ids.length <= 6) return ids.join('|') + '|' + ids.length;
-            return ids.slice(0, 3).join(',') + '|' + ids.slice(-3).join(',') + '|len=' + ids.length + '|s=' + ids.reduce((a, b) => a + (String(b).charCodeAt(0) || 0), 0) % 10000;
+            const items = l.map(c => `${c.id}:${(c.title || '').slice(0, 15)}`);
+            if (items.length <= 6) return items.join('|') + '|' + items.length;
+            const titleSum = l.reduce((acc, c) => acc + (c.title ? c.title.charCodeAt(0) : 0), 0);
+            return items.slice(0, 3).join(',') + '|' + items.slice(-3).join(',') + '|len=' + items.length + '|ts=' + titleSum;
         } catch {
             return 'err-' + (l.length || 0);
         }

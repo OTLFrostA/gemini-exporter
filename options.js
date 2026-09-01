@@ -355,6 +355,11 @@
                 onLog: (m, lvl) => log(m, lvl),
                 onTitleUpdated: (chatId, newTitle) => {
                     const nid = normId(chatId);
+                    if (Store) {
+                        const convs = Store.getConversations();
+                        const item = convs.find(c => normId(c.id) === nid);
+                        if (item) item.title = newTitle;
+                    }
                     const itemEl = document.querySelector(`[data-chat-id="${nid}"]`);
                     if (itemEl) {
                         const titleDiv = itemEl.querySelector('.title > div');
@@ -395,7 +400,8 @@
             log(`导出过程异常中断: ${err.message}`, 'error');
             if ($('progText')) $('progText').textContent = `导出失败: ${err.message}`;
         } finally {
-            loadStore(true);
+            __lastRenderedSignature = '';
+            await loadStore(true);
         }
     }
 
