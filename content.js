@@ -1,4 +1,4 @@
-// content.js - Gemini Exporter content script
+// content.js - Gemini Exporter content script coordinator
 (() => {
     if (typeof window.__gemExporterDeepScanPromise === 'undefined') window.__gemExporterDeepScanPromise = null;
 
@@ -11,22 +11,45 @@
     }
     window.__gemExporterInjected = true;
 
+    const Storage = (typeof StorageService !== 'undefined') ? StorageService : (window.StorageService || null);
+    const Scraper = (typeof DomScraper !== 'undefined') ? DomScraper : (window.DomScraper || null);
+    const Assets = (typeof AssetFetcher !== 'undefined') ? AssetFetcher : (window.AssetFetcher || null);
+
+    function getAccountSlot() {
+        const m = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
+        return m ? ('u' + m[1]) : 'u0';
+    }
+
+    let currentLang = 'zh';
+    function isZh() {
+        return (currentLang || '').toLowerCase().startsWith('zh');
+    }
+
+    try {
+        chrome.storage.local.get(['gemini_exporter_lang'], d => {
+            if (d.gemini_exporter_lang) currentLang = d.gemini_exporter_lang;
+            else currentLang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+            refreshInitialBadge();
+        });
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area === 'local' && changes.gemini_exporter_lang) {
+                currentLang = changes.gemini_exporter_lang.newValue || 'zh';
+                refreshInitialBadge();
+            }
+        });
+    } catch {}
+
     function ensureBadge() {
         let existing = document.getElementById('geminiExportBadge');
         if (existing) return existing;
-        let isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-        chrome.storage.local.get(['gemini_exporter_lang'], d => {
-            if (d.gemini_exporter_lang) isZh = d.gemini_exporter_lang === 'zh';
-        });
+        const zh = isZh();
         const div = document.createElement('div');
         div.id = 'geminiExportBadge';
-        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${isZh ? '初始化…' : 'Initializing...'}</span>`;
-        div.title = isZh ? '点此打开批量导出页' : 'Click to open Export Workbench';
+        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${zh ? '检测中…' : 'Checking...'}</span>`;
+        div.title = zh ? '点此打开批量导出页' : 'Click to open Export Workbench';
         div.addEventListener('click', () => {
             try {
-                const p = chrome.runtime.sendMessage({
-                    action: 'openOptions'
-                });
+                const p = chrome.runtime.sendMessage({ action: 'openOptions' });
                 if (p && p.catch) p.catch(() => {});
             } catch {}
         });
@@ -35,84 +58,81 @@
         return div;
     }
 
-    function getAccountSlot() {
-        const m = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
-        return m ? ('u' + m[1]) : 'u0';
-    }
-
-    function getStorageKeys() {
-        const slot = getAccountSlot();
-        if (slot === 'u0') {
-            return {
-                slot,
-                convKey: 'gemini_conversations',
-                countKey: 'gemini_last_count',
-                syncKey: 'gemini_last_sync'
-            };
-        }
-        return {
-            slot,
-            convKey: `gemini_conversations_${slot}`,
-            countKey: `gemini_last_count_${slot}`,
-            syncKey: `gemini_last_sync_${slot}`
-        };
-    }
-
     async function refreshInitialBadge() {
         try {
-            const { convKey, countKey } = getStorageKeys();
-            const store = await chrome.storage.local.get([convKey, countKey]);
-            const c = store[convKey]?.length ?? store[countKey] ?? 0;
-            if (c > 0) updateBadge(c, 0);
+            const slot = getAccountSlot();
+            let convs = Storage ? await Storage.getConversations(slot) : [];
+            if (convs && convs.length > 0) {
+                updateBadge(convs.length, 0);
+            } else {
+                const zh = isZh();
+                updateBadge(0, 0, zh ? '就绪 (0 条)' : 'Ready (0)');
+            }
         } catch {}
+    }
+
+    async function syncOnce() {
+        try {
+            if (!Scraper || typeof Scraper.getConversationLinks !== 'function') return 0;
+            const links = Scraper.getConversationLinks();
+            if (!links || !links.length) {
+                if (typeof Scraper.tryExpandRecents === 'function') Scraper.tryExpandRecents();
+                return 0;
+            }
+            const dedup = links.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
+            let mergedLen = await upsertConversations(dedup, 'dom-sync');
+            return mergedLen;
+        } catch (e) {
+            return 0;
+        }
     }
 
     function ensureBadgeAndText() {
         const badge = ensureBadge();
         const txt = document.getElementById('geminiExportBadgeText');
-        return {
-            badge,
-            txt
-        };
+        return { badge, txt };
     }
 
     function updateBadge(mergedLen, visible, overrideText) {
         try {
-            const {
-                txt,
-                badge
-            } = ensureBadgeAndText();
+            const { txt, badge } = ensureBadgeAndText();
             if (!txt) return;
             if (overrideText) {
                 txt.textContent = overrideText;
                 return;
             }
-            const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-            txt.textContent = isZh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
+            const zh = isZh();
+            txt.textContent = zh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
             const slot = getAccountSlot();
-            if (badge && slot !== 'u0') {
-                badge.title = (isZh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`);
+            if (badge) {
+                if (slot !== 'u0') {
+                    badge.title = (zh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`);
+                } else {
+                    badge.title = (zh ? '点此打开批量导出页' : 'Click to open Export Workbench');
+                }
             }
         } catch (e) {
             console.warn('[Gemini Exporter] updateBadge err', e);
         }
     }
 
-    function isRealTitle(title, id) {
-        if (!title || typeof title !== 'string') return false;
-        let t = title.trim();
-        if (t.length < 2) return false;
-        if (id) {
-            let cleanId = String(id).replace(/^c_/, '').trim();
-            let cleanT = t.replace(/^c_/, '').trim();
-            if (cleanT === cleanId) return false;
-            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-        }
-        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-        if (/^Google Account/i.test(t)) return false;
-        if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
-        return true;
-    }
+    const isRealTitle = (typeof globalThis.isRealTitle === 'function')
+        ? globalThis.isRealTitle
+        : function isRealTitle(title, id) {
+            if (!title || typeof title !== 'string') return false;
+            let t = title.trim();
+            if (t.length < 2) return false;
+            if (id) {
+                let cleanId = String(id).replace(/^c_/, '').trim();
+                let cleanT = t.replace(/^c_/, '').trim();
+                if (cleanT === cleanId) return false;
+                if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+            }
+            if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+            if (/^Google Account/i.test(t)) return false;
+            if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+            return true;
+        };
 
     let __storageWriteQueue = Promise.resolve();
 
@@ -120,29 +140,28 @@
         if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
         __storageWriteQueue = __storageWriteQueue.then(async () => {
             try {
-                const { slot, convKey, countKey, syncKey } = getStorageKeys();
-                const data = await chrome.storage.local.get([convKey, syncKey, 'gemini_account_slots']);
-                const existing = data[convKey] || [];
+                const slot = getAccountSlot();
+                const existing = Storage ? await Storage.getConversations(slot) : [];
                 const map = new Map();
                 existing.forEach(c => {
                     if (!c || !c.id) return;
-                    const normId = String(c.id).replace(/^c_/, '').trim();
-                    c.id = normId;
-                    map.set(normId, c);
+                    const nid = String(c.id).replace(/^c_/, '').trim();
+                    c.id = nid;
+                    map.set(nid, c);
                 });
                 let now = Date.now();
                 let changed = 0;
 
                 incomingItems.forEach((c, idx) => {
                     if (!c || !c.id) return;
-                    const normId = String(c.id).replace(/^c_/, '').trim();
-                    c.id = normId;
-                    const old = map.get(normId);
+                    const nid = String(c.id).replace(/^c_/, '').trim();
+                    c.id = nid;
+                    const old = map.get(nid);
 
                     let resolvedTitle = old?.title;
-                    if (isRealTitle(c.title, normId)) {
+                    if (isRealTitle(c.title, nid)) {
                         resolvedTitle = c.title.trim().slice(0, 120);
-                    } else if (!isRealTitle(old?.title, normId)) {
+                    } else if (!isRealTitle(old?.title, nid)) {
                         resolvedTitle = c.title || old?.title || '未命名对话';
                     }
 
@@ -151,10 +170,10 @@
                     } else if (old.title !== resolvedTitle || (!old.timestamp && c.timestamp)) {
                         changed++;
                     }
-                    map.set(normId, {
+                    map.set(nid, {
                         ...(old || {}),
                         ...c,
-                        id: normId,
+                        id: nid,
                         title: resolvedTitle,
                         timestamp: c.timestamp || (old && old.timestamp) || null,
                         lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
@@ -170,30 +189,16 @@
                     return tsB - tsA;
                 });
 
-                const slotsMeta = data.gemini_account_slots || {};
-                slotsMeta[slot] = {
-                    slot,
-                    name: slot === 'u0' ? 'Default Account (u0)' : `Account ${slot.toUpperCase()}`,
-                    count: merged.length,
-                    lastSync: new Date().toISOString()
-                };
-
-                // Throttle storage writes if nothing actually changed (no new chats, no title updates)
-                if (changed === 0 && incomingItems.length > 0) {
-                    let lastSyncStr = data[syncKey] || '';
-                    let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
-                    if (Date.now() - lastSyncTime < 5000) {
-                        updateBadge(merged.length, incomingItems.length);
-                        return merged.length;
-                    }
+                if (Storage) {
+                    await Storage.setConversations(slot, merged);
+                    await Storage.setLastSync(slot, Date.now(), merged.length);
+                    await Storage.updateAccountSlot(slot, {
+                        slot,
+                        name: slot === 'u0' ? 'Default Account (u0)' : `Account ${slot.toUpperCase()}`,
+                        count: merged.length,
+                        lastSync: new Date().toISOString()
+                    });
                 }
-
-                await chrome.storage.local.set({
-                    [convKey]: merged,
-                    [syncKey]: new Date().toISOString(),
-                    [countKey]: merged.length,
-                    gemini_account_slots: slotsMeta
-                });
 
                 try {
                     const p = chrome.runtime.sendMessage({
@@ -216,38 +221,24 @@
         return __storageWriteQueue;
     }
 
-    // ----- Batch execute (batchexecute first) -----
     async function tryBatchExecuteFull(forceOpts) {
-        if (window.__gemExporterDeepScanPromise) {
-            console.log('[Gemini Exporter] batch already running, return existing');
-            return null; // let caller wait via promise path
-        }
+        if (window.__gemExporterDeepScanPromise) return null;
         try {
-            if (typeof GeminiAPIClient === 'undefined' && typeof window.GeminiAPIClient === 'undefined') return null;
             let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
+            if (!C) return null;
             let client = new C();
-            if (typeof ensureCreds === 'function') {
-                try { await ensureCreds(); } catch {}
-            }
-            let map = (await chrome.storage.local.get(['gemini_credentials_map'])).gemini_credentials_map || {};
-            if (!Object.keys(map).length) {
-                let at = typeof extractAtFromPage === 'function' ? extractAtFromPage() : '';
-                if (!at && typeof window.__gemExporterExtractAt === 'function') at = window.__gemExporterExtractAt();
-                if (!at) return null;
-            }
-            
-            const { convKey } = getStorageKeys();
-            const freshBefore = await chrome.storage.local.get([convKey]);
-            const beforeList = freshBefore[convKey] || [];
+            const slot = getAccountSlot();
+            const beforeList = Storage ? await Storage.getConversations(slot) : [];
             const beforeMap = new Map(beforeList.map(c => [c.id, c]));
             let useIncremental = beforeList.length > 30;
             if (forceOpts?.forceFull) useIncremental = false;
             if (forceOpts?.forceIncremental) useIncremental = true;
-            
+
+            const effectiveMaxPages = forceOpts?.maxPages || (useIncremental ? 2 : 2000);
+
             window.__gemExporterAborted = false;
-            if (client) client.aborted = false;
             let saveQueue = Promise.resolve();
-            let all = await client.getAllConversations(forceOpts?.maxPages || 2000, (prog) => {
+            let all = await client.getAllConversations(effectiveMaxPages, (prog) => {
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) {
                     if (prog.stoppedEarly) badge.textContent = `已同步 ${prog.total} 条 ✓`;
@@ -266,7 +257,6 @@
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
 
-                // Stream progressive save to storage so UI updates immediately in real-time!
                 if (prog.batch && prog.batch.length) {
                     saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute'));
                 }
@@ -276,13 +266,13 @@
                 unchangedThreshold: 5
             });
             await saveQueue;
-            
+
             if (all && all.diagnostics) {
                 try {
                     await chrome.storage.local.set({ gemini_last_sync_diagnostics: all.diagnostics });
                 } catch {}
             }
-            
+
             if (all && all.conversations && all.conversations.length) {
                 let mergedLen = await upsertConversations(all.conversations, 'batchexecute');
                 const badge = document.getElementById('geminiExportBadgeText');
@@ -298,18 +288,15 @@
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
-                return {
-                    count: mergedLen,
-                    diagnostics: all.diagnostics
-                };
+                return { count: mergedLen, diagnostics: all.diagnostics };
             }
         } catch (e) {
-            console.debug('[Gemini Exporter] batch exec fail, will fallback scroll', e.message || e);
+            console.debug('[Gemini Exporter] batch exec fail', e.message || e);
         }
         return null;
     }
 
-    // ----- 0. Network ids via MAIN world hook -----
+    // Network ids hook listener
     window.addEventListener('message', async (event) => {
         const d = event.data;
         if (!d || d.type !== '__gemExporterNetworkIds') return;
@@ -323,414 +310,111 @@
                 url: `https://gemini.google.com/app/${id}`
             }));
             let mergedLen = await upsertConversations(mockItems, 'network:' + (d.source || ''));
-            // only update badge if not in deep scan (prevents flicker)
             if (!window.__gemExporterDeepScanPromise) {
                 const badgeTxt = document.getElementById('geminiExportBadgeText');
                 if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
                 else ensureBadge();
             }
-        } catch (e) {
-            console.warn('[Robust network merge err]', e);
-        }
+        } catch (e) {}
     });
 
-    function parseNaturalDate(str) {
-        if (!str || typeof str !== 'string') return null;
-        str = str.trim();
-        if (!str) return null;
-
-        // 1. Direct ISO / standard parseable string (e.g. 2025-11-28)
-        if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(str)) {
-            let t = Date.parse(str);
-            if (!isNaN(t)) return t;
-        }
-
-        const now = new Date();
-        const currentYear = now.getFullYear();
-
-        // 2. Relative time: Yesterday / 昨天
-        if (/^(yesterday|\u6628\u5929)$/i.test(str)) {
-            return Date.now() - 86400000;
-        }
-        let mRel = str.match(/^(\d+)\s*(days?|\u5929|hours?|\u5c0f\u65f6|months?|\u4e2a\u6708|\u6708|years?|\u5e74)\s*(?:ago|\u524d)$/i);
-        if (mRel) {
-            let n = parseInt(mRel[1], 10);
-            let u = mRel[2].toLowerCase();
-            if (u.startsWith('h') || u.includes('\u5c0f\u65f6')) return Date.now() - n * 3600000;
-            if (u.startsWith('d') || u.includes('\u5929')) return Date.now() - n * 86400000;
-            if (u.startsWith('m') || u.includes('\u6708')) return Date.now() - n * 30 * 86400000;
-            if (u.startsWith('y') || u.includes('\u5e74')) return Date.now() - n * 365 * 86400000;
-        }
-
-        // 3. Chinese format: 2025年11月28日 or 8月7日
-        let mZh = str.match(/^(?:(\d{4})\u5e74\s*)?(\d{1,2})\u6708\s*(\d{1,2})\u65e5?/);
-        if (mZh) {
-            let y = mZh[1] ? parseInt(mZh[1], 10) : currentYear;
-            let m = parseInt(mZh[2], 10) - 1;
-            let d = parseInt(mZh[3], 10);
-            let dt = new Date(y, m, d, 12, 0, 0);
-            if (!mZh[1] && dt.getTime() > now.getTime() + 86400000) {
-                dt.setFullYear(currentYear - 1);
-            }
-            return dt.getTime();
-        }
-
-        // 4. English format: 'Aug 7', 'Nov 28, 2025', 'Aug 7, 2026'
-        let mEn = str.match(/^([A-Za-z]{3,9})\s+(\d{1,2})(?:,\s*(\d{4}))?$/);
-        if (mEn) {
-            let monthStr = mEn[1];
-            let day = parseInt(mEn[2], 10);
-            let year = mEn[3] ? parseInt(mEn[3], 10) : currentYear;
-            let dt = new Date(year + ' ' + monthStr + ' ' + day + ' 12:00:00');
-            if (!isNaN(dt.getTime())) {
-                if (!mEn[3] && dt.getTime() > now.getTime() + 86400000) {
-                    dt.setFullYear(currentYear - 1);
-                }
-                return dt.getTime();
-            }
-        }
-
-        // 5. General fallback
-        let gen = Date.parse(str);
-        if (!isNaN(gen)) return gen;
-        return null;
-    }
-
-    // ----- 1. DOM scan -----
-    function getConversationLinks() {
-        const sels = [
-            'search-snippet a',
-            'a.snippet-container',
-            '.search-results-list a',
-            'a[href*="/app/"]',
-            '[data-test-id="conversation"] a',
-            'bard-sidenav a[href*="/app/"]',
-            'div[role="navigation"] a[href*="/app/"]'
-        ];
-        let nodes = [];
-        for (const sel of sels) {
-            try {
-                document.querySelectorAll(sel).forEach(a => nodes.push(a));
-            } catch {}
-        }
-        nodes = [...new Set(nodes)];
-        if (!nodes.length) nodes = [...document.querySelectorAll('a[href*="/app/"]')];
-        return nodes.map(a => {
-            let href = a.getAttribute('href') || a.href || '';
-            if (!href) return null;
-            let m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
-            if (!m) return null;
-            let raw = m[2] || m[1];
-            if (!raw) return null;
-            if (raw.length < 8) return null;
-            if (/^(search|images|videos|app)$/i.test(raw)) return null;
-            let id = raw.replace(/^c_/, '');
-
-            // 1. Precise Title Extraction (Priority to .title element to avoid snippet match text)
-            let title = '';
-            const titleEl = a.querySelector('.title') || a.querySelector('[class*="title"]') || a.closest('search-snippet')?.querySelector('.title');
-            if (titleEl) {
-                title = titleEl.textContent.trim();
-            } else {
-                title = (a.textContent || a.getAttribute('aria-label') || '').trim().split('\n')[0].trim();
-            }
-            title = title.replace(/\s{2,}/g, ' ').trim();
-            if (!title || title.length < 2) {
-                let pp = a.closest('[title]');
-                if (pp) title = pp.getAttribute('title').trim();
-            }
-            if (!title || title.length < 2) title = '未命名对话';
-            if (/^(New chat|新对话|Search|搜索|Images|图片|Videos|视频|Library|Gemini)$/i.test(title)) return null;
-            let abs = href.startsWith('http') ? href.split('?')[0] : 'https://gemini.google.com' + href.split('?')[0];
-            if (/accounts\.google\.com|SignOutOptions/i.test(href) || /accounts\.google\.com/i.test(abs)) return null;
-            if (/^Google Account/i.test(title)) return null;
-
-            // 2. Precise Date / Timestamp Extraction
-            let timestamp = null;
-            const dateEl = a.querySelector('.date') || a.querySelector('[class*="date"]') || a.querySelector('time') || a.querySelector('[datetime]') || a.closest('search-snippet')?.querySelector('.date');
-            if (dateEl) {
-                const dateStr = (dateEl.getAttribute('datetime') || dateEl.textContent || '').trim();
-                timestamp = parseNaturalDate(dateStr);
-            }
-
-            return {
-                id,
-                title: title.slice(0, 90),
-                href: abs,
-                url: abs,
-                timestamp: timestamp || null
-            };
-        }).filter(Boolean).filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
-    }
-
-    function getScrollContainer() {
-        try {
-            let m = document.querySelector("mat-sidenav-content");
-            if (m && m.scrollHeight > m.clientHeight + 20) return m;
-        } catch {}
-        const sels = [
-            '.search-results-list',
-            '#sidenav-section-content-chats',
-            '[data-test-id="sidenav-content"]',
-            'bard-sidenav[aria-label="Side Navigation"]',
-            'nav[aria-label="Main"]',
-            'div[role="navigation"]',
-            'div[class*="chat-history"]',
-        ];
-        for (const sel of sels) {
-            const el = document.querySelector(sel);
-            if (el && el.scrollHeight > el.clientHeight + 20) return el;
-        }
-        const all = document.querySelectorAll('*');
-        let best = null,
-            bestScore = 0;
-        for (const el of all) {
-            if (el.scrollHeight <= el.clientHeight + 50) continue;
-            const links = el.querySelectorAll ? el.querySelectorAll('a[href*="/app/"]') : [];
-            const cnt = links.length || 0;
-            if (cnt > 0 && el.scrollHeight > bestScore) {
-                best = el;
-                bestScore = el.scrollHeight;
-            }
-        }
-        if (best) return best;
-        return document.scrollingElement || document.documentElement;
-    }
-
-    async function syncOnce() {
-        try {
-            const links = getConversationLinks();
-            const dedup = links.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
-            
-            if (dedup.length === 0) {
-                tryExpandRecents();
-                return { merged: 0, visible: 0, changed: 0 };
-            }
-            
-            let mergedLen = await upsertConversations(dedup, 'dom-sync');
-            
-            return {
-                merged: mergedLen,
-                visible: dedup.length,
-                changed: dedup.length // Approximate return metric
-            };
-        } catch (e) {
-            if (!String(e && e.message || e).includes('Extension context invalidated')) console.warn('[Robust sync error]', e.message || e);
-            return {
-                merged: 0,
-                visible: 0,
-                error: e.message
-            };
-        }
-    }
-
-    function tryExpandRecents() {
-        const btn = document.querySelector('button[aria-label="Toggle Recents"]');
-        if (btn && btn.getAttribute('aria-expanded') === 'false') btn.click();
-        const btn2 = document.querySelector('[aria-label="Toggle Recents"]');
-        if (btn2 && btn2.getAttribute('aria-expanded') === 'false') btn2.click();
-    }
-
-    function sleep(ms) {
-        return new Promise(r => setTimeout(r, ms));
-    }
-
-    // ----- 2. scrollToBottomLoadAll with single-run guard -----
-    async function scrollToBottomLoadAll(maxIter = 150, mode) {
-        // If already running, return existing promise (prevents double-trigger flicker)
-        if (window.__gemExporterDeepScanPromise) {
-            console.log('[Gemini Exporter] deep scan already running, returning existing promise');
-            return window.__gemExporterDeepScanPromise;
-        }
-
-        // Wrap whole scan in a promise stored globally
-        const scanPromise = (async () => {
-            try {
-                let batchRes = await tryBatchExecuteFull(
-                    mode === 'full' ? {
-                        forceFull: true
-                    } : mode === 'incremental' ? {
-                        forceIncremental: true
-                    } : null
-                );
-                // tryBatchExecuteFull leaves running true only if it succeeded via inner path;
-                // if it returned count, we can finish early
-                const { slot, convKey, countKey } = getStorageKeys();
-                const bCount = typeof batchRes === 'number' ? batchRes : batchRes?.count;
-                if (bCount && bCount > 0) {
-                    return {
-                        success: true,
-                        slot,
-                        count: bCount,
-                        totalMerged: bCount,
-                        source: 'batchexecute',
-                        diagnostics: batchRes?.diagnostics || null
-                    };
-                }
-
-                const isIncremental = (mode === 'incremental');
-                const effectiveMax = isIncremental ? Math.min(maxIter, 8) : maxIter;
-                const stored = (await chrome.storage.local.get([convKey]))[convKey] || [];
-                const storedIdSet = new Set(stored.map(c => c.id));
-
-                console.log('[Gemini Exporter] scrollToBottomLoadAll start max', effectiveMax, 'mode', mode, 'storedCount', storedIdSet.size);
-                const container = getScrollContainer();
-                if (!container) {
-                    try {
-                        const _p = chrome.runtime.sendMessage({
-                            action: 'scanProgress',
-                            done: 0,
-                            total: effectiveMax,
-                            title: '未找到滚动容器，请先展开侧边栏'
-                        });
-                        if (_p && _p.catch) _p.catch(() => {});
-                    } catch (e) {};
-                    return {
-                        success: false,
-                        error: 'no container',
-                        count: getConversationLinks().length
-                    };
-                }
-                let lastCount = getConversationLinks().length;
-                let stable = 0;
-                let totalFound = lastCount;
-                for (let i = 0; i < effectiveMax; i++) {
-                    try {
-                        const btns = container.querySelectorAll('button');
-                        for (const b of btns) {
-                            const t = (b.textContent || '').trim().toLowerCase();
-                            if (t.includes('show more') || t.includes('显示更多') || t.includes('加载更多') || t.includes('more')) {
-                                if (b.getAttribute('aria-label') && b.getAttribute('aria-label').includes('Toggle')) continue;
-                                if (b.offsetParent === null) continue;
-                                b.click();
-                                await sleep(150);
-                            }
-                        }
-                        try {
-                            container.scrollTop = container.scrollHeight;
-                        } catch {}
-                        try {
-                            window.scrollBy(0, 99999);
-                        } catch {}
-                        try {
-                            document.documentElement.scrollTop = document.documentElement.scrollHeight;
-                        } catch {}
-                        try {
-                            document.querySelectorAll('mat-sidenav-content, [data-test-id="sidenav-content"], #sidenav-section-content-chats, div[role="navigation"], bard-sidenav').forEach(el => {
-                                try {
-                                    el.scrollTop = el.scrollHeight;
-                                } catch {}
-                            });
-                        } catch {}
-                        container.dispatchEvent(new Event('scroll', {
-                            bubbles: true
-                        }));
-                        try {
-                            container.dispatchEvent(new WheelEvent('wheel', {
-                                deltaY: 1200,
-                                bubbles: true
-                            }));
-                        } catch {}
-                        const delay = isIncremental ? 160 : (200 + Math.floor(Math.random() * 80));
-                        await sleep(delay);
-
-                        const curLinks = getConversationLinks();
-                        const curCount = curLinks.length;
-                        totalFound = Math.max(totalFound, curCount);
-
-                        if (isIncremental && storedIdSet.size > 0 && curLinks.length >= 10) {
-                            const tail = curLinks.slice(-10);
-                            if (tail.every(l => storedIdSet.has(l.id))) {
-                                break;
-                            }
-                        }
-
-                        try {
-                            const _p = chrome.runtime.sendMessage({
-                                action: 'scanProgress',
-                                done: i + 1,
-                                total: effectiveMax,
-                                percent: Math.floor(((i + 1) / effectiveMax) * 100),
-                                count: totalFound,
-                                title: `正在扫描 (${totalFound} 条)…`
-                            });
-                            if (_p && _p.catch) _p.catch(() => {});
-                        } catch (e) {}
-                        const badgeTxt = document.getElementById('geminiExportBadgeText');
-                        if (badgeTxt) badgeTxt.textContent = `同步中 | 已获取 ${totalFound} 条`;
-
-                        if (curCount === lastCount) {
-                            stable++;
-                            if (stable >= 2) {
-                                console.log('[Gemini Exporter] stable 2 times, break at', i);
-                                break;
-                            }
-                        } else {
-                            stable = 0;
-                            lastCount = curCount;
-                        }
-                        tryExpandRecents();
-                    } catch (e) {
-                        console.warn('[Robust scroll iter error]', e.message || e);
-                        await sleep(100);
-                    }
-                }
-                const finalLinks = getConversationLinks();
-                await syncOnce();
-                const store = await chrome.storage.local.get([convKey, countKey]);
-                const finalCount = store[convKey]?.length || store[countKey] || finalLinks.length;
-                console.log('[Gemini Exporter] scrollToBottomLoadAll done visible', finalLinks.length, 'totalMerged', finalCount);
+    // Message router
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (msg.action === 'deepScan') {
+            (async () => {
                 try {
-                    const _p = chrome.runtime.sendMessage({
-                        action: 'scanProgress',
-                        done: effectiveMax,
-                        total: effectiveMax,
-                        percent: 100,
-                        count: finalCount,
-                        title: (isZh ? `同步完成，账号共 ${finalCount} 条会话` : `Sync complete, total ${finalCount} conversations`)
+                    let res = await tryBatchExecuteFull({
+                        forceIncremental: msg.mode === 'incremental',
+                        forceFull: msg.mode === 'full'
                     });
-                    if (_p && _p.catch) _p.catch(() => {});
-                } catch (e) {};
-                return {
-                    success: true,
-                    slot,
-                    count: finalCount,
-                    totalMerged: finalCount,
-                    visibleCount: finalLinks.length
-                };
-            } finally {
-                window.__gemExporterDeepScanPromise = null;
-                // final badge stabilize
-                try {
-                    let r = await chrome.storage.local.get([convKey]);
-                    let c = r[convKey]?.length || 0;
-                    updateBadge(c, getConversationLinks().length, `已同步 ${c} 条 ✓`);
-                } catch {}
+                    sendResponse({ success: true, count: res?.count || 0, diagnostics: res?.diagnostics });
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        }
+
+        if (msg.action === 'stopDeepScan') {
+            window.__gemExporterAborted = true;
+            sendResponse({ ok: true, aborted: true });
+            return true;
+        }
+
+        if (msg.action === 'getScrollContainer') {
+            const c = Scraper ? Scraper.getScrollContainer() : null;
+            sendResponse({
+                found: !!c,
+                tag: c?.tagName || null,
+                id: c?.id || null,
+                class: c?.className?.slice(0, 120) || null
+            });
+            return true;
+        }
+
+        if (msg.action === 'getConversationDetail') {
+            const cid = msg.conversationId || msg.id;
+            if (!cid) {
+                sendResponse({ success: false, error: 'no id' });
+                return true;
             }
-        })();
+            (async () => {
+                try {
+                    let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
+                    if (C) {
+                        let client = new C();
+                        let detail = await client.getConversationDetail(cid, msg.targetSid || null);
+                        if (detail && detail.messages) {
+                            sendResponse({ success: true, data: detail, source: 'batchexecute' });
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e.message);
+                }
+                try {
+                    if (Scraper) {
+                        let chat = await Scraper.contentFetchChatDetail(cid);
+                        sendResponse({ success: true, data: chat, source: 'dom' });
+                        return;
+                    }
+                } catch (e) {
+                    sendResponse({ success: false, error: e.message || String(e) });
+                }
+            })();
+            return true;
+        }
 
-        window.__gemExporterDeepScanPromise = scanPromise;
-        return scanPromise;
-    }
+        if (msg.action === 'getFileBlob') {
+            if (Assets) Assets.handleGetFileBlob(msg, sendResponse);
+            else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
+            return true;
+        }
 
-    window.__gemExporterScrollAll = scrollToBottomLoadAll;
-    window.__gemExporterGetLinks = getConversationLinks;
-    window.__gemExporterSyncOnce = syncOnce;
+        if (msg.action === 'getImageBlob') {
+            if (Assets) Assets.handleGetImageBlob(msg, sendResponse);
+            else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
+            return true;
+        }
 
-    // ----- interval: 2000ms, skip if scanning -----
-    if (window.__gemExporterInterval) {
-        clearInterval(window.__gemExporterInterval);
-    }
-    window.__gemExporterInterval = setInterval(() => {
-        if (window.__gemExporterDeepScanPromise) return; // skip dom sync if batchexecute is running
-        tryExpandRecents();
-        syncOnce();
-    }, 2000);
-
-    window.addEventListener('load', () => {
-        ensureBadge();
-        syncOnce();
+        if (msg.action === 'downloadAssetDirect') {
+            if (Assets) Assets.downloadAssetDirect(msg, sendResponse);
+            else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
+            return true;
+        }
     });
+
+    async function autoInitSync() {
+        ensureBadge();
+        await refreshInitialBadge();
+        await syncOnce();
+    }
+
+    if (window.__gemExporterInterval) clearInterval(window.__gemExporterInterval);
+    window.__gemExporterInterval = setInterval(() => {
+        if (window.__gemExporterDeepScanPromise) return;
+        syncOnce();
+    }, 3000);
 
     window.addEventListener('popstate', () => {
         setTimeout(() => {
@@ -740,491 +424,10 @@
     });
 
     if (document.readyState !== 'loading') {
-        ensureBadge();
-        syncOnce();
+        autoInitSync();
     } else {
-        document.addEventListener('DOMContentLoaded', () => {
-            ensureBadge();
-            syncOnce();
-        }, { once: true });
+        document.addEventListener('DOMContentLoaded', autoInitSync, { once: true });
     }
 
-    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-        if (msg.action === 'ping') {
-            sendResponse({
-                ok: true,
-                ver: chrome.runtime.getManifest()?.version || '1.1.0',
-                count: document.querySelectorAll('a[href*="/app/"]').length,
-                deepRunning: !!window.__gemExporterDeepScanPromise
-            });
-            return true;
-        }
-        if (msg.action === 'getLinks') {
-            const links = getConversationLinks();
-            sendResponse({
-                links,
-                container: !!getScrollContainer(),
-                linksCount: links.length
-            });
-            return true;
-        }
-        if (msg.action === 'resync') {
-            syncOnce().then((r) => sendResponse({
-                ok: true,
-                ...r
-            }));
-            return true;
-        }
-        if (msg.action === 'deepScan') {
-            if (window.__gemExporterDeepScanPromise) {
-                sendResponse({
-                    success: true,
-                    pending: true,
-                    message: 'already running'
-                });
-                return true;
-            }
-            const maxIter = msg.maxIter || 150;
-            const mode = msg.mode || 'auto';
-            scrollToBottomLoadAll(maxIter, mode).then(res => sendResponse(res)).catch(e => sendResponse({
-                success: false,
-                error: e.message
-            }));
-            return true;
-        }
-        if (msg.action === 'abortSync') {
-            if (window.geminiClient) {
-                window.geminiClient.aborted = true;
-            }
-            window.__gemExporterAborted = true;
-            window.__gemExporterDeepScanPromise = null;
-            sendResponse({ ok: true, aborted: true });
-            return true;
-        }
-        if (msg.action === 'getScrollContainer') {
-            const c = getScrollContainer();
-            sendResponse({
-                found: !!c,
-                tag: c?.tagName || null,
-                id: c?.id || null,
-                class: c?.className?.slice(0, 120) || null
-            });
-            return true;
-        }
-        if (msg.action === 'getConversationDetail') {
-            const cid = msg.conversationId || msg.id;
-            if (!cid) {
-                sendResponse({
-                    success: false,
-                    error: 'no id'
-                });
-                return true;
-            }
-            (async () => {
-                try {
-                    let clientCtor = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : (window.GeminiAPIClient || null);
-                    if (clientCtor && clientCtor.prototype.getConversationDetail) {
-                        let client = new clientCtor();
-                        let detail = await client.getConversationDetail(cid, msg.targetSid || null);
-                        if (detail && detail.messages) {
-                            sendResponse({
-                                success: true,
-                                data: detail,
-                                source: 'batchexecute'
-                            });
-                            return;
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e.message);
-                }
-                try {
-                    let chat = await contentFetchChatDetail(cid);
-                    sendResponse({
-                        success: true,
-                        data: chat,
-                        source: 'dom'
-                    });
-                } catch (e) {
-                    sendResponse({
-                        success: false,
-                        error: e.message || String(e)
-                    });
-                }
-            })();
-            return true;
-        }
-        if (msg.action === 'getFileBlob') {
-            handleGetFileBlob(msg, sendResponse);
-            return true;
-        }
-        if (msg.action === 'getImageBlob') {
-            handleGetImageBlob(msg, sendResponse);
-            return true;
-        }
-    });
-
-    function cleanText(t) {
-        return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
-    }
-    async function contentFetchChatDetail(id) {
-        const url = `https://gemini.google.com/app/${id}`;
-        const resp = await fetch(url, {
-            credentials: 'include',
-            headers: {
-                'Accept': 'text/html'
-            }
-        });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-        const html = await resp.text();
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        return parseDoc(doc, id, url);
-    }
-
-    function parseDoc(doc, id, url) {
-        let title = doc.title ? doc.title.replace(/ - Gemini.*$/i, '').trim() : '';
-        if (!title || title === 'Gemini') {
-            let h = doc.querySelector('title');
-            if (h) title = h.textContent.trim().slice(0, 60);
-        }
-        if (!title) title = id;
-        const messages = [];
-        const nodes = doc.querySelectorAll('user-query, model-response');
-        const sorted = [...nodes].sort((a, b) => {
-            const pos = a.compareDocumentPosition(b);
-            return (pos & 4) ? -1 : 1;
-        });
-        for (const node of sorted) {
-            const isUser = node.tagName.toLowerCase() === 'user-query';
-            let text = '';
-            if (isUser) {
-                const q = node.querySelector('.query-text-line, .query-text, [data-test-id="query-text"], p');
-                if (q) text = (q.textContent || '').trim();
-                if (!text) text = (node.textContent || '').trim();
-                if (text) messages.push({
-                    role: 'user',
-                    content: cleanText(text)
-                });
-            } else {
-                const md = node.querySelector('.markdown, message-content, [data-test-id="model-response-content"]') || node;
-                let t = '';
-                const parts = md.querySelectorAll('p, li, pre, code, h1,h2,h3, blockquote');
-                if (parts.length) {
-                    for (const p of parts) {
-                        let tt = (p.textContent || '').trim();
-                        if (!tt) continue;
-                        if (tt.length > 5000) tt = tt.slice(0, 5000);
-                        let tag = p.tagName.toLowerCase();
-                        if (tag === 'li') t += `- ${tt}\n`;
-                        else if (tag === 'pre') t += `\n\`\`\`\n${tt}\n\`\`\`\n\n`;
-                        else t += tt + '\n\n';
-                    }
-                } else {
-                    t = (md.textContent || '').trim();
-                }
-                t = t.replace(/\n{3,}/g, '\n\n').trim();
-                if (t && t.length > 3) messages.push({
-                    role: 'model',
-                    content: cleanText(t)
-                });
-            }
-        }
-        const dedup = [];
-        for (let i = 0; i < messages.length; i++) {
-            if (i > 0 && messages[i].content === messages[i - 1].content && messages[i].role === messages[i - 1].role) continue;
-            dedup.push(messages[i]);
-        }
-        if (!title || title === id) {
-            let fu = dedup.find(m => m.role === 'user');
-            if (fu) title = fu.content.slice(0, 50).replace(/\n/g, ' ');
-        }
-        return {
-            id,
-            title: title.slice(0, 120) || id,
-            url,
-            timestamp: new Date().toISOString(),
-            messages: dedup,
-            messageCount: dedup.length,
-            attachmentCount: 0
-        };
-    }
-
-    // --- File blob handler ---
-    function handleGetFileBlob(msg, sendResponse) {
-        (async () => {
-            try {
-                const toDataUrl = (blob) => new Promise((res, rej) => {
-                    let fr = new FileReader();
-                    fr.onloadend = () => res(String(fr.result || ""));
-                    fr.onerror = () => rej(fr.error || new Error("read fail"));
-                    fr.readAsDataURL(blob);
-                });
-                const extractGucUrl = (text) => {
-                    let m = text.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*download[^\s"'<>]*/i);
-                    if (m) return m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&');
-                    let m2 = text.match(/https:\/\/lh3\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
-                    return m2 ? m2[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
-                };
-                let candidates = [];
-                if (msg.candidates && Array.isArray(msg.candidates)) candidates.push(...msg.candidates);
-                if (msg.url) candidates.unshift(msg.url);
-                // DOM fallback for legacy
-                try {
-                    let links = document.querySelectorAll('a[href*="googleusercontent"], a[href*="drive.google"], a[download]');
-                    for (let a of links) {
-                        let href = a.href || a.getAttribute('href') || "";
-                        let txt = (a.textContent || a.getAttribute('aria-label') || "").trim();
-                        if (!href) continue;
-                        if (msg.fileName && (txt.includes(msg.fileName) || href.includes(encodeURIComponent(msg.fileName)))) candidates.push(href);
-                        else if (href.includes('googleusercontent') && href.includes('download')) candidates.push(href);
-                    }
-                } catch {}
-                // html scan fallback
-                try {
-                    let html = document.documentElement.innerHTML || "";
-                    let m = html.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*download[^\s"'<>]*/i);
-                    if (m) candidates.push(m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&'));
-                } catch {}
-                candidates = [...new Set(candidates.filter(Boolean))];
-                if (!candidates.length) {
-                    sendResponse({
-                        success: false,
-                        error: 'no file candidates (need Gemini page with login)'
-                    });
-                    return;
-                }
-                let seen = new Set();
-                let queue = [...candidates];
-                let reasons = [];
-                while (queue.length) {
-                    let u = queue.shift();
-                    if (!u || seen.has(u)) continue;
-                    seen.add(u);
-                    try {
-                        let resp = await fetch(u, {
-                            credentials: 'include',
-                            headers: {
-                                'Accept': '*/*'
-                            }
-                        });
-                        if (!resp.ok) {
-                            reasons.push(`HTTP ${resp.status}`);
-                            continue;
-                        }
-                        let ct = (resp.headers.get('content-type') || '').toLowerCase();
-                        if (ct.startsWith('text/html')) {
-                            let txt = await resp.text();
-                            if (txt.includes('accounts.google.com') || txt.includes('Sign in') || txt.includes('登录')) {
-                                reasons.push('login redirect');
-                                continue;
-                            }
-                            if (txt.includes('This content isn') || txt.includes('not available') || txt.includes('Error 404') || txt.includes('Unable to load') || txt.includes('发生错误') || txt.includes('无法访问')) {
-                                reasons.push('google error page');
-                                continue;
-                            }
-                            let inner = extractGucUrl(txt);
-                            if (inner && !seen.has(inner)) {
-                                queue.push(inner);
-                                continue;
-                            }
-                            if (txt.length < 5000) {
-                                reasons.push('html<5k');
-                                continue;
-                            }
-                            if (msg.fileName && /\.html?$/i.test(msg.fileName)) {
-                                let blob = new Blob([txt], {
-                                    type: 'text/html'
-                                });
-                                let dataUrl = await toDataUrl(blob);
-                                sendResponse({
-                                    success: true,
-                                    blobBase64: dataUrl.split(',')[1],
-                                    mime: 'text/html',
-                                    size: blob.size,
-                                    finalUrl: resp.url || u,
-                                    contentType: 'text/html'
-                                });
-                                return;
-                            }
-                            reasons.push('html no file');
-                            continue;
-                        }
-                        if (ct.startsWith('text/plain')) {
-                            let txt = await resp.text();
-                            let trimmed = txt.trim();
-                            if (trimmed.startsWith('https://') && trimmed.length < 3000 && trimmed.includes('googleusercontent')) {
-                                if (!seen.has(trimmed)) queue.push(trimmed);
-                                continue;
-                            }
-                            if (trimmed.startsWith('http') && trimmed.length < 2000) continue;
-                            let blob = new Blob([txt], {
-                                type: ct || 'text/plain'
-                            });
-                            let dataUrl = await toDataUrl(blob);
-                            sendResponse({
-                                success: true,
-                                blobBase64: dataUrl.split(',')[1],
-                                mime: ct || 'text/plain',
-                                size: blob.size,
-                                finalUrl: resp.url || u,
-                                contentType: ct
-                            });
-                            return;
-                        }
-                        let blob = await resp.blob();
-                        if (blob.size < 10) {
-                            reasons.push('blob<10');
-                            continue;
-                        }
-                        if (blob.size < 400) {
-                            try {
-                                let txt = await blob.text();
-                                if (txt.trim().startsWith('http')) {
-                                    reasons.push('blob is redirect text');
-                                    continue;
-                                }
-                            } catch {}
-                        }
-                        let dataUrl = await toDataUrl(blob);
-                        sendResponse({
-                            success: true,
-                            blobBase64: dataUrl.split(',')[1],
-                            mime: blob.type || ct,
-                            size: blob.size,
-                            finalUrl: resp.url || u,
-                            contentType: ct || blob.type
-                        });
-                        return;
-                    } catch (e) {
-                        reasons.push('fetch exception');
-                        continue;
-                    }
-                }
-                sendResponse({
-                    success: false,
-                    error: 'all file candidates failed tried=' + seen.size + ' (' + reasons.slice(0, 3).join(', ') + ')',
-                    tried: Array.from(seen).slice(0, 4)
-                });
-            } catch (e) {
-                sendResponse({
-                    success: false,
-                    error: e.message
-                });
-            }
-        })();
-    }
-
-    // --- Image blob handler ---
-    function handleGetImageBlob(msg, sendResponse) {
-        (async () => {
-            try {
-                const toHighRes = (url, variant = "s1024-rj") => {
-                    try {
-                        if (!url) return url;
-                        if (url.includes('/gg/')) {
-                            return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
-                        }
-                        let [base, q = ""] = url.split("?");
-                        let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
-                        let suffix = q ? q + "&alr=yes" : "alr=yes";
-                        return stripped + "=" + variant + "?" + suffix;
-                    } catch {
-                        return url;
-                    }
-                };
-                const toDataUrl = (blob) => new Promise((res, rej) => {
-                    let fr = new FileReader();
-                    fr.onloadend = () => res(String(fr.result || ""));
-                    fr.onerror = () => rej(fr.error || new Error("read fail"));
-                    fr.readAsDataURL(blob);
-                });
-                const extractLh3 = (text) => {
-                    let m = text.match(/https:\/\/lh3\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
-                    return m ? m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
-                };
-                let candidates = msg.candidates && Array.isArray(msg.candidates) ? msg.candidates.slice() : [msg.url, toHighRes(msg.url)].filter(Boolean);
-                if (msg.url && msg.url.includes('/gg/')) {
-                    let withAlr = msg.url.includes('?') ? (msg.url.includes('alr=yes') ? msg.url : msg.url + '&alr=yes') : msg.url + '?alr=yes';
-                    candidates.push(withAlr);
-                }
-                let seen = new Set();
-                let queue = [...new Set(candidates)];
-                while (queue.length) {
-                    let u = queue.shift();
-                    if (!u || seen.has(u)) continue;
-                    seen.add(u);
-                    try {
-                        let r = await fetch(u, {
-                            credentials: 'include',
-                            headers: {
-                                'Accept': 'image/*,*/*;q=0.8'
-                            }
-                        });
-                        if (!r.ok) continue;
-                        let ct = r.headers.get('content-type') || "";
-                        if (ct.startsWith('image/')) {
-                            let blob = await r.blob();
-                            let dataUrl = await toDataUrl(blob);
-                            sendResponse({
-                                success: true,
-                                blobBase64: dataUrl.split(',')[1],
-                                mime: blob.type,
-                                size: blob.size,
-                                finalUrl: r.url || u,
-                                contentType: ct
-                            });
-                            return;
-                        }
-                        if (ct.startsWith('text/plain') || ct.startsWith('text/html')) {
-                            let txt = await r.text();
-                            let inner = extractLh3(txt);
-                            if (inner && !seen.has(inner)) {
-                                queue.push(inner);
-                                if (!inner.includes('alr=yes')) {
-                                    let innerAlr = inner.includes('?') ? inner + '&alr=yes' : inner + '?alr=yes';
-                                    if (!seen.has(innerAlr)) queue.push(innerAlr);
-                                }
-                            } else if (txt.includes('googleusercontent')) {
-                                let m2 = txt.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*/i);
-                                if (m2 && !seen.has(m2[0])) {
-                                    queue.push(m2[0]);
-                                    if (!m2[0].includes('alr=yes')) {
-                                        let m2Alr = m2[0].includes('?') ? m2[0] + '&alr=yes' : m2[0] + '?alr=yes';
-                                        if (!seen.has(m2Alr)) queue.push(m2Alr);
-                                    }
-                                }
-                            }
-                            continue;
-                        }
-                        let blob = await r.blob();
-                        if (blob.size > 800) {
-                            let dataUrl = await toDataUrl(blob);
-                            sendResponse({
-                                success: true,
-                                blobBase64: dataUrl.split(',')[1],
-                                mime: blob.type || ct,
-                                size: blob.size,
-                                finalUrl: r.url || u
-                            });
-                            return;
-                        }
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                sendResponse({
-                    success: false,
-                    error: 'all candidates failed ' + seen.size + ' tried',
-                    tried: Array.from(seen).slice(0, 4)
-                });
-            } catch (e) {
-                sendResponse({
-                    success: false,
-                    error: e.message
-                });
-            }
-        })();
-    }
-
-    console.log('[Gemini Exporter] ready');
+    console.log('[Gemini Exporter Content Coordinator] ready');
 })();

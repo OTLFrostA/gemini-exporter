@@ -42,11 +42,11 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <span id="countBadge" class="badge">0</span>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
-    <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;user-select:none;background:#141624;border:1px solid var(--border);padding:2px 6px;border-radius:14px;" title="Switch Language / 切换语言">
-      <span id="labelLangZh" style="font-size:10px;font-weight:600;color:var(--text);transition:color .2s">中</span>
+    <div style="display:inline-flex;align-items:center;gap:4px;user-select:none;background:#141624;border:1px solid var(--border);padding:2px 6px;border-radius:14px;" title="Switch Language / 切换语言">
+      <span id="labelLangZh" style="font-size:10px;font-weight:600;color:var(--text);transition:color .2s;cursor:pointer;">中</span>
       <input type="checkbox" id="langToggle" class="toggle">
-      <span id="labelLangEn" style="font-size:10px;font-weight:600;color:var(--muted);transition:color .2s">EN</span>
-    </label>
+      <span id="labelLangEn" style="font-size:10px;font-weight:600;color:var(--muted);transition:color .2s;cursor:pointer;">EN</span>
+    </div>
     <a href="#" id="openOptions" style="font-size:11px;color:var(--accent2);text-decoration:none" data-i18n="openWorkbench">Open Workbench</a>
   </div>
 </div>
@@ -74,6 +74,8 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   <div id="log" class="log"></div>
 </div>
 
+<script src="utils.js"></script>
+<script src="storage_service.js"></script>
 <script src="i18n.js"></script>
 <script src="chat_formatter.js"></script>
 <script src="options-popup.js"></script>

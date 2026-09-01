@@ -1,5 +1,8 @@
 // background.js - Gemini Exporter background service worker
-// Delegates conversation detail fetching to Gemini page content script
+try {
+    importScripts('storage_service.js');
+} catch (e) {}
+
 console.log('[Gemini Exporter] Background service worker ready');
 let __bgAborted = false;
 
@@ -95,6 +98,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 
+    if (msg.action === 'stopDeepScan') {
+        __bgAborted = true;
+        sendToGeminiTab({ action: 'stopDeepScan' }, msg.accountSlot)
+            .then(r => sendResponse(r || { ok: true, aborted: true }))
+            .catch(() => sendResponse({ ok: true, aborted: true }));
+        return true;
+    }
+
+    if (msg.action === 'scanProgress') {
+        chrome.runtime.sendMessage(msg).catch(() => {});
+        return;
+    }
+
     if (msg.action === 'syncUpdate') {
         chrome.runtime.sendMessage({
             action: 'syncUpdate',
@@ -115,11 +131,18 @@ function toMs(v) {
 }
 async function fetchBatch(list, format, skipExported, portSendResponse, globalOffset = 0, globalTotal = 0, accountSlot = 'u0') {
     const slot = accountSlot || 'u0';
-    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-    const store = await chrome.storage.local.get([expKey, convKey]);
-    const exportedIds = store[expKey] || {};
-    const conversations = store[convKey] || [];
+    let exportedIds = {};
+    let conversations = [];
+    if (typeof StorageService !== 'undefined') {
+        exportedIds = await StorageService.getExportedIds(slot);
+        conversations = await StorageService.getConversations(slot);
+    } else {
+        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        const store = await chrome.storage.local.get([expKey, convKey]);
+        exportedIds = store[expKey] || {};
+        conversations = store[convKey] || [];
+    }
     let toFetch = list;
     if (skipExported) {
         const normId = id => String(id || '').replace(/^c_/, '');
@@ -161,17 +184,47 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
 
     let done = 0;
     const results = [];
+    async function fetchWithRetry(conversationId) {
+        const maxRetries = 2;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (__bgAborted) throw new Error('aborted');
+            try {
+                const d = await sendToGeminiTab({
+                    action: 'getConversationDetail',
+                    conversationId
+                }, slot);
+                // 服务端限频返回中包含 BardErrorInfo 时也视为可重试
+                if (!d.success && d.error && /429|rate.?limit|Too Many|BardErrorInfo/i.test(String(d.error))) {
+                    if (attempt < maxRetries) {
+                        const backoff = 600 * Math.pow(2, attempt) + Math.random() * 300;
+                        console.warn(`[BG] retry ${attempt+1} for ${conversationId} due to rate limit, backoff ${Math.round(backoff)}ms`);
+                        await new Promise(r => setTimeout(r, backoff));
+                        continue;
+                    }
+                }
+                return d;
+            } catch (e) {
+                const msg = String(e.message || '');
+                if (attempt < maxRetries && /429|rate.?limit|Too Many|network|timeout/i.test(msg)) {
+                    const backoff = 600 * Math.pow(2, attempt) + Math.random() * 300;
+                    console.warn(`[BG] retry ${attempt+1} for ${conversationId} due to ${msg}, backoff ${Math.round(backoff)}ms`);
+                    await new Promise(r => setTimeout(r, backoff));
+                    continue;
+                }
+                throw e;
+            }
+        }
+    }
+
     for (const item of toFetch) {
         if (__bgAborted) break;
 
         try {
             let data;
             try {
-                data = await sendToGeminiTab({
-                    action: 'getConversationDetail',
-                    conversationId: item.id
-                }, slot);
+                data = await fetchWithRetry(item.id);
             } catch (tabErr) {
+                if (String(tabErr.message) === 'aborted') break;
                 data = { success: false, error: tabErr.message };
             }
 
@@ -186,34 +239,33 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                 const isEmptyFail = !hasContent && !chat.error;
 
                 if (isEmptyFail || chat.error) {
+                    const failReason = chat.error || '云端返回内容为空';
                     results.push({
                         id: chat.id || item.id,
                         title: chat.title || item.title,
                         url: chat.url || item.url,
-                        error: chat.error || '空对话或取回失败',
+                        error: failReason,
                         messages: chat.messages || [],
                         messageCount: msgCount,
                         _empty: true
                     });
-                    ++done;
-                    notifyProgress(done, (chat.title || item.title) + ' (获取失败)', chat.id || item.id);
                 } else {
                     results.push(chat);
-                    ++done;
-                    notifyProgress(done, chat.title, chat.id);
                 }
             } else {
+                const failReason = data?.error || data?.message || '未知错误';
+                console.warn(`[Gemini Exporter BG] detail fetch failed for ${item.id} (${item.title}):`, failReason);
                 results.push({
                     id: item.id,
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${item.id}`,
-                    error: data?.error || data?.message || '未知错误',
+                    error: failReason,
                     messages: [],
                     messageCount: 0
                 });
-                ++done;
-                notifyProgress(done, item.title + ' (失败)', item.id);
             }
+            ++done;
+            notifyProgress(done, item.title, item.id);
             await new Promise(r => setTimeout(r, 180 + Math.random() * 120));
         } catch (e) {
             results.push({
@@ -223,7 +275,7 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                 messages: []
             });
             ++done;
-            notifyProgress(done, item.title + ' (异常)', item.id);
+            notifyProgress(done, item.title, item.id);
         }
     }
     portSendResponse({

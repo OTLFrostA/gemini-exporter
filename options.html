@@ -151,15 +151,15 @@
     </select>
   </div>
   <div style="display:flex; align-items:center; gap:8px;">
-    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="开发者模式 (诊断) / Developer Mode">
-      <span id="labelDevMode" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s;">Dev</span>
+    <div style="display:inline-flex; align-items:center; gap:6px; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="开发者模式 (诊断) / Developer Mode">
+      <span id="labelDevMode" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s; cursor:pointer;">Dev</span>
       <input type="checkbox" id="devToggle" class="toggle">
-    </label>
-    <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="Switch Language / 切换语言">
-      <span id="labelLangZh" style="font-size:11px; font-weight:600; color:var(--text); transition:color 0.2s;">中</span>
+    </div>
+    <div style="display:inline-flex; align-items:center; gap:6px; user-select:none; background:var(--card-inner); border:1px solid var(--border); padding:3px 8px; border-radius:20px;" title="Switch Language / 切换语言">
+      <span id="labelLangZh" style="font-size:11px; font-weight:600; color:var(--text); transition:color 0.2s; cursor:pointer;">中</span>
       <input type="checkbox" id="langToggle" class="toggle">
-      <span id="labelLangEn" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s;">EN</span>
-    </label>
+      <span id="labelLangEn" style="font-size:11px; font-weight:600; color:var(--muted); transition:color 0.2s; cursor:pointer;">EN</span>
+    </div>
   </div>
 </header>
 
@@ -205,6 +205,12 @@
       <button id="btnExportJson" class="ghost" style="flex:1; height:40px; padding:0;" data-i18n="btnOnlyJson">仅导列表 JSON</button>
     </div>
     
+    <div style="display:flex; gap:8px; margin-top:6px;">
+      <button id="btnBackupData" class="ghost small" style="flex:1; padding:4px 6px; font-size:11px;" data-i18n="btnBackup" data-i18n-title="btnBackupTip" title="导出完整会话列表与设置备份文件 (.json)">💾 备份数据</button>
+      <button id="btnRestoreData" class="ghost small" style="flex:1; padding:4px 6px; font-size:11px;" data-i18n="btnRestore" data-i18n-title="btnRestoreTip" title="从 JSON 备份文件恢复全部会话底账与设置">📂 恢复备份</button>
+      <input type="file" id="restoreFileInput" accept=".json" style="display:none;">
+    </div>
+    
     <div style="text-align:center; min-height:28px;">
       <button id="btnCancel" class="ghost small" style="display:none; border-color:#5a2a2a; color:#f0a0a0; margin:0 auto;" data-i18n="btnCancel">终止导出</button>
     </div>
@@ -231,17 +237,24 @@
 
   <div class="card card-right">
     <div class="label" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; margin-top:2px; flex:none;">
-      <div style="display:flex; justify-content:space-between; align-items:center; height:28px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; height:28px; gap:8px;">
         <span style="display:flex; align-items:center; white-space:nowrap;"><span data-i18n="filterAll">会话列表</span> <span class="stat" id="lastSync" style="margin-left:8px;"></span></span>
-        <div style="display:flex; gap:8px; align-items:center; white-space:nowrap;">
+        <div style="display:flex; gap:6px; align-items:center; flex:1; max-width:260px; margin:0 4px;">
+          <input id="chatSearchInput" type="text" placeholder="搜索标题 / ID..." data-i18n-placeholder="searchPlaceholder" style="width:100%; height:26px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:2px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; gap:6px; align-items:center; white-space:nowrap;">
           <span id="selectedStat" class="stat" style="margin-right:4px; white-space:nowrap;">已选 0 条</span>
-          <button id="btnSelectAll" class="ghost small" style="min-width:48px;" data-i18n="selectAll">全选</button>
-          <button id="btnSelectNone" class="ghost small" style="min-width:48px;" data-i18n="selectNone">全不选</button>
+          <button id="btnSelectAll" class="ghost small" style="padding:2px 8px; font-size:11px;" data-i18n="selectAll">全选</button>
+          <button id="btnSelectNone" class="ghost small" style="padding:2px 8px; font-size:11px;" data-i18n="selectNone">全不选</button>
+          <button id="btnSelectUnexported" class="ghost small" style="padding:2px 8px; font-size:11px;" data-i18n="selectUnexported">只选未导出</button>
+          <button id="btnSelectUpdated" class="ghost small" style="padding:2px 8px; font-size:11px;" data-i18n="selectUpdated">只选已更新</button>
         </div>
       </div>
       <div style="display:flex; gap:8px; align-items:center; padding-bottom:4px; border-bottom:1px solid var(--border); height:34px; box-sizing:border-box;">
         <button id="btnIncrementalScan" class="primary small" data-i18n="btnIncrementalScan" data-i18n-title="btnIncrementalScanTip" title="快速拉取最近更新的会话（日常推荐，通常仅需 1~2 秒）">同步最新会话</button>
         <button id="btnDeepScan" class="ghost small" data-i18n="btnDeepScan" data-i18n-title="btnDeepScanTip" title="地毯式扫描并同步该账号下的所有历史会话（初次使用或换账号时推荐）">全量拉取历史</button>
+        <button id="btnImportTakeout" class="ghost small" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="读取 Google Takeout 压缩包，自动补全历史无法扫描的远古对话，并加载离线附件兜底池">📥 导入 Takeout</button>
+        <input type="file" id="takeoutFileInput" accept=".zip" style="display:none;">
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a;" data-i18n="btnStopScan" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
         <div style="flex:1;"></div>
         <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
@@ -252,8 +265,14 @@
 </div>
 
 <script src="lib/jszip.min.js"></script>
+<script src="utils.js"></script>
+<script src="storage_service.js"></script>
 <script src="i18n.js"></script>
 <script src="chat_formatter.js"></script>
+<script src="gemini_parser.js"></script>
+<script src="gemini_client.js"></script>
+<script src="takeout_engine.js"></script>
+<script src="export_engine.js"></script>
 <script src="options.js"></script>
 </body>
 </html>

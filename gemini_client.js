@@ -1,5 +1,7 @@
-// gemini_client.js - Gemini internal batchexecute API client with images and attachments support
+// gemini_client.js - Gemini internal batchexecute API network and credentials client
 (function(global) {
+    'use strict';
+
     const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
     const RPCS = {
         LIST: "MaZiqc",
@@ -8,7 +10,17 @@
     };
     const BL_FALLBACK = "boq_assistant-bard-web-server_20260802.09_p1";
     const generateFallbackSid = () => String(Math.floor(Math.random() * 1e19));
-    const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent)\/(\d+)/i;
+
+    // Get parser instance (from gemini_parser.js or fallback)
+    function getParser() {
+        if (typeof global.GeminiResponseParserClass !== 'undefined') {
+            return global.GeminiResponseParserClass;
+        }
+        if (typeof require !== 'undefined') {
+            try { return require('./gemini_parser.js').GeminiResponseParserClass; } catch {}
+        }
+        throw new Error('GeminiResponseParserClass not found. Make sure gemini_parser.js is loaded.');
+    }
 
     function getApiUrl(slot) {
         if (slot && slot !== "default") {
@@ -53,6 +65,7 @@
         } catch {}
         return "default";
     }
+
     async function loadCredMap() {
         try {
             let s = await chrome.storage.local.get(["gemini_credentials_map", "gemini_credentials"]);
@@ -70,6 +83,7 @@
             return {};
         }
     }
+
     async function resolveCred(targetSid) {
         let map = await loadCredMap();
         let vals = Object.values(map);
@@ -100,13 +114,14 @@
         } else if (pageBl && vals[0] && !vals[0].bl) {
             vals[0].bl = pageBl;
         }
+        const normSlot = s => (s === 'u0' || !s ? 'default' : s);
         if (targetSid && map[targetSid]) return {
             ...map[targetSid],
             bl: map[targetSid].bl || pageBl || BL_FALLBACK,
             at: map[targetSid].at || pageAt || ""
         };
-        let cur = detectSlot();
-        let f = vals.filter(v => (v.accountSlot || "default") === cur);
+        let cur = normSlot(detectSlot());
+        let f = vals.filter(v => normSlot(v.accountSlot) === cur);
         let arr = f.length ? f : vals;
         arr.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
         if (arr[0]) return {
@@ -120,748 +135,6 @@
             accountSlot: "default",
             bl: pageBl || BL_FALLBACK
         };
-    }
-
-    function robustFirstPayload(text) {
-        if (!text || typeof text !== "string") return null;
-        let lines = text.split("\n");
-        let fallback = null;
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i];
-            if (!line.includes("[")) continue;
-            let startIdx = line.indexOf("[");
-            let candidate = line.slice(startIdx);
-            try {
-                let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
-                let parsed = JSON.parse(cleaned);
-                if (Array.isArray(parsed)) {
-                    if (candidate.includes("MaZiqc") || candidate.includes("wrb.fr")) {
-                        return parsed;
-                    }
-                    if (!fallback) fallback = parsed;
-                }
-            } catch {
-                let acc = candidate;
-                for (let j = i + 1; j < lines.length; j++) {
-                    acc += lines[j];
-                    try {
-                        let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
-                        let p2 = JSON.parse(c2);
-                        if (Array.isArray(p2)) {
-                            if (acc.includes("MaZiqc") || acc.includes("wrb.fr")) {
-                                return p2;
-                            }
-                            if (!fallback) fallback = p2;
-                        }
-                    } catch {}
-                }
-            }
-        }
-        return fallback;
-    }
-
-    function parseList(text) {
-        try {
-            let top = robustFirstPayload(text);
-            let innerStr = null;
-            if (Array.isArray(top)) {
-                for (let item of top) {
-                    if (Array.isArray(item) && (item[1] === RPCS.LIST || item[1] === "MaZiqc" || item[0] === "wrb.fr") && item[2]) {
-                        innerStr = item[2];
-                        break;
-                    }
-                }
-                if (!innerStr && top[0] && top[0][2]) {
-                    innerStr = top[0][2];
-                }
-            }
-            if (!innerStr) {
-                let bardError = null;
-                if (Array.isArray(top)) {
-                    for (let item of top) {
-                        if (Array.isArray(item) && item[5]) {
-                            let str5 = JSON.stringify(item[5]);
-                            if (str5.includes("BardErrorInfo")) {
-                                bardError = str5;
-                                break;
-                            }
-                        }
-                    }
-                }
-                if (bardError) {
-                    console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
-                } else {
-                    console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
-                }
-                return {
-                    conversations: [],
-                    nextPageToken: null,
-                    _debug: {
-                        error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
-                        bardError: bardError,
-                        textLen: text?.length,
-                        rawPreview: text?.slice(0, 500),
-                        topParsed: top ? JSON.stringify(top).slice(0, 500) : null
-                    }
-                };
-            }
-            let inner = JSON.parse(innerStr);
-            let list = Array.isArray(inner[1]) ? inner[1] : (Array.isArray(inner[2]) ? inner[2] : []);
-            let convs = [];
-            for (let r of list) {
-                if (!r || !Array.isArray(r) || r.length < 2) continue;
-                let id = String(r[0] || "").replace(/^c_/, ""),
-                    title = (r[1] || "").replace(/\\n/g, "");
-                if (title.endsWith("-")) title = title.slice(0, -1);
-                if (/^Google Account/i.test(title)) continue;
-                let ts = null;
-                for (let elem of r) {
-                    if (typeof elem === 'number') {
-                        if (elem > 1577836800 && elem < 2500000000) {
-                            ts = Math.round(elem * 1000);
-                            break;
-                        } else if (elem > 1577836800000 && elem < 2500000000000) {
-                            ts = Math.round(elem);
-                            break;
-                        }
-                    } else if (Array.isArray(elem) && elem.length > 0 && typeof elem[0] === 'number') {
-                        let val = elem[0];
-                        if (val > 1577836800 && val < 2500000000) {
-                            ts = Math.round(val * 1000);
-                            break;
-                        } else if (val > 1577836800000 && val < 2500000000000) {
-                            ts = Math.round(val);
-                            break;
-                        }
-                    }
-                }
-                if (!ts && Array.isArray(r[5]) && r[5].length >= 1 && typeof r[5][0] === 'number') {
-                    ts = r[5][0] > 1e11 ? Math.round(r[5][0]) : Math.round(r[5][0] * 1000);
-                }
-                if (!id) continue;
-                convs.push({
-                    id,
-                    title: title.slice(0, 120) || "Untitled",
-                    timestamp: ts,
-                    url: `https://gemini.google.com/app/${String(id).replace(/^c_/,'')}`,
-                    gemId: r[7] || null
-                });
-            }
-            let token = null;
-            function checkToken(s) {
-                if (typeof s !== 'string') return null;
-                s = s.trim();
-                if (s.length >= 25 && !s.includes(' ') && !s.includes('\n') && !s.startsWith('http') && !s.startsWith('c_') && !s.startsWith('boq_') && !s.startsWith('Google Account')) {
-                    return s;
-                }
-                return null;
-            }
-            if (Array.isArray(inner)) {
-                for (let v of inner) {
-                    let found = checkToken(v);
-                    if (found) { token = found; break; }
-                    if (Array.isArray(v)) {
-                        for (let item of v) {
-                            let f2 = checkToken(item);
-                            if (f2) { token = f2; break; }
-                        }
-                        if (token) break;
-                    }
-                }
-            }
-            return {
-                conversations: convs,
-                nextPageToken: token || null,
-                _debug: {
-                    innerTypes: Array.isArray(inner) ? inner.map((x, idx) => `${idx}:${typeof x}${Array.isArray(x) ? `[${x.length}]` : (typeof x === 'string' ? `(len:${x.length})` : '')}`) : typeof inner,
-                    stringsFound: Array.isArray(inner) ? inner.filter(x => typeof x === 'string').map(s => ({ len: s.length, preview: s.slice(0, 40) })) : [],
-                    hasToken: !!token
-                }
-            };
-        } catch (e) {
-            console.warn("parseList fail", e);
-            return {
-                conversations: [],
-                nextPageToken: null,
-                _debug: { error: e.message }
-            };
-        }
-    }
-    // --- Data extraction and normalization helpers ---
-    function extractTurnTimestamp(turnData) {
-        if (!turnData) return null;
-        let candidates = [turnData?.[4], turnData?.[5], turnData?.[turnData.length - 1]];
-        for (let candidate of candidates) {
-            if (Array.isArray(candidate) && typeof candidate[0] === "number" && candidate[0] > 1e9) {
-                let timestampSec = candidate[0];
-                let timestampNano = typeof candidate[1] === "number" ? candidate[1] : 0;
-                return 1000 * timestampSec + Math.floor(timestampNano / 1e6);
-            }
-        }
-        return null;
-    }
-
-    function extractImageSelectionIndex(sourceUrl) {
-        if (!sourceUrl || typeof sourceUrl !== 'string') return;
-        let match = sourceUrl.match(IMAGE_GEN_RE);
-        if (!match) return;
-        let index = parseInt(match[1], 10);
-        return isNaN(index) ? void 0 : index;
-    }
-
-    function getImageDedupKey(imageObj) {
-        return imageObj.sourceUrl || imageObj.token || [imageObj.fileName, imageObj.mimeType, imageObj.width, imageObj.height, imageObj.size].filter(x => x != null && x !== "").join(":");
-    }
-
-    function filterNewImages(images, seenSet) {
-        return images.filter(img => {
-            let key = getImageDedupKey(img);
-            if (!key) return true;
-            if (seenSet.has(key)) return false;
-            seenSet.add(key);
-            return true;
-        });
-    }
-
-    function extractThoughts(candidateBlock) {
-        if (!Array.isArray(candidateBlock)) return "";
-        let tArr = candidateBlock[37];
-        if (Array.isArray(tArr)) {
-            for (let item of tArr) {
-                if (Array.isArray(item) && typeof item[0] === 'string' && item[0].trim().length > 0) {
-                    return item[0].trim();
-                }
-            }
-        }
-        return "";
-    }
-
-    function extractCitations(candidateBlock) {
-        let out = [];
-        let seen = new Set();
-        if (!Array.isArray(candidateBlock) || !Array.isArray(candidateBlock[2])) return out;
-        function walk(node) {
-            if (Array.isArray(node)) {
-                if (node.length >= 2 && typeof node[0] === 'string' && node[0].startsWith('http') && typeof node[1] === 'string') {
-                    let url = node[0];
-                    let title = (node[1] || url).replace(/[\r\n]+/g, ' ').trim();
-                    if (!seen.has(url)) {
-                        seen.add(url);
-                        out.push({ url, title });
-                    }
-                }
-                for (let c of node) walk(c);
-            }
-        }
-        walk(candidateBlock[2]);
-        return out;
-    }
-
-    function extractImages(root) {
-        let extractedImages = [];
-        let seenUrls = new Set();
-        let variantOf = url => {
-            let m = url.match(/=(s\d+(?:-[a-z0-9]+)*)/i);
-            return m?.[1] || void 0;
-        };
-
-        function walk(node) {
-            if (Array.isArray(node)) {
-                let sourceUrl = typeof node[3] === "string" ? node[3] : "";
-                let fileName = typeof node[2] === "string" ? node[2] : "";
-                let mime = typeof node[11] === "string" ? node[11] : void 0;
-                let token = typeof node[5] === "string" && (node[5].startsWith("$AQ") || node[5].startsWith("$AX")) ? node[5] : void 0;
-                let sizeArr = node.find(x => Array.isArray(x) && x.length >= 3 && typeof x[0] === "number" && typeof x[1] === "number" && typeof x[2] === "number" && x[0] > 100 && x[1] > 100 && x[2] > 1e3);
-                let isPlaceholder = /^http:\/\/googleusercontent\.com\/(?:image_agent_tag|image_generation_content|lmdx_image)/i.test(sourceUrl);
-                if (isPlaceholder) {
-                    for (let child of node) walk(child);
-                    return;
-                }
-                let isGoogleHost = sourceUrl.includes("googleusercontent.com") || sourceUrl.includes("lh3.google.com") || sourceUrl.includes("ggpht");
-                let isExt = /\.(png|jpe?g|webp|gif)$/i.test(fileName);
-                let isMimeImg = typeof mime === "string" && mime.startsWith("image/");
-                let isGenUrl = /googleusercontent\.com\/.*(?:image|photo|s\d)/i.test(sourceUrl);
-                if (isGoogleHost && (isExt || isMimeImg || isGenUrl) && !seenUrls.has(sourceUrl)) {
-                    seenUrls.add(sourceUrl);
-                    extractedImages.push({
-                        id: `img:${extractedImages.length}:${fileName || sourceUrl}`,
-                        fileName: fileName || `image-${extractedImages.length + 1}.jpg`,
-                        sourceUrl,
-                        mimeType: mime,
-                        width: sizeArr?.[0],
-                        height: sizeArr?.[1],
-                        size: sizeArr?.[2],
-                        token,
-                        variant: variantOf(sourceUrl)
-                    });
-                }
-                for (let child of node) walk(child);
-            } else if (node && typeof node === "object") {
-                for (let v of Object.values(node)) walk(v);
-            }
-        }
-        walk(root);
-        return extractedImages;
-    }
-
-    function extractUserFiles(root) {
-        let files = [];
-        let seen = new Set();
-
-        function walk(node) {
-            if (Array.isArray(node)) {
-                let name = (typeof node[2] === "string" && node[2].length > 2) ? node[2] : (typeof node[1] === "string" && node[1].includes('.') ? node[1] : "");
-                let urls = [];
-                function findUrls(n) {
-                    if (!n) return;
-                    if (typeof n === 'string') {
-                        if (n.startsWith('https://') && (n.includes('googleusercontent.com') || n.includes('usercontent.google.com') || n.includes('drive.google.com') || n.includes('lh3.google'))) {
-                            urls.push(n);
-                        }
-                    } else if (Array.isArray(n)) {
-                        for (let sub of n) findUrls(sub);
-                    }
-                }
-                findUrls(node);
-                let url = urls.find(u => u.includes('contribution.usercontent.google.com') || u.includes('/download')) || urls.find(u => u.includes('/upload') || u.includes('/viewer')) || urls[0] || "";
-                let mime = typeof node[11] === "string" ? node[11] : (typeof node[4] === "string" && node[4].includes('/') ? node[4] : "");
-                let isFile = /\.(zip|pdf|docx?|xlsx?|csv|txt|md|json|png|jpe?g|webp)$/i.test(name) && name.length < 120;
-                if (isFile) {
-                    let ext = name.split('.').pop().toLowerCase();
-                    let isImgExt = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext);
-                    if (!isImgExt || !url.includes('lh3.googleusercontent.com')) {
-                        let existing = files.find(f => f.fileName === name);
-                        if (existing) {
-                            if (!existing.sourceUrl && url) existing.sourceUrl = url;
-                        } else if (url || /\.(zip|pdf|docx?|xlsx)$/i.test(name)) {
-                            files.push({
-                                id: `file:${files.length}:${name}`,
-                                fileName: name,
-                                sourceUrl: url,
-                                mimeType: mime || ('application/' + ext),
-                                size: typeof node[3] === 'number' ? node[3] : void 0
-                            });
-                        }
-                    }
-                }
-                for (let child of node) walk(child);
-            } else if (node && typeof node === "object") {
-                for (let v of Object.values(node)) walk(v);
-            }
-        }
-        walk(root);
-        return files;
-    }
-
-    function extractDocumentsMeta(root) {
-        let out = [];
-        let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-
-        function pushMeta(metaObj) {
-            if (metaObj.id && metaObj.title) out.push({
-                id: metaObj.id,
-                title: metaObj.title,
-                chipUrl: metaObj.chipUrl,
-                createdAt: metaObj.createdAt,
-                contentId: metaObj.contentId
-            });
-        }
-
-        function walk(node) {
-            if (!Array.isArray(node)) return;
-            for (let i = 0; i < node.length; i++) {
-                let item = node[i];
-                if (Array.isArray(item) && item.length >= 4 && Array.isArray(item[0]) && item[0].length > 0 && typeof item[0][0] === "string" && item[0][0].includes("immersive_entry_chip") && typeof item[1] === "string" && typeof item[2] === "string" && typeof item[3] === "string") {
-                    let chipUrl = item[0][0],
-                        id = item[2],
-                        title = item[3];
-                    let createdAt;
-                    if (Array.isArray(item[5]) && typeof item[5][0] === "number") createdAt = 1000 * item[5][0];
-                    let contentId = typeof item[4] === "string" && item[4].length > 10 ? item[4] : void 0;
-                    pushMeta({
-                        id,
-                        title,
-                        chipUrl,
-                        createdAt,
-                        contentId
-                    });
-                } else if (Array.isArray(item)) {
-                    try {
-                        let flat = item.flat(Infinity).filter(x => typeof x === "string");
-                        let chip = flat.find(x => x.includes("immersive_entry_chip"));
-                        if (chip) {
-                            let uuid = flat.find(x => uuidRe.test(x));
-                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length > 3 && !x.includes("c_") && !x.includes(".html"));
-                            pushMeta({
-                                id: uuid || flat.find(x => x.includes("rc_")) || chip,
-                                title: title || "Document",
-                                chipUrl: chip
-                            });
-                        }
-                    } catch {}
-                    walk(item);
-                }
-            }
-        }
-        walk([root]);
-        return out;
-    }
-
-    function extractConversationId(inner, turns) {
-        if (inner?.[1] && typeof inner[1] === "string" && /^c_/.test(inner[1])) return inner[1];
-        let stack = [inner];
-        let found = "";
-        while (stack.length && !found) {
-            let cur = stack.pop();
-            if (Array.isArray(cur)) {
-                for (let item of cur) {
-                    if (typeof item === "string" && /^c_[A-Za-z0-9_-]+$/.test(item)) {
-                        found = item;
-                        break;
-                    }
-                    if (Array.isArray(item)) stack.push(item);
-                }
-            }
-        }
-        if (found) return found;
-        if (turns?.[0]?.[0]?.[0]) return turns[0][0][0];
-        return "";
-    }
-
-    function extractConversationTitle(inner, turns) {
-        if (inner && Array.isArray(inner)) {
-            for (let i = 1; i < inner.length; i++) {
-                let item = inner[i];
-                if (typeof item === "string" && item.length > 1 && !item.startsWith("tC") && !item.startsWith("c_") && !item.includes("http") && !/^[0-9a-f-]{16,}$/i.test(item)) {
-                    let cleaned = item.replace(/[\r\n]+/g, " ").trim();
-                    if (cleaned.length >= 2 && !/^Google Account/i.test(cleaned)) {
-                        return cleaned.slice(0, 120);
-                    }
-                }
-                if (Array.isArray(item)) {
-                    for (let sub of item) {
-                        if (typeof sub === "string" && sub.length > 1 && !sub.startsWith("tC") && !sub.startsWith("c_") && !sub.includes("http") && !/^[0-9a-f-]{16,}$/i.test(sub)) {
-                            let cleaned = sub.replace(/[\r\n]+/g, " ").trim();
-                            if (cleaned.length >= 2 && !/^Google Account/i.test(cleaned)) {
-                                return cleaned.slice(0, 120);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (turns && turns.length) {
-            for (let i = turns.length - 1; i >= 0; i--) {
-                let uPrompt = turns[i]?.[2]?.[0]?.[0];
-                if (typeof uPrompt === "string" && uPrompt.trim().length > 1) {
-                    return uPrompt.trim().replace(/[\r\n]+/g, " ").slice(0, 120);
-                }
-            }
-        }
-        return "Untitled conversation";
-    }
-
-    function findDocContentById(inner, id) {
-        let res = null;
-        function search(node) {
-            if (res) return;
-            if (Array.isArray(node)) {
-                if (node.includes(id)) {
-                    res = node;
-                    return;
-                }
-                for (let child of node) search(child);
-            }
-        }
-        search(inner);
-        return res;
-    }
-
-    function parseDocSections(node) {
-        if (!node) return {
-            sections: [],
-            links: [],
-            contentMarkdown: void 0
-        };
-        let sections = [],
-            links = [],
-            markdownContent;
-
-        function findMarkdown(element) {
-            if (markdownContent) return;
-            if (typeof element === "string") {
-                let trimmed = element.trim();
-                if (trimmed.includes("immersive_entry_chip") || trimmed.includes("googleusercontent.com/immersive")) {
-                    return;
-                }
-                if ((trimmed.startsWith("# ") || trimmed.startsWith("## ") || (trimmed.includes("\n") && trimmed.length > 80))) {
-                    markdownContent = trimmed;
-                    return;
-                }
-            } else if (Array.isArray(element)) {
-                for (let child of element) findMarkdown(child);
-            }
-        }
-        findMarkdown(node);
-        return {
-            sections,
-            links,
-            contentMarkdown: markdownContent
-        };
-    }
-
-    function findDocMarkdownByClues(inner, meta) {
-        let result;
-        function searchTree(node) {
-            if (result) return;
-            if (Array.isArray(node)) {
-                let flat = node.flat ? node.flat(1) : node;
-                let hasId = flat.some(item => item === meta.id);
-                let hasTitle = flat.some(item => item === meta.title);
-                if (hasId && hasTitle) {
-                    function searchString(element) {
-                        if (result) return;
-                        if (typeof element === "string") {
-                            let trimmed = element.trim();
-                            if (trimmed.includes("immersive_entry_chip") || trimmed.includes("googleusercontent.com/immersive")) {
-                                return;
-                            }
-                            if (trimmed.startsWith("# ") || trimmed.startsWith("## ") || (trimmed.includes("\n") && trimmed.length > 120)) {
-                                result = trimmed;
-                                return;
-                            }
-                        } else if (Array.isArray(element)) {
-                            for (let child of element) searchString(child);
-                        }
-                    }
-                    searchString(node);
-                    if (result) return;
-                }
-                for (let child of node) searchTree(child);
-            }
-        }
-        searchTree(inner);
-        return result;
-    }
-
-    function highResVariant(url) {
-        try {
-            if (!url) return url;
-            if (url.includes('/gg/')) {
-                return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
-            }
-            let [base, q = ""] = url.split("?");
-            let stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, "");
-            let suffix = q ? `${q}&alr=yes` : "alr=yes";
-            return `${stripped}=s1024-rj?${suffix}`;
-        } catch {
-            return url;
-        }
-    }
-
-    function parseDetail(text) {
-        try {
-            let top = robustFirstPayload(text);
-            if (!top) throw new Error("invalid");
-            let inner = null;
-            if (top[0] && top[0][2]) {
-                try {
-                    inner = JSON.parse(top[0][2]);
-                } catch {}
-            }
-            if (!inner) {
-                for (let row of top) {
-                    if (!Array.isArray(row)) continue;
-                    for (let cell of row) {
-                        if (typeof cell !== 'string' || cell.length < 10) continue;
-                        if (!cell.trim().startsWith('[')) continue;
-                        try {
-                            let cand = JSON.parse(cell);
-                            if (Array.isArray(cand) && cand.length && (Array.isArray(cand[0]) || typeof cand[0] === 'string')) {
-                                if (Array.isArray(cand[0]) || cand[0] === null) {
-                                    inner = cand;
-                                    break;
-                                }
-                            }
-                        } catch {}
-                    }
-                    if (inner) break;
-                }
-            }
-            if (!inner) throw new Error("invalid");
-            let turns = inner?.[0] || [];
-            let msgs = [];
-            let dedupSet = new Set();
-            let rev = [...turns].reverse();
-            for (let turn of rev) {
-                let ts = extractTurnTimestamp(turn) || Date.now();
-                let uText = turn?.[2]?.[0]?.[0] || "";
-                let uImgs = filterNewImages(extractImages(turn?.[2]), dedupSet);
-                let uFiles = extractUserFiles(turn?.[2]);
-                if (uText || uImgs.length || uFiles.length) {
-                    msgs.push({
-                        id: turn?.[0]?.[0] || "",
-                        role: "user",
-                        content: uText,
-                        timestamp: ts,
-                        images: uImgs.length ? uImgs.map(i => ({
-                            ...i,
-                            resolvedUrl: highResVariant(i.sourceUrl),
-                            localName: `assets/${(i.fileName||'img.jpg').replace(/[\\/:*?"<>|]/g,'_')}`,
-                            type: "image",
-                            isImage: true
-                        })) : void 0,
-                        documents: uFiles.length ? uFiles.map(f => ({
-                            id: f.id,
-                            title: f.fileName,
-                            fileName: f.fileName,
-                            sourceUrl: f.sourceUrl,
-                            url: f.sourceUrl,
-                            localName: `files/${f.fileName.replace(/[\\/:*?"<>|]/g,'_')}`,
-                            type: "file"
-                        })) : void 0
-                    });
-                }
-                let assistantBlock = turn?.[3]?.[0];
-                if (Array.isArray(assistantBlock) && assistantBlock.length > 0) {
-                    let candidateBlock = assistantBlock[0];
-                    if (Array.isArray(candidateBlock) && candidateBlock.length > 1) {
-                        let candidateId = candidateBlock[0] || "",
-                            responseText = candidateBlock[1]?.[0] || "",
-                            selectionIndex = extractImageSelectionIndex(responseText),
-                            allImages = extractImages(candidateBlock),
-                            chosenImages = typeof selectionIndex === "number" && allImages[selectionIndex] ? [allImages[selectionIndex]] : allImages,
-                            filteredImages = filterNewImages(chosenImages, dedupSet);
-                        let docsMeta = extractDocumentsMeta(candidateBlock);
-                        if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);
-                        let seenChip = new Set();
-                        let docs = docsMeta.filter(docItem => {
-                            let key = docItem.chipUrl || docItem.id;
-                            if (seenChip.has(key)) return false;
-                            let isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
-                            let isHttp = docItem.id.includes("immersive_entry_chip") || docItem.id.startsWith("http");
-                            if (!isRc && isHttp) return false;
-                            seenChip.add(key);
-                            return true;
-                        });
-                        let docDetails = [];
-                        if (docs.length) {
-                            try {
-                                docDetails = docs.map(metaItem => {
-                                    let primary = findDocContentById(inner, metaItem.id);
-                                    let alt = metaItem.contentId ? findDocContentById(inner, metaItem.contentId) : null;
-                                    let parsedPrimary = parseDocSections(primary);
-                                    let parsedAlt = alt ? parseDocSections(alt) : {
-                                        sections: [],
-                                        links: [],
-                                        contentMarkdown: void 0
-                                    };
-                                    let md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
-                                    if (!md || md.includes("immersive_entry_chip") || md.includes("googleusercontent.com/immersive")) {
-                                        return null;
-                                    }
-                                    if (responseText && md.trim() === responseText.trim()) {
-                                        return null;
-                                    }
-                                    let docTitle = (metaItem.title || "").trim();
-                                    if (!docTitle || docTitle === "Document" || /^im_[a-f0-9]+$/i.test(docTitle) || /^rc_[a-f0-9]+$/i.test(docTitle) || /^r_[a-f0-9]+$/i.test(docTitle)) {
-                                        let firstLineMatch = md.match(/^#\s+(.+)$/m);
-                                        if (firstLineMatch && firstLineMatch[1]) {
-                                            docTitle = firstLineMatch[1].trim();
-                                        } else {
-                                            docTitle = "Document";
-                                        }
-                                    }
-                                    return {
-                                        id: metaItem.id,
-                                        title: docTitle,
-                                        createdAt: metaItem.createdAt,
-                                        chipUrl: metaItem.chipUrl,
-                                        sections: [...parsedPrimary.sections, ...parsedAlt.sections],
-                                        links: [...parsedPrimary.links, ...parsedAlt.links],
-                                        contentMarkdown: md,
-                                        url: metaItem.chipUrl || "",
-                                        localName: `files/${(docTitle || 'document').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
-                                        type: "file"
-                                    };
-                                }).filter(Boolean);
-                            } catch (er) {
-                                console.warn("doc parse err", er);
-                            }
-                        }
-                        let thoughts = extractThoughts(candidateBlock);
-                        let citations = extractCitations(candidateBlock);
-                        if (responseText || thoughts || filteredImages.length || docDetails.length) {
-                            msgs.push({
-                                id: candidateId || turn?.[0]?.[0] || "",
-                                role: "model",
-                                content: responseText || "",
-                                thoughts: thoughts || void 0,
-                                citations: citations.length ? citations : void 0,
-                                timestamp: ts,
-                                images: filteredImages.length ? filteredImages.map(img => ({
-                                    ...img,
-                                    resolvedUrl: highResVariant(img.sourceUrl),
-                                    localName: `assets/${(img.fileName || 'img.jpg').replace(/[\\/:*?"<>|]/g, '_')}`,
-                                    type: "image"
-                                })) : void 0,
-                                documents: docDetails.length ? docDetails : void 0
-                            });
-                        }
-                    }
-                }
-            }
-            let convId = extractConversationId(inner, turns);
-            let title = extractConversationTitle(inner, turns);
-            let nextToken = null;
-            if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
-            let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/,'')}`;
-            let times = turns.map(t => extractTurnTimestamp(t)).filter(x => Number.isFinite(x));
-            let minTs = times.length ? Math.min(...times) : Date.now();
-            let allMsgs = msgs.map(m => {
-                let atts = [];
-                if (m.images)
-                    for (let im of m.images) atts.push({
-                        type: "image",
-                        src: im.resolvedUrl || im.sourceUrl,
-                        localName: im.localName || `assets/${im.fileName}`,
-                        alt: im.fileName,
-                        isBlob: false,
-                        isImage: true,
-                        originalUrl: im.sourceUrl
-                    });
-                if (m.documents)
-                    for (let d of m.documents) atts.push({
-                        type: "file",
-                        name: d.title || d.id,
-                        title: d.title,
-                        url: d.url || d.chipUrl,
-                        chipUrl: d.chipUrl,
-                        localName: d.localName,
-                        contentMarkdown: d.contentMarkdown
-                    });
-                return {
-                    ...m,
-                    attachments: atts.length ? atts : void 0,
-                    attachmentCount: atts.length,
-                    messageCount: 1
-                };
-            });
-            return {
-                id: convId,
-                title,
-                messages: allMsgs,
-                createdAt: minTs,
-                chatTime: minTs,
-                timestamp: minTs,
-                url,
-                nextPageToken: nextToken,
-                attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
-                _raw: inner
-            };
-        } catch (e) {
-            throw new Error("detail parse fail: " + e.message);
-        }
     }
 
     class GeminiAPIClient {
@@ -916,7 +189,7 @@
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sid:${cred.sid?.slice(0,6)} atLen:${cred.at?.length} bl:${cred.bl?.slice(0,12)}`);
             }
             let txt = await resp.text();
-            return parseList(txt);
+            return getParser().parseList(txt);
         }
         async getAllConversations(maxPages = 2000, onProgress, targetSid, opts) {
             if (!maxPages || typeof maxPages !== "number") maxPages = 2000;
@@ -934,14 +207,16 @@
                 incremental,
                 totalPagesFetched: 0,
                 totalConversations: 0,
-                stopReason: '已达到最大页数限制',
+                stopReason: '就绪（尚未触发同步）',
                 pageHistory: []
             };
             this.aborted = false;
+            let reachedMax = true;
             for (let i = 0; i < maxPages; i++) {
                 if (this.aborted) {
                     diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
                     console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
+                    reachedMax = false;
                     break;
                 }
                 let res;
@@ -950,6 +225,7 @@
                 } catch (err) {
                     console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
                     diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
+                    reachedMax = false;
                     if (all.length > 0) {
                         break;
                     }
@@ -1010,10 +286,11 @@
                 }
                 if (!res.conversations || res.conversations.length === 0) {
                     if (res?._debug?.bardError) {
-                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo 1096: 游标链已达服务端上限)`;
+                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     } else {
                         diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                     }
+                    reachedMax = false;
                     console.log(`[Gemini Exporter] getAllConversations reached end at page ${i + 1}, total: ${all.length}, reason: ${diagLog.stopReason}`);
                     break;
                 }
@@ -1026,12 +303,16 @@
                 });
                 if (!res.nextPageToken) {
                     diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
+                    reachedMax = false;
                     console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, no nextPageToken in response`);
                     break;
                 }
                 token = res.nextPageToken;
                 const pageDelay = incremental ? 50 : 120;
                 await new Promise(r => setTimeout(r, pageDelay));
+            }
+            if (reachedMax && maxPages > 0) {
+                diagLog.stopReason = `已达到最大页数限制 (${maxPages} 页)`;
             }
             diagLog.totalConversations = all.length;
             diagLog.endTime = new Date().toISOString();
@@ -1045,6 +326,7 @@
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid);
             let api = getApiUrl(cred.accountSlot || "default");
+            console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
             let params = new URLSearchParams({
                 rpcids: RPCS.DETAIL,
                 "source-path": "/app",
@@ -1078,10 +360,18 @@
                 try {
                     snippet = (await resp.text()).slice(0, 320);
                 } catch {}
+                console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
             }
             let text = await resp.text();
-            return parseDetail(text);
+            try {
+                let parsed = getParser().parseDetail(text, conversationId);
+                console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
+                return parsed;
+            } catch (err) {
+                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, 'raw text snippet:', text.slice(0, 400));
+                throw new Error(`解析详情失败 (${err.message}): ${text.slice(0, 100)}`);
+            }
         }
         async getConversationDetail(conversationId, targetSid) {
             let msgs = [];
@@ -1096,7 +386,10 @@
                 attempts++;
             } while (token && attempts < 20);
             if (!first) throw new Error("no data");
-            let minTs = first.createdAt || Date.now();
+            
+            let allTimestamps = msgs.map(m => m.timestamp).filter(x => typeof x === 'number' && Number.isFinite(x) && x > 0);
+            let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || Date.now());
+            let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : minTs;
             let attachmentCount = msgs.reduce((a, m) => a + (m.attachmentCount || 0), 0);
             let cleanId = String(conversationId).replace(/^c_/, '').trim();
             return {
@@ -1107,6 +400,7 @@
                 timestamp: minTs,
                 createdAt: minTs,
                 chatTime: minTs,
+                updatedAt: maxTs,
                 attachmentCount
             };
         }
@@ -1127,12 +421,8 @@
 
     global.GeminiAPIClient = GeminiAPIClient;
     global.getApiUrl = getApiUrl;
-    global.GeminiResponseParserClass = {
-        parseList,
-        parseDetail,
-        robustFirstPayload,
-        highResVariant,
-        extractImages
-    };
+    global.detectSlot = detectSlot;
+    global.resolveCred = resolveCred;
+    global.loadCredMap = loadCredMap;
 
-})(typeof window !== "undefined" ? window : self);
+})(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : this));

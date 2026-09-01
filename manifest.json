@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extName__",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "description": "__MSG_extDesc__",
   "permissions": [
     "storage",
@@ -41,8 +41,13 @@
         "content.css"
       ],
       "js": [
+        "utils.js",
+        "storage_service.js",
+        "gemini_parser.js",
         "content_cred_bootstrap.js",
         "gemini_client.js",
+        "dom_scraper.js",
+        "asset_fetcher.js",
         "content.js"
       ],
       "run_at": "document_start",

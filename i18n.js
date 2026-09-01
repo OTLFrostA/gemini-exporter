@@ -107,7 +107,21 @@
             logFolderSelected: "已选文件夹：{0}",
             logExportZipSwitched: "已切换为导出为 ZIP: {0}",
             logExportingChats: "开始导出 {0} 条对话…",
-            logExportDone: "导出完成，实际保存 {0} 条对话、{1} 个附件到 {2}"
+            logExportDone: "导出完成，实际保存 {0} 条对话、{1} 个附件到 {2}",
+            btnImportTakeout: "📥 导入 Takeout",
+            btnImportTakeoutTip: "读取 Google Takeout 压缩包，自动补全历史无法扫描的远古对话，并加载离线附件兜底池",
+            btnBackup: "💾 备份数据",
+            btnBackupTip: "导出完整会话列表与设置备份文件 (.json)",
+            btnRestore: "📂 恢复备份",
+            btnRestoreTip: "从 JSON 备份文件恢复全部会话底账与设置",
+            takeoutParsing: "正在解析 Takeout 压缩包…",
+            takeoutSuccess: "成功从 Takeout 提取 {0} 条会话（新增 {1} 条），已就绪 {2} 个离线附件！",
+            takeoutNotFound: "未在 ZIP 包中找到 Gemini Apps 活动记录 (MyActivity.html)",
+            takeoutError: "解析 Takeout ZIP 失败: {0}",
+            backupSuccess: "备份文件已成功生成并开始下载",
+            restoreConfirm: "恢复备份将覆盖当前的会话列表与导出记录，确定继续吗？",
+            restoreSuccess: "成功恢复 {0} 条会话底账！",
+            restoreFailed: "恢复备份失败: {0}"
         },
         en: {
             extName: "Gemini Exporter",
@@ -215,7 +229,21 @@
             logFolderSelected: "Folder selected: {0}",
             logExportZipSwitched: "Switched to export as ZIP: {0}",
             logExportingChats: "Starting export for {0} conversations...",
-            logExportDone: "Export complete, saved {0} conversations and {1} assets to {2}"
+            logExportDone: "Export complete, saved {0} conversations and {1} assets to {2}",
+            btnImportTakeout: "📥 Import Takeout",
+            btnImportTakeoutTip: "Load Google Takeout ZIP to recover unscannable legacy chats and enable offline asset fallback",
+            btnBackup: "💾 Backup Data",
+            btnBackupTip: "Export full conversation list and settings backup file (.json)",
+            btnRestore: "📂 Restore Backup",
+            btnRestoreTip: "Restore all conversations and settings from a JSON backup file",
+            takeoutParsing: "Parsing Takeout ZIP archive...",
+            takeoutSuccess: "Imported {0} chats ({1} new) from Takeout with {2} offline assets ready!",
+            takeoutNotFound: "Gemini Apps activity (MyActivity.html) not found in ZIP",
+            takeoutError: "Failed to parse Takeout ZIP: {0}",
+            backupSuccess: "Backup file generated and download started",
+            restoreConfirm: "Restoring backup will replace current conversations and export markers. Continue?",
+            restoreSuccess: "Successfully restored {0} conversations!",
+            restoreFailed: "Failed to restore backup: {0}"
         }
     };
 
