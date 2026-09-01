@@ -178,7 +178,7 @@
                 if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
             }
             if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-            if (/^Google Account/i.test(t)) return false;
+            if (/^(Google Account|Sign in|Sign-in|Sign in with Google|登录|重新登录)/i.test(t)) return false;
             if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
             return true;
         };
