@@ -23,23 +23,29 @@ function $(id) {
     return document.getElementById(id);
 }
 
-const isRealTitle = (typeof globalThis.isRealTitle === 'function')
-    ? globalThis.isRealTitle
-    : function isRealTitle(title, id) {
-        if (!title || typeof title !== 'string') return false;
-        let t = title.trim();
-        if (t.length < 2) return false;
-        if (id) {
-            let cleanId = String(id).replace(/^c_/, '').trim();
-            let cleanT = t.replace(/^c_/, '').trim();
-            if (cleanT === cleanId) return false;
-            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-        }
-        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-        if (/^Google Account/i.test(t)) return false;
-        if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
-        return true;
-    };
+const isRealTitle = (typeof globalThis.GeminiUtils !== 'undefined' && typeof globalThis.GeminiUtils.isRealTitle === 'function')
+    ? globalThis.GeminiUtils.isRealTitle
+    : (typeof globalThis.isRealTitle === 'function')
+        ? globalThis.isRealTitle
+        : function isRealTitle(title, id) {
+            if (!title || typeof title !== 'string') return false;
+            let t = title.trim();
+            if (!t || t.length < 2) return false;
+            if (t === 'Untitled' || t === '未命名' || t === 'New chat' || t === '新对话') return false;
+            if (id) {
+                let cleanId = String(id).replace(/^c_/, '').trim();
+                let cleanT = t.replace(/^c_/, '').trim();
+                if (cleanT === cleanId) return false;
+                if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+                if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;
+            }
+            if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+            if (/^Google Account/i.test(t)) return false;
+            if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+            if (/^[0-9a-f]{16}$/i.test(t) || /^c_[0-9a-f]{16}$/i.test(t)) return false;
+            if (/^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(t)) return false;
+            return true;
+        };
 
 function setExportRunning(running) {
     __exportRunning = !!running;
@@ -415,7 +421,13 @@ async function exportSelected() {
         if ($('progText')) $('progText').textContent = noSelMsg;
         return;
     }
-    const format = $('format').value;
+    let format = $('format') ? $('format').value : 'markdown';
+    const allowedFormats = ['markdown', 'json_openai', 'json', 'json_raw'];
+    if (!allowedFormats.includes(format)) format = 'markdown';
+    try {
+        const devOn = document.body.classList.contains('dev-mode');
+        if (format === 'json_raw' && !devOn) format = 'markdown';
+    } catch {}
     const skip = $('skipExported').checked;
     const includeIndex = $('includeIndex').checked;
     const includeAssets = $('includeAssets') ? $('includeAssets').checked : true;
@@ -745,9 +757,24 @@ async function initWorkbench() {
         }
     };
 
-    chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip'], data => {
+    function normalizeFormat(val, isDev) {
+        const allowed = ['markdown', 'json_openai', 'json', 'json_raw'];
+        if (!allowed.includes(val)) return 'markdown';
+        if (val === 'json_raw' && !isDev) return 'markdown';
+        return val;
+    }
+
+    chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip', 'gemini_dev_mode'], data => {
+        const isDev = !!data.gemini_dev_mode;
         if (data.gemini_export_format && $('format')) {
-            $('format').value = data.gemini_export_format;
+            const sel = $('format');
+            const normalized = normalizeFormat(data.gemini_export_format, isDev);
+            const valid = Array.from(sel.options).some(o => o.value === normalized);
+            if (valid) sel.value = normalized;
+            else sel.value = 'markdown';
+            if (normalized !== data.gemini_export_format) {
+                chrome.storage.local.set({ gemini_export_format: normalized });
+            }
         }
         if (typeof data.gemini_export_zip !== 'undefined' && zipCheck) {
             zipCheck.checked = data.gemini_export_zip;
@@ -816,6 +843,11 @@ async function initWorkbench() {
             labelDev.style.color = devOn ? 'var(--accent2, #06b6d4)' : 'var(--muted, #8a92b2)';
         }
         if (devOn) renderLog();
+        const fmtSel = $('format');
+        if (!devOn && fmtSel && fmtSel.value === 'json_raw') {
+            fmtSel.value = 'markdown';
+            chrome.storage.local.set({ gemini_export_format: 'markdown' });
+        }
         if (Storage) await Storage.setDevMode(devOn);
         else await chrome.storage.local.set({ gemini_dev_mode: devOn });
     };
@@ -1009,6 +1041,22 @@ async function initWorkbench() {
     });
 
     // 13. Clear Cache
+    $('btnClearExported')?.addEventListener('click', async () => {
+        const slot = currentSlot || 'u0';
+        if (Storage && Storage.setExportedIds) {
+            await Storage.setExportedIds(slot, {});
+        } else {
+            const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+            await chrome.storage.local.remove([expKey]);
+        }
+        exportedIds = {};
+        // 保留当前选中状态仅刷新徽章
+        const currentSelected = new Set(getSelected().map(x => x.id));
+        renderList(currentSelected);
+        updateSelectedStat();
+        log('已清空已导出记录', 'info');
+    });
+
     $('btnClearAll')?.addEventListener('click', async () => {
         const confirmMsg = typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : '确定清空本地所有会话数据？';
         if (!confirm(confirmMsg)) return;
