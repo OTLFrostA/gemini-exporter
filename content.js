@@ -20,17 +20,33 @@
         return m ? ('u' + m[1]) : 'u0';
     }
 
+    let currentLang = 'zh';
+    function isZh() {
+        return (currentLang || '').toLowerCase().startsWith('zh');
+    }
+
+    try {
+        chrome.storage.local.get(['gemini_exporter_lang'], d => {
+            if (d.gemini_exporter_lang) currentLang = d.gemini_exporter_lang;
+            else currentLang = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+            refreshInitialBadge();
+        });
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area === 'local' && changes.gemini_exporter_lang) {
+                currentLang = changes.gemini_exporter_lang.newValue || 'zh';
+                refreshInitialBadge();
+            }
+        });
+    } catch {}
+
     function ensureBadge() {
         let existing = document.getElementById('geminiExportBadge');
         if (existing) return existing;
-        let isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-        chrome.storage.local.get(['gemini_exporter_lang'], d => {
-            if (d.gemini_exporter_lang) isZh = d.gemini_exporter_lang === 'zh';
-        });
+        const zh = isZh();
         const div = document.createElement('div');
         div.id = 'geminiExportBadge';
-        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${isZh ? '初始化…' : 'Initializing...'}</span>`;
-        div.title = isZh ? '点此打开批量导出页' : 'Click to open Export Workbench';
+        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${zh ? '初始化…' : 'Initializing...'}</span>`;
+        div.title = zh ? '点此打开批量导出页' : 'Click to open Export Workbench';
         div.addEventListener('click', () => {
             try {
                 const p = chrome.runtime.sendMessage({ action: 'openOptions' });
@@ -66,11 +82,15 @@
                 txt.textContent = overrideText;
                 return;
             }
-            const isZh = (navigator.language || '').toLowerCase().startsWith('zh');
-            txt.textContent = isZh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
+            const zh = isZh();
+            txt.textContent = zh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
             const slot = getAccountSlot();
-            if (badge && slot !== 'u0') {
-                badge.title = (isZh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`);
+            if (badge) {
+                if (slot !== 'u0') {
+                    badge.title = (zh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`);
+                } else {
+                    badge.title = (zh ? '点此打开批量导出页' : 'Click to open Export Workbench');
+                }
             }
         } catch (e) {
             console.warn('[Gemini Exporter] updateBadge err', e);

@@ -53,10 +53,40 @@ def test_module_exports():
                 assert sym in content, f"Missing symbol '{sym}' in {filename}"
         print(f"  ✓ {filename} exports and signatures verified")
 
+def test_i18n_keys():
+    with open(os.path.join(BASE_DIR, "i18n.js"), "r", encoding="utf-8") as f:
+        text = f.read()
+
+    zh_dict = {}
+    en_dict = {}
+    cur = None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("zh: {"):
+            cur = zh_dict
+        elif line.startswith("en: {"):
+            cur = en_dict
+        elif ":" in line and cur is not None:
+            parts = line.split(":", 1)
+            k = parts[0].strip().strip('"').strip("'")
+            v = parts[1].strip().rstrip(",").strip('"').strip("'")
+            cur[k] = v
+
+    for html_file in ["options.html", "popup.html"]:
+        with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
+            content = f.read()
+        html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder)?=["\']([^"\']+)["\']', content))
+        missing_zh = html_keys - set(zh_dict.keys())
+        missing_en = html_keys - set(en_dict.keys())
+        assert not missing_zh, f"Missing in zh ({html_file}): {missing_zh}"
+        assert not missing_en, f"Missing in en ({html_file}): {missing_en}"
+    print("  ✓ i18n keys complete and matched across all HTML templates")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
 test_module_exports()
+test_i18n_keys()
 
 print("=" * 60)
 print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
