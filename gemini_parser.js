@@ -616,7 +616,7 @@
             const isDevMode = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll))
                 || (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
             const shouldVerbose = isDevMode || !text || text.length < 500;
-            if (shouldVerbose || (Array.isArray(top) && top.length > 1)) {
+            if (shouldVerbose) {
                 try {
                     const summary = Array.isArray(top) ? top.map((it,i) => {
                         const rpc = Array.isArray(it) ? it[1] : String(it).slice(0,20);
@@ -624,9 +624,7 @@
                         const preview = Array.isArray(it) && typeof it[2]==='string' ? it[2].slice(0,300).replace(/\n/g,' ') : '';
                         return { idx:i, rpc, innerLen, preview };
                     }) : { topType: typeof top, len: text?.length };
-                    // 仅在空结果或 Dev 时打印，避免刷屏
-                    if (shouldVerbose || !top || !Array.isArray(top)) console.log('[Parser Verbose] top candidates', summary);
-                    // 空结果时强制打印，便于定位通用 parser 数据源
+                    if (!top || !Array.isArray(top)) console.log('[Parser Verbose] top candidates', summary);
                     if (!top || (Array.isArray(top) && !top.some(it=>Array.isArray(it)&&it[1]==='hNvQHb'&&typeof it[2]==='string'&&it[2].includes('rc_')))) {
                         console.warn('[Parser Verbose] no hNvQHb with rc_ found, top summary', summary);
                     }
@@ -720,13 +718,11 @@
             if (!turns) turns = [];
             // Detect "metadata-only" response: inner = [null, null, [[conv_id_str, title, ...]]]
             // This is a known pattern where hNvQHb returns list-style metadata instead of turns.
-            // It typically happens when source-path is set to the conversation-specific URL,
-            // causing the server to return a lightweight metadata-only payload.
             const isMetadataOnly = !turns.length
                 && inner[0] === null && inner[1] === null
                 && Array.isArray(inner[2]) && inner[2].length > 0
                 && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
-            if (isMetadataOnly) {
+            if (isMetadataOnly && isDevMode) {
                 console.warn('[Parser] hNvQHb returned metadata-only payload (no turns). ' +
                     'inner[2][0] looks like a list-format row, not a turns array. ' +
                     'conv:', inner[2][0]?.[0], 'title:', inner[2][0]?.[1],
