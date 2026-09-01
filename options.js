@@ -1826,22 +1826,24 @@ async function getTakeoutFallbackMedia(chatId, filenameOrId) {
     let target = String(filenameOrId).replace(/^.*[\\\/]/, '').trim();
     try { target = decodeURIComponent(target); } catch {}
     let targetStem = target.replace(/\.[^/.]+$/, '').toLowerCase();
-    let cleanTargetStem = targetStem.replace(/-[0-9a-fA-F]{16}$/i, '');
+    // 💡 彻底剥离前缀（如 39d5b4_ 或 c_ 前缀）与后缀（如 -16位hex）
+    let cleanTargetStem = targetStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
+    let cleanTarget = target.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
 
     const convMedia = __takeoutMediaMap[nid];
     if (convMedia && convMedia.length) {
         for (const item of convMedia) {
             let itemFilename = item.filename;
             let itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
-            let cleanItemStem = itemStem.replace(/-[0-9a-fA-F]{16}$/i, '');
-            if (itemFilename === target || cleanItemStem === cleanTargetStem || cleanItemStem === targetStem || targetStem === cleanItemStem || (cleanItemStem.length > 5 && targetStem.includes(cleanItemStem)) || (cleanTargetStem.length > 5 && itemStem.includes(cleanTargetStem))) {
+            let cleanItemStem = itemStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
+            if (itemFilename === target || itemFilename === cleanTarget || itemStem === cleanTargetStem || cleanItemStem === cleanTargetStem || cleanItemStem === targetStem || (cleanItemStem.length > 3 && cleanTargetStem.includes(cleanItemStem)) || (cleanTargetStem.length > 3 && cleanItemStem.includes(cleanTargetStem))) {
                 try {
                     let bin = await item.fileObj.async('uint8array');
                     if (bin && bin.length > 0) return bin;
                 } catch {}
             }
         }
-        if (convMedia.length === 1 && (/^image(?:-\d+)?$/i.test(targetStem) || /^file/i.test(targetStem) || /^asset/i.test(targetStem))) {
+        if (convMedia.length === 1 && (/^image(?:-\d+)?$/i.test(cleanTargetStem) || /^file/i.test(cleanTargetStem) || /^asset/i.test(cleanTargetStem))) {
             try {
                 let bin = await convMedia[0].fileObj.async('uint8array');
                 if (bin && bin.length > 0) return bin;
@@ -1849,8 +1851,8 @@ async function getTakeoutFallbackMedia(chatId, filenameOrId) {
         }
     }
 
-    if (__takeoutGlobalMedia[cleanTargetStem] || __takeoutGlobalMedia[targetStem] || __takeoutGlobalMedia[target]) {
-        const fObj = __takeoutGlobalMedia[cleanTargetStem] || __takeoutGlobalMedia[targetStem] || __takeoutGlobalMedia[target];
+    if (__takeoutGlobalMedia[cleanTargetStem] || __takeoutGlobalMedia[targetStem] || __takeoutGlobalMedia[cleanTarget] || __takeoutGlobalMedia[target]) {
+        const fObj = __takeoutGlobalMedia[cleanTargetStem] || __takeoutGlobalMedia[targetStem] || __takeoutGlobalMedia[cleanTarget] || __takeoutGlobalMedia[target];
         try {
             let bin = await fObj.async('uint8array');
             if (bin && bin.length > 0) return bin;
@@ -1858,7 +1860,9 @@ async function getTakeoutFallbackMedia(chatId, filenameOrId) {
     }
 
     for (const [stem, fileObj] of Object.entries(__takeoutGlobalMedia)) {
-        if (stem.length > 5 && (stem === cleanTargetStem || stem.includes(cleanTargetStem) || cleanTargetStem.includes(stem))) {
+        let cleanStem = stem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
+        if ((cleanStem.length > 4 && (cleanStem === cleanTargetStem || cleanStem.includes(cleanTargetStem) || cleanTargetStem.includes(cleanStem))) ||
+            (stem.length > 4 && (stem === cleanTargetStem || stem.includes(cleanTargetStem) || cleanTargetStem.includes(stem)))) {
             try {
                 let bin = await fileObj.async('uint8array');
                 if (bin && bin.length > 0) return bin;
