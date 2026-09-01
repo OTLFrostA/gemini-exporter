@@ -1,10 +1,39 @@
 // background.js - Gemini Exporter background service worker
 try {
-    importScripts('storage_service.js');
+    importScripts('utils.js', 'storage_service.js');
 } catch (e) {}
 
 console.log('[Gemini Exporter] Background service worker ready');
 let __bgAborted = false;
+
+const cleanTitle = (t) => {
+    try {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
+    } catch {}
+    if (!t || typeof t !== 'string') return '';
+    let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+    if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
+    s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+    s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+    s = s.trim();
+    if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
+    return s;
+};
+
+const isRealTitle = (t, fallbackId) => {
+    try {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
+    } catch {}
+    if (!t || typeof t !== 'string') return false;
+    const s = t.trim();
+    if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
+    if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
+    if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
+    if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
+    return true;
+};
 
 function getGeminiTab(slot) {
     return chrome.tabs.query({
@@ -221,7 +250,19 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
             if (data && data.success) {
                 let chat = data.data || data.chat || data;
                 chat.id = item.id;
-                chat.title = item.title || chat.title;
+                const cleanDetailTitle = cleanTitle(chat.title);
+                const cleanItemTitle = cleanTitle(item.title);
+                if (isRealTitle(cleanDetailTitle, item.id)) {
+                    chat.title = cleanDetailTitle;
+                    chat.titleSource = chat.titleSource || 'rpc';
+                } else if (isRealTitle(cleanItemTitle, item.id)) {
+                    chat.title = cleanItemTitle;
+                    chat.titleSource = item.titleSource || 'legacy';
+                }
+                chat.titles = { ...(item.titles || {}), ...(chat.titles || {}) };
+                if (chat.title && chat.titleSource) {
+                    chat.titles[chat.titleSource] = chat.title;
+                }
                 if (!chat.url) chat.url = item.url || `https://gemini.google.com/app/${item.id}`;
 
                 const msgCount = chat.messageCount || chat.messages?.length || 0;
