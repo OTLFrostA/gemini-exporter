@@ -27,7 +27,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     await geminiPage.route('https://gemini.google.com/app/**', async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: 'text/html',
+        contentType: 'text/html; charset=utf-8',
         body: `<!DOCTYPE html>
         <html>
         <head>
@@ -96,5 +96,66 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     const allItems = optionsPage.locator('#list .item');
     await expect(allItems.nth(0)).toContainText('最新对话');
     await expect(allItems.nth(1)).toContainText('量子纠缠物理原理深度解析');
+  });
+
+  test('should keep clean title without "- Google Gemini" suffix when opening an existing Takeout imported chat', async ({ context, extensionId }) => {
+    // 1. Seed Takeout imported chat
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.waitForLoadState('domcontentloaded');
+
+    await optionsPage.evaluate(async () => {
+      const takeoutConvs = [
+        { id: 'takeout_chat_888', title: '微服务与分布式事务设计', timestamp: 1670000000000 }
+      ];
+      await chrome.storage.local.set({ gemini_conversations: takeoutConvs });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+
+    await expect(optionsPage.locator('[data-chat-id="takeout_chat_888"]')).toContainText('微服务与分布式事务设计');
+
+    // 2. Open chat in Gemini with branding suffix in document.title and header
+    const geminiPage = await context.newPage();
+    await geminiPage.route('https://gemini.google.com/app/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html; charset=utf-8',
+        body: `<!DOCTYPE html>
+        <html>
+        <head>
+          <title>微服务与分布式事务设计 - Google Gemini</title>
+        </head>
+        <body>
+          <h1 data-test-id="conversation-title">微服务与分布式事务设计 - Google Gemini</h1>
+        </body>
+        </html>`
+      });
+    });
+
+    await geminiPage.goto('https://gemini.google.com/app/takeout_chat_888');
+    await geminiPage.waitForLoadState('domcontentloaded');
+    await geminiPage.waitForTimeout(800); // Allow content.js syncOnce to run
+
+    // 3. Verify in storage and options page that title NEVER contains "- Google Gemini"
+    const storageData = await optionsPage.evaluate(async () => {
+      return await chrome.storage.local.get(['gemini_conversations']);
+    });
+    const chat = storageData.gemini_conversations.find(c => c.id === 'takeout_chat_888');
+    expect(chat).toBeTruthy();
+    expect(chat.title).toBe('微服务与分布式事务设计');
+    expect(chat.title).not.toContain('Google Gemini');
+    expect(chat.title).not.toContain('Gemini');
+
+    await optionsPage.bringToFront();
+    await optionsPage.evaluate(async () => {
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+    const itemText = await optionsPage.locator('[data-chat-id="takeout_chat_888"]').innerText();
+    expect(itemText).toContain('微服务与分布式事务设计');
+    expect(itemText).not.toContain('Google Gemini');
   });
 });
