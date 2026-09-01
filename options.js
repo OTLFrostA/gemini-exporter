@@ -557,7 +557,42 @@ async function restoreFullBackup(file) {
 // 🎯 DOM 初始化与事件绑定
 // ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    if (typeof I18n !== 'undefined') I18n.applyI18n();
+    if (typeof I18n !== 'undefined') {
+        await I18n.initLanguage();
+        I18n.applyI18n();
+    }
+
+    if (Storage) {
+        const devOn = await Storage.getDevMode();
+        if ($('devToggle')) $('devToggle').checked = !!devOn;
+        document.body.classList.toggle('dev-mode', !!devOn);
+    }
+
+    $('langToggle')?.addEventListener('change', async (e) => {
+        const nextLang = e.target.checked ? 'en' : 'zh';
+        if (typeof I18n !== 'undefined') {
+            await I18n.setLang(nextLang);
+            updateAccountSlotSelector();
+            renderList();
+            updateSelectedStat();
+            loadStore(true);
+        }
+    });
+
+    $('devToggle')?.addEventListener('change', async (e) => {
+        const devOn = e.target.checked;
+        document.body.classList.toggle('dev-mode', devOn);
+        if (Storage) await Storage.setDevMode(devOn);
+        else await chrome.storage.local.set({ gemini_dev_mode: devOn });
+    });
+
+    $('accountSlotSelect')?.addEventListener('change', async (e) => {
+        currentSlot = e.target.value || 'u0';
+        conversations = [];
+        __lastRenderedSignature = '';
+        renderList();
+        await loadStore();
+    });
 
     $('chatSearchInput')?.addEventListener('input', (e) => {
         __chatSearchFilter = e.target.value;
@@ -643,8 +678,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
-    $('btnExportBackup')?.addEventListener('click', exportFullBackup);
-    $('btnImportBackup')?.addEventListener('click', () => $('restoreFileInput')?.click());
+    $('btnBackupData')?.addEventListener('click', exportFullBackup);
+    $('btnRestoreData')?.addEventListener('click', () => $('restoreFileInput')?.click());
     $('restoreFileInput')?.addEventListener('change', (e) => {
         const f = e.target.files && e.target.files[0];
         if (f) restoreFullBackup(f);
