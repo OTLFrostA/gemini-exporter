@@ -184,17 +184,47 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
 
     let done = 0;
     const results = [];
+    async function fetchWithRetry(conversationId) {
+        const maxRetries = 2;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (__bgAborted) throw new Error('aborted');
+            try {
+                const d = await sendToGeminiTab({
+                    action: 'getConversationDetail',
+                    conversationId
+                }, slot);
+                // 服务端限频返回中包含 BardErrorInfo 时也视为可重试
+                if (!d.success && d.error && /429|rate.?limit|Too Many|BardErrorInfo/i.test(String(d.error))) {
+                    if (attempt < maxRetries) {
+                        const backoff = 600 * Math.pow(2, attempt) + Math.random() * 300;
+                        console.warn(`[BG] retry ${attempt+1} for ${conversationId} due to rate limit, backoff ${Math.round(backoff)}ms`);
+                        await new Promise(r => setTimeout(r, backoff));
+                        continue;
+                    }
+                }
+                return d;
+            } catch (e) {
+                const msg = String(e.message || '');
+                if (attempt < maxRetries && /429|rate.?limit|Too Many|network|timeout/i.test(msg)) {
+                    const backoff = 600 * Math.pow(2, attempt) + Math.random() * 300;
+                    console.warn(`[BG] retry ${attempt+1} for ${conversationId} due to ${msg}, backoff ${Math.round(backoff)}ms`);
+                    await new Promise(r => setTimeout(r, backoff));
+                    continue;
+                }
+                throw e;
+            }
+        }
+    }
+
     for (const item of toFetch) {
         if (__bgAborted) break;
 
         try {
             let data;
             try {
-                data = await sendToGeminiTab({
-                    action: 'getConversationDetail',
-                    conversationId: item.id
-                }, slot);
+                data = await fetchWithRetry(item.id);
             } catch (tabErr) {
+                if (String(tabErr.message) === 'aborted') break;
                 data = { success: false, error: tabErr.message };
             }
 

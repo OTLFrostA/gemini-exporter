@@ -10,6 +10,9 @@
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
 
+    const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024; // 超过50MB避免 FileReader base64 内存翻倍，交由 Takeout 兜底
+    const LARGE_FILE_WARN_SIZE = 30 * 1024 * 1024;
+
     function toHighRes(url, variant = "s1024-rj") {
         try {
             if (!url) return url;
@@ -156,6 +159,13 @@
                         reasons.push('blob<10');
                         continue;
                     }
+                    if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                        reasons.push('blob too large(' + (blob.size / 1024 / 1024).toFixed(1) + 'MB) skip base64');
+                        continue;
+                    }
+                    if (blob.size > LARGE_FILE_WARN_SIZE) {
+                        console.warn('[AssetFetcher] large file', (blob.size / 1024 / 1024).toFixed(1) + 'MB', u);
+                    }
                     if (blob.size < 400) {
                         try {
                             let txt = await blob.text();
@@ -216,6 +226,10 @@
                     let ct = r.headers.get('content-type') || "";
                     if (ct.startsWith('image/')) {
                         let blob = await r.blob();
+                        if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                            console.warn('[AssetFetcher] image too large skip base64', (blob.size / 1024 / 1024).toFixed(1) + 'MB', u);
+                            continue;
+                        }
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
                             success: true,
@@ -249,6 +263,9 @@
                         continue;
                     }
                     let blob = await r.blob();
+                    if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                        continue;
+                    }
                     if (blob.size > 800) {
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
@@ -292,7 +309,9 @@
                 if (r.ok) {
                     const ct = (r.headers.get('content-type') || '').toLowerCase();
                     const blob = await r.blob();
-                    if (blob.size > 0 && (!ct.startsWith('text/html') || blob.size > 2000)) {
+                    if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                        console.warn('[AssetFetcher] direct download too large, fallback', (blob.size / 1024 / 1024).toFixed(1) + 'MB');
+                    } else if (blob.size > 0 && (!ct.startsWith('text/html') || blob.size > 2000)) {
                         const dataUrl = await toDataUrl(blob);
                         sendResponse({
                             success: true,

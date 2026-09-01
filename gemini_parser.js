@@ -16,11 +16,17 @@
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     function isRealTitle(t, fallbackId) {
+        // 统一委托至 GeminiUtils 单一源，保持与 utils.js 一致
+        try {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
+        } catch {}
         if (!t || typeof t !== 'string') return false;
         const s = t.trim();
-        if (!s || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
+        if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
         if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
-        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s)) return false;
+        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
+        if (/^(未命名对话|Untitled conversation|Document|Gemini)$/i.test(s)) return false;
         if (RESEARCH_PROMPT_PREFIX_RE.test(s)) return false;
         return true;
     }

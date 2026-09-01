@@ -14,15 +14,28 @@
     if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName) {
       return GeminiUtils.sanitizeFileName(name, fallback);
     }
+    if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.sanitizeFileName) {
+      return globalThis.GeminiUtils.sanitizeFileName(name, fallback);
+    }
     if (!name) return fallback;
     let s = String(name).replace(/[\r\n]+/g, ' ').replace(/[\u0000-\u001F\u007F]/g, '_');
+    s = s.replace(/\.\.\//g, '_').replace(/\.\.\\/g, '_');
     s = s.replace(/[<>:"/\\|?*]+/g, '_');
+    s = s.replace(/\.{2,}/g, '_');
     s = s.replace(/^\.+|\.+$/g, '');
     s = s.trim();
     if (!s) return fallback;
     if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
-    if (s.length > 80) s = s.slice(0, 80).trim();
-    return s;
+    let ext = '';
+    const lastDot = s.lastIndexOf('.');
+    if (lastDot > 0 && s.length - lastDot <= 6) {
+      ext = s.slice(lastDot);
+      s = s.slice(0, lastDot);
+    }
+    if (s.length > 70) s = s.slice(0, 70).trim();
+    s = s.replace(/[\.\s_]+$/g, '').trim();
+    if (!s) s = fallback;
+    return s + ext;
   }
 
   // Update synced count badge
@@ -90,7 +103,9 @@
 
   chrome.storage.local.get(['gemini_export_format'], data => {
     if (data.gemini_export_format && $('format')) {
-      $('format').value = data.gemini_export_format;
+      const sel = $('format');
+      const valid = Array.from(sel.options).some(o => o.value === data.gemini_export_format);
+      if (valid) sel.value = data.gemini_export_format;
     }
   });
   $('format')?.addEventListener('change', e => {
