@@ -668,9 +668,11 @@
             function isTurn(turn) {
                 if (!Array.isArray(turn) || turn.length < 3) return false;
                 const head = turn[0];
-                if (!Array.isArray(head) || !head[0] || typeof head[0][0] !== 'string' || !head[0][0].startsWith('c_')) return false;
+                if (!Array.isArray(head) || !head.length) return false;
+                const idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+                if (!idStr || !idStr.startsWith('c_')) return false;
                 // 需含 user 文本或 candidate rc_
-                try { const s = JSON.stringify(turn); return s.includes('rc_') || s.includes('c_d') ; } catch { return false; }
+                try { const s = JSON.stringify(turn); return s.includes('rc_') || s.includes('c_d') || s.includes('r_') || Array.isArray(turn[2]); } catch { return false; }
             }
             function isTurnsArray(arr) {
                 if (!Array.isArray(arr) || arr.length === 0) return false;

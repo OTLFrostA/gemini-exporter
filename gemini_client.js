@@ -407,8 +407,16 @@
                     try {
                         const retry = await this.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true });
                         if (retry && retry.messages && retry.messages.length > 0) {
+                            const primaryTitle = first.title;
+                            const primaryTitles = first.titles;
+                            const primarySource = first.titleSource;
                             msgs = retry.messages;
                             first = retry;
+                            if (primarySource === 'rpc' && primaryTitle && primaryTitle !== '未命名对话' && first.titleSource !== 'rpc') {
+                                first.title = primaryTitle;
+                                first.titles = { ...(first.titles || {}), ...(primaryTitles || {}) };
+                                first.titleSource = 'rpc';
+                            }
                         }
                     } catch (retryErr) {
                         const isDevMode = (typeof globalThis !== 'undefined' && globalThis.__gemExporterDevMode)
