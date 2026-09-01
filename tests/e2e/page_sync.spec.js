@@ -31,7 +31,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>量子纠缠物理原理深度解析 - Gemini</title>
+          <title>量子纠缠物理原理深度解析 - Google Gemini</title>
         </head>
         <body>
           <h1 data-test-id="conversation-title">量子纠缠物理原理深度解析</h1>

@@ -62,12 +62,29 @@
         return String(id).replace(/^c_/, '').trim();
     }
 
+    /**
+     * Clean conversation title by removing brand suffixes and prefixes
+     * (e.g., " - Google Gemini", " - Gemini", " | Google Gemini", "Gemini - ").
+     * @param {string} rawTitle - The raw title string
+     * @returns {string} The cleaned title string
+     */
+    function cleanTitle(rawTitle) {
+        if (!rawTitle || typeof rawTitle !== 'string') return '';
+        let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        // Remove trailing branding suffixes like " - Google Gemini", " - Gemini", " | Google AI", " · Gemini"
+        t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        // Remove leading branding prefixes like "Google Gemini - ", "Gemini - "
+        t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        return t.trim();
+    }
+
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
-        module.exports = { isRealTitle, sanitizeFileName, normId };
+        module.exports = { isRealTitle, cleanTitle, sanitizeFileName, normId };
     } else {
         global.GeminiUtils = global.GeminiUtils || {};
         global.GeminiUtils.isRealTitle = isRealTitle;
+        global.GeminiUtils.cleanTitle = cleanTitle;
         global.GeminiUtils.sanitizeFileName = sanitizeFileName;
         global.GeminiUtils.normId = normId;
     }
