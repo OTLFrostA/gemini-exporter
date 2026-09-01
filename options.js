@@ -553,39 +553,181 @@ async function restoreFullBackup(file) {
     }
 }
 
+function exportListJson() {
+    const sel = getSelected();
+    if (!sel.length) {
+        alert(typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!');
+        return;
+    }
+    const content = JSON.stringify(sel, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gemini_list_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+async function exportDiagnostics() {
+    try {
+        const d = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
+        const diag = d.gemini_last_sync_diagnostics;
+        if (!diag) {
+            alert(typeof I18n !== 'undefined' ? I18n.t('noDiagData') : 'No diagnostic data yet.');
+            return;
+        }
+        const jsonStr = JSON.stringify(diag, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gemini_diagnostics_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+    } catch (e) {
+        alert('导出诊断失败: ' + e.message);
+    }
+}
+
 // ==========================================
 // 🎯 DOM 初始化与事件绑定
 // ==========================================
-document.addEventListener('DOMContentLoaded', async () => {
+async function initWorkbench() {
+    console.log('[workbench] Initializing...');
+
+    // 1. App Version & Header
+    const verEl = $('ver');
+    if (verEl) {
+        try {
+            verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || '1.3.0');
+        } catch {}
+    }
+
+    // 2. Language Init
     if (typeof I18n !== 'undefined') {
-        await I18n.initLanguage();
-        I18n.applyI18n();
+        try {
+            await I18n.initLanguage();
+            I18n.applyI18n();
+        } catch (e) {
+            console.warn('[workbench] i18n init error', e);
+        }
     }
 
-    if (Storage) {
-        const devOn = await Storage.getDevMode();
-        if ($('devToggle')) $('devToggle').checked = !!devOn;
-        document.body.classList.toggle('dev-mode', !!devOn);
-    }
+    // 3. Dev Mode Init
+    try {
+        let devOn = false;
+        if (Storage) devOn = await Storage.getDevMode();
+        else {
+            const d = await chrome.storage.local.get(['gemini_dev_mode']);
+            devOn = !!d.gemini_dev_mode;
+        }
+        if ($('devToggle')) $('devToggle').checked = devOn;
+        document.body.classList.toggle('dev-mode', devOn);
+        const labelDev = $('labelDevMode');
+        if (labelDev) {
+            labelDev.style.color = devOn ? 'var(--accent2, #06b6d4)' : 'var(--muted, #8a92b2)';
+        }
+    } catch (e) {}
 
-    $('langToggle')?.addEventListener('change', async (e) => {
-        const nextLang = e.target.checked ? 'en' : 'zh';
-        if (typeof I18n !== 'undefined') {
-            await I18n.setLang(nextLang);
-            updateAccountSlotSelector();
-            renderList();
-            updateSelectedStat();
-            loadStore(true);
+    // 4. Export Settings Init
+    const zipCheck = $('includeZip');
+    const updateZipUi = () => {
+        if (!zipCheck) return;
+        const isZip = zipCheck.checked;
+        const btnExport = $('btnExport');
+        if (btnExport) {
+            btnExport.textContent = isZip 
+                ? (typeof I18n !== 'undefined' ? I18n.t('btnExportZip') : '导出选中 → ZIP')
+                : (typeof I18n !== 'undefined' ? I18n.t('btnExportFolder') : '导出选中 → 文件夹');
+        }
+        const dirBox = $('dirBox');
+        const btnSetDir = $('btnSetDir');
+        if (dirBox) {
+            dirBox.style.opacity = isZip ? '0.28' : '1';
+            dirBox.style.pointerEvents = isZip ? 'none' : 'auto';
+            dirBox.style.filter = isZip ? 'grayscale(0.8)' : 'none';
+        }
+        if (btnSetDir) {
+            btnSetDir.disabled = isZip;
+        }
+    };
+
+    chrome.storage.local.get(['gemini_export_format', 'gemini_export_zip'], data => {
+        if (data.gemini_export_format && $('format')) {
+            $('format').value = data.gemini_export_format;
+        }
+        if (typeof data.gemini_export_zip !== 'undefined' && zipCheck) {
+            zipCheck.checked = data.gemini_export_zip;
+            updateZipUi();
         }
     });
 
-    $('devToggle')?.addEventListener('change', async (e) => {
-        const devOn = e.target.checked;
-        document.body.classList.toggle('dev-mode', devOn);
-        if (Storage) await Storage.setDevMode(devOn);
-        else await chrome.storage.local.set({ gemini_dev_mode: devOn });
+    $('format')?.addEventListener('change', e => {
+        chrome.storage.local.set({ gemini_export_format: e.target.value });
     });
 
+    if (zipCheck) {
+        zipCheck.addEventListener('change', () => {
+            updateZipUi();
+            chrome.storage.local.set({ gemini_export_zip: zipCheck.checked });
+        });
+        updateZipUi();
+    }
+
+    // 5. Language Switch Handlers
+    const handleLangChange = async (targetLang) => {
+        if (typeof I18n !== 'undefined') {
+            await I18n.setLang(targetLang);
+            updateAccountSlotSelector();
+            renderList();
+            updateSelectedStat();
+            updateZipUi();
+        }
+    };
+
+    $('langToggle')?.addEventListener('change', (e) => {
+        handleLangChange(e.target.checked ? 'en' : 'zh');
+    });
+
+    $('labelLangZh')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if ($('langToggle')) $('langToggle').checked = false;
+        handleLangChange('zh');
+    });
+
+    $('labelLangEn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if ($('langToggle')) $('langToggle').checked = true;
+        handleLangChange('en');
+    });
+
+    // 6. Dev Mode Switch Handlers
+    const handleDevChange = async (devOn) => {
+        document.body.classList.toggle('dev-mode', devOn);
+        const labelDev = $('labelDevMode');
+        if (labelDev) {
+            labelDev.style.color = devOn ? 'var(--accent2, #06b6d4)' : 'var(--muted, #8a92b2)';
+        }
+        if (Storage) await Storage.setDevMode(devOn);
+        else await chrome.storage.local.set({ gemini_dev_mode: devOn });
+    };
+
+    $('devToggle')?.addEventListener('change', (e) => {
+        handleDevChange(e.target.checked);
+    });
+
+    $('labelDevMode')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const cur = $('devToggle')?.checked || false;
+        if ($('devToggle')) $('devToggle').checked = !cur;
+        handleDevChange(!cur);
+    });
+
+    // 7. Account Slot Selector
     $('accountSlotSelect')?.addEventListener('change', async (e) => {
         currentSlot = e.target.value || 'u0';
         conversations = [];
@@ -594,6 +736,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadStore();
     });
 
+    // 8. Search & Selection
     $('chatSearchInput')?.addEventListener('input', (e) => {
         __chatSearchFilter = e.target.value;
         const prevSel = new Set(getSelected().map(x => x.id));
@@ -637,7 +780,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateSelectedStat();
     });
 
+    // 9. Export & Folder Actions
     $('btnExport')?.addEventListener('click', exportSelected);
+    $('btnExportJson')?.addEventListener('click', exportListJson);
     $('btnCancel')?.addEventListener('click', () => {
         if (__activeExportEngine) __activeExportEngine.abort();
     });
@@ -650,12 +795,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // 10. Takeout
     $('btnImportTakeout')?.addEventListener('click', () => $('takeoutFileInput')?.click());
     $('takeoutFileInput')?.addEventListener('change', (e) => {
         const f = e.target.files && e.target.files[0];
         if (f) parseTakeoutZip(f);
     });
 
+    // 11. Sync Actions
     $('btnIncrementalScan')?.addEventListener('click', () => {
         chrome.runtime.sendMessage({ action: 'deepScan', mode: 'incremental', accountSlot: currentSlot }, (res) => {
             if (res && res.success) {
@@ -678,6 +825,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     });
 
+    $('btnStopScan')?.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: currentSlot });
+    });
+
+    // 12. Backup & Restore
     $('btnBackupData')?.addEventListener('click', exportFullBackup);
     $('btnRestoreData')?.addEventListener('click', () => $('restoreFileInput')?.click());
     $('restoreFileInput')?.addEventListener('change', (e) => {
@@ -685,8 +837,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (f) restoreFullBackup(f);
     });
 
+    // 13. Clear Cache
     $('btnClearAll')?.addEventListener('click', async () => {
-        if (!confirm('确定清空本地所有会话数据？')) return;
+        const confirmMsg = typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : '确定清空本地所有会话数据？';
+        if (!confirm(confirmMsg)) return;
         const slot = currentSlot || 'u0';
         if (Storage) {
             await Storage.setConversations(slot, []);
@@ -700,6 +854,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         log('本地会话数据已清空');
     });
 
+    // 14. Logs & Diagnostics
     $('logFilter')?.addEventListener('input', renderLog);
     $('logLevel')?.addEventListener('change', renderLog);
     $('btnClearLog')?.addEventListener('click', clearLog);
@@ -707,10 +862,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const l = $('log');
         if (l) {
             await navigator.clipboard.writeText(l.textContent);
-            $('btnCopyLog').textContent = '已复制!';
-            setTimeout(() => $('btnCopyLog').textContent = '复制', 1500);
+            $('btnCopyLog').textContent = typeof I18n !== 'undefined' ? I18n.t('copied') : '已复制!';
+            setTimeout(() => $('btnCopyLog').textContent = typeof I18n !== 'undefined' ? I18n.t('btnCopyLog') : '复制', 1500);
         }
     });
 
-    loadStore();
-});
+    $('btnExportDiag')?.addEventListener('click', exportDiagnostics);
+
+    // 15. Initial Data Load
+    await loadStore();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWorkbench);
+} else {
+    initWorkbench();
+}
