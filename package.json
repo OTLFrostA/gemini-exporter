@@ -6,7 +6,8 @@
   "scripts": {
     "test:unit": "python3 tests/run_tests.py",
     "test:e2e": "playwright test",
-    "test": "python3 tests/run_tests.py && playwright test"
+    "test": "python3 tests/run_tests.py && playwright test",
+    "release": "gh workflow run release.yml --ref main"
   },
   "keywords": [
     "gemini",
