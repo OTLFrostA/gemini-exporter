@@ -608,6 +608,24 @@
     function parseDetail(text, targetConvId) {
         try {
             let top = robustFirstPayload(text);
+            // 全量埋点：记录所有潜在数据源，供通用 parser 提炼（Dev 模式或空结果时必打）
+            const shouldVerbose = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll)) || !text || text.length < 500;
+            if (shouldVerbose || (Array.isArray(top) && top.length > 1)) {
+                try {
+                    const summary = Array.isArray(top) ? top.map((it,i) => {
+                        const rpc = Array.isArray(it) ? it[1] : String(it).slice(0,20);
+                        const innerLen = Array.isArray(it) && typeof it[2]==='string' ? it[2].length : (typeof it==='string'?it.length:0);
+                        const preview = Array.isArray(it) && typeof it[2]==='string' ? it[2].slice(0,300).replace(/\n/g,' ') : '';
+                        return { idx:i, rpc, innerLen, preview };
+                    }) : { topType: typeof top, len: text?.length };
+                    // 仅在空结果或 Dev 时打印，避免刷屏
+                    if (shouldVerbose || !top || !Array.isArray(top)) console.log('[Parser Verbose] top candidates', summary);
+                    // 空结果时强制打印，便于定位通用 parser 数据源
+                    if (!top || (Array.isArray(top) && !top.some(it=>Array.isArray(it)&&it[1]==='hNvQHb'&&typeof it[2]==='string'&&it[2].includes('rc_')))) {
+                        console.warn('[Parser Verbose] no hNvQHb with rc_ found, top summary', summary);
+                    }
+                } catch {}
+            }
             let innerStr = null;
             if (Array.isArray(top)) {
                 for (let item of top) {
