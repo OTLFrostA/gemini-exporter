@@ -139,10 +139,10 @@ async function loadStore(forceQuiet = false) {
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
         if (sameSig && Date.now() - __lastRenderTime < 500) {
             const lastSyncElFast = $('lastSync');
-            if (lastSyncElFast && data[syncKey]) {
+            if (lastSyncElFast && lastSyncVal) {
                 const syncFmtFast = typeof I18n !== 'undefined'
-                    ? I18n.t('lastSync', new Date(data[syncKey]).toLocaleString(), incoming.length)
-                    : `Last sync: ${new Date(data[syncKey]).toLocaleString()} | Total: ${incoming.length}`;
+                    ? I18n.t('lastSync', new Date(lastSyncVal).toLocaleString(), incoming.length)
+                    : `Last sync: ${new Date(lastSyncVal).toLocaleString()} | Total: ${incoming.length}`;
                 lastSyncElFast.textContent = syncFmtFast;
             }
             return;
