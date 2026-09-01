@@ -118,14 +118,14 @@
             const { conversations: incoming, exportedIds, accountSlots } = await Store.loadStore(slot);
             updateAccountSlotSelector();
 
-            let prevSelectedRaw = [];
+            let prevSelected = null;
             try {
-                prevSelectedRaw = List ? List.getSelected(Store.getConversations()).map(x => x.id) : [];
+                if (List && Store.getConversations().length > 0) {
+                    prevSelected = List.getSelectedIds();
+                }
             } catch {
-                prevSelectedRaw = [];
+                prevSelected = null;
             }
-            const hadLength = Store.getConversations().length;
-            const prevSelected = hadLength === 0 ? null : new Set(prevSelectedRaw);
 
             const syncInfo = await Store.getLastSync(slot);
             const lastSyncVal = syncInfo.timestamp;
@@ -765,12 +765,13 @@
         const handleLangChange = async (targetLang) => {
             console.log('[workbench] Switching language to:', targetLang);
             if (typeof I18n !== 'undefined') {
+                const currentSelected = List ? List.getSelectedIds() : new Set();
                 await I18n.setLang(targetLang);
                 updateAccountSlotSelector();
                 const convs = Store ? Store.getConversations() : [];
                 const expMap = Store ? Store.getExportedIds() : {};
                 if (List) {
-                    List.render(convs, expMap, null, __chatSearchFilter);
+                    List.render(convs, expMap, currentSelected, __chatSearchFilter);
                     List.updateStat(convs);
                 }
                 updateZipUi();
@@ -835,7 +836,8 @@
             __chatSearchFilter = (e.target.value || '').trim();
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
-            if (List) List.render(convs, expMap, null, __chatSearchFilter);
+            const currentSelected = List ? List.getSelectedIds() : new Set();
+            if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter);
         });
 
         // 10. List Selection Filter Buttons

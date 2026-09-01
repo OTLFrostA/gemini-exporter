@@ -98,7 +98,25 @@
     function getSelected(conversations) {
         if (typeof document === 'undefined') return [];
         const checks = document.querySelectorAll('#list input[type=checkbox]:checked');
-        return Array.from(checks).map(cb => (conversations || [])[parseInt(cb.dataset.idx)]).filter(Boolean);
+        return Array.from(checks).map(cb => {
+            const idx = parseInt(cb.dataset.idx);
+            if (!isNaN(idx) && conversations && conversations[idx]) return conversations[idx];
+            const item = cb.closest('.item');
+            const chatId = item?.dataset?.chatId;
+            if (chatId) return { id: chatId };
+            return null;
+        }).filter(Boolean);
+    }
+
+    function getSelectedIds() {
+        if (typeof document === 'undefined') return new Set();
+        const ids = new Set();
+        document.querySelectorAll('#list input[type=checkbox]:checked').forEach(cb => {
+            const item = cb.closest('.item');
+            const chatId = item?.dataset?.chatId;
+            if (chatId) ids.add(chatId);
+        });
+        return ids;
     }
 
     function selectAll(conversations) {
@@ -151,5 +169,5 @@
         updateStat(conversations);
     }
 
-    return { render, updateStat, getSelected, selectAll, deselectAll, selectUnexported, selectNeedsUpdate, isRealTitle };
+    return { render, updateStat, getSelected, getSelectedIds, selectAll, deselectAll, selectUnexported, selectNeedsUpdate, isRealTitle };
 }));
