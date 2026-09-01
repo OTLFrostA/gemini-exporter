@@ -241,8 +241,58 @@
 
             __lastRenderedSignature = Store.getSignature(processed);
             __lastRenderTime = Date.now();
+            checkExportSession();
         } catch (e) {
             console.error('[workbench] loadStore error', e);
+        }
+    }
+
+    async function checkExportSession() {
+        try {
+            const { gemini_last_export_session: session } = await chrome.storage.local.get(['gemini_last_export_session']);
+            const banner = $('exportSessionBanner');
+            const bannerText = $('exportSessionText');
+            if (!banner || !bannerText) return;
+
+            if (!session || !session.total) {
+                banner.style.display = 'none';
+                return;
+            }
+
+            const slot = Store ? Store.getCurrentSlot() : 'u0';
+            if (session.slot && session.slot !== slot) {
+                banner.style.display = 'none';
+                return;
+            }
+
+            const remaining = Math.max(0, session.total - (session.current || 0));
+
+            if (session.status === 'running' || session.status === 'interrupted' || session.status === 'aborted') {
+                banner.style.display = 'flex';
+                banner.style.borderColor = '#f59e0b';
+                banner.style.background = '#221c12';
+                let msg = `⚠️ <b>发现未完成的导出任务</b>：共 ${session.total} 条，已处理 ${session.current || 0} 条，剩余 ${remaining} 条未导出。`;
+                if (session.lastChatTitle) {
+                    msg += ` (上次停在: 「${session.lastChatTitle.slice(0, 20)}」)`;
+                }
+                bannerText.innerHTML = msg;
+                if ($('btnResumeExport')) $('btnResumeExport').style.display = remaining > 0 ? '' : 'none';
+            } else if (session.status === 'completed' || session.status === 'completed_with_errors') {
+                const timeDiff = Date.now() - (session.updatedAt || 0);
+                if (timeDiff < 300000) {
+                    banner.style.display = 'flex';
+                    banner.style.borderColor = session.failedCount > 0 ? '#f59e0b' : '#10b981';
+                    banner.style.background = session.failedCount > 0 ? '#221c12' : '#0e231b';
+                    bannerText.innerHTML = `✅ <b>上次导出已完成</b>：共导出 ${session.current || session.total} 条会话` + (session.failedCount > 0 ? ` (其中 ${session.failedCount} 条失败)` : '');
+                    if ($('btnResumeExport')) $('btnResumeExport').style.display = 'none';
+                } else {
+                    banner.style.display = 'none';
+                }
+            } else {
+                banner.style.display = 'none';
+            }
+        } catch (e) {
+            console.debug('[workbench] checkExportSession error', e);
         }
     }
 
@@ -796,6 +846,17 @@
         $('btnCancel')?.addEventListener('click', () => {
             if (Controller) Controller.abort();
             log('正在终止导出任务...', 'warn');
+        });
+        $('btnResumeExport')?.addEventListener('click', () => {
+            const convs = Store ? Store.getConversations() : [];
+            const expMap = Store ? Store.getExportedIds() : {};
+            if (List) List.selectUnexported(convs, expMap);
+            exportSelected();
+        });
+        $('btnDismissExportBanner')?.addEventListener('click', async () => {
+            const banner = $('exportSessionBanner');
+            if (banner) banner.style.display = 'none';
+            await chrome.storage.local.remove(['gemini_last_export_session']);
         });
 
         // 13. Local Takeout Archive Import

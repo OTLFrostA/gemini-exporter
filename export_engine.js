@@ -44,6 +44,37 @@
         return String(id).replace(/^c_/, '').trim();
     }
 
+    function cleanTitle(t) {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
+        if (!t || typeof t !== 'string') return '';
+        let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
+        s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        s = s.trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
+        return s;
+    }
+
+    function isRealTitle(t, fallbackId) {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
+        if (!t || typeof t !== 'string') return false;
+        const s = t.trim();
+        if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
+        if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
+        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
+        return true;
+    }
+
+    function resolveTitle(chat) {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle) return GeminiUtils.resolveTitle(chat);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.resolveTitle) return globalThis.GeminiUtils.resolveTitle(chat);
+        return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
+    }
+
     function toIso(v) {
         if (!v) return null;
         let ms = typeof v === 'number' ? v : new Date(v).getTime();
@@ -84,6 +115,19 @@
         abort() {
             this.aborted = true;
             try { this._abortController && this._abortController.abort(); } catch {}
+            try {
+                chrome.storage.local.get(['gemini_last_export_session'], (data) => {
+                    if (data?.gemini_last_export_session) {
+                        chrome.storage.local.set({
+                            gemini_last_export_session: {
+                                ...data.gemini_last_export_session,
+                                status: 'aborted',
+                                updatedAt: Date.now()
+                            }
+                        });
+                    }
+                });
+            } catch {}
         }
 
         async run(options, callbacks = {}) {
@@ -138,6 +182,22 @@
                 const store = await chrome.storage.local.get([expKey]);
                 curIds = store[expKey] || {};
             }
+
+            // Record active export session
+            try {
+                await chrome.storage.local.set({
+                    gemini_last_export_session: {
+                        status: 'running',
+                        slot,
+                        total: payloadIds.length,
+                        current: 0,
+                        format,
+                        useZip,
+                        startTime: Date.now(),
+                        updatedAt: Date.now()
+                    }
+                });
+            } catch {}
 
             let batchDirHandle;
             let zip;
@@ -346,15 +406,25 @@
 
                     let finalTitle = chat.title || listC?.title || chat.id;
 
-                    if (isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
-                        finalTitle = chat.title;
-                        if (listC && listC.title !== finalTitle) {
-                            listC.title = finalTitle;
-                            convsNeedSave = true;
-                            onTitleUpdated(nid, finalTitle);
+                    if (listC) {
+                        listC.titles = listC.titles || {};
+                        if (chat.titles && typeof chat.titles === 'object') {
+                            Object.assign(listC.titles, chat.titles);
                         }
-                    } else if (isRealTitle(listC?.title, chat.id)) {
+                        if (isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
+                            const src = chat.titleSource || 'rpc';
+                            listC.titles[src] = cleanTitle(chat.title);
+                        }
+                        const resolved = resolveTitle(listC);
+                        if (listC.title !== resolved.title || listC.titleSource !== resolved.source) {
+                            listC.title = resolved.title;
+                            listC.titleSource = resolved.source;
+                            convsNeedSave = true;
+                            onTitleUpdated(nid, listC.title);
+                        }
                         finalTitle = listC.title;
+                    } else if (isRealTitle(chat.title, chat.id)) {
+                        finalTitle = cleanTitle(chat.title);
                     }
                     chat.title = finalTitle;
                     const listTitle = finalTitle;
@@ -417,6 +487,22 @@
                     });
 
                     updateProgress(i + cIdx + 1, listTitle);
+
+                    try {
+                        await chrome.storage.local.set({
+                            gemini_last_export_session: {
+                                status: 'running',
+                                slot,
+                                total: payloadIds.length,
+                                current: i + cIdx + 1,
+                                lastChatId: chat.id,
+                                lastChatTitle: listTitle,
+                                format,
+                                useZip,
+                                updatedAt: Date.now()
+                            }
+                        });
+                    } catch {}
 
                     if (includeAssets && chat.messages && writeOk) {
                         for (const m of chat.messages) {
@@ -704,6 +790,20 @@
                 document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
             }
+
+            try {
+                await chrome.storage.local.set({
+                    gemini_last_export_session: {
+                        status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
+                        slot,
+                        total: payloadIds.length,
+                        current: landedChats,
+                        failedCount: failedChats.length,
+                        skipped,
+                        updatedAt: Date.now()
+                    }
+                });
+            } catch {}
 
             return {
                 landedChats,
