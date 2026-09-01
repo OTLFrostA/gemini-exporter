@@ -96,42 +96,23 @@ function updateAccountSlotSelector() {
     sel.innerHTML = html;
 }
 
+const Storage = (typeof StorageService !== 'undefined') ? StorageService : (window.StorageService || null);
+
 async function loadStore(forceQuiet = false) {
     console.log('[workbench] loadStore called', 'forceQuiet', forceQuiet, 'prevLen', conversations.length, 'slot', currentSlot);
     try {
         let slot = currentSlot || 'u0';
-        let convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-        let syncKey = slot === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${slot}`;
-        let expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-        let countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
-
-        const data = await chrome.storage.local.get([
-            convKey,
-            syncKey,
-            expKey,
-            countKey,
-            'gemini_account_slots',
-            'gemini_credentials_map'
-        ]);
-
-        accountSlots = data.gemini_account_slots || {};
+        accountSlots = Storage ? await Storage.getAccountSlots() : ((await chrome.storage.local.get(['gemini_account_slots'])).gemini_account_slots || {});
         updateAccountSlotSelector();
 
-        let incoming = data[convKey] || [];
+        let incoming = Storage ? await Storage.getConversations(slot) : [];
         if ((!incoming || !incoming.length) && slot !== 'u0') {
-            const u0Data = await chrome.storage.local.get(['gemini_conversations', 'exportedIds', 'gemini_last_sync', 'gemini_last_count']);
-            if (u0Data.gemini_conversations && u0Data.gemini_conversations.length) {
-                console.log('[workbench] Slot', slot, 'is empty but u0 has', u0Data.gemini_conversations.length, 'chats. Falling back to u0.');
+            const u0Convs = Storage ? await Storage.getConversations('u0') : [];
+            if (u0Convs && u0Convs.length) {
+                console.log('[workbench] Slot', slot, 'is empty but u0 has', u0Convs.length, 'chats. Falling back to u0.');
                 currentSlot = 'u0';
                 slot = 'u0';
-                convKey = 'gemini_conversations';
-                expKey = 'exportedIds';
-                syncKey = 'gemini_last_sync';
-                countKey = 'gemini_last_count';
-                incoming = u0Data.gemini_conversations;
-                data.exportedIds = u0Data.exportedIds;
-                data.gemini_last_sync = u0Data.gemini_last_sync;
-                data.gemini_last_count = u0Data.gemini_last_count;
+                incoming = u0Convs;
                 if ($('accountSlotSelect')) $('accountSlotSelect').value = 'u0';
             }
         }
@@ -144,7 +125,9 @@ async function loadStore(forceQuiet = false) {
         }
         const hadLength = conversations.length;
         const prevSelected = hadLength === 0 ? null : new Set(prevSelectedRaw);
-        exportedIds = data[expKey] || {};
+        exportedIds = Storage ? await Storage.getExportedIds(slot) : {};
+        const syncInfo = Storage ? await Storage.getLastSync(slot) : { timestamp: null, count: 0 };
+        const lastSyncVal = syncInfo.timestamp;
 
         const incomingSig = getSignature(incoming);
         const sameSig = (incomingSig === __lastRenderedSignature && incoming.length === conversations.length && conversations.length > 0);
@@ -162,10 +145,10 @@ async function loadStore(forceQuiet = false) {
         conversations = incoming;
         const lastSyncEl = $('lastSync');
         if (lastSyncEl) {
-            if (data[syncKey]) {
+            if (lastSyncVal) {
                 lastSyncEl.textContent = typeof I18n !== 'undefined'
-                    ? I18n.t('lastSync', new Date(data[syncKey]).toLocaleString(), conversations.length)
-                    : `Last sync: ${new Date(data[syncKey]).toLocaleString()} | Total: ${conversations.length}`;
+                    ? I18n.t('lastSync', new Date(lastSyncVal).toLocaleString(), conversations.length)
+                    : `Last sync: ${new Date(lastSyncVal).toLocaleString()} | Total: ${conversations.length}`;
             } else {
                 lastSyncEl.textContent = conversations.length ? (typeof I18n !== 'undefined' ? I18n.t('selectedStat', 0, conversations.length) : `${conversations.length} total`) : '';
             }
@@ -496,8 +479,12 @@ async function parseTakeoutZip(file) {
 
         if (addedCount > 0) {
             const slot = currentSlot || 'u0';
-            const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-            await chrome.storage.local.set({ [convKey]: conversations });
+            if (Storage) {
+                await Storage.setConversations(slot, conversations);
+            } else {
+                const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+                await chrome.storage.local.set({ [convKey]: conversations });
+            }
         }
 
         const successMsg = `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
@@ -666,8 +653,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('btnClearAll')?.addEventListener('click', async () => {
         if (!confirm('确定清空本地所有会话数据？')) return;
         const slot = currentSlot || 'u0';
-        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-        await chrome.storage.local.remove([convKey]);
+        if (Storage) {
+            await Storage.setConversations(slot, []);
+        } else {
+            const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+            await chrome.storage.local.remove([convKey]);
+        }
         conversations = [];
         renderList();
         updateSelectedStat();

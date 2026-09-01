@@ -1,5 +1,8 @@
 // background.js - Gemini Exporter background service worker
-// Delegates conversation detail fetching to Gemini page content script
+try {
+    importScripts('storage_service.js');
+} catch (e) {}
+
 console.log('[Gemini Exporter] Background service worker ready');
 let __bgAborted = false;
 
@@ -115,11 +118,18 @@ function toMs(v) {
 }
 async function fetchBatch(list, format, skipExported, portSendResponse, globalOffset = 0, globalTotal = 0, accountSlot = 'u0') {
     const slot = accountSlot || 'u0';
-    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-    const store = await chrome.storage.local.get([expKey, convKey]);
-    const exportedIds = store[expKey] || {};
-    const conversations = store[convKey] || [];
+    let exportedIds = {};
+    let conversations = [];
+    if (typeof StorageService !== 'undefined') {
+        exportedIds = await StorageService.getExportedIds(slot);
+        conversations = await StorageService.getConversations(slot);
+    } else {
+        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+        const store = await chrome.storage.local.get([expKey, convKey]);
+        exportedIds = store[expKey] || {};
+        conversations = store[convKey] || [];
+    }
     let toFetch = list;
     if (skipExported) {
         const normId = id => String(id || '').replace(/^c_/, '');
