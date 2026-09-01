@@ -149,6 +149,19 @@
     }
 
     async function contentFetchChatDetail(id) {
+        const cleanId = String(id).replace(/^c_/, '').trim();
+        // 1. 若当前页即为目标对话，直接解析 live DOM（SPA 场景 fetch 拿到的只是空壳）
+        try {
+            if (location.pathname.includes(cleanId) || location.href.includes(cleanId)) {
+                const liveParsed = parseDoc(document, id, location.href);
+                if (liveParsed.messages.length) {
+                    console.log('[Gemini Exporter][DOM] live parse success', id, liveParsed.messageCount);
+                    return liveParsed;
+                }
+                console.warn('[Gemini Exporter][DOM] live parse empty, will try fetch', id, liveParsed._debug);
+            }
+        } catch (e) { console.warn('[DOM] live parse exception', e); }
+
         const url = `https://gemini.google.com/app/${id}`;
         const resp = await fetch(url, {
             credentials: 'include',
@@ -159,10 +172,18 @@
         if (!html || html.length < 200) {
             console.warn('[Gemini Exporter][DOM] fetch html too short', id, html?.length, html?.slice(0,200));
         }
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const parsed = parseDoc(doc, id, url);
+        // 若 fetch 的是 SPA 空壳（不含 user-query），尝试直接解析当前 document 作为兜底
+        let doc = new DOMParser().parseFromString(html, 'text/html');
+        let parsed = parseDoc(doc, id, url);
         if (!parsed.messages.length) {
-            console.warn('[Gemini Exporter][DOM] contentFetchChatDetail empty', id, 'html_len', html.length, '_debug', parsed._debug);
+            console.warn('[Gemini Exporter][DOM] contentFetchChatDetail fetch parse empty', id, 'html_len', html.length, '_debug', parsed._debug);
+            try {
+                const liveFallback = parseDoc(document, id, location.href);
+                if (liveFallback.messages.length) {
+                    console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
+                    return liveFallback;
+                }
+            } catch {}
         }
         return parsed;
     }
