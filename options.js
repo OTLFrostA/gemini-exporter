@@ -249,6 +249,13 @@
 
     async function checkExportSession() {
         try {
+            // If an export task is actively running in memory, never show recovery banner
+            if (Controller && Controller.isRunning()) {
+                const banner = $('exportSessionBanner');
+                if (banner) banner.style.display = 'none';
+                return;
+            }
+
             const { gemini_last_export_session: session } = await chrome.storage.local.get(['gemini_last_export_session']);
             const banner = $('exportSessionBanner');
             const bannerText = $('exportSessionText');
@@ -268,6 +275,10 @@
             const remaining = Math.max(0, session.total - (session.current || 0));
 
             if (session.status === 'running' || session.status === 'interrupted' || session.status === 'aborted') {
+                if (remaining <= 0) {
+                    banner.style.display = 'none';
+                    return;
+                }
                 banner.style.display = 'flex';
                 banner.style.borderColor = '#f59e0b';
                 banner.style.background = '#221c12';
@@ -882,23 +893,32 @@
         });
 
         // 14. Sync Actions
+        function setScanRunning(running) {
+            if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = !!running;
+            if ($('btnDeepScan')) $('btnDeepScan').disabled = !!running;
+            if ($('btnStopScan')) $('btnStopScan').style.display = running ? 'inline-flex' : 'none';
+            if ($('btnExport')) $('btnExport').disabled = !!running;
+            if ($('btnImportTakeout')) $('btnImportTakeout').disabled = !!running;
+            if ($('btnBackupData')) $('btnBackupData').disabled = !!running;
+            if ($('btnRestoreData')) $('btnRestoreData').disabled = !!running;
+            if ($('btnSetDir')) $('btnSetDir').disabled = !!running;
+            if ($('btnClearExported')) $('btnClearExported').disabled = !!running;
+            if ($('btnClearAll')) $('btnClearAll').disabled = !!running;
+        }
+
         $('btnIncrementalScan')?.addEventListener('click', () => {
+            if (Controller && Controller.isRunning()) return;
             const progWrap = $('progWrap');
             const bar = $('bar');
             const progText = $('progText');
-            const btnStop = $('btnStopScan');
             if (progWrap) progWrap.style.display = 'block';
             if (bar) bar.style.width = '5%';
             if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncingLatest') : '正在同步最新会话...';
-            if (btnStop) btnStop.style.display = 'inline-flex';
-            if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = true;
-            if ($('btnDeepScan')) $('btnDeepScan').disabled = true;
+            setScanRunning(true);
 
             const slot = Store ? Store.getCurrentSlot() : 'u0';
             chrome.runtime.sendMessage({ action: 'deepScan', mode: 'incremental', accountSlot: slot }, (res) => {
-                if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = false;
-                if ($('btnDeepScan')) $('btnDeepScan').disabled = false;
-                if (btnStop) btnStop.style.display = 'none';
+                setScanRunning(false);
 
                 if (chrome.runtime.lastError) {
                     const err = chrome.runtime.lastError.message;
@@ -926,22 +946,18 @@
         });
 
         $('btnDeepScan')?.addEventListener('click', () => {
+            if (Controller && Controller.isRunning()) return;
             const progWrap = $('progWrap');
             const bar = $('bar');
             const progText = $('progText');
-            const btnStop = $('btnStopScan');
             if (progWrap) progWrap.style.display = 'block';
             if (bar) bar.style.width = '5%';
             if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
-            if (btnStop) btnStop.style.display = 'inline-flex';
-            if ($('btnDeepScan')) $('btnDeepScan').disabled = true;
-            if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = true;
+            setScanRunning(true);
 
             const slot = Store ? Store.getCurrentSlot() : 'u0';
             chrome.runtime.sendMessage({ action: 'deepScan', mode: 'full', accountSlot: slot }, (res) => {
-                if ($('btnDeepScan')) $('btnDeepScan').disabled = false;
-                if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = false;
-                if (btnStop) btnStop.style.display = 'none';
+                setScanRunning(false);
 
                 if (chrome.runtime.lastError) {
                     const err = chrome.runtime.lastError.message;
@@ -974,6 +990,7 @@
                 log(typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...');
                 const progText = $('progText');
                 if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...';
+                setScanRunning(false);
             });
         });
 
