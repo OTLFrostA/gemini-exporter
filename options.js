@@ -723,6 +723,7 @@ async function initWorkbench() {
         if (labelDev) {
             labelDev.style.color = devOn ? 'var(--accent2, #06b6d4)' : 'var(--muted, #8a92b2)';
         }
+        if (devOn) renderLog();
         if (Storage) await Storage.setDevMode(devOn);
         else await chrome.storage.local.set({ gemini_dev_mode: devOn });
     };

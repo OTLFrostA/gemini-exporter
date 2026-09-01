@@ -330,6 +330,7 @@
 
                     if (writeOk) {
                         landedChats++;
+                        onLog(`[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
                         if (!chat.error && !chat._empty) {
                             let exportTs = listC?.timestamp || chat.timestamp || Date.now();
                             if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
