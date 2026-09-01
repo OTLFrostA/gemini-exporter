@@ -408,10 +408,13 @@
                     }
 
                     if (chat.error || chat._empty) {
+                        const cleanForLog = t => String(t||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
+                        const rawTitle = chat.title || nid;
+                        const displayTitle = cleanForLog(rawTitle) && !/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForLog(rawTitle)) ? cleanForLog(rawTitle) : nid;
                         const debugInfo = chat._debug ? ` _debug=${String(chat._debug).slice(0,200)}` : (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
                         const errMsg = (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）') + debugInfo;
-                        failedChats.push({ id: chat.id || nid, title: chat.title || nid, error: errMsg, debug: chat._debug || null, raw: chat._raw || null });
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || nid, errMsg) : `[${chat.title || nid}] 导出跳过: ${errMsg}`, 'error');
+                        failedChats.push({ id: chat.id || nid, title: displayTitle, error: errMsg, debug: chat._debug || null, raw: chat._raw || null });
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', displayTitle, errMsg) : `[${displayTitle}] 导出跳过: ${errMsg}`, 'error');
                         // 控制台额外详细日志
                         console.warn('[Gemini Exporter] export empty detail', nid, errMsg, 'chat keys', Object.keys(chat || {}));
                         continue;
