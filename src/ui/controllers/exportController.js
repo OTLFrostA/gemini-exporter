@@ -13,8 +13,30 @@
         exportRunning = !!running;
         const btnExport = $('btnExport');
         const btnCancel = $('btnCancel');
+        const btnIncrementalScan = $('btnIncrementalScan');
+        const btnDeepScan = $('btnDeepScan');
+        const btnImportTakeout = $('btnImportTakeout');
+        const btnBackupData = $('btnBackupData');
+        const btnRestoreData = $('btnRestoreData');
+        const btnSetDir = $('btnSetDir');
+        const btnClearExported = $('btnClearExported');
+        const btnClearAll = $('btnClearAll');
+        const banner = $('exportSessionBanner');
+
         if (btnExport) btnExport.disabled = !!running;
         if (btnCancel) btnCancel.style.display = running ? '' : 'none';
+        if (btnIncrementalScan) btnIncrementalScan.disabled = !!running;
+        if (btnDeepScan) btnDeepScan.disabled = !!running;
+        if (btnImportTakeout) btnImportTakeout.disabled = !!running;
+        if (btnBackupData) btnBackupData.disabled = !!running;
+        if (btnRestoreData) btnRestoreData.disabled = !!running;
+        if (btnSetDir) btnSetDir.disabled = !!running;
+        if (btnClearExported) btnClearExported.disabled = !!running;
+        if (btnClearAll) btnClearAll.disabled = !!running;
+
+        if (running && banner) {
+            banner.style.display = 'none';
+        }
         if (!running) {
             const pw = $('progWrap');
             if (pw) pw.style.display = 'none';

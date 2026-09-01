@@ -85,4 +85,54 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
     });
     expect(sessionData.gemini_last_export_session).toBeUndefined();
   });
+
+  test('should disable scan during export and never show interruption banner during active run', async ({ context, extensionId }) => {
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.waitForLoadState('domcontentloaded');
+
+    // Simulate active export in ExportController
+    await optionsPage.evaluate(() => {
+      if (typeof window.ExportController !== 'undefined') {
+        window.ExportController.setRunning(true);
+      }
+    });
+
+    const banner = optionsPage.locator('#exportSessionBanner');
+    await expect(banner).not.toBeVisible();
+
+    const btnScan = optionsPage.locator('#btnIncrementalScan');
+    const btnDeepScan = optionsPage.locator('#btnDeepScan');
+    await expect(btnScan).toBeDisabled();
+    await expect(btnDeepScan).toBeDisabled();
+
+    // Trigger loadStore while export is running
+    await optionsPage.evaluate(async () => {
+      await chrome.storage.local.set({
+        gemini_last_export_session: {
+          status: 'running',
+          slot: 'u0',
+          total: 10,
+          current: 3,
+          updatedAt: Date.now()
+        }
+      });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+
+    // Banner MUST remain hidden while export is running
+    await expect(banner).not.toBeVisible();
+
+    // End active export
+    await optionsPage.evaluate(() => {
+      if (typeof window.ExportController !== 'undefined') {
+        window.ExportController.setRunning(false);
+      }
+    });
+
+    await expect(btnScan).toBeEnabled();
+    await expect(btnDeepScan).toBeEnabled();
+  });
 });
