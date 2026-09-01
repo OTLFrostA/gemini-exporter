@@ -67,17 +67,34 @@
         list.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change', updateStat.bind(null, conversations)));
     }
 
+    function updateStat(conversations) {
+        if (typeof document === 'undefined') return;
+        const checks = [...document.querySelectorAll('#list input[type=checkbox]:checked')];
+        const total = (conversations || []).length;
+        const selEl = $('selectedStat');
+        if (selEl) selEl.textContent = typeof I18n !== 'undefined' ? I18n.t('selectedStat', checks.length, total) : `Selected: ${checks.length} / ${total}`;
+    }
+
+    function getSelected(conversations) {
+        if (typeof document === 'undefined') return [];
+        const checks = document.querySelectorAll('#list input[type=checkbox]:checked');
+        return Array.from(checks).map(cb => (conversations || [])[parseInt(cb.dataset.idx)]).filter(Boolean);
+    }
+
     function selectAll(conversations) {
+        if (typeof document === 'undefined') return;
         document.querySelectorAll('#list input[type=checkbox]').forEach(cb => { cb.checked = true; });
         updateStat(conversations);
     }
 
     function deselectAll(conversations) {
+        if (typeof document === 'undefined') return;
         document.querySelectorAll('#list input[type=checkbox]').forEach(cb => { cb.checked = false; });
         updateStat(conversations);
     }
 
     function selectUnexported(conversations, exportedIds) {
+        if (typeof document === 'undefined') return;
         const convList = conversations || [];
         const expMap = exportedIds || {};
         document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
@@ -92,6 +109,7 @@
     }
 
     function selectNeedsUpdate(conversations, exportedIds) {
+        if (typeof document === 'undefined') return;
         const convList = conversations || [];
         const expMap = exportedIds || {};
         document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
