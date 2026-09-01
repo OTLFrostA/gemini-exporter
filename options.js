@@ -355,6 +355,11 @@
                 onLog: (m, lvl) => log(m, lvl),
                 onTitleUpdated: (chatId, newTitle) => {
                     const nid = normId(chatId);
+                    if (Store) {
+                        const convs = Store.getConversations();
+                        const item = convs.find(c => normId(c.id) === nid);
+                        if (item) item.title = newTitle;
+                    }
                     const itemEl = document.querySelector(`[data-chat-id="${nid}"]`);
                     if (itemEl) {
                         const titleDiv = itemEl.querySelector('.title > div');
@@ -395,7 +400,8 @@
             log(`导出过程异常中断: ${err.message}`, 'error');
             if ($('progText')) $('progText').textContent = `导出失败: ${err.message}`;
         } finally {
-            loadStore(true);
+            __lastRenderedSignature = '';
+            await loadStore(true);
         }
     }
 
@@ -690,7 +696,7 @@
         });
 
         // 9. Search Bar Handler
-        $('search')?.addEventListener('input', (e) => {
+        ($('chatSearchInput') || $('search'))?.addEventListener('input', (e) => {
             __chatSearchFilter = (e.target.value || '').trim();
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
@@ -702,16 +708,16 @@
             const convs = Store ? Store.getConversations() : [];
             if (List) List.selectAll(convs);
         });
-        $('btnDeselectAll')?.addEventListener('click', () => {
+        ($('btnSelectNone') || $('btnDeselectAll'))?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
             if (List) List.deselectAll(convs);
         });
-        $('btnFilterNew')?.addEventListener('click', () => {
+        ($('btnSelectUnexported') || $('btnFilterNew'))?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
             if (List) List.selectUnexported(convs, expMap);
         });
-        $('btnFilterNeedsUpdate')?.addEventListener('click', () => {
+        ($('btnSelectUpdated') || $('btnFilterNeedsUpdate'))?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
             if (List) List.selectNeedsUpdate(convs, expMap);

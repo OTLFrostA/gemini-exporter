@@ -71,15 +71,64 @@
         } catch {}
     }
 
+    function extractActiveChatTitle(activeId) {
+        if (!activeId) return null;
+        // 1. From document.title (e.g. "量子计算的基本原理 - Gemini")
+        if (document.title) {
+            let t = document.title.replace(/\s*[-–—|]\s*Gemini.*$/i, '').replace(/^Gemini\s*[-–—|]\s*/i, '').trim();
+            if (isRealTitle(t, activeId)) return t;
+        }
+        // 2. From DOM conversation title / header elements
+        const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
+        for (const el of titleEls) {
+            let t = (el.textContent || '').trim();
+            if (isRealTitle(t, activeId)) return t;
+        }
+        // 3. From active sidebar element
+        const activeLink = document.querySelector(`a[href*="${activeId}"]`);
+        if (activeLink) {
+            let t = (activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '').trim();
+            if (isRealTitle(t, activeId)) return t;
+        }
+        // 4. From first user query on the page
+        const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
+        if (firstUserQuery) {
+            let t = (firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' ');
+            if (isRealTitle(t, activeId)) return t;
+        }
+        return null;
+    }
+
     async function syncOnce() {
         try {
-            if (!Scraper || typeof Scraper.getConversationLinks !== 'function') return 0;
-            const links = Scraper.getConversationLinks();
-            if (!links || !links.length) {
-                if (typeof Scraper.tryExpandRecents === 'function') Scraper.tryExpandRecents();
+            const items = [];
+            // 1. Check current active page chat
+            const m = location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
+            if (m) {
+                const activeId = m[2].replace(/^c_/, '');
+                const activeTitle = extractActiveChatTitle(activeId);
+                if (activeTitle) {
+                    items.push({
+                        id: activeId,
+                        title: activeTitle,
+                        url: `https://gemini.google.com/app/${activeId}`,
+                        href: `https://gemini.google.com/app/${activeId}`
+                    });
+                }
+            }
+
+            // 2. Collect from sidebar links
+            if (Scraper && typeof Scraper.getConversationLinks === 'function') {
+                const links = Scraper.getConversationLinks() || [];
+                items.push(...links);
+            }
+
+            if (!items.length) {
+                if (typeof Scraper?.tryExpandRecents === 'function') Scraper.tryExpandRecents();
                 return 0;
             }
-            const dedup = links.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
+
+            const dedup = items.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
             let mergedLen = await upsertConversations(dedup, 'dom-sync');
             return mergedLen;
         } catch (e) {
@@ -175,8 +224,8 @@
                         ...c,
                         id: nid,
                         title: resolvedTitle,
-                        timestamp: c.timestamp || (old && old.timestamp) || null,
-                        lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
+                        timestamp: (old && old.timestamp) ? old.timestamp : (c.timestamp || null),
+                        lastSeen: (old && old.lastSeen) || (c.lastSeen || new Date(now - idx).toISOString()),
                         source: source || (old && old.source) || 'unknown',
                         accountSlot: slot
                     });
@@ -304,26 +353,85 @@
         return null;
     }
 
-    // Network ids hook listener
+    // Network batchexecute & ids hook listener
     window.addEventListener('message', async (event) => {
+        if (event.origin !== location.origin) return;
         const d = event.data;
-        if (!d || d.type !== '__gemExporterNetworkIds') return;
-        const ids = d.ids || [];
-        if (!ids.length) return;
-        try {
-            let mockItems = ids.map(id => ({
-                id,
-                title: '未命名对话(' + id.slice(0, 6) + ')',
-                href: `https://gemini.google.com/app/${id}`,
-                url: `https://gemini.google.com/app/${id}`
-            }));
-            let mergedLen = await upsertConversations(mockItems, 'network:' + (d.source || ''));
-            if (!window.__gemExporterDeepScanPromise) {
-                const badgeTxt = document.getElementById('geminiExportBadgeText');
-                if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
-                else ensureBadge();
+        if (!d) return;
+
+        // 1. Captured batchexecute response (Sidebar scroll, search, page load, opening any chat)
+        if (d.type === 'GEMINI_NETWORK_BATCHEXECUTE') {
+            const { text, slot } = d.payload || {};
+            if (!text) return;
+            try {
+                let parser = (typeof GeminiResponseParserClass !== 'undefined') ? GeminiResponseParserClass : (typeof globalThis.GeminiResponseParserClass !== 'undefined' ? globalThis.GeminiResponseParserClass : null);
+                if (!parser) return;
+
+                // If response contains conversation list (sidebar scroll or search)
+                if (text.includes('MaZiqc')) {
+                    try {
+                        const listRes = parser.parseList(text);
+                        if (listRes && listRes.conversations && listRes.conversations.length) {
+                            await upsertConversations(listRes.conversations, 'network-list');
+                        }
+                    } catch (e) {
+                        console.debug('[Gemini Exporter] parseList err', e);
+                    }
+                }
+
+                // If response contains conversation detail (opening any chat)
+                if (text.includes('hNvQHb')) {
+                    try {
+                        const detailRes = parser.parseDetail(text);
+                        if (detailRes && detailRes.id) {
+                            const nid = String(detailRes.id).replace(/^c_/, '').trim();
+                            let title = detailRes.title;
+                            if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
+                                const firstUser = detailRes.messages.find(m => m.role === 'user' && m.content && m.content.trim());
+                                if (firstUser) {
+                                    const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                                    if (isRealTitle(candidate, nid)) title = candidate;
+                                }
+                            }
+                            if (isRealTitle(title, nid)) {
+                                await upsertConversations([{
+                                    id: nid,
+                                    title: title,
+                                    url: `https://gemini.google.com/app/${nid}`,
+                                    href: `https://gemini.google.com/app/${nid}`,
+                                    timestamp: detailRes.timestamp || Date.now()
+                                }], 'network-detail');
+                            }
+                        }
+                    } catch (e) {
+                        console.debug('[Gemini Exporter] parseDetail err', e);
+                    }
+                }
+            } catch (err) {
+                console.debug('[Gemini Exporter] batchexecute hook process error', err);
             }
-        } catch (e) {}
+            return;
+        }
+
+        // 2. Fallback network ids hook listener
+        if (d.type === '__gemExporterNetworkIds') {
+            const ids = d.ids || [];
+            if (!ids.length) return;
+            try {
+                let mockItems = ids.map(id => ({
+                    id,
+                    title: '未命名对话(' + id.slice(0, 6) + ')',
+                    href: `https://gemini.google.com/app/${id}`,
+                    url: `https://gemini.google.com/app/${id}`
+                }));
+                let mergedLen = await upsertConversations(mockItems, 'network:' + (d.source || ''));
+                if (!window.__gemExporterDeepScanPromise) {
+                    const badgeTxt = document.getElementById('geminiExportBadgeText');
+                    if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
+                    else ensureBadge();
+                }
+            } catch (e) {}
+        }
     });
 
     // Message router
@@ -367,12 +475,42 @@
                 return true;
             }
             (async () => {
+                async function persistDetailTitle(chatObj) {
+                    if (!chatObj) return;
+                    const normId = id => String(id || '').replace(/^c_/, '').trim();
+                    const nid = normId(cid || chatObj.id);
+                    if (!isRealTitle(chatObj.title, nid) && Array.isArray(chatObj.messages)) {
+                        const firstUser = chatObj.messages.find(m => m.role === 'user' && m.content && m.content.trim());
+                        if (firstUser) {
+                            const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                            if (isRealTitle(candidate, nid)) {
+                                chatObj.title = candidate;
+                            }
+                        }
+                    }
+                    if (!isRealTitle(chatObj.title, nid)) return;
+                    const slot = msg.accountSlot || detectSlot() || 'u0';
+                    try {
+                        if (Storage) {
+                            const list = await Storage.getConversations(slot);
+                            const item = list.find(c => normId(c.id) === nid);
+                            if (item && item.title !== chatObj.title) {
+                                item.title = chatObj.title;
+                                await Storage.setConversations(slot, list);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[Gemini Exporter] persistDetailTitle error', err);
+                    }
+                }
+
                 try {
                     let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
                     if (C) {
                         let client = new C();
                         let detail = await client.getConversationDetail(cid, msg.targetSid || null);
                         if (detail && detail.messages) {
+                            await persistDetailTitle(detail);
                             sendResponse({ success: true, data: detail, source: 'batchexecute' });
                             return;
                         }
@@ -383,6 +521,9 @@
                 try {
                     if (Scraper) {
                         let chat = await Scraper.contentFetchChatDetail(cid);
+                        if (chat && chat.messages) {
+                            await persistDetailTitle(chat);
+                        }
                         sendResponse({ success: true, data: chat, source: 'dom' });
                         return;
                     }
@@ -424,12 +565,30 @@
         syncOnce();
     }, 3000);
 
+    let __lastObservedUrl = location.href;
+    setInterval(() => {
+        if (location.href !== __lastObservedUrl) {
+            __lastObservedUrl = location.href;
+            setTimeout(syncOnce, 500);
+            setTimeout(syncOnce, 1500);
+        }
+    }, 500);
+
     window.addEventListener('popstate', () => {
         setTimeout(() => {
             refreshInitialBadge();
             syncOnce();
         }, 300);
     });
+
+    try {
+        const titleEl = document.querySelector('title');
+        if (titleEl) {
+            new MutationObserver(() => {
+                syncOnce();
+            }).observe(titleEl, { childList: true, characterData: true, subtree: true });
+        }
+    } catch {}
 
     if (document.readyState !== 'loading') {
         autoInitSync();

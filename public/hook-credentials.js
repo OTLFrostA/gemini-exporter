@@ -48,13 +48,41 @@
         } catch {}
     }
 
-    window.fetch = function(input, init) {
+    function broadcastBatchexecute(url, text) {
         try {
-            let url = typeof input === 'string' ? input : input.url;
+            if (!text || (!text.includes('MaZiqc') && !text.includes('hNvQHb') && !text.includes('wrb.fr'))) return;
+            let slot = 'default';
+            let uStr = (url || '').toString();
+            let m = uStr.match(/\/u\/(\d+)\//);
+            if (m) slot = 'u' + m[1];
+            else {
+                let m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
+                if (m2) slot = 'u' + m2[1];
+            }
+            window.postMessage({
+                type: 'GEMINI_NETWORK_BATCHEXECUTE',
+                payload: { text, slot }
+            }, location.origin);
+        } catch {}
+    }
+
+    window.fetch = function(input, init) {
+        let url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        try {
             let body = init && init.body ? (typeof init.body === 'string' ? init.body : '') : '';
             captureFromUrl(url, body);
         } catch {}
-        return origFetch.apply(this, arguments);
+        return origFetch.apply(this, arguments).then(function(response) {
+            try {
+                if (url && url.toString().includes('batchexecute') && response && response.ok) {
+                    let clone = response.clone();
+                    clone.text().then(function(text) {
+                        broadcastBatchexecute(url, text);
+                    }).catch(function() {});
+                }
+            } catch {}
+            return response;
+        });
     };
     XMLHttpRequest.prototype.open = function(method, url) {
         this._gemini_url = url;
@@ -63,6 +91,15 @@
     XMLHttpRequest.prototype.send = function(body) {
         try {
             captureFromUrl(this._gemini_url, typeof body === 'string' ? body : '');
+            if (this._gemini_url && this._gemini_url.toString().includes('batchexecute')) {
+                const reqUrl = this._gemini_url;
+                this.addEventListener('load', function() {
+                    try {
+                        let text = this.responseText;
+                        broadcastBatchexecute(reqUrl, text);
+                    } catch {}
+                });
+            }
         } catch {}
         return origSend.apply(this, arguments);
     };
