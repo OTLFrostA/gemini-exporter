@@ -699,7 +699,9 @@
                 const a = document.createElement('a');
                 a.href = blobUrl;
                 a.download = zipFileName;
+                document.body.appendChild(a);
                 a.click();
+                document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
             }
 
