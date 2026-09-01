@@ -284,21 +284,38 @@
                 sendResponse({ success: false, error: 'no url' });
                 return;
             }
-            const r = await fetch(url, {
-                credentials: 'include',
-                headers: { 'Accept': '*/*' }
-            });
-            if (!r.ok) {
-                sendResponse({ success: false, error: `HTTP ${r.status}` });
-                return;
-            }
-            const blob = await r.blob();
-            const dataUrl = await toDataUrl(blob);
-            sendResponse({
-                success: true,
-                dataBase64: dataUrl.split(',')[1],
-                mime: blob.type,
-                size: blob.size
+            try {
+                const r = await fetch(url, {
+                    credentials: 'include',
+                    headers: { 'Accept': '*/*' }
+                });
+                if (r.ok) {
+                    const ct = (r.headers.get('content-type') || '').toLowerCase();
+                    const blob = await r.blob();
+                    if (blob.size > 0 && (!ct.startsWith('text/html') || blob.size > 2000)) {
+                        const dataUrl = await toDataUrl(blob);
+                        sendResponse({
+                            success: true,
+                            dataBase64: dataUrl.split(',')[1],
+                            mime: blob.type,
+                            size: blob.size
+                        });
+                        return;
+                    }
+                }
+            } catch (e) {}
+
+            handleGetImageBlob(msg, (res) => {
+                if (res && res.success && res.blobBase64) {
+                    sendResponse({
+                        success: true,
+                        dataBase64: res.blobBase64,
+                        mime: res.mime,
+                        size: res.size
+                    });
+                } else {
+                    handleGetFileBlob(msg, sendResponse);
+                }
             });
         } catch (err) {
             sendResponse({ success: false, error: err.message });

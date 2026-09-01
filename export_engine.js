@@ -464,6 +464,7 @@
                                         updateProgress();
                                     } else {
                                         failedAttachments.push({ chatId: chat.id, file: att.localName || att.fileName, error: failReason });
+                                        onLog(`[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                     }
                                 });
                             }
@@ -531,6 +532,7 @@
                                             updateProgress();
                                         } else {
                                             failedAttachments.push({ chatId: chat.id, file: img.localName, error: failReason });
+                                            onLog(`[${chat.title || chat.id}] 图片获取失败 (${img.localName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                         }
                                     });
                                 }
