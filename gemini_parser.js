@@ -609,7 +609,8 @@
         try {
             let top = robustFirstPayload(text);
             // 全量埋点：记录所有潜在数据源，供通用 parser 提炼（Dev 模式或空结果时必打）
-            const shouldVerbose = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll)) || !text || text.length < 500;
+            const isDevBody = typeof document !== 'undefined' && document.body && document.body.classList.contains('dev-mode');
+            const shouldVerbose = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll || isDevBody)) || !text || text.length < 500;
             if (shouldVerbose || (Array.isArray(top) && top.length > 1)) {
                 try {
                     const summary = Array.isArray(top) ? top.map((it,i) => {
