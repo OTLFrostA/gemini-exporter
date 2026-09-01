@@ -25,7 +25,9 @@ test('gemini_parser - highResVariant', () => {
 });
 
 test('gemini_parser - parseList with valid batchexecute RPC text', () => {
-    const mockRpc = `)]}'\n\n[["wrb.fr","MaZiqc","[null,[[\"c_1234567890abcdef\",\"Test Title\",[1700000000,0],[1700000000,0],5]],\"tC_token123\"]"]`;
+    const inner = JSON.stringify([null, [["c_1234567890abcdef","Test Title",[1700000000,0],[1700000000,0],5]], "tC_token123"]);
+    const outer = JSON.stringify([["wrb.fr","MaZiqc",inner]]);
+    const mockRpc = `)]}'\n\n${outer}`;
     const res = GeminiResponseParserClass.parseList(mockRpc);
     assert.strictEqual(res.conversations.length, 1);
     assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
