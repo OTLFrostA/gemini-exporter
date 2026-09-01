@@ -16,8 +16,6 @@
         const btnIncrementalScan = $('btnIncrementalScan');
         const btnDeepScan = $('btnDeepScan');
         const btnImportTakeout = $('btnImportTakeout');
-        const btnBackupData = $('btnBackupData');
-        const btnRestoreData = $('btnRestoreData');
         const btnSetDir = $('btnSetDir');
         const btnClearExported = $('btnClearExported');
         const btnClearAll = $('btnClearAll');
@@ -28,8 +26,6 @@
         if (btnIncrementalScan) btnIncrementalScan.disabled = !!running;
         if (btnDeepScan) btnDeepScan.disabled = !!running;
         if (btnImportTakeout) btnImportTakeout.disabled = !!running;
-        if (btnBackupData) btnBackupData.disabled = !!running;
-        if (btnRestoreData) btnRestoreData.disabled = !!running;
         if (btnSetDir) btnSetDir.disabled = !!running;
         if (btnClearExported) btnClearExported.disabled = !!running;
         if (btnClearAll) btnClearAll.disabled = !!running;

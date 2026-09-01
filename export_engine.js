@@ -10,6 +10,15 @@
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
 
+    function getExtensionVersion() {
+        try {
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+                return chrome.runtime.getManifest().version || '1.3.8';
+            }
+        } catch {}
+        return '1.3.8';
+    }
+
     function sanitizeFileName(name, fallback = 'untitled') {
         // 统一委托至 GeminiUtils 单一源，避免多处截断(70 vs 80)与扩展名不一致
         if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName) {
@@ -229,7 +238,7 @@
                     if (e.name === 'NotAllowedError' || String(e.message).includes('permission')) {
                         onLog('目录句柄权限失效，请重新授权文件夹', 'warn');
                     }
-                    batchDirHandle = dirHandle;
+                    throw new Error(`无法创建导出子目录 "${exportFolderName}": ${e.message}`);
                 }
             }
 
@@ -710,7 +719,7 @@
                     folder.file('00_INDEX.md', indexContent);
                     folder.file('meta.json', JSON.stringify({
                         exportedAt: new Date().toISOString(),
-                        version: '1.3.0',
+                        version: getExtensionVersion(),
                         total: metaResults.length,
                         conversations: metaResults
                     }, null, 2));
@@ -718,7 +727,7 @@
                     await writeFileDirect('00_INDEX.md', indexContent);
                     await writeFileDirect('meta.json', JSON.stringify({
                         exportedAt: new Date().toISOString(),
-                        version: '1.3.0',
+                        version: getExtensionVersion(),
                         total: metaResults.length,
                         conversations: metaResults
                     }, null, 2));
