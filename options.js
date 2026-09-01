@@ -1243,6 +1243,64 @@ async function exportSelected() {
         else await writeFileDirect('README.md', mdIndex);
     }
 
+    // 🛠️ 开发者模式或有错误发生时，自动将全部会话日志与错误详情写入导出目录
+    let isDevMode = document.body.classList.contains('dev-mode');
+    if (!isDevMode) {
+        try {
+            const devData = await chrome.storage.local.get(['gemini_dev_mode']);
+            isDevMode = !!devData?.gemini_dev_mode;
+        } catch {}
+    }
+
+    if (isDevMode || failedChats.length > 0 || failedAttachments.length > 0) {
+        const finalAttTotal = __globalTotalAssets || totalAssets;
+        let fullLogText = `=======================================================\n`;
+        fullLogText += ` Gemini Exporter Session Log (Dev Mode)\n`;
+        fullLogText += ` Time: ${new Date().toISOString()}\n`;
+        fullLogText += ` Summary: Landed ${landedChats}/${payloadIds.length} chats, Assets ${downloadedAssets}/${finalAttTotal}, Skipped ${skipped}\n`;
+        fullLogText += ` Failed Chats: ${failedChats.length}, Failed Assets: ${failedAttachments.length}\n`;
+        fullLogText += `=======================================================\n\n`;
+
+        if (failedChats.length > 0) {
+            fullLogText += `[FAILED CONVERSATIONS]\n`;
+            for (const fc of failedChats) {
+                fullLogText += `  - ${fc}\n`;
+            }
+            fullLogText += `\n`;
+        }
+
+        if (failedAttachments.length > 0) {
+            fullLogText += `[FAILED ASSETS / ATTACHMENTS]\n`;
+            for (const fa of failedAttachments) {
+                fullLogText += `  - Chat: "${fa.chat}" | File: "${fa.file}" | Reason: ${fa.reason}\n`;
+            }
+            fullLogText += `\n`;
+        }
+
+        fullLogText += `[FULL RUNTIME LOGS]\n`;
+        const chronoLogs = __logBuf.slice().reverse();
+        for (const item of chronoLogs) {
+            fullLogText += `[${item.time}] [${(__levelTag[item.level] || item.level || 'I').toUpperCase()}] ${item.text}\n`;
+        }
+
+        try {
+            if (finalUseZip) {
+                folder.file('_export_dev.log', fullLogText);
+                if (failedAttachments.length || failedChats.length) {
+                    folder.file('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
+                }
+            } else {
+                await writeFileDirect('_export_dev.log', fullLogText);
+                if (failedAttachments.length || failedChats.length) {
+                    await writeFileDirect('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
+                }
+            }
+            log('🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
+        } catch (logWriteErr) {
+            console.error('Failed to write _export_dev.log', logWriteErr);
+        }
+    }
+
     if (finalUseZip) {
         log('正在生成 ZIP 压缩包，请稍候…');
         try {
