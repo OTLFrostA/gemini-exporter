@@ -58,10 +58,24 @@ test.describe('Workbench UI & Selection Controls', () => {
     await page.fill('#chatSearchInput', '');
     await expect(page.locator('#list .item')).toHaveCount(3);
 
-    // 7. Test Language Toggle
+    // 7. Test Language Toggle Preserves Selected Items
+    // Uncheck everything then check only chat_002
+    await page.click('#btnSelectNone');
+    await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').check();
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
+
+    // Switch to English
     await page.click('#labelLangEn');
     await expect(page.locator('#btnSelectAll')).toHaveText('All');
+    // Selection must remain exactly 1 item (chat_002)
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
+    expect(await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').isChecked()).toBe(true);
+
+    // Switch back to Chinese
     await page.click('#labelLangZh');
     await expect(page.locator('#btnSelectAll')).toHaveText('全选');
+    // Selection must still remain exactly 1 item (chat_002)
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
+    expect(await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').isChecked()).toBe(true);
   });
 });
