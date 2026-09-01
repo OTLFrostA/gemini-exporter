@@ -84,3 +84,47 @@ test('regression: export_engine getExtensionVersion should be exported and read 
     const v = ExportEngineMod.getExtensionVersion();
     assert.ok(typeof v === 'string' && v.length >= 5, `version should be string, got ${v}`);
 });
+
+// P0-4: 标题品牌词防护
+test('regression: export_engine and options must scrub Google Gemini brand', () => {
+    const expContent = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    const optContent = fs.readFileSync(path.join(__dirname, '../options.js'), 'utf8');
+    assert.ok(expContent.includes('isBadBrand'), 'export_engine should have isBadBrand scrub');
+    assert.ok(expContent.includes('Google\\s+)?(Gemini|Bard'), 'export_engine should filter brand regex');
+    assert.ok(optContent.includes('isBad'), 'options.js should scrub bad titles on load');
+    // 行为级：brand 不应被视为 real title
+    const { isRealTitle } = require('../utils.js');
+    assert.strictEqual(isRealTitle('Google Gemini', 'abc123'), false);
+    assert.strictEqual(isRealTitle('Gemini', 'abc123'), false);
+});
+
+// P0-5: 空详情应为 error 级别且携带 debug
+test('regression: empty cloud response must be logged as error with debug', () => {
+    const expContent = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
+    assert.ok(expContent.includes('_debug') && expContent.includes('_raw'), 'failedChats should carry debug/raw');
+    const bgContent = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
+    assert.ok(bgContent.includes('_debug'), 'background should preserve _raw debug');
+});
+
+// P0-6: DOM 空壳 fallback 必须尝试 live document
+test('regression: dom_scraper must try live document before fetch shell', () => {
+    const domContent = fs.readFileSync(path.join(__dirname, '../dom_scraper.js'), 'utf8');
+    assert.ok(domContent.includes('location.pathname.includes(cleanId)'), 'should try live parseDoc when location matches');
+    assert.ok(domContent.includes('debugCurrentPage'), 'should expose debugCurrentPage');
+    assert.ok(domContent.includes('fallbackUsed'), 'parseDoc should log fallbackUsed');
+});
+
+// P0-7: batchexecute 空消息必须回退 DOM 且告警
+test('regression: content.js must fallback to DOM when batchexecute returns empty', () => {
+    const ctContent = fs.readFileSync(path.join(__dirname, '../content.js'), 'utf8');
+    assert.ok(ctContent.includes('Array.isArray(detail.messages) && detail.messages.length > 0'), 'should check length>0 before success');
+    assert.ok(ctContent.includes('batchexecute returned empty messages, fallback to DOM'), 'should warn and fallback');
+});
+
+// P0-8: Receiving end 连接失败提示刷新
+test('regression: background Receiving end error must hint refresh', () => {
+    const bgContent = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
+    assert.ok(bgContent.includes('Receiving end does not exist'), 'should handle Receiving end');
+    assert.ok(bgContent.includes('刷新 gemini.google.com'), 'should hint refresh after reload');
+});
