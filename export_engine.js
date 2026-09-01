@@ -464,7 +464,7 @@
                                         downloadedAssets++;
                                         updateProgress();
                                     } else {
-                                        failedAttachments.push({ chatId: chat.id, file: att.localName || att.fileName, error: failReason });
+                                        failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName || att.fileName, error: failReason || 'CDN鉴权过期或资源不可达' });
                                         onLog(`[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                     }
                                 });
@@ -532,7 +532,7 @@
                                             downloadedAssets++;
                                             updateProgress();
                                         } else {
-                                            failedAttachments.push({ chatId: chat.id, file: img.localName, error: failReason });
+                                            failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: img.localName, error: failReason || 'CDN鉴权过期或资源不可达' });
                                             onLog(`[${chat.title || chat.id}] 图片获取失败 (${img.localName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                         }
                                     });
@@ -608,7 +608,7 @@
                 if (failedAttachments.length > 0) {
                     fullLogText += `[FAILED ASSETS / ATTACHMENTS]\n`;
                     for (const fa of failedAttachments) {
-                        fullLogText += `  - Chat: "${fa.chat}" | File: "${fa.file}" | Reason: ${fa.reason}\n`;
+                        fullLogText += `  - Chat: "${fa.chatTitle || fa.chatId || fa.chat}" | File: "${fa.file}" | Reason: ${fa.error || fa.reason}\n`;
                     }
                     fullLogText += `\n`;
                 }
