@@ -436,15 +436,25 @@
                     let finalTitle = chat.title || listC?.title || chat.id;
 
                     if (listC) {
+                        // 防御：绝不允许 "Google Gemini" 等品牌词覆盖已有标题
+                        const isBadBrand = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(String(t).trim());
                         listC.titles = listC.titles || {};
+                        for (const [k,v] of Object.entries(listC.titles)) {
+                            if (isBadBrand(v)) delete listC.titles[k];
+                        }
                         if (chat.titles && typeof chat.titles === 'object') {
+                            for (const [k,v] of Object.entries(chat.titles)) {
+                                if (isBadBrand(v)) delete chat.titles[k];
+                            }
                             Object.assign(listC.titles, chat.titles);
                         }
                         if (chat.titleSource && isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
                             listC.titles[chat.titleSource] = cleanTitle(chat.title);
                         }
                         const resolved = resolveTitle(listC);
-                        if (listC.title !== resolved.title || listC.titleSource !== resolved.source) {
+                        if (resolved.title && /^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(resolved.title.trim())) {
+                            console.warn('[Export] skip bad brand resolved title', nid, resolved.title);
+                        } else if (listC.title !== resolved.title || listC.titleSource !== resolved.source) {
                             listC.title = resolved.title;
                             listC.titleSource = resolved.source;
                             convsNeedSave = true;
