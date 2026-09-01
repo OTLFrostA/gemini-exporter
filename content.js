@@ -533,12 +533,14 @@
                     const normId = id => String(id || '').replace(/^c_/, '').trim();
                     const nid = normId(cid || chatObj.id);
                     chatObj.title = cleanTitle(chatObj.title);
+                    let detectedSource = chatObj.titleSource || 'rpc';
                     if (!isRealTitle(chatObj.title, nid) && Array.isArray(chatObj.messages)) {
                         const firstUser = chatObj.messages.find(m => m.role === 'user' && m.content && m.content.trim());
                         if (firstUser) {
                             const candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
                             if (isRealTitle(candidate, nid)) {
                                 chatObj.title = candidate;
+                                detectedSource = 'sniff';
                             }
                         }
                     }
@@ -549,14 +551,17 @@
                             const list = await Storage.getConversations(slot);
                             const item = list.find(c => normId(c.id) === nid);
                             if (item) {
-                                item.titles = item.titles || {};
-                                item.titles.rpc = chatObj.title;
-                                const resolved = resolveTitle(item);
-                                if (item.title !== resolved.title || item.titleSource !== resolved.source) {
-                                    item.title = resolved.title;
-                                    item.titleSource = resolved.source;
-                                    await Storage.setConversations(slot, list);
-                                }
+                                const setTitleBySourceFn = (typeof GeminiUtils !== 'undefined' && GeminiUtils.setTitleBySource)
+                                    ? GeminiUtils.setTitleBySource
+                                    : (it, src, val) => {
+                                        it.titles = it.titles || {};
+                                        it.titles[src] = val;
+                                        const res = resolveTitle(it);
+                                        it.title = res.title;
+                                        it.titleSource = res.source;
+                                    };
+                                setTitleBySourceFn(item, detectedSource, chatObj.title);
+                                await Storage.setConversations(slot, list);
                             }
                         }
                     } catch (err) {
