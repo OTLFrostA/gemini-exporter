@@ -643,6 +643,32 @@
             }
             if (!inner) throw new Error("invalid");
             let turns = inner?.[0] || [];
+            // 兼容新版 Gemini 返回：turns 可能在 inner[1]/inner[2] 或深层嵌套
+            if (!Array.isArray(turns) || turns.length === 0) {
+                const candidates = [inner?.[1], inner?.[2], inner?.[3]];
+                for (const cand of candidates) {
+                    if (Array.isArray(cand) && cand.length > 0 && Array.isArray(cand[0])) {
+                        // 粗略校验：首元素包含 c_ 或 user 文本
+                        try {
+                            if (JSON.stringify(cand).includes('c_') || JSON.stringify(cand).includes('user')) {
+                                turns = cand;
+                                break;
+                            }
+                        } catch {}
+                    }
+                }
+            }
+            // 深层搜索兜底
+            if ((!Array.isArray(turns) || turns.length === 0) && Array.isArray(inner)) {
+                for (const elem of inner) {
+                    if (Array.isArray(elem) && elem.length > 2 && Array.isArray(elem[0]) && typeof elem[0][0] === 'string' && elem[0][0].startsWith('c_')) {
+                        if (Array.isArray(elem[2]) || Array.isArray(elem[3])) {
+                            turns = elem;
+                            break;
+                        }
+                    }
+                }
+            }
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
             let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';

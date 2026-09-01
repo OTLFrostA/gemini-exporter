@@ -574,10 +574,12 @@
                     if (C) {
                         let client = new C();
                         let detail = await client.getConversationDetail(cid, msg.targetSid || null);
-                        if (detail && detail.messages) {
+                        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                             await persistDetailTitle(detail);
                             sendResponse({ success: true, data: detail, source: 'batchexecute' });
                             return;
+                        } else if (detail && detail._raw) {
+                            console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, 'raw keys', Object.keys(detail._raw || {}), 'messages', detail.messages?.length);
                         }
                     }
                 } catch (e) {
