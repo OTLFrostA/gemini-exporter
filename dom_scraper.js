@@ -127,10 +127,68 @@
         return null;
     }
 
+    function getConversationLinks() {
+        const sels = [
+            'search-snippet a',
+            'a.snippet-container',
+            '.search-results-list a',
+            'a[href*="/app/"]',
+            '[data-test-id="conversation"] a',
+            'bard-sidenav a[href*="/app/"]',
+            'div[role="navigation"] a[href*="/app/"]'
+        ];
+        let nodes = [];
+        for (const sel of sels) {
+            try {
+                document.querySelectorAll(sel).forEach(a => nodes.push(a));
+            } catch {}
+        }
+        nodes = [...new Set(nodes)];
+        if (!nodes.length) nodes = [...document.querySelectorAll('a[href*="/app/"]')];
+        return nodes.map(a => {
+            let href = a.getAttribute('href') || a.href || '';
+            if (!href) return null;
+            let m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
+            if (!m) return null;
+            let raw = m[2] || m[1];
+            if (!raw || raw.length < 8) return null;
+            if (/^(search|images|videos|app)$/i.test(raw)) return null;
+            let id = raw.replace(/^c_/, '');
+
+            let title = '';
+            const titleEl = a.querySelector('.title') || a.querySelector('[class*="title"]') || a.closest('search-snippet')?.querySelector('.title');
+            if (titleEl) {
+                title = titleEl.textContent.trim();
+            } else {
+                title = (a.textContent || a.getAttribute('aria-label') || '').trim().split('\n')[0].trim();
+            }
+            title = title.replace(/\s{2,}/g, ' ').trim();
+            if (!title || title.length < 2) {
+                let pp = a.closest('[title]');
+                if (pp) title = pp.getAttribute('title').trim();
+            }
+            return {
+                id,
+                title: title || '未命名对话',
+                url: `https://gemini.google.com/app/${id}`,
+                href: `https://gemini.google.com/app/${id}`
+            };
+        }).filter(Boolean);
+    }
+
+    function tryExpandRecents() {
+        try {
+            const btn = document.querySelector('button[aria-label="Toggle Recents"]') || document.querySelector('[aria-label="Toggle Recents"]');
+            if (btn && btn.getAttribute('aria-expanded') === 'false') btn.click();
+        } catch {}
+    }
+
     return {
         cleanText,
         parseDoc,
         contentFetchChatDetail,
-        getScrollContainer
+        getScrollContainer,
+        getConversationLinks,
+        tryExpandRecents
     };
 }));
