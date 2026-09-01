@@ -213,6 +213,7 @@ def test_javascript_unit_tests():
                 ("src/core/formatStore.js", "../src/core/formatStore.js"),
                 ("src/ui/state/conversationsStore.js", "../src/ui/state/conversationsStore.js"),
                 ("src/ui/views/listView.js", "../src/ui/views/listView.js"),
+                ("src/ui/views/logView.js", "../src/ui/views/logView.js"),
                 ("src/ui/controllers/exportController.js", "../src/ui/controllers/exportController.js"),
                 ("storage_service.js", "../storage_service.js"),
                 ("chat_formatter.js", "../chat_formatter.js"),
