@@ -20,13 +20,18 @@
         try {
             if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
             if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
+            if (typeof require !== 'undefined') {
+                const u = require('./utils.js');
+                if (u && u.isRealTitle) return u.isRealTitle(t, fallbackId);
+            }
         } catch {}
         if (!t || typeof t !== 'string') return false;
         const s = t.trim();
         if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
         if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
         if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
-        if (/^(未命名对话|Untitled conversation|Document|Gemini)$/i.test(s)) return false;
+        if (/^(未命名对话|Untitled conversation|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI)$/i.test(s)) return false;
         if (RESEARCH_PROMPT_PREFIX_RE.test(s)) return false;
         return true;
     }
