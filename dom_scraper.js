@@ -56,7 +56,28 @@
         }
         if (!title) title = id;
         const messages = [];
-        const nodes = doc.querySelectorAll('user-query, model-response');
+        let nodes = doc.querySelectorAll('user-query, model-response');
+        // Fallback: 新版 Gemini 可能已移除自定义标签，尝试通用选择器并记录诊断
+        let fallbackUsed = null;
+        if (!nodes.length) {
+            const fallbacks = [
+                '[data-test-id*="user-query"]', '[data-test-id*="model-response"]',
+                '[data-message-author-role="user"]', '[data-message-author-role="model"]',
+                'div[data-test-id="conversation-turn"]',
+                'div[role="article"]'
+            ];
+            for (const sel of fallbacks) {
+                try {
+                    const alt = doc.querySelectorAll(sel);
+                    if (alt.length) { nodes = alt; fallbackUsed = sel; break; }
+                } catch {}
+            }
+        }
+        if (!nodes.length) {
+            console.warn('[Gemini Exporter][DOM] parseDoc no nodes matched for', id, 'title', title, 'html_len', doc.documentElement?.outerHTML?.length, 'fallbackUsed', fallbackUsed);
+        } else if (fallbackUsed) {
+            console.log('[Gemini Exporter][DOM] parseDoc fallback matched', fallbackUsed, 'count', nodes.length);
+        }
         const sorted = [...nodes].sort((a, b) => {
             const pos = a.compareDocumentPosition(b);
             return (pos & 4) ? -1 : 1;
@@ -105,6 +126,16 @@
             let fu = dedup.find(m => m.role === 'user');
             if (fu) title = fu.content.slice(0, 50).replace(/\n/g, ' ');
         }
+        // 诊断：空结果时附带 html 预览
+        let _debug = null;
+        if (!dedup.length) {
+            try {
+                const htmlLen = doc.documentElement?.outerHTML?.length || 0;
+                const bodySnippet = (doc.body?.innerText || '').slice(0, 400).replace(/\n+/g, ' ');
+                _debug = { htmlLen, bodySnippet, nodesFound: nodes.length, fallbackUsed, titleSeen: title };
+                console.warn('[Gemini Exporter][DOM] parseDoc empty dedup', id, _debug);
+            } catch {}
+        }
         return {
             id,
             title: title.slice(0, 120) || id,
@@ -112,7 +143,8 @@
             timestamp: new Date().toISOString(),
             messages: dedup,
             messageCount: dedup.length,
-            attachmentCount: 0
+            attachmentCount: 0,
+            _debug
         };
     }
 
@@ -124,8 +156,34 @@
         });
         if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
         const html = await resp.text();
+        if (!html || html.length < 200) {
+            console.warn('[Gemini Exporter][DOM] fetch html too short', id, html?.length, html?.slice(0,200));
+        }
         const doc = new DOMParser().parseFromString(html, 'text/html');
-        return parseDoc(doc, id, url);
+        const parsed = parseDoc(doc, id, url);
+        if (!parsed.messages.length) {
+            console.warn('[Gemini Exporter][DOM] contentFetchChatDetail empty', id, 'html_len', html.length, '_debug', parsed._debug);
+        }
+        return parsed;
+    }
+
+    function debugCurrentPage() {
+        try {
+            const doc = document;
+            const info = {
+                title: doc.title,
+                url: location.href,
+                userQuery: doc.querySelectorAll('user-query').length,
+                modelResponse: doc.querySelectorAll('model-response').length,
+                altSelectors: {},
+                htmlLen: doc.documentElement.outerHTML.length,
+                bodySnippet: (doc.body.innerText || '').slice(0, 600)
+            };
+            const alts = ['[data-test-id*="user-query"]','[data-test-id*="model-response"]','[data-message-author-role]','div[role="article"]'];
+            alts.forEach(s => { try { info.altSelectors[s] = doc.querySelectorAll(s).length; } catch {} });
+            console.log('[Gemini Exporter][DOM Debug]', info);
+            return info;
+        } catch (e) { console.warn('debugCurrentPage fail', e); return null; }
     }
 
     function getScrollContainer() {
@@ -227,6 +285,7 @@
         contentFetchChatDetail,
         getScrollContainer,
         getConversationLinks,
-        tryExpandRecents
+        tryExpandRecents,
+        debugCurrentPage
     };
 }));
