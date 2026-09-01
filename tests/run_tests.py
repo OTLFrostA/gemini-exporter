@@ -115,12 +115,136 @@ def test_javascript_syntax():
             assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr or res.stdout}"
     print(f"  ✓ Syntax validated across {len(js_files)} JavaScript files")
 
+def test_javascript_unit_tests():
+    import subprocess
+    import glob
+    import shutil
+
+    jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
+    node_bin = shutil.which("node")
+
+    test_files = sorted(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")))
+
+    # Preload files for mock fs in JSC
+    file_map = {}
+    for root, dirs, files in os.walk(BASE_DIR):
+        for f in files:
+            if f.endswith((".js", ".html", ".json", ".md")):
+                p = os.path.join(root, f)
+                with open(p, "r", encoding="utf-8") as fp:
+                    content = fp.read()
+                    file_map[os.path.normpath(p)] = content
+
+    for tf in test_files:
+        rel = os.path.relpath(tf, BASE_DIR)
+        if node_bin:
+            res = subprocess.run([node_bin, "--test", tf], capture_output=True, text=True)
+            assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
+            print(f"  ✓ Unit test suite passed: {rel}")
+        elif os.path.exists(jsc_bin):
+            with open(tf, "r", encoding="utf-8") as f:
+                test_code = f.read()
+
+            harness = (
+                "const __fileMap = " + json.dumps(file_map) + ";\n"
+                "const __dirname = " + json.dumps(os.path.join(BASE_DIR, "tests")) + ";\n"
+                """
+            const modules = {};
+            const nodeTest = (name, fn) => {
+                try { fn(); }
+                catch(e) { throw new Error(name + ': ' + (e.stack || e.message || e)); }
+            };
+            nodeTest.test = nodeTest;
+            nodeTest.skip = () => {};
+            nodeTest.only = nodeTest;
+
+            function require(id) {
+                if (id === 'node:test' || id === 'test') return nodeTest;
+                if (id === 'node:assert' || id === 'assert') {
+                    return {
+                        strictEqual: (a, b) => { if (a !== b) throw new Error(a + ' !== ' + b); },
+                        deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(JSON.stringify(a) + ' !== ' + JSON.stringify(b)); },
+                        ok: (a, msg) => { if (!a) throw new Error(msg || ('Expected truthy, got ' + a)); }
+                    };
+                }
+                if (id === 'node:path' || id === 'path') {
+                    return {
+                        join: (...parts) => {
+                            let p = parts.join('/').replace(/\/+/g, '/');
+                            const segments = p.split('/');
+                            const resolved = [];
+                            for (const seg of segments) {
+                                if (seg === '..') resolved.pop();
+                                else if (seg && seg !== '.') resolved.push(seg);
+                            }
+                            return (p.startsWith('/') ? '/' : '') + resolved.join('/');
+                        }
+                    };
+                }
+                if (id === 'node:fs' || id === 'fs') {
+                    return {
+                        readFileSync: (p, enc) => {
+                            let norm = p.replace(/\/+/g, '/');
+                            const segments = norm.split('/');
+                            const resolved = [];
+                            for (const seg of segments) {
+                                if (seg === '..') resolved.pop();
+                                else if (seg && seg !== '.') resolved.push(seg);
+                            }
+                            norm = (norm.startsWith('/') ? '/' : '') + resolved.join('/');
+                            if (__fileMap[norm]) return __fileMap[norm];
+                            for (const k in __fileMap) {
+                                if (k.endsWith(norm) || norm.endsWith(k)) return __fileMap[k];
+                            }
+                            throw new Error('File not found in mock fs: ' + p);
+                        }
+                    };
+                }
+                if (modules[id]) return modules[id];
+                throw new Error('Module not found: ' + id);
+            }
+            """
+            )
+
+            preload_js = []
+            for mod_path, mod_id in [
+                ("src/core/constants.js", "../src/core/constants.js"),
+                ("src/core/constants.js", "./constants.js"),
+                ("src/core/formatStore.js", "../src/core/formatStore.js"),
+                ("src/ui/state/conversationsStore.js", "../src/ui/state/conversationsStore.js"),
+                ("src/ui/views/listView.js", "../src/ui/views/listView.js"),
+                ("src/ui/controllers/exportController.js", "../src/ui/controllers/exportController.js"),
+                ("storage_service.js", "../storage_service.js"),
+                ("chat_formatter.js", "../chat_formatter.js"),
+                ("gemini_parser.js", "../gemini_parser.js"),
+                ("takeout_engine.js", "../takeout_engine.js"),
+                ("i18n.js", "../i18n.js")
+            ]:
+                full_p = os.path.join(BASE_DIR, mod_path)
+                if os.path.exists(full_p):
+                    with open(full_p, "r", encoding="utf-8") as mf:
+                        content = mf.read()
+                    preload_js.append(
+                        "(function() {\n"
+                        "  const module = { exports: {} };\n"
+                        "  const exports = module.exports;\n"
+                        + content + "\n"
+                        "  modules[" + json.dumps(mod_id) + "] = module.exports;\n"
+                        "})();\n"
+                    )
+
+            full_script = harness + "\n".join(preload_js) + "\n" + test_code
+            res = subprocess.run([jsc_bin, "-e", full_script], capture_output=True, text=True)
+            assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stderr or res.stdout}"
+            print(f"  ✓ Unit test suite passed: {rel}")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
 test_module_exports()
 test_i18n_keys()
 test_javascript_syntax()
+test_javascript_unit_tests()
 
 print("=" * 60)
 print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
