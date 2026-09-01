@@ -367,12 +367,42 @@
                 return true;
             }
             (async () => {
+                async function persistDetailTitle(chatObj) {
+                    if (!chatObj) return;
+                    const normId = id => String(id || '').replace(/^c_/, '').trim();
+                    const nid = normId(cid || chatObj.id);
+                    if (!isRealTitle(chatObj.title, nid) && Array.isArray(chatObj.messages)) {
+                        const firstUser = chatObj.messages.find(m => m.role === 'user' && m.content && m.content.trim());
+                        if (firstUser) {
+                            const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                            if (isRealTitle(candidate, nid)) {
+                                chatObj.title = candidate;
+                            }
+                        }
+                    }
+                    if (!isRealTitle(chatObj.title, nid)) return;
+                    const slot = msg.accountSlot || detectSlot() || 'u0';
+                    try {
+                        if (Storage) {
+                            const list = await Storage.getConversations(slot);
+                            const item = list.find(c => normId(c.id) === nid);
+                            if (item && item.title !== chatObj.title) {
+                                item.title = chatObj.title;
+                                await Storage.setConversations(slot, list);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[Gemini Exporter] persistDetailTitle error', err);
+                    }
+                }
+
                 try {
                     let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
                     if (C) {
                         let client = new C();
                         let detail = await client.getConversationDetail(cid, msg.targetSid || null);
                         if (detail && detail.messages) {
+                            await persistDetailTitle(detail);
                             sendResponse({ success: true, data: detail, source: 'batchexecute' });
                             return;
                         }
@@ -383,6 +413,9 @@
                 try {
                     if (Scraper) {
                         let chat = await Scraper.contentFetchChatDetail(cid);
+                        if (chat && chat.messages) {
+                            await persistDetailTitle(chat);
+                        }
                         sendResponse({ success: true, data: chat, source: 'dom' });
                         return;
                     }
