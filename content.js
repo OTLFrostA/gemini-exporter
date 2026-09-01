@@ -71,29 +71,41 @@
         } catch {}
     }
 
+    const cleanTitle = (t) => {
+        try {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
+        } catch {}
+        if (!t || typeof t !== 'string') return '';
+        let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
+        s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
+        return s.trim();
+    };
+
     function extractActiveChatTitle(activeId) {
         if (!activeId) return null;
-        // 1. From document.title (e.g. "量子计算的基本原理 - Gemini")
+        // 1. From document.title (e.g. "量子计算的基本原理 - Google Gemini")
         if (document.title) {
-            let t = document.title.replace(/\s*[-–—|]\s*Gemini.*$/i, '').replace(/^Gemini\s*[-–—|]\s*/i, '').trim();
+            let t = cleanTitle(document.title);
             if (isRealTitle(t, activeId)) return t;
         }
         // 2. From DOM conversation title / header elements
         const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
         for (const el of titleEls) {
-            let t = (el.textContent || '').trim();
+            let t = cleanTitle(el.textContent || '');
             if (isRealTitle(t, activeId)) return t;
         }
         // 3. From active sidebar element
         const activeLink = document.querySelector(`a[href*="${activeId}"]`);
         if (activeLink) {
-            let t = (activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '').trim();
+            let t = cleanTitle(activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '');
             if (isRealTitle(t, activeId)) return t;
         }
         // 4. From first user query on the page
         const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
         if (firstUserQuery) {
-            let t = (firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' ');
+            let t = cleanTitle((firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' '));
             if (isRealTitle(t, activeId)) return t;
         }
         return null;
@@ -385,11 +397,11 @@
                         const detailRes = parser.parseDetail(text);
                         if (detailRes && detailRes.id) {
                             const nid = String(detailRes.id).replace(/^c_/, '').trim();
-                            let title = detailRes.title;
+                            let title = cleanTitle(detailRes.title);
                             if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
                                 const firstUser = detailRes.messages.find(m => m.role === 'user' && m.content && m.content.trim());
                                 if (firstUser) {
-                                    const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                                    const candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
                                     if (isRealTitle(candidate, nid)) title = candidate;
                                 }
                             }
@@ -479,10 +491,11 @@
                     if (!chatObj) return;
                     const normId = id => String(id || '').replace(/^c_/, '').trim();
                     const nid = normId(cid || chatObj.id);
+                    chatObj.title = cleanTitle(chatObj.title);
                     if (!isRealTitle(chatObj.title, nid) && Array.isArray(chatObj.messages)) {
                         const firstUser = chatObj.messages.find(m => m.role === 'user' && m.content && m.content.trim());
                         if (firstUser) {
-                            const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                            const candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
                             if (isRealTitle(candidate, nid)) {
                                 chatObj.title = candidate;
                             }

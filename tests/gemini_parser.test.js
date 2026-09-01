@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { GeminiResponseParserClass, isRealTitle } = require('../gemini_parser.js');
+const { isRealTitle: utilsIsRealTitle, cleanTitle } = require('../utils.js');
 
 test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle(''), false);
@@ -12,6 +13,16 @@ test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle('我拟定了一个研究方案'), false);
     assert.strictEqual(isRealTitle('量子计算的基本原理'), true);
     assert.strictEqual(isRealTitle('AI Prompt Engineering Guide'), true);
+});
+
+test('utils - cleanTitle brand suffix and prefix stripping', () => {
+    assert.strictEqual(cleanTitle('量子计算的基本原理 - Google Gemini'), '量子计算的基本原理');
+    assert.strictEqual(cleanTitle('深度学习架构 - Gemini'), '深度学习架构');
+    assert.strictEqual(cleanTitle('Python 性能优化 | Google Gemini'), 'Python 性能优化');
+    assert.strictEqual(cleanTitle('Gemini - 机器学习实战'), '机器学习实战');
+    assert.strictEqual(cleanTitle('Google Gemini - 分布式系统设计'), '分布式系统设计');
+    assert.strictEqual(cleanTitle('AI 提示词工程 · Gemini'), 'AI 提示词工程');
+    assert.strictEqual(cleanTitle('纯净标题没有后缀'), '纯净标题没有后缀');
 });
 
 test('gemini_parser - highResVariant', () => {
