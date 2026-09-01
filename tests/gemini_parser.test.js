@@ -97,3 +97,62 @@ test('utils - resolveTitle multi-tier source priority arbitration', () => {
     assert.strictEqual(resLegacy.title, '旧版直接保存的标题');
     assert.strictEqual(resLegacy.source, 'legacy');
 });
+
+test('gemini_parser - parseDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {
+    const mockDetailInner = [
+        [
+            [
+                ["c_d3226d9a046c1116", "r_turn_1"],
+                null,
+                [["然后mod要怎么打呢，我下载了一个mod文件，但是https://www.nexusmods.com/slaythespire2/mods/91"]],
+                [[["rc_model_1", ["这是Mod安装解答内容"]]]]
+            ]
+        ],
+        null,
+        null
+    ];
+    const mockMetaInner = [
+        null,
+        null,
+        [["c_d3226d9a046c1116", "杀戮尖塔存档删除Mod风险", null, null, null, [1774139824, 809290000], null, null, null, 2]]
+    ];
+
+    const topPayload = [
+        ["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)],
+        ["wrb.fr", "MaZiqc", JSON.stringify(mockMetaInner)]
+    ];
+    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+
+    const parsed = GeminiResponseParserClass.parseDetail(rawText, 'd3226d9a046c1116');
+    assert.strictEqual(parsed.id.replace(/^c_/, ''), 'd3226d9a046c1116');
+    assert.strictEqual(parsed.title, '杀戮尖塔存档删除Mod风险');
+    assert.strictEqual(parsed.titleSource, 'rpc');
+    assert.strictEqual(parsed.titles.rpc, '杀戮尖塔存档删除Mod风险');
+    assert.strictEqual(parsed.messages.length, 2);
+});
+
+test('gemini_parser - parseDetail with hNvQHb only falls back gracefully', () => {
+    const mockDetailInner = [
+        [
+            [
+                ["c_fallback_123", "r_turn_1"],
+                null,
+                [["如何用Rust写WebAssembly插件"]],
+                [[["rc_model_1", ["这是Rust WebAssembly回答"]]]]
+            ]
+        ],
+        null,
+        "Rust WebAssembly 开发实战"
+    ];
+
+    const topPayload = [
+        ["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)]
+    ];
+    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+
+    const parsed = GeminiResponseParserClass.parseDetail(rawText, 'fallback_123');
+    assert.strictEqual(parsed.id.replace(/^c_/, ''), 'fallback_123');
+    assert.strictEqual(parsed.title, 'Rust WebAssembly 开发实战');
+    assert.strictEqual(parsed.titleSource, 'rpc');
+    assert.strictEqual(parsed.messages.length, 2);
+});
