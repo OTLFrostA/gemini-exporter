@@ -408,9 +408,9 @@
                     }
 
                     if (chat.error || chat._empty) {
-                        const errMsg = chat.error || 'Empty response (云端返回内容为空且无本地离线记录)';
+                        const errMsg = chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）';
                         failedChats.push({ id: chat.id || nid, title: chat.title || nid, error: errMsg });
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || nid, errMsg) : `[${chat.title || nid}] 导出跳过: ${errMsg}`, 'warn');
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || nid, errMsg) : `[${chat.title || nid}] 导出跳过: ${errMsg}`, 'error');
                         continue;
                     }
 
