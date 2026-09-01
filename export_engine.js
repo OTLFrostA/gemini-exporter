@@ -348,8 +348,8 @@
                     chat.title = finalTitle;
                     const listTitle = finalTitle;
 
-                    const formatted = typeof chatFormatter !== 'undefined' && chatFormatter.formatContent
-                        ? chatFormatter.formatContent(chat, format)
+                    const formatted = typeof ChatFormatter !== 'undefined' && ChatFormatter.formatContent
+                        ? ChatFormatter.formatContent(chat, format)
                         : { content: JSON.stringify(chat, null, 2), ext: 'json' };
 
                     const content = formatted.content;

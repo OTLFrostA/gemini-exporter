@@ -101,11 +101,18 @@
     chrome.runtime.openOptionsPage();
   });
 
+  const ALLOWED_FORMATS = ['markdown', 'json_openai', 'json', 'json_raw'];
   chrome.storage.local.get(['gemini_export_format'], data => {
     if (data.gemini_export_format && $('format')) {
+      const v = data.gemini_export_format;
       const sel = $('format');
-      const valid = Array.from(sel.options).some(o => o.value === data.gemini_export_format);
-      if (valid) sel.value = data.gemini_export_format;
+      const valid = ALLOWED_FORMATS.includes(v) && Array.from(sel.options).some(o => o.value === v);
+      if (valid) {
+        sel.value = v;
+      } else {
+        sel.value = 'markdown';
+        chrome.storage.local.set({ gemini_export_format: 'markdown' });
+      }
     }
   });
   $('format')?.addEventListener('change', e => {
@@ -119,7 +126,8 @@
 
   // "只导当前页" button
   $('btnCurrent')?.addEventListener('click', async ()=>{
-    const format = $('format')?.value || 'markdown';
+    let format = $('format')?.value || 'markdown';
+    if (!ALLOWED_FORMATS.includes(format)) format = 'markdown';
     log(typeof I18n !== 'undefined' ? I18n.t('popupExporting') : '正在导出当前页…');
     const progWrap = $('progWrap');
     const bar = $('bar');
