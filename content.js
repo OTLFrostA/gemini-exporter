@@ -408,13 +408,6 @@
         ensureBadge();
         await refreshInitialBadge();
         await syncOnce();
-        setTimeout(async () => {
-            try {
-                if (!window.__gemExporterDeepScanPromise) {
-                    await tryBatchExecuteFull({ forceIncremental: true, maxPages: 1 });
-                }
-            } catch {}
-        }, 1500);
     }
 
     if (window.__gemExporterInterval) clearInterval(window.__gemExporterInterval);
