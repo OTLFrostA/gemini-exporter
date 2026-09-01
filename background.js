@@ -252,17 +252,23 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                 chat.id = item.id;
                 const cleanDetailTitle = cleanTitle(chat.title);
                 const cleanItemTitle = cleanTitle(item.title);
-                if (isRealTitle(cleanDetailTitle, item.id)) {
-                    chat.title = cleanDetailTitle;
-                    chat.titleSource = chat.titleSource || 'rpc';
-                } else if (isRealTitle(cleanItemTitle, item.id)) {
-                    chat.title = cleanItemTitle;
-                    chat.titleSource = item.titleSource || 'legacy';
-                }
+
                 chat.titles = { ...(item.titles || {}), ...(chat.titles || {}) };
-                if (chat.title && chat.titleSource) {
-                    chat.titles[chat.titleSource] = chat.title;
+                if (chat.titleSource && cleanDetailTitle && (isRealTitle(cleanDetailTitle, item.id) || chat.titleSource === 'takeout')) {
+                    chat.titles[chat.titleSource] = cleanDetailTitle;
+                } else if (cleanDetailTitle && isRealTitle(cleanDetailTitle, item.id)) {
+                    chat.titles.sniff = cleanDetailTitle;
                 }
+                if (item.titleSource && cleanItemTitle && (isRealTitle(cleanItemTitle, item.id) || item.titleSource === 'takeout')) {
+                    if (!chat.titles[item.titleSource]) {
+                        chat.titles[item.titleSource] = cleanItemTitle;
+                    }
+                }
+                const resolved = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
+                    ? GeminiUtils.resolveTitle(chat)
+                    : { title: cleanDetailTitle || cleanItemTitle || item.id, source: chat.titleSource || item.titleSource || 'default' };
+                chat.title = resolved.title;
+                chat.titleSource = resolved.source;
                 if (!chat.url) chat.url = item.url || `https://gemini.google.com/app/${item.id}`;
 
                 const msgCount = chat.messageCount || chat.messages?.length || 0;

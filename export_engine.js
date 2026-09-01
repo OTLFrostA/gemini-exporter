@@ -411,9 +411,8 @@
                         if (chat.titles && typeof chat.titles === 'object') {
                             Object.assign(listC.titles, chat.titles);
                         }
-                        if (isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
-                            const src = chat.titleSource || 'rpc';
-                            listC.titles[src] = cleanTitle(chat.title);
+                        if (chat.titleSource && isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
+                            listC.titles[chat.titleSource] = cleanTitle(chat.title);
                         }
                         const resolved = resolveTitle(listC);
                         if (listC.title !== resolved.title || listC.titleSource !== resolved.source) {
