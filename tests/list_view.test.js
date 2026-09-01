@@ -25,3 +25,33 @@ test('listView - export interface exists', () => {
     assert.strictEqual(typeof ListView.selectUnexported, 'function');
     assert.strictEqual(typeof ListView.selectNeedsUpdate, 'function');
 });
+
+test('listView - selectAll & deselectAll DOM simulation', () => {
+    const mockCheckboxes = [{ checked: false, dataset: { idx: '0' } }, { checked: false, dataset: { idx: '1' } }];
+    const fakeDoc = {
+        querySelectorAll: (selector) => {
+            if (selector.includes('input[type=checkbox]:checked')) return mockCheckboxes.filter(c => c.checked);
+            if (selector.includes('input[type=checkbox]')) return mockCheckboxes;
+            return [];
+        },
+        getElementById: () => null
+    };
+
+    const origDoc = globalThis.document;
+    try {
+        globalThis.document = fakeDoc;
+        const convs = [{ id: '1', title: 'A' }, { id: '2', title: 'B' }];
+        
+        ListView.selectAll(convs);
+        assert.strictEqual(mockCheckboxes[0].checked, true);
+        assert.strictEqual(mockCheckboxes[1].checked, true);
+        assert.strictEqual(ListView.getSelected(convs).length, 2);
+
+        ListView.deselectAll(convs);
+        assert.strictEqual(mockCheckboxes[0].checked, false);
+        assert.strictEqual(mockCheckboxes[1].checked, false);
+        assert.strictEqual(ListView.getSelected(convs).length, 0);
+    } finally {
+        globalThis.document = origDoc;
+    }
+});

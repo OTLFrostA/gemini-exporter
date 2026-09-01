@@ -112,8 +112,7 @@
                         id: activeId,
                         title: activeTitle,
                         url: `https://gemini.google.com/app/${activeId}`,
-                        href: `https://gemini.google.com/app/${activeId}`,
-                        timestamp: Date.now()
+                        href: `https://gemini.google.com/app/${activeId}`
                     });
                 }
             }
@@ -225,8 +224,8 @@
                         ...c,
                         id: nid,
                         title: resolvedTitle,
-                        timestamp: c.timestamp || (old && old.timestamp) || null,
-                        lastSeen: (old && old.lastSeen) || new Date(now - idx).toISOString(),
+                        timestamp: (old && old.timestamp) ? old.timestamp : (c.timestamp || null),
+                        lastSeen: (old && old.lastSeen) || (c.lastSeen || new Date(now - idx).toISOString()),
                         source: source || (old && old.source) || 'unknown',
                         accountSlot: slot
                     });

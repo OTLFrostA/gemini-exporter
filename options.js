@@ -696,7 +696,7 @@
         });
 
         // 9. Search Bar Handler
-        $('search')?.addEventListener('input', (e) => {
+        ($('chatSearchInput') || $('search'))?.addEventListener('input', (e) => {
             __chatSearchFilter = (e.target.value || '').trim();
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
@@ -708,16 +708,16 @@
             const convs = Store ? Store.getConversations() : [];
             if (List) List.selectAll(convs);
         });
-        $('btnDeselectAll')?.addEventListener('click', () => {
+        ($('btnSelectNone') || $('btnDeselectAll'))?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
             if (List) List.deselectAll(convs);
         });
-        $('btnFilterNew')?.addEventListener('click', () => {
+        ($('btnSelectUnexported') || $('btnFilterNew'))?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
             if (List) List.selectUnexported(convs, expMap);
         });
-        $('btnFilterNeedsUpdate')?.addEventListener('click', () => {
+        ($('btnSelectUpdated') || $('btnFilterNeedsUpdate'))?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
             const expMap = Store ? Store.getExportedIds() : {};
             if (List) List.selectNeedsUpdate(convs, expMap);
