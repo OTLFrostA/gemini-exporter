@@ -403,17 +403,24 @@
     }
 
     function extractConversationTitle(inner, turns) {
-        if (typeof inner[2] === "string" && inner[2].length > 0 && inner[2] !== "c_" && !inner[2].startsWith("tC")) return inner[2];
-        if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC")) return inner[1];
+        if (typeof inner[2] === "string" && inner[2].length > 0 && inner[2] !== "c_" && !inner[2].startsWith("tC")) {
+            const clean = cleanTitle(inner[2]);
+            if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+        }
+        if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC")) {
+            const clean = cleanTitle(inner[1]);
+            if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+        }
         if (Array.isArray(turns)) {
             for (let t of turns) {
                 let uText = t?.[2]?.[0]?.[0];
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
-                    return uText.slice(0, 60).trim();
+                    const clean = cleanTitle(uText.slice(0, 60).trim());
+                    if (isRealTitle(clean)) return { title: clean, source: 'sniff' };
                 }
             }
         }
-        return "Untitled Conversation";
+        return { title: "未命名对话", source: 'default' };
     }
 
     function findDocContentById(root, docId) {
@@ -725,7 +732,7 @@
                 }
             }
             if (!convId) convId = extractConversationId(inner, turns);
-            let title = extractConversationTitle(inner, turns);
+            let titleObj = extractConversationTitle(inner, turns);
             let nextToken = null;
             if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
             let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, '')}`;
@@ -769,20 +776,28 @@
                     messageCount: 1
                 };
             });
-            if (!isRealTitle(title, convId)) {
+            let cleanT = cleanTitle(titleObj.title || convId);
+            let isReal = isRealTitle(cleanT, convId);
+            let finalSource = isReal ? titleObj.source : 'default';
+            if (!isReal) {
                 let firstUser = allMsgs.find(m => m.role === 'user' && m.content && m.content.trim());
                 if (firstUser) {
-                    let candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
-                    if (isRealTitle(candidate, convId)) title = candidate;
+                    let candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
+                    if (isRealTitle(candidate, convId)) {
+                        cleanT = candidate;
+                        finalSource = 'sniff';
+                    }
                 }
             }
-            const cleanT = cleanTitle(title || convId);
-            const isReal = isRealTitle(cleanT, convId);
+            const titlesMap = {};
+            if (finalSource !== 'default' && cleanT) {
+                titlesMap[finalSource] = cleanT;
+            }
             return {
                 id: convId,
                 title: cleanT,
-                titleSource: isReal ? 'rpc' : 'default',
-                titles: { rpc: cleanT },
+                titleSource: finalSource,
+                titles: titlesMap,
                 messages: allMsgs,
                 createdAt: minTs,
                 chatTime: minTs,

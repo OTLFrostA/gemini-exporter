@@ -431,19 +431,25 @@
                         if (detailRes && detailRes.id) {
                             const nid = String(detailRes.id).replace(/^c_/, '').trim();
                             let title = cleanTitle(detailRes.title);
+                            let sourceTier = detailRes.titleSource || 'rpc';
                             if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
                                 const firstUser = detailRes.messages.find(m => m.role === 'user' && m.content && m.content.trim());
                                 if (firstUser) {
                                     const candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
-                                    if (isRealTitle(candidate, nid)) title = candidate;
+                                    if (isRealTitle(candidate, nid)) {
+                                        title = candidate;
+                                        sourceTier = 'sniff';
+                                    }
                                 }
                             }
                             if (isRealTitle(title, nid)) {
+                                const titlesObj = detailRes.titles || {};
+                                titlesObj[sourceTier] = title;
                                 await upsertConversations([{
                                     id: nid,
                                     title: title,
-                                    titleSource: 'rpc',
-                                    titles: { rpc: title },
+                                    titleSource: sourceTier,
+                                    titles: titlesObj,
                                     url: `https://gemini.google.com/app/${nid}`,
                                     href: `https://gemini.google.com/app/${nid}`,
                                     timestamp: detailRes.timestamp || Date.now()
