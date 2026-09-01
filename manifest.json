@@ -42,6 +42,7 @@
       ],
       "js": [
         "utils.js",
+        "gemini_parser.js",
         "content_cred_bootstrap.js",
         "gemini_client.js",
         "content.js"
