@@ -13,8 +13,13 @@
     }
 
     function log(msg, level = 'info') {
+        if (!msg) return;
         const t = new Date().toTimeString().slice(0, 8);
         const tag = levelTag[level] || 'I';
+        const last = buf[buf.length - 1];
+        if (last && last.msg === msg && last.level === level && last.time === t) {
+            return;
+        }
         buf.push({ time: t, level, tag, msg });
         if (buf.length > 500) buf.shift();
         render();
@@ -23,6 +28,7 @@
     function clear() { buf.length = 0; render(); }
 
     function render() {
+        if (typeof document === 'undefined') return;
         const el = _renderEl || document.getElementById('log');
         if (!el) return;
         const kw = (document.getElementById('logFilter') ? document.getElementById('logFilter').value : '').trim().toLowerCase();
