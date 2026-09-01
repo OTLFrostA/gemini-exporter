@@ -851,6 +851,8 @@
 
     return {
         ExportEngine,
-        sanitizeFileName
+        sanitizeFileName,
+        sanitizeZipPath,
+        getExtensionVersion
     };
 }));
