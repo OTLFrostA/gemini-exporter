@@ -1041,6 +1041,24 @@ async function initWorkbench() {
     });
 
     // 13. Clear Cache
+    $('btnClearExported')?.addEventListener('click', async () => {
+        const confirmMsg = typeof I18n !== 'undefined' ? I18n.t('confirmClearExported') : '确定清空已导出记录？清空后将允许重新导出全部对话。';
+        if (!confirm(confirmMsg)) return;
+        const slot = currentSlot || 'u0';
+        if (Storage && Storage.setExportedIds) {
+            await Storage.setExportedIds(slot, {});
+        } else {
+            const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+            await chrome.storage.local.remove([expKey]);
+        }
+        exportedIds = {};
+        // 保留当前选中状态仅刷新徽章
+        const currentSelected = new Set(getSelected().map(x => x.id));
+        renderList(currentSelected);
+        updateSelectedStat();
+        log('已清空已导出记录', 'info');
+    });
+
     $('btnClearAll')?.addEventListener('click', async () => {
         const confirmMsg = typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : '确定清空本地所有会话数据？';
         if (!confirm(confirmMsg)) return;
