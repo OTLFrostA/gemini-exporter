@@ -45,7 +45,7 @@
         const zh = isZh();
         const div = document.createElement('div');
         div.id = 'geminiExportBadge';
-        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${zh ? '初始化…' : 'Initializing...'}</span>`;
+        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${zh ? '检测中…' : 'Checking...'}</span>`;
         div.title = zh ? '点此打开批量导出页' : 'Click to open Export Workbench';
         div.addEventListener('click', () => {
             try {
@@ -64,8 +64,27 @@
             let convs = Storage ? await Storage.getConversations(slot) : [];
             if (convs && convs.length > 0) {
                 updateBadge(convs.length, 0);
+            } else {
+                const zh = isZh();
+                updateBadge(0, 0, zh ? '就绪 (0 条)' : 'Ready (0)');
             }
         } catch {}
+    }
+
+    async function syncOnce() {
+        try {
+            if (!Scraper || typeof Scraper.getConversationLinks !== 'function') return 0;
+            const links = Scraper.getConversationLinks();
+            if (!links || !links.length) {
+                if (typeof Scraper.tryExpandRecents === 'function') Scraper.tryExpandRecents();
+                return 0;
+            }
+            const dedup = links.filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i);
+            let mergedLen = await upsertConversations(dedup, 'dom-sync');
+            return mergedLen;
+        } catch (e) {
+            return 0;
+        }
     }
 
     function ensureBadgeAndText() {
@@ -383,6 +402,37 @@
         }
     });
 
-    ensureBadge();
+    async function autoInitSync() {
+        ensureBadge();
+        await refreshInitialBadge();
+        await syncOnce();
+        setTimeout(async () => {
+            try {
+                if (!window.__gemExporterDeepScanPromise) {
+                    await tryBatchExecuteFull({ forceIncremental: true });
+                }
+            } catch {}
+        }, 1500);
+    }
+
+    if (window.__gemExporterInterval) clearInterval(window.__gemExporterInterval);
+    window.__gemExporterInterval = setInterval(() => {
+        if (window.__gemExporterDeepScanPromise) return;
+        syncOnce();
+    }, 3000);
+
+    window.addEventListener('popstate', () => {
+        setTimeout(() => {
+            refreshInitialBadge();
+            syncOnce();
+        }, 300);
+    });
+
+    if (document.readyState !== 'loading') {
+        autoInitSync();
+    } else {
+        document.addEventListener('DOMContentLoaded', autoInitSync, { once: true });
+    }
+
     console.log('[Gemini Exporter Content Coordinator] ready');
 })();
