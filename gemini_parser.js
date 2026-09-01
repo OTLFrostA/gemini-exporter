@@ -642,47 +642,58 @@
                 }
             }
             if (!inner) throw new Error("invalid");
-            let turns = inner?.[0] || [];
-            // 兼容新版 Gemini 返回：turns 可能在 inner[1]/inner[2] 或深层嵌套，或在 top 的另一条目中
-            if (!Array.isArray(turns) || turns.length === 0) {
-                const candidates = [inner?.[1], inner?.[2], inner?.[3]];
-                for (const cand of candidates) {
-                    if (Array.isArray(cand) && cand.length > 0 && Array.isArray(cand[0])) {
-                        try {
-                            const first = cand[0];
-                            const looksLikeTurn = Array.isArray(first) && Array.isArray(first[0]) && typeof first[0][0] === 'string' && first[0][0].startsWith('c_') && (JSON.stringify(cand).includes('rc_') || JSON.stringify(cand).slice(0,500).includes('user'));
-                            if (looksLikeTurn) { turns = cand; break; }
-                        } catch {}
+            // 稳健的 turns 定位：不再依赖固定下标，全量深搜匹配 turn 结构
+            function isTurn(turn) {
+                if (!Array.isArray(turn) || turn.length < 3) return false;
+                const head = turn[0];
+                if (!Array.isArray(head) || !head[0] || typeof head[0][0] !== 'string' || !head[0][0].startsWith('c_')) return false;
+                // 需含 user 文本或 candidate rc_
+                try { const s = JSON.stringify(turn); return s.includes('rc_') || s.includes('c_d') ; } catch { return false; }
+            }
+            function isTurnsArray(arr) {
+                if (!Array.isArray(arr) || arr.length === 0) return false;
+                let cnt = 0;
+                for (const t of arr) if (isTurn(t)) cnt++;
+                return cnt >= 1 && cnt / arr.length >= 0.5;
+            }
+            function findTurnsDeep(root, depth = 0) {
+                if (!root || depth > 6) return null;
+                if (isTurnsArray(root)) return root;
+                if (Array.isArray(root)) {
+                    for (const el of root) {
+                        const found = findTurnsDeep(el, depth + 1);
+                        if (found) return found;
+                    }
+                } else if (root && typeof root === 'object') {
+                    for (const k in root) {
+                        const found = findTurnsDeep(root[k], depth + 1);
+                        if (found) return found;
                     }
                 }
+                return null;
             }
-            // 若仍空，遍历 top 的所有条目寻找 turns（批量 hNvQHb 返回 list 形态时，turns 可能在 MaZiqc 的 inner 中）
-            if ((!Array.isArray(turns) || turns.length === 0) && Array.isArray(top)) {
+            let turns = null;
+            // 优先按原协议 inner[0] 快速路径
+            if (isTurnsArray(inner?.[0])) turns = inner[0];
+            // 全量深搜 inner
+            if (!turns) turns = findTurnsDeep(inner);
+            // 再搜 top 的其他条目（hNvQHb 为 list 形态时，turns 在 MaZiqc 的 inner 中）
+            if (!turns && Array.isArray(top)) {
                 for (const item of top) {
                     if (!Array.isArray(item) || typeof item[2] !== 'string') continue;
-                    if (item[1] === 'hNvQHb' && item[2] === innerStr) continue; // 已尝试
+                    if (item[2] === innerStr) continue;
                     try {
                         const altInner = JSON.parse(item[2]);
-                        const altTurns = altInner?.[0];
-                        if (Array.isArray(altTurns) && altTurns.length && Array.isArray(altTurns[0]) && Array.isArray(altTurns[0][0]) && String(altTurns[0][0][0]||'').startsWith('c_')) {
-                            turns = altTurns;
-                            inner = altInner; // 切换为含 turns 的 inner
-                            break;
-                        }
+                        const altTurns = findTurnsDeep(altInner);
+                        if (altTurns) { turns = altTurns; inner = altInner; break; }
                     } catch {}
                 }
-            }
-            // 深层搜索兜底
-            if ((!Array.isArray(turns) || turns.length === 0) && Array.isArray(inner)) {
-                for (const elem of inner) {
-                    if (Array.isArray(elem) && elem.length > 2 && Array.isArray(elem[0]) && typeof elem[0][0] === 'string' && elem[0][0].startsWith('c_')) {
-                        if (Array.isArray(elem[2]) || Array.isArray(elem[3])) {
-                            turns = elem;
-                            break;
-                        }
-                    }
+                if (!turns) {
+                    const topTurns = findTurnsDeep(top);
+                    if (topTurns) turns = topTurns;
                 }
             }
+            if (!turns) turns = [];
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
             let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
