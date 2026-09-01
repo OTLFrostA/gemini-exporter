@@ -507,7 +507,7 @@ async function exportFullBackup() {
         const allData = await chrome.storage.local.get(null);
         const jsonStr = JSON.stringify({
             exportedAt: new Date().toISOString(),
-            version: '1.2.5',
+            version: '1.3.0',
             data: allData
         }, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });

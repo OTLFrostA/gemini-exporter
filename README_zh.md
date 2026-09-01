@@ -30,6 +30,8 @@
 - 🖼️ **完整支持图片与文件附件下载**：
   - 自动嗅探并下载对话中的用户上传附件（PDF、DOCX、ZIP 等）以及 AI 生成图片（高清晰度源图）。
   - 图片与附件自动规整至 `assets/` 资源目录并于 Markdown 中建立相对引用。
+- 👥 **多账号便捷切换 (Multi-Account)**：
+  - 完美支持同时登录多个 Google 账号（`u0`, `u1`, `u2` 等），支持按账号插槽独立隔离存储、会话索引与导出状态记录。
 - 📥 **Google Takeout 深度联动与远古对话找回 (Takeout ZIP Import)**：
   - 支持直接导入 Google Takeout 导出的 `takeout-*.zip`，利用本地 JSZip 沙盒秒级解析 `MyActivity.html`，找回云端侧边栏分页截断而无法扫到的远古历史对话。
   - **离线媒体智能兜底池**：自动索引 ZIP 内的所有图片与附件，当云端 API 附件下载遇到 Token 过期或 403 时，自动回退到 Takeout 离线池无损补全！
@@ -79,30 +81,47 @@
 1. 在弹窗中点击 **“去工作台选 批量导出”**（或直接右键插件图标选择“选项”）。
 2. 在工作台中：
    - 点击 **“同步最新会话”**（快速增量同步）或 **“全量拉取历史”**（地毯式扫描所有历史），自动汇总左侧所有历史对话。
-   - 勾选你需要导出的对话（支持“全选”、“只选未导出”、“只选已更新”）。
+   - 勾选你需要导出的对话（支持“全选”、“只选未导出”、“只选已更新”，以及搜索栏实时过滤）。
    - 按需配置导出选项：是否下载附件、是否打包为单个 ZIP、目标本地文件夹等。
    - 点击 **“导出选中 → ZIP”**（或文件夹），静候浏览器自动批量保存文件。
 
 ---
 
-## 🛡️ 架构与安全性 (Architecture & Security)
+## 🛡️ 架构与核心模块 (Architecture & Core Modules)
 
-### 工作原理
+本插件采用严格的高内聚低耦合模块化架构，零外部遥测与数据上报：
+
 ```
-[ Gemini Web (gemini.google.com) ]
-         │ (Hook Credentials & Session Sniffing)
-         ▼
-[ Content Script / Bootstrap ]
-         │ (Page-Context Safe Messaging)
-         ▼
-[ Background Service Worker ]
-         │ (Native batchexecute RPCs)
-         ▼
-[ Options Workbench UI / Local Storage / JSZip ]
-         │ (File Generation & Native DOM / FileSystem API)
-         ▼
-[ 本地磁盘保存 (Markdown + Assets ZIP) ]
+┌─────────────────────────────────────────────────────────────┐
+│                   工作台 UI 控制层 (Workbench)                │
+│             (options.js, options-popup.js)                  │
+└──────────────┬───────────────────────────────┬──────────────┘
+               │                               │
+               ▼                               ▼
+┌──────────────────────────────┐ ┌────────────────────────────┐
+│      导出引擎 (ZIP / FS)     │ │   Takeout 离线媒体池引擎   │
+│       (export_engine.js)     │ │     (takeout_engine.js)    │
+└──────────────┬───────────────┘ └─────────────┬──────────────┘
+               │                               │
+               ▼                               ▼
+┌──────────────────────────────┐ ┌────────────────────────────┐
+│   纯数据解析库 (0网络/0DOM)  │ │   统一多账号存储层 (Storage)│
+│       (gemini_parser.js)     │ │     (storage_service.js)   │
+└──────────────┬───────────────┘ └─────────────┬──────────────┘
+               │                               │
+               ▼                               ▼
+┌──────────────────────────────┐ ┌────────────────────────────┐
+│   宿主受权资源抓取器 (Blob)  │ │     Gemini API 客户端 (RPC) │
+│       (asset_fetcher.js)     │ │      (gemini_client.js)    │
+└──────────────────────────────┘ └────────────────────────────┘
 ```
+
+- **`gemini_parser.js`**：纯数据转换库，无浏览器或网络依赖，可独立运行于 Node/CI 测试环境。
+- **`storage_service.js`**：统一多账号存储层，集中管理多账号（`u0`, `u1`, `u2`）数据键、同步时间戳与导出标记。
+- **`export_engine.js`**：批量并发抓取调度、JSZip 打包与 FileSystem Access API 磁盘文件流写入。
+- **`takeout_engine.js`**：Google Takeout 压缩包本地解析与离线媒体哈希兜底匹配。
+- **`asset_fetcher.js`**：在宿主页面安全上下文下抓取受鉴权保护的图片与附件。
+- **`dom_scraper.js`**：提供当 RPC 降级时的 DOM HTML 解析与侧边栏历史滚动。
 
 - **凭据捕获**：通过主世界（MAIN world）轻量拦截原生网络请求中携带的防 CSRF 标记（`at`）与会话 ID（`f.sid`），规避 Cookie 泄露。
 - **本地落盘**：所有对话内容与二进制图片均在本地浏览器中由 JSZip 和现代 Web API 直接保存，0 过度权限，不经过任何中转后端。
