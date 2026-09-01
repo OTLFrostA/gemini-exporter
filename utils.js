@@ -23,7 +23,8 @@
             if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
             if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;
         }
-        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return false;
         if (/^(Google Account|Sign in|Sign-in|Sign in with Google|登录|重新登录)/i.test(t)) return false;
         if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
         if (/^[0-9a-f]{16}$/i.test(t) || /^c_[0-9a-f]{16}$/i.test(t)) return false;
@@ -65,17 +66,21 @@
     /**
      * Clean conversation title by removing brand suffixes and prefixes
      * (e.g., " - Google Gemini", " - Gemini", " | Google Gemini", "Gemini - ").
+     * If the title is simply the brand name alone (e.g., "Google Gemini"), returns empty string.
      * @param {string} rawTitle - The raw title string
      * @returns {string} The cleaned title string
      */
     function cleanTitle(rawTitle) {
         if (!rawTitle || typeof rawTitle !== 'string') return '';
         let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
         // Remove trailing branding suffixes like " - Google Gemini", " - Gemini", " | Google AI", " · Gemini"
         t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
         // Remove leading branding prefixes like "Google Gemini - ", "Gemini - "
         t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-        return t.trim();
+        t = t.trim();
+        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
+        return t;
     }
 
     // Export for different module systems
