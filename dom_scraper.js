@@ -172,11 +172,16 @@
         if (!html || html.length < 200) {
             console.warn('[Gemini Exporter][DOM] fetch html too short', id, html?.length, html?.slice(0,200));
         }
+        // 检测 fetch 返回的是 JS 空壳而非 HTML 文档
+        const isJsShell = html.trim().startsWith('(function') || (html.includes('chrome-context-v39') && !html.includes('user-query') && !html.includes('<html'));
+        if (isJsShell) {
+            console.warn('[Gemini Exporter][DOM] fetch returned JS shell not HTML', id, 'html_len', html.length);
+        }
         // 若 fetch 的是 SPA 空壳（不含 user-query），尝试直接解析当前 document 作为兜底
         let doc = new DOMParser().parseFromString(html, 'text/html');
         let parsed = parseDoc(doc, id, url);
         if (!parsed.messages.length) {
-            console.warn('[Gemini Exporter][DOM] contentFetchChatDetail fetch parse empty', id, 'html_len', html.length, '_debug', parsed._debug);
+            console.warn('[Gemini Exporter][DOM] contentFetchChatDetail fetch parse empty', id, 'html_len', html.length, 'isJsShell', isJsShell, '_debug', parsed._debug);
             try {
                 const liveFallback = parseDoc(document, id, location.href);
                 if (liveFallback.messages.length) {

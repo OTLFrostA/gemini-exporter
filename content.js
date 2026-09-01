@@ -573,6 +573,7 @@
                     }
                 }
 
+                let batchexecuteEmptyDebug = null;
                 try {
                     let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
                     if (C) {
@@ -582,11 +583,15 @@
                             await persistDetailTitle(detail);
                             sendResponse({ success: true, data: detail, source: 'batchexecute' });
                             return;
-                        } else if (detail && detail._raw) {
-                            console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, 'raw keys', Object.keys(detail._raw || {}), 'messages', detail.messages?.length);
+                        } else if (detail) {
+                            const rawKeys = detail._raw ? Object.keys(detail._raw) : [];
+                            const rawPreview = detail._raw ? JSON.stringify(detail._raw).slice(0, 600) : '';
+                            batchexecuteEmptyDebug = { rawKeys, rawPreview, messagesLen: detail.messages?.length, hasRaw: !!detail._raw };
+                            console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
                         }
                     }
                 } catch (e) {
+                    batchexecuteEmptyDebug = { error: e.message };
                     console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e.message);
                 }
                 try {
@@ -598,13 +603,15 @@
                             return;
                         } else {
                             console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
-                            // 仍返回，让上游标记为 _empty 并携带调试信息
-                            sendResponse({ success: true, data: { ...chat, _empty: true, error: chat?.error || 'DOM 返回内容为空', _debug_dom_empty: true }, source: 'dom' });
+                            // 合并 batchexecute 与 DOM 的诊断，一并返回给 background
+                            const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null };
+                            sendResponse({ success: true, data: { ...chat, _empty: true, error: chat?.error || 'DOM 返回内容为空', _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
                             return;
                         }
                     }
                 } catch (e) {
-                    sendResponse({ success: false, error: e.message || String(e) });
+                    const mergedDebug = { batchexecuteEmptyDebug, domError: e.message };
+                    sendResponse({ success: false, error: e.message || String(e), _debug: mergedDebug });
                 }
             })();
             return true;
