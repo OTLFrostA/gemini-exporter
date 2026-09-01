@@ -223,6 +223,11 @@
 
     async function tryBatchExecuteFull(forceOpts) {
         if (window.__gemExporterDeepScanPromise) return null;
+
+        // 防重入：将本次执行的 Promise 赋给全局标志位，finally 中清除
+        let _resolve;
+        window.__gemExporterDeepScanPromise = new Promise(r => { _resolve = r; });
+
         try {
             let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
             if (!C) return null;
@@ -292,6 +297,9 @@
             }
         } catch (e) {
             console.debug('[Gemini Exporter] batch exec fail', e.message || e);
+        } finally {
+            window.__gemExporterDeepScanPromise = null;
+            if (_resolve) _resolve();
         }
         return null;
     }

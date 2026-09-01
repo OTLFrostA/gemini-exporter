@@ -23,23 +23,29 @@ function $(id) {
     return document.getElementById(id);
 }
 
-const isRealTitle = (typeof globalThis.isRealTitle === 'function')
-    ? globalThis.isRealTitle
-    : function isRealTitle(title, id) {
-        if (!title || typeof title !== 'string') return false;
-        let t = title.trim();
-        if (t.length < 2) return false;
-        if (id) {
-            let cleanId = String(id).replace(/^c_/, '').trim();
-            let cleanT = t.replace(/^c_/, '').trim();
-            if (cleanT === cleanId) return false;
-            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-        }
-        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-        if (/^Google Account/i.test(t)) return false;
-        if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
-        return true;
-    };
+const isRealTitle = (typeof globalThis.GeminiUtils !== 'undefined' && typeof globalThis.GeminiUtils.isRealTitle === 'function')
+    ? globalThis.GeminiUtils.isRealTitle
+    : (typeof globalThis.isRealTitle === 'function')
+        ? globalThis.isRealTitle
+        : function isRealTitle(title, id) {
+            if (!title || typeof title !== 'string') return false;
+            let t = title.trim();
+            if (!t || t.length < 2) return false;
+            if (t === 'Untitled' || t === '未命名' || t === 'New chat' || t === '新对话') return false;
+            if (id) {
+                let cleanId = String(id).replace(/^c_/, '').trim();
+                let cleanT = t.replace(/^c_/, '').trim();
+                if (cleanT === cleanId) return false;
+                if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+                if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;
+            }
+            if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
+            if (/^Google Account/i.test(t)) return false;
+            if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+            if (/^[0-9a-f]{16}$/i.test(t) || /^c_[0-9a-f]{16}$/i.test(t)) return false;
+            if (/^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(t)) return false;
+            return true;
+        };
 
 function setExportRunning(running) {
     __exportRunning = !!running;

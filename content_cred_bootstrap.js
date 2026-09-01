@@ -98,7 +98,7 @@ async function ensureCreds() {
                 sid: fakeSid,
                 accountSlot: slot,
                 lastUsed: Date.now(),
-                bl: blFromPage || "boq_assistant-bard-web-server_20260202.09_p1"
+                bl: blFromPage || "boq_assistant-bard-web-server_20260802.09_p1"
             };
             await chrome.storage.local.set({
                 gemini_credentials_map: map,
@@ -180,7 +180,7 @@ window.addEventListener('message', async (e) => {
                 sid,
                 accountSlot: slot || old.accountSlot || "default",
                 lastUsed: Date.now(),
-                bl: old.bl || extractBlFromPage() || "boq_assistant-bard-web-server_20260202.09_p1"
+                bl: old.bl || extractBlFromPage() || "boq_assistant-bard-web-server_20260802.09_p1"
             };
             await chrome.storage.local.set({
                 gemini_credentials_map: map,
