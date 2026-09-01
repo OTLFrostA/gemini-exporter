@@ -1,0 +1,135 @@
+// src/ui/views/listView.js - List rendering, no storage
+(function(root, factory) {
+    if (typeof module === 'object' && module.exports) module.exports = factory();
+    else root.ListView = factory();
+}(typeof self !== 'undefined' ? self : this, function() {
+    'use strict';
+    function $(id){ return document.getElementById(id); }
+
+    const isRealTitle = (typeof globalThis.GeminiUtils !== 'undefined' && typeof globalThis.GeminiUtils.isRealTitle === 'function')
+        ? globalThis.GeminiUtils.isRealTitle
+        : (typeof globalThis.isRealTitle === 'function' ? globalThis.isRealTitle : (title,id)=>{
+            if (!title || typeof title !== 'string') return false;
+            let t = title.trim(); if (t.length<2) return false;
+            if (id) { let cid=String(id).replace(/^c_/,'').trim(); let ct=t.replace(/^c_/,'').trim(); if(ct===cid) return false; }
+            if (/^(未命名对话|Untitled)/i.test(t)) return false;
+            if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
+            return true;
+        });
+
+    function render(conversations, exportedIds, prevSelectedSet, searchFilter) {
+        const list = $('list');
+        if (!list) return;
+        if (!conversations.length) {
+            list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n!=='undefined'?I18n.t('emptyList'):'No conversations found.'}</div>`;
+            return;
+        }
+        const q = (searchFilter||'').trim().toLowerCase();
+        const filtered = q ? conversations.filter(c=> (c.title||'').toLowerCase().includes(q) || String(c.id||'').toLowerCase().includes(q)) : conversations;
+        if (!filtered.length) {
+            list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n!=='undefined'?I18n.t('emptyList'):'No matching conversations found.'}</div>`;
+            return;
+        }
+        const bNeedsReexport = typeof I18n!=='undefined'?I18n.t('badgeNeedsReexport'):'Needs re-export';
+        const bExported = typeof I18n!=='undefined'?I18n.t('badgeExported'):'Exported';
+        const bNew = typeof I18n!=='undefined'?I18n.t('badgeNew'):'New';
+
+        function getRec(id){
+            if (!exportedIds) return null;
+            const nid = String(id||'').replace(/^c_/,'');
+            return exportedIds[id] || exportedIds['c_'+nid] || exportedIds[nid] || null;
+        }
+
+        list.innerHTML = filtered.map(c=>{
+            const origIdx = conversations.indexOf(c);
+            const nid = String(c.id||'').replace(/^c_/,'');
+            const rec = getRec(c.id);
+            const isExported = !!rec;
+            let isUpdated=false;
+            if(rec){
+                try{
+                    let cTs=typeof c.timestamp==='string'?new Date(c.timestamp).getTime():c.timestamp;
+                    let rTs=typeof rec.exportedAt==='string'?new Date(rec.exportedAt).getTime():rec.exportedAt;
+                    if(cTs&&rTs&&cTs>rTs+60000) isUpdated=true;
+                }catch{}
+            }
+            const safeTitle=(c.title||'').replace(/</g,'&lt;');
+            let checked=true;
+            if(prevSelectedSet instanceof Set) checked = prevSelectedSet.has(c.id)||prevSelectedSet.has(nid)||prevSelectedSet.has('c_'+nid);
+            let badge='';
+            if(isUpdated) badge=`<span class="badge" style="background:#3a2f1d;border-color:#5a4a2a;color:#f0c87a">${bNeedsReexport}</span>`;
+            else if(isExported) badge=`<span class="badge" style="background:#1d3a2a;border-color:#2a5a3a;color:#8ae6b0">${bExported}</span>`;
+            else badge=`<span class="badge" style="background:#181a29;border-color:#282c44;color:#a5b4fc">${bNew}</span>`;
+            let rawTs=c.timestamp; if(typeof rawTs==='string') rawTs=new Date(rawTs).getTime();
+            const dateStr=rawTs?new Date(rawTs).toLocaleDateString():'-';
+            return `<label class="item" data-chat-id="${nid}"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank" onclick="event.stopPropagation()">Open</a> | ${dateStr}</div></div></label>`;
+        }).join('');
+        list.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change', updateStat.bind(null, conversations)));
+    }
+
+    function updateStat(conversations) {
+        if (typeof document === 'undefined') return;
+        const checks = [...document.querySelectorAll('#list input[type=checkbox]:checked')];
+        const total = (conversations || []).length;
+        const selEl = $('selectedStat');
+        if (selEl) selEl.textContent = typeof I18n !== 'undefined' ? I18n.t('selectedStat', checks.length, total) : `Selected: ${checks.length} / ${total}`;
+    }
+
+    function getSelected(conversations) {
+        if (typeof document === 'undefined') return [];
+        const checks = document.querySelectorAll('#list input[type=checkbox]:checked');
+        return Array.from(checks).map(cb => (conversations || [])[parseInt(cb.dataset.idx)]).filter(Boolean);
+    }
+
+    function selectAll(conversations) {
+        if (typeof document === 'undefined') return;
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => { cb.checked = true; });
+        updateStat(conversations);
+    }
+
+    function deselectAll(conversations) {
+        if (typeof document === 'undefined') return;
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => { cb.checked = false; });
+        updateStat(conversations);
+    }
+
+    function selectUnexported(conversations, exportedIds) {
+        if (typeof document === 'undefined') return;
+        const convList = conversations || [];
+        const expMap = exportedIds || {};
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+            const idx = parseInt(cb.dataset.idx);
+            const c = convList[idx];
+            if (!c) { cb.checked = false; return; }
+            const nid = String(c.id || '').replace(/^c_/, '');
+            const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+            cb.checked = !rec;
+        });
+        updateStat(conversations);
+    }
+
+    function selectNeedsUpdate(conversations, exportedIds) {
+        if (typeof document === 'undefined') return;
+        const convList = conversations || [];
+        const expMap = exportedIds || {};
+        document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+            const idx = parseInt(cb.dataset.idx);
+            const c = convList[idx];
+            if (!c) { cb.checked = false; return; }
+            const nid = String(c.id || '').replace(/^c_/, '');
+            const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+            let needsUpdate = false;
+            if (rec) {
+                try {
+                    let cTs = typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : c.timestamp;
+                    let rTs = typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : rec.exportedAt;
+                    if (cTs && rTs && cTs > rTs + 60000) needsUpdate = true;
+                } catch {}
+            }
+            cb.checked = needsUpdate;
+        });
+        updateStat(conversations);
+    }
+
+    return { render, updateStat, getSelected, selectAll, deselectAll, selectUnexported, selectNeedsUpdate, isRealTitle };
+}));

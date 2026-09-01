@@ -106,19 +106,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 
-    if (msg.action === 'scanProgress') {
-        chrome.runtime.sendMessage(msg).catch(() => {});
-        return;
-    }
-
-    if (msg.action === 'syncUpdate') {
-        chrome.runtime.sendMessage({
-            action: 'syncUpdate',
-            slot: msg.slot,
-            count: msg.count,
-            newCount: msg.newCount || msg.count,
-            from: msg.from || 'dom'
-        }).catch(() => {});
+    if (msg.action === 'scanProgress' || msg.action === 'syncUpdate') {
+        // In MV3, chrome.runtime.sendMessage from content script is already delivered directly to all extension pages.
+        // Re-broadcasting here causes duplicate message delivery and duplicate log entries.
         return;
     }
 });
