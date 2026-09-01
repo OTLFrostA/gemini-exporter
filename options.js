@@ -332,7 +332,9 @@ async function requestDirHandle(silent = false) {
 async function exportSelected() {
     const selected = getSelected();
     if (!selected.length) {
-        alert(typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!');
+        const noSelMsg = typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!';
+        log(noSelMsg, 'warn');
+        if ($('progText')) $('progText').textContent = noSelMsg;
         return;
     }
     const format = $('format').value;
@@ -433,10 +435,10 @@ async function exportSelected() {
             ? I18n.t('exportFinished', result.landedChats, result.failedChats.length, selected.length)
             : `Export completed! Landed: ${result.landedChats}, Failed: ${result.failedChats.length}`;
         log(finishMsg, result.failedChats.length ? 'warn' : 'info');
-        alert(finishMsg);
+        if ($('progText')) $('progText').textContent = finishMsg;
     } catch (err) {
         log(`导出过程异常中断: ${err.message}`, 'error');
-        alert(`导出失败: ${err.message}`);
+        if ($('progText')) $('progText').textContent = `导出失败: ${err.message}`;
     } finally {
         setExportRunning(false);
         __activeExportEngine = null;
@@ -449,7 +451,7 @@ async function exportSelected() {
 // ==========================================
 async function parseTakeoutZip(file) {
     if (typeof TakeoutEngine === 'undefined') {
-        alert('TakeoutEngine 模块未加载');
+        log('TakeoutEngine 模块未加载', 'error');
         return;
     }
     $('progWrap').style.display = 'block';
@@ -489,11 +491,11 @@ async function parseTakeoutZip(file) {
 
         const successMsg = `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
         log(successMsg, 'info');
-        alert(successMsg);
+        if ($('progText')) $('progText').textContent = successMsg;
         loadStore();
     } catch (err) {
         log(`Takeout 导入失败: ${err.message}`, 'error');
-        alert(`Takeout 导入失败: ${err.message}`);
+        if ($('progText')) $('progText').textContent = `Takeout 导入失败: ${err.message}`;
     } finally {
         $('progWrap').style.display = 'none';
     }
@@ -517,8 +519,9 @@ async function exportFullBackup() {
         a.download = `gemini_exporter_backup_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 10000);
+        log('备份文件已生成并开始下载', 'info');
     } catch (e) {
-        alert(`备份失败: ${e.message}`);
+        log(`备份失败: ${e.message}`, 'error');
     }
 }
 
@@ -529,7 +532,8 @@ async function restoreFullBackup(file) {
         const targetData = payload.data || payload;
 
         if (!targetData || (!targetData.gemini_conversations && !targetData.gemini_conversations_u0 && !targetData.exportedIds)) {
-            alert('无效的备份文件格式！');
+            log('无效的备份文件格式！', 'error');
+            if ($('progText')) $('progText').textContent = '无效的备份文件格式！';
             return;
         }
 
@@ -546,17 +550,19 @@ async function restoreFullBackup(file) {
         });
 
         const restoredCount = (targetData.gemini_conversations || targetData.gemini_conversations_u0 || []).length;
-        alert(`恢复成功！共导入 ${restoredCount} 条会话。`);
+        log(`恢复成功！共导入 ${restoredCount} 条会话。`, 'info');
         location.reload();
     } catch (err) {
-        alert(`恢复失败: ${err.message}`);
+        log(`恢复失败: ${err.message}`, 'error');
     }
 }
 
 function exportListJson() {
     const sel = getSelected();
     if (!sel.length) {
-        alert(typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!');
+        const noSelMsg = typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!';
+        log(noSelMsg, 'warn');
+        if ($('progText')) $('progText').textContent = noSelMsg;
         return;
     }
     const content = JSON.stringify(sel, null, 2);
@@ -567,6 +573,7 @@ function exportListJson() {
     a.download = `gemini_list_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
+    log('已导出选中会话列表为 JSON', 'info');
 }
 
 async function exportDiagnostics() {
@@ -574,7 +581,8 @@ async function exportDiagnostics() {
         const d = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
         const diag = d.gemini_last_sync_diagnostics;
         if (!diag) {
-            alert(typeof I18n !== 'undefined' ? I18n.t('noDiagData') : 'No diagnostic data yet.');
+            const noDataMsg = typeof I18n !== 'undefined' ? I18n.t('noDiagData') : 'No diagnostic data yet.';
+            log(noDataMsg, 'info');
             return;
         }
         const jsonStr = JSON.stringify(diag, null, 2);
@@ -585,8 +593,9 @@ async function exportDiagnostics() {
         a.download = `gemini_diagnostics_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 3000);
+        log('已生成诊断数据文件', 'info');
     } catch (e) {
-        alert('导出诊断失败: ' + e.message);
+        log('导出诊断失败: ' + e.message, 'error');
     }
 }
 
