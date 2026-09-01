@@ -81,9 +81,30 @@
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip 库未加载，无法解析 ZIP');
         }
+        // ZipBomb 防护：单文件体积与条目数上限
+        const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB
+        const MAX_ENTRY_COUNT = 10000;
+        const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB 估算
+        if (file && typeof file.size === 'number' && file.size > MAX_ZIP_SIZE) {
+            throw new Error(`Takeout ZIP 体积过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，超过 ${MAX_ZIP_SIZE / 1024 / 1024}MB 上限，请确认是否为完整 Takeout 归档`);
+        }
         if (onProgress) onProgress(15, '正在解压 Takeout 压缩包...');
 
         const zip = await JSZip.loadAsync(file);
+        const entryCount = Object.keys(zip.files).length;
+        if (entryCount > MAX_ENTRY_COUNT) {
+            throw new Error(`ZIP 条目数过多 (${entryCount})，超过 ${MAX_ENTRY_COUNT} 上限，疑似 ZipBomb，已中止`);
+        }
+        // 估算未压缩体积（JSZip 内部 _data 未压缩长度）
+        let approxUncompressed = 0;
+        for (const f of Object.values(zip.files)) {
+            if (!f.dir && f._data && typeof f._data.uncompressedSize === 'number') {
+                approxUncompressed += f._data.uncompressedSize;
+                if (approxUncompressed > MAX_TOTAL_UNCOMPRESSED) {
+                    throw new Error(`ZIP 未压缩体积估算超过 1GB，已中止以防 OOM`);
+                }
+            }
+        }
         if (onProgress) onProgress(40, '正在检索 Gemini / Bard 活动记录...');
 
         let activityFile = null;
@@ -164,11 +185,16 @@
             } else if (timeMatchZh) {
                 let rawZh = timeMatchZh[1];
                 let isPm = rawZh.includes('下午');
-                let cleanZh = rawZh.replace(/[年月日上下]/g, (m) => m === '年' || m === '月' ? '-' : (m === '日' ? ' ' : ''))
+                let isAm = rawZh.includes('上午');
+                // 移除 上午/下午标记后再解析，避免重复+12h导致次日错误
+                let cleanZh = rawZh.replace(/上午|下午/g, '').replace(/[年月日]/g, (m) => m === '年' || m === '月' ? '-' : ' ')
                                    .replace(/[\u202f\xa0]/g, ' ').replace(/\s+/g, ' ').trim();
                 let dt = new Date(cleanZh);
                 if (!isNaN(dt.getTime())) {
-                    ts = dt.getTime() + (isPm ? 12 * 3600 * 1000 : 0);
+                    let h = dt.getHours();
+                    if (isPm && h < 12) dt.setHours(h + 12);
+                    else if (isAm && h === 12) dt.setHours(0);
+                    ts = dt.getTime();
                 }
             } else if (timeMatchIso) {
                 let dt = new Date(timeMatchIso[1].replace(/[\u202f\xa0]/g, ' '));
