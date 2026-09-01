@@ -133,6 +133,13 @@
             this.aborted = true;
             try { this._abortController && this._abortController.abort(); } catch {}
             try {
+                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                    chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
+                        if (chrome.runtime.lastError) {}
+                    });
+                }
+            } catch {}
+            try {
                 chrome.storage.local.get(['gemini_last_export_session'], (data) => {
                     if (data?.gemini_last_export_session) {
                         chrome.storage.local.set({
@@ -351,6 +358,17 @@
                 }
 
                 let res = await new Promise(resolve => {
+                    let settled = false;
+                    const onAbort = () => {
+                        if (!settled) {
+                            settled = true;
+                            resolve({ success: false, error: 'aborted' });
+                        }
+                    };
+                    if (abortSignal) {
+                        if (abortSignal.aborted) return onAbort();
+                        abortSignal.addEventListener('abort', onAbort, { once: true });
+                    }
                     chrome.runtime.sendMessage({
                         action: 'fetchBatch',
                         ids: chunk,
@@ -360,10 +378,14 @@
                         globalTotal: payloadIds.length,
                         accountSlot: currentSlot
                     }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            resolve({ success: false, error: chrome.runtime.lastError.message });
-                        } else {
-                            resolve(response);
+                        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                        if (!settled) {
+                            settled = true;
+                            if (chrome.runtime.lastError) {
+                                resolve({ success: false, error: chrome.runtime.lastError.message });
+                            } else {
+                                resolve(response);
+                            }
                         }
                     });
                 });
@@ -549,32 +571,31 @@
 
                     if (includeAssets && chat.messages && writeOk) {
                         for (const m of chat.messages) {
-                            if (!m.attachments) continue;
-
-                            for (const att of m.attachments) {
-                                if (att.type !== 'file') continue;
-                                if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
-                                if (att.contentMarkdown) {
-                                    if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
-                                        continue;
-                                    }
-                                    if (useZip) {
-                                        try {
-                                            folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
-                                            downloadedAssets++;
-                                            updateProgress();
-                                        } catch {}
-                                    } else {
-                                        attachmentQueue.push(async () => {
-                                            const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
-                                            if (ok) {
+                            if (m.attachments && m.attachments.length) {
+                                for (const att of m.attachments) {
+                                    if (att.type !== 'file') continue;
+                                    if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
+                                    if (att.contentMarkdown) {
+                                        if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
+                                            continue;
+                                        }
+                                        if (useZip) {
+                                            try {
+                                                folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
                                                 downloadedAssets++;
                                                 updateProgress();
-                                            }
-                                        });
+                                            } catch {}
+                                        } else {
+                                            attachmentQueue.push(async () => {
+                                                const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
+                                                if (ok) {
+                                                    downloadedAssets++;
+                                                    updateProgress();
+                                                }
+                                            });
+                                        }
+                                        continue;
                                     }
-                                    continue;
-                                }
 
                                 attachmentQueue.push(async () => {
                                     let saved = false;
@@ -645,8 +666,9 @@
                                     }
                                 });
                             }
+                        }
 
-                            if (m.images && m.images.length) {
+                        if (m.images && m.images.length) {
                                 for (const img of m.images) {
                                     attachmentQueue.push(async () => {
                                         let saved = false;

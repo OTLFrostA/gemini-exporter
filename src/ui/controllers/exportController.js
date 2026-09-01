@@ -61,6 +61,13 @@
 
     function abort() {
         if (activeEngine) activeEngine.abort();
+        try {
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
+                    if (chrome.runtime.lastError) {}
+                });
+            }
+        } catch {}
     }
 
     return { setRunning, isRunning, getActiveEngine, runExport, abort };

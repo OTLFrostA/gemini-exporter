@@ -735,13 +735,19 @@
             let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
             let msgs = [];
             let dedupSet = new Set();
+            let docDedupSet = new Set();
             let imageSeq = { value: 1 };
             let rev = [...turns].reverse();
             for (let turn of rev) {
                 let ts = extractTurnTimestamp(turn) || Date.now();
                 let uText = turn?.[2]?.[0]?.[0] || "";
                 let uImgs = filterNewImages(extractImages(turn?.[2], imageSeq), dedupSet);
-                let uFiles = extractUserFiles(turn?.[2]);
+                let uFiles = extractUserFiles(turn?.[2]).filter(f => {
+                    let key = f.id || f.sourceUrl || f.fileName;
+                    if (!key || docDedupSet.has(key)) return false;
+                    docDedupSet.add(key);
+                    return true;
+                });
                 if (uText || uImgs.length || uFiles.length) {
                     msgs.push({
                         id: turn?.[0]?.[0] || "",
@@ -804,15 +810,16 @@
                         let candImages = extractImages(candidateBlock, imageSeq);
                         let filteredImages = filterNewImages(candImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
-                        if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);
-                        let seenChip = new Set();
+                        if (!docsMeta.length && !docDedupSet.size) {
+                            docsMeta = extractDocumentsMeta(inner);
+                        }
                         let docs = docsMeta.filter(docItem => {
-                            let key = docItem.chipUrl || docItem.id;
-                            if (seenChip.has(key)) return false;
+                            let key = docItem.id || docItem.chipUrl;
+                            if (!key || docDedupSet.has(key)) return false;
                             let isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
                             let isHttp = docItem.id.includes("immersive_entry_chip") || docItem.id.startsWith("http");
                             if (!isRc && isHttp) return false;
-                            seenChip.add(key);
+                            docDedupSet.add(key);
                             return true;
                         });
                         let docDetails = [];
