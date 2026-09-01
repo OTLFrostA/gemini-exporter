@@ -799,15 +799,17 @@ async function exportSelected() {
 
             totalAssets += chat.attachmentCount || 0;
             const listC = conversations.find(c => normId(c.id) === nid) || null;
-            let finalTitle = chat.title || chat.id;
-            if (isRealTitle(listC?.title, chat.id)) {
-                finalTitle = listC.title;
-            } else if (isRealTitle(chat.title, chat.id)) {
+            let finalTitle = chat.title || listC?.title || chat.id;
+
+            // 🎯 优先采用云端取回的高质量真实标题，并更新本地列表与持久化缓存
+            if (isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
                 finalTitle = chat.title;
-                if (listC) {
+                if (listC && listC.title !== finalTitle) {
                     listC.title = finalTitle;
                     convsNeedSave = true;
                 }
+            } else if (isRealTitle(listC?.title, chat.id)) {
+                finalTitle = listC.title;
             }
             chat.title = finalTitle;
             const listTitle = finalTitle;
