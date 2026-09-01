@@ -644,7 +644,7 @@
                                         localName: `files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
                                         type: "file"
                                     };
-                                }).filter(Boolean);
+                                }).filter(d => Boolean(d && (d.contentMarkdown || (d.url && !d.url.includes('immersive_entry_chip')))));
                             } catch (er) {
                                 console.warn("doc parse err", er);
                             }
