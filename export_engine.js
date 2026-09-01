@@ -324,7 +324,7 @@
             const CHUNK_SIZE = 1;
             for (let i = 0; i < payloadIds.length; i += CHUNK_SIZE) {
                 if (this.aborted || (abortSignal && abortSignal.aborted)) {
-                    onLog('已终止导出', 'warn');
+                    onLog(typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '已终止导出', 'warn');
                     break;
                 }
                 let chunk = payloadIds.slice(i, i + CHUNK_SIZE);
@@ -352,7 +352,7 @@
                 });
 
                 if (!res || !res.success) {
-                    onLog(`抓取对话失败: ${res ? res.error : '未知错误'}`, 'warn');
+                    onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', res ? res.error : 'unknown') : `抓取对话失败: ${res ? res.error : '未知错误'}`, 'warn');
                     failedChats.push(...chunk.map(c => c.id));
                     continue;
                 }
@@ -381,13 +381,13 @@
                             };
                             delete chat.error;
                             delete chat._empty;
-                            onLog(`[${chat.title || nid}] ⚡ 已自动从 Takeout 离线记录恢复问答并导出`, 'info');
+                            onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutChatRecovered', chat.title || nid) : `[${chat.title || nid}] ⚡ 已自动从 Takeout 离线记录恢复问答并导出`, 'info');
                         }
                     }
 
                     if (chat.error || chat._empty) {
                         failedChats.push(chat.id);
-                        onLog(`[${chat.title || nid}] 导出跳过: ${chat.error || '云端返回内容为空且无本地离线记录'}`, 'warn');
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || nid, chat.error || 'Empty response') : `[${chat.title || nid}] 导出跳过: ${chat.error || '云端返回内容为空且无本地离线记录'}`, 'warn');
                         continue;
                     }
 
@@ -447,7 +447,7 @@
 
                     if (writeOk) {
                         landedChats++;
-                        onLog(`[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
                         if (!chat.error && !chat._empty) {
                             let exportTs = listC?.timestamp || chat.timestamp || Date.now();
                             if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
@@ -587,7 +587,7 @@
                                                     saved = await writeFileDirect(att.localName, offlineBin);
                                                 }
                                                 if (saved) {
-                                                    onLog(`[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${att.localName}`, 'info');
+                                                    onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutAssetRecovered', chat.title || chat.id, att.localName) : `[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${att.localName}`, 'info');
                                                 }
                                             }
                                         } catch (takeoutErr) {}
@@ -597,8 +597,8 @@
                                         downloadedAssets++;
                                         updateProgress();
                                     } else {
-                                        failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName || att.fileName, error: failReason || 'CDN鉴权过期或资源不可达' });
-                                        onLog(`[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
+                                        failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName || att.fileName, error: failReason || 'CDN auth expired' });
+                                        onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetFailed', chat.title || chat.id, att.localName || att.fileName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                     }
                                 });
                             }
@@ -655,7 +655,7 @@
                                                         saved = await writeFileDirect(img.localName, offlineBin);
                                                     }
                                                     if (saved) {
-                                                        onLog(`[${chat.title || chat.id}] ⚡ 图片从 Takeout 离线池补全成功: ${img.localName}`, 'info');
+                                                        onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutImageRecovered', chat.title || chat.id, img.localName) : `[${chat.title || chat.id}] ⚡ 图片从 Takeout 离线池补全成功: ${img.localName}`, 'info');
                                                     }
                                                 }
                                             } catch (takeoutErr) {}
@@ -665,8 +665,8 @@
                                             downloadedAssets++;
                                             updateProgress();
                                         } else {
-                                            failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: img.localName, error: failReason || 'CDN鉴权过期或资源不可达' });
-                                            onLog(`[${chat.title || chat.id}] 图片获取失败 (${img.localName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
+                                            failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: img.localName, error: failReason || 'CDN auth expired' });
+                                            onLog(typeof I18n !== 'undefined' ? I18n.t('logImageFailed', chat.title || chat.id, img.localName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 图片获取失败 (${img.localName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                         }
                                     });
                                 }
@@ -689,14 +689,18 @@
             try {
                 await Promise.all(consumerPool);
             } catch (e) {
-                if (this.aborted) onLog('附件下载因终止而中断', 'warn');
+                if (this.aborted) onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetsAborted') : '附件下载因终止而中断', 'warn');
             }
 
             if (includeIndex && metaResults.length > 0) {
-                let indexContent = `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`;
+                const isZh = typeof I18n !== 'undefined' && I18n.getLang() === 'zh';
+                let indexContent = isZh
+                    ? `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`
+                    : `# Gemini Conversation Export Index\n\n> Export Time: ${new Date().toLocaleString()} · Total Chats: ${landedChats} · Assets: ${downloadedAssets}/${totalAssets}\n\n| Conversation Title | Messages | Assets | Original URL | Exported File |\n| :--- | :--- | :--- | :--- | :--- |\n`;
                 for (const meta of metaResults) {
                     const safeT = meta.title.replace(/\|/g, '\\|');
-                    indexContent += `| **[${safeT}](${meta.exportFile})** | ${meta.messageCount} | ${meta.attachmentCount} | [🔗 原文](${meta.url}) | \`${meta.exportFile}\` |\n`;
+                    const linkText = isZh ? '🔗 原文' : '🔗 Link';
+                    indexContent += `| **[${safeT}](${meta.exportFile})** | ${meta.messageCount} | ${meta.attachmentCount} | [${linkText}](${meta.url}) | \`${meta.exportFile}\` |\n`;
                 }
                 indexContent += `\n---\n_Generated by Gemini Exporter at ${new Date().toISOString()}_\n`;
 
@@ -762,7 +766,7 @@
                             await writeFileDirect('_export_errors.json', JSON.stringify({ failedChats, failedAttachments }, null, 2));
                         }
                     }
-                    onLog('🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
+                    onLog(typeof I18n !== 'undefined' ? I18n.t('logDevLogWritten') : '🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
                 } catch (logWriteErr) {
                     console.error('Failed to write _export_dev.log', logWriteErr);
                 }
@@ -770,13 +774,13 @@
 
             if (useZip) {
                 const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
-                onLog('正在打包 ZIP 压缩包…', 'info');
+                onLog(typeof I18n !== 'undefined' ? I18n.t('logPackagingZip') : '正在打包 ZIP 压缩包…', 'info');
                 const blob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
                     onProgress({
                         current: payloadIds.length,
                         total: payloadIds.length,
                         pct: Math.floor(metadata.percent),
-                        title: `打包 ZIP 中 (${Math.floor(metadata.percent)}%)`,
+                        title: typeof I18n !== 'undefined' ? I18n.t('progPackagingZip', Math.floor(metadata.percent)) : `打包 ZIP 中 (${Math.floor(metadata.percent)}%)`,
                         assetsDownloaded: downloadedAssets,
                         assetsTotal: totalAssets
                     });

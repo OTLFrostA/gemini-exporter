@@ -39,6 +39,7 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
     // 2. Simulate export session in storage (interrupted state)
     await optionsPage.evaluate(async () => {
       await chrome.storage.local.set({
+        gemini_exporter_lang: 'zh',
         gemini_last_export_session: {
           status: 'interrupted',
           slot: 'u0',
@@ -55,7 +56,7 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
     await optionsPage.reload();
     await optionsPage.waitForLoadState('domcontentloaded');
 
-    // 4. Verify Export Session Recovery Banner is rendered
+    // 4. Verify Export Session Recovery Banner is rendered in Chinese
     const banner = optionsPage.locator('#exportSessionBanner');
     await expect(banner).toBeVisible();
     await expect(banner).toContainText('发现未完成的导出任务');
@@ -66,8 +67,15 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
 
     const btnResume = optionsPage.locator('#btnResumeExport');
     await expect(btnResume).toBeVisible();
+    await expect(btnResume).toContainText('继续导出未完成项');
 
-    // 5. Verify dismissing banner
+    // 5. Test switching language to English dynamically updates banner
+    await optionsPage.locator('#langToggle').check();
+    await expect(banner).toContainText('Unfinished export task found');
+    await expect(banner).toContainText('Total 2 chats, processed 1, 1 remaining');
+    await expect(btnResume).toContainText('Resume Unfinished');
+
+    // 6. Verify dismissing banner
     const btnDismiss = optionsPage.locator('#btnDismissExportBanner');
     await btnDismiss.click();
     await expect(banner).not.toBeVisible();

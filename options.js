@@ -271,9 +271,13 @@
                 banner.style.display = 'flex';
                 banner.style.borderColor = '#f59e0b';
                 banner.style.background = '#221c12';
-                let msg = `⚠️ <b>发现未完成的导出任务</b>：共 ${session.total} 条，已处理 ${session.current || 0} 条，剩余 ${remaining} 条未导出。`;
+                let msg = typeof I18n !== 'undefined'
+                    ? I18n.t('exportSessionInterrupted', session.total, session.current || 0, remaining)
+                    : `⚠️ <b>发现未完成的导出任务</b>：共 ${session.total} 条，已处理 ${session.current || 0} 条，剩余 ${remaining} 条未导出。`;
                 if (session.lastChatTitle) {
-                    msg += ` (上次停在: 「${session.lastChatTitle.slice(0, 20)}」)`;
+                    msg += typeof I18n !== 'undefined'
+                        ? I18n.t('exportSessionLastChat', session.lastChatTitle.slice(0, 20))
+                        : ` (上次停在: 「${session.lastChatTitle.slice(0, 20)}」)`;
                 }
                 bannerText.innerHTML = msg;
                 if ($('btnResumeExport')) $('btnResumeExport').style.display = remaining > 0 ? '' : 'none';
@@ -283,7 +287,15 @@
                     banner.style.display = 'flex';
                     banner.style.borderColor = session.failedCount > 0 ? '#f59e0b' : '#10b981';
                     banner.style.background = session.failedCount > 0 ? '#221c12' : '#0e231b';
-                    bannerText.innerHTML = `✅ <b>上次导出已完成</b>：共导出 ${session.current || session.total} 条会话` + (session.failedCount > 0 ? ` (其中 ${session.failedCount} 条失败)` : '');
+                    let baseDone = typeof I18n !== 'undefined'
+                        ? I18n.t('exportSessionCompleted', session.current || session.total)
+                        : `✅ <b>上次导出已完成</b>：共导出 ${session.current || session.total} 条会话`;
+                    if (session.failedCount > 0) {
+                        baseDone += typeof I18n !== 'undefined'
+                            ? I18n.t('exportSessionCompletedWithErrors', session.failedCount)
+                            : ` (其中 ${session.failedCount} 条失败)`;
+                    }
+                    bannerText.innerHTML = baseDone;
                     if ($('btnResumeExport')) $('btnResumeExport').style.display = 'none';
                 } else {
                     banner.style.display = 'none';
@@ -371,8 +383,8 @@
             if (handle) {
                 __globalDirHandle = handle;
                 const dirLabel = $('dirLabel');
-                if (dirLabel) dirLabel.textContent = `已选目录: ${handle.name}`;
-                log(`已恢复保存的导出目录: ${handle.name}`);
+                if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
+                log(typeof I18n !== 'undefined' ? I18n.t('logDirRestored', handle.name) : `已恢复保存的导出目录: ${handle.name}`);
             }
         } catch (e) {
             console.warn('Failed to restore dir handle:', e);
@@ -381,14 +393,14 @@
 
     async function requestDirHandle() {
         if (!window.showDirectoryPicker) {
-            throw new Error('当前浏览器不支持 FileSystem Access API 目录选择');
+            throw new Error(typeof I18n !== 'undefined' ? I18n.t('browserNoDirPicker') : '当前浏览器不支持 FileSystem Access API 目录选择');
         }
         const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
         __globalDirHandle = handle;
         await saveStoredDirHandle(handle);
         const dirLabel = $('dirLabel');
-        if (dirLabel) dirLabel.textContent = `已选目录: ${handle.name}`;
-        log(`已选择保存目录: ${handle.name}`);
+        if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
+        log(typeof I18n !== 'undefined' ? I18n.t('logFolderSelected', handle.name) : `已选择保存目录: ${handle.name}`);
         return handle;
     }
 
@@ -420,7 +432,7 @@
                     dirHandle = await requestDirHandle();
                 }
             } catch (e) {
-                log(`已切换为导出为 ZIP: ${e.message}`);
+                log(typeof I18n !== 'undefined' ? I18n.t('logExportZipSwitched', e.message) : `已切换为导出为 ZIP: ${e.message}`);
                 if ($('includeZip')) $('includeZip').checked = true;
             }
         }
@@ -506,8 +518,8 @@
             log(finishMsg, result.failedChats.length ? 'warn' : 'info');
             if ($('progText')) $('progText').textContent = finishMsg;
         } catch (err) {
-            log(`导出过程异常中断: ${err.message}`, 'error');
-            if ($('progText')) $('progText').textContent = `导出失败: ${err.message}`;
+            log(typeof I18n !== 'undefined' ? I18n.t('logExportInterrupted', err.message) : `导出过程异常中断: ${err.message}`, 'error');
+            if ($('progText')) $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('exportFailed', err.message) : `导出失败: ${err.message}`;
         } finally {
             __lastRenderedSignature = '';
             await loadStore(true);
@@ -517,7 +529,7 @@
     // Takeout handler
     async function parseTakeoutZip(file) {
         if (typeof TakeoutEngine === 'undefined') {
-            log('TakeoutEngine 模块未加载', 'error');
+            log('TakeoutEngine module not loaded', 'error');
             return;
         }
         $('progWrap').style.display = 'block';
@@ -551,13 +563,15 @@
                 await Store.saveConversations(slot, convs);
             }
 
-            const successMsg = `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
+            const successMsg = typeof I18n !== 'undefined'
+                ? I18n.t('takeoutSuccessDetail', res.conversations.length, addedCount, res.totalMediaCount)
+                : `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
             log(successMsg, 'info');
             if ($('progText')) $('progText').textContent = successMsg;
             loadStore();
         } catch (err) {
-            log(`Takeout 导入失败: ${err.message}`, 'error');
-            if ($('progText')) $('progText').textContent = `Takeout 导入失败: ${err.message}`;
+            log(typeof I18n !== 'undefined' ? I18n.t('takeoutError', err.message) : `Takeout 导入失败: ${err.message}`, 'error');
+            if ($('progText')) $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('takeoutError', err.message) : `Takeout 导入失败: ${err.message}`;
         } finally {
             $('progWrap').style.display = 'none';
         }
@@ -579,9 +593,9 @@
             a.download = `gemini_exporter_backup_${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
             setTimeout(() => URL.revokeObjectURL(url), 10000);
-            log('备份文件已生成并开始下载', 'info');
+            log(typeof I18n !== 'undefined' ? I18n.t('backupSuccess') : '备份文件已生成并开始下载', 'info');
         } catch (e) {
-            log(`备份失败: ${e.message}`, 'error');
+            log(typeof I18n !== 'undefined' ? I18n.t('backupFailed', e.message) : `备份失败: ${e.message}`, 'error');
         }
     }
 
@@ -592,8 +606,8 @@
             const targetData = payload.data || payload;
 
             if (!targetData || (!targetData.gemini_conversations && !targetData.gemini_conversations_u0 && !targetData.exportedIds)) {
-                log('无效的备份文件格式！', 'error');
-                if ($('progText')) $('progText').textContent = '无效的备份文件格式！';
+                log(typeof I18n !== 'undefined' ? I18n.t('restoreInvalidFormat') : '无效的备份文件格式！', 'error');
+                if ($('progText')) $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('restoreInvalidFormat') : '无效的备份文件格式！';
                 return;
             }
 
@@ -610,10 +624,10 @@
             });
 
             const restoredCount = (targetData.gemini_conversations || targetData.gemini_conversations_u0 || []).length;
-            log(`恢复成功！共导入 ${restoredCount} 条会话。`, 'info');
+            log(typeof I18n !== 'undefined' ? I18n.t('restoreSuccess', restoredCount) : `恢复成功！共导入 ${restoredCount} 条会话。`, 'info');
             location.reload();
         } catch (err) {
-            log(`恢复失败: ${err.message}`, 'error');
+            log(typeof I18n !== 'undefined' ? I18n.t('restoreFailed', err.message) : `恢复失败: ${err.message}`, 'error');
         }
     }
 
@@ -749,6 +763,7 @@
                     List.updateStat(convs);
                 }
                 updateZipUi();
+                await checkExportSession();
                 const syncCountEl = $('syncCount');
                 if (syncCountEl && convs.length) {
                     syncCountEl.textContent = I18n.t('syncedBadge', convs.length);
@@ -837,7 +852,7 @@
             try {
                 await requestDirHandle();
             } catch (err) {
-                log(`选择目录失败: ${err.message}`, 'warn');
+                log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', err.message) : `选择目录失败: ${err.message}`, 'warn');
             }
         });
 
@@ -845,7 +860,7 @@
         $('btnExport')?.addEventListener('click', exportSelected);
         $('btnCancel')?.addEventListener('click', () => {
             if (Controller) Controller.abort();
-            log('正在终止导出任务...', 'warn');
+            log(typeof I18n !== 'undefined' ? I18n.t('stoppingExport') : '正在终止导出任务...', 'warn');
         });
         $('btnResumeExport')?.addEventListener('click', () => {
             const convs = Store ? Store.getConversations() : [];
@@ -887,13 +902,13 @@
 
                 if (chrome.runtime.lastError) {
                     const err = chrome.runtime.lastError.message;
-                    log(`增量同步失败: ${err}`, 'error');
-                    if (progText) progText.textContent = `失败: ${err}`;
+                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `增量同步失败: ${err}`, 'error');
+                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? `${I18n.t('failedPrefix')}: ${err}` : `失败: ${err}`;
                     return;
                 }
                 if (res && res.success) {
                     const count = res.count || res.total || 0;
-                    log(`增量同步完成，共 ${count} 条`);
+                    log(typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `增量同步完成，共 ${count} 条`);
                     if (bar) bar.style.width = '100%';
                     if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `增量同步完成，共 ${count} 条`;
                     setTimeout(() => {
@@ -904,8 +919,8 @@
                     loadStore();
                 } else {
                     const err = res ? res.error : '未知错误';
-                    log(`同步失败: ${err}`, 'error');
-                    if (progText) progText.textContent = `同步失败: ${err}`;
+                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `同步失败: ${err}`, 'error');
+                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `同步失败: ${err}`;
                 }
             });
         });
@@ -930,15 +945,15 @@
 
                 if (chrome.runtime.lastError) {
                     const err = chrome.runtime.lastError.message;
-                    log(`全量扫描失败: ${err}`, 'error');
-                    if (progText) progText.textContent = `失败: ${err}`;
+                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量扫描失败: ${err}`, 'error');
+                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? `${I18n.t('failedPrefix')}: ${err}` : `失败: ${err}`;
                     return;
                 }
                 if (res && res.success) {
                     const count = res.count || res.total || 0;
-                    log(`全量拉取完成，共 ${count} 条`);
+                    log(typeof I18n !== 'undefined' ? I18n.t('deepSyncFinished', count) : `全量拉取完成，共 ${count} 条`);
                     if (bar) bar.style.width = '100%';
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `全量拉取完成，共 ${count} 条`;
+                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncFinished', count) : `全量拉取完成，共 ${count} 条`;
                     setTimeout(() => {
                         if (progWrap) progWrap.style.display = 'none';
                         if (bar) bar.style.width = '0%';
@@ -947,8 +962,8 @@
                     loadStore();
                 } else {
                     const err = res ? res.error : '未知错误';
-                    log(`全量拉取失败: ${err}`, 'error');
-                    if (progText) progText.textContent = `全量拉取失败: ${err}`;
+                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量拉取失败: ${err}`, 'error');
+                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量拉取失败: ${err}`;
                 }
             });
         });
@@ -956,7 +971,7 @@
         $('btnStopScan')?.addEventListener('click', () => {
             const slot = Store ? Store.getCurrentSlot() : 'u0';
             chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: slot }, () => {
-                log('已发送终止同步指令');
+                log(typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...');
                 const progText = $('progText');
                 if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...';
             });
@@ -981,7 +996,7 @@
                 List.render(convs, expMap, currentSelected, __chatSearchFilter);
                 List.updateStat(convs);
             }
-            log('已清空已导出记录', 'info');
+            log(typeof I18n !== 'undefined' ? I18n.t('confirmClearExported') : '已清空已导出记录', 'info');
         });
 
         $('btnClearAll')?.addEventListener('click', async () => {
@@ -995,7 +1010,7 @@
                 List.render(convs, expMap, null, __chatSearchFilter);
                 List.updateStat(convs);
             }
-            log('本地会话数据已清空');
+            log(typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : '本地会话数据已清空');
         });
 
         // 17. Logs & Diagnostics

@@ -126,11 +126,11 @@
         }
 
         if (!activityFile) {
-            throw new Error('未在 ZIP 中找到 Gemini / Bard 的活动记录 (MyActivity.html)');
+            throw new Error(typeof I18n !== 'undefined' ? I18n.t('takeoutNotFound') : '未在 ZIP 中找到 Gemini / Bard 的活动记录 (MyActivity.html)');
         }
 
         const htmlText = await activityFile.async('text');
-        if (onProgress) onProgress(70, '正在解析对话并建立离线媒体索引...');
+        if (onProgress) onProgress(70, typeof I18n !== 'undefined' ? I18n.t('takeoutParsingDetail') : '正在解析对话并建立离线媒体索引...');
 
         __takeoutMediaMap = {};
         __takeoutGlobalMedia = {};
