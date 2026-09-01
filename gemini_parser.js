@@ -643,21 +643,33 @@
             }
             if (!inner) throw new Error("invalid");
             let turns = inner?.[0] || [];
-            // 兼容新版 Gemini 返回：turns 可能在 inner[1]/inner[2] 或深层嵌套
+            // 兼容新版 Gemini 返回：turns 可能在 inner[1]/inner[2] 或深层嵌套，或在 top 的另一条目中
             if (!Array.isArray(turns) || turns.length === 0) {
                 const candidates = [inner?.[1], inner?.[2], inner?.[3]];
                 for (const cand of candidates) {
                     if (Array.isArray(cand) && cand.length > 0 && Array.isArray(cand[0])) {
-                        // 严格校验：候选需像 turns（首元素为 [c_id, r_id] 且含 user 文本或 candidate）
                         try {
                             const first = cand[0];
-                            const looksLikeTurn = Array.isArray(first) && Array.isArray(first[0]) && typeof first[0][0] === 'string' && first[0][0].startsWith('c_') && (JSON.stringify(cand).includes('rc_') || JSON.stringify(cand).includes('user'));
-                            if (looksLikeTurn) {
-                                turns = cand;
-                                break;
-                            }
+                            const looksLikeTurn = Array.isArray(first) && Array.isArray(first[0]) && typeof first[0][0] === 'string' && first[0][0].startsWith('c_') && (JSON.stringify(cand).includes('rc_') || JSON.stringify(cand).slice(0,500).includes('user'));
+                            if (looksLikeTurn) { turns = cand; break; }
                         } catch {}
                     }
+                }
+            }
+            // 若仍空，遍历 top 的所有条目寻找 turns（批量 hNvQHb 返回 list 形态时，turns 可能在 MaZiqc 的 inner 中）
+            if ((!Array.isArray(turns) || turns.length === 0) && Array.isArray(top)) {
+                for (const item of top) {
+                    if (!Array.isArray(item) || typeof item[2] !== 'string') continue;
+                    if (item[1] === 'hNvQHb' && item[2] === innerStr) continue; // 已尝试
+                    try {
+                        const altInner = JSON.parse(item[2]);
+                        const altTurns = altInner?.[0];
+                        if (Array.isArray(altTurns) && altTurns.length && Array.isArray(altTurns[0]) && Array.isArray(altTurns[0][0]) && String(altTurns[0][0][0]||'').startsWith('c_')) {
+                            turns = altTurns;
+                            inner = altInner; // 切换为含 turns 的 inner
+                            break;
+                        }
+                    } catch {}
                 }
             }
             // 深层搜索兜底
