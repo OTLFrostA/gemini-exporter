@@ -310,9 +310,86 @@ function renderLog() {
 }
 
 // ==========================================
-// 📂 FileSystem Access API & 目录设置
+// 📂 FileSystem Access API & 目录设置 (IndexedDB 持久化)
 // ==========================================
 let __globalDirHandle = null;
+const IDB_NAME = 'gemini_exporter_idb';
+const IDB_STORE = 'handles';
+const IDB_KEY = 'export_dir_handle';
+
+function openHandleDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) {
+                db.createObjectStore(IDB_STORE);
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function saveStoredDirHandle(handle) {
+    try {
+        const db = await openHandleDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn('Failed to save dir handle to IndexedDB:', e);
+        return false;
+    }
+}
+
+async function getStoredDirHandle() {
+    try {
+        const db = await openHandleDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readonly');
+            const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) {
+        console.warn('Failed to get dir handle from IndexedDB:', e);
+        return null;
+    }
+}
+
+async function verifyDirPermission(handle) {
+    if (!handle) return false;
+    try {
+        const opts = { mode: 'readwrite' };
+        if ((await handle.queryPermission(opts)) === 'granted') {
+            return true;
+        }
+        if ((await handle.requestPermission(opts)) === 'granted') {
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+async function restoreSavedDirHandle() {
+    try {
+        const handle = await getStoredDirHandle();
+        if (handle) {
+            __globalDirHandle = handle;
+            const dirLabel = $('dirLabel');
+            if (dirLabel) dirLabel.textContent = `已选目录: ${handle.name}`;
+            log(`已恢复保存的导出目录: ${handle.name}`);
+        }
+    } catch (e) {
+        console.warn('Failed to restore dir handle:', e);
+    }
+}
 
 async function requestDirHandle(silent = false) {
     if (!window.showDirectoryPicker) {
@@ -320,6 +397,7 @@ async function requestDirHandle(silent = false) {
     }
     const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
     __globalDirHandle = handle;
+    await saveStoredDirHandle(handle);
     const dirLabel = $('dirLabel');
     if (dirLabel) dirLabel.textContent = `已选目录: ${handle.name}`;
     log(`已选择保存目录: ${handle.name}`);
@@ -349,9 +427,14 @@ async function exportSelected() {
     if (!includeZip) {
         try {
             if (__globalDirHandle) {
-                dirHandle = __globalDirHandle;
+                const ok = await verifyDirPermission(__globalDirHandle);
+                if (ok) {
+                    dirHandle = __globalDirHandle;
+                } else {
+                    dirHandle = await requestDirHandle(false);
+                }
             } else {
-                dirHandle = await requestDirHandle(true);
+                dirHandle = await requestDirHandle(false);
             }
         } catch (e) {
             log(`已切换为导出为 ZIP: ${e.message}`);
@@ -974,7 +1057,8 @@ async function initWorkbench() {
         }
     });
 
-    // 16. Initial Data Load
+    // 16. Initial Data & Directory Restore
+    await restoreSavedDirHandle();
     await loadStore();
 }
 
