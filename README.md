@@ -85,6 +85,13 @@ Install directly from the official Chrome Web Store with one click:
    - Configure options: download assets, package as ZIP, custom folder, etc.
    - Click **"Export Selected → ZIP"** (or Folder) to archive your chats.
 
+### 3. Google Takeout Import & Legacy Chat Recovery
+For heavy users with thousands of conversations, Google's web interface enforces a sliding window ceiling (~600–650 chats). You can recover and archive your complete legacy history using official Google Takeout:
+1. Visit **[Google Takeout](https://takeout.google.com)**, deselect all, and check only **Gemini**. Create and download the exported `takeout-*.zip` archive.
+2. Open the Gemini Exporter **Workbench (Options)**, navigate to the **"Google Takeout Import"** section, and select or drag-and-drop the ZIP file.
+3. The extension instantly parses all prompt histories and conversation indexes completely inside your browser's local sandbox.
+4. **Offline Media Fallback Pool**: If cloud assets encounter 403 or expired token errors during export, the extension automatically retrieves the original images and attachments from the Takeout archive, ensuring 100% complete backups.
+
 ---
 
 ## 🛡️ Architecture & Core Modules
