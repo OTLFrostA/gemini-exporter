@@ -416,21 +416,48 @@
         return "c_unknown";
     }
 
-    function extractConversationTitle(inner, turns) {
-        if (typeof inner[2] === "string" && inner[2].length > 0 && inner[2] !== "c_" && !inner[2].startsWith("tC")) {
-            const clean = cleanTitle(inner[2]);
-            if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+    function smartSummarizePrompt(rawText) {
+        if (!rawText) return '';
+        let s = cleanTitle(rawText).trim();
+        s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
+        const breakMatch = s.match(/^([^，。？！\n\r\t,?!]{4,35})/);
+        if (breakMatch && breakMatch[1]) {
+            s = breakMatch[1].trim();
+        } else {
+            s = s.slice(0, 30).trim();
         }
-        if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC")) {
-            const clean = cleanTitle(inner[1]);
-            if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+        return s;
+    }
+
+    function extractConversationTitle(inner, turns) {
+        if (Array.isArray(inner)) {
+            if (typeof inner[2] === "string" && inner[2].length > 0 && !inner[2].startsWith("c_") && !inner[2].startsWith("tC") && !inner[2].startsWith("rc_")) {
+                const clean = cleanTitle(inner[2]);
+                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+            }
+            if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC") && !inner[1].startsWith("rc_")) {
+                const clean = cleanTitle(inner[1]);
+                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+            }
+            if (Array.isArray(inner[0]) && typeof inner[0][1] === "string") {
+                const clean = cleanTitle(inner[0][1]);
+                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+            }
+            for (let i = 0; i < Math.min(inner.length, 6); i++) {
+                if (typeof inner[i] === "string" && inner[i].length >= 2 && !inner[i].startsWith("c_") && !inner[i].startsWith("tC") && !inner[i].startsWith("rc_")) {
+                    const clean = cleanTitle(inner[i]);
+                    if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+                }
+            }
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
                 let uText = t?.[2]?.[0]?.[0];
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
-                    const clean = cleanTitle(uText.slice(0, 60).trim());
-                    if (isRealTitle(clean)) return { title: clean, source: 'sniff' };
+                    const concise = smartSummarizePrompt(uText);
+                    if (isRealTitle(concise)) return { title: concise, source: 'sniff' };
+                    const rawClean = cleanTitle(uText.slice(0, 40).trim());
+                    if (isRealTitle(rawClean)) return { title: rawClean, source: 'sniff' };
                 }
             }
         }

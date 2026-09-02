@@ -448,7 +448,14 @@
                     if (!isRealTitle(chat.title, chat.id) && Array.isArray(chat.messages)) {
                         const firstUser = chat.messages.find(m => m.role === 'user' && m.content && m.content.trim());
                         if (firstUser) {
-                            const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                            let candidate = firstUser.content.trim();
+                            candidate = candidate.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
+                            const breakMatch = candidate.match(/^([^，。？！\n\r\t,?!]{4,35})/);
+                            if (breakMatch && breakMatch[1]) {
+                                candidate = breakMatch[1].trim();
+                            } else {
+                                candidate = candidate.slice(0, 30).trim();
+                            }
                             if (isRealTitle(candidate, chat.id)) {
                                 chat.title = candidate;
                                 chat.titleSource = 'sniff';
