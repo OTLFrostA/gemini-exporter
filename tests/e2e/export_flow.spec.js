@@ -3,7 +3,7 @@ const { test, expect } = require('./fixtures');
 test.describe('Export Workflow & State Update', () => {
   test('should trigger batch export, update progress, and mark conversations as exported', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await page.waitForLoadState('domcontentloaded');
 
     // 1. Seed test conversation

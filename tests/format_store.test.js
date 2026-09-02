@@ -5,8 +5,8 @@ const assert = (typeof require !== 'undefined' && require('node:assert')) ? requ
     ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
 };
 
-const Constants = (typeof require !== 'undefined') ? require('../src/core/constants.js') : (typeof globalThis.GeminiConstants !== 'undefined' ? globalThis.GeminiConstants : null);
-const FormatStore = (typeof require !== 'undefined') ? require('../src/core/formatStore.js') : (typeof globalThis.FormatStore !== 'undefined' ? globalThis.FormatStore : null);
+const Constants = (typeof require !== 'undefined') ? require('../src/core/utils/constants.js') : (typeof globalThis.GeminiConstants !== 'undefined' ? globalThis.GeminiConstants : null);
+const FormatStore = (typeof require !== 'undefined') ? require('../src/core/storage/formatStore.js') : (typeof globalThis.FormatStore !== 'undefined' ? globalThis.FormatStore : null);
 
 test('formatStore - ALLOWED_FORMATS and DEFAULT_FORMAT', () => {
     assert.deepStrictEqual(FormatStore.ALLOWED_FORMATS, ['markdown', 'json_openai', 'json', 'json_raw']);

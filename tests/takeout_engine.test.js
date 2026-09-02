@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const TakeoutEngine = require('../takeout_engine.js');
+const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
 
 test('takeout_engine - exports and methods', () => {
     assert.strictEqual(typeof TakeoutEngine.parseTakeoutZip, 'function');

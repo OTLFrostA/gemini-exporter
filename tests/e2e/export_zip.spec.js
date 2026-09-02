@@ -61,7 +61,7 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
 
     // 2. Open Workbench Options page
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     // Seed conversation with real ID

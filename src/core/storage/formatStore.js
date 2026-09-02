@@ -1,7 +1,7 @@
 // src/core/formatStore.js - Pure format validation + storage sync, no DOM
 // Depends on GeminiConstants (ALLOWED_FORMATS) if available, otherwise fallback
 (function(root, factory) {
-    if (typeof module === 'object' && module.exports) module.exports = factory(require('./constants.js'));
+    if (typeof module === 'object' && module.exports) module.exports = factory(require('../utils/constants.js'));
     else root.FormatStore = factory(root.GeminiConstants);
 }(typeof self !== 'undefined' ? self : this, function(Constants) {
     'use strict';

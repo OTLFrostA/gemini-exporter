@@ -3,8 +3,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { GeminiResponseParserClass } = require('../gemini_parser.js');
-const ExportEngineMod = require('../export_engine.js');
+const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
+const ExportEngineMod = require('../src/core/engine/exportEngine.js');
 
 // P0-1: 图片 localName 跨 turn 同名覆盖
 test('regression: gemini_parser image naming must be globally unique across turns', () => {
@@ -63,14 +63,14 @@ test('regression: export_engine sanitizeZipPath must sanitize .. and preserve se
 
 // P0-2b: export_engine 对失败的目录创建应 throw 而非静默回退
 test('regression: export_engine must throw on batchDirHandle creation failure instead of fallback', () => {
-    const content = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    const content = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
     assert.ok(content.includes('throw new Error(`无法创建导出子目录'), 'should throw on directory creation failure');
     assert.ok(!content.includes('batchDirHandle = dirHandle;') || content.includes('throw new Error'), 'should not silently fallback to root dirHandle');
 });
 
 // P0-3: 失败对话日志必须携带 error
 test('regression: export_engine failedChats must store detailed objects with error', () => {
-    const content = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    const content = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
     // 新代码应为 failedChats.push({ id: ... , title: ..., error: ... })
     assert.ok(content.includes('failedChats.push({ id:'), 'failedChats should push detailed objects');
     assert.ok(content.includes("failedChats.push({ id: c.id, title:") || content.includes("failedChats.push({ id: chat.id"), 'failedChats push should include title and error');
@@ -87,29 +87,29 @@ test('regression: export_engine getExtensionVersion should be exported and read 
 
 // P0-4: 标题品牌词防护
 test('regression: export_engine and options must scrub Google Gemini brand', () => {
-    const expContent = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
-    const optContent = fs.readFileSync(path.join(__dirname, '../options.js'), 'utf8');
+    const expContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
+    const optContent = fs.readFileSync(path.join(__dirname, '../src/ui/options/options.js'), 'utf8');
     assert.ok(expContent.includes('isBadBrand'), 'export_engine should have isBadBrand scrub');
     assert.ok(expContent.includes('Google\\s+)?(Gemini|Bard'), 'export_engine should filter brand regex');
     assert.ok(optContent.includes('isBad'), 'options.js should scrub bad titles on load');
     // 行为级：brand 不应被视为 real title
-    const { isRealTitle } = require('../utils.js');
+    const { isRealTitle } = require('../src/core/utils/utils.js');
     assert.strictEqual(isRealTitle('Google Gemini', 'abc123'), false);
     assert.strictEqual(isRealTitle('Gemini', 'abc123'), false);
 });
 
 // P0-5: 空详情应为 error 级别且携带 debug
 test('regression: empty cloud response must be logged as error with debug', () => {
-    const expContent = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    const expContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
     assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
     assert.ok(expContent.includes('_debug') && expContent.includes('_raw'), 'failedChats should carry debug/raw');
-    const bgContent = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
+    const bgContent = fs.readFileSync(path.join(__dirname, '../src/background/background.js'), 'utf8');
     assert.ok(bgContent.includes('_debug'), 'background should preserve _raw debug');
 });
 
 // P0-6: DOM 空壳 fallback 必须尝试 live document
 test('regression: dom_scraper must try live document before fetch shell', () => {
-    const domContent = fs.readFileSync(path.join(__dirname, '../dom_scraper.js'), 'utf8');
+    const domContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/domScraper.js'), 'utf8');
     assert.ok(domContent.includes('location.pathname.includes(cleanId)'), 'should try live parseDoc when location matches');
     assert.ok(domContent.includes('debugCurrentPage'), 'should expose debugCurrentPage');
     assert.ok(domContent.includes('fallbackUsed'), 'parseDoc should log fallbackUsed');
@@ -117,22 +117,22 @@ test('regression: dom_scraper must try live document before fetch shell', () => 
 
 // P0-7: batchexecute 空消息必须回退 DOM 且告警
 test('regression: content.js must fallback to DOM when batchexecute returns empty', () => {
-    const ctContent = fs.readFileSync(path.join(__dirname, '../content.js'), 'utf8');
+    const ctContent = fs.readFileSync(path.join(__dirname, '../src/content/content.js'), 'utf8');
     assert.ok(ctContent.includes('Array.isArray(detail.messages) && detail.messages.length > 0'), 'should check length>0 before success');
     assert.ok(ctContent.includes('batchexecute returned empty messages, fallback to DOM'), 'should warn and fallback');
 });
 
 // P0-8: Receiving end 连接失败提示刷新
 test('regression: background Receiving end error must hint refresh', () => {
-    const bgContent = fs.readFileSync(path.join(__dirname, '../background.js'), 'utf8');
+    const bgContent = fs.readFileSync(path.join(__dirname, '../src/background/background.js'), 'utf8');
     assert.ok(bgContent.includes('Receiving end does not exist'), 'should handle Receiving end');
     assert.ok(bgContent.includes('刷新 gemini.google.com'), 'should hint refresh after reload');
 });
 
 // P0-9: 停止同步必须双同步 window 标志与 client 实例
 test('regression: stop sync must sync window flag and active client', () => {
-    const clientContent = fs.readFileSync(path.join(__dirname, '../gemini_client.js'), 'utf8');
-    const contentContent = fs.readFileSync(path.join(__dirname, '../content.js'), 'utf8');
+    const clientContent = fs.readFileSync(path.join(__dirname, '../src/core/api/geminiClient.js'), 'utf8');
+    const contentContent = fs.readFileSync(path.join(__dirname, '../src/content/content.js'), 'utf8');
     assert.ok(clientContent.includes('window.__gemExporterAborted') && clientContent.includes('isAborted'), 'gemini_client should check window abort flag');
     assert.ok(contentContent.includes('__gemExporterActiveClient'), 'content should store active client');
     assert.ok(contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()'), 'stopDeepScan should abort active client');
@@ -159,7 +159,7 @@ test('regression: parseDetail across 3 turns with single deep research doc shoul
 
 // P0-11: 导出终止必须广播 cancelExport 且 fetchBatch 具备 abort 监听
 test('regression: export abort must broadcast cancelExport and listen to abortSignal', () => {
-    const expContent = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    const expContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
     assert.ok(expContent.includes("action: 'cancelExport'"), 'export_engine abort must broadcast cancelExport');
     assert.ok(expContent.includes('abortSignal.addEventListener'), 'export_engine fetchBatch must listen to abortSignal');
     const ctrlContent = fs.readFileSync(path.join(__dirname, '../src/ui/controllers/exportController.js'), 'utf8');

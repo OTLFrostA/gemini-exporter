@@ -5,7 +5,7 @@ test.describe('Workbench UI & Selection Controls', () => {
     const page = await context.newPage();
 
     // 1. Navigate to options page
-    await page.goto(`chrome-extension://${extensionId}/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await page.waitForLoadState('domcontentloaded');
 
     // 2. Seed mock conversations into chrome.storage.local via page execution

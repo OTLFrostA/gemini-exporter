@@ -1,43 +1,64 @@
-# Layered Architecture
+# System Architecture & Layering
 
-This refactor establishes explicit layering to prevent format/UI/storage regressions and ensure modularity:
+Gemini Exporter enforces a strict 4-tier modular architecture across Chrome MV3 boundaries and domain responsibilities:
 
 ```
-src/core/          Pure logic, no DOM, no chrome.sideEffect except storage/tabs
-  constants.js     ALLOWED_FORMATS, DEFAULT_FORMAT, STORAGE_KEYS
-  formatStore.js   normalize/validate/load/save format, dev-aware, select-aware
-  tabService.js    getGeminiTab, sendToGeminiTab (centralized tab discovery & communication)
-  exporter/
-    zipWriter.js   JSZip stream packaging writer
-    fsWriter.js    FileSystem Access API writer & dirHandle directory tree builder
-  (utils.js, storage_service.js, chat_formatter.js, export_engine.js are pure core services)
+src/
+  background/                  Extension Service Worker Subsystem
+    background.js              Message routing, session monitoring, tab delegation
 
-src/ui/
-  state/conversationsStore.js  conversations/exportedIds/currentSlot/accountSlots, load/save
-  views/
-    listView.js                renderList/updateStat/getSelected (DOM only)
-    logView.js                 log buffer + render (DOM only)
-    accountView.js             account slot selector dropdown view (DOM only)
-    dialogView.js              export session recovery banner & modal view (DOM only)
-  controllers/
-    exportController.js        ExportEngine orchestration (callbacks -> views)
-    syncController.js          Incremental scan & deep history scan orchestration
-    takeoutController.js       Takeout ZIP import & historical chat merging orchestration
-    dirHandleController.js     FileSystem Access API IndexedDB persistence & permissions
+  content/                     Injected Gemini Content Script Subsystem
+    content.js                 In-page DOM & sync coordinator
+    content.css                Sync status floating UI & badge styles
+    bootstrap.js               Page token & credential bootstrap
+    hookCredentials.js         MAIN world network interceptor & credential bridge
 
-content/ + background/         Gemini API / DOM scraping / message routing (delegating to core)
-ui/popup + ui/options          Thin orchestrators (<450 lines): wire core + views + controllers
+  core/                        Pure Domain Logic & Engine (Decoupled from DOM)
+    api/
+      geminiClient.js          batchexecute RPC client & abort handling
+      geminiParser.js          Protocol parsing, turns, attachments & title extraction
+    engine/
+      exportEngine.js          Export pipeline coordinator (streaming & recovery)
+      takeoutEngine.js         Google Takeout archive parser & offline fallback
+      chatFormatter.js         Markdown, JSON, OpenAI schema formatters
+      assetFetcher.js          Media, images, and blob streaming fetcher
+      domScraper.js            DOM fallback scraper
+      writers/
+        zipWriter.js           JSZip in-memory zip packaging writer
+        fsWriter.js            FileSystem Access API directory tree writer
+    storage/
+      storageService.js        Multi-account slot chrome.storage abstraction
+      formatStore.js           Export format validation & persistence
+    utils/
+      utils.js                 Single Source of Truth: title arbitration & sanitization
+      constants.js             Enums, format definitions, storage keys
+      tabService.js            Tab query, routing, and message failover
+      i18n.js                  Bilingual dictionary & translation engine
+
+  ui/                          User Interface Subsystem
+    options/
+      options.html             Options Workbench markup
+      options.js               Workbench coordinator
+    popup/
+      popup.html               Browser action popup markup
+      popup.js                 Quick export & popup coordinator
+    state/
+      conversationsStore.js    Reactive conversation state & slot manager
+    views/
+      listView.js              Virtual conversation list & selection renderer
+      logView.js               Diagnostic console log view
+      accountView.js           Multi-account slot selector dropdown
+      dialogView.js            Session recovery banner & modal view
+    controllers/
+      exportController.js      Export execution & progress orchestration
+      syncController.js        Incremental & deep history scan coordinator
+      takeoutController.js     Takeout ZIP import & conflict resolution
+      dirHandleController.js   FileSystem Access API IndexedDB persistence
 ```
 
-## Rules
+## Architectural Rules
 
-- **core** never touches `document` except via passed element; validated via unit tests.
-- **ui/state** only data, **ui/views** only rendering, **ui/controllers** only orchestration.
-- `options.html`/`popup.html` load `src/core/*` first, then `src/ui/*`, then `options.js`/`options-popup.js`.
-
-## Benefits
-
-- Single Source of Truth: all string sanitization, brand stripping, real title checks in `utils.js`.
-- Zero fallback copy-paste across background, parser, client, options, and content scripts.
-- `options.js` reduced from 1020+ lines to a clean coordinator (~440 lines).
-- 100% unit and regression test coverage verified via `python3 tests/run_tests.py`.
+1. **`core` has zero DOM dependencies**: Core algorithms (parsing, formatting, title arbitration) run identically in Node.js unit tests, extension service workers, and UI pages.
+2. **Strict UI Separation**: `state` handles storage sync, `views` handles HTML rendering, `controllers` orchestrates workflows, and `options.js` acts as a thin coordinator.
+3. **Single Source of Truth**: All string sanitization, filename cleaning, and multi-tier title arbitration logic resides exclusively in `src/core/utils/utils.js`.
+4. **100% Test Coverage**: All core modules are verified by Node.js unit tests (`tests/*.test.js`) and Playwright E2E browser tests (`tests/e2e/*.spec.js`).

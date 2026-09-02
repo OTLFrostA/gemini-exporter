@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const StorageService = require('../storage_service.js');
+const StorageService = require('../src/core/storage/storageService.js');
 
 test('storage_service - normSlot', () => {
     assert.strictEqual(StorageService.normSlot(null), 'u0');
