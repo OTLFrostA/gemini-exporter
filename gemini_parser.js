@@ -58,7 +58,7 @@
     function robustFirstPayload(text) {
         if (!text || typeof text !== "string") return null;
         let lines = text.split("\n");
-        let fallback = null;
+        let allTop = [];
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
             if (!line.includes("[")) continue;
@@ -68,10 +68,7 @@
                 let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
                 let parsed = JSON.parse(cleaned);
                 if (Array.isArray(parsed)) {
-                    if (candidate.includes("MaZiqc") || candidate.includes("hNvQHb") || candidate.includes("wrb.fr") || candidate.includes("CNgdBe")) {
-                        return parsed;
-                    }
-                    if (!fallback) fallback = parsed;
+                    allTop.push(...parsed);
                 }
             } catch {
                 let acc = candidate;
@@ -81,16 +78,15 @@
                         let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
                         let p2 = JSON.parse(c2);
                         if (Array.isArray(p2)) {
-                            if (acc.includes("MaZiqc") || acc.includes("hNvQHb") || acc.includes("wrb.fr") || candidate.includes("CNgdBe")) {
-                                return p2;
-                            }
-                            if (!fallback) fallback = p2;
+                            allTop.push(...p2);
+                            i = j;
+                            break;
                         }
                     } catch {}
                 }
             }
         }
-        return fallback;
+        return allTop.length ? allTop : null;
     }
 
     function parseList(text) {
