@@ -42,8 +42,8 @@
 
     // Logging helpers
     function log(msg, level = 'info') {
+        console.log(`[LOG ${level}]`, msg);
         if (Log && Log.log) Log.log(msg, level);
-        else console.log(`[${level}] ${msg}`);
     }
 
     function clearLog() {
@@ -265,9 +265,11 @@
                 exportedIds,
                 takeoutEngine
             }, {
-                onProgress: (pct, txt) => {
-                    if (bar) bar.style.width = `${pct}%`;
-                    if (progText) progText.textContent = txt;
+                onProgress: (progress, txt) => {
+                    const pct = (typeof progress === 'object' && progress !== null) ? progress.pct : progress;
+                    const text = (typeof progress === 'object' && progress !== null) ? (progress.title || txt) : txt;
+                    if (bar && typeof pct !== 'undefined') bar.style.width = `${pct}%`;
+                    if (progText && text) progText.textContent = text;
                 },
                 onLog: (msg, level) => log(msg, level),
                 onTitleUpdated: (chatId, newTitle, source) => {
@@ -282,8 +284,9 @@
                         }
                     }
                 },
-                onItemExported: async (chatId, title, exportRecord) => {
-                    if (Store) {
+                onItemExported: async (chatId, titleOrRecord, maybeRecord) => {
+                    const exportRecord = (maybeRecord && typeof maybeRecord === 'object') ? maybeRecord : ((titleOrRecord && typeof titleOrRecord === 'object') ? titleOrRecord : null);
+                    if (Store && exportRecord) {
                         const cur = Store.getExportedIds();
                         cur[chatId] = exportRecord;
                         cur['c_' + normId(chatId)] = exportRecord;
@@ -349,8 +352,6 @@
 
     // Workbench Initialization
     async function initWorkbench() {
-        console.log('[workbench] Initializing...');
-
         // 1. App Version & Header
         const verEl = $('ver');
         if (verEl) {
@@ -415,12 +416,14 @@
             const d = await chrome.storage.local.get(['gemini_export_zip']);
             if (typeof d.gemini_export_zip !== 'undefined') {
                 zipCheck.checked = d.gemini_export_zip;
+            } else {
+                zipCheck.checked = true;
             }
+            updateZipUi();
             zipCheck.addEventListener('change', () => {
                 updateZipUi();
                 chrome.storage.local.set({ gemini_export_zip: zipCheck.checked });
             });
-            updateZipUi();
         }
 
         // 6. Language Switch Handlers

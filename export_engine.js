@@ -483,7 +483,7 @@
                             listC.title = resolved.title;
                             listC.titleSource = resolved.source;
                             convsNeedSave = true;
-                            onTitleUpdated(nid, listC.title);
+                            onTitleUpdated(nid, listC.title, listC.titleSource);
                         }
                         finalTitle = listC.title;
                     } else if (isRealTitle(chat.title, chat.id)) {

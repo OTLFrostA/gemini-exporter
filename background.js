@@ -9,6 +9,7 @@ const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cle
 const isRealTitle = (t, fallbackId) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle ? GeminiUtils.isRealTitle(t, fallbackId) : !!(t && t.trim().length > 1));
 // Tab communication service helper (handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
 const sendToGeminiTab = (msg, slot, timeoutMs) => (typeof TabService !== 'undefined' ? TabService.sendToGeminiTab(msg, slot, timeoutMs) : Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）')));
+const getGeminiTab = (slot) => (typeof TabService !== 'undefined' && TabService.getGeminiTab ? TabService.getGeminiTab(slot) : (typeof chrome !== 'undefined' && chrome.tabs ? chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(t => t[0] || null) : Promise.resolve(null)));
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'openOptions') {
