@@ -336,6 +336,29 @@
                 consumerPool.push(processAttachmentQueue());
             }
 
+            const pendingAssetsPerChat = new Map();
+            const chatRecordsMap = new Map();
+            const chatFailedAssetsSet = new Set();
+
+            async function finalizeChatExport(targetId) {
+                const targetNid = normId(targetId);
+                const rec = chatRecordsMap.get(targetNid);
+                if (!rec || chatFailedAssetsSet.has(targetNid)) return;
+                curIds[targetId] = rec;
+                curIds[targetNid] = rec;
+                curIds['c_' + targetNid] = rec;
+                exportedIds[targetId] = rec;
+                exportedIds[targetNid] = rec;
+                exportedIds['c_' + targetNid] = rec;
+                if (Storage) {
+                    await Storage.saveExportRecord(slot, targetId, rec);
+                } else {
+                    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                    chrome.storage.local.set({ [expKey]: curIds });
+                }
+                onItemExported(targetId, rec);
+            }
+
             const isRealTitle = (() => {
                 try {
                     if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle;
@@ -345,7 +368,7 @@
                 return (t, id) => Boolean(t && typeof t === 'string' && t.trim().length >= 2 && t !== 'Untitled' && t !== '未命名');
             })();
 
-            const CHUNK_SIZE = 1;
+            const CHUNK_SIZE = 3;
             for (let i = 0; i < payloadIds.length; i += CHUNK_SIZE) {
                 if (this.aborted || (abortSignal && abortSignal.aborted)) {
                     onLog(typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '已终止导出', 'warn');
@@ -442,7 +465,6 @@
                         continue;
                     }
 
-                    totalAssets += chat.attachmentCount || 0;
                     const listC = conversations.find(c => normId(c.id) === nid) || null;
 
                     if (!isRealTitle(chat.title, chat.id) && Array.isArray(chat.messages)) {
@@ -517,65 +539,7 @@
                         writeOk = await writeFileDirect(fileName, content);
                     }
 
-                    if (writeOk) {
-                        landedChats++;
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
-                        if (!chat.error && !chat._empty) {
-                            let exportTs = listC?.timestamp || chat.timestamp || Date.now();
-                            if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
-                            const record = {
-                                title: listTitle,
-                                exportedAt: new Date().toISOString(),
-                                messageCount: chat.messageCount || chat.messages?.length || 0,
-                                chatTime: exportTs,
-                                status: 'ok'
-                            };
-                            curIds[chat.id] = record;
-                            curIds[nid] = record;
-                            curIds['c_' + nid] = record;
-                            exportedIds[chat.id] = record;
-                            exportedIds[nid] = record;
-                            exportedIds['c_' + nid] = record;
-                            if (Storage) {
-                                await Storage.saveExportRecord(slot, chat.id, record);
-                            } else {
-                                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                                chrome.storage.local.set({ [expKey]: curIds });
-                            }
-                            onItemExported(chat.id, record);
-                        }
-                    }
-
-                    metaResults.push({
-                        id: chat.id,
-                        title: listTitle,
-                        url: chat.url || `https://gemini.google.com/app/${chat.id}`,
-                        createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
-                        updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
-                        messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
-                        attachmentCount: chat.attachmentCount || 0,
-                        exportFile: fileName,
-                        status: writeOk ? 'success' : 'failed'
-                    });
-
-                    updateProgress(i + cIdx + 1, listTitle);
-
-                    try {
-                        await chrome.storage.local.set({
-                            gemini_last_export_session: {
-                                status: 'running',
-                                slot,
-                                total: payloadIds.length,
-                                current: i + cIdx + 1,
-                                lastChatId: chat.id,
-                                lastChatTitle: listTitle,
-                                format,
-                                useZip,
-                                updatedAt: Date.now()
-                            }
-                        });
-                    } catch {}
-
+                    let queuedAssetsForThisChat = 0;
                     if (includeAssets && chat.messages && writeOk) {
                         for (const m of chat.messages) {
                             if (m.attachments && m.attachments.length) {
@@ -586,11 +550,17 @@
                                         if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
                                             continue;
                                         }
+                                        totalAssets++;
+                                        queuedAssetsForThisChat++;
+                                        updateProgress();
                                         if (useZip) {
                                             try {
                                                 folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
                                                 downloadedAssets++;
                                                 updateProgress();
+                                                const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                                pendingAssetsPerChat.set(nid, left);
+                                                if (left === 0) finalizeChatExport(chat.id);
                                             } catch {}
                                         } else {
                                             attachmentQueue.push(async () => {
@@ -598,85 +568,100 @@
                                                 if (ok) {
                                                     downloadedAssets++;
                                                     updateProgress();
+                                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                                    pendingAssetsPerChat.set(nid, left);
+                                                    if (left === 0) finalizeChatExport(chat.id);
+                                                } else {
+                                                    chatFailedAssetsSet.add(nid);
                                                 }
                                             });
                                         }
                                         continue;
                                     }
 
-                                attachmentQueue.push(async () => {
-                                    let saved = false;
-                                    let failReason = '';
-                                    try {
-                                        let tab = await getGeminiTab(currentSlot);
-                                        if (tab) {
-                                            let candidates = [att.url, att.sourceUrl, att.src].filter(Boolean);
-                                            let candidateUrl = candidates[0];
-                                            if (candidateUrl) {
-                                                let r = await new Promise(resolve => {
-                                                    chrome.tabs.sendMessage(tab.id, {
-                                                        action: 'downloadAssetDirect',
-                                                        url: candidateUrl,
-                                                        referer: `https://gemini.google.com/app/${chat.id}`
-                                                    }, (resp) => {
-                                                        if (chrome.runtime.lastError) {
-                                                            resolve({ success: false, error: chrome.runtime.lastError.message });
-                                                        } else {
-                                                            resolve(resp);
-                                                        }
+                                    totalAssets++;
+                                    queuedAssetsForThisChat++;
+                                    updateProgress();
+                                    attachmentQueue.push(async () => {
+                                        let saved = false;
+                                        let failReason = '';
+                                        try {
+                                            let tab = await getGeminiTab(currentSlot);
+                                            if (tab) {
+                                                let candidates = [att.url, att.sourceUrl, att.src].filter(Boolean);
+                                                let candidateUrl = candidates[0];
+                                                if (candidateUrl) {
+                                                    let r = await new Promise(resolve => {
+                                                        chrome.tabs.sendMessage(tab.id, {
+                                                            action: 'downloadAssetDirect',
+                                                            url: candidateUrl,
+                                                            referer: `https://gemini.google.com/app/${chat.id}`
+                                                        }, (resp) => {
+                                                            if (chrome.runtime.lastError) {
+                                                                resolve({ success: false, error: chrome.runtime.lastError.message });
+                                                            } else {
+                                                                resolve(resp);
+                                                            }
+                                                        });
                                                     });
-                                                });
-                                                if (r && r.success && r.dataBase64) {
+                                                    if (r && r.success && r.dataBase64) {
+                                                        if (useZip) {
+                                                            folder.file(sanitizeZipPath(att.localName), r.dataBase64, { base64: true });
+                                                            saved = true;
+                                                        } else {
+                                                            const binStr = atob(r.dataBase64);
+                                                            const len = binStr.length;
+                                                            const bytes = new Uint8Array(len);
+                                                            for (let k = 0; k < len; k++) bytes[k] = binStr.charCodeAt(k);
+                                                            saved = await writeFileDirect(att.localName, bytes);
+                                                        }
+                                                    } else {
+                                                        failReason = r ? r.error : 'downloadAssetDirect failed';
+                                                    }
+                                                }
+                                            }
+                                        } catch (e) {
+                                            failReason = e.message;
+                                        }
+
+                                        // Fallback to Takeout offline pool
+                                        if (!saved && takeoutEngine) {
+                                            try {
+                                                let offlineBin = await takeoutEngine.getTakeoutFallbackMedia(chat.id, att.localName || att.fileName || att.title);
+                                                if (offlineBin && offlineBin.length > 0) {
                                                     if (useZip) {
-                                                        folder.file(sanitizeZipPath(att.localName), r.dataBase64, { base64: true });
+                                                        folder.file(sanitizeZipPath(att.localName), offlineBin);
                                                         saved = true;
                                                     } else {
-                                                        const binStr = atob(r.dataBase64);
-                                                        const len = binStr.length;
-                                                        const bytes = new Uint8Array(len);
-                                                        for (let k = 0; k < len; k++) bytes[k] = binStr.charCodeAt(k);
-                                                        saved = await writeFileDirect(att.localName, bytes);
+                                                        saved = await writeFileDirect(att.localName, offlineBin);
                                                     }
-                                                } else {
-                                                    failReason = r ? r.error : 'downloadAssetDirect failed';
+                                                    if (saved) {
+                                                        onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutAssetRecovered', chat.title || chat.id, att.localName) : `[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${att.localName}`, 'info');
+                                                    }
                                                 }
-                                            }
+                                            } catch (takeoutErr) {}
                                         }
-                                    } catch (e) {
-                                        failReason = e.message;
-                                    }
 
-                                    // Fallback to Takeout offline pool
-                                    if (!saved && takeoutEngine) {
-                                        try {
-                                            let offlineBin = await takeoutEngine.getTakeoutFallbackMedia(chat.id, att.localName || att.fileName || att.title);
-                                            if (offlineBin && offlineBin.length > 0) {
-                                                if (useZip) {
-                                                    folder.file(sanitizeZipPath(att.localName), offlineBin);
-                                                    saved = true;
-                                                } else {
-                                                    saved = await writeFileDirect(att.localName, offlineBin);
-                                                }
-                                                if (saved) {
-                                                    onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutAssetRecovered', chat.title || chat.id, att.localName) : `[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${att.localName}`, 'info');
-                                                }
-                                            }
-                                        } catch (takeoutErr) {}
-                                    }
-
-                                    if (saved) {
-                                        downloadedAssets++;
-                                        updateProgress();
-                                    } else {
-                                        failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName || att.fileName, error: failReason || 'CDN auth expired' });
-                                        onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetFailed', chat.title || chat.id, att.localName || att.fileName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
-                                    }
-                                });
+                                        if (saved) {
+                                            downloadedAssets++;
+                                            updateProgress();
+                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                            pendingAssetsPerChat.set(nid, left);
+                                            if (left === 0) finalizeChatExport(chat.id);
+                                        } else {
+                                            chatFailedAssetsSet.add(nid);
+                                            failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName || att.fileName, error: failReason || 'CDN auth expired' });
+                                            onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetFailed', chat.title || chat.id, att.localName || att.fileName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
+                                        }
+                                    });
+                                }
                             }
-                        }
 
-                        if (m.images && m.images.length) {
+                            if (m.images && m.images.length) {
                                 for (const img of m.images) {
+                                    totalAssets++;
+                                    queuedAssetsForThisChat++;
+                                    updateProgress();
                                     attachmentQueue.push(async () => {
                                         let saved = false;
                                         let failReason = '';
@@ -736,7 +721,11 @@
                                         if (saved) {
                                             downloadedAssets++;
                                             updateProgress();
+                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                            pendingAssetsPerChat.set(nid, left);
+                                            if (left === 0) finalizeChatExport(chat.id);
                                         } else {
+                                            chatFailedAssetsSet.add(nid);
                                             failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: img.localName, error: failReason || 'CDN auth expired' });
                                             onLog(typeof I18n !== 'undefined' ? I18n.t('logImageFailed', chat.title || chat.id, img.localName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 图片获取失败 (${img.localName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
                                         }
@@ -745,6 +734,58 @@
                             }
                         }
                     }
+
+                    if (writeOk) {
+                        landedChats++;
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
+                        if (!chat.error && !chat._empty) {
+                            let exportTs = listC?.timestamp || chat.timestamp || Date.now();
+                            if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
+                            const record = {
+                                title: listTitle,
+                                exportedAt: new Date().toISOString(),
+                                messageCount: chat.messageCount || chat.messages?.length || 0,
+                                chatTime: exportTs,
+                                status: 'ok'
+                            };
+                            chatRecordsMap.set(nid, record);
+                            if (queuedAssetsForThisChat === 0) {
+                                finalizeChatExport(chat.id);
+                            } else {
+                                pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
+                            }
+                        }
+                    }
+
+                    metaResults.push({
+                        id: chat.id,
+                        title: listTitle,
+                        url: chat.url || `https://gemini.google.com/app/${chat.id}`,
+                        createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
+                        updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
+                        messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
+                        attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
+                        exportFile: fileName,
+                        status: writeOk ? 'success' : 'failed'
+                    });
+
+                    updateProgress(i + cIdx + 1, listTitle);
+
+                    try {
+                        await chrome.storage.local.set({
+                            gemini_last_export_session: {
+                                status: 'running',
+                                slot,
+                                total: payloadIds.length,
+                                current: i + cIdx + 1,
+                                lastChatId: chat.id,
+                                lastChatTitle: listTitle,
+                                format,
+                                useZip,
+                                updatedAt: Date.now()
+                            }
+                        });
+                    } catch {}
                 }
 
                 if (convsNeedSave) {
