@@ -245,7 +245,26 @@
             const timeMatchIso = block.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2}[\sT]\d{1,2}:\d{2}(?::\d{2})?)/);
 
             if (timeMatchEn) {
-                let cleanT = timeMatchEn[1].replace(/\s+[A-Z]{3,4}$/, '').replace(/[\u202f\xa0]/g, ' ').trim();
+                let rawT = timeMatchEn[1].replace(/[\u202f\xa0]/g, ' ').trim();
+                const tzMap = {
+                    'UTC': '+0000', 'GMT': '+0000',
+                    'EDT': '-0400', 'EST': '-0500',
+                    'CDT': '-0500', 'CST': '-0600',
+                    'MDT': '-0600', 'MST': '-0700',
+                    'PDT': '-0700', 'PST': '-0800',
+                    'AKDT': '-0800', 'AKST': '-0900',
+                    'HST': '-1000', 'HDT': '-0900',
+                    'BST': '+0100', 'CET': '+0100', 'CEST': '+0200',
+                    'EET': '+0200', 'EEST': '+0300',
+                    'IST': '+0530', 'JST': '+0900',
+                    'AEST': '+1000', 'AEDT': '+1100'
+                };
+                const tzMatch = rawT.match(/\s+([A-Z]{3,4})$/);
+                let tzOffsetStr = '';
+                if (tzMatch && tzMap[tzMatch[1]]) {
+                    tzOffsetStr = ' GMT' + tzMap[tzMatch[1]];
+                }
+                let cleanT = rawT.replace(/\s+[A-Z]{3,4}$/, '').trim() + tzOffsetStr;
                 let dt = new Date(cleanT);
                 if (!isNaN(dt.getTime())) ts = dt.getTime();
             } else if (timeMatchZh) {
