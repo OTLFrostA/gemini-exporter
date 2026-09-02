@@ -46,14 +46,17 @@
                 let a = global.__gemExporterExtractAt();
                 if (a) return a;
             }
+            if (global._WIZ_global_data && global._WIZ_global_data.SNlM0e) return global._WIZ_global_data.SNlM0e;
+            if (global.WIZ_global_data && global.WIZ_global_data.SNlM0e) return global.WIZ_global_data.SNlM0e;
             let scripts = global.document ? global.document.querySelectorAll('script') : [];
             for (let s of scripts) {
                 let txt = s.textContent || "";
                 let m = txt.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
                 if (m) return m[1];
             }
-            if (global._WIZ_global_data && global._WIZ_global_data.SNlM0e) return global._WIZ_global_data.SNlM0e;
-            if (global.WIZ_global_data && global.WIZ_global_data.SNlM0e) return global.WIZ_global_data.SNlM0e;
+            let html = (global.document && global.document.documentElement && global.document.documentElement.innerHTML) || "";
+            let mHtml = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+            if (mHtml) return mHtml[1];
         } catch {}
         return "";
     }
@@ -352,16 +355,29 @@
                 ? JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"]]])
                 : JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"], [RPCS.LIST, innerMeta, null, "generic"]]]);
             body.append("f.req", fReq);
-            if (cred.at) body.append("at", cred.at);
-            let resp = await fetch(`${api}?${params}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-                    "X-Same-Domain": "1"
-                },
-                body: body.toString(),
-                credentials: "include"
-            });
+            let controller = null;
+            let timeoutId = null;
+            if (typeof AbortController !== 'undefined') {
+                controller = new AbortController();
+                timeoutId = setTimeout(() => {
+                    try { controller.abort(); } catch {}
+                }, 15000);
+            }
+            let resp;
+            try {
+                resp = await fetch(`${api}?${params}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                        "X-Same-Domain": "1"
+                    },
+                    body: body.toString(),
+                    credentials: "include",
+                    signal: controller ? controller.signal : undefined
+                });
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
             if (!resp.ok) {
                 let snippet = "";
                 try {

@@ -191,10 +191,24 @@
         } catch (e) { if (isDevMode) console.warn('[DOM] live parse exception', e); }
 
         const url = `https://gemini.google.com/app/${id}`;
-        const resp = await fetch(url, {
-            credentials: 'include',
-            headers: { 'Accept': 'text/html' }
-        });
+        let controller = null;
+        let timeoutId = null;
+        if (typeof AbortController !== 'undefined') {
+            controller = new AbortController();
+            timeoutId = setTimeout(() => {
+                try { controller.abort(); } catch {}
+            }, 15000);
+        }
+        let resp;
+        try {
+            resp = await fetch(url, {
+                credentials: 'include',
+                headers: { 'Accept': 'text/html' },
+                signal: controller ? controller.signal : undefined
+            });
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+        }
         if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
         const html = await resp.text();
         if (isDevMode && (!html || html.length < 200)) {
@@ -213,10 +227,12 @@
                 console.warn('[Gemini Exporter][DOM] contentFetchChatDetail fetch parse empty', id, 'html_len', html.length, 'isJsShell', isJsShell, '_debug', parsed._debug);
             }
             try {
-                const liveFallback = parseDoc(document, id, location.href);
-                if (liveFallback.messages.length) {
-                    console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
-                    return liveFallback;
+                if (location.pathname.includes(cleanId) || location.href.includes(cleanId)) {
+                    const liveFallback = parseDoc(document, id, location.href);
+                    if (liveFallback.messages.length) {
+                        console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
+                        return liveFallback;
+                    }
                 }
             } catch {}
         }

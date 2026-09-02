@@ -416,21 +416,48 @@
         return "c_unknown";
     }
 
-    function extractConversationTitle(inner, turns) {
-        if (typeof inner[2] === "string" && inner[2].length > 0 && inner[2] !== "c_" && !inner[2].startsWith("tC")) {
-            const clean = cleanTitle(inner[2]);
-            if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+    function smartSummarizePrompt(rawText) {
+        if (!rawText) return '';
+        let s = cleanTitle(rawText).trim();
+        s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
+        const breakMatch = s.match(/^([^，。？！\n\r\t,?!]{4,35})/);
+        if (breakMatch && breakMatch[1]) {
+            s = breakMatch[1].trim();
+        } else {
+            s = s.slice(0, 30).trim();
         }
-        if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC")) {
-            const clean = cleanTitle(inner[1]);
-            if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+        return s;
+    }
+
+    function extractConversationTitle(inner, turns) {
+        if (Array.isArray(inner)) {
+            if (typeof inner[2] === "string" && inner[2].length > 0 && !inner[2].startsWith("c_") && !inner[2].startsWith("tC") && !inner[2].startsWith("rc_")) {
+                const clean = cleanTitle(inner[2]);
+                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+            }
+            if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC") && !inner[1].startsWith("rc_")) {
+                const clean = cleanTitle(inner[1]);
+                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+            }
+            if (Array.isArray(inner[0]) && typeof inner[0][1] === "string") {
+                const clean = cleanTitle(inner[0][1]);
+                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+            }
+            for (let i = 0; i < Math.min(inner.length, 6); i++) {
+                if (typeof inner[i] === "string" && inner[i].length >= 2 && !inner[i].startsWith("c_") && !inner[i].startsWith("tC") && !inner[i].startsWith("rc_")) {
+                    const clean = cleanTitle(inner[i]);
+                    if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+                }
+            }
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
                 let uText = t?.[2]?.[0]?.[0];
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
-                    const clean = cleanTitle(uText.slice(0, 60).trim());
-                    if (isRealTitle(clean)) return { title: clean, source: 'sniff' };
+                    const concise = smartSummarizePrompt(uText);
+                    if (isRealTitle(concise)) return { title: concise, source: 'sniff' };
+                    const rawClean = cleanTitle(uText.slice(0, 40).trim());
+                    if (isRealTitle(rawClean)) return { title: rawClean, source: 'sniff' };
                 }
             }
         }
@@ -735,13 +762,19 @@
             let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
             let msgs = [];
             let dedupSet = new Set();
+            let docDedupSet = new Set();
             let imageSeq = { value: 1 };
             let rev = [...turns].reverse();
             for (let turn of rev) {
                 let ts = extractTurnTimestamp(turn) || Date.now();
                 let uText = turn?.[2]?.[0]?.[0] || "";
                 let uImgs = filterNewImages(extractImages(turn?.[2], imageSeq), dedupSet);
-                let uFiles = extractUserFiles(turn?.[2]);
+                let uFiles = extractUserFiles(turn?.[2]).filter(f => {
+                    let key = f.id || f.sourceUrl || f.fileName;
+                    if (!key || docDedupSet.has(key)) return false;
+                    docDedupSet.add(key);
+                    return true;
+                });
                 if (uText || uImgs.length || uFiles.length) {
                     msgs.push({
                         id: turn?.[0]?.[0] || "",
@@ -804,15 +837,16 @@
                         let candImages = extractImages(candidateBlock, imageSeq);
                         let filteredImages = filterNewImages(candImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
-                        if (!docsMeta.length) docsMeta = extractDocumentsMeta(inner);
-                        let seenChip = new Set();
+                        if (!docsMeta.length && !docDedupSet.size) {
+                            docsMeta = extractDocumentsMeta(inner);
+                        }
                         let docs = docsMeta.filter(docItem => {
-                            let key = docItem.chipUrl || docItem.id;
-                            if (seenChip.has(key)) return false;
+                            let key = docItem.id || docItem.chipUrl;
+                            if (!key || docDedupSet.has(key)) return false;
                             let isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
                             let isHttp = docItem.id.includes("immersive_entry_chip") || docItem.id.startsWith("http");
                             if (!isRc && isHttp) return false;
-                            seenChip.add(key);
+                            docDedupSet.add(key);
                             return true;
                         });
                         let docDetails = [];
@@ -864,6 +898,7 @@
                         let thoughts = extractThoughts(candidateBlock);
                         let citations = extractCitations(candidateBlock);
                         if (responseText) {
+                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, '');
                             responseText = responseText.replace(/(?:^|\n)\s*https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n]*)?\s*(?=\n|$)/gi, '\n');
                             responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
                             responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '').trim();

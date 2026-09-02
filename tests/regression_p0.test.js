@@ -137,3 +137,32 @@ test('regression: stop sync must sync window flag and active client', () => {
     assert.ok(contentContent.includes('__gemExporterActiveClient'), 'content should store active client');
     assert.ok(contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()'), 'stopDeepScan should abort active client');
 });
+
+// P0-10: 文档跨轮次去重，单篇研究报告挂载次数必须为 1
+test('regression: parseDetail across 3 turns with single deep research doc should deduplicate to exactly 1 attachment', () => {
+    const docChip = ["https://googleusercontent.com/immersive_entry_chip/123", "doc_id_123", "12345678-1234-1234-1234-123456789abc", "深度研究方案", null, [1774139824]];
+    const turns = [
+        [ ["c_doc_test_123", "r1"], null, [["prompt1"]], [[["rc1", [["answer1"]]]]] ],
+        [ ["c_doc_test_123", "r2"], null, [["prompt2"]], [[["rc2", [["answer2"]]]]] ],
+        [ ["c_doc_test_123", "r3"], null, [["prompt3"]], [[["rc3", [["answer3"]]]]] ]
+    ];
+    const longMarkdown = "# 深度研究方案报告内容\n\n" + "这是深度研究报告的正文详细内容，包含多个段落与分析。".repeat(10);
+    const inner = [turns, null, [docChip], [longMarkdown]];
+    const top = [["wrb.fr", "hNvQHb", JSON.stringify(inner)]];
+    const text = `)]}'\n\n${JSON.stringify(top)}`;
+    const parsed = GeminiResponseParserClass.parseDetail(text, "doc_test_123");
+    
+    assert.strictEqual(parsed.attachmentCount, 1, `attachmentCount should be 1, got ${parsed.attachmentCount}`);
+    const msgsWithDocs = parsed.messages.filter(m => m.documents && m.documents.length);
+    assert.strictEqual(msgsWithDocs.length, 1, `only 1 message should hold the document, got ${msgsWithDocs.length}`);
+});
+
+// P0-11: 导出终止必须广播 cancelExport 且 fetchBatch 具备 abort 监听
+test('regression: export abort must broadcast cancelExport and listen to abortSignal', () => {
+    const expContent = fs.readFileSync(path.join(__dirname, '../export_engine.js'), 'utf8');
+    assert.ok(expContent.includes("action: 'cancelExport'"), 'export_engine abort must broadcast cancelExport');
+    assert.ok(expContent.includes('abortSignal.addEventListener'), 'export_engine fetchBatch must listen to abortSignal');
+    const ctrlContent = fs.readFileSync(path.join(__dirname, '../src/ui/controllers/exportController.js'), 'utf8');
+    assert.ok(ctrlContent.includes("action: 'cancelExport'"), 'exportController abort must broadcast cancelExport');
+});
+

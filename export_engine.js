@@ -133,6 +133,13 @@
             this.aborted = true;
             try { this._abortController && this._abortController.abort(); } catch {}
             try {
+                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                    chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
+                        if (chrome.runtime.lastError) {}
+                    });
+                }
+            } catch {}
+            try {
                 chrome.storage.local.get(['gemini_last_export_session'], (data) => {
                     if (data?.gemini_last_export_session) {
                         chrome.storage.local.set({
@@ -351,6 +358,17 @@
                 }
 
                 let res = await new Promise(resolve => {
+                    let settled = false;
+                    const onAbort = () => {
+                        if (!settled) {
+                            settled = true;
+                            resolve({ success: false, error: 'aborted' });
+                        }
+                    };
+                    if (abortSignal) {
+                        if (abortSignal.aborted) return onAbort();
+                        abortSignal.addEventListener('abort', onAbort, { once: true });
+                    }
                     chrome.runtime.sendMessage({
                         action: 'fetchBatch',
                         ids: chunk,
@@ -360,10 +378,14 @@
                         globalTotal: payloadIds.length,
                         accountSlot: currentSlot
                     }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            resolve({ success: false, error: chrome.runtime.lastError.message });
-                        } else {
-                            resolve(response);
+                        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                        if (!settled) {
+                            settled = true;
+                            if (chrome.runtime.lastError) {
+                                resolve({ success: false, error: chrome.runtime.lastError.message });
+                            } else {
+                                resolve(response);
+                            }
                         }
                     });
                 });
@@ -426,7 +448,14 @@
                     if (!isRealTitle(chat.title, chat.id) && Array.isArray(chat.messages)) {
                         const firstUser = chat.messages.find(m => m.role === 'user' && m.content && m.content.trim());
                         if (firstUser) {
-                            const candidate = firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' ');
+                            let candidate = firstUser.content.trim();
+                            candidate = candidate.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
+                            const breakMatch = candidate.match(/^([^，。？！\n\r\t,?!]{4,35})/);
+                            if (breakMatch && breakMatch[1]) {
+                                candidate = breakMatch[1].trim();
+                            } else {
+                                candidate = candidate.slice(0, 30).trim();
+                            }
                             if (isRealTitle(candidate, chat.id)) {
                                 chat.title = candidate;
                                 chat.titleSource = 'sniff';
@@ -549,32 +578,31 @@
 
                     if (includeAssets && chat.messages && writeOk) {
                         for (const m of chat.messages) {
-                            if (!m.attachments) continue;
-
-                            for (const att of m.attachments) {
-                                if (att.type !== 'file') continue;
-                                if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
-                                if (att.contentMarkdown) {
-                                    if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
-                                        continue;
-                                    }
-                                    if (useZip) {
-                                        try {
-                                            folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
-                                            downloadedAssets++;
-                                            updateProgress();
-                                        } catch {}
-                                    } else {
-                                        attachmentQueue.push(async () => {
-                                            const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
-                                            if (ok) {
+                            if (m.attachments && m.attachments.length) {
+                                for (const att of m.attachments) {
+                                    if (att.type !== 'file') continue;
+                                    if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
+                                    if (att.contentMarkdown) {
+                                        if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
+                                            continue;
+                                        }
+                                        if (useZip) {
+                                            try {
+                                                folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
                                                 downloadedAssets++;
                                                 updateProgress();
-                                            }
-                                        });
+                                            } catch {}
+                                        } else {
+                                            attachmentQueue.push(async () => {
+                                                const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
+                                                if (ok) {
+                                                    downloadedAssets++;
+                                                    updateProgress();
+                                                }
+                                            });
+                                        }
+                                        continue;
                                     }
-                                    continue;
-                                }
 
                                 attachmentQueue.push(async () => {
                                     let saved = false;
@@ -645,8 +673,9 @@
                                     }
                                 });
                             }
+                        }
 
-                            if (m.images && m.images.length) {
+                        if (m.images && m.images.length) {
                                 for (const img of m.images) {
                                     attachmentQueue.push(async () => {
                                         let saved = false;
