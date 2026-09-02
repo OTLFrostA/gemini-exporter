@@ -77,21 +77,7 @@
             }
         } catch {}
     }
-
-    const cleanTitle = (t) => {
-        try {
-            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
-            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
-        } catch {}
-        if (!t || typeof t !== 'string') return '';
-        let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
-        s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-        s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-        s = s.trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
-        return s;
-    };
+    const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
 
     function extractActiveChatTitle(activeId) {
         if (!activeId) return null;
@@ -190,22 +176,7 @@
         ? GeminiUtils.isRealTitle
         : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.isRealTitle)
             ? globalThis.GeminiUtils.isRealTitle
-            : (typeof globalThis.isRealTitle === 'function' ? globalThis.isRealTitle : function isRealTitle(title, id) {
-                if (!title || typeof title !== 'string') return false;
-                let t = title.trim();
-                if (t.length < 2) return false;
-                if (id) {
-                    let cleanId = String(id).replace(/^c_/, '').trim();
-                    let cleanT = t.replace(/^c_/, '').trim();
-                    if (cleanT === cleanId) return false;
-                    if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-                }
-                if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(t)) return false;
-                if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-                if (/^(Google Account|Sign in|Sign-in|Sign in with Google|登录|重新登录)/i.test(t)) return false;
-                if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
-                return true;
-            }));
+            : (t, id) => !!(t && String(t).trim().length > 1));
 
     const resolveTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
         ? GeminiUtils.resolveTitle

@@ -28,7 +28,14 @@ def test_manifest_structure():
 def test_html_includes():
     with open(os.path.join(BASE_DIR, "options.html"), "r", encoding="utf-8") as f:
         opt_html = f.read()
-        for script in ["storage_service.js", "gemini_parser.js", "gemini_client.js", "takeout_engine.js", "export_engine.js", "options.js"]:
+        for script in [
+            "storage_service.js", "gemini_parser.js", "gemini_client.js", "takeout_engine.js", "export_engine.js",
+            "src/core/constants.js", "src/core/tabService.js", "src/core/formatStore.js",
+            "src/ui/state/conversationsStore.js", "src/ui/views/logView.js", "src/ui/views/listView.js",
+            "src/ui/views/accountView.js", "src/ui/views/dialogView.js", "src/ui/controllers/dirHandleController.js",
+            "src/ui/controllers/takeoutController.js", "src/ui/controllers/syncController.js", "src/ui/controllers/exportController.js",
+            "options.js"
+        ]:
             assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in options.html"
     
     with open(os.path.join(BASE_DIR, "popup.html"), "r", encoding="utf-8") as f:
@@ -46,10 +53,18 @@ def test_module_exports():
         "asset_fetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
         "dom_scraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
         "src/core/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "STORAGE_KEYS"],
+        "src/core/tabService.js": ["getGeminiTab", "sendToGeminiTab"],
         "src/core/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
+        "src/core/exporter/zipWriter.js": ["ZipWriter", "generateBlob", "writeFile"],
+        "src/core/exporter/fsWriter.js": ["FsWriter", "ensureSubDir", "writeFile"],
         "src/ui/state/conversationsStore.js": ["getConversations", "setConversations", "getExportedIds", "loadStore", "getLastSync", "clearExported", "clearAll"],
         "src/ui/views/listView.js": ["render", "updateStat", "getSelected", "selectAll", "deselectAll", "selectUnexported", "selectNeedsUpdate"],
         "src/ui/views/logView.js": ["init", "log", "clear", "render", "getBuffer"],
+        "src/ui/views/accountView.js": ["render", "bindChange"],
+        "src/ui/views/dialogView.js": ["renderExportBanner", "dismissExportBanner"],
+        "src/ui/controllers/dirHandleController.js": ["getStoredDirHandle", "saveStoredDirHandle", "requestDirHandle"],
+        "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
+        "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"]
     }
     for filename, symbols in files.items():
@@ -211,12 +226,22 @@ def test_javascript_unit_tests():
 
             preload_js = []
             for mod_path, mod_id in [
+                ("utils.js", "../utils.js"),
+                ("utils.js", "./utils.js"),
                 ("src/core/constants.js", "../src/core/constants.js"),
                 ("src/core/constants.js", "./constants.js"),
+                ("src/core/tabService.js", "../src/core/tabService.js"),
                 ("src/core/formatStore.js", "../src/core/formatStore.js"),
+                ("src/core/exporter/zipWriter.js", "../src/core/exporter/zipWriter.js"),
+                ("src/core/exporter/fsWriter.js", "../src/core/exporter/fsWriter.js"),
                 ("src/ui/state/conversationsStore.js", "../src/ui/state/conversationsStore.js"),
                 ("src/ui/views/listView.js", "../src/ui/views/listView.js"),
                 ("src/ui/views/logView.js", "../src/ui/views/logView.js"),
+                ("src/ui/views/accountView.js", "../src/ui/views/accountView.js"),
+                ("src/ui/views/dialogView.js", "../src/ui/views/dialogView.js"),
+                ("src/ui/controllers/dirHandleController.js", "../src/ui/controllers/dirHandleController.js"),
+                ("src/ui/controllers/takeoutController.js", "../src/ui/controllers/takeoutController.js"),
+                ("src/ui/controllers/syncController.js", "../src/ui/controllers/syncController.js"),
                 ("src/ui/controllers/exportController.js", "../src/ui/controllers/exportController.js"),
                 ("storage_service.js", "../storage_service.js"),
                 ("chat_formatter.js", "../chat_formatter.js"),
