@@ -407,7 +407,7 @@
                 if (typeof t?.[0] === "string" && t[0].startsWith("c_")) return t[0];
             }
         }
-        let flat = JSON.stringify(inner).match(/"c_[0-9a-f]{16}"/);
+        let flat = JSON.stringify(inner).match(/"c_[a-zA-Z0-9_-]{8,64}"/);
         if (flat) return flat[0].replace(/"/g, "");
         return "c_unknown";
     }
@@ -691,8 +691,11 @@
             function isTurn(turn) {
                 if (!Array.isArray(turn) || turn.length < 3) return false;
                 const head = turn[0];
-                if (!Array.isArray(head) || !head.length) return false;
-                const idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+                let idStr = '';
+                if (typeof head === 'string') idStr = head;
+                else if (Array.isArray(head) && head.length) {
+                    idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+                }
                 if (!idStr || !idStr.startsWith('c_')) return false;
                 // 需含 user 文本或 candidate rc_
                 try { const s = JSON.stringify(turn); return s.includes('rc_') || s.includes('c_d') || s.includes('r_') || Array.isArray(turn[2]); } catch { return false; }
