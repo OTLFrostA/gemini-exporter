@@ -227,10 +227,12 @@
                 console.warn('[Gemini Exporter][DOM] contentFetchChatDetail fetch parse empty', id, 'html_len', html.length, 'isJsShell', isJsShell, '_debug', parsed._debug);
             }
             try {
-                const liveFallback = parseDoc(document, id, location.href);
-                if (liveFallback.messages.length) {
-                    console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
-                    return liveFallback;
+                if (location.pathname.includes(cleanId) || location.href.includes(cleanId)) {
+                    const liveFallback = parseDoc(document, id, location.href);
+                    if (liveFallback.messages.length) {
+                        console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
+                        return liveFallback;
+                    }
                 }
             } catch {}
         }
