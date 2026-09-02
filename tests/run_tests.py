@@ -26,39 +26,41 @@ def test_manifest_structure():
         print("  ✓ manifest.json scripts and permissions verified")
 
 def test_html_includes():
-    with open(os.path.join(BASE_DIR, "src/ui/options/options.html"), "r", encoding="utf-8") as f:
-        opt_html = f.read()
-        for script in [
-            "/lib/jszip.min.js",
-            "/src/core/utils/constants.js",
-            "/src/core/utils/utils.js",
-            "/src/core/utils/tabService.js",
-            "/src/core/utils/i18n.js",
-            "/src/core/storage/storageService.js",
-            "/src/core/storage/formatStore.js",
-            "/src/core/engine/writers/zipWriter.js",
-            "/src/core/engine/writers/fsWriter.js",
-            "/src/core/engine/chatFormatter.js",
-            "/src/core/api/geminiParser.js",
-            "/src/core/api/geminiClient.js",
-            "/src/core/engine/takeoutEngine.js",
-            "/src/core/engine/exportEngine.js",
-            "/src/ui/state/conversationsStore.js",
-            "/src/ui/views/logView.js",
-            "/src/ui/views/listView.js",
-            "/src/ui/views/accountView.js",
-            "/src/ui/views/dialogView.js",
-            "/src/ui/controllers/dirHandleController.js",
-            "/src/ui/controllers/takeoutController.js",
-            "/src/ui/controllers/syncController.js",
-            "/src/ui/controllers/exportController.js",
-            "/src/ui/options/options.js"
-        ]:
-            assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in options.html"
+    for opt_path in ["options.html", "src/ui/options/options.html"]:
+        with open(os.path.join(BASE_DIR, opt_path), "r", encoding="utf-8") as f:
+            opt_html = f.read()
+            for script in [
+                "/lib/jszip.min.js",
+                "/src/core/utils/constants.js",
+                "/src/core/utils/utils.js",
+                "/src/core/utils/tabService.js",
+                "/src/core/utils/i18n.js",
+                "/src/core/storage/storageService.js",
+                "/src/core/storage/formatStore.js",
+                "/src/core/engine/writers/zipWriter.js",
+                "/src/core/engine/writers/fsWriter.js",
+                "/src/core/engine/chatFormatter.js",
+                "/src/core/api/geminiParser.js",
+                "/src/core/api/geminiClient.js",
+                "/src/core/engine/takeoutEngine.js",
+                "/src/core/engine/exportEngine.js",
+                "/src/ui/state/conversationsStore.js",
+                "/src/ui/views/logView.js",
+                "/src/ui/views/listView.js",
+                "/src/ui/views/accountView.js",
+                "/src/ui/views/dialogView.js",
+                "/src/ui/controllers/dirHandleController.js",
+                "/src/ui/controllers/takeoutController.js",
+                "/src/ui/controllers/syncController.js",
+                "/src/ui/controllers/exportController.js",
+                "/src/ui/options/options.js"
+            ]:
+                assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in {opt_path}"
     
-    with open(os.path.join(BASE_DIR, "src/ui/popup/popup.html"), "r", encoding="utf-8") as f:
-        pop_html = f.read()
-        assert '<script src="/src/core/storage/storageService.js"></script>' in pop_html, "Missing storageService.js in popup.html"
+    for pop_path in ["popup.html", "src/ui/popup/popup.html"]:
+        with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
+            pop_html = f.read()
+            assert '<script src="/src/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
     print("  ✓ options.html and popup.html script tags verified")
 
 def test_module_exports():
@@ -111,7 +113,7 @@ def test_i18n_keys():
             v = parts[1].strip().rstrip(",").strip('"').strip("'")
             cur[k] = v
 
-    for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
+    for html_file in ["options.html", "popup.html", "src/ui/options/options.html", "src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
         html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder)?=["\']([^"\']+)["\']', content))

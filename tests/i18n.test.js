@@ -20,7 +20,7 @@ test('i18n - check dictionary parity between zh and en', () => {
 });
 
 test('i18n - check all HTML data-i18n attributes are present in i18n.js', () => {
-    for (const htmlFile of ['src/ui/options/options.html', 'src/ui/popup/popup.html']) {
+    for (const htmlFile of ['options.html', 'popup.html', 'src/ui/options/options.html', 'src/ui/popup/popup.html']) {
         const htmlPath = path.join(__dirname, '..', htmlFile);
         const htmlContent = fs.readFileSync(htmlPath, 'utf8');
         const matches = htmlContent.matchAll(/data-i18n(?:-title|-placeholder|-html)?=["']([^"']+)["']/g);
