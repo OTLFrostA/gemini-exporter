@@ -355,6 +355,7 @@
                 ? JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"]]])
                 : JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"], [RPCS.LIST, innerMeta, null, "generic"]]]);
             body.append("f.req", fReq);
+            if (cred.at) body.append("at", cred.at);
             let controller = null;
             let timeoutId = null;
             if (typeof AbortController !== 'undefined') {
@@ -383,6 +384,13 @@
                 try {
                     snippet = (await resp.text()).slice(0, 320);
                 } catch {}
+                if (resp.status === 400 && snippet.includes('xsrf') && !opts?._retriedXsrf) {
+                    const mXsrf = snippet.match(/"xsrf"\s*,\s*"([^"]+)"/);
+                    if (mXsrf && mXsrf[1]) {
+                        if (cachedCredentials[cred.accountSlot]) cachedCredentials[cred.accountSlot].at = mXsrf[1];
+                        return this.fetchConversationPage(conversationId, pageToken, targetSid, { ...(opts || {}), _retriedXsrf: true });
+                    }
+                }
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
             }
