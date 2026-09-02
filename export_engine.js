@@ -368,72 +368,66 @@
                 return (t, id) => Boolean(t && typeof t === 'string' && t.trim().length >= 2 && t !== 'Untitled' && t !== '未命名');
             })();
 
-            const CHUNK_SIZE = 3;
-            for (let i = 0; i < payloadIds.length; i += CHUNK_SIZE) {
-                if (this.aborted || (abortSignal && abortSignal.aborted)) {
-                    onLog(typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '已终止导出', 'warn');
-                    break;
-                }
-                let chunk = payloadIds.slice(i, i + CHUNK_SIZE);
-                const curCandidate = chunk[0];
-                if (curCandidate) {
-                    updateProgress(i + 1, curCandidate.title || curCandidate.id);
-                }
+            const CONCURRENCY = 3;
+            let nextIndex = 0;
+            let completedCount = 0;
+            let convsNeedSave = false;
 
-                let res = await new Promise(resolve => {
-                    let settled = false;
-                    const onAbort = () => {
-                        if (!settled) {
-                            settled = true;
-                            resolve({ success: false, error: 'aborted' });
-                        }
-                    };
-                    if (abortSignal) {
-                        if (abortSignal.aborted) return onAbort();
-                        abortSignal.addEventListener('abort', onAbort, { once: true });
-                    }
-                    chrome.runtime.sendMessage({
-                        action: 'fetchBatch',
-                        ids: chunk,
-                        format,
-                        skipExported: skip,
-                        globalOffset: i,
-                        globalTotal: payloadIds.length,
-                        accountSlot: currentSlot
-                    }, (response) => {
-                        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                        if (!settled) {
-                            settled = true;
-                            if (chrome.runtime.lastError) {
-                                resolve({ success: false, error: chrome.runtime.lastError.message });
-                            } else {
-                                resolve(response);
+            const exportWorker = async () => {
+                while (nextIndex < payloadIds.length && !this.aborted && !(abortSignal && abortSignal.aborted)) {
+                    const currentIndex = nextIndex++;
+                    const requestedItem = payloadIds[currentIndex];
+                    if (!requestedItem) break;
+
+                    const nid = normId(requestedItem.id);
+                    let res = await new Promise(resolve => {
+                        let settled = false;
+                        const onAbort = () => {
+                            if (!settled) {
+                                settled = true;
+                                resolve({ success: false, error: 'aborted' });
                             }
+                        };
+                        if (abortSignal) {
+                            if (abortSignal.aborted) return onAbort();
+                            abortSignal.addEventListener('abort', onAbort, { once: true });
                         }
+                        chrome.runtime.sendMessage({
+                            action: 'fetchBatch',
+                            ids: [requestedItem],
+                            format,
+                            skipExported: skip,
+                            globalOffset: currentIndex,
+                            globalTotal: payloadIds.length,
+                            accountSlot: currentSlot
+                        }, (response) => {
+                            if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                            if (!settled) {
+                                settled = true;
+                                if (chrome.runtime.lastError) {
+                                    resolve({ success: false, error: chrome.runtime.lastError.message });
+                                } else {
+                                    resolve(response);
+                                }
+                            }
+                        });
                     });
-                });
 
-                if (!res || !res.success) {
-                    const fetchErr = res ? res.error : 'unknown';
-                    onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', fetchErr) : `抓取对话失败: ${fetchErr}`, 'warn');
-                    // 记录详细失败原因，避免静默丢失（P0 修复）
-                    for (const c of chunk) {
-                        failedChats.push({ id: c.id, title: c.title || c.id, error: fetchErr });
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', c.title || c.id, fetchErr) : `[${c.title || c.id}] 导出跳过: ${fetchErr}`, 'warn');
-                    }
-                    continue;
-                }
-
-                skipped += (res.skipped || 0);
-                const chunkResults = res.results || [];
-                let convsNeedSave = false;
-
-                for (let cIdx = 0; cIdx < chunkResults.length; cIdx++) {
-                    let chat = chunkResults[cIdx];
                     if (this.aborted || (abortSignal && abortSignal.aborted)) break;
-                    const requestedItem = chunk[cIdx] || chunk[0] || {};
-                    const nid = normId(requestedItem.id || chat?.id);
-                    if (!chat) chat = { id: nid, title: requestedItem.title };
+
+                    if (!res || !res.success) {
+                        const fetchErr = res ? res.error : 'unknown';
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', fetchErr) : `抓取对话失败: ${fetchErr}`, 'warn');
+                        failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
+                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr) : `[${requestedItem.title || requestedItem.id}] 导出跳过: ${fetchErr}`, 'warn');
+                        completedCount++;
+                        updateProgress(completedCount, requestedItem.title || requestedItem.id);
+                        continue;
+                    }
+
+                    skipped += (res.skipped || 0);
+                    const chunkResults = res.results || [];
+                    let chat = chunkResults[0] || { id: nid, title: requestedItem.title };
                     chat.id = nid;
 
                     // Takeout offline chat fallback
@@ -460,8 +454,9 @@
                         const errMsg = (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）') + debugInfo;
                         failedChats.push({ id: chat.id || nid, title: displayTitle, error: errMsg, debug: chat._debug || null, raw: chat._raw || null });
                         onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', displayTitle, errMsg) : `[${displayTitle}] 导出跳过: ${errMsg}`, 'error');
-                        // 控制台额外详细日志
                         console.warn('[Gemini Exporter] export empty detail', nid, errMsg, 'chat keys', Object.keys(chat || {}));
+                        completedCount++;
+                        updateProgress(completedCount, displayTitle);
                         continue;
                     }
 
@@ -769,7 +764,8 @@
                         status: writeOk ? 'success' : 'failed'
                     });
 
-                    updateProgress(i + cIdx + 1, listTitle);
+                    completedCount++;
+                    updateProgress(completedCount, listTitle);
 
                     try {
                         await chrome.storage.local.set({
@@ -777,7 +773,7 @@
                                 status: 'running',
                                 slot,
                                 total: payloadIds.length,
-                                current: i + cIdx + 1,
+                                current: completedCount,
                                 lastChatId: chat.id,
                                 lastChatTitle: listTitle,
                                 format,
@@ -787,14 +783,21 @@
                         });
                     } catch {}
                 }
+            };
 
-                if (convsNeedSave) {
-                    if (Storage) {
-                        await Storage.setConversations(slot, conversations);
-                    } else {
-                        const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-                        chrome.storage.local.set({ [convKey]: conversations });
-                    }
+            const exportWorkers = [];
+            const workerCount = Math.min(CONCURRENCY, payloadIds.length);
+            for (let w = 0; w < workerCount; w++) {
+                exportWorkers.push(exportWorker());
+            }
+            await Promise.all(exportWorkers);
+
+            if (convsNeedSave) {
+                if (Storage) {
+                    await Storage.setConversations(slot, conversations);
+                } else {
+                    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
+                    chrome.storage.local.set({ [convKey]: conversations });
                 }
             }
 
