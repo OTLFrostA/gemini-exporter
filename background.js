@@ -1,106 +1,14 @@
-// background.js - Gemini Exporter background service worker
 try {
-    importScripts('utils.js', 'storage_service.js');
+    importScripts('utils.js', 'storage_service.js', 'src/core/tabService.js');
 } catch (e) {}
 
 console.log('[Gemini Exporter] Background service worker ready');
 let __bgAborted = false;
 
-const cleanTitle = (t) => {
-    try {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
-    } catch {}
-    if (!t || typeof t !== 'string') return '';
-    let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-    if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
-    s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-    s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-    s = s.trim();
-    if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
-    return s;
-};
-
-const isRealTitle = (t, fallbackId) => {
-    try {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
-    } catch {}
-    if (!t || typeof t !== 'string') return false;
-    const s = t.trim();
-    if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
-    if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
-    if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
-    if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
-    return true;
-};
-
-function getGeminiTab(slot) {
-    return chrome.tabs.query({
-        url: 'https://gemini.google.com/*'
-    }).then(tabs => {
-        if (!tabs.length) return null;
-        if (slot && slot !== 'u0') {
-            const slotNum = slot.replace('u', '');
-            const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
-            if (match) return match;
-        } else if (slot === 'u0') {
-            const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
-            if (defMatch) return defMatch;
-        }
-        return tabs.find(t => t.active) || tabs[0];
-    });
-}
-
-async function sendToGeminiTab(msg, slot, timeoutMs = 25000) {
-    const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-    if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
-
-    let candidates = [];
-    if (slot && slot !== 'u0') {
-        const slotNum = slot.replace('u', '');
-        candidates = tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
-    } else if (slot === 'u0') {
-        candidates = tabs.filter(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
-    }
-    if (!candidates.length) candidates = tabs;
-    candidates.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-
-    let lastError = null;
-    for (const tab of candidates) {
-        try {
-            const res = await new Promise((resolve, reject) => {
-                let settled = false;
-                const timer = setTimeout(() => {
-                    if (!settled) {
-                        settled = true;
-                        reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
-                    }
-                }, timeoutMs);
-                chrome.tabs.sendMessage(tab.id, msg, (r) => {
-                    if (!settled) {
-                        settled = true;
-                        clearTimeout(timer);
-                        if (chrome.runtime.lastError) {
-                            reject(new Error(chrome.runtime.lastError.message || ''));
-                        } else {
-                            resolve(r);
-                        }
-                    }
-                });
-            });
-            return res;
-        } catch (e) {
-            lastError = e;
-            const errStr = String(e.message || '');
-            if (errStr.includes('Receiving end does not exist') || errStr.includes('Could not establish connection')) {
-                continue;
-            }
-            throw e;
-        }
-    }
-    throw new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）- ' + (lastError?.message || ''));
-}
+const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
+const isRealTitle = (t, fallbackId) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle ? GeminiUtils.isRealTitle(t, fallbackId) : !!(t && t.trim().length > 1));
+// Tab communication service helper (handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
+const sendToGeminiTab = (msg, slot, timeoutMs) => (typeof TabService !== 'undefined' ? TabService.sendToGeminiTab(msg, slot, timeoutMs) : Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）')));
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'openOptions') {
