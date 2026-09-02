@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const ChatFormatter = require('../chat_formatter.js');
+const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 test('chat_formatter - formatContent markdown', () => {
     const mockChat = {

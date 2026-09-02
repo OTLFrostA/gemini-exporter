@@ -21,42 +21,60 @@ def test_manifest_structure():
         assert m["manifest_version"] == 3
         assert "storage" in m["permissions"]
         cs = m["content_scripts"][0]["js"]
-        for required in ["storage_service.js", "gemini_parser.js", "gemini_client.js", "dom_scraper.js", "asset_fetcher.js", "content.js"]:
+        for required in ["src/core/storage/storageService.js", "src/core/api/geminiParser.js", "src/core/api/geminiClient.js", "src/core/engine/domScraper.js", "src/core/engine/assetFetcher.js", "src/content/content.js"]:
             assert required in cs, f"Missing {required} in manifest content_scripts"
         print("  ✓ manifest.json scripts and permissions verified")
 
 def test_html_includes():
-    with open(os.path.join(BASE_DIR, "options.html"), "r", encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/ui/options/options.html"), "r", encoding="utf-8") as f:
         opt_html = f.read()
         for script in [
-            "storage_service.js", "gemini_parser.js", "gemini_client.js", "takeout_engine.js", "export_engine.js",
-            "src/core/constants.js", "src/core/tabService.js", "src/core/formatStore.js",
-            "src/ui/state/conversationsStore.js", "src/ui/views/logView.js", "src/ui/views/listView.js",
-            "src/ui/views/accountView.js", "src/ui/views/dialogView.js", "src/ui/controllers/dirHandleController.js",
-            "src/ui/controllers/takeoutController.js", "src/ui/controllers/syncController.js", "src/ui/controllers/exportController.js",
-            "options.js"
+            "/lib/jszip.min.js",
+            "/src/core/utils/constants.js",
+            "/src/core/utils/utils.js",
+            "/src/core/utils/tabService.js",
+            "/src/core/utils/i18n.js",
+            "/src/core/storage/storageService.js",
+            "/src/core/storage/formatStore.js",
+            "/src/core/engine/writers/zipWriter.js",
+            "/src/core/engine/writers/fsWriter.js",
+            "/src/core/engine/chatFormatter.js",
+            "/src/core/api/geminiParser.js",
+            "/src/core/api/geminiClient.js",
+            "/src/core/engine/takeoutEngine.js",
+            "/src/core/engine/exportEngine.js",
+            "/src/ui/state/conversationsStore.js",
+            "/src/ui/views/logView.js",
+            "/src/ui/views/listView.js",
+            "/src/ui/views/accountView.js",
+            "/src/ui/views/dialogView.js",
+            "/src/ui/controllers/dirHandleController.js",
+            "/src/ui/controllers/takeoutController.js",
+            "/src/ui/controllers/syncController.js",
+            "/src/ui/controllers/exportController.js",
+            "/src/ui/options/options.js"
         ]:
             assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in options.html"
     
-    with open(os.path.join(BASE_DIR, "popup.html"), "r", encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/ui/popup/popup.html"), "r", encoding="utf-8") as f:
         pop_html = f.read()
-        assert '<script src="storage_service.js"></script>' in pop_html, "Missing storage_service.js in popup.html"
+        assert '<script src="/src/core/storage/storageService.js"></script>' in pop_html, "Missing storageService.js in popup.html"
     print("  ✓ options.html and popup.html script tags verified")
 
 def test_module_exports():
     files = {
-        "gemini_parser.js": ["parseList", "parseDetail", "isRealTitle", "extractDocumentsMeta"],
-        "gemini_client.js": ["GeminiAPIClient", "resolveCred", "getApiUrl"],
-        "takeout_engine.js": ["parseTakeoutZip", "getTakeoutOfflineChat", "getTakeoutFallbackMedia"],
-        "export_engine.js": ["ExportEngine", "sanitizeFileName"],
-        "storage_service.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync"],
-        "asset_fetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
-        "dom_scraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
-        "src/core/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "STORAGE_KEYS"],
-        "src/core/tabService.js": ["getGeminiTab", "sendToGeminiTab"],
-        "src/core/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
-        "src/core/exporter/zipWriter.js": ["ZipWriter", "generateBlob", "writeFile"],
-        "src/core/exporter/fsWriter.js": ["FsWriter", "ensureSubDir", "writeFile"],
+        "src/core/api/geminiParser.js": ["parseList", "parseDetail", "isRealTitle", "extractDocumentsMeta"],
+        "src/core/api/geminiClient.js": ["GeminiAPIClient", "resolveCred", "getApiUrl"],
+        "src/core/engine/takeoutEngine.js": ["parseTakeoutZip", "getTakeoutOfflineChat", "getTakeoutFallbackMedia"],
+        "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName"],
+        "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync"],
+        "src/core/engine/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
+        "src/core/engine/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
+        "src/core/utils/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "STORAGE_KEYS"],
+        "src/core/utils/tabService.js": ["getGeminiTab", "sendToGeminiTab"],
+        "src/core/storage/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
+        "src/core/engine/writers/zipWriter.js": ["ZipWriter", "generateBlob", "writeFile"],
+        "src/core/engine/writers/fsWriter.js": ["FsWriter", "ensureSubDir", "writeFile"],
         "src/ui/state/conversationsStore.js": ["getConversations", "setConversations", "getExportedIds", "loadStore", "getLastSync", "clearExported", "clearAll"],
         "src/ui/views/listView.js": ["render", "updateStat", "getSelected", "selectAll", "deselectAll", "selectUnexported", "selectNeedsUpdate"],
         "src/ui/views/logView.js": ["init", "log", "clear", "render", "getBuffer"],
@@ -75,7 +93,7 @@ def test_module_exports():
         print(f"  ✓ {filename} exports and signatures verified")
 
 def test_i18n_keys():
-    with open(os.path.join(BASE_DIR, "i18n.js"), "r", encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/core/utils/i18n.js"), "r", encoding="utf-8") as f:
         text = f.read()
 
     zh_dict = {}
@@ -93,7 +111,7 @@ def test_i18n_keys():
             v = parts[1].strip().rstrip(",").strip('"').strip("'")
             cur[k] = v
 
-    for html_file in ["options.html", "popup.html"]:
+    for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
         html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder)?=["\']([^"\']+)["\']', content))

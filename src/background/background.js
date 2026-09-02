@@ -1,5 +1,5 @@
 try {
-    importScripts('utils.js', 'storage_service.js', 'src/core/tabService.js');
+    importScripts('/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
 } catch (e) {}
 
 console.log('[Gemini Exporter] Background service worker ready');

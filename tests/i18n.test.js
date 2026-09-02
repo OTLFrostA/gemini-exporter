@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const I18n = require('../i18n.js');
+const I18n = require('../src/core/utils/i18n.js');
 
 test('i18n - check dictionary parity between zh and en', () => {
     const zhKeys = Object.keys(I18n.LOCALES.zh);
@@ -20,7 +20,7 @@ test('i18n - check dictionary parity between zh and en', () => {
 });
 
 test('i18n - check all HTML data-i18n attributes are present in i18n.js', () => {
-    for (const htmlFile of ['options.html', 'popup.html']) {
+    for (const htmlFile of ['src/ui/options/options.html', 'src/ui/popup/popup.html']) {
         const htmlPath = path.join(__dirname, '..', htmlFile);
         const htmlContent = fs.readFileSync(htmlPath, 'utf8');
         const matches = htmlContent.matchAll(/data-i18n(?:-title|-placeholder|-html)?=["']([^"']+)["']/g);

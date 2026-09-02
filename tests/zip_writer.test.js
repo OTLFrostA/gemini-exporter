@@ -5,7 +5,7 @@ const assert = (typeof require !== 'undefined' && require('node:assert')) ? requ
     ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
 };
 
-const ZipWriter = (typeof require !== 'undefined') ? require('../src/core/exporter/zipWriter.js') : (typeof globalThis.ZipWriter !== 'undefined' ? globalThis.ZipWriter : null);
+const ZipWriter = (typeof require !== 'undefined') ? require('../src/core/engine/writers/zipWriter.js') : (typeof globalThis.ZipWriter !== 'undefined' ? globalThis.ZipWriter : null);
 
 test('zipWriter - exports and instantiation', () => {
     assert.ok(ZipWriter);

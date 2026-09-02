@@ -4,7 +4,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
   test('should detect active Gemini conversation and update real title in place', async ({ context, extensionId }) => {
     // 1. Seed initial conversation list with an untitled historical conversation
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {
@@ -101,7 +101,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
   test('should keep clean title without "- Google Gemini" suffix when opening an existing Takeout imported chat', async ({ context, extensionId }) => {
     // 1. Seed Takeout imported chat
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {
@@ -162,7 +162,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
   test('should NOT overwrite existing conversation title with "Google Gemini" while page is in initial loading state', async ({ context, extensionId }) => {
     // 1. Seed existing chat with Takeout prompt title
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {

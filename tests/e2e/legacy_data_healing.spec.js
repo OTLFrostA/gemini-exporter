@@ -5,7 +5,7 @@ test.describe('E2E: Legacy Dirty Data Self-Healing & Migration', () => {
     const optionsPage = await context.newPage();
 
     // 1. Seed storage with dirty historical titles left over by older versions
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {

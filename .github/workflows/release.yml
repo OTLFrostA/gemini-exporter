@@ -114,10 +114,7 @@ jobs:
             _locales \
             icons \
             lib \
-            public \
             src \
-            *.js \
-            *.css \
             *.html \
             LICENSE \
             THIRD_PARTY_NOTICES.md \

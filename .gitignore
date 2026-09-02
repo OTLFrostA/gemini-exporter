@@ -21,6 +21,7 @@ scratch/
 *.pem
 
 # Node & Test artifacts
+node_modules
 node_modules/
 test-results/
 playwright-report/

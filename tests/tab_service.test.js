@@ -5,7 +5,7 @@ const assert = (typeof require !== 'undefined' && require('node:assert')) ? requ
     ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
 };
 
-const TabService = (typeof require !== 'undefined') ? require('../src/core/tabService.js') : (typeof globalThis.TabService !== 'undefined' ? globalThis.TabService : null);
+const TabService = (typeof require !== 'undefined') ? require('../src/core/utils/tabService.js') : (typeof globalThis.TabService !== 'undefined' ? globalThis.TabService : null);
 
 test('tabService - exports', () => {
     assert.ok(TabService);

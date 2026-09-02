@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { GeminiResponseParserClass, isRealTitle } = require('../gemini_parser.js');
-const { isRealTitle: utilsIsRealTitle, cleanTitle } = require('../utils.js');
+const { GeminiResponseParserClass, isRealTitle } = require('../src/core/api/geminiParser.js');
+const { isRealTitle: utilsIsRealTitle, cleanTitle } = require('../src/core/utils/utils.js');
 
 test('gemini_parser - isRealTitle', () => {
     assert.strictEqual(isRealTitle(''), false);
@@ -55,7 +55,7 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
 });
 
 test('utils - resolveTitle multi-tier source priority arbitration', () => {
-    const { resolveTitle, setTitleBySource } = require('../utils.js');
+    const { resolveTitle, setTitleBySource } = require('../src/core/utils/utils.js');
 
     // 1. Takeout only
     const chatTakeout = {

@@ -4,7 +4,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
   test('should arbitrate titles strictly by source tier and never allow low tier to corrupt high tier', async ({ context, extensionId }) => {
     // 1. Open options workbench and seed with Takeout imported chat
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {
@@ -164,7 +164,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
 
     // 2. Open options workbench and seed with untitled conversation
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {

@@ -3,7 +3,7 @@ const { test, expect } = require('./fixtures');
 test.describe('E2E: Export Title Update & Session Interruption Recovery', () => {
   test('should update chat title in storage & workbench during export, and restore session banner on reload', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     // 1. Pre-populate initial Takeout imported chat
@@ -88,7 +88,7 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
 
   test('should disable scan during export and never show interruption banner during active run', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     // Simulate active export in ExportController

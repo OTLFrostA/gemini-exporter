@@ -5,7 +5,7 @@ const assert = (typeof require !== 'undefined' && require('node:assert')) ? requ
     ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
 };
 
-const FsWriterModule = (typeof require !== 'undefined') ? require('../src/core/exporter/fsWriter.js') : (typeof globalThis.FsWriter !== 'undefined' ? globalThis.FsWriter : null);
+const FsWriterModule = (typeof require !== 'undefined') ? require('../src/core/engine/writers/fsWriter.js') : (typeof globalThis.FsWriter !== 'undefined' ? globalThis.FsWriter : null);
 
 test('fsWriter - exports and helpers', () => {
     assert.ok(FsWriterModule);
