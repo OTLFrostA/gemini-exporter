@@ -5,7 +5,7 @@
 </p>
 
 <p align="left">
-  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf" target="_blank">
+  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Web Store">
   </a>
 </p>
@@ -27,16 +27,19 @@
   - **Markdown (`.md`)**: Beautiful formatting, syntax-highlighted code blocks, math equations, collapsible thinking details (`<details>`), and web citations.
   - **JSON (OpenAI Format)**: Ready-to-use format for LLM fine-tuning pipelines and third-party tools.
   - **JSON (Raw / Complete Metadata)**: Complete structured payload containing raw timestamps and conversation metadata.
-- 🖼️ **Full Support for Attachments & Images**:
-  - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution images.
+- 🖼️ **Full Support for Attachments & High-Res Images**:
+  - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution images across all conversation turns.
   - Assets are neatly organized into an `assets/` subfolder with relative references preserved in Markdown.
+- ⚡ **High-Concurrency Streaming & Interruption Recovery**:
+  - Sliding window worker pool for ultra-fast concurrent downloads with real-time fluid progress tracking.
+  - **Crash & Interruption Recovery Banner**: Automatically detects unfinished export sessions and offers 1-click resumption.
 - 👥 **Multi-Account Switching Support**:
   - Seamlessly switch between multiple logged-in Google accounts (`u0`, `u1`, `u2`, etc.) with independent local storage, conversation lists, and export tracking per account.
 - 📥 **Google Takeout Integration & Legacy Chat Recovery (Takeout ZIP Import)**:
   - Directly load your Google Takeout archive (`takeout-*.zip`) to recover legacy conversations truncated by Gemini's cloud UI pagination limits.
   - **Offline Media Fallback Pool**: Automatically indexes offline media from the ZIP, seamlessly replacing any failed online asset downloads (e.g., due to expired tokens or 403 errors).
-- 💾 **1-Click Full Backup & Restore**:
-  - Export your complete conversation catalog and export states into a standardized JSON backup file, enabling effortless migration across browsers and devices.
+- 🏷️ **Multi-Tier Title Arbitration (`TITLE_SOURCE_PRIORITY`)**:
+  - Smart title resolution hierarchy (RPC > DOM > Takeout > Sniff > Legacy) preventing brand name pollution ("Google Gemini") and preserving genuine conversation titles.
 - 🔄 **Smart Incremental Sync & Change Detection**:
   - Locally records conversation IDs, update timestamps, and message counts.
   - Supports "Skip already exported" mode. When an existing conversation receives new replies, it is automatically flagged as "Needs Re-export" for ultra-fast incremental backups.
@@ -53,7 +56,7 @@ Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microso
 
 Install directly from the official Chrome Web Store with one click:
 
-👉 **[Get Gemini Exporter on Chrome Web Store](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf)**
+👉 **[Get Gemini Exporter on Chrome Web Store](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo)**
 
 ### Method 2: Load Unpacked Extension (Developer / Source Code)
 
@@ -94,44 +97,46 @@ For heavy users with thousands of conversations, Google's web interface enforces
 
 ---
 
-## 🛡️ Architecture & Core Modules
+## 🛡️ Architecture & Layered Design
 
-The extension is designed around a strictly decoupled, modular architecture with zero telemetry:
+The extension follows a clean, decoupled layered architecture with zero external telemetry:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Options Workbench UI                      │
-│             (options.js, options-popup.js)                  │
-└──────────────┬───────────────────────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌────────────────────────────┐
-│      ExportEngine (ZIP / FS) │ │   TakeoutEngine (ZIP Pool) │
-│       (export_engine.js)     │ │     (takeout_engine.js)    │
-└──────────────┬───────────────┘ └─────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌────────────────────────────┐
-│  GeminiParser (Pure Lib)     │ │   StorageService (Accounts)│
-│       (gemini_parser.js)     │ │     (storage_service.js)   │
-└──────────────┬───────────────┘ └─────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌────────────────────────────┐
-│   AssetFetcher (In-Page)     │ │     GeminiAPIClient (RPC)  │
-│       (asset_fetcher.js)     │ │      (gemini_client.js)    │
-└──────────────────────────────┘ └────────────────────────────┘
-```
+src/core/                 Pure logic layer (no DOM dependencies)
+  ├── constants.js        Allowed formats, storage keys, default constants
+  ├── formatStore.js      Format normalization & validation
+  ├── tabService.js       Centralized Gemini Tab discovery & communication
+  └── exporter/
+      ├── zipWriter.js    JSZip stream packaging writer
+      └── fsWriter.js     FileSystem Access API writer & dirHandle directory builder
 
-- **`gemini_parser.js`**: Pure data transformation library without browser or network dependencies.
-- **`storage_service.js`**: Unified storage layer managing multi-account slots (`u0`, `u1`, `u2`), sync timestamps, and export markers.
-- **`export_engine.js`**: Handles batch fetching, JSZip packaging, and FileSystem Access API disk streaming.
-- **`takeout_engine.js`**: Parses Google Takeout archives and manages offline media matching.
-- **`asset_fetcher.js`**: Handles authenticated asset, image, and document downloading from Gemini CDN.
-- **`dom_scraper.js`**: Provides fallback DOM parsing and sidebar container navigation.
+src/ui/                   Workbench UI Layer (Decoupled Views & Controllers)
+  ├── state/
+  │   └── conversationsStore.js   Multi-account storage & signature tracking
+  ├── views/
+  │   ├── listView.js             Conversation table rendering & selection
+  │   ├── logView.js              Real-time log buffer & filtering
+  │   ├── accountView.js          Account slot dropdown rendering
+  │   └── dialogView.js           Interruption recovery banner & dialogs
+  └── controllers/
+      ├── exportController.js     Export pipeline orchestration
+      ├── syncController.js       Incremental & full sync management
+      ├── takeoutController.js    Takeout ZIP import & chat merging
+      └── dirHandleController.js  FileSystem Access API IndexedDB persistence
+
+Content & Core Engine
+  ├── utils.js            Single source of truth for string sanitization & title resolution
+  ├── gemini_parser.js    Pure batchexecute RPC response parser
+  ├── gemini_client.js    Gemini batchexecute API network client
+  ├── takeout_engine.js   Takeout ZIP parsing & offline media matching
+  ├── export_engine.js    High-concurrency batch export pipeline
+  └── storage_service.js  Chrome storage multi-slot persistence
+```
 
 - **Credential Interception**: Intercepts the anti-CSRF token (`at`) and session identifier (`f.sid`) from native network requests in the MAIN world, avoiding raw Cookie exposure.
 - **Local Packaging**: All chat content and binary images are compressed and saved directly in the browser via JSZip and modern web APIs, requiring zero excessive browser permissions.
+
+---
 
 ## 🔒 Privacy Policy
 
