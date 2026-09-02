@@ -5,9 +5,10 @@
   "main": "background.js",
   "scripts": {
     "test:unit": "python3 tests/run_tests.py",
-    "test:manual": "./scripts/open_test_chrome.sh",
     "test:e2e": "playwright test",
     "test": "python3 tests/run_tests.py && playwright test",
+    "test:manual": "./scripts/open_test_chrome.sh",
+    "test:generate-chats": "python3 scripts/generate_scenario_chats.py",
     "release": "gh workflow run release.yml --ref main"
   },
   "keywords": [
