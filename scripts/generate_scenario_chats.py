@@ -30,6 +30,11 @@ import argparse
 import urllib.request
 import urllib.error
 
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 CDP_DEFAULT_PORT = 9222
 
 class CDPConnection:
@@ -52,7 +57,7 @@ class CDPConnection:
         )
         self.sock.sendall(req.encode("ascii"))
         res = self.sock.recv(4096)
-        if b"101 Switching Protocols" not in res:
+        if b"101 " not in res:
             raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
 
     def call(self, method, params=None):
@@ -145,8 +150,7 @@ def wait_for_ready(cdp, max_wait=30):
         ready = cdp.eval("""
         (() => {
           const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-          const sendBtn = document.querySelector('button[aria-label="Send message"]');
-          return !!editor && !!sendBtn;
+          return !!editor;
         })()
         """)
         if ready:
@@ -172,49 +176,62 @@ def send_turn(cdp, prompt_text, max_wait=180):
     cdp.call("Input.insertText", {"text": prompt_text})
     time.sleep(0.5)
 
-    # 3. 点击发送按钮
-    sent = cdp.eval("""
-    (() => {
-      const sendBtn = document.querySelector('button[aria-label="Send message"]');
-      if (sendBtn && !sendBtn.disabled) {
-        sendBtn.click();
-        return true;
-      }
-      return false;
-    })()
-    """)
+    # 3. 等待并点击发送按钮
+    sent = False
+    for _ in range(10):
+        sent = cdp.eval("""
+        (() => {
+          const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="发送"]');
+          if (sendBtn && !sendBtn.disabled) {
+            sendBtn.click();
+            return true;
+          }
+          return false;
+        })()
+        """)
+        if sent:
+            break
+        time.sleep(0.5)
+
     if not sent:
         return False, "无法点击发送按钮"
 
-    # 4. 等待生成开始 (Stop 按钮出现，或者回答流开始输出)
-    time.sleep(1.5)
+    # 4. 等待生成开始 (最多等待 10 秒)
+    for _ in range(20):
+        started = cdp.eval("""
+        (() => {
+          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
+          return !!stopBtn || isStreaming;
+        })()
+        """)
+        if started:
+            break
+        time.sleep(0.5)
 
-    # 5. 等待生成完成 (Stop 按钮消失，Send 按钮恢复可用)
+    # 5. 等待生成完成 (Stop 按钮消失且没有流式标记)
     start_time = time.time()
     while time.time() - start_time < max_wait:
+        time.sleep(1.5)
         state = cdp.eval("""
         (() => {
           const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
-          const sendBtn = document.querySelector('button[aria-label="Send message"]');
-          const pendingStream = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
+          const hasResponse = document.querySelectorAll('.model-response-text, model-response, .response-content').length > 0;
           return {
             hasStop: !!stopBtn,
-            hasSend: !!sendBtn,
-            sendDisabled: sendBtn ? sendBtn.disabled : true,
-            isStreaming: pendingStream
+            isStreaming: isStreaming,
+            hasResponse: hasResponse
           };
         })()
         """)
         if not state:
-            time.sleep(1)
             continue
 
-        if not state.get("hasStop") and not state.get("isStreaming") and state.get("hasSend"):
-            # 再稍等一下以确保生图或代码块渲染完毕
+        if not state.get("hasStop") and not state.get("isStreaming") and state.get("hasResponse"):
+            # 缓冲 2 秒确保代码块高亮或图片渲染落盘
             time.sleep(2)
             return True, "生成完毕"
-
-        time.sleep(1.5)
 
     return False, "等待生成超时"
 
