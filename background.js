@@ -52,35 +52,54 @@ function getGeminiTab(slot) {
     });
 }
 
-function sendToGeminiTab(msg, slot, timeoutMs = 25000) {
-    return getGeminiTab(slot).then(tab => {
-        if (!tab) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
-        return new Promise((resolve, reject) => {
-            let settled = false;
-            const timer = setTimeout(() => {
-                if (!settled) {
-                    settled = true;
-                    reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
-                }
-            }, timeoutMs);
-            chrome.tabs.sendMessage(tab.id, msg, (res) => {
-                if (!settled) {
-                    settled = true;
-                    clearTimeout(timer);
-                    if (chrome.runtime.lastError) {
-                        const raw = chrome.runtime.lastError.message || '';
-                        if (raw.includes('Receiving end does not exist')) {
-                            reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）- ' + raw));
-                        } else {
-                            reject(new Error(raw));
-                        }
-                    } else {
-                        resolve(res);
+async function sendToGeminiTab(msg, slot, timeoutMs = 25000) {
+    const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+    if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
+
+    let candidates = [];
+    if (slot && slot !== 'u0') {
+        const slotNum = slot.replace('u', '');
+        candidates = tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
+    } else if (slot === 'u0') {
+        candidates = tabs.filter(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+    }
+    if (!candidates.length) candidates = tabs;
+    candidates.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+
+    let lastError = null;
+    for (const tab of candidates) {
+        try {
+            const res = await new Promise((resolve, reject) => {
+                let settled = false;
+                const timer = setTimeout(() => {
+                    if (!settled) {
+                        settled = true;
+                        reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
                     }
-                }
+                }, timeoutMs);
+                chrome.tabs.sendMessage(tab.id, msg, (r) => {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message || ''));
+                        } else {
+                            resolve(r);
+                        }
+                    }
+                });
             });
-        });
-    });
+            return res;
+        } catch (e) {
+            lastError = e;
+            const errStr = String(e.message || '');
+            if (errStr.includes('Receiving end does not exist') || errStr.includes('Could not establish connection')) {
+                continue;
+            }
+            throw e;
+        }
+    }
+    throw new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）- ' + (lastError?.message || ''));
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
