@@ -203,8 +203,33 @@
                 md += isEn ? `## 👤 You\n\n` : `## 👤 你\n\n`;
                 if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
-                if (m.attachments && m.attachments.length) {
-                    md += renderAttachments(m.attachments, isEn);
+                let userAtts = [...(m.attachments || [])];
+                if (m.images && m.images.length) {
+                    for (const img of m.images) {
+                        if (!userAtts.some(a => a.localName === img.localName || a.url === img.url)) {
+                            userAtts.push({
+                                type: 'image',
+                                localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
+                                name: img.fileName || 'image.jpg',
+                                src: img.resolvedUrl || img.sourceUrl || img.url
+                            });
+                        }
+                    }
+                }
+                if (m.documents && m.documents.length) {
+                    for (const doc of m.documents) {
+                        if (!userAtts.some(a => a.localName === doc.localName || a.url === doc.url)) {
+                            userAtts.push({
+                                type: 'file',
+                                localName: doc.localName || `files/${doc.title || 'doc.md'}`,
+                                title: doc.title || 'document',
+                                url: doc.url
+                            });
+                        }
+                    }
+                }
+                if (userAtts.length) {
+                    md += renderAttachments(userAtts, isEn);
                 }
 
                 const userBody = sanitizeUserPrompt(m.content);
@@ -229,8 +254,21 @@
                     md += `${adjusted}\n\n`;
                 }
 
-                if (m.attachments && m.attachments.length) {
-                    md += renderAttachments(m.attachments, isEn);
+                let modelAtts = [...(m.attachments || [])];
+                if (m.images && m.images.length) {
+                    for (const img of m.images) {
+                        if (!modelAtts.some(a => a.localName === img.localName || a.url === img.url)) {
+                            modelAtts.push({
+                                type: 'image',
+                                localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
+                                name: img.fileName || 'image.jpg',
+                                src: img.resolvedUrl || img.sourceUrl || img.url
+                            });
+                        }
+                    }
+                }
+                if (modelAtts.length) {
+                    md += renderAttachments(modelAtts, isEn);
                 }
 
                 // Citations / Sources

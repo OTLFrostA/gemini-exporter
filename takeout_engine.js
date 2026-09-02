@@ -248,11 +248,29 @@
 
             const turnMsgs = [];
             if (promptText) {
-                turnMsgs.push({
+                const userMsg = {
                     role: 'user',
                     content: promptText,
                     timestamp: ts || Date.now()
-                });
+                };
+                if (localMediaNames.length > 0) {
+                    userMsg.images = localMediaNames.map(name => ({
+                        url: name,
+                        name: name,
+                        fileName: name,
+                        localName: `assets/${name.replace(/[\\/:*?"<>|]/g, '_')}`,
+                        source: 'takeout'
+                    }));
+                    userMsg.attachments = localMediaNames.map(name => ({
+                        type: 'file',
+                        url: name,
+                        name: name,
+                        fileName: name,
+                        localName: `assets/${name.replace(/[\\/:*?"<>|]/g, '_')}`,
+                        source: 'takeout'
+                    }));
+                }
+                turnMsgs.push(userMsg);
             }
             if (responseHtml) {
                 turnMsgs.push({
@@ -288,12 +306,14 @@
                         messages: [...turnMsgs],
                         timestamp: ts,
                         messageCount: turnMsgs.length,
+                        attachmentCount: localMediaNames.length,
                         source: 'takeout-offline',
                         hasExplicitPrompt
                     };
                 } else if (turnMsgs.length > 0) {
                     __takeoutConvCache[cleanId].messages.push(...turnMsgs);
                     __takeoutConvCache[cleanId].messageCount = __takeoutConvCache[cleanId].messages.length;
+                    __takeoutConvCache[cleanId].attachmentCount = (__takeoutConvCache[cleanId].attachmentCount || 0) + localMediaNames.length;
                     if (hasExplicitPrompt && !__takeoutConvCache[cleanId].hasExplicitPrompt && promptTitle) {
                         __takeoutConvCache[cleanId].title = promptTitle;
                         __takeoutConvCache[cleanId].titles = __takeoutConvCache[cleanId].titles || {};
@@ -314,9 +334,11 @@
                         lastSeen: ts ? new Date(ts).toISOString() : '',
                         source: 'takeout-import',
                         messageCount: turnMsgs.length,
+                        attachmentCount: localMediaNames.length,
                         hasExplicitPrompt
                     };
                 } else {
+                    extractedMap[cleanId].attachmentCount = (extractedMap[cleanId].attachmentCount || 0) + localMediaNames.length;
                     const cleanPrompt = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : '';
                     const shouldUpdate = cleanPrompt && (
                         (hasExplicitPrompt && !extractedMap[cleanId].hasExplicitPrompt) ||
