@@ -10,44 +10,8 @@
     l.textContent = `[${time}] ${msg}\n` + l.textContent.slice(0,2000);
   }
 
-  function cleanTitle(rawTitle) {
-    if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) {
-      return GeminiUtils.cleanTitle(rawTitle);
-    }
-    if (!rawTitle || typeof rawTitle !== 'string') return '';
-    let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-    t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-    t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-    return t.trim();
-  }
-
-  function sanitizeFileName(name, fallback = 'untitled') {
-    if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName) {
-      return GeminiUtils.sanitizeFileName(name, fallback);
-    }
-    if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.sanitizeFileName) {
-      return globalThis.GeminiUtils.sanitizeFileName(name, fallback);
-    }
-    if (!name) return fallback;
-    let s = String(name).replace(/[\r\n]+/g, ' ').replace(/[\u0000-\u001F\u007F]/g, '_');
-    s = s.replace(/\.\.\//g, '_').replace(/\.\.\\/g, '_');
-    s = s.replace(/[<>:"/\\|?*]+/g, '_');
-    s = s.replace(/\.{2,}/g, '_');
-    s = s.replace(/^\.+|\.+$/g, '');
-    s = s.trim();
-    if (!s) return fallback;
-    if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
-    let ext = '';
-    const lastDot = s.lastIndexOf('.');
-    if (lastDot > 0 && s.length - lastDot <= 6) {
-      ext = s.slice(lastDot);
-      s = s.slice(0, lastDot);
-    }
-    if (s.length > 70) s = s.slice(0, 70).trim();
-    s = s.replace(/[\.\s_]+$/g, '').trim();
-    if (!s) s = fallback;
-    return s + ext;
-  }
+  const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
+  const sanitizeFileName = (name, fallback = 'untitled') => (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName ? GeminiUtils.sanitizeFileName(name, fallback) : (name || fallback).trim() || fallback);
 
   // Update synced count badge
   async function updateCount(){

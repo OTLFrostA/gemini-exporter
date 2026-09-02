@@ -16,43 +16,27 @@
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     function isRealTitle(t, fallbackId) {
-        // 统一委托至 GeminiUtils 单一源，保持与 utils.js 一致
-        try {
-            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
-            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
-            if (typeof require !== 'undefined') {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
+        if (typeof require !== 'undefined') {
+            try {
                 const u = require('./utils.js');
                 if (u && u.isRealTitle) return u.isRealTitle(t, fallbackId);
-            }
-        } catch {}
-        if (!t || typeof t !== 'string') return false;
-        const s = t.trim();
-        if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
-        if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
-        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
-        if (/^(未命名对话|Untitled conversation|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI)$/i.test(s)) return false;
-        if (RESEARCH_PROMPT_PREFIX_RE.test(s)) return false;
-        return true;
+            } catch {}
+        }
+        return !!(t && typeof t === 'string' && t.trim().length > 1);
     }
 
     function cleanTitle(rawTitle) {
-        try {
-            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(rawTitle);
-            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(rawTitle);
-            if (typeof require !== 'undefined') {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(rawTitle);
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(rawTitle);
+        if (typeof require !== 'undefined') {
+            try {
                 const u = require('./utils.js');
                 if (u && u.cleanTitle) return u.cleanTitle(rawTitle);
-            }
-        } catch {}
-        if (!rawTitle || typeof rawTitle !== 'string') return '';
-        let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
-        t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-        t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-        t = t.trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
-        return t;
+            } catch {}
+        }
+        return (rawTitle || '').trim();
     }
 
     function robustFirstPayload(text) {
@@ -407,7 +391,7 @@
                 if (typeof t?.[0] === "string" && t[0].startsWith("c_")) return t[0];
             }
         }
-        let flat = JSON.stringify(inner).match(/"c_[0-9a-f]{16}"/);
+        let flat = JSON.stringify(inner).match(/"c_[a-zA-Z0-9_-]{8,64}"/);
         if (flat) return flat[0].replace(/"/g, "");
         return "c_unknown";
     }
@@ -691,8 +675,11 @@
             function isTurn(turn) {
                 if (!Array.isArray(turn) || turn.length < 3) return false;
                 const head = turn[0];
-                if (!Array.isArray(head) || !head.length) return false;
-                const idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+                let idStr = '';
+                if (typeof head === 'string') idStr = head;
+                else if (Array.isArray(head) && head.length) {
+                    idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+                }
                 if (!idStr || !idStr.startsWith('c_')) return false;
                 // 需含 user 文本或 candidate rc_
                 try { const s = JSON.stringify(turn); return s.includes('rc_') || s.includes('c_d') || s.includes('r_') || Array.isArray(turn[2]); } catch { return false; }

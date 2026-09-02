@@ -1,4 +1,4 @@
-// options.js - Gemini Exporter workbench UI controller (Layered Architecture)
+// options.js - Gemini Exporter workbench UI coordinator (Layered Architecture)
 (function() {
     'use strict';
 
@@ -13,61 +13,34 @@
     const Controller = (typeof ExportController !== 'undefined') ? ExportController : null;
     const Formats = (typeof FormatStore !== 'undefined') ? FormatStore : null;
     const Storage = (typeof StorageService !== 'undefined') ? StorageService : ((typeof window !== 'undefined' && window.StorageService) || null);
+    const Account = (typeof AccountView !== 'undefined') ? AccountView : null;
+    const Dialogs = (typeof DialogView !== 'undefined') ? DialogView : null;
+    const DirHandle = (typeof DirHandleController !== 'undefined') ? DirHandleController : null;
+    const TakeoutCtrl = (typeof TakeoutController !== 'undefined') ? TakeoutController : null;
+    const SyncCtrl = (typeof SyncController !== 'undefined') ? SyncController : null;
 
-    const normId = id => String(id || '').replace(/^c_/, '');
+    const normId = id => (typeof GeminiUtils !== 'undefined' && GeminiUtils.normId)
+        ? GeminiUtils.normId(id)
+        : String(id || '').replace(/^c_/, '');
 
-    const isRealTitle = (typeof globalThis.GeminiUtils !== 'undefined' && typeof globalThis.GeminiUtils.isRealTitle === 'function')
-        ? globalThis.GeminiUtils.isRealTitle
-        : (typeof globalThis.isRealTitle === 'function'
-            ? globalThis.isRealTitle
-            : function isRealTitle(title, id) {
-                if (!title || typeof title !== 'string') return false;
-                let t = title.trim();
-                if (!t || t.length < 2) return false;
-                if (t === 'Untitled' || t === '未命名' || t === 'New chat' || t === '新对话') return false;
-                if (id) {
-                    let cleanId = String(id).replace(/^c_/, '').trim();
-                    let cleanT = t.replace(/^c_/, '').trim();
-                    if (cleanT === cleanId) return false;
-                    if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-                    if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;
-                }
-                if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|New chat|新对话|Search|搜索)$/i.test(t)) return false;
-                if (/^Google Account/i.test(t)) return false;
-                if (/^[a-f0-9_-]{8,64}$/i.test(t)) return false;
-                if (/^[0-9a-f]{16}$/i.test(t) || /^c_[0-9a-f]{16}$/i.test(t)) return false;
-                if (/^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(t)) return false;
-                return true;
-            });
+    const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle)
+        ? GeminiUtils.cleanTitle(t)
+        : (t || '').trim();
 
-    const cleanTitle = (t) => {
-        try {
-            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
-            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
-        } catch {}
-        if (!t || typeof t !== 'string') return '';
-        let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
-        s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-        s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-        s = s.trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(s)) return '';
-        return s;
-    };
+    const isRealTitle = (t, id) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle)
+        ? GeminiUtils.isRealTitle(t, id)
+        : !!(t && String(t).trim().length > 1);
 
-    const resolveTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
-        ? GeminiUtils.resolveTitle
-        : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.resolveTitle)
-            ? globalThis.GeminiUtils.resolveTitle
-            : (chat) => ({ title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' }));
+    const resolveTitle = (chat) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
+        ? GeminiUtils.resolveTitle(chat)
+        : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
 
     let __workbenchDebounceTimer = null;
     let __lastRenderedSignature = '';
     let __lastRenderTime = 0;
     let __chatSearchFilter = '';
-    let __globalDirHandle = null;
 
-    // Logging helper
+    // Logging helpers
     function log(msg, level = 'info') {
         if (Log && Log.log) Log.log(msg, level);
         else console.log(`[${level}] ${msg}`);
@@ -81,32 +54,11 @@
         if (Log && Log.render) Log.render();
     }
 
-    // Account selector
+    // Account slot selector update
     function updateAccountSlotSelector() {
-        const sel = $('accountSlotSelect');
-        if (!sel) return;
-        const accountSlots = Store ? Store.getAccountSlots() : {};
-        const currentSlot = Store ? Store.getCurrentSlot() : 'u0';
-        const slots = Object.keys(accountSlots || {});
-        if (slots.length <= 1 && (!slots.includes('u1') && !slots.includes('u2'))) {
-            sel.style.display = 'none';
-            return;
+        if (Account && Account.render && Store) {
+            Account.render(Store.getAccountSlots(), Store.getCurrentSlot());
         }
-        sel.style.display = 'inline-block';
-        let html = '';
-        const sorted = Array.from(new Set(['u0', ...slots])).sort();
-        const defLabel = typeof I18n !== 'undefined' ? I18n.t('defaultAccount') : 'Default Account (u0)';
-        const accLabel = typeof I18n !== 'undefined' ? I18n.t('accountSlot') : 'Account';
-        for (const s of sorted) {
-            const info = accountSlots[s];
-            const rawName = info?.name || '';
-            const isDefaultAutoName = !rawName || /^账号\s*u\d+/i.test(rawName) || /^account\s*u\d+/i.test(rawName) || /^默认账号/i.test(rawName) || /^default account/i.test(rawName);
-            const label = isDefaultAutoName ? (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`) : rawName;
-            const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
-            const selected = (s === currentSlot) ? 'selected' : '';
-            html += `<option value="${s}" ${selected}>${label}${count}</option>`;
-        }
-        sel.innerHTML = html;
     }
 
     // Store & List Loader
@@ -155,48 +107,35 @@
                 if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
 
                 const old = dedupMap.get(nid);
-                //  scrub 已污染的 "Google Gemini" 标题（含隐形字符）
-                const cleanForBad = t => String(t||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
+                const cleanForBad = t => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
                 const isBad = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
-                if (isBad(c.title)) c.title = '';
-                if (c.titles) {
-                    for (const k of Object.keys(c.titles)) if (isBad(c.titles[k])) delete c.titles[k];
-                }
-                const mergedTitles = { ...(old?.titles || {}), ...(c.titles || {}) };
-                if (c.titleSource && c.title) {
-                    const cleanT = cleanTitle(c.title);
-                    if (cleanT && (isRealTitle(cleanT, nid) || c.titleSource === 'takeout')) {
-                        mergedTitles[c.titleSource] = cleanT;
+
+                if (!old) {
+                    const resolved = resolveTitle(c);
+                    if (isBad(c.title) || c.title !== resolved.title) {
+                        hasDirtyTitles = true;
                     }
-                } else if (c.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
-                    const cleanT = cleanTitle(c.title);
-                    if (cleanT && isRealTitle(cleanT, nid)) {
-                        mergedTitles.legacy = cleanT;
-                    }
-                }
-
-                const tempChat = {
-                    id: nid,
-                    titles: mergedTitles,
-                    title: c.title || old?.title,
-                    titleSource: c.titleSource || old?.titleSource
-                };
-
-                const resolved = resolveTitle(tempChat);
-                if (c.title !== resolved.title || c.titleSource !== resolved.source) hasDirtyTitles = true;
-
-                c.id = nid;
-                c.titles = mergedTitles;
-                c.title = resolved.title;
-                c.titleSource = resolved.source;
-
-                if (!dedupMap.has(nid)) {
-                    dedupMap.set(nid, c);
+                    dedupMap.set(nid, {
+                        ...c,
+                        title: resolved.title,
+                        titleSource: resolved.source,
+                        titles: c.titles || (isRealTitle(c.title, nid) ? { [c.titleSource || 'legacy']: c.title } : {})
+                    });
                 } else {
+                    const mergedTitles = { ...(old.titles || {}), ...(c.titles || {}) };
+                    if (isRealTitle(c.title, nid) && c.titleSource) {
+                        mergedTitles[c.titleSource] = c.title;
+                    }
+                    if (isRealTitle(old.title, nid) && old.titleSource) {
+                        mergedTitles[old.titleSource] = old.title;
+                    }
+                    const resolved = resolveTitle({ id: nid, titles: mergedTitles, title: old.title, titleSource: old.titleSource });
+                    if (isBad(old.title) || old.title !== resolved.title) {
+                        hasDirtyTitles = true;
+                    }
                     dedupMap.set(nid, {
                         ...old,
                         ...c,
-                        id: nid,
                         titles: mergedTitles,
                         title: resolved.title,
                         titleSource: resolved.source
@@ -206,7 +145,6 @@
 
             const processed = Array.from(dedupMap.values());
             if (hasDirtyTitles && Storage) {
-                // Auto-scrub historical dirty titles in storage
                 Storage.setConversations(slot, processed).catch(() => {});
             }
 
@@ -256,170 +194,14 @@
 
     async function checkExportSession() {
         try {
-            // If an export task is actively running in memory, never show recovery banner
-            if (Controller && Controller.isRunning()) {
-                const banner = $('exportSessionBanner');
-                if (banner) banner.style.display = 'none';
-                return;
-            }
-
+            if (!Dialogs || !Dialogs.renderExportBanner) return;
+            const isRunning = Controller ? Controller.isRunning() : false;
             const { gemini_last_export_session: session } = await chrome.storage.local.get(['gemini_last_export_session']);
-            const banner = $('exportSessionBanner');
-            const bannerText = $('exportSessionText');
-            if (!banner || !bannerText) return;
-
-            if (!session || !session.total) {
-                banner.style.display = 'none';
-                return;
-            }
-
             const slot = Store ? Store.getCurrentSlot() : 'u0';
-            if (session.slot && session.slot !== slot) {
-                banner.style.display = 'none';
-                return;
-            }
-
-            const remaining = Math.max(0, session.total - (session.current || 0));
-
-            if (session.status === 'running' || session.status === 'interrupted' || session.status === 'aborted') {
-                if (remaining <= 0) {
-                    banner.style.display = 'none';
-                    return;
-                }
-                banner.style.display = 'flex';
-                banner.style.borderColor = '#f59e0b';
-                banner.style.background = '#221c12';
-                let msg = typeof I18n !== 'undefined'
-                    ? I18n.t('exportSessionInterrupted', session.total, session.current || 0, remaining)
-                    : `⚠️ <b>发现未完成的导出任务</b>：共 ${session.total} 条，已处理 ${session.current || 0} 条，剩余 ${remaining} 条未导出。`;
-                if (session.lastChatTitle) {
-                    msg += typeof I18n !== 'undefined'
-                        ? I18n.t('exportSessionLastChat', session.lastChatTitle.slice(0, 20))
-                        : ` (上次停在: 「${session.lastChatTitle.slice(0, 20)}」)`;
-                }
-                bannerText.innerHTML = msg;
-                if ($('btnResumeExport')) $('btnResumeExport').style.display = remaining > 0 ? '' : 'none';
-            } else if (session.status === 'completed' || session.status === 'completed_with_errors') {
-                const timeDiff = Date.now() - (session.updatedAt || 0);
-                if (timeDiff < 300000) {
-                    banner.style.display = 'flex';
-                    banner.style.borderColor = session.failedCount > 0 ? '#f59e0b' : '#10b981';
-                    banner.style.background = session.failedCount > 0 ? '#221c12' : '#0e231b';
-                    let baseDone = typeof I18n !== 'undefined'
-                        ? I18n.t('exportSessionCompleted', session.current || session.total)
-                        : `✅ <b>上次导出已完成</b>：共导出 ${session.current || session.total} 条会话`;
-                    if (session.failedCount > 0) {
-                        baseDone += typeof I18n !== 'undefined'
-                            ? I18n.t('exportSessionCompletedWithErrors', session.failedCount)
-                            : ` (其中 ${session.failedCount} 条失败)`;
-                    }
-                    bannerText.innerHTML = baseDone;
-                    if ($('btnResumeExport')) $('btnResumeExport').style.display = 'none';
-                } else {
-                    banner.style.display = 'none';
-                }
-            } else {
-                banner.style.display = 'none';
-            }
+            Dialogs.renderExportBanner(session, slot, isRunning);
         } catch (e) {
             console.debug('[workbench] checkExportSession error', e);
         }
-    }
-
-    function debouncedLoadStore(quiet = true) {
-        if (__workbenchDebounceTimer) clearTimeout(__workbenchDebounceTimer);
-        __workbenchDebounceTimer = setTimeout(() => {
-            __workbenchDebounceTimer = null;
-            loadStore(quiet);
-        }, 400);
-    }
-
-    // Directory Handle IndexedDB
-    const IDB_NAME = 'gemini_exporter_idb';
-    const IDB_STORE = 'handles';
-    const IDB_KEY = 'export_dir_handle';
-
-    function openHandleDB() {
-        return new Promise((resolve, reject) => {
-            const req = indexedDB.open(IDB_NAME, 1);
-            req.onupgradeneeded = () => {
-                const db = req.result;
-                if (!db.objectStoreNames.contains(IDB_STORE)) {
-                    db.createObjectStore(IDB_STORE);
-                }
-            };
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-        });
-    }
-
-    async function saveStoredDirHandle(handle) {
-        try {
-            const db = await openHandleDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(IDB_STORE, 'readwrite');
-                tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
-                tx.oncomplete = () => resolve(true);
-                tx.onerror = () => reject(tx.error);
-            });
-        } catch (e) {
-            console.warn('Failed to save dir handle to IndexedDB:', e);
-            return false;
-        }
-    }
-
-    async function getStoredDirHandle() {
-        try {
-            const db = await openHandleDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(IDB_STORE, 'readonly');
-                const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
-                req.onsuccess = () => resolve(req.result || null);
-                req.onerror = () => reject(req.error);
-            });
-        } catch (e) {
-            console.warn('Failed to get dir handle from IndexedDB:', e);
-            return null;
-        }
-    }
-
-    async function verifyDirPermission(handle) {
-        if (!handle) return false;
-        try {
-            const opts = { mode: 'readwrite' };
-            if ((await handle.queryPermission(opts)) === 'granted') return true;
-            if ((await handle.requestPermission(opts)) === 'granted') return true;
-            return false;
-        } catch {
-            return false;
-        }
-    }
-
-    async function restoreSavedDirHandle() {
-        try {
-            const handle = await getStoredDirHandle();
-            if (handle) {
-                __globalDirHandle = handle;
-                const dirLabel = $('dirLabel');
-                if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
-                log(typeof I18n !== 'undefined' ? I18n.t('logDirRestored', handle.name) : `已恢复保存的导出目录: ${handle.name}`);
-            }
-        } catch (e) {
-            console.warn('Failed to restore dir handle:', e);
-        }
-    }
-
-    async function requestDirHandle() {
-        if (!window.showDirectoryPicker) {
-            throw new Error(typeof I18n !== 'undefined' ? I18n.t('browserNoDirPicker') : '当前浏览器不支持 FileSystem Access API 目录选择');
-        }
-        const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-        __globalDirHandle = handle;
-        await saveStoredDirHandle(handle);
-        const dirLabel = $('dirLabel');
-        if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
-        log(typeof I18n !== 'undefined' ? I18n.t('logFolderSelected', handle.name) : `已选择保存目录: ${handle.name}`);
-        return handle;
     }
 
     // Export Action
@@ -438,181 +220,108 @@
         const includeIndex = $('includeIndex')?.checked || false;
         const includeAssets = $('includeAssets') ? $('includeAssets').checked : true;
         const includeZip = $('includeZip') ? $('includeZip').checked : true;
+        const dirHandle = DirHandle ? DirHandle.getDirHandle() : null;
 
-        let dirHandle = null;
-        if (!includeZip) {
+        if (!includeZip && !dirHandle) {
             try {
-                if (__globalDirHandle) {
-                    const ok = await verifyDirPermission(__globalDirHandle);
-                    if (ok) dirHandle = __globalDirHandle;
-                    else dirHandle = await requestDirHandle();
-                } else {
-                    dirHandle = await requestDirHandle();
-                }
-            } catch (e) {
-                log(typeof I18n !== 'undefined' ? I18n.t('logExportZipSwitched', e.message) : `已切换为导出为 ZIP: ${e.message}`);
-                if ($('includeZip')) $('includeZip').checked = true;
+                if (DirHandle) await DirHandle.requestDirHandle();
+            } catch (err) {
+                log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
+                return;
             }
         }
 
-        const finalUseZip = $('includeZip') ? $('includeZip').checked : true;
-        if (!finalUseZip && !dirHandle) return;
+        const progWrap = $('progWrap');
+        const bar = $('bar');
+        const progText = $('progText');
+        if (progWrap) progWrap.style.display = 'block';
+        if (bar) bar.style.width = '2%';
+        if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('startExport') : 'Preparing export...';
 
-        $('progWrap').style.display = 'block';
-        $('bar').style.width = '0%';
-        $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('progPreparing') : 'Preparing...';
+        log(typeof I18n !== 'undefined'
+            ? I18n.t('exportStartingDetail', selected.length, format.toUpperCase(), includeZip ? 'ZIP' : (typeof I18n !== 'undefined' ? I18n.t('folder') : 'Folder'), includeAssets ? 'ON' : 'OFF')
+            : `Starting export: ${selected.length} chats | Format: ${format.toUpperCase()} | Target: ${includeZip ? 'ZIP' : 'Folder'}`);
 
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
-        const exportedIds = Store ? Store.getExportedIds() : {};
+        if (!Controller) {
+            log('ExportController not available', 'error');
+            return;
+        }
 
         try {
+            const currentSlot = Store ? Store.getCurrentSlot() : 'u0';
+            const exportedIds = Store ? Store.getExportedIds() : {};
+            const takeoutEngine = typeof TakeoutEngine !== 'undefined' ? TakeoutEngine : null;
+
             const result = await Controller.runExport({
                 selected,
                 format,
                 skip,
                 includeIndex,
                 includeAssets,
-                useZip: finalUseZip,
-                dirHandle,
-                currentSlot: slot,
+                useZip: includeZip,
+                dirHandle: DirHandle ? DirHandle.getDirHandle() : null,
+                currentSlot,
                 conversations: convs,
                 exportedIds,
-                takeoutEngine: typeof TakeoutEngine !== 'undefined' ? TakeoutEngine : null
+                takeoutEngine
             }, {
-                onProgress: (p) => {
-                    if ($('bar')) $('bar').style.width = `${p.pct}%`;
-                    let text = `进度 ${p.current}/${p.total} (${p.pct}%)`;
-                    if (p.title) {
-                        const shortTitle = p.title.length > 28 ? p.title.slice(0, 28) + '…' : p.title;
-                        text += ` | 当前: ${shortTitle}`;
-                    }
-                    if (p.assetsTotal > 0) {
-                        text += ` | 附件: ${p.assetsDownloaded}/${p.assetsTotal}`;
-                    }
-                    if ($('progText')) $('progText').textContent = text;
+                onProgress: (pct, txt) => {
+                    if (bar) bar.style.width = `${pct}%`;
+                    if (progText) progText.textContent = txt;
                 },
-                onLog: (m, lvl) => log(m, lvl),
-                onTitleUpdated: (chatId, newTitle) => {
-                    const nid = normId(chatId);
-                    if (Store) {
-                        const convs = Store.getConversations();
-                        const item = convs.find(c => normId(c.id) === nid);
-                        if (item) item.title = newTitle;
-                    }
-                    const itemEl = document.querySelector(`[data-chat-id="${nid}"]`);
-                    if (itemEl) {
-                        const titleDiv = itemEl.querySelector('.title > div');
-                        if (titleDiv) {
-                            const badgeEl = titleDiv.querySelector('.badge');
-                            titleDiv.innerHTML = `${newTitle.replace(/</g, '&lt;')} ${badgeEl ? badgeEl.outerHTML : ''}`;
+                onLog: (msg, level) => log(msg, level),
+                onTitleUpdated: (chatId, newTitle, source) => {
+                    const currentConvs = Store ? Store.getConversations() : [];
+                    const item = currentConvs.find(c => normId(c.id) === normId(chatId));
+                    if (item && isRealTitle(newTitle, chatId)) {
+                        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.setTitleBySource) {
+                            GeminiUtils.setTitleBySource(item, source || 'rpc', newTitle);
+                        } else {
+                            item.title = newTitle;
+                            item.titleSource = source || 'rpc';
                         }
                     }
                 },
-                onItemExported: (chatId) => {
-                    const nid = normId(chatId);
-                    const itemEl = document.querySelector(`[data-chat-id="${nid}"]`);
-                    if (itemEl) {
-                        const titleDiv = itemEl.querySelector('.title > div');
-                        const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
-                        if (titleDiv) {
-                            let badgeEl = titleDiv.querySelector('.badge');
-                            if (!badgeEl) {
-                                badgeEl = document.createElement('span');
-                                badgeEl.className = 'badge';
-                                titleDiv.appendChild(badgeEl);
-                            }
-                            badgeEl.style.background = '#1d3a2a';
-                            badgeEl.style.borderColor = '#2a5a3a';
-                            badgeEl.style.color = '#8ae6b0';
-                            badgeEl.textContent = bExported;
+                onItemExported: async (chatId, title, exportRecord) => {
+                    if (Store) {
+                        const cur = Store.getExportedIds();
+                        cur[chatId] = exportRecord;
+                        cur['c_' + normId(chatId)] = exportRecord;
+                        cur[normId(chatId)] = exportRecord;
+                        Store.setExportedIds(cur);
+                        const cSlot = Store.getCurrentSlot();
+                        await Store.saveExportedIds(cSlot, cur);
+                        const currentConvs = Store.getConversations();
+                        const currentSelected = List ? List.getSelectedIds() : new Set();
+                        if (List) {
+                            List.render(currentConvs, cur, currentSelected, __chatSearchFilter);
+                            List.updateStat(currentConvs);
                         }
                     }
                 }
             });
 
-            const finishMsg = typeof I18n !== 'undefined'
-                ? I18n.t('exportFinished', result.landedChats, result.failedChats.length, selected.length)
-                : `Export completed! Landed: ${result.landedChats}, Failed: ${result.failedChats.length}`;
-            log(finishMsg, result.failedChats.length ? 'warn' : 'info');
-            if ($('progText')) $('progText').textContent = finishMsg;
+            if (result && result.aborted) {
+                log(typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '导出任务已被用户中止', 'warn');
+                if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '导出已终止';
+            } else {
+                const finishMsg = typeof I18n !== 'undefined'
+                    ? I18n.t('exportSuccess', selected.length)
+                    : `Export completed! ${selected.length} conversations exported.`;
+                log(finishMsg, 'info');
+                if (bar) bar.style.width = '100%';
+                if (progText) progText.textContent = finishMsg;
+            }
         } catch (err) {
-            log(typeof I18n !== 'undefined' ? I18n.t('logExportInterrupted', err.message) : `导出过程异常中断: ${err.message}`, 'error');
-            if ($('progText')) $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('exportFailed', err.message) : `导出失败: ${err.message}`;
+            log(typeof I18n !== 'undefined' ? I18n.t('exportFailed', err.message) : `Export failed: ${err.message}`, 'error');
+            if (progText) progText.textContent = `Error: ${err.message}`;
         } finally {
-            __lastRenderedSignature = '';
+            setTimeout(() => {
+                if (progWrap) progWrap.style.display = 'none';
+                if (bar) bar.style.width = '0%';
+            }, 3000);
             await loadStore(true);
         }
-    }
-
-    // Takeout handler
-    async function parseTakeoutZip(file) {
-        if (typeof TakeoutEngine === 'undefined') {
-            log('TakeoutEngine module not loaded', 'error');
-            return;
-        }
-        $('progWrap').style.display = 'block';
-        $('bar').style.width = '15%';
-
-        try {
-            const res = await TakeoutEngine.parseTakeoutZip(file, (pct, txt) => {
-                $('bar').style.width = `${pct}%`;
-                $('progText').textContent = txt;
-                log(txt, 'info');
-            });
-
-            const convs = Store ? Store.getConversations() : [];
-            let existingMap = new Map();
-            for (const c of convs) {
-                existingMap.set(normId(c.id).toLowerCase(), c);
-            }
-
-            let addedCount = 0;
-            for (const tc of res.conversations) {
-                const nid = normId(tc.id).toLowerCase();
-                if (!existingMap.has(nid)) {
-                    convs.push(tc);
-                    existingMap.set(nid, tc);
-                    addedCount++;
-                }
-            }
-
-            if (addedCount > 0 && Store) {
-                const slot = Store.getCurrentSlot() || 'u0';
-                await Store.saveConversations(slot, convs);
-            }
-
-            const successMsg = typeof I18n !== 'undefined'
-                ? I18n.t('takeoutSuccessDetail', res.conversations.length, addedCount, res.totalMediaCount)
-                : `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
-            log(successMsg, 'info');
-            if ($('progText')) $('progText').textContent = successMsg;
-            loadStore();
-        } catch (err) {
-            log(typeof I18n !== 'undefined' ? I18n.t('takeoutError', err.message) : `Takeout 导入失败: ${err.message}`, 'error');
-            if ($('progText')) $('progText').textContent = typeof I18n !== 'undefined' ? I18n.t('takeoutError', err.message) : `Takeout 导入失败: ${err.message}`;
-        } finally {
-            $('progWrap').style.display = 'none';
-        }
-    }
-
-    function exportListJson() {
-        const convs = Store ? Store.getConversations() : [];
-        const sel = List ? List.getSelected(convs) : [];
-        if (!sel.length) {
-            const noSelMsg = typeof I18n !== 'undefined' ? I18n.t('noSelection') : 'Please select at least one conversation!';
-            log(noSelMsg, 'warn');
-            if ($('progText')) $('progText').textContent = noSelMsg;
-            return;
-        }
-        const content = JSON.stringify(sel, null, 2);
-        const blob = new Blob([content], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `gemini_list_${new Date().toISOString().slice(0, 10)}.json`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-        log('已导出选中会话列表为 JSON', 'info');
     }
 
     async function exportDiagnostics() {
@@ -646,7 +355,7 @@
         const verEl = $('ver');
         if (verEl) {
             try {
-                verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || '1.3.1');
+                verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || '1.4.1');
             } catch {}
         }
 
@@ -681,7 +390,7 @@
             const isZip = zipCheck.checked;
             const btnExport = $('btnExport');
             if (btnExport) {
-                btnExport.textContent = isZip 
+                btnExport.textContent = isZip
                     ? (typeof I18n !== 'undefined' ? I18n.t('btnExportZip') : '导出选中 → ZIP')
                     : (typeof I18n !== 'undefined' ? I18n.t('btnExportFolder') : '导出选中 → 文件夹');
             }
@@ -816,7 +525,12 @@
         // 11. Directory Selection Buttons
         $('btnSetDir')?.addEventListener('click', async () => {
             try {
-                await requestDirHandle();
+                if (DirHandle) {
+                    const handle = await DirHandle.requestDirHandle();
+                    const dirLabel = $('dirLabel');
+                    if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
+                    log(typeof I18n !== 'undefined' ? I18n.t('logFolderSelected', handle.name) : `已选择保存目录: ${handle.name}`);
+                }
             } catch (err) {
                 log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', err.message) : `选择目录失败: ${err.message}`, 'warn');
             }
@@ -834,68 +548,71 @@
             if (List) List.selectUnexported(convs, expMap);
             exportSelected();
         });
-        $('btnDismissExportBanner')?.addEventListener('click', async () => {
-            const banner = $('exportSessionBanner');
-            if (banner) banner.style.display = 'none';
-            await chrome.storage.local.remove(['gemini_last_export_session']);
+        $('btnDismissExportBanner')?.addEventListener('click', () => {
+            if (Dialogs) Dialogs.dismissExportBanner();
         });
 
         // 13. Local Takeout Archive Import
         $('btnImportTakeout')?.addEventListener('click', () => $('takeoutFileInput')?.click());
         $('takeoutFileInput')?.addEventListener('change', (e) => {
             const f = e.target.files && e.target.files[0];
-            if (f) parseTakeoutZip(f);
+            if (f && TakeoutCtrl) {
+                const progWrap = $('progWrap');
+                const bar = $('bar');
+                const progText = $('progText');
+                if (progWrap) progWrap.style.display = 'block';
+                if (bar) bar.style.width = '15%';
+
+                TakeoutCtrl.handleTakeoutImport(f, {
+                    onProgress: (pct, txt) => {
+                        if (bar) bar.style.width = `${pct}%`;
+                        if (progText) progText.textContent = txt;
+                    },
+                    onLog: (txt, lvl) => log(txt, lvl),
+                    onFinished: ({ message }) => {
+                        if (progText) progText.textContent = message;
+                        if (progWrap) progWrap.style.display = 'none';
+                        loadStore();
+                    },
+                    onError: (err, errMsg) => {
+                        if (progText) progText.textContent = errMsg;
+                        if (progWrap) progWrap.style.display = 'none';
+                    }
+                });
+            }
         });
 
         // 14. Sync Actions
-        function setScanRunning(running) {
-            if ($('btnIncrementalScan')) $('btnIncrementalScan').disabled = !!running;
-            if ($('btnDeepScan')) $('btnDeepScan').disabled = !!running;
-            if ($('btnStopScan')) $('btnStopScan').style.display = running ? 'inline-flex' : 'none';
-            if ($('btnExport')) $('btnExport').disabled = !!running;
-            if ($('btnImportTakeout')) $('btnImportTakeout').disabled = !!running;
-            if ($('btnSetDir')) $('btnSetDir').disabled = !!running;
-            if ($('btnClearExported')) $('btnClearExported').disabled = !!running;
-            if ($('btnClearAll')) $('btnClearAll').disabled = !!running;
-        }
-
         $('btnIncrementalScan')?.addEventListener('click', () => {
             if (Controller && Controller.isRunning()) return;
             const progWrap = $('progWrap');
             const bar = $('bar');
             const progText = $('progText');
-            if (progWrap) progWrap.style.display = 'block';
-            if (bar) bar.style.width = '5%';
-            if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncingLatest') : '正在同步最新会话...';
-            setScanRunning(true);
-
             const slot = Store ? Store.getCurrentSlot() : 'u0';
-            chrome.runtime.sendMessage({ action: 'deepScan', mode: 'incremental', accountSlot: slot }, (res) => {
-                setScanRunning(false);
 
-                if (chrome.runtime.lastError) {
-                    const err = chrome.runtime.lastError.message;
-                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `增量同步失败: ${err}`, 'error');
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? `${I18n.t('failedPrefix')}: ${err}` : `失败: ${err}`;
-                    return;
-                }
-                if (res && res.success) {
-                    const count = res.count || res.total || 0;
-                    log(typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `增量同步完成，共 ${count} 条`);
-                    if (bar) bar.style.width = '100%';
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `增量同步完成，共 ${count} 条`;
-                    setTimeout(() => {
-                        if (progWrap) progWrap.style.display = 'none';
-                        if (bar) bar.style.width = '0%';
-                        if (progText) progText.textContent = '';
-                    }, 2500);
-                    loadStore();
-                } else {
-                    const err = res ? res.error : '未知错误';
-                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `同步失败: ${err}`, 'error');
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `同步失败: ${err}`;
-                }
-            });
+            if (SyncCtrl) {
+                SyncCtrl.startIncrementalScan(slot, {
+                    onStart: () => {
+                        if (progWrap) progWrap.style.display = 'block';
+                        if (bar) bar.style.width = '5%';
+                        if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncingLatest') : '正在同步最新会话...';
+                    },
+                    onLog: (txt, lvl) => log(txt, lvl),
+                    onFinished: ({ message }) => {
+                        if (bar) bar.style.width = '100%';
+                        if (progText) progText.textContent = message;
+                        setTimeout(() => {
+                            if (progWrap) progWrap.style.display = 'none';
+                            if (bar) bar.style.width = '0%';
+                            if (progText) progText.textContent = '';
+                        }, 2500);
+                        loadStore();
+                    },
+                    onError: (err, errMsg) => {
+                        if (progText) progText.textContent = errMsg;
+                    }
+                });
+            }
         });
 
         $('btnDeepScan')?.addEventListener('click', () => {
@@ -903,48 +620,44 @@
             const progWrap = $('progWrap');
             const bar = $('bar');
             const progText = $('progText');
-            if (progWrap) progWrap.style.display = 'block';
-            if (bar) bar.style.width = '5%';
-            if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
-            setScanRunning(true);
-
             const slot = Store ? Store.getCurrentSlot() : 'u0';
-            chrome.runtime.sendMessage({ action: 'deepScan', mode: 'full', accountSlot: slot }, (res) => {
-                setScanRunning(false);
 
-                if (chrome.runtime.lastError) {
-                    const err = chrome.runtime.lastError.message;
-                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量扫描失败: ${err}`, 'error');
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? `${I18n.t('failedPrefix')}: ${err}` : `失败: ${err}`;
-                    return;
-                }
-                if (res && res.success) {
-                    const count = res.count || res.total || 0;
-                    log(typeof I18n !== 'undefined' ? I18n.t('deepSyncFinished', count) : `全量拉取完成，共 ${count} 条`);
-                    if (bar) bar.style.width = '100%';
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncFinished', count) : `全量拉取完成，共 ${count} 条`;
-                    setTimeout(() => {
-                        if (progWrap) progWrap.style.display = 'none';
-                        if (bar) bar.style.width = '0%';
-                        if (progText) progText.textContent = '';
-                    }, 2500);
-                    loadStore();
-                } else {
-                    const err = res ? res.error : '未知错误';
-                    log(typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量拉取失败: ${err}`, 'error');
-                    if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量拉取失败: ${err}`;
-                }
-            });
+            if (SyncCtrl) {
+                SyncCtrl.startDeepScan(slot, {
+                    onStart: () => {
+                        if (progWrap) progWrap.style.display = 'block';
+                        if (bar) bar.style.width = '5%';
+                        if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
+                    },
+                    onLog: (txt, lvl) => log(txt, lvl),
+                    onFinished: ({ message }) => {
+                        if (bar) bar.style.width = '100%';
+                        if (progText) progText.textContent = message;
+                        setTimeout(() => {
+                            if (progWrap) progWrap.style.display = 'none';
+                            if (bar) bar.style.width = '0%';
+                            if (progText) progText.textContent = '';
+                        }, 2500);
+                        loadStore();
+                    },
+                    onError: (err, errMsg) => {
+                        if (progText) progText.textContent = errMsg;
+                    }
+                });
+            }
         });
 
         $('btnStopScan')?.addEventListener('click', () => {
             const slot = Store ? Store.getCurrentSlot() : 'u0';
-            chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: slot }, () => {
-                log(typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...');
-                const progText = $('progText');
-                if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('stoppingSync') : '正在终止同步...';
-                setScanRunning(false);
-            });
+            if (SyncCtrl) {
+                SyncCtrl.stopScan(slot, {
+                    onLog: (txt, lvl) => log(txt, lvl),
+                    onStopped: ({ message }) => {
+                        const progText = $('progText');
+                        if (progText) progText.textContent = message;
+                    }
+                });
+            }
         });
 
         // 15. Clear Cache
@@ -975,7 +688,7 @@
             log(typeof I18n !== 'undefined' ? I18n.t('confirmClearAll') : '本地会话数据已清空');
         });
 
-        // 17. Logs & Diagnostics
+        // 16. Logs & Diagnostics
         $('logFilter')?.addEventListener('input', renderLog);
         $('logLevel')?.addEventListener('change', renderLog);
         $('btnClearLog')?.addEventListener('click', clearLog);
@@ -989,7 +702,7 @@
         });
         $('btnExportDiag')?.addEventListener('click', exportDiagnostics);
 
-        // 18. Broadcast Listener for Progress & Live Updates
+        // 17. Broadcast Listener for Progress & Live Updates
         chrome.runtime.onMessage.addListener((msg) => {
             if (msg.action === 'scanProgress') {
                 const progWrap = $('progWrap');
@@ -1006,8 +719,15 @@
             }
         });
 
-        // 19. Initial Data & Directory Restore
-        await restoreSavedDirHandle();
+        // 18. Initial Data & Directory Restore
+        if (DirHandle) {
+            const savedHandle = await DirHandle.restoreSavedDirHandle();
+            if (savedHandle) {
+                const dirLabel = $('dirLabel');
+                if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', savedHandle.name) : `已选目录: ${savedHandle.name}`;
+                log(typeof I18n !== 'undefined' ? I18n.t('logDirRestored', savedHandle.name) : `已恢复保存的导出目录: ${savedHandle.name}`);
+            }
+        }
         try { window.__workbenchLoadStore = loadStore; } catch {}
         await loadStore();
     }

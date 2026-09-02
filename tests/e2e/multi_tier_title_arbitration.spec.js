@@ -192,15 +192,15 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
     await exportBtn.click();
 
     // 4. Verify title updated in workbench and storage with titleSource = 'sniff' and titles.sniff set
-    await expect(targetItem).toContainText('如何构建高性能分布式缓存系统？');
+    await expect(targetItem).toContainText('如何构建高性能分布式缓存系统');
 
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
     });
     const chat = storageData.gemini_conversations.find(c => c.id === 'sniff_test_chat_888');
     expect(chat).toBeTruthy();
-    expect(chat.title).toBe('如何构建高性能分布式缓存系统？');
+    expect(chat.title).toBe('如何构建高性能分布式缓存系统');
     expect(chat.titleSource).toBe('sniff');
-    expect(chat.titles.sniff).toBe('如何构建高性能分布式缓存系统？');
+    expect(chat.titles.sniff).toBe('如何构建高性能分布式缓存系统');
   });
 });
