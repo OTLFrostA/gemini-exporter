@@ -5,7 +5,7 @@
 </p>
 
 <p align="left">
-  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf" target="_blank">
+  <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome 网上应用店">
   </a>
 </p>
@@ -27,16 +27,19 @@
   - **Markdown (`.md`)**：完美排版，代码高亮，公式渲染，支持思考过程折叠（`<details>`）与网络参考来源标注。
   - **JSON (OpenAI 格式)**：标准化对话格式，便于将数据直接喂给大模型微调或第三方评测工具。
   - **JSON (原始结构)**：包含完整上下文与会话元数据（可在开发者模式下开启）。
-- 🖼️ **完整支持图片与文件附件下载**：
-  - 自动嗅探并下载对话中的用户上传附件（PDF、DOCX、ZIP 等）以及 AI 生成图片（高清晰度源图）。
+- 🖼️ **完整支持高清晰度图片与多回合附件下载**：
+  - 自动嗅探并下载对话中的用户上传附件（PDF、DOCX、ZIP 等）以及 AI 生成图片（高清晰度源图），严格保障多轮生图的文件名全局唯一。
   - 图片与附件自动规整至 `assets/` 资源目录并于 Markdown 中建立相对引用。
+- ⚡ **高并发流式导出与中断自愈横幅**：
+  - 滑动窗口任务池，支持高并发流畅导出与实时进度展示。
+  - **会话中断自愈横幅**：自动感知未完成的导出任务，支持一键恢复未导出项。
 - 👥 **多账号便捷切换 (Multi-Account)**：
   - 完美支持同时登录多个 Google 账号（`u0`, `u1`, `u2` 等），支持按账号插槽独立隔离存储、会话索引与导出状态记录。
 - 📥 **Google Takeout 深度联动与远古对话找回 (Takeout ZIP Import)**：
   - 支持直接导入 Google Takeout 导出的 `takeout-*.zip`，利用本地 JSZip 沙盒秒级解析 `MyActivity.html`，找回云端侧边栏分页截断而无法扫到的远古历史对话。
   - **离线媒体智能兜底池**：自动索引 ZIP 内的所有图片与附件，当云端 API 附件下载遇到 Token 过期或 403 时，自动回退到 Takeout 离线池无损补全！
-- 💾 **全量底账一键备份与恢复 (Backup & Restore)**：
-  - 一键导出全部会话底账与导出状态为标准化 JSON 备份文件，支持跨设备与跨浏览器秒级全量恢复。
+- 🏷️ **多层级权威标题决议 (`TITLE_SOURCE_PRIORITY`)**：
+  - 智能多源标题判定与优先级防污染机制，彻底剔除 Google Gemini 品牌词干扰，精准保护原始真实标题。
 - 🔄 **智能增量同步与变更感知**：
   - 本地记录每一个对话的唯一 ID、更新时间与消息总数。
   - 支持“跳过已导出”，当旧对话产生新回复时自动标记为“有更新”，实现极致省时的增量备份。
@@ -53,7 +56,7 @@
 
 通过 Chrome 官方商店一键获取最新正式版：
 
-👉 **[前往 Chrome 应用商店安装 Gemini Exporter](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf)**
+👉 **[前往 Chrome 应用商店安装 Gemini Exporter](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme&utm_campaign=github_repo)**
 
 ### 方式二：加载解压扩展（开发者 / 源码安装）
 
@@ -94,44 +97,46 @@
 
 ---
 
-## 🛡️ 架构与核心模块 (Architecture & Core Modules)
+## 🛡️ 架构与核心模块 (Architecture & Layered Design)
 
-本插件采用严格的高内聚低耦合模块化架构，零外部遥测与数据上报：
+本插件采用严格的高内聚低耦合分层架构，零外部遥测与数据上报：
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   工作台 UI 控制层 (Workbench)                │
-│             (options.js, options-popup.js)                  │
-└──────────────┬───────────────────────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌────────────────────────────┐
-│      导出引擎 (ZIP / FS)     │ │   Takeout 离线媒体池引擎   │
-│       (export_engine.js)     │ │     (takeout_engine.js)    │
-└──────────────┬───────────────┘ └─────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌────────────────────────────┐
-│   纯数据解析库 (0网络/0DOM)  │ │   统一多账号存储层 (Storage)│
-│       (gemini_parser.js)     │ │     (storage_service.js)   │
-└──────────────┬───────────────┘ └─────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────────┐ ┌────────────────────────────┐
-│   宿主受权资源抓取器 (Blob)  │ │     Gemini API 客户端 (RPC) │
-│       (asset_fetcher.js)     │ │      (gemini_client.js)    │
-└──────────────────────────────┘ └────────────────────────────┘
-```
+src/core/                 纯逻辑核心层（无 DOM 依赖，可独立单测）
+  ├── constants.js        支持的格式定义、存储键名常量
+  ├── formatStore.js      导出格式归一化与校验
+  ├── tabService.js       统一 Gemini 标签页发现与安全通信服务
+  └── exporter/
+      ├── zipWriter.js    JSZip 流式打包写入器
+      └── fsWriter.js     FileSystem Access API 目录树落盘写入器
 
-- **`gemini_parser.js`**：纯数据转换库，无浏览器或网络依赖，可独立运行于 Node/CI 测试环境。
-- **`storage_service.js`**：统一多账号存储层，集中管理多账号（`u0`, `u1`, `u2`）数据键、同步时间戳与导出标记。
-- **`export_engine.js`**：批量并发抓取调度、JSZip 打包与 FileSystem Access API 磁盘文件流写入。
-- **`takeout_engine.js`**：Google Takeout 压缩包本地解析与离线媒体哈希兜底匹配。
-- **`asset_fetcher.js`**：在宿主页面安全上下文下抓取受鉴权保护的图片与附件。
-- **`dom_scraper.js`**：提供当 RPC 降级时的 DOM HTML 解析与侧边栏历史滚动。
+src/ui/                   工作台 UI 分层（视图与控制器彻底解耦）
+  ├── state/
+  │   └── conversationsStore.js   多账号数据仓储与签名快照
+  ├── views/
+  │   ├── listView.js             会话表格渲染与多模式勾选
+  │   ├── logView.js              实时日志缓冲与过滤
+  │   ├── accountView.js          多账号 Slot 下拉选择器视图
+  │   └── dialogView.js           中断恢复横幅与弹窗组件
+  └── controllers/
+      ├── exportController.js     导出任务并发调度门面
+      ├── syncController.js       增量同步与全量地毯扫描调度
+      ├── takeoutController.js    Takeout ZIP 解析与底账合并调度
+      └── dirHandleController.js  FileSystem Access API IndexedDB 持久化控制
+
+Content 与核心服务层
+  ├── utils.js            单一数据源（文件名消毒、标题清理、有效性判定）
+  ├── gemini_parser.js    纯 RPC batchexecute 反序列化解析器
+  ├── gemini_client.js    Gemini batchexecute 网络请求客户端
+  ├── takeout_engine.js   Google Takeout 离线压缩包解析与媒体哈希池
+  ├── export_engine.js    高并发批量导出流水线
+  └── storage_service.js  Chrome 本地存储多 Slot 隔离服务
+```
 
 - **凭据捕获**：通过主世界（MAIN world）轻量拦截原生网络请求中携带的防 CSRF 标记（`at`）与会话 ID（`f.sid`），规避 Cookie 泄露。
 - **本地落盘**：所有对话内容与二进制图片均在本地浏览器中由 JSZip 和现代 Web API 直接保存，0 过度权限，不经过任何中转后端。
+
+---
 
 ## 🔒 隐私政策
 
