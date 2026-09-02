@@ -46,14 +46,17 @@
                 let a = global.__gemExporterExtractAt();
                 if (a) return a;
             }
+            if (global._WIZ_global_data && global._WIZ_global_data.SNlM0e) return global._WIZ_global_data.SNlM0e;
+            if (global.WIZ_global_data && global.WIZ_global_data.SNlM0e) return global.WIZ_global_data.SNlM0e;
             let scripts = global.document ? global.document.querySelectorAll('script') : [];
             for (let s of scripts) {
                 let txt = s.textContent || "";
                 let m = txt.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
                 if (m) return m[1];
             }
-            if (global._WIZ_global_data && global._WIZ_global_data.SNlM0e) return global._WIZ_global_data.SNlM0e;
-            if (global.WIZ_global_data && global.WIZ_global_data.SNlM0e) return global.WIZ_global_data.SNlM0e;
+            let html = (global.document && global.document.documentElement && global.document.documentElement.innerHTML) || "";
+            let mHtml = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+            if (mHtml) return mHtml[1];
         } catch {}
         return "";
     }
