@@ -251,91 +251,105 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
         }
     }
 
-    for (const item of toFetch) {
-        if (__bgAborted) break;
+    const CONCURRENCY = 3;
+    let nextIdx = 0;
+    async function worker() {
+        while (nextIdx < toFetch.length && !__bgAborted) {
+            const item = toFetch[nextIdx++];
+            if (!item) break;
 
-        try {
-            let data;
             try {
-                data = await fetchWithRetry(item.id);
-            } catch (tabErr) {
-                if (String(tabErr.message) === 'aborted') break;
-                data = { success: false, error: tabErr.message };
-            }
-
-            if (data && data.success) {
-                let chat = data.data || data.chat || data;
-                chat.id = item.id;
-                const cleanDetailTitle = cleanTitle(chat.title);
-                const cleanItemTitle = cleanTitle(item.title);
-
-                chat.titles = { ...(item.titles || {}), ...(chat.titles || {}) };
-                if (chat.titleSource && cleanDetailTitle && (isRealTitle(cleanDetailTitle, item.id) || chat.titleSource === 'takeout')) {
-                    chat.titles[chat.titleSource] = cleanDetailTitle;
-                } else if (cleanDetailTitle && isRealTitle(cleanDetailTitle, item.id)) {
-                    chat.titles.sniff = cleanDetailTitle;
+                let data;
+                try {
+                    data = await fetchWithRetry(item.id);
+                } catch (tabErr) {
+                    if (String(tabErr.message) === 'aborted') break;
+                    data = { success: false, error: tabErr.message };
                 }
-                if (item.titleSource && cleanItemTitle && (isRealTitle(cleanItemTitle, item.id) || item.titleSource === 'takeout')) {
-                    if (!chat.titles[item.titleSource]) {
-                        chat.titles[item.titleSource] = cleanItemTitle;
+
+                if (data && data.success) {
+                    let chat = data.data || data.chat || data;
+                    chat.id = item.id;
+                    const cleanDetailTitle = cleanTitle(chat.title);
+                    const cleanItemTitle = cleanTitle(item.title);
+
+                    chat.titles = { ...(item.titles || {}), ...(chat.titles || {}) };
+                    if (chat.titleSource && cleanDetailTitle && (isRealTitle(cleanDetailTitle, item.id) || chat.titleSource === 'takeout')) {
+                        chat.titles[chat.titleSource] = cleanDetailTitle;
+                    } else if (cleanDetailTitle && isRealTitle(cleanDetailTitle, item.id)) {
+                        chat.titles.sniff = cleanDetailTitle;
                     }
-                }
-                const resolved = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
-                    ? GeminiUtils.resolveTitle(chat)
-                    : { title: cleanDetailTitle || cleanItemTitle || item.id, source: chat.titleSource || item.titleSource || 'default' };
-                chat.title = resolved.title;
-                chat.titleSource = resolved.source;
-                if (!chat.url) chat.url = item.url || `https://gemini.google.com/app/${item.id}`;
+                    if (item.titleSource && cleanItemTitle && (isRealTitle(cleanItemTitle, item.id) || item.titleSource === 'takeout')) {
+                        if (!chat.titles[item.titleSource]) {
+                            chat.titles[item.titleSource] = cleanItemTitle;
+                        }
+                    }
+                    const resolved = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
+                        ? GeminiUtils.resolveTitle(chat)
+                        : { title: cleanDetailTitle || cleanItemTitle || item.id, source: chat.titleSource || item.titleSource || 'default' };
+                    chat.title = resolved.title;
+                    chat.titleSource = resolved.source;
+                    if (!chat.url) chat.url = item.url || `https://gemini.google.com/app/${item.id}`;
 
-                const msgCount = chat.messageCount || chat.messages?.length || 0;
-                const hasContent = msgCount > 0 || (chat.messages && chat.messages.some(m => (m.content && m.content.trim().length > 0) || (m.attachments && m.attachments.length > 0)));
-                const isEmptyFail = !hasContent && !chat.error;
+                    const msgCount = chat.messageCount || chat.messages?.length || 0;
+                    const hasContent = msgCount > 0 || (chat.messages && chat.messages.some(m => (m.content && m.content.trim().length > 0) || (m.attachments && m.attachments.length > 0)));
+                    const isEmptyFail = !hasContent && !chat.error;
 
-                if (isEmptyFail || chat.error) {
-                    const failReason = chat.error || '云端返回内容为空';
-                    // 保留 _raw/_debug 供 export_engine 写入诊断
-                    const debugSnippet = chat._raw ? JSON.stringify(chat._raw).slice(0, 800) : (chat._debug ? JSON.stringify(chat._debug).slice(0, 800) : null);
-                    if (isEmptyFail) console.warn(`[Gemini Exporter BG] empty detail for ${item.id} (${item.title}) _raw_len=${debugSnippet?.length || 0} hasMessages=${!!chat.messages}`);
-                    results.push({
-                        id: chat.id || item.id,
-                        title: chat.title || item.title,
-                        url: chat.url || item.url,
-                        error: failReason,
-                        messages: chat.messages || [],
-                        messageCount: msgCount,
-                        _empty: true,
-                        _debug: debugSnippet,
-                        _raw: chat._raw || null
-                    });
+                    if (isEmptyFail || chat.error) {
+                        const failReason = chat.error || '云端返回内容为空';
+                        const debugSnippet = chat._raw ? JSON.stringify(chat._raw).slice(0, 800) : (chat._debug ? JSON.stringify(chat._debug).slice(0, 800) : null);
+                        if (isEmptyFail) console.warn(`[Gemini Exporter BG] empty detail for ${item.id} (${item.title}) _raw_len=${debugSnippet?.length || 0} hasMessages=${!!chat.messages}`);
+                        results.push({
+                            id: chat.id || item.id,
+                            title: chat.title || item.title,
+                            url: chat.url || item.url,
+                            error: failReason,
+                            messages: chat.messages || [],
+                            messageCount: msgCount,
+                            _empty: true,
+                            _debug: debugSnippet,
+                            _raw: chat._raw || null
+                        });
+                    } else {
+                        results.push(chat);
+                    }
                 } else {
-                    results.push(chat);
+                    const failReason = data?.error || data?.message || '未知错误';
+                    console.warn(`[Gemini Exporter BG] detail fetch failed for ${item.id} (${item.title}):`, failReason);
+                    results.push({
+                        id: item.id,
+                        title: item.title,
+                        url: item.url || `https://gemini.google.com/app/${item.id}`,
+                        error: failReason,
+                        messages: [],
+                        messageCount: 0
+                    });
                 }
-            } else {
-                const failReason = data?.error || data?.message || '未知错误';
-                console.warn(`[Gemini Exporter BG] detail fetch failed for ${item.id} (${item.title}):`, failReason);
+                ++done;
+                notifyProgress(done, item.title, item.id);
+                await new Promise(r => setTimeout(r, 60 + Math.random() * 40));
+            } catch (e) {
                 results.push({
                     id: item.id,
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${item.id}`,
-                    error: failReason,
+                    error: e.message || '抓取异常',
                     messages: [],
                     messageCount: 0
                 });
+                ++done;
+                notifyProgress(done, item.title, item.id);
             }
-            ++done;
-            notifyProgress(done, item.title, item.id);
-            await new Promise(r => setTimeout(r, 180 + Math.random() * 120));
-        } catch (e) {
-            results.push({
-                id: item.id,
-                title: item.title,
-                error: e.message,
-                messages: []
-            });
-            ++done;
-            notifyProgress(done, item.title, item.id);
         }
     }
+
+    const workerCount = Math.min(CONCURRENCY, toFetch.length);
+    const workers = [];
+    for (let w = 0; w < workerCount; w++) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
+
     portSendResponse({
         success: true,
         results,
