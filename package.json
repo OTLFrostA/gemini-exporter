@@ -1,6 +1,6 @@
 {
   "name": "gemini-exporter",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "A privacy-first Chrome extension to batch export and archive your Google Gemini conversations.",
   "main": "background.js",
   "scripts": {
