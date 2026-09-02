@@ -23,10 +23,43 @@
         return String(id).replace(/^c_/, '').trim();
     }
 
+    function extractC2PATimestamp(bufferOrArray) {
+        if (!bufferOrArray) return null;
+        let str = '';
+        if (typeof Buffer !== 'undefined' && Buffer.isBuffer(bufferOrArray)) {
+            str = bufferOrArray.toString('binary');
+        } else if (bufferOrArray instanceof Uint8Array || ArrayBuffer.isView(bufferOrArray)) {
+            const len = Math.min(bufferOrArray.length, 65536);
+            let s = '';
+            for (let i = 0; i < len; i++) {
+                s += String.fromCharCode(bufferOrArray[i]);
+            }
+            str = s;
+        } else if (typeof bufferOrArray === 'string') {
+            str = bufferOrArray;
+        }
+        const m = str.match(/(202\d[01]\d[0-3]\d[0-2]\d[0-5]\d[0-5]\dZ)/);
+        if (!m) return null;
+        const s = m[1];
+        const year = parseInt(s.slice(0, 4), 10);
+        const month = parseInt(s.slice(4, 6), 10);
+        const day = parseInt(s.slice(6, 8), 10);
+        const hour = parseInt(s.slice(8, 10), 10);
+        const min = parseInt(s.slice(10, 12), 10);
+        const sec = parseInt(s.slice(12, 14), 10);
+        return Date.UTC(year, month - 1, day, hour, min, sec);
+    }
+
     function getTakeoutOfflineChat(chatId) {
         if (!chatId) return null;
         const nid = normId(chatId);
         return __takeoutConvCache[nid] || null;
+    }
+
+    function getTakeoutMediaForChat(chatId) {
+        if (!chatId) return [];
+        const nid = normId(chatId);
+        return __takeoutMediaMap[nid] || [];
     }
 
     async function getTakeoutFallbackMedia(chatId, filenameOrId) {
@@ -141,6 +174,7 @@
         __takeoutConvCache = {};
         let totalMediaCount = 0;
 
+        const watermarkedImages = [];
         for (const [path, fObj] of Object.entries(zip.files)) {
             if (fObj.dir || path.endsWith('.html') || path.endsWith('.json')) continue;
             let filename = path.replace(/^.*[\\\/]/, '').trim();
@@ -150,10 +184,33 @@
             __takeoutGlobalMedia[stem] = fObj;
             __takeoutGlobalMedia[filename] = fObj;
             totalMediaCount++;
+
+            if (/watermarked_img_/i.test(filename)) {
+                try {
+                    const bin = await fObj.async('uint8array');
+                    const c2paTime = extractC2PATimestamp(bin) || (fObj.date ? fObj.date.getTime() : null);
+                    watermarkedImages.push({
+                        filename,
+                        stem,
+                        cleanStem,
+                        fileObj: fObj,
+                        time: c2paTime
+                    });
+                } catch (e) {
+                    watermarkedImages.push({
+                        filename,
+                        stem,
+                        cleanStem,
+                        fileObj: fObj,
+                        time: fObj.date ? fObj.date.getTime() : null
+                    });
+                }
+            }
         }
 
         const rawBlocks = htmlText.split('<div class="outer-cell');
         const extractedMap = {};
+        const genBlocks = [];
 
         for (let i = 1; i < rawBlocks.length; i++) {
             const block = rawBlocks[i];
@@ -208,6 +265,17 @@
             } else if (timeMatchIso) {
                 let dt = new Date(timeMatchIso[1].replace(/[\u202f\xa0]/g, ' '));
                 if (!isNaN(dt.getTime())) ts = dt.getTime();
+            }
+
+            const hasGenMarker = /(?:(\d+)\s*generated images?|(\d+)\s*张生成的图片)/i.test(block);
+            if (hasGenMarker && foundIds.length > 0 && ts) {
+                for (const cid of foundIds) {
+                    genBlocks.push({
+                        chatId: cid,
+                        time: ts,
+                        prompt: promptText
+                    });
+                }
             }
 
             const contentCellMatch = block.match(/<div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">([\s\S]*?)<\/div>/i);
@@ -366,6 +434,81 @@
             }
         }
 
+        // Correlate watermarked generated images with conversations
+        if (watermarkedImages.length > 0 && genBlocks.length > 0) {
+            function linkTakeoutGeneratedImage(chatId, img) {
+                if (!__takeoutMediaMap[chatId]) __takeoutMediaMap[chatId] = [];
+                if (!__takeoutMediaMap[chatId].some(x => x.filename === img.filename)) {
+                    __takeoutMediaMap[chatId].push({
+                        filename: img.filename,
+                        fileObj: img.fileObj,
+                        isGenerated: true
+                    });
+                }
+                const imgObj = {
+                    url: img.filename,
+                    name: img.filename,
+                    fileName: img.filename,
+                    localName: `assets/${img.filename}`,
+                    source: 'takeout',
+                    isGenerated: true
+                };
+                const cached = __takeoutConvCache[chatId];
+                if (cached && Array.isArray(cached.messages)) {
+                    let modelTurn = cached.messages.find(m => m.role === 'model');
+                    if (!modelTurn) {
+                        modelTurn = {
+                            role: 'model',
+                            content: `![Generated Image](assets/${img.filename})`,
+                            timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : Date.now()),
+                            images: [imgObj],
+                            attachments: [imgObj]
+                        };
+                        cached.messages.push(modelTurn);
+                    } else {
+                        modelTurn.images = modelTurn.images || [];
+                        modelTurn.attachments = modelTurn.attachments || [];
+                        if (!modelTurn.images.some(im => im.fileName === img.filename)) {
+                            modelTurn.images.push(imgObj);
+                        }
+                        if (!modelTurn.attachments.some(at => at.fileName === img.filename)) {
+                            modelTurn.attachments.push(imgObj);
+                        }
+                        if (!modelTurn.content.includes(img.filename)) {
+                            modelTurn.content = (modelTurn.content ? modelTurn.content + '\n\n' : '') + `![Generated Image](assets/${img.filename})`;
+                        }
+                    }
+                    cached.attachmentCount = (cached.attachmentCount || 0) + 1;
+                }
+                if (extractedMap[chatId]) {
+                    extractedMap[chatId].attachmentCount = (extractedMap[chatId].attachmentCount || 0) + 1;
+                }
+            }
+
+            if (watermarkedImages.length === 1 && genBlocks.length === 1) {
+                // Monopolistic Fallback
+                linkTakeoutGeneratedImage(genBlocks[0].chatId, watermarkedImages[0]);
+            } else {
+                // C2PA Temporal Causal Matching
+                for (const img of watermarkedImages) {
+                    let bestBlock = null;
+                    let minDiff = Infinity;
+                    for (const gb of genBlocks) {
+                        if (!gb.time || !img.time) continue;
+                        const diff = img.time - gb.time;
+                        // Allow diff between -5000ms (clock skew) and 120,000ms (2 minutes generation delay)
+                        if (diff >= -5000 && diff <= 120000 && diff < minDiff) {
+                            minDiff = diff;
+                            bestBlock = gb;
+                        }
+                    }
+                    if (bestBlock) {
+                        linkTakeoutGeneratedImage(bestBlock.chatId, img);
+                    }
+                }
+            }
+        }
+
         const conversations = Object.values(extractedMap);
         if (onProgress) onProgress(100, `Takeout 解析完成，共发现 ${conversations.length} 条对话与 ${totalMediaCount} 个离线资源`);
 
@@ -387,6 +530,8 @@
     return {
         getTakeoutOfflineChat,
         getTakeoutFallbackMedia,
+        getTakeoutMediaForChat,
+        extractC2PATimestamp,
         parseTakeoutZip,
         clearTakeoutData
     };

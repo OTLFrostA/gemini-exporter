@@ -420,6 +420,48 @@
                         }
                     }
 
+                    // Supplement missing offline generated media from Takeout into chat.messages if present
+                    if (takeoutEngine && typeof takeoutEngine.getTakeoutMediaForChat === 'function' && Array.isArray(chat.messages) && chat.messages.length > 0) {
+                        const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid);
+                        if (takeoutMedia && takeoutMedia.length > 0) {
+                            for (const tm of takeoutMedia) {
+                                const alreadyHas = chat.messages.some(m => 
+                                    (m.images && m.images.some(im => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
+                                    (m.attachments && m.attachments.some(at => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||
+                                    (m.content && m.content.includes(tm.filename))
+                                );
+                                if (!alreadyHas) {
+                                    const imgObj = {
+                                        url: tm.filename,
+                                        name: tm.filename,
+                                        fileName: tm.filename,
+                                        localName: `assets/${tm.filename}`,
+                                        source: 'takeout',
+                                        isGenerated: true
+                                    };
+                                    let targetModelMsg = chat.messages.slice().reverse().find(m => m.role === 'model');
+                                    if (targetModelMsg) {
+                                        targetModelMsg.images = targetModelMsg.images || [];
+                                        targetModelMsg.attachments = targetModelMsg.attachments || [];
+                                        targetModelMsg.images.push(imgObj);
+                                        targetModelMsg.attachments.push(imgObj);
+                                        if (!targetModelMsg.content.includes(tm.filename)) {
+                                            targetModelMsg.content = (targetModelMsg.content ? targetModelMsg.content + '\n\n' : '') + `![Generated Image](assets/${tm.filename})`;
+                                        }
+                                    } else {
+                                        chat.messages.push({
+                                            role: 'model',
+                                            content: `![Generated Image](assets/${tm.filename})`,
+                                            timestamp: Date.now(),
+                                            images: [imgObj],
+                                            attachments: [imgObj]
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (chat.error || chat._empty) {
                         const cleanForLog = t => String(t||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
                         const rawTitle = chat.title || nid;
