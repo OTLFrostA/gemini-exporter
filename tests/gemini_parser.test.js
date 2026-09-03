@@ -174,3 +174,85 @@ test('gemini_parser - parseDetail with metadata-only payload returns empty messa
     assert.ok(parsed._raw);
     assert.strictEqual(parsed._raw[2][0][0], 'c_meta_only_456');
 });
+
+test('gemini_parser - JSPB schema and candidate extraction filters telemetry and language code', () => {
+    const { GEMINI_JSPB_SCHEMA, detectTurnSchemaDrift } = GeminiResponseParserClass;
+    assert.ok(GEMINI_JSPB_SCHEMA, 'GEMINI_JSPB_SCHEMA should be exported');
+    assert.strictEqual(typeof detectTurnSchemaDrift, 'function', 'detectTurnSchemaDrift should be function');
+
+    // Simulate real Gemini response with Grounding search query, provider, and telemetry tokens
+    const mockModelTurn = [
+        [
+            [
+                "rc_024c7ad5d90f4db8",
+                [
+                    ["不能。如果你的CAS完全没有装备机枪，是无法夺取制空权的。"],
+                    "zh" // Language code tag - MUST NOT leak into message body
+                ]
+            ]
+        ],
+        [["hoi4 air wing equipment filtering tags"]], // Grounding search query - MUST NOT become a message
+        "google",                                    // Search provider - MUST NOT become a message
+        "c",                                         // Status code - MUST NOT become a message
+        "S",                                         // Status code - MUST NOT become a message
+        6,                                           // Telemetry - MUST NOT become a message
+        6,                                           // Telemetry - MUST NOT become a message
+        "."                                          // Telemetry - MUST NOT become a message
+    ];
+
+    const turn = [
+        ["c_024c7ad5d90f4db8", "r_turn_1"],
+        [1717058840, 264000000],
+        [["如果cas不带机枪的话能抢制空么"]],
+        mockModelTurn
+    ];
+
+    const mockDetailInner = [[turn], null, "钢铁雄心4制空测试"];
+    const topPayload = [["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)]];
+    const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
+
+    const parsed = GeminiResponseParserClass.parseDetail(rawText, '024c7ad5d90f4db8');
+
+    // MUST be exactly 2 messages (1 user, 1 model), NOT 8 or 9!
+    assert.strictEqual(parsed.messages.length, 2, `Expected exactly 2 messages, got ${parsed.messages.length}`);
+    assert.strictEqual(parsed.messages[0].role, 'user');
+    assert.strictEqual(parsed.messages[0].content, '如果cas不带机枪的话能抢制空么');
+
+    assert.strictEqual(parsed.messages[1].role, 'model');
+    // Content must be clean and NOT polluted with trailing 'zh'
+    assert.strictEqual(parsed.messages[1].content, '不能。如果你的CAS完全没有装备机枪，是无法夺取制空权的。');
+    assert.strictEqual(parsed.messages[1].content.endsWith('zh'), false, 'Content must not end with language tag zh');
+
+    // None of the telemetry or grounding tokens should exist as messages
+    const contents = parsed.messages.map(m => m.content);
+    assert.ok(!contents.includes('hoi4 air wing equipment filtering tags'));
+    assert.ok(!contents.includes('google'));
+    assert.ok(!contents.includes('c'));
+    assert.ok(!contents.includes('S'));
+    assert.ok(!contents.includes('6'));
+    assert.ok(!contents.includes('.'));
+});
+
+test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns', () => {
+    const { detectTurnSchemaDrift } = GeminiResponseParserClass;
+
+    // Healthy turn
+    const healthyTurn = [
+        ["c_valid_123", "r_turn_1"],
+        [1717058840, 0],
+        [["测试提问"]],
+        [[["rc_cand_1", [["测试回答"]]]]]
+    ];
+    const healthyCheck = detectTurnSchemaDrift(healthyTurn, 'valid_123');
+    assert.strictEqual(healthyCheck.isDrifted, false);
+    assert.strictEqual(healthyCheck.warnings.length, 0);
+
+    // Drifting turn: missing turn ID meta and corrupted model payload
+    const driftedTurn = [
+        ["corrupted_meta"],
+        null
+    ];
+    const driftCheck = detectTurnSchemaDrift(driftedTurn, 'bad_conv');
+    assert.strictEqual(driftCheck.isDrifted, true);
+    assert.ok(driftCheck.warnings.length >= 1);
+});

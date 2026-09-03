@@ -8,9 +8,162 @@
         const exports = factory();
         root.GeminiResponseParserClass = exports.GeminiResponseParserClass;
         root.isRealTitle = exports.isRealTitle;
+        root.GEMINI_JSPB_SCHEMA = exports.GEMINI_JSPB_SCHEMA;
+        root.detectTurnSchemaDrift = exports.detectTurnSchemaDrift;
     }
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
+
+    /**
+     * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
+     * Maps conceptual protobuf message fields directly to array index offsets.
+     */
+    const GEMINI_JSPB_SCHEMA = Object.freeze({
+        TURN: {
+            ID_META: 0,        // ["c_xxx", "r_xxx"]
+            TIMESTAMP: 1,      // [seconds, nanos]
+            USER_PAYLOAD: 2,   // User input block
+            MODEL_PAYLOAD: 3   // Model payload container
+        },
+        MODEL_PAYLOAD: {
+            CANDIDATES: 0,      // repeated Candidate: AI answer drafts
+            SEARCH_QUERIES: 1,  // repeated SearchQuery: Grounding search keywords
+            PROVIDER: 2,        // string: Grounding provider name ("google")
+            TELEMETRY_START: 3  // Internal routing/status codes ("c", "S", 6, 6, ".")
+        },
+        CANDIDATE: {
+            ID: 0,             // "rc_xxxx"
+            BODY: 1,           // Candidate content structure
+            LANGUAGE_CODE: 2   // e.g. "zh", "en"
+        },
+        CANDIDATE_BODY: {
+            PARTS: 0           // Array of content parts: [ [textChunk, ...], null, ... ]
+        }
+    });
+
+    /**
+     * Validates turn structure against GEMINI_JSPB_SCHEMA and flags protocol drifts
+     * @param {Array} turn - Raw turn array from batchexecute response
+     * @param {string} [convId] - Optional conversation id for diagnostic logging
+     * @returns {{ isDrifted: boolean, warnings: string[] }}
+     */
+    function detectTurnSchemaDrift(turn, convId) {
+        const warnings = [];
+        if (!Array.isArray(turn)) {
+            warnings.push("Turn is not an array");
+            return { isDrifted: true, warnings };
+        }
+        if (turn.length < 3) {
+            warnings.push(`Turn array length (${turn.length}) is less than expected minimum 3`);
+        }
+        const head = turn[GEMINI_JSPB_SCHEMA.TURN.ID_META];
+        let idStr = '';
+        if (typeof head === 'string') idStr = head;
+        else if (Array.isArray(head) && head.length) {
+            idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+        }
+        if (!idStr || (!idStr.startsWith('c_') && !idStr.startsWith('r_'))) {
+            warnings.push(`Turn ID meta at index 0 does not match expected pattern: ${JSON.stringify(head)?.slice(0, 30)}`);
+        }
+
+        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        if (modelPayload !== undefined) {
+            if (!Array.isArray(modelPayload)) {
+                warnings.push(`ModelPayload at index 3 is not an array (type: ${typeof modelPayload})`);
+            } else if (modelPayload.length > 0) {
+                const candBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+                if (!Array.isArray(candBlock)) {
+                    warnings.push(`Candidates at index 3[0] is not an array (type: ${typeof candBlock})`);
+                } else if (candBlock.length > 0) {
+                    const firstCand = candBlock[0];
+                    if (Array.isArray(firstCand)) {
+                        const candId = firstCand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
+                        if (typeof candId !== 'string' || (!candId.startsWith('rc_') && !candId.startsWith('c_'))) {
+                            warnings.push(`First candidate ID at 3[0][0][0] does not match 'rc_' prefix: ${JSON.stringify(candId)}`);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (warnings.length > 0) {
+            const isDev = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog))
+                || (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
+            if (isDev) {
+                console.warn(`[Gemini Exporter][Schema Drift Warning] Detected ${warnings.length} schema drift(s) in conv ${convId || 'unknown'}:`, warnings);
+            }
+        }
+
+        return {
+            isDrifted: warnings.length > 0,
+            warnings
+        };
+    }
+
+    /**
+     * Safely extracts candidates array from turn according to schema
+     * @param {Array} turn
+     * @returns {Array} List of candidate arrays
+     */
+    function extractModelCandidates(turn) {
+        if (!turn || !Array.isArray(turn)) return [];
+        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
+        if (!modelPayload || !Array.isArray(modelPayload) || modelPayload.length === 0) return [];
+
+        const candidateBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
+        if (Array.isArray(candidateBlock)) {
+            // Case 1 (Standard Protobuf): modelPayload[0] is array of candidates [cand0, cand1, ...]
+            if (candidateBlock.length > 0 && Array.isArray(candidateBlock[0])) {
+                return candidateBlock;
+            }
+            // Case 2 (Single candidate wrapped directly):
+            if (typeof candidateBlock[0] === 'string') {
+                return [candidateBlock];
+            }
+        }
+        // Fallback: If turn[3] was a flat candidates array directly (legacy test compatibility)
+        if (Array.isArray(modelPayload[0]) && typeof modelPayload[0][0] === 'string' && modelPayload[0][0].startsWith('rc_')) {
+            return modelPayload;
+        }
+        return [];
+    }
+
+    /**
+     * Cleanly extracts candidate response text without language tag (e.g. "zh") pollution
+     * @param {Array} cand
+     * @returns {string}
+     */
+    function extractCandidateText(cand) {
+        if (!cand) return "";
+        const body = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
+            ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
+            : (Array.isArray(cand) && cand.length === 1 ? cand[0] : cand);
+
+        if (typeof body === "string") return body;
+        if (!Array.isArray(body)) return "";
+
+        // Candidate body: typically [ partsArray, languageCode, ... ]
+        const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
+        if (typeof parts === "string") return parts;
+        if (Array.isArray(parts)) {
+            let textChunks = [];
+            for (let part of parts) {
+                if (typeof part === "string") {
+                    textChunks.push(part);
+                } else if (Array.isArray(part) && typeof part[0] === "string") {
+                    textChunks.push(part[0]);
+                }
+            }
+            if (textChunks.length) return textChunks.join("");
+        }
+
+        // Fallback: if body itself is an array of strings [ "text chunk 1", ... ]
+        if (typeof body[0] === "string" && body[0].length > 3) {
+            return body[0];
+        }
+
+        return "";
+    }
 
     const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent)\/(\d+)/i;
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
@@ -762,12 +915,17 @@
             let dedupSet = new Set();
             let docDedupSet = new Set();
             let imageSeq = { value: 1 };
+            let schemaDriftWarnings = [];
             let rev = [...turns].reverse();
             for (let turn of rev) {
+                let drift = detectTurnSchemaDrift(turn, convId);
+                if (drift.isDrifted) {
+                    schemaDriftWarnings.push(...drift.warnings);
+                }
                 let ts = extractTurnTimestamp(turn) || Date.now();
-                let uText = turn?.[2]?.[0]?.[0] || "";
-                let uImgs = filterNewImages(extractImages(turn?.[2], imageSeq), dedupSet);
-                let uFiles = extractUserFiles(turn?.[2]).filter(f => {
+                let uText = turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD]?.[0]?.[0] || "";
+                let uImgs = filterNewImages(extractImages(turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD], imageSeq), dedupSet);
+                let uFiles = extractUserFiles(turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD]).filter(f => {
                     let key = f.id || f.sourceUrl || f.fileName;
                     if (!key || docDedupSet.has(key)) return false;
                     docDedupSet.add(key);
@@ -800,28 +958,21 @@
                         })) : void 0
                     });
                 }
-                let candList = turn?.[3] || [];
+                let candList = extractModelCandidates(turn);
                 if (Array.isArray(candList)) {
                     for (let cand of candList) {
-                        let candidateId = cand?.[0] || "";
-                        let candidateBlock = cand?.[1] || cand;
-                        let responseText = "";
-                        let candParts = cand?.[1]?.[0] || cand?.[1] || cand?.[0];
-                        if (Array.isArray(candParts)) {
-                            for (let part of candParts) {
-                                if (typeof part === "string") responseText += part;
-                                else if (Array.isArray(part) && typeof part[0] === "string") responseText += part[0];
-                            }
-                        } else if (typeof candParts === "string") {
-                            responseText = candParts;
-                        }
+                        let candidateId = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] || "";
+                        let candidateBlock = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
+                        let responseText = extractCandidateText(cand);
                         if (!responseText) {
                             let textArr = [];
                             let textWalk = function(node) {
                                 if (!node || typeof node !== "object") return;
                                 if (Array.isArray(node)) {
                                     if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0 && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
-                                        if (!textArr.includes(node[0])) textArr.push(node[0]);
+                                        if (node[0].trim().length > 2 && !textArr.includes(node[0])) {
+                                            textArr.push(node[0]);
+                                        }
                                     }
                                     for (let item of node) textWalk(item);
                                 } else {
@@ -994,6 +1145,10 @@
                     _debug = { turnsLen: turns?.length || 0, innerKeys: inner ? Object.keys(inner) : null, innerPreview: JSON.stringify(inner).slice(0, 1500), topPreview: top ? JSON.stringify(top).slice(0, 800) : null };
                 } catch {}
             }
+            if (schemaDriftWarnings.length) {
+                if (!_debug) _debug = {};
+                _debug.schemaDriftWarnings = schemaDriftWarnings;
+            }
             return {
                 id: convId,
                 title: cleanT,
@@ -1006,6 +1161,7 @@
                 url,
                 nextPageToken: nextToken,
                 attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
+                schemaDrift: schemaDriftWarnings.length ? schemaDriftWarnings : void 0,
                 _raw: inner,
                 _debug
             };
@@ -1015,6 +1171,10 @@
     }
 
     const GeminiResponseParserClass = {
+        GEMINI_JSPB_SCHEMA,
+        detectTurnSchemaDrift,
+        extractModelCandidates,
+        extractCandidateText,
         robustFirstPayload,
         extractTurnTimestamp,
         extractImageSelectionIndex,
@@ -1038,6 +1198,8 @@
 
     return {
         GeminiResponseParserClass,
-        isRealTitle
+        isRealTitle,
+        GEMINI_JSPB_SCHEMA,
+        detectTurnSchemaDrift
     };
 }));
