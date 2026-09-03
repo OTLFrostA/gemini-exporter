@@ -119,13 +119,58 @@
         return null;
     }
 
+    let __fetchingDetailMap = new Map();
+    function scheduleActiveChatDetailFetch(activeId) {
+        if (!activeId || __fetchingDetailMap.has(activeId)) return;
+        __fetchingDetailMap.set(activeId, Date.now());
+        setTimeout(async () => {
+            try {
+                // Only fetch if this conversation is NOT already stored with a known timestamp
+                const slot = getAccountSlot();
+                const existing = Storage ? await Storage.getConversations(slot) : [];
+                const found = existing.find(c => String(c.id).replace(/^c_/, '') === activeId);
+                if (found && (found.updatedAt || found.timestamp)) {
+                    return;
+                }
+
+                const C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : (typeof globalThis.GeminiAPIClient !== 'undefined' ? globalThis.GeminiAPIClient : null);
+                if (!C) return;
+                const client = new C();
+                const d = await client.getConversationDetail(activeId);
+                if (d && d.id) {
+                    const nid = String(d.id).replace(/^c_/, '').trim();
+                    const targetTs = d.updatedAt || d.timestamp || null;
+                    if (targetTs) {
+                        await upsertConversations([{
+                            id: nid,
+                            title: d.title,
+                            titleSource: d.titleSource || 'rpc',
+                            titles: d.titles || {},
+                            url: d.url || `https://gemini.google.com/app/${nid}`,
+                            href: d.url || `https://gemini.google.com/app/${nid}`,
+                            timestamp: targetTs,
+                            updatedAt: targetTs,
+                            createdAt: d.createdAt || null,
+                            messageCount: d.messageCount
+                        }], 'active-detail-sync');
+                    }
+                }
+            } catch (err) {
+                console.debug('[Gemini Exporter] scheduleActiveChatDetailFetch err', err);
+            } finally {
+                setTimeout(() => __fetchingDetailMap.delete(activeId), 10000);
+            }
+        }, 200);
+    }
+
     async function syncOnce() {
         try {
             const items = [];
             // 1. Check current active page chat
             const m = location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
+            let activeId = null;
             if (m) {
-                const activeId = m[2].replace(/^c_/, '');
+                activeId = m[2].replace(/^c_/, '');
                 const activeTitleObj = extractActiveChatTitle(activeId);
                 if (activeTitleObj && activeTitleObj.title) {
                     const titlesMap = {};
@@ -148,7 +193,14 @@
             }
 
             if (!items.length) return 0;
-            return await upsertConversations(items, 'page-sync');
+            const resLen = await upsertConversations(items, 'page-sync');
+
+            // 3. Asynchronously fetch full details/timestamps for newly discovered active chat
+            if (activeId) {
+                scheduleActiveChatDetailFetch(activeId);
+            }
+
+            return resLen;
         } catch (e) {
             console.debug('[Gemini Exporter] syncOnce err', e);
             return 0;
@@ -260,9 +312,31 @@
                     const resolvedTitle = resolved.title;
                     const resolvedSource = resolved.source;
 
+                    // Calculate updated timestamp and updatedAt
+                    let cUpdated = c.updatedAt || c.timestamp || null;
+                    if (typeof cUpdated === 'string') cUpdated = new Date(cUpdated).getTime();
+                    let oldUpdated = old?.updatedAt || old?.timestamp || null;
+                    if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
+
+                    let bestUpdatedAt = oldUpdated;
+                    if (cUpdated && (!bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+                        bestUpdatedAt = cUpdated;
+                    }
+
+                    let cCreated = c.createdAt || null;
+                    if (typeof cCreated === 'string') cCreated = new Date(cCreated).getTime();
+                    let oldCreated = old?.createdAt || null;
+                    if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
+                    let bestCreatedAt = oldCreated || cCreated || null;
+                    if (cCreated && oldCreated && cCreated < oldCreated) {
+                        bestCreatedAt = cCreated;
+                    }
+
+                    let bestTimestamp = bestUpdatedAt || old?.timestamp || c.timestamp || null;
+
                     if (!old) {
                         changed++;
-                    } else if (old.title !== resolvedTitle || (!old.timestamp && c.timestamp)) {
+                    } else if (old.title !== resolvedTitle || (!old.timestamp && bestTimestamp) || (bestUpdatedAt && bestUpdatedAt !== oldUpdated)) {
                         changed++;
                     }
                     map.set(nid, {
@@ -272,18 +346,37 @@
                         titles: mergedTitles,
                         title: resolvedTitle,
                         titleSource: resolvedSource,
-                        timestamp: (old && old.timestamp) ? old.timestamp : (c.timestamp || null),
-                        lastSeen: (old && old.lastSeen) || (c.lastSeen || new Date(now - idx).toISOString()),
+                        timestamp: bestTimestamp,
+                        updatedAt: bestUpdatedAt || bestTimestamp,
+                        createdAt: bestCreatedAt,
+                        sidebarIndex: typeof c.sidebarIndex === 'number' ? c.sidebarIndex : old?.sidebarIndex,
+                        lastSeen: (c.lastSeen || (old && old.lastSeen) || new Date(now - idx).toISOString()),
                         source: source || (old && old.source) || 'unknown',
                         accountSlot: slot
                     });
                 });
 
                 const merged = Array.from(map.values());
+                const getEffectiveTime = (typeof GeminiUtils !== 'undefined' && GeminiUtils.getEffectiveTimestamp)
+                    ? GeminiUtils.getEffectiveTimestamp
+                    : (conv) => {
+                        if (!conv) return 0;
+                        const raw = conv.updatedAt || conv.timestamp || conv.chatTime || conv.createdAt || 0;
+                        return typeof raw === 'string' ? new Date(raw).getTime() : (raw || 0);
+                    };
+
                 merged.sort((a, b) => {
-                    let tsA = a.timestamp ? (typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : a.timestamp) : (a.lastSeen ? new Date(a.lastSeen).getTime() : 0);
-                    let tsB = b.timestamp ? (typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : b.timestamp) : (b.lastSeen ? new Date(b.lastSeen).getTime() : 0);
-                    return tsB - tsA;
+                    let tsA = getEffectiveTime(a);
+                    let tsB = getEffectiveTime(b);
+                    if (tsA !== tsB) return tsB - tsA;
+
+                    let idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
+                    let idxB = typeof b.sidebarIndex === 'number' ? b.sidebarIndex : 999999;
+                    if (idxA !== idxB) return idxA - idxB;
+
+                    let lsA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
+                    let lsB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
+                    return lsB - lsA;
                 });
 
                 if (!forceWrite && changed === 0) {
@@ -467,7 +560,10 @@
                                     titles: titlesObj,
                                     url: `https://gemini.google.com/app/${nid}`,
                                     href: `https://gemini.google.com/app/${nid}`,
-                                    timestamp: detailRes.timestamp || Date.now()
+                                    timestamp: detailRes.updatedAt || detailRes.timestamp,
+                                    updatedAt: detailRes.updatedAt || detailRes.timestamp,
+                                    createdAt: detailRes.createdAt,
+                                    sidebarIndex: 0
                                 }], 'network-detail');
                             }
                         }

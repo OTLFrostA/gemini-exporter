@@ -134,12 +134,37 @@
                     if (isBad(old.title) || old.title !== resolved.title) {
                         hasDirtyTitles = true;
                     }
+                    let cUpdated = c.updatedAt || c.timestamp || null;
+                    if (typeof cUpdated === 'string') cUpdated = new Date(cUpdated).getTime();
+                    let oldUpdated = old.updatedAt || old.timestamp || null;
+                    if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
+
+                    let bestUpdatedAt = oldUpdated;
+                    if (cUpdated && (!bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+                        bestUpdatedAt = cUpdated;
+                    }
+
+                    let cCreated = c.createdAt || null;
+                    if (typeof cCreated === 'string') cCreated = new Date(cCreated).getTime();
+                    let oldCreated = old.createdAt || null;
+                    if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
+                    let bestCreatedAt = oldCreated || cCreated || null;
+                    if (cCreated && oldCreated && cCreated < oldCreated) {
+                        bestCreatedAt = cCreated;
+                    }
+
+                    let bestTimestamp = bestUpdatedAt || old.timestamp || c.timestamp || null;
+
                     dedupMap.set(nid, {
                         ...old,
                         ...c,
                         titles: mergedTitles,
                         title: resolved.title,
-                        titleSource: resolved.source
+                        titleSource: resolved.source,
+                        timestamp: bestTimestamp,
+                        updatedAt: bestUpdatedAt || bestTimestamp,
+                        createdAt: bestCreatedAt,
+                        sidebarIndex: typeof c.sidebarIndex === 'number' ? c.sidebarIndex : old.sidebarIndex
                     });
                 }
             });
@@ -149,14 +174,23 @@
                 Storage.setConversations(slot, processed).catch(() => {});
             }
 
+            const getEffectiveTime = (typeof GeminiUtils !== 'undefined' && GeminiUtils.getEffectiveTimestamp)
+                ? GeminiUtils.getEffectiveTimestamp
+                : (conv) => {
+                    if (!conv) return 0;
+                    const raw = conv.updatedAt || conv.timestamp || conv.chatTime || conv.createdAt || 0;
+                    return typeof raw === 'string' ? new Date(raw).getTime() : (raw || 0);
+                };
+
             processed.sort((a, b) => {
-                let tsA = a.timestamp;
-                if (typeof tsA === 'string') tsA = new Date(tsA).getTime();
-                let tsB = b.timestamp;
-                if (typeof tsB === 'string') tsB = new Date(tsB).getTime();
-                let valA = tsA || 0;
-                let valB = tsB || 0;
+                let valA = getEffectiveTime(a);
+                let valB = getEffectiveTime(b);
                 if (valA !== valB) return valB - valA;
+
+                let idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
+                let idxB = typeof b.sidebarIndex === 'number' ? b.sidebarIndex : 999999;
+                if (idxA !== idxB) return idxA - idxB;
+
                 let lsA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
                 let lsB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
                 return lsB - lsA;

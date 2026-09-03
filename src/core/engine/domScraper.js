@@ -309,7 +309,7 @@
         }
         nodes = [...new Set(nodes)];
         if (!nodes.length) nodes = [...document.querySelectorAll('a[href*="/app/"]')];
-        return nodes.map(a => {
+        return nodes.map((a, nodeIdx) => {
             let href = a.getAttribute('href') || a.href || '';
             if (!href) return null;
             let m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
@@ -333,13 +333,20 @@
             }
             const cleanT = cleanTitle(title || '未命名对话');
             const isReal = isRealTitle(cleanT, id);
+            let sidebarIndex = nodeIdx;
+            const jslog = a.getAttribute('jslog') || '';
+            const idxMatch = jslog.match(/BardVeMetadataKey:\[[^\]]*,\s*(\d+)\]/);
+            if (idxMatch) {
+                sidebarIndex = parseInt(idxMatch[1], 10);
+            }
             return {
                 id,
                 title: cleanT,
                 titleSource: isReal ? 'dom' : 'default',
                 titles: isReal ? { dom: cleanT } : {},
                 url: `https://gemini.google.com/app/${id}`,
-                href: `https://gemini.google.com/app/${id}`
+                href: `https://gemini.google.com/app/${id}`,
+                sidebarIndex
             };
         }).filter(Boolean);
     }

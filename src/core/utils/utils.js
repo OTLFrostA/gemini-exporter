@@ -145,6 +145,26 @@
         return resolved;
     }
 
+    /**
+     * Get the authoritative effective timestamp (milliseconds) of a conversation.
+     * Prioritizes the latest activity time (updatedAt), then main timestamp,
+     * chatTime, createdAt, and finally lastSeen.
+     * @param {Object} chat - The conversation object
+     * @returns {number} Effective timestamp in milliseconds, or 0 if unknown
+     */
+    function getEffectiveTimestamp(chat) {
+        if (!chat || typeof chat !== 'object') return 0;
+        const candidates = [chat.updatedAt, chat.timestamp, chat.chatTime, chat.createdAt, chat.lastSeen];
+        for (const raw of candidates) {
+            if (raw === null || raw === undefined) continue;
+            let ms = (typeof raw === 'string') ? new Date(raw).getTime() : Number(raw);
+            if (Number.isFinite(ms) && ms > 0) {
+                return ms;
+            }
+        }
+        return 0;
+    }
+
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
         module.exports = {
@@ -154,6 +174,7 @@
             normId,
             resolveTitle,
             setTitleBySource,
+            getEffectiveTimestamp,
             TITLE_SOURCE_PRIORITY
         };
     } else {
@@ -164,6 +185,7 @@
         global.GeminiUtils.normId = normId;
         global.GeminiUtils.resolveTitle = resolveTitle;
         global.GeminiUtils.setTitleBySource = setTitleBySource;
+        global.GeminiUtils.getEffectiveTimestamp = getEffectiveTimestamp;
         global.GeminiUtils.TITLE_SOURCE_PRIORITY = TITLE_SOURCE_PRIORITY;
     }
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));

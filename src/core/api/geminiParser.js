@@ -929,7 +929,8 @@
             if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
             let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, '')}`;
             let times = turns.map(t => extractTurnTimestamp(t)).filter(x => Number.isFinite(x));
-            let minTs = times.length ? Math.min(...times) : Date.now();
+            let minTs = times.length ? Math.min(...times) : null;
+            let maxTs = times.length ? Math.max(...times) : null;
             let allMsgs = msgs.map(m => {
                 let atts = [];
                 if (m.images) {
@@ -1001,8 +1002,9 @@
                 titles: titlesMap,
                 messages: allMsgs,
                 createdAt: minTs,
-                chatTime: minTs,
-                timestamp: minTs,
+                chatTime: maxTs || minTs,
+                timestamp: maxTs || minTs,
+                updatedAt: maxTs,
                 url,
                 nextPageToken: nextToken,
                 attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
