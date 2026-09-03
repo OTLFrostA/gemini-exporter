@@ -1,0 +1,24 @@
+[
+  {
+    "id": "ai_compiler_and_graph_opt",
+    "title": "深度学习编译器与大模型显存图优化",
+    "turns": [
+      "请详细介绍深度学习编译器（如 TVM、XLA 和 TorchDynamo）的核心架构与编译流程。",
+      "在计算图优化阶段，算子融合 (Operator Fusion) 和常量折叠 (Constant Folding) 是如何降低显存开销并提升性能的？",
+      "请用 Python 伪代码或简明代码展示一个将 Conv2D + BatchNorm + ReLU 融合为单个算子的重写规则示例。",
+      "针对大语言模型 (LLM) 推理，FlashAttention 与 PagedAttention 在底层显存访存瓶颈上分别解决了什么核心问题？",
+      "请为团队搭建私有化端到端 LLM 推理部署服务（结合 vLLM 与 TensorRT-LLM）提供 3 条架构演进建议。"
+    ]
+  },
+  {
+    "id": "cloud_native_gateway_architecture",
+    "title": "云原生高弹性微服务网关与韧性设计",
+    "turns": [
+      "在 Kubernetes 环境下，Envoy Proxy 相比于传统 Nginx 网关在动态配置发现 (xDS) 方面有什么本质优势？",
+      "在微服务网关层，如何设计一个基于令牌桶 (Token Bucket) 和 Redis 的分布式自适应动态限流算法？",
+      "如果下游微服务发生局部雪崩，网关如何通过断路器 (Circuit Breaker) 与降级策略保护核心交易链路？",
+      "请用 ASCII 字符画出客户端请求经过网关认证、动态路由、限流过滤、服务发现到 Pod 实例的完整时序图。",
+      "在零信任网络 (Zero Trust) 架构下，网关如何与 Istio 服务网格配合实现 mTLS 双向认证和精细化权限控制？"
+    ]
+  }
+]
