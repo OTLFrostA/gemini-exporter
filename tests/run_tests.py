@@ -287,14 +287,34 @@ def test_javascript_unit_tests():
             assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stderr or res.stdout}"
             print(f"  ✓ Unit test suite passed: {rel}")
 
+def test_content_badge_flicker_prevention():
+    css_path = os.path.join(BASE_DIR, "src/content/content.css")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css = f.read()
+    assert "white-space: nowrap" in css, "content.css should prevent badge text wrapping"
+    assert "min-width:" in css, "content.css should define min-width to avoid width jitter"
+    assert ".syncing .pulse" in css, "content.css should only pulse when syncing"
+    assert "#geminiExportBadge .pulse {\n    width: 7px;\n    height: 7px;\n    background: #06b6d4;\n    border-radius: 50%;\n    display: inline-block;\n    box-shadow: 0 0 6px rgba(6, 182, 212, 0.4);\n    opacity: 0.85;\n}" in css, "content.css idle pulse should be static and calm"
+
+    js_path = os.path.join(BASE_DIR, "src/content/content.js")
+    with open(js_path, "r", encoding="utf-8") as f:
+        js = f.read()
+    assert "debouncedSyncOnce" in js, "content.js should debounce syncOnce triggers"
+    assert "!forceWrite && changed === 0" in js, "content.js upsertConversations should skip writes when changed === 0"
+    assert "txt.textContent !== targetText" in js, "content.js updateBadge should guard textContent updates"
+    assert "existing.isConnected" in js, "content.js ensureBadge should check existing.isConnected"
+    print("  ✓ Content badge flicker prevention verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
 test_module_exports()
 test_i18n_keys()
+test_content_badge_flicker_prevention()
 test_javascript_syntax()
 test_javascript_unit_tests()
 
 print("=" * 60)
 print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
 print("=" * 60)
+
