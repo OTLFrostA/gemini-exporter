@@ -263,7 +263,15 @@
 
                 const totalChats = payloadIds.length;
                 const current = Math.min(currentExportIdx, totalChats);
-                const pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
+                let pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
+
+                if (totalAssets > 0 && downloadedAssets > 0 && pct < 100) {
+                    const chatWeight = 0.75;
+                    const assetWeight = 0.25;
+                    const chatFraction = totalChats ? (current / totalChats) : 0;
+                    const assetFraction = Math.min(1, downloadedAssets / totalAssets);
+                    pct = Math.min(99, Math.floor((chatFraction * chatWeight + assetFraction * assetWeight) * 100));
+                }
 
                 onProgress({
                     current,

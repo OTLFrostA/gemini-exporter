@@ -302,10 +302,17 @@
                 takeoutEngine
             }, {
                 onProgress: (progress, txt) => {
-                    const pct = (typeof progress === 'object' && progress !== null) ? progress.pct : progress;
-                    const text = (typeof progress === 'object' && progress !== null) ? (progress.title || txt) : txt;
-                    if (bar && typeof pct !== 'undefined') bar.style.width = `${pct}%`;
-                    if (progText && text) progText.textContent = text;
+                    const isEn = typeof I18n !== 'undefined' && I18n.getLang && I18n.getLang() === 'en';
+                    const formatted = (typeof GeminiUtils !== 'undefined' && GeminiUtils.formatExportProgress)
+                        ? GeminiUtils.formatExportProgress(progress, txt, isEn)
+                        : { text: txt || '', pct: typeof progress === 'number' ? progress : (progress?.pct || 0) };
+
+                    if (bar && typeof formatted.pct !== 'undefined') {
+                        bar.style.width = `${Math.min(Math.max(formatted.pct, 2), 100)}%`;
+                    }
+                    if (progText && formatted.text) {
+                        progText.textContent = formatted.text;
+                    }
                 },
                 onLog: (msg, level) => log(msg, level),
                 onTitleUpdated: (chatId, newTitle, source) => {
@@ -344,9 +351,20 @@
                 log(typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '导出任务已被用户中止', 'warn');
                 if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('exportAborted') : '导出已终止';
             } else {
-                const finishMsg = typeof I18n !== 'undefined'
-                    ? I18n.t('exportSuccess', selected.length)
-                    : `Export completed! ${selected.length} conversations exported.`;
+                let finishMsg = '';
+                const totalExported = selected.length;
+                if (typeof I18n !== 'undefined') {
+                    const translated = I18n.t('exportSuccess', totalExported);
+                    if (translated && translated !== 'exportSuccess') {
+                        finishMsg = translated;
+                    }
+                }
+                if (!finishMsg) {
+                    const isEn = typeof I18n !== 'undefined' && I18n.getLang && I18n.getLang() === 'en';
+                    finishMsg = isEn
+                        ? `Export completed! ${totalExported} conversations exported.`
+                        : `导出完成！已导出 ${totalExported} 篇对话。`;
+                }
                 log(finishMsg, 'info');
                 if (bar) bar.style.width = '100%';
                 if (progText) progText.textContent = finishMsg;
