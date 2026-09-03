@@ -758,15 +758,14 @@
         // Check for welcome / onboarding tour
         try {
             const urlParams = new URLSearchParams(window.location.search);
-            const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1';
-            const tourCompleted = Storage && Storage.isTourCompleted ? await Storage.isTourCompleted() : false;
+            const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1' || urlParams.get('tour') === '1';
 
-            if (isWelcome || !tourCompleted) {
+            if (isWelcome) {
                 setTimeout(() => {
                     if (Tour && Tour.startTour) {
                         Tour.startTour(0);
                     }
-                }, 500);
+                }, 400);
             }
         } catch (e) {}
     }
