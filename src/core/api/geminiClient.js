@@ -453,8 +453,8 @@
             }
 
             let allTimestamps = msgs.map(m => m.timestamp).filter(x => typeof x === 'number' && Number.isFinite(x) && x > 0);
-            let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || Date.now());
-            let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : minTs;
+            let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || null);
+            let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : (first.updatedAt || minTs || null);
             let attachmentCount = msgs.reduce((a, m) => a + (m.attachmentCount || 0), 0);
             let cleanId = String(conversationId).replace(/^c_/, '').trim();
             return {
@@ -462,9 +462,9 @@
                 id: cleanId,
                 messages: msgs,
                 messageCount: msgs.length,
-                timestamp: minTs,
+                timestamp: maxTs,
                 createdAt: minTs,
-                chatTime: minTs,
+                chatTime: maxTs,
                 updatedAt: maxTs,
                 attachmentCount
             };

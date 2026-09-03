@@ -87,7 +87,8 @@ def test_module_exports():
         "src/ui/controllers/dirHandleController.js": ["getStoredDirHandle", "saveStoredDirHandle", "requestDirHandle"],
         "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
-        "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"]
+        "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
+        "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp"]
     }
     for filename, symbols in files.items():
         with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:
@@ -248,6 +249,14 @@ def test_javascript_unit_tests():
 
             preload_js = []
             for mod_path, mod_id in [
+                ("src/core/utils/utils.js", "../src/core/utils/utils.js"),
+                ("src/core/utils/utils.js", "./src/core/utils/utils.js"),
+                ("src/core/utils/utils.js", "./utils.js"),
+                ("src/core/utils/utils.js", "../utils.js"),
+                ("src/core/api/geminiParser.js", "../src/core/api/geminiParser.js"),
+                ("src/core/api/geminiParser.js", "./src/core/api/geminiParser.js"),
+                ("src/core/api/geminiParser.js", "./gemini_parser.js"),
+                ("src/core/api/geminiParser.js", "../gemini_parser.js"),
                 ("utils.js", "../utils.js"),
                 ("utils.js", "./utils.js"),
                 ("src/core/constants.js", "../src/core/constants.js"),
