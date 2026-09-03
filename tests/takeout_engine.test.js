@@ -141,3 +141,32 @@ test('takeout_engine - parseTakeoutZip associates watermarked images via C2PA ti
     const binA = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', 'watermarked_img_1111-aaaa.png');
     assert.ok(binA && binA.length > 0);
 });
+
+test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const fixturePath = path.resolve(__dirname, 'fixtures/gemini_takeout_clean.zip');
+    if (!fs.existsSync(fixturePath)) return;
+
+    global.JSZip = require('../lib/jszip.min.js');
+    const buf = fs.readFileSync(fixturePath);
+    TakeoutEngine.clearTakeoutData();
+    const res = await TakeoutEngine.parseTakeoutZip(buf);
+
+    assert.strictEqual(res.conversations.length, 6, 'Should extract exactly 6 conversations');
+    assert.strictEqual(res.totalMediaCount, 1, 'Should extract exactly 1 media asset');
+
+    // Verify cat image conversation
+    const catChat = res.conversations.find(c => c.id === '1bd028d5c5b0c0e2');
+    assert.ok(catChat, 'Cat conversation should exist');
+    assert.ok(catChat.title.includes('astronaut cat') || catChat.title.includes('Cat'));
+
+    const catMedia = TakeoutEngine.getTakeoutMediaForChat('1bd028d5c5b0c0e2');
+    assert.strictEqual(catMedia.length, 1);
+    assert.ok(catMedia[0].filename.startsWith('watermarked_img_45281370108017511'));
+
+    // Verify Python decorator conversation
+    const pyChat = res.conversations.find(c => c.id === '1cea7e48cc166b57');
+    assert.ok(pyChat, 'Python decorator conversation should exist');
+    assert.ok(pyChat.title.includes('Python') || pyChat.title.includes('装饰器'));
+});
