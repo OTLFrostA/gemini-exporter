@@ -42,20 +42,26 @@
     }
 
     async function loadStore(slotOverride) {
-        const slot = slotOverride || currentSlot || 'u0';
+        let slot = slotOverride || currentSlot || 'u0';
         const storage = getStorage();
         const slots = storage ? await storage.getAccountSlots() : ((await chrome.storage.local.get(['gemini_account_slots'])).gemini_account_slots || {});
         setAccountSlots(slots);
 
         let incoming = storage ? await storage.getConversations(slot) : [];
-        // fallback to u0 if requested slot empty
-        if ((!incoming || !incoming.length) && slot !== 'u0') {
-            const u0Convs = storage ? await storage.getConversations('u0') : [];
-            if (u0Convs && u0Convs.length) {
-                setCurrentSlot('u0');
-                incoming = u0Convs;
+        // If the requested slot is empty, check all candidate slots for conversations
+        if (!incoming || !incoming.length) {
+            const candidates = ['u0', ...Object.keys(slots || {})].filter(s => s !== slot);
+            for (const cand of candidates) {
+                const candConvs = storage ? await storage.getConversations(cand) : [];
+                if (candConvs && candConvs.length > 0) {
+                    slot = cand;
+                    incoming = candConvs;
+                    break;
+                }
             }
         }
+        setCurrentSlot(slot);
+
         const expIds = storage ? await storage.getExportedIds(slot) : {};
         setExportedIds(expIds);
         setConversations(incoming);

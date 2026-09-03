@@ -305,12 +305,27 @@ def test_content_badge_flicker_prevention():
     assert "existing.isConnected" in js, "content.js ensureBadge should check existing.isConnected"
     print("  ✓ Content badge flicker prevention verified")
 
+def test_exported_history_and_slot_fallback():
+    storage_js = os.path.join(BASE_DIR, "src/core/storage/storageService.js")
+    with open(storage_js, "r", encoding="utf-8") as f:
+        code = f.read()
+    assert "keys = [expKey, 'exportedIds', 'gemini_exported_u0']" in code, "storageService should merge legacy and global exportedIds"
+    assert "updates['exportedIds'] = globalExp" in code, "saveExportRecord should maintain global exportedIds"
+    assert "gemini_conversations_u0" in code, "storageService should check gemini_conversations_u0"
+
+    store_js = os.path.join(BASE_DIR, "src/ui/state/conversationsStore.js")
+    with open(store_js, "r", encoding="utf-8") as f:
+        store_code = f.read()
+    assert "for (const cand of candidates)" in store_code, "conversationsStore should smartly fall back to slot with conversations"
+    print("  ✓ Exported history preservation & slot fallback verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
 test_module_exports()
 test_i18n_keys()
 test_content_badge_flicker_prevention()
+test_exported_history_and_slot_fallback()
 test_javascript_syntax()
 test_javascript_unit_tests()
 
