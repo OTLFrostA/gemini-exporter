@@ -731,6 +731,20 @@
                 log(typeof I18n !== 'undefined' ? I18n.t('logDirRestored', savedHandle.name) : `已恢复保存的导出目录: ${savedHandle.name}`);
             }
         }
+
+        // Auto-detect active slot from current Gemini tab if available
+        try {
+            if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
+                const tab = await TabService.getGeminiTab();
+                if (tab && tab.url) {
+                    const m = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
+                    if (m && Store) {
+                        Store.setCurrentSlot('u' + m[1]);
+                    }
+                }
+            }
+        } catch {}
+
         try { window.__workbenchLoadStore = loadStore; } catch {}
         await loadStore();
     }

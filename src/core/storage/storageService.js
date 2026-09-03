@@ -33,9 +33,13 @@
     }
 
     async function getConversations(slot) {
-        const { convKey } = getStorageKeys(slot);
-        const data = await chrome.storage.local.get([convKey]);
-        return data[convKey] || [];
+        const { convKey, slot: s } = getStorageKeys(slot);
+        const keys = [convKey];
+        if (s === 'u0') {
+            keys.push('gemini_conversations_u0');
+        }
+        const data = await chrome.storage.local.get(keys);
+        return data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || [];
     }
 
     async function setConversations(slot, list) {
@@ -44,24 +48,51 @@
     }
 
     async function getExportedIds(slot) {
-        const { expKey } = getStorageKeys(slot);
-        const data = await chrome.storage.local.get([expKey]);
-        return data[expKey] || {};
+        const { expKey, slot: s } = getStorageKeys(slot);
+        const keys = [expKey, 'exportedIds', 'gemini_exported_u0'];
+        if (s !== 'u0') {
+            keys.push(`gemini_exported_${s}`);
+        }
+        const data = await chrome.storage.local.get(keys);
+        const merged = {};
+        if (data.exportedIds && typeof data.exportedIds === 'object') {
+            Object.assign(merged, data.exportedIds);
+        }
+        if (data.gemini_exported_u0 && typeof data.gemini_exported_u0 === 'object') {
+            Object.assign(merged, data.gemini_exported_u0);
+        }
+        if (data[expKey] && typeof data[expKey] === 'object') {
+            Object.assign(merged, data[expKey]);
+        }
+        return merged;
     }
 
     async function setExportedIds(slot, map) {
-        const { expKey } = getStorageKeys(slot);
-        await chrome.storage.local.set({ [expKey]: map || {} });
+        const { expKey, slot: s } = getStorageKeys(slot);
+        const updates = { [expKey]: map || {} };
+        if (s === 'u0') {
+            updates['exportedIds'] = map || {};
+        }
+        await chrome.storage.local.set(updates);
     }
 
     async function saveExportRecord(slot, id, record) {
-        const { expKey } = getStorageKeys(slot);
+        const { expKey, slot: s } = getStorageKeys(slot);
         const cur = await getExportedIds(slot);
         const nid = normId(id);
         cur[id] = record;
         cur[nid] = record;
         cur['c_' + nid] = record;
-        await chrome.storage.local.set({ [expKey]: cur });
+        const updates = { [expKey]: cur };
+        if (s !== 'u0') {
+            const globalData = await chrome.storage.local.get(['exportedIds']);
+            const globalExp = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds : {};
+            globalExp[id] = record;
+            globalExp[nid] = record;
+            globalExp['c_' + nid] = record;
+            updates['exportedIds'] = globalExp;
+        }
+        await chrome.storage.local.set(updates);
         return cur;
     }
 
