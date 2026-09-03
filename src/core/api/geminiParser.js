@@ -38,6 +38,15 @@
         },
         CANDIDATE_BODY: {
             PARTS: 0           // Array of content parts: [ [textChunk, ...], null, ... ]
+        },
+        LIST_ITEM: {
+            ID: 0,             // string: "c_xxxx"
+            TITLE: 1,          // string: Conversation title
+            TIMESTAMP: 5,      // [seconds, nanos] Google server-side last updated time
+            UPDATE_TIME_ALT: 2,// Legacy/Alternative update timestamp array
+            CREATE_TIME_ALT: 3,// Legacy/Alternative create timestamp array
+            COUNT_ALT1: 4,     // Optional turn count if number
+            COUNT_ALT2: 9      // Optional turn count if number
         }
     });
 
@@ -241,6 +250,49 @@
         return allTop.length ? allTop : null;
     }
 
+    /**
+     * Extracts official server-side last updated timestamp from a MaZiqc list item.
+     * Google Gemini encodes timestamp as [seconds, nanos] at index 5.
+     * Falls back to legacy indices 2, 3 or any valid [seconds, nanos] pair.
+     * @param {Array} item - Raw conversation list item array
+     * @returns {number|null} Milliseconds timestamp or null if not found
+     */
+    function extractListItemTimestamp(item) {
+        if (!Array.isArray(item)) return null;
+        // 1. Primary candidate: index 5 (Google official server updatedAt [sec, nano])
+        const primary = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP];
+        if (Array.isArray(primary) && typeof primary[0] === 'number' && primary[0] > 1e9) {
+            return Math.round(primary[0] * 1000 + Math.floor((primary[1] || 0) / 1e6));
+        }
+        if (typeof primary === 'number' && primary > 1e9) {
+            return primary > 1e11 ? Math.round(primary) : Math.round(primary * 1000);
+        }
+
+        // 2. Secondary candidates: index 2, 3, 4
+        const alts = [
+            item[GEMINI_JSPB_SCHEMA.LIST_ITEM.UPDATE_TIME_ALT],
+            item[GEMINI_JSPB_SCHEMA.LIST_ITEM.CREATE_TIME_ALT],
+            item[GEMINI_JSPB_SCHEMA.LIST_ITEM.COUNT_ALT1]
+        ];
+        for (const cand of alts) {
+            if (Array.isArray(cand) && typeof cand[0] === 'number' && cand[0] > 1e9) {
+                return Math.round(cand[0] * 1000 + Math.floor((cand[1] || 0) / 1e6));
+            }
+            if (typeof cand === 'number' && cand > 1e9) {
+                return cand > 1e11 ? Math.round(cand) : Math.round(cand * 1000);
+            }
+        }
+
+        // 3. Fallback: scan any element matching [seconds, nanos]
+        for (let i = 0; i < item.length; i++) {
+            const val = item[i];
+            if (Array.isArray(val) && typeof val[0] === 'number' && val[0] > 1e9 && val.length <= 4) {
+                return Math.round(val[0] * 1000 + Math.floor((val[1] || 0) / 1e6));
+            }
+        }
+        return null;
+    }
+
     function parseList(text) {
         try {
             let top = robustFirstPayload(text);
@@ -296,18 +348,34 @@
             let convs = [];
             for (let item of list) {
                 if (!Array.isArray(item)) continue;
-                let id = item[0] || "",
-                    title = item[1] || "",
+                let id = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.ID] || item[0] || "",
+                    title = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TITLE] || item[1] || "",
                     createTs = null,
                     updateTs = null,
                     count = 0;
-                let createArr = item[3],
-                    updateArr = item[2];
-                if (Array.isArray(createArr) && typeof createArr[0] === "number") createTs = 1000 * createArr[0] + Math.floor((createArr[1] || 0) / 1e6);
-                if (Array.isArray(updateArr) && typeof updateArr[0] === "number") updateTs = 1000 * updateArr[0] + Math.floor((updateArr[1] || 0) / 1e6);
-                let fallbackTime = updateTs || createTs || Date.now();
-                if (typeof item[4] === "number") count = item[4];
-                else if (typeof item[5] === "number") count = item[5];
+
+                let serverTs = extractListItemTimestamp(item);
+
+                let createArr = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.CREATE_TIME_ALT];
+                let updateArr = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.UPDATE_TIME_ALT];
+                if (Array.isArray(createArr) && typeof createArr[0] === "number" && createArr[0] > 1e9) {
+                    createTs = Math.round(1000 * createArr[0] + Math.floor((createArr[1] || 0) / 1e6));
+                }
+                if (Array.isArray(updateArr) && typeof updateArr[0] === "number" && updateArr[0] > 1e9) {
+                    updateTs = Math.round(1000 * updateArr[0] + Math.floor((updateArr[1] || 0) / 1e6));
+                }
+
+                let effectiveTime = serverTs || updateTs || createTs;
+                let fallbackTime = effectiveTime || Date.now();
+
+                if (typeof item[GEMINI_JSPB_SCHEMA.LIST_ITEM.COUNT_ALT2] === "number") {
+                    count = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.COUNT_ALT2];
+                } else if (typeof item[GEMINI_JSPB_SCHEMA.LIST_ITEM.COUNT_ALT1] === "number") {
+                    count = item[GEMINI_JSPB_SCHEMA.LIST_ITEM.COUNT_ALT1];
+                } else if (typeof item[5] === "number") {
+                    count = item[5];
+                }
+
                 if (id) {
                     let cleanId = String(id).replace(/^c_/, '').trim();
                     const cleanT = cleanTitle(title || cleanId);
@@ -317,10 +385,10 @@
                         title: cleanT,
                         titleSource: isReal ? 'rpc' : 'default',
                         titles: { rpc: cleanT },
-                        createdAt: createTs || fallbackTime,
-                        updatedAt: updateTs || fallbackTime,
-                        chatTime: fallbackTime,
-                        timestamp: fallbackTime,
+                        createdAt: createTs || effectiveTime || fallbackTime,
+                        updatedAt: effectiveTime || fallbackTime,
+                        chatTime: effectiveTime || fallbackTime,
+                        timestamp: effectiveTime || fallbackTime,
                         messageCount: count,
                         url: `https://gemini.google.com/app/${cleanId}`
                     });
@@ -1194,6 +1262,7 @@
         extractConversationId,
         extractConversationTitle,
         isRealTitle,
+        extractListItemTimestamp,
         parseList,
         parseDetail
     };
@@ -1202,6 +1271,7 @@
         GeminiResponseParserClass,
         isRealTitle,
         GEMINI_JSPB_SCHEMA,
-        detectTurnSchemaDrift
+        detectTurnSchemaDrift,
+        extractListItemTimestamp
     };
 }));

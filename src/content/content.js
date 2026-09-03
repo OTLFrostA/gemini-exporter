@@ -318,8 +318,9 @@
                     let oldUpdated = old?.updatedAt || old?.timestamp || null;
                     if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
 
+                    let isRpcSource = source === 'network-list' || c.titleSource === 'rpc';
                     let bestUpdatedAt = oldUpdated;
-                    if (cUpdated && (!bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+                    if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
                         bestUpdatedAt = cUpdated;
                     }
 
@@ -332,7 +333,7 @@
                         bestCreatedAt = cCreated;
                     }
 
-                    let bestTimestamp = bestUpdatedAt || old?.timestamp || c.timestamp || null;
+                    let bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old?.timestamp || c.timestamp || null);
 
                     if (!old) {
                         changed++;

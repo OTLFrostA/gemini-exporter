@@ -224,3 +224,79 @@ test('Conversation merge - updates updatedAt when conversation becomes active ag
     assert.strictEqual(merged[0].timestamp, 5000, 'timestamp should be updated to 5000');
     assert.strictEqual(merged[0].createdAt, 1000, 'createdAt should remain 1000');
 });
+
+test('GeminiParser.parseList - accurately extracts server timestamp from index 5 and orders pages correctly', () => {
+    const ParserClass = GeminiParser.GeminiResponseParserClass || GeminiParser;
+    assert.ok(ParserClass, 'GeminiResponseParserClass must be present');
+
+    // Realistic Google MaZiqc response
+    // Page 1: Newer conversation (updated at 1788464818.885831 -> 1788464818885 ms)
+    const page1Raw = `)]}'\n\n[["wrb.fr","MaZiqc","[null,null,[[\\"c_page1\\",\\"Page 1 Conversation\\",null,null,null,[1788464818,885831000],null,null,null,1]]]"]]`;
+    const res1 = ParserClass.parseList(page1Raw);
+    assert.strictEqual(res1.conversations.length, 1);
+    const conv1 = res1.conversations[0];
+    assert.strictEqual(conv1.id, 'page1');
+    assert.strictEqual(conv1.title, 'Page 1 Conversation');
+    assert.strictEqual(conv1.updatedAt, 1788464818885, 'Must extract exact server timestamp from index 5');
+    assert.strictEqual(conv1.timestamp, 1788464818885, 'timestamp must match server updatedAt');
+
+    // Page 2: Older conversation (updated 1 day ago: 1788378418.000000 -> 1788378418000 ms)
+    const page2Raw = `)]}'\n\n[["wrb.fr","MaZiqc","[null,null,[[\\"c_page2\\",\\"Page 2 Older Conversation\\",null,null,null,[1788378418,0],null,null,null,1]]]"]]`;
+    const res2 = ParserClass.parseList(page2Raw);
+    assert.strictEqual(res2.conversations.length, 1);
+    const conv2 = res2.conversations[0];
+    assert.strictEqual(conv2.id, 'page2');
+    assert.strictEqual(conv2.updatedAt, 1788378418000, 'Must extract older server timestamp from index 5');
+
+    // Verify ordering: Page 1 (newer) MUST be ahead of Page 2 (older), even if Page 2 was parsed later in real time
+    const combined = [conv2, conv1]; // Even if scanned in reverse or later
+    combined.sort((a, b) => b.updatedAt - a.updatedAt);
+    assert.strictEqual(combined[0].id, 'page1', 'Page 1 (newer updatedAt) must remain on top of Page 2');
+    assert.strictEqual(combined[1].id, 'page2');
+});
+
+test('Conversation merge - authoritative RPC server list heals contaminated Date.now() timestamps', () => {
+    function mergeWithRpcAuthority(existing, incoming) {
+        const map = new Map();
+        existing.forEach(c => map.set(c.id, { ...c }));
+
+        incoming.forEach(c => {
+            const old = map.get(c.id);
+            let cUpdated = c.updatedAt || c.timestamp || null;
+            let oldUpdated = old?.updatedAt || old?.timestamp || null;
+
+            let isRpcSource = c.titleSource === 'rpc' || c.source === 'network-list';
+            let bestUpdatedAt = oldUpdated;
+            if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+                bestUpdatedAt = cUpdated;
+            }
+
+            let bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old?.timestamp || c.timestamp || null);
+
+            map.set(c.id, {
+                ...(old || {}),
+                ...c,
+                timestamp: bestTimestamp,
+                updatedAt: bestUpdatedAt || bestTimestamp
+            });
+        });
+
+        return Array.from(map.values());
+    }
+
+    // Suppose old stored item was contaminated with an inflated Date.now() timestamp (e.g. 1799999999000)
+    const contaminatedExisting = [
+        { id: 'chat_old_history', title: 'Old History', updatedAt: 1799999999000, timestamp: 1799999999000 }
+    ];
+
+    // Authoritative RPC scan returns the true historical timestamp from Google (1700000000000)
+    const rpcIncoming = [
+        { id: 'chat_old_history', title: 'Old History', titleSource: 'rpc', updatedAt: 1700000000000, timestamp: 1700000000000 }
+    ];
+
+    const merged = mergeWithRpcAuthority(contaminatedExisting, rpcIncoming);
+    assert.strictEqual(merged.length, 1);
+    assert.strictEqual(merged[0].updatedAt, 1700000000000, 'Contaminated timestamp must be corrected by authoritative RPC timestamp');
+    assert.strictEqual(merged[0].timestamp, 1700000000000, 'timestamp must be healed to true server timestamp');
+});
+
