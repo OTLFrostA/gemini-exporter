@@ -18,6 +18,7 @@
     const DirHandle = (typeof DirHandleController !== 'undefined') ? DirHandleController : null;
     const TakeoutCtrl = (typeof TakeoutController !== 'undefined') ? TakeoutController : null;
     const SyncCtrl = (typeof SyncController !== 'undefined') ? SyncController : null;
+    const Tour = (typeof TourGuide !== 'undefined') ? TourGuide : null;
 
     const normId = id => (typeof GeminiUtils !== 'undefined' && GeminiUtils.normId)
         ? GeminiUtils.normId(id)
@@ -745,8 +746,28 @@
             }
         } catch {}
 
+        $('btnTourGuide')?.addEventListener('click', () => {
+            if (Tour && Tour.startTour) {
+                Tour.startTour(0);
+            }
+        });
+
         try { window.__workbenchLoadStore = loadStore; } catch {}
         await loadStore();
+
+        // Check for welcome / onboarding tour
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1' || urlParams.get('tour') === '1';
+
+            if (isWelcome) {
+                setTimeout(() => {
+                    if (Tour && Tour.startTour) {
+                        Tour.startTour(0);
+                    }
+                }, 400);
+            }
+        } catch (e) {}
     }
 
     if (document.readyState === 'loading') {
