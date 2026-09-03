@@ -148,6 +148,23 @@
         await chrome.storage.local.set({ gemini_dev_mode: !!enabled });
     }
 
+    async function isTourCompleted() {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
+        try {
+            const data = await chrome.storage.local.get(['has_completed_tour']);
+            return !!data.has_completed_tour;
+        } catch {
+            return false;
+        }
+    }
+
+    async function setTourCompleted(completed = true) {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ has_completed_tour: !!completed });
+        } catch {}
+    }
+
     return {
         normSlot,
         normId,
@@ -165,6 +182,8 @@
         getCredentialsMap,
         setCredentialsMap,
         getDevMode,
-        setDevMode
+        setDevMode,
+        isTourCompleted,
+        setTourCompleted
     };
 }));

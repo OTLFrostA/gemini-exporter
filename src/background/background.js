@@ -11,11 +11,41 @@ const isRealTitle = (t, fallbackId) => (typeof GeminiUtils !== 'undefined' && Ge
 const sendToGeminiTab = (msg, slot, timeoutMs) => (typeof TabService !== 'undefined' ? TabService.sendToGeminiTab(msg, slot, timeoutMs) : Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）')));
 const getGeminiTab = (slot) => (typeof TabService !== 'undefined' && TabService.getGeminiTab ? TabService.getGeminiTab(slot) : (typeof chrome !== 'undefined' && chrome.tabs ? chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(t => t[0] || null) : Promise.resolve(null)));
 
+chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+        chrome.tabs.create({
+            url: chrome.runtime.getURL('options.html?welcome=1')
+        });
+    }
+});
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'openOptions') {
         chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
         return;
+    }
+
+    if (msg.action === 'openGeminiPage') {
+        chrome.tabs.create({ url: 'https://gemini.google.com/app' }, (tab) => {
+            sendResponse({ ok: true, tabId: tab?.id });
+        });
+        return true;
+    }
+
+    if (msg.action === 'reloadGeminiTab') {
+        if (msg.tabId) {
+            chrome.tabs.reload(msg.tabId, () => sendResponse({ ok: true }));
+        } else {
+            chrome.tabs.query({ url: 'https://gemini.google.com/*' }, (tabs) => {
+                if (tabs && tabs.length > 0) {
+                    chrome.tabs.reload(tabs[0].id, () => sendResponse({ ok: true }));
+                } else {
+                    sendResponse({ ok: false, error: 'no tab' });
+                }
+            });
+        }
+        return true;
     }
 
     if (msg.action === 'fetchChat') {

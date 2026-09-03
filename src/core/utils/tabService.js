@@ -73,8 +73,73 @@
         throw (lastError || new Error('未能与任何 Gemini 标签页成功建立通信'));
     }
 
+    async function checkGeminiStatus(slot) {
+        if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
+            return { status: 'NO_TABS_API', tab: null };
+        }
+        try {
+            const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+            if (!tabs || !tabs.length) {
+                return { status: 'NO_TAB', tab: null };
+            }
+            let targetTab = null;
+            if (slot && slot !== 'u0') {
+                const slotNum = slot.replace('u', '');
+                targetTab = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
+            } else if (slot === 'u0') {
+                targetTab = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+            }
+            if (!targetTab) targetTab = tabs.find(t => t.active) || tabs[0];
+
+            return await new Promise((resolve) => {
+                let settled = false;
+                const timer = setTimeout(() => {
+                    if (!settled) {
+                        settled = true;
+                        resolve({ status: 'NEED_REFRESH', tab: targetTab, reason: 'timeout' });
+                    }
+                }, 1500);
+
+                chrome.tabs.sendMessage(targetTab.id, { action: 'ping' }, (response) => {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        if (chrome.runtime.lastError || !response || !response.ok) {
+                            resolve({ status: 'NEED_REFRESH', tab: targetTab, error: chrome.runtime.lastError?.message });
+                        } else {
+                            resolve({ status: 'CONNECTED', tab: targetTab, response });
+                        }
+                    }
+                });
+            });
+        } catch (e) {
+            return { status: 'ERROR', error: e.message, tab: null };
+        }
+    }
+
+    async function openGeminiPage() {
+        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
+            return chrome.tabs.create({ url: 'https://gemini.google.com/app' });
+        } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            return chrome.runtime.sendMessage({ action: 'openGeminiPage' });
+        } else if (typeof window !== 'undefined') {
+            window.open('https://gemini.google.com/app', '_blank');
+        }
+    }
+
+    async function reloadGeminiTab(tabId) {
+        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.reload && tabId) {
+            return chrome.tabs.reload(tabId);
+        } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            return chrome.runtime.sendMessage({ action: 'reloadGeminiTab', tabId });
+        }
+    }
+
     return {
         getGeminiTab,
-        sendToGeminiTab
+        sendToGeminiTab,
+        checkGeminiStatus,
+        openGeminiPage,
+        reloadGeminiTab
     };
 }));

@@ -504,6 +504,14 @@
 
     // Message router
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (msg.action === 'ping') {
+            sendResponse({
+                ok: true,
+                version: (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.4.1'
+            });
+            return true;
+        }
+
         if (msg.action === 'deepScan') {
             (async () => {
                 try {
