@@ -139,8 +139,9 @@
                     let oldUpdated = old.updatedAt || old.timestamp || null;
                     if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
 
+                    let isRpcSource = c.titleSource === 'rpc' || c.source === 'network-list';
                     let bestUpdatedAt = oldUpdated;
-                    if (cUpdated && (!bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+                    if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
                         bestUpdatedAt = cUpdated;
                     }
 
@@ -153,7 +154,7 @@
                         bestCreatedAt = cCreated;
                     }
 
-                    let bestTimestamp = bestUpdatedAt || old.timestamp || c.timestamp || null;
+                    let bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old.timestamp || c.timestamp || null);
 
                     dedupMap.set(nid, {
                         ...old,
