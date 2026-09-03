@@ -46,13 +46,25 @@
         });
     } catch {}
 
+    let __lastKnownCount = null;
+
     function ensureBadge() {
         let existing = document.getElementById('geminiExportBadge');
-        if (existing) return existing;
+        if (existing) {
+            if (!existing.isConnected) {
+                (document.body || document.documentElement).appendChild(existing);
+            } else if (document.body && existing.parentElement !== document.body) {
+                document.body.appendChild(existing);
+            }
+            return existing;
+        }
         const zh = isZh();
         const div = document.createElement('div');
         div.id = 'geminiExportBadge';
-        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${zh ? '检测中…' : 'Checking...'}</span>`;
+        const initText = (__lastKnownCount !== null)
+            ? (zh ? `已同步 ${__lastKnownCount} 条` : `${__lastKnownCount} synced`)
+            : (zh ? '就绪' : 'Ready');
+        div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${initText}</span>`;
         div.title = zh ? '点此打开批量导出页' : 'Click to open Export Workbench';
         div.addEventListener('click', () => {
             try {
@@ -149,22 +161,35 @@
         return { badge, txt };
     }
 
-    function updateBadge(mergedLen, visible, overrideText) {
+    function updateBadge(mergedLen, visible, overrideText, isSyncing = false) {
         try {
             const { txt, badge } = ensureBadgeAndText();
             if (!txt) return;
-            if (overrideText) {
-                txt.textContent = overrideText;
-                return;
+            if (badge) {
+                if (isSyncing) badge.classList.add('syncing');
+                else badge.classList.remove('syncing');
             }
-            const zh = isZh();
-            txt.textContent = zh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
+            if (typeof mergedLen === 'number' && mergedLen >= 0) {
+                __lastKnownCount = mergedLen;
+            }
+            let targetText = '';
+            if (overrideText) {
+                targetText = overrideText;
+            } else {
+                const zh = isZh();
+                targetText = zh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
+            }
+            if (txt.textContent !== targetText) {
+                txt.textContent = targetText;
+            }
             const slot = getAccountSlot();
             if (badge) {
-                if (slot !== 'u0') {
-                    badge.title = (zh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`);
-                } else {
-                    badge.title = (zh ? '点此打开批量导出页' : 'Click to open Export Workbench');
+                const zh = isZh();
+                const targetTitle = (slot !== 'u0')
+                    ? (zh ? `当前账号 (${slot.toUpperCase()}): 点击打开导出页` : `Account (${slot.toUpperCase()}): Click to open Export`)
+                    : (zh ? '点此打开批量导出页' : 'Click to open Export Workbench');
+                if (badge.title !== targetTitle) {
+                    badge.title = targetTitle;
                 }
             }
         } catch (e) {
@@ -186,7 +211,7 @@
 
     let __storageWriteQueue = Promise.resolve();
 
-    function upsertConversations(incomingItems, source) {
+    function upsertConversations(incomingItems, source, forceWrite = false) {
         if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
         __storageWriteQueue = __storageWriteQueue.then(async () => {
             try {
@@ -261,6 +286,13 @@
                     return tsB - tsA;
                 });
 
+                if (!forceWrite && changed === 0) {
+                    if (__lastKnownCount !== merged.length) {
+                        updateBadge(merged.length, incomingItems.length);
+                    }
+                    return merged.length;
+                }
+
                 if (Storage) {
                     await Storage.setConversations(slot, merged);
                     await Storage.setLastSync(slot, Date.now(), merged.length);
@@ -301,6 +333,7 @@
         window.__gemExporterDeepScanPromise = new Promise(r => { _resolve = r; });
 
         try {
+            document.getElementById('geminiExportBadge')?.classList.add('syncing');
             let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
             if (!C) return null;
             let client = new C();
@@ -337,7 +370,7 @@
                 } catch (e) {}
 
                 if (prog.batch && prog.batch.length) {
-                    saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute'));
+                    saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute', true));
                 }
             }, null, {
                 existingMap: beforeMap,
@@ -353,7 +386,7 @@
             }
 
             if (all && all.conversations && all.conversations.length) {
-                let mergedLen = await upsertConversations(all.conversations, 'batchexecute');
+                let mergedLen = await upsertConversations(all.conversations, 'batchexecute', true);
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
                 try {
@@ -372,6 +405,7 @@
         } catch (e) {
             console.debug('[Gemini Exporter] batch exec fail', e.message || e);
         } finally {
+            document.getElementById('geminiExportBadge')?.classList.remove('syncing');
             window.__gemExporterActiveClient = null;
             window.__gemExporterDeepScanPromise = null;
             if (_resolve) _resolve();
@@ -627,33 +661,39 @@
         await syncOnce();
     }
 
+    let __syncDebounceTimer = null;
+    function debouncedSyncOnce(delay = 350) {
+        if (__syncDebounceTimer) clearTimeout(__syncDebounceTimer);
+        __syncDebounceTimer = setTimeout(() => {
+            __syncDebounceTimer = null;
+            if (window.__gemExporterDeepScanPromise) return;
+            syncOnce();
+        }, delay);
+    }
+
     if (window.__gemExporterInterval) clearInterval(window.__gemExporterInterval);
     window.__gemExporterInterval = setInterval(() => {
         if (window.__gemExporterDeepScanPromise) return;
         syncOnce();
-    }, 3000);
+    }, 15000);
 
     let __lastObservedUrl = location.href;
     setInterval(() => {
         if (location.href !== __lastObservedUrl) {
             __lastObservedUrl = location.href;
-            setTimeout(syncOnce, 500);
-            setTimeout(syncOnce, 1500);
+            debouncedSyncOnce(400);
         }
     }, 500);
 
     window.addEventListener('popstate', () => {
-        setTimeout(() => {
-            refreshInitialBadge();
-            syncOnce();
-        }, 300);
+        debouncedSyncOnce(300);
     });
 
     try {
         const titleEl = document.querySelector('title');
         if (titleEl) {
             new MutationObserver(() => {
-                syncOnce();
+                debouncedSyncOnce(500);
             }).observe(titleEl, { childList: true, characterData: true, subtree: true });
         }
     } catch {}
@@ -661,7 +701,10 @@
     if (document.readyState !== 'loading') {
         autoInitSync();
     } else {
-        document.addEventListener('DOMContentLoaded', autoInitSync, { once: true });
+        document.addEventListener('DOMContentLoaded', () => {
+            ensureBadge();
+            autoInitSync();
+        }, { once: true });
     }
 
     console.log('[Gemini Exporter Content Coordinator] ready');
