@@ -17,6 +17,7 @@ scratch/
 
 # Build and Release Archives
 *.zip
+!tests/fixtures/*.zip
 *.crx
 *.pem
 

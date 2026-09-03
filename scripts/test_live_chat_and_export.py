@@ -26,6 +26,12 @@ import urllib.request
 import urllib.error
 
 try:
+    from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
+
+try:
     sys.stdout.reconfigure(line_buffering=True)
 except Exception:
     pass
@@ -304,7 +310,7 @@ def send_turn(cdp, prompt_text, max_wait=150):
     return False, "等待回复超时"
 
 
-def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=None, delay=2, skip_chat=False):
+def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=None, delay=2, skip_chat=False, skip_takeout=False, takeout_zip=None):
     scenarios = dataset or DEFAULT_SCENARIOS
     if len(scenarios) < 2:
         print("❌ 场景数不足 2 个，本测试要求执行 2 次独立会话！")
@@ -319,6 +325,8 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     print(f"🌐 Chrome 端口: 127.0.0.1:{port}")
     if skip_chat:
         print("⚡ [模式] 已开启 --skip-chat：直接复用已有会话进行同步与导出校验")
+    if not skip_takeout:
+        print("📥 [增强] 已启用 Takeout 样本预置自动导入与历史合流验证")
     print("=" * 70)
 
     tabs = get_tabs(port)
@@ -416,7 +424,58 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
             pass
 
         time.sleep(1.0)
-        # 点击【同步最新会话】
+
+        # ------------------------------------------------------------------
+        # 步骤 3.1：自动导入纯净版 Google Takeout ZIP 样本 (验证离线历史与附件)
+        # ------------------------------------------------------------------
+        resolved_takeout_zip = takeout_zip or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tests", "fixtures", "gemini_takeout_clean.zip"))
+        if not skip_takeout and os.path.isfile(resolved_takeout_zip):
+            print(f"   📥 正在导入预置 Takeout ZIP 样本: {os.path.basename(resolved_takeout_zip)}...")
+            with open(resolved_takeout_zip, "rb") as tf:
+                zip_b64 = base64.b64encode(tf.read()).decode("ascii")
+
+            takeout_res = cdp_opt.eval(f"""
+            (async () => {{
+                try {{
+                    const b64 = {json.dumps(zip_b64)};
+                    const bin = atob(b64);
+                    const arr = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                    const file = new File([arr], "{os.path.basename(resolved_takeout_zip)}", {{ type: "application/zip" }});
+                    
+                    const TC = typeof TakeoutController !== 'undefined' ? TakeoutController : window.TakeoutController;
+                    if (!TC) return {{ error: "TakeoutController not loaded" }};
+
+                    return await new Promise((resolve) => {{
+                        TC.handleTakeoutImport(file, {{
+                            onFinished: (result) => {{
+                                if (typeof window.__workbenchLoadStore === 'function') {{
+                                    window.__workbenchLoadStore(true);
+                                }}
+                                resolve({{
+                                    success: true,
+                                    addedCount: result.addedCount,
+                                    totalMediaCount: result.totalMediaCount
+                                }});
+                            }},
+                            onError: (err, msg) => resolve({{ error: msg || (err && err.message) || String(err) }})
+                        }});
+                    }});
+                }} catch (e) {{
+                    return {{ error: e.message }};
+                }}
+            }})()
+            """, await_promise=True)
+            if isinstance(takeout_res, dict) and takeout_res.get("success"):
+                print(f"   ✓ Takeout 导入成功！已索引离线附件池: {takeout_res.get('totalMediaCount', 0)} 个资源")
+            else:
+                err_info = takeout_res.get('error') if isinstance(takeout_res, dict) else str(takeout_res)
+                print(f"   ⚠️ Takeout 导入提示: {err_info}")
+            time.sleep(1.0)
+
+        # ------------------------------------------------------------------
+        # 步骤 3.2：点击【同步最新会话】，触发在线 RPC 与离线 Takeout 历史合流
+        # ------------------------------------------------------------------
         print("   🔄 点击【同步最新会话】按钮...")
         cdp_opt.eval("""
         (() => {
@@ -445,9 +504,13 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         })()
         """)
 
-        target_ids = [r["chat_id"] for r in chat_records if r["chat_id"] and len(str(r["chat_id"])) > 8]
+        # 目标会话：包含本次发帖会话 + 固化测试账号中的已知特征会话
+        target_ids = [r["chat_id"] for r in chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8]
+        # 追加已知的 Takeout 与在线黄金会话（Python 装饰器、火星猫咪、编译器、Envoy 网关）
+        target_ids.extend(["1cea7e48cc166b57", "1bd028d5c5b0c0e2", "3a07d47ddb6e8708", "9b292113807b3c07"])
+        target_titles = [r.get("title", "") for r in chat_records if r.get("title")]
 
-        # 通过 label.item[data-chat-id] 精准勾选这 2 个会话
+        # 通过 label.item[data-chat-id] 及标题关键词精准勾选目标会话
         print(f"   ☑️ 勾选目标会话进行精准导出...")
         selected_count = cdp_opt.eval(f"""
         (() => {{
@@ -455,25 +518,26 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
             if (selectNone) selectNone.click();
             
             const targetIds = {json.dumps(target_ids)};
+            const targetTitles = {json.dumps(target_titles)};
             const items = Array.from(document.querySelectorAll('#list .item'));
             let checked = 0;
 
-            if (targetIds.length >= 2) {{
-                items.forEach(item => {{
-                    const cid = item.dataset.chatId;
-                    const shouldSelect = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
-                    if (shouldSelect) {{
-                        const cb = item.querySelector('input[type=checkbox]');
-                        if (cb) {{
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            checked++;
-                        }}
+            items.forEach(item => {{
+                const cid = item.dataset.chatId;
+                const titleText = item.querySelector('.title')?.textContent || '';
+                const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
+                const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
+                if (matchId || matchTitle) {{
+                    const cb = item.querySelector('input[type=checkbox]');
+                    if (cb && !cb.checked) {{
+                        cb.checked = true;
+                        cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        checked++;
                     }}
-                }});
-            }}
+                }}
+            }});
 
-            // 如果 targetIds 数量不足或未全匹配，直接选列表顶部的 2 条最新会话
+            // 兜底：若勾选数少于 2，选列表顶部最新的 2 条
             if (checked < 2) {{
                 items.slice(0, 2).forEach(item => {{
                     const cb = item.querySelector('input[type=checkbox]');
@@ -567,69 +631,106 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
 
     verification_success = True
 
-    for idx, sc in enumerate(scenarios[:2], 1):
-        expected_turns = sc.get("turns", [])[:5]
-        sc_title = sc.get("title", f"场景 {idx}")
-        print(f"\n[验证 {idx}/2] 🔎 正在核对会话 {idx}: 《{sc_title}》")
+    should_verify_scenarios = (not skip_chat) or (dataset is not None)
+    if should_verify_scenarios:
+        for idx, sc in enumerate(scenarios[:2], 1):
+            expected_turns = sc.get("turns", [])[:5]
+            sc_title = sc.get("title", f"场景 {idx}")
+            print(f"\n[验证 {idx}/2] 🔎 正在核对会话 {idx}: 《{sc_title}》")
 
-        # 智能匹配属于此场景的导出文件（只要包含本场景任意一轮 Prompt 关键词）
-        matched_file = None
-        for fpath in all_extracted_files:
-            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-            if any(t[:14] in content for t in expected_turns):
-                matched_file = fpath
-                break
+            # 智能匹配属于此场景的导出文件（只要包含本场景任意一轮 Prompt 关键词）
+            matched_file = None
+            for fpath in all_extracted_files:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if any(t[:14] in content for t in expected_turns):
+                    matched_file = fpath
+                    break
 
-        if not matched_file and idx <= len(all_extracted_files):
-            matched_file = all_extracted_files[idx - 1]
+            if not matched_file and idx <= len(all_extracted_files):
+                matched_file = all_extracted_files[idx - 1]
 
-        if not matched_file:
-            print(f"   ❌ 未能找到会话 {idx} 对应的导出文件！")
-            verification_success = False
-            continue
+            if not matched_file:
+                print(f"   ❌ 未能找到会话 {idx} 对应的导出文件！")
+                verification_success = False
+                continue
 
-        print(f"   📄 匹配到导出文件: {os.path.basename(matched_file)} ({os.path.getsize(matched_file)} bytes)")
-        with open(matched_file, "r", encoding="utf-8", errors="ignore") as f:
-            file_text = f.read()
+            print(f"   📄 匹配到导出文件: {os.path.basename(matched_file)} ({os.path.getsize(matched_file)} bytes)")
+            with open(matched_file, "r", encoding="utf-8", errors="ignore") as f:
+                file_text = f.read()
 
-        matched_turns_count = 0
-        for t_idx, prompt in enumerate(expected_turns, 1):
-            snippet = prompt[:16]
-            if snippet in file_text:
-                matched_turns_count += 1
-                print(f"      ✓ 轮次 {t_idx}/5 校验通过: 「{snippet}...」在导出文件中完整存在")
+            matched_turns_count = 0
+            for t_idx, prompt in enumerate(expected_turns, 1):
+                snippet = prompt[:16]
+                if snippet in file_text:
+                    matched_turns_count += 1
+                    print(f"      ✓ 轮次 {t_idx}/5 校验通过: 「{snippet}...」在导出文件中完整存在")
+                else:
+                    print(f"      ❌ 轮次 {t_idx}/5 缺失: 未在文件中找到「{snippet}...」")
+                    verification_success = False
+
+            # 校验轮次标记
+            turn_headers = len(re.findall(r"(?:###|####|\*\*User\*\*|\*\*Model\*\*|\*\*Gemini\*\*|## 👤|## 🤖)", file_text))
+            print(f"      📊 会话问答角色标记数: {turn_headers} (预期至少 10 个角色轮次标记)")
+
+            if matched_turns_count == 5:
+                print(f"   🎉 会话 {idx} 全部 5 轮对话内容核对 100% 完整无误！")
             else:
-                print(f"      ❌ 轮次 {t_idx}/5 缺失: 未在文件中找到「{snippet}...」")
+                print(f"   ⚠️ 会话 {idx} 仅核对到 {matched_turns_count}/5 轮！")
                 verification_success = False
 
-        # 校验轮次标记
-        turn_headers = len(re.findall(r"(?:###|####|\*\*User\*\*|\*\*Model\*\*|\*\*Gemini\*\*|## 👤|## 🤖)", file_text))
-        print(f"      📊 会话问答角色标记数: {turn_headers} (预期至少 10 个角色轮次标记)")
+    # ==========================================
+    # 阶段 4.2：执行全量导出规范与特征深度断言
+    # ==========================================
+    golden_chats = [
+        {
+            "id": "1cea7e48cc166b57",
+            "name": "Python 装饰器函数",
+            "expected_snippets": ["Python", "def ", "functools"],
+            "syntax_checks": ["codeblock"]
+        },
+        {
+            "id": "1bd028d5c5b0c0e2",
+            "name": "火星宇航员猫咪",
+            "expected_snippets": ["astronaut cat"],
+            "syntax_checks": ["image"]
+        }
+    ]
+    # 若在线发帖，追加在线场景关键词作为黄金校验
+    if should_verify_scenarios:
+        for sc in scenarios[:2]:
+            title = sc.get("title", "")
+            golden_chats.append({
+                "id": sc.get("id"),
+                "name": title,
+                "expected_snippets": [t[:14] for t in sc.get("turns", [])[:3]],
+                "syntax_checks": ["codeblock"] if ("代码" in title or "并发" in title or "架构" in title or "编译器" in title) else []
+            })
 
-        if matched_turns_count == 5:
-            print(f"   🎉 会话 {idx} 全部 5 轮对话内容核对 100% 完整无误！")
-        else:
-            print(f"   ⚠️ 会话 {idx} 仅核对到 {matched_turns_count}/5 轮！")
-            verification_success = False
+    asserter = ExportSpecificationAsserter(extract_dir)
+    spec_success = asserter.run_all_assertions(min_conversations=2, expected_golden_chats=golden_chats)
+    if not spec_success:
+        verification_success = False
 
     print("\n" + "=" * 70)
     if verification_success:
-        print("🏆 🎉 全部 2 次会话 × 5 轮对话端到端测试与目录完整性断言 100% 成功通过！")
+        print("🏆 🎉 全部会话端到端导出、多轮内容与全维度格式规范断言 100% 成功通过！")
     else:
-        print("❌ 测试断言未完全通过，请检查上述具体缺失轮次！")
+        print("❌ 测试断言未完全通过，请检查上述具体缺失或规范违背报告！")
     print("=" * 70)
 
     return verification_success
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Gemini 2次×5轮真实对话与导出断言测试流程")
+    parser = argparse.ArgumentParser(description="Gemini 2次×5轮真实对话、Takeout 导入与导出规范断言全生产测试流程")
     parser.add_argument("--dataset", default=None, help="自定义测试数据集 JSON 文件路径 (为空时启用内置标准 5 轮数据集)")
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
     parser.add_argument("--skip-chat", action="store_true", help="跳过发帖步骤，直接使用已有会话跑导出与目录校验")
+    parser.add_argument("--skip-takeout", action="store_true", help="跳过预置 Takeout ZIP 导入步骤")
+    parser.add_argument("--takeout-zip", default=None, help="自定义预置 Takeout ZIP 样本路径")
     args = parser.parse_args()
 
     custom_dataset = None
@@ -645,6 +746,9 @@ if __name__ == "__main__":
         port=args.port,
         output_dir=args.output_dir,
         delay=args.delay,
-        skip_chat=args.skip_chat
+        skip_chat=args.skip_chat,
+        skip_takeout=args.skip_takeout,
+        takeout_zip=args.takeout_zip
     )
     sys.exit(0 if success else 1)
+
