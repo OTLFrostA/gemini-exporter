@@ -33,14 +33,19 @@
         if (running && banner) {
             banner.style.display = 'none';
         }
-        if (!running) {
-            const pw = $('progWrap');
-            if (pw) pw.style.display = 'none';
-        }
     }
 
     function isRunning() { return exportRunning; }
     function getActiveEngine() { return activeEngine; }
+
+    function abort() {
+        if (activeEngine) {
+            try { activeEngine.abort(); } catch {}
+        }
+        setRunning(false);
+        const pw = $('progWrap');
+        if (pw) pw.style.display = 'none';
+    }
 
     async function runExport({ selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }, callbacks) {
         setRunning(true);

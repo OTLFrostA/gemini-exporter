@@ -165,6 +165,56 @@
         return 0;
     }
 
+    /**
+     * Formats export progress details into human-readable text and percentage.
+     * Includes current/total conversation counts, chat title, and attachment download statistics.
+     * @param {Object|number} progress - Progress object from ExportEngine or numeric percentage
+     * @param {string} [txt] - Optional fallback text string
+     * @param {boolean} [isEn=false] - Whether to format in English
+     * @returns {{ text: string, pct: number }}
+     */
+    function formatExportProgress(progress, txt, isEn = false) {
+        let pct = 0;
+        let text = '';
+
+        if (typeof progress === 'object' && progress !== null) {
+            pct = typeof progress.pct === 'number' ? progress.pct : 0;
+            const current = progress.current || 0;
+            const total = progress.total || 0;
+            let title = progress.title || txt || '';
+            const assetsDownloaded = progress.assetsDownloaded || 0;
+            const assetsTotal = progress.assetsTotal || 0;
+
+            if (title === 'Preparing...') {
+                title = isEn ? 'Preparing...' : '准备导出...';
+            } else if (title === 'Packaging ZIP file...') {
+                title = isEn ? 'Packaging ZIP file...' : '正在打包 ZIP 文件...';
+            } else if (title === 'Export complete!') {
+                title = isEn ? 'Export complete!' : '导出完成！';
+            }
+
+            const parts = [];
+            if (total > 0) {
+                const chatLabel = isEn ? 'Exporting' : '导出中';
+                parts.push(`${chatLabel} (${current}/${total})`);
+            }
+            if (title) {
+                parts.push(title);
+            }
+            if (assetsTotal > 0 || assetsDownloaded > 0) {
+                const assetLabel = isEn ? 'Assets' : '附件';
+                parts.push(`📎 ${assetLabel} ${assetsDownloaded}/${assetsTotal}`);
+            }
+
+            text = parts.join(' · ');
+        } else {
+            pct = typeof progress === 'number' ? progress : 0;
+            text = txt || '';
+        }
+
+        return { text, pct: Math.min(Math.max(pct, 0), 100) };
+    }
+
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
         module.exports = {
@@ -175,6 +225,7 @@
             resolveTitle,
             setTitleBySource,
             getEffectiveTimestamp,
+            formatExportProgress,
             TITLE_SOURCE_PRIORITY
         };
     } else {
@@ -186,6 +237,7 @@
         global.GeminiUtils.resolveTitle = resolveTitle;
         global.GeminiUtils.setTitleBySource = setTitleBySource;
         global.GeminiUtils.getEffectiveTimestamp = getEffectiveTimestamp;
+        global.GeminiUtils.formatExportProgress = formatExportProgress;
         global.GeminiUtils.TITLE_SOURCE_PRIORITY = TITLE_SOURCE_PRIORITY;
     }
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
