@@ -153,11 +153,16 @@
         }
         // 诊断：空结果时附带 html 预览
         let _debug = null;
+        let isNotFound = false;
         if (!dedup.length) {
             try {
                 const htmlLen = doc.documentElement?.outerHTML?.length || 0;
                 const bodySnippet = (doc.body?.innerText || '').slice(0, 400).replace(/\n+/g, ' ');
-                _debug = { htmlLen, bodySnippet, nodesFound: nodes.length, fallbackUsed, titleSeen: title };
+                isNotFound = bodySnippet.includes("doesn't exist or was deleted") ||
+                             bodySnippet.includes("找不到此聊天") ||
+                             bodySnippet.includes("已被删除") ||
+                             bodySnippet.includes("This chat doesn't exist");
+                _debug = { htmlLen, bodySnippet, nodesFound: nodes.length, fallbackUsed, titleSeen: title, isNotFound };
                 if (typeof window !== 'undefined' && window.__gemExporterDevMode) {
                     console.warn('[Gemini Exporter][DOM] parseDoc empty dedup', id, _debug);
                 }
@@ -171,6 +176,7 @@
             messages: dedup,
             messageCount: dedup.length,
             attachmentCount: 0,
+            isDeleted: isNotFound,
             _debug
         };
     }

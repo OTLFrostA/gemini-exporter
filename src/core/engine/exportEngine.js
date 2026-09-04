@@ -471,13 +471,30 @@
                     }
 
                     if (chat.error || chat._empty) {
+                        const isConfirmedDeleted = !!chat.isDeleted || !!chat._debug?.isNotFound || !!chat._debug?.domDebug?.isNotFound;
                         const cleanForLog = t => String(t||'').replace(/[\u200E\u200B\uFEFF\u00A0]/g,'').trim();
                         const rawTitle = chat.title || nid;
                         const displayTitle = cleanForLog(rawTitle) && !/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForLog(rawTitle)) ? cleanForLog(rawTitle) : nid;
                         const debugInfo = chat._debug ? ` _debug=${String(chat._debug).slice(0,200)}` : (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
-                        const errMsg = (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）') + debugInfo;
-                        failedChats.push({ id: chat.id || nid, title: displayTitle, error: errMsg, debug: chat._debug || null, raw: chat._raw || null });
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', displayTitle, errMsg) : `[${displayTitle}] 导出跳过: ${errMsg}`, 'error');
+                        const errMsg = (isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）')) + debugInfo;
+
+                        if (isConfirmedDeleted) {
+                            try {
+                                const storage = typeof StorageService !== 'undefined' ? StorageService : (typeof window !== 'undefined' && window.StorageService);
+                                if (storage && typeof storage.removeConversation === 'function') {
+                                    await storage.removeConversation(accountSlot || 'u0', nid);
+                                    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+                                        const p = chrome.runtime.sendMessage({ action: 'syncUpdate', slot: accountSlot || 'u0', count: -1, from: 'export-prune-deleted' });
+                                        if (p && p.catch) p.catch(() => {});
+                                    }
+                                }
+                            } catch {}
+                            onLog(typeof I18n !== 'undefined' ? I18n.t('logChatDeletedAndPruned', displayTitle) : `[${displayTitle}] ⚡ 云端已确认该会话不存在或已被删除，已自动从本地列表中移除`, 'warn');
+                        } else {
+                            onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', displayTitle, errMsg) : `[${displayTitle}] 导出跳过: ${errMsg}`, 'error');
+                        }
+
+                        failedChats.push({ id: chat.id || nid, title: displayTitle, error: errMsg, debug: chat._debug || null, raw: chat._raw || null, isDeleted: isConfirmedDeleted });
                         console.warn('[Gemini Exporter] export empty detail', nid, errMsg, 'chat keys', Object.keys(chat || {}));
                         completedCount++;
                         updateProgress(completedCount, displayTitle);

@@ -136,8 +136,43 @@
         else await chrome.storage.local.set({ gemini_dev_mode: !!devOn });
     }
 
+    async function removeConversation(id) {
+        if (!id) return conversations;
+        const nid = normId(id);
+        const storage = getStorage();
+        conversations = (conversations || []).filter(c => normId(c.id) !== nid);
+        if (storage && storage.removeConversation) {
+            await storage.removeConversation(currentSlot, nid);
+        } else {
+            await saveConversations(currentSlot, conversations);
+        }
+        return conversations;
+    }
+
+    async function reconcileWithCloud(activeCloudList, options = {}) {
+        const storage = getStorage();
+        if (storage && storage.reconcileConversations) {
+            const res = await storage.reconcileConversations(currentSlot, activeCloudList, options);
+            const activeIdSet = new Set((activeCloudList || []).map(c => normId(c.id)));
+            const keepTakeout = options.keepTakeout !== false;
+            conversations = (conversations || []).filter(c => {
+                const nid = normId(c.id);
+                const isTakeout = keepTakeout && (
+                    c.source === 'takeout' ||
+                    c.titleSource === 'takeout' ||
+                    c.isTakeoutOnly ||
+                    (c.titles && c.titles.takeout && !c.titles.rpc && !c.titles.dom)
+                );
+                return activeIdSet.has(nid) || isTakeout;
+            });
+            return res;
+        }
+        return { kept: conversations.length, removed: 0, removedIds: [] };
+    }
+
     return {
         getConversations, setConversations,
+        removeConversation, reconcileWithCloud,
         getExportedIds, setExportedIds,
         getCurrentSlot, setCurrentSlot,
         getAccountSlots, setAccountSlots,

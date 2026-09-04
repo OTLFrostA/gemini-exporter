@@ -47,6 +47,73 @@
         await chrome.storage.local.set({ [convKey]: list || [] });
     }
 
+    async function removeConversation(slot, conversationId) {
+        if (!conversationId) return false;
+        const targetId = normId(conversationId);
+        const list = await getConversations(slot);
+        const initialLen = list.length;
+        const filtered = list.filter(c => {
+            if (!c || !c.id) return false;
+            return normId(c.id) !== targetId;
+        });
+        if (filtered.length !== initialLen) {
+            await setConversations(slot, filtered);
+            const { countKey } = getStorageKeys(slot);
+            await chrome.storage.local.set({ [countKey]: filtered.length });
+            await updateAccountSlot(slot, { count: filtered.length });
+            return true;
+        }
+        return false;
+    }
+
+    async function reconcileConversations(slot, activeCloudList, options = {}) {
+        const keepTakeout = options.keepTakeout !== false;
+        const existing = await getConversations(slot);
+        if (!Array.isArray(existing) || existing.length === 0) {
+            return { kept: 0, removed: 0, removedIds: [] };
+        }
+
+        const activeIdSet = new Set();
+        (activeCloudList || []).forEach(c => {
+            if (c && c.id) {
+                activeIdSet.add(normId(c.id));
+            }
+        });
+
+        const kept = [];
+        const removedIds = [];
+
+        for (const conv of existing) {
+            if (!conv || !conv.id) continue;
+            const nid = normId(conv.id);
+            const isTakeout = keepTakeout && (
+                conv.source === 'takeout' ||
+                conv.titleSource === 'takeout' ||
+                conv.isTakeoutOnly ||
+                (conv.titles && conv.titles.takeout && !conv.titles.rpc && !conv.titles.dom)
+            );
+
+            if (activeIdSet.has(nid) || isTakeout) {
+                kept.push(conv);
+            } else {
+                removedIds.push(nid);
+            }
+        }
+
+        if (removedIds.length > 0) {
+            await setConversations(slot, kept);
+            const { countKey } = getStorageKeys(slot);
+            await chrome.storage.local.set({ [countKey]: kept.length });
+            await updateAccountSlot(slot, { count: kept.length });
+        }
+
+        return {
+            kept: kept.length,
+            removed: removedIds.length,
+            removedIds
+        };
+    }
+
     async function getExportedIds(slot) {
         const { expKey, slot: s } = getStorageKeys(slot);
         const keys = [expKey, 'exportedIds', 'gemini_exported_u0'];
@@ -171,6 +238,8 @@
         getStorageKeys,
         getConversations,
         setConversations,
+        removeConversation,
+        reconcileConversations,
         getExportedIds,
         setExportedIds,
         saveExportRecord,

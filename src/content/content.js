@@ -481,6 +481,14 @@
 
             if (all && all.conversations && all.conversations.length) {
                 let mergedLen = await upsertConversations(all.conversations, 'batchexecute', true);
+                const isFullExhaustive = !useIncremental && !all.stoppedEarly && !window.__gemExporterAborted;
+                if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
+                    const recRes = await Storage.reconcileConversations(slot, all.conversations, { keepTakeout: true });
+                    if (recRes && recRes.removed > 0) {
+                        console.log(`[Gemini Exporter] Reconciled with cloud: pruned ${recRes.removed} deleted conversations`, recRes.removedIds);
+                        mergedLen = recRes.kept;
+                    }
+                }
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
                 try {
@@ -578,7 +586,38 @@
             return;
         }
 
-        // 2. Fallback network ids hook listener
+        // 2. Real-time conversation deletion hook listener (GzXR5e)
+        if (d.type === 'GEMINI_CONVERSATION_DELETED') {
+            const { id, slot } = d.payload || {};
+            if (id) {
+                (async () => {
+                    try {
+                        const targetSlot = slot || getAccountSlot() || 'u0';
+                        if (Storage && typeof Storage.removeConversation === 'function') {
+                            const removed = await Storage.removeConversation(targetSlot, id);
+                            if (removed) {
+                                const updatedList = await Storage.getConversations(targetSlot);
+                                updateBadge(updatedList.length, 0);
+                                try {
+                                    chrome.runtime.sendMessage({
+                                        action: 'syncUpdate',
+                                        slot: targetSlot,
+                                        count: updatedList.length,
+                                        from: 'delete-event'
+                                    });
+                                } catch {}
+                                console.log(`[Gemini Exporter] Realtime pruned deleted conversation ${id} from slot ${targetSlot}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.debug('[Gemini Exporter] remove deleted conversation err', err);
+                    }
+                })();
+            }
+            return;
+        }
+
+        // 3. Fallback network ids hook listener
         if (d.type === '__gemExporterNetworkIds') {
             const ids = d.ids || [];
             if (!ids.length) return;
@@ -727,9 +766,28 @@
                             if (window.__gemExporterDevMode) {
                                 console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
                             }
+                            const isConfirmedDeleted = !!chat?.isDeleted || !!chat?._debug?.isNotFound;
+                            if (isConfirmedDeleted) {
+                                const slot = msg.accountSlot || detectSlot() || 'u0';
+                                try {
+                                    if (Storage && typeof Storage.removeConversation === 'function') {
+                                        await Storage.removeConversation(slot, cid);
+                                        const updatedList = await Storage.getConversations(slot);
+                                        updateBadge(updatedList.length, 0);
+                                        try {
+                                            chrome.runtime.sendMessage({
+                                                action: 'syncUpdate',
+                                                slot,
+                                                count: updatedList.length,
+                                                from: 'prune-dead-chat'
+                                            });
+                                        } catch {}
+                                    }
+                                } catch {}
+                            }
                             // 合并 batchexecute 与 DOM 的诊断，一并返回给 background
-                            const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null };
-                            sendResponse({ success: true, data: { ...chat, _empty: true, error: chat?.error || 'DOM 返回内容为空', _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
+                            const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
+                            sendResponse({ success: true, data: { ...chat, _empty: true, isDeleted: isConfirmedDeleted, error: isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat?.error || 'DOM 返回内容为空'), _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
                             return;
                         }
                     }

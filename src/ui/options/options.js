@@ -717,7 +717,57 @@
             }
         });
 
-        // 15. Clear Cache
+        // 15. Clear Cache & Prune Stale Chats
+        if (List && typeof List.setOnDelete === 'function') {
+            List.setOnDelete(async (chatId) => {
+                if (!chatId) return;
+                const convs = Store ? Store.getConversations() : [];
+                const targetChat = convs.find(c => normId(c.id) === normId(chatId));
+                const chatTitle = targetChat ? (resolveTitle(targetChat).title || chatId) : chatId;
+                const confirmMsg = typeof I18n !== 'undefined'
+                    ? I18n.t('confirmDeleteChat', chatTitle)
+                    : `确定从本地列表中移除会话 "${chatTitle}" 吗？`;
+                if (confirm(confirmMsg)) {
+                    await Store.removeConversation(chatId);
+                    log(typeof I18n !== 'undefined' ? I18n.t('logChatRemoved', chatTitle) : `[${chatTitle}] 已从本地列表移除`, 'info');
+                    await refreshConversationsList(true);
+                }
+            });
+        }
+
+        $('btnPruneDeleted')?.addEventListener('click', async () => {
+            if (Controller && Controller.isRunning()) return;
+            const btn = $('btnPruneDeleted');
+            if (btn) btn.disabled = true;
+            const slot = Store ? Store.getCurrentSlot() : 'u0';
+            log(typeof I18n !== 'undefined' ? I18n.t('logPruneStarted') : '正在检测云端存活会话并清理本地失效会话...', 'info');
+            try {
+                let C = (typeof GeminiAPIClient !== 'undefined') ? GeminiAPIClient : window.GeminiAPIClient;
+                if (!C) throw new Error('GeminiAPIClient not loaded');
+                let client = new C();
+                let all = await client.getAllConversations(2000, null, null, { incremental: false });
+                if (all && all.conversations) {
+                    const recRes = await Store.reconcileWithCloud(all.conversations, { keepTakeout: true });
+                    if (recRes && recRes.removed > 0) {
+                        const msg = typeof I18n !== 'undefined'
+                            ? I18n.t('logPruneFinished', recRes.removed, recRes.kept)
+                            : `清理完成: 成功剔除 ${recRes.removed} 条已删除会话，保留 ${recRes.kept} 条有效会话`;
+                        log(msg, 'info');
+                    } else {
+                        const msg = typeof I18n !== 'undefined'
+                            ? I18n.t('logPruneClean')
+                            : '所有本地会话均与云端状态一致，无失效残留会话';
+                        log(msg, 'info');
+                    }
+                    await refreshConversationsList(true);
+                }
+            } catch (err) {
+                log((typeof I18n !== 'undefined' ? I18n.t('syncFailed', err.message || err) : `清理失败: ${err.message || err}`), 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        });
+
         $('btnClearExported')?.addEventListener('click', async () => {
             const slot = Store ? Store.getCurrentSlot() : 'u0';
             if (Store) await Store.clearExported(slot);
