@@ -188,7 +188,10 @@
             tourBtnNext: "下一步",
             tourBtnPrev: "上一步",
             tourBtnDone: "🎉 完成并开始使用",
-            tourBtnSkip: "跳过教程"
+            tourBtnSkip: "跳过教程",
+            tourHintClickButton: "💡 提示：直接点击上方高亮按钮即可自动进入下一步",
+            tourHintSelectChat: "💡 提示：在列表中勾选任意对话即可自动进入下一步",
+            tourHintClickExport: "💡 提示：点击导出按钮即可开始导出并完成教程"
         },
         en: {
             extName: "Gemini Exporter",
@@ -367,7 +370,10 @@
             tourBtnNext: "Next",
             tourBtnPrev: "Back",
             tourBtnDone: "🎉 Got it & Start",
-            tourBtnSkip: "Skip Tour"
+            tourBtnSkip: "Skip Tour",
+            tourHintClickButton: "💡 Tip: Click the highlighted button above to advance automatically",
+            tourHintSelectChat: "💡 Tip: Check any conversation in the list to advance automatically",
+            tourHintClickExport: "💡 Tip: Click the Export button to start exporting and finish the tour"
         }
     };
 

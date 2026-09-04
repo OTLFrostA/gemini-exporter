@@ -15,6 +15,7 @@
     let popoverEl = null;
     let pollTimer = null;
     let lastTabStatus = null;
+    let activeActionCleanup = null;
 
     const t = (key, ...args) => {
         if (typeof I18n !== 'undefined' && I18n.t) {
@@ -26,18 +27,79 @@
     const getStorage = () => (typeof StorageService !== 'undefined' ? StorageService : null);
     const getTabService = () => (typeof TabService !== 'undefined' ? TabService : null);
 
+    function clearActionListeners() {
+        if (typeof activeActionCleanup === 'function') {
+            try {
+                activeActionCleanup();
+            } catch (e) {
+                console.warn('[TourGuide] cleanup error:', e);
+            }
+            activeActionCleanup = null;
+        }
+    }
+
+    function bindStepAction(step) {
+        clearActionListeners();
+        if (!step || typeof step.setupAction !== 'function') return;
+
+        let triggered = false;
+        const advance = () => {
+            if (!isActive || triggered) return;
+            triggered = true;
+            clearActionListeners();
+            if (step.isFinal) {
+                finishTour();
+            } else {
+                nextStep();
+            }
+        };
+
+        try {
+            activeActionCleanup = step.setupAction(advance);
+        } catch (e) {
+            console.warn('[TourGuide] setupAction error:', e);
+        }
+    }
+
     const STEPS = [
         {
             id: 'connect',
             getTarget: () => document.getElementById('accountSlotSelect') || document.querySelector('header h1') || null,
             titleKey: 'tourStep1Title',
-            isDynamicConnect: true
+            isDynamicConnect: true,
+            setupAction: (advance) => {
+                const cleanups = [];
+                const slotSelect = document.getElementById('accountSlotSelect');
+                if (slotSelect) {
+                    const onSlotChange = () => setTimeout(advance, 300);
+                    slotSelect.addEventListener('change', onSlotChange);
+                    cleanups.push(() => slotSelect.removeEventListener('change', onSlotChange));
+                }
+                return () => cleanups.forEach(c => c());
+            }
         },
         {
             id: 'sync',
             getTarget: () => document.getElementById('btnIncrementalScan') || null,
             titleKey: 'tourStep2Title',
-            descKey: 'tourStep2Desc'
+            descKey: 'tourStep2Desc',
+            hintKey: 'tourHintClickButton',
+            setupAction: (advance) => {
+                const cleanups = [];
+                const btnScan = document.getElementById('btnIncrementalScan');
+                if (btnScan) {
+                    const onScanClick = () => setTimeout(advance, 300);
+                    btnScan.addEventListener('click', onScanClick);
+                    cleanups.push(() => btnScan.removeEventListener('click', onScanClick));
+                }
+                const btnDeep = document.getElementById('btnDeepScan');
+                if (btnDeep) {
+                    const onDeepClick = () => setTimeout(advance, 300);
+                    btnDeep.addEventListener('click', onDeepClick);
+                    cleanups.push(() => btnDeep.removeEventListener('click', onDeepClick));
+                }
+                return () => cleanups.forEach(c => c());
+            }
         },
         {
             id: 'select',
@@ -46,19 +108,60 @@
                 return firstCheckbox ? firstCheckbox.closest('.item') : document.getElementById('btnSelectAll');
             },
             titleKey: 'tourStep3Title',
-            descKey: 'tourStep3Desc'
+            descKey: 'tourStep3Desc',
+            hintKey: 'tourHintSelectChat',
+            setupAction: (advance) => {
+                const cleanups = [];
+                const listEl = document.getElementById('list');
+                if (listEl) {
+                    const onListChange = (e) => {
+                        if (e.target && e.target.type === 'checkbox' && e.target.checked) {
+                            setTimeout(advance, 250);
+                        }
+                    };
+                    listEl.addEventListener('change', onListChange);
+                    cleanups.push(() => listEl.removeEventListener('change', onListChange));
+                }
+                const btnSelectAll = document.getElementById('btnSelectAll');
+                if (btnSelectAll) {
+                    const onAllClick = () => setTimeout(advance, 250);
+                    btnSelectAll.addEventListener('click', onAllClick);
+                    cleanups.push(() => btnSelectAll.removeEventListener('click', onAllClick));
+                }
+                const btnSelectUnexported = document.getElementById('btnSelectUnexported') || document.getElementById('btnFilterNew');
+                if (btnSelectUnexported) {
+                    const onUnexportedClick = () => setTimeout(advance, 250);
+                    btnSelectUnexported.addEventListener('click', onUnexportedClick);
+                    cleanups.push(() => btnSelectUnexported.removeEventListener('click', onUnexportedClick));
+                }
+                return () => cleanups.forEach(c => c());
+            }
         },
         {
             id: 'export',
             getTarget: () => document.getElementById('btnExport') || null,
             titleKey: 'tourStep4Title',
             descKey: 'tourStep4Desc',
-            isFinal: true
+            hintKey: 'tourHintClickExport',
+            isFinal: true,
+            setupAction: (advance) => {
+                const btnExport = document.getElementById('btnExport');
+                if (btnExport) {
+                    const onExportClick = () => setTimeout(advance, 200);
+                    btnExport.addEventListener('click', onExportClick);
+                    return () => btnExport.removeEventListener('click', onExportClick);
+                }
+            }
         }
     ];
 
     function createElements() {
-        if (overlayEl) return;
+        if (overlayEl && overlayEl.parentNode) return;
+
+        // Clean up any stale or orphan containers in DOM
+        document.querySelectorAll('.tour-overlay-container').forEach(el => {
+            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+        });
 
         overlayEl = document.createElement('div');
         overlayEl.className = 'tour-overlay-container';
@@ -75,15 +178,18 @@
         overlayEl.appendChild(popoverEl);
         document.body.appendChild(overlayEl);
 
+        document.removeEventListener('keydown', handleKeydown);
+        window.removeEventListener('resize', handleResize);
         document.addEventListener('keydown', handleKeydown);
         window.addEventListener('resize', handleResize);
     }
 
     function removeElements() {
         stopPolling();
-        if (overlayEl && overlayEl.parentNode) {
-            overlayEl.parentNode.removeChild(overlayEl);
-        }
+        clearActionListeners();
+        document.querySelectorAll('.tour-overlay-container').forEach(el => {
+            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+        });
         overlayEl = null;
         spotlightEl = null;
         popoverEl = null;
@@ -168,9 +274,21 @@
                 return;
             }
             const status = await checkCurrentTabStatus();
+            if (!isActive || currentStep !== 0) {
+                return;
+            }
+            const prevStatus = lastTabStatus;
             if (status.status !== lastTabStatus) {
                 lastTabStatus = status.status;
                 updateStepContent(STEPS[0]);
+
+                if ((prevStatus === 'NO_TAB' || prevStatus === 'NEED_REFRESH') && status.status === 'CONNECTED') {
+                    setTimeout(() => {
+                        if (isActive && currentStep === 0) {
+                            nextStep();
+                        }
+                    }, 800);
+                }
             }
         }, 1500);
     }
@@ -228,6 +346,11 @@
             bodyHtml = `<div class="tour-content">${t(step.descKey)}</div>`;
         }
 
+        let hintHtml = '';
+        if (step.hintKey) {
+            hintHtml = `<div class="tour-action-hint">${t(step.hintKey)}</div>`;
+        }
+
         if (!popoverEl || !isActive) return;
 
         popoverEl.innerHTML = `
@@ -237,6 +360,7 @@
             </div>
             <div class="tour-title">${titleHtml}</div>
             ${bodyHtml}
+            ${hintHtml}
             <div class="tour-footer">
                 <button class="tour-skip-btn" id="tourSkipBtn">${t('tourBtnSkip')}</button>
                 <div class="tour-nav-btns">
@@ -297,6 +421,7 @@
         }
 
         await updateStepContent(step);
+        bindStepAction(step);
     }
 
     async function nextStep() {
@@ -343,6 +468,8 @@
         isActive: () => isActive,
         getCurrentStep: () => currentStep,
         destroy: removeElements,
+        clearActionListeners,
+        bindStepAction,
         STEPS
     };
 }));
