@@ -96,12 +96,54 @@
     }
 
     /**
+     * Convert HTML content (from Google Takeout or HTML-rich model responses) to Markdown.
+     */
+    function convertHtmlToMarkdown(html) {
+        if (!html || typeof html !== 'string') return html || '';
+        if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i)[\s>]/i.test(html)) return html;
+
+        let res = html;
+        // 1. Convert <pre><code> blocks
+        res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (match, lang, code) => {
+            let cleanCode = code
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&');
+            return `\n\`\`\`${lang || ''}\n${cleanCode.trim()}\n\`\`\`\n`;
+        });
+        // 2. Inline code
+        res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (match, code) => {
+            let cleanCode = code
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&');
+            return `\`${cleanCode}\``;
+        });
+        // 3. Headings
+        res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
+        // 4. Paragraphs and breaks
+        res = res.replace(/<br\s*\/?>/gi, '\n');
+        res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
+        // 5. Bold & italic
+        res = res.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, '**$1**');
+        res = res.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, '*$1*');
+        // 6. Strip any other HTML tags
+        res = res.replace(/<[^>]+>/g, '');
+        return res;
+    }
+
+    /**
      * Sanitize message body content from Google internal placeholder URLs and tool anchors
      */
     function cleanMessageBody(text) {
         if (!text || typeof text !== 'string') return '';
+        let converted = convertHtmlToMarkdown(text);
         // 1. Remove standalone tool/chip placeholder URL lines
-        let cleaned = text.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content|image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
+        let cleaned = converted.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content|image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
         // 2. Unwrap Markdown links pointing to internal placeholders: [Text](https://googleusercontent.com/...) -> Text
         cleaned = cleaned.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content|image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, '$1');
         // 3. Remove any remaining inline pseudo URLs
@@ -160,8 +202,8 @@
 
         const safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
         const safeYamlTitle = safeTitleClean.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const createdIso = chat.createdAt ? new Date(chat.createdAt).toISOString() : '';
-        const updatedIso = (chat.timestamp || chat.updatedAt) ? new Date(chat.timestamp || chat.updatedAt).toISOString() : createdIso;
+        const createdIso = (chat.createdAt || chat.timestamp || chat.updatedAt) ? new Date(chat.createdAt || chat.timestamp || chat.updatedAt).toISOString() : new Date().toISOString();
+        const updatedIso = (chat.updatedAt || chat.timestamp || chat.createdAt) ? new Date(chat.updatedAt || chat.timestamp || chat.createdAt).toISOString() : createdIso;
         const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${String(chat.id).replace(/^c_/, '')}` : '');
 
         // 1. YAML Frontmatter (Obsidian Properties / Notion Database / Logseq)
