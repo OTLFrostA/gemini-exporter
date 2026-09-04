@@ -32,7 +32,8 @@ except ImportError:
     from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 
 try:
-    sys.stdout.reconfigure(line_buffering=True)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
 except Exception:
     pass
 
@@ -234,7 +235,17 @@ def get_current_chat_title(cdp):
     return (title or "").replace(" - Google Gemini", "").strip()
 
 
-def send_turn(cdp, prompt_text, max_wait=150):
+def send_turn(cdp, turn_input, max_wait=150):
+    if isinstance(turn_input, dict):
+        prompt_text = turn_input.get("prompt", "")
+    else:
+        prompt_text = str(turn_input)
+
+    # 识别生图类 Prompt，自适应延长超时时间
+    is_image_gen = any(kw in prompt_text for kw in ["生成图片", "生成一张图片", "画一张", "generate an image", "create an image"])
+    if is_image_gen:
+        max_wait = max(max_wait, 180)
+
     # 1. 聚焦输入框并清空原有占位符
     cdp.eval("""
     (() => {
@@ -272,7 +283,7 @@ def send_turn(cdp, prompt_text, max_wait=150):
         return False, "未能点击发送按钮"
 
     # 4. 等待生成开始 (出现 stop 按钮或 streaming 状态)
-    for _ in range(20):
+    for _ in range(25):
         started = cdp.eval("""
         (() => {
           const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
@@ -353,7 +364,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
             for chat_idx in range(2):
                 sc = scenarios[chat_idx]
                 sc_title = sc.get("title", f"测试会话 {chat_idx + 1}")
-                turns = sc.get("turns", [])[:5]  # 严格保证 5 轮
+                turns = sc.get("turns", [])
 
                 print(f"\n[{chat_idx + 1}/2] 💬 开始第 {chat_idx + 1} 次对话: 《{sc_title}》 (计划 {len(turns)} 轮)")
 
@@ -367,14 +378,15 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 chat_id = None
                 successful_turns = []
 
-                for turn_no, prompt in enumerate(turns, 1):
-                    preview = (prompt[:48] + "...") if len(prompt) > 48 else prompt
-                    print(f"   ▶️ 轮次 {turn_no}/5: \"{preview}\"")
-                    ok, msg = send_turn(cdp_gemini, prompt)
+                for turn_no, turn_input in enumerate(turns, 1):
+                    prompt_text = turn_input.get("prompt", "") if isinstance(turn_input, dict) else str(turn_input)
+                    preview = (prompt_text[:48] + "...") if len(prompt_text) > 48 else prompt_text
+                    print(f"   ▶️ 轮次 {turn_no}/{len(turns)}: \"{preview}\"")
+                    ok, msg = send_turn(cdp_gemini, turn_input)
                     if ok:
                         chat_id = get_current_chat_id(cdp_gemini) or chat_id
                         print(f"      ✅ 回复完成 (会话 ID: {chat_id or '生成中'})")
-                        successful_turns.append(prompt)
+                        successful_turns.append(prompt_text)
                     else:
                         print(f"      ❌ {msg}")
                         return False
@@ -386,7 +398,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                     "title": real_title,
                     "turns": successful_turns
                 })
-                print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，实际抓取到 {len(successful_turns)}/5 轮")
+                print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，实际抓取到 {len(successful_turns)}/{len(turns)} 轮")
 
         finally:
             cdp_gemini.close()
@@ -394,10 +406,12 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         # 复用模式下：从数据集或真实列表提取
         for chat_idx in range(2):
             sc = scenarios[chat_idx]
+            raw_turns = sc.get("turns", [])
+            extracted_prompts = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
             chat_records.append({
                 "chat_id": sc.get("id"),
                 "title": sc.get("title", ""),
-                "turns": sc.get("turns", [])[:5]
+                "turns": extracted_prompts
             })
 
     # ==========================================
@@ -634,16 +648,18 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     should_verify_scenarios = (not skip_chat) or (dataset is not None)
     if should_verify_scenarios:
         for idx, sc in enumerate(scenarios[:2], 1):
-            expected_turns = sc.get("turns", [])[:5]
+            raw_turns = sc.get("turns", [])
+            expected_turns = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
+            num_expected = len(expected_turns)
             sc_title = sc.get("title", f"场景 {idx}")
-            print(f"\n[验证 {idx}/2] 🔎 正在核对会话 {idx}: 《{sc_title}》")
+            print(f"\n[验证 {idx}/2] 🔎 正在核对会话 {idx}: 《{sc_title}》 (共 {num_expected} 轮)")
 
             # 智能匹配属于此场景的导出文件（只要包含本场景任意一轮 Prompt 关键词）
             matched_file = None
             for fpath in all_extracted_files:
                 with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                     content = f.read()
-                if any(t[:14] in content for t in expected_turns):
+                if any(t[:14] in content for t in expected_turns if t):
                     matched_file = fpath
                     break
 
@@ -660,23 +676,24 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 file_text = f.read()
 
             matched_turns_count = 0
-            for t_idx, prompt in enumerate(expected_turns, 1):
-                snippet = prompt[:16]
+            for t_idx, prompt_str in enumerate(expected_turns, 1):
+                snippet = prompt_str[:16]
                 if snippet in file_text:
                     matched_turns_count += 1
-                    print(f"      ✓ 轮次 {t_idx}/5 校验通过: 「{snippet}...」在导出文件中完整存在")
+                    print(f"      ✓ 轮次 {t_idx}/{num_expected} 校验通过: 「{snippet}...」在导出文件中完整存在")
                 else:
-                    print(f"      ❌ 轮次 {t_idx}/5 缺失: 未在文件中找到「{snippet}...」")
+                    print(f"      ❌ 轮次 {t_idx}/{num_expected} 缺失: 未在文件中找到「{snippet}...」")
                     verification_success = False
 
             # 校验轮次标记
             turn_headers = len(re.findall(r"(?:###|####|\*\*User\*\*|\*\*Model\*\*|\*\*Gemini\*\*|## 👤|## 🤖)", file_text))
-            print(f"      📊 会话问答角色标记数: {turn_headers} (预期至少 10 个角色轮次标记)")
+            min_expected_headers = max(10, num_expected * 2)
+            print(f"      📊 会话问答角色标记数: {turn_headers} (预期至少 {min_expected_headers} 个角色轮次标记)")
 
-            if matched_turns_count == 5:
-                print(f"   🎉 会话 {idx} 全部 5 轮对话内容核对 100% 完整无误！")
+            if matched_turns_count == num_expected:
+                print(f"   🎉 会话 {idx} 全部 {num_expected} 轮对话内容核对 100% 完整无误！")
             else:
-                print(f"   ⚠️ 会话 {idx} 仅核对到 {matched_turns_count}/5 轮！")
+                print(f"   ⚠️ 会话 {idx} 仅核对到 {matched_turns_count}/{num_expected} 轮！")
                 verification_success = False
 
     # ==========================================
@@ -700,11 +717,19 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     if should_verify_scenarios:
         for sc in scenarios[:2]:
             title = sc.get("title", "")
+            raw_turns = sc.get("turns", [])
+            prompts = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
+            syntax_checks = []
+            if any(kw in title for kw in ["代码", "并发", "架构", "编译器", "Rust", "Python"]):
+                syntax_checks.append("codeblock")
+            if any(kw in p for p in prompts for kw in ["生成一张图片", "生成图片", "画一张", "image"]):
+                syntax_checks.append("image")
+
             golden_chats.append({
                 "id": sc.get("id"),
                 "name": title,
-                "expected_snippets": [t[:14] for t in sc.get("turns", [])[:3]],
-                "syntax_checks": ["codeblock"] if ("代码" in title or "并发" in title or "架构" in title or "编译器" in title) else []
+                "expected_snippets": [t[:14] for t in prompts[:3] if t],
+                "syntax_checks": syntax_checks
             })
 
     asserter = ExportSpecificationAsserter(extract_dir)
