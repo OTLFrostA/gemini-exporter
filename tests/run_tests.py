@@ -1,6 +1,13 @@
 import os
+import sys
 import json
 import re
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
 
 print("=" * 60)
 print(" Gemini Exporter - Comprehensive Test Suite")
