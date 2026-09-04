@@ -174,7 +174,7 @@
         return "";
     }
 
-    const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent)\/(\d+)/i;
+    const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     function isRealTitle(t, fallbackId) {
@@ -512,6 +512,47 @@
                                 mimeType
                             });
                         }
+                    }
+                } else if (node.length >= 4 && typeof node[3] === "string" && node[3].startsWith("http") && !isInternalChipUrl(node[3]) &&
+                    (
+                        (typeof node[2] === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(node[2]) || /watermarked_img_/i.test(node[2]))) ||
+                        (typeof node[11] === "string" && node[11].startsWith("image/")) ||
+                        (Array.isArray(node[15]) && typeof node[15][0] === "number" && typeof node[15][1] === "number")
+                    )) {
+                    // Pattern 2: Gemini Generated Media [null, 1, fileName, sourceUrl, null, token, ..., mimeType, ..., [width, height, size]]
+                    let sourceUrl = node[3];
+                    let token = typeof node[5] === "string" ? node[5] : void 0;
+                    let ext = inferExt(sourceUrl);
+                    let rawFileName = (typeof node[2] === "string" && node[2].trim()) ? node[2].trim() : "";
+                    if (rawFileName) {
+                        let dotIdx = rawFileName.lastIndexOf('.');
+                        if (dotIdx !== -1) ext = rawFileName.slice(dotIdx).toLowerCase();
+                    }
+                    let width = Array.isArray(node[15]) && typeof node[15][0] === "number" ? node[15][0] : void 0;
+                    let height = Array.isArray(node[15]) && typeof node[15][1] === "number" ? node[15][1] : void 0;
+                    let size = Array.isArray(node[15]) && typeof node[15][2] === "number" ? node[15][2] : void 0;
+                    let mimeType = typeof node[11] === "string" ? node[11] : (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
+
+                    let hashFrag = '';
+                    try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, '').slice(0, 4); } catch {}
+                    let fileName = rawFileName || `image-${counter.value++}${hashFrag ? '-' + hashFrag : ''}${ext}`;
+
+                    let key = getImageDedupKey({
+                        sourceUrl,
+                        token,
+                        fileName
+                    });
+                    if (!seenKeys.has(key)) {
+                        seenKeys.add(key);
+                        images.push({
+                            sourceUrl,
+                            width,
+                            height,
+                            size,
+                            token,
+                            fileName,
+                            mimeType
+                        });
                     }
                 }
                 for (let item of node) walk(item);
@@ -1051,7 +1092,7 @@
                             textWalk(cand);
                             responseText = textArr.join("\n\n");
                         }
-                        let candImages = extractImages(candidateBlock, imageSeq);
+                        let candImages = extractImages(cand, imageSeq);
                         let filteredImages = filterNewImages(candImages, dedupSet);
                         let docsMeta = extractDocumentsMeta(candidateBlock);
                         if (!docsMeta.length && !docDedupSet.size) {
@@ -1116,9 +1157,14 @@
                         let citations = extractCitations(candidateBlock);
                         if (responseText) {
                             responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, '');
-                            responseText = responseText.replace(/(?:^|\n)\s*https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n]*)?\s*(?=\n|$)/gi, '\n');
+                            responseText = responseText.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
                             responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
                             responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '').trim();
+                            if (filteredImages.length > 0) {
+                                responseText = responseText.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
+                                responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, '$1');
+                                responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\)]*)?/gi, '').trim();
+                            }
                         }
                         if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({

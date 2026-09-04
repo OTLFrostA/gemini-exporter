@@ -101,11 +101,11 @@
     function cleanMessageBody(text) {
         if (!text || typeof text !== 'string') return '';
         // 1. Remove standalone tool/chip placeholder URL lines
-        let cleaned = text.replace(/(?:^|\n)\s*https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n]*)?\s*(?=\n|$)/gi, '\n');
+        let cleaned = text.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content|image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
         // 2. Unwrap Markdown links pointing to internal placeholders: [Text](https://googleusercontent.com/...) -> Text
-        cleaned = cleaned.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
+        cleaned = cleaned.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content|image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, '$1');
         // 3. Remove any remaining inline pseudo URLs
-        cleaned = cleaned.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '');
+        cleaned = cleaned.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content|image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\)]*)?/gi, '');
         return cleaned.trim();
     }
 
