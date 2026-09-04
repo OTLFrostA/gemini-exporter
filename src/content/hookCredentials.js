@@ -48,9 +48,42 @@
         } catch {}
     }
 
+    function detectDeletedConversation(url, body, responseText) {
+        try {
+            const hasGz = (body && typeof body === 'string' && body.includes('GzXR5e')) ||
+                          (responseText && typeof responseText === 'string' && responseText.includes('GzXR5e'));
+            if (!hasGz) return;
+
+            let slot = 'default';
+            let uStr = (url || '').toString();
+            let m = uStr.match(/\/u\/(\d+)\//);
+            if (m) slot = 'u' + m[1];
+            else {
+                let m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
+                if (m2) slot = 'u' + m2[1];
+            }
+
+            let targetText = (body || '') + ' ' + (responseText || '');
+            try {
+                if (targetText.includes('%')) {
+                    targetText = decodeURIComponent(targetText);
+                }
+            } catch {}
+
+            let idMatch = targetText.match(/["'](?:c_)?([a-f0-9]{8,64})["']/i);
+            if (idMatch && idMatch[1]) {
+                const deletedId = idMatch[1];
+                window.postMessage({
+                    type: 'GEMINI_CONVERSATION_DELETED',
+                    payload: { id: deletedId, slot }
+                }, location.origin);
+            }
+        } catch {}
+    }
+
     function broadcastBatchexecute(url, text) {
         try {
-            if (!text || (!text.includes('MaZiqc') && !text.includes('hNvQHb') && !text.includes('wrb.fr'))) return;
+            if (!text || (!text.includes('MaZiqc') && !text.includes('hNvQHb') && !text.includes('GzXR5e') && !text.includes('wrb.fr'))) return;
             let slot = 'default';
             let uStr = (url || '').toString();
             let m = uStr.match(/\/u\/(\d+)\//);
@@ -71,6 +104,7 @@
         try {
             let body = init && init.body ? (typeof init.body === 'string' ? init.body : '') : '';
             captureFromUrl(url, body);
+            detectDeletedConversation(url, body, null);
         } catch {}
         return origFetch.apply(this, arguments).then(function(response) {
             try {
@@ -78,6 +112,7 @@
                     let clone = response.clone();
                     clone.text().then(function(text) {
                         broadcastBatchexecute(url, text);
+                        detectDeletedConversation(url, null, text);
                     }).catch(function() {});
                 }
             } catch {}
@@ -89,14 +124,17 @@
         return origOpen.apply(this, arguments);
     };
     XMLHttpRequest.prototype.send = function(body) {
+        const bodyStr = typeof body === 'string' ? body : '';
         try {
-            captureFromUrl(this._gemini_url, typeof body === 'string' ? body : '');
+            captureFromUrl(this._gemini_url, bodyStr);
+            detectDeletedConversation(this._gemini_url, bodyStr, null);
             if (this._gemini_url && this._gemini_url.toString().includes('batchexecute')) {
                 const reqUrl = this._gemini_url;
                 this.addEventListener('load', function() {
                     try {
                         let text = this.responseText;
                         broadcastBatchexecute(reqUrl, text);
+                        detectDeletedConversation(reqUrl, null, text);
                     } catch {}
                 });
             }
