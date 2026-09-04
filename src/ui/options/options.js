@@ -730,7 +730,7 @@
                 if (confirm(confirmMsg)) {
                     await Store.removeConversation(chatId);
                     log(typeof I18n !== 'undefined' ? I18n.t('logChatRemoved', chatTitle) : `[${chatTitle}] 已从本地列表移除`, 'info');
-                    await refreshConversationsList(true);
+                    await loadStore(true);
                 }
             });
         }
@@ -759,7 +759,7 @@
                             : '所有本地会话均与云端状态一致，无失效残留会话';
                         log(msg, 'info');
                     }
-                    await refreshConversationsList(true);
+                    await loadStore(true);
                 }
             } catch (err) {
                 log((typeof I18n !== 'undefined' ? I18n.t('syncFailed', err.message || err) : `清理失败: ${err.message || err}`), 'error');
