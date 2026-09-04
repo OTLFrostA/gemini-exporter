@@ -168,3 +168,85 @@ test('storageService - isTourCompleted and setTourCompleted', async () => {
     await StorageService.setTourCompleted(true);
     assert.strictEqual(await StorageService.isTourCompleted(), true);
 });
+
+function createMockElement(id) {
+    const listeners = {};
+    return {
+        id,
+        listeners,
+        addEventListener: (ev, fn) => {
+            if (!listeners[ev]) listeners[ev] = [];
+            listeners[ev].push(fn);
+        },
+        removeEventListener: (ev, fn) => {
+            if (!listeners[ev]) return;
+            listeners[ev] = listeners[ev].filter(f => f !== fn);
+        },
+        click: () => {
+            (listeners['click'] || []).forEach(f => f({ type: 'click' }));
+        },
+        dispatchEvent: (e) => {
+            (listeners[e.type] || []).forEach(f => f(e));
+        },
+        getBoundingClientRect: () => ({ top: 100, left: 100, width: 200, height: 50, bottom: 150, right: 300 }),
+        isConnected: true,
+        offsetParent: {}
+    };
+}
+
+test('tourGuide - action-triggered step advancement across all steps', async () => {
+    const mockScanBtn = createMockElement('btnIncrementalScan');
+    const mockList = createMockElement('list');
+    const mockExportBtn = createMockElement('btnExport');
+
+    mockElements.set('btnIncrementalScan', mockScanBtn);
+    mockElements.set('list', mockList);
+    mockElements.set('btnExport', mockExportBtn);
+
+    // 1. Start at step 1 (sync)
+    await TourGuide.goToStep(1);
+    assert.strictEqual(TourGuide.getCurrentStep(), 1);
+
+    // Simulate user clicking #btnIncrementalScan
+    mockScanBtn.click();
+    // Wait for the micro delay (300ms)
+    await new Promise(r => setTimeout(r, 350));
+    assert.strictEqual(TourGuide.getCurrentStep(), 2, 'Should advance to step 2 after sync click');
+
+    // 2. In step 2 (select), simulate checking a conversation checkbox
+    mockList.dispatchEvent({ type: 'change', target: { type: 'checkbox', checked: true } });
+    await new Promise(r => setTimeout(r, 300));
+    assert.strictEqual(TourGuide.getCurrentStep(), 3, 'Should advance to step 3 after list checkbox toggle');
+
+    // 3. In step 3 (export), simulate clicking export
+    mockExportBtn.click();
+    await new Promise(r => setTimeout(r, 250));
+    assert.strictEqual(TourGuide.isActive(), false, 'Tour should be completed and inactive after export click');
+});
+
+test('tourGuide - listener cleanup when navigating backwards', async () => {
+    const mockScanBtn = createMockElement('btnIncrementalScan');
+    const mockList = createMockElement('list');
+
+    mockElements.set('btnIncrementalScan', mockScanBtn);
+    mockElements.set('list', mockList);
+
+    await TourGuide.goToStep(1);
+    assert.strictEqual(TourGuide.getCurrentStep(), 1);
+
+    // Move to step 2 manually
+    await TourGuide.nextStep();
+    assert.strictEqual(TourGuide.getCurrentStep(), 2);
+
+    // Backtrack to step 1
+    await TourGuide.prevStep();
+    assert.strictEqual(TourGuide.getCurrentStep(), 1);
+
+    // Triggering step 2 event (list change) should NOT trigger advance now
+    mockList.dispatchEvent({ type: 'change', target: { type: 'checkbox', checked: true } });
+    await new Promise(r => setTimeout(r, 300));
+    assert.strictEqual(TourGuide.getCurrentStep(), 1, 'Should stay at step 1 because step 2 listener was cleaned up');
+
+    await TourGuide.finishTour();
+});
+
