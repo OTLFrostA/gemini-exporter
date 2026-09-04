@@ -76,9 +76,14 @@ npm run test:e2e     # 运行 npx playwright test (14 个 Playwright 用例)
 ### 2. 前置准备（只需启动一次）
 在终端中启动用于测试的独立 Chrome 实例（使用隔离的独立用户数据目录，开启 9222 远程调试端口）：
 ```bash
+# macOS / Linux
 ./scripts/open_test_chrome.sh
-# 或
-npm run test:manual
+
+# Windows (PowerShell)
+.\scripts\open_test_chrome.ps1
+
+# Windows (CMD)
+.\scripts\open_test_chrome.cmd
 ```
 > **注意**：启动后，若尚未登录，请在弹出的 Chrome 中登录固定测试 Google 账号。
 
@@ -127,4 +132,4 @@ python3 scripts/test_live_chat_and_export.py \
 * `tests/fixtures/gemini_takeout_clean.zip`：测试账号真实剥离后的纯净 Takeout 样本（包含 6 条已知历史会话与火星猫图片资产）；
 * `tests/helpers/export_spec_asserter.py`：全维度 Markdown 导出规范断言与 Lint 核心模块；
 * `scripts/test_live_chat_and_export.py`：第二层全流程实跑编排器（CDP 控制、实时问答、Takeout 导入、ZIP 导出与解压断言）；
-* `scripts/open_test_chrome.sh`：自动化拉起独立调试 Chrome 的脚本。
+* `scripts/open_test_chrome.sh` / `scripts/open_test_chrome.ps1` / `scripts/open_test_chrome.cmd`：自动化拉起独立调试 Chrome 的跨平台脚本。

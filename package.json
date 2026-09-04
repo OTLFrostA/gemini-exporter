@@ -8,6 +8,7 @@
     "test:e2e": "playwright test",
     "test": "python3 tests/run_tests.py && playwright test",
     "test:manual": "./scripts/open_test_chrome.sh",
+    "test:manual:win": "powershell -ExecutionPolicy Bypass -File ./scripts/open_test_chrome.ps1",
     "test:generate-chats": "python3 scripts/generate_scenario_chats.py",
     "test:live": "python3 scripts/test_live_chat_and_export.py",
     "release": "gh workflow run release.yml --ref main"

@@ -33,7 +33,7 @@
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。
 * **适用场景**：修改了 Protobuf/JSPB 解析引擎、Google Takeout 导入逻辑、会话排序、网络请求拦截或发布新版本前。
-* **环境准备**：需先通过 `./scripts/open_test_chrome.sh` 启动开启 9222 调试端口的独立 Chrome 并登录测试账号。
+* **环境准备**：需先通过 `./scripts/open_test_chrome.sh`（Windows 环境运行 `.\scripts\open_test_chrome.ps1` 或 `.\scripts\open_test_chrome.cmd`）启动开启 9222 调试端口的独立 Chrome 并登录测试账号。
 * **AI 自动化执行铁律**：
   1. **必须生成真实对话（严禁滥用 `--skip-chat`）**：
      除非经用户明确许可进行纯离线单测调试，否则全流程测试必须**动态生成至少 2 个全新的技术主题，每个会话至少 5 轮递进式问答**，通过 CDP 真实驱动 Gemini 并等待全部流式回复落地。
@@ -56,7 +56,9 @@
 
 ```bash
 # 启动独立调试环境 Chrome (端口 9222)
-./scripts/open_test_chrome.sh
+./scripts/open_test_chrome.sh          # macOS / Linux
+.\scripts\open_test_chrome.ps1         # Windows PowerShell
+.\scripts\open_test_chrome.cmd         # Windows CMD
 
 # 运行全量实跑测试 (发帖 2次×5轮 + 导入 Takeout + 导出 + 规范断言)
 npm run test:live
