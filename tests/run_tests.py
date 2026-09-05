@@ -337,6 +337,49 @@ def test_exported_history_and_slot_fallback():
     assert "for (const cand of candidates)" in store_code, "conversationsStore should smartly fall back to slot with conversations"
     print("  ✓ Exported history preservation & slot fallback verified")
 
+def test_dataset_freshness_gate():
+    import tempfile
+    import time
+    scripts_dir = os.path.join(BASE_DIR, "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from test_live_chat_and_export import validate_dataset_freshness
+
+    # 1. No dataset without allow_stale -> should fail
+    ok, res = validate_dataset_freshness(None, allow_stale=False)
+    assert not ok and "未指定测试数据集" in res, "Missing dataset should be blocked by gate"
+
+    # 2. Stale dataset without allow_stale -> should fail
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f:
+        f.write('[{"id":"test","title":"Test","turns":["Q1","A1"]}]')
+        f_name = f.name
+    try:
+        os.utime(f_name, (time.time() - 300, time.time() - 300))
+        ok, res = validate_dataset_freshness(f_name, allow_stale=False)
+        assert not ok and "已超过 2 分钟" in res, "Stale dataset (>120s) should be blocked by gate"
+
+        # 3. Stale dataset with allow_stale -> should pass
+        ok, res = validate_dataset_freshness(f_name, allow_stale=True)
+        assert ok and isinstance(res, list), "Stale dataset with allow_stale should pass"
+
+        # 4. Fresh dataset without allow_stale -> should pass
+        os.utime(f_name, (time.time(), time.time()))
+        ok, res = validate_dataset_freshness(f_name, allow_stale=False)
+        assert ok and isinstance(res, list), "Fresh dataset should pass without allow_stale"
+
+        # 5. Default dataset with allow_stale -> should pass with None
+        ok, res = validate_dataset_freshness(None, allow_stale=True)
+        assert ok and res is None, "Default dataset with allow_stale should pass"
+
+        # 6. Default dataset with skip_chat -> should pass with None
+        ok, res = validate_dataset_freshness(None, allow_stale=False, skip_chat=True)
+        assert ok and res is None, "Default dataset with skip_chat should pass"
+    finally:
+        if os.path.isfile(f_name):
+            os.remove(f_name)
+
+    print("  ✓ Dataset 2-minute freshness gate & bypass options verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
@@ -344,10 +387,12 @@ test_module_exports()
 test_i18n_keys()
 test_content_badge_flicker_prevention()
 test_exported_history_and_slot_fallback()
+test_dataset_freshness_gate()
 test_javascript_syntax()
 test_javascript_unit_tests()
 
 print("=" * 60)
 print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
 print("=" * 60)
+
 
