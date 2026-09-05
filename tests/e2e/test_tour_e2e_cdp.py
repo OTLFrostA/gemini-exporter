@@ -134,16 +134,19 @@ def run_e2e_tour_tests():
         })()
         """)
 
-        time.sleep(0.8)
-
-        step3_check = cdp.eval("""
-        (() => {
-            return {
-                step: window.TourGuide.getCurrentStep(),
-                badge: document.querySelector('.tour-step-badge')?.textContent || ''
-            };
-        })()
-        """)
+        step3_check = {}
+        for _ in range(25):
+            time.sleep(0.1)
+            step3_check = cdp.eval("""
+            (() => {
+                return {
+                    step: window.TourGuide ? window.TourGuide.getCurrentStep() : -1,
+                    badge: document.querySelector('.tour-step-badge')?.textContent || ''
+                };
+            })()
+            """) or {}
+            if step3_check.get("step") == 2:
+                break
 
         assert step3_check.get("step") == 2, f"Expected auto-advance to step 2 (select), got {step3_check.get('step')}"
         assert "3 / 4" in step3_check.get("badge", ""), f"Expected '3 / 4' in badge, got {step3_check.get('badge')}"
@@ -166,17 +169,20 @@ def run_e2e_tour_tests():
         })()
         """)
 
-        time.sleep(0.8)
-
-        step4_check = cdp.eval("""
-        (() => {
-            return {
-                step: window.TourGuide.getCurrentStep(),
-                badge: document.querySelector('.tour-step-badge')?.textContent || '',
-                hint: document.querySelector('.tour-action-hint')?.textContent || ''
-            };
-        })()
-        """)
+        step4_check = {}
+        for _ in range(25):
+            time.sleep(0.1)
+            step4_check = cdp.eval("""
+            (() => {
+                return {
+                    step: window.TourGuide ? window.TourGuide.getCurrentStep() : -1,
+                    badge: document.querySelector('.tour-step-badge')?.textContent || '',
+                    hint: document.querySelector('.tour-action-hint')?.textContent || ''
+                };
+            })()
+            """) or {}
+            if step4_check.get("step") == 3:
+                break
 
         assert step4_check.get("step") == 3, f"Expected auto-advance to step 3 (export), got {step4_check.get('step')}"
         assert "4 / 4" in step4_check.get("badge", ""), f"Expected '4 / 4' in badge, got {step4_check.get('badge')}"
@@ -193,21 +199,24 @@ def run_e2e_tour_tests():
         })()
         """)
 
-        time.sleep(0.8)
-
-        tour_completed = cdp.eval("""
-        (async () => {
-            const popover = document.querySelector('.tour-popover');
-            const isActive = window.TourGuide ? window.TourGuide.isActive() : false;
-            const storage = await chrome.storage.local.get('has_completed_tour');
-            if (typeof Controller !== 'undefined' && Controller.abort) Controller.abort();
-            return {
-                popoverVisible: !!popover,
-                isActive,
-                storageCompleted: !!storage.has_completed_tour
-            };
-        })()
-        """, await_promise=True)
+        tour_completed = {}
+        for _ in range(25):
+            time.sleep(0.1)
+            tour_completed = cdp.eval("""
+            (async () => {
+                const popover = document.querySelector('.tour-popover');
+                const isActive = window.TourGuide ? window.TourGuide.isActive() : false;
+                const storage = await chrome.storage.local.get('has_completed_tour');
+                if (typeof Controller !== 'undefined' && Controller.abort) Controller.abort();
+                return {
+                    popoverVisible: !!popover,
+                    isActive,
+                    storageCompleted: !!storage.has_completed_tour
+                };
+            })()
+            """, await_promise=True) or {}
+            if not tour_completed.get("isActive") and not tour_completed.get("popoverVisible") and tour_completed.get("storageCompleted"):
+                break
 
         assert not tour_completed.get("isActive"), "Tour should be inactive after export click"
         assert not tour_completed.get("popoverVisible"), "Popover should be removed from DOM"
