@@ -345,9 +345,12 @@ def send_turn(cdp, turn_input, max_wait=240):
     if is_image_gen:
         max_wait = max(max_wait, 240)
 
-    # 记录发送前已有的回复条数，防止多轮时误判旧回复已完成
+    # 记录发送前已有的回复条数与用户消息条数，防止多轮时误判旧回复已完成
     prev_resp_count = cdp.eval("""
     (() => document.querySelectorAll('.model-response-text, model-response, .response-content').length)()
+    """) or 0
+    prev_user_count = cdp.eval("""
+    (() => document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length)()
     """) or 0
 
     # 1. 聚焦输入框并清空原有占位符
@@ -357,6 +360,7 @@ def send_turn(cdp, turn_input, max_wait=240):
       if (editor) {
         editor.focus();
         editor.innerHTML = '<p><br></p>';
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
       }
     })()
     """)
@@ -364,27 +368,63 @@ def send_turn(cdp, turn_input, max_wait=240):
 
     # 2. 原生输入文本
     cdp.call("Input.insertText", {"text": prompt_text})
-    time.sleep(0.5)
+    time.sleep(0.3)
+    cdp.eval("""
+    (() => {
+      const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+      if (editor) {
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        editor.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    })()
+    """)
+    time.sleep(0.3)
 
-    # 3. 点击发送按钮
+    # 3. 点击发送按钮并确保派发
     sent = False
-    for _ in range(10):
-        sent = cdp.eval("""
-        (() => {
+    for attempt in range(15):
+        # 检查是否已经由前次点击或回车成功派发
+        status = cdp.eval(f"""
+        (() => {{
+          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
+          const currUserCount = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length;
+          if (!!stopBtn || isStreaming || currUserCount > {prev_user_count}) {{
+            return {{ sent: true }};
+          }}
+
           const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="发送"]');
-          if (sendBtn && !sendBtn.disabled) {
+          const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+          if (editor) {{
+            editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            editor.dispatchEvent(new Event('change', {{ bubbles: true }}));
+          }}
+          if (sendBtn && !sendBtn.disabled) {{
             sendBtn.click();
-            return true;
-          }
-          return false;
-        })()
+          }}
+          return {{ sent: false }};
+        }})()
         """)
-        if sent:
+        if status and status.get("sent"):
+            sent = True
             break
-        time.sleep(0.5)
+        if attempt == 5:
+            cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 13, "unmodifiedText": "\r", "text": "\r"})
+            cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 13, "unmodifiedText": "\r", "text": "\r"})
+        time.sleep(0.6)
 
     if not sent:
-        return False, "未能点击发送按钮"
+        sent = cdp.eval(f"""
+        (() => {{
+          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
+          const currUserCount = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length;
+          return !!stopBtn || isStreaming || currUserCount > {prev_user_count};
+        }})()
+        """)
+
+    if not sent:
+        return False, "未能成功派发消息（发送按钮未响应或输入未提交）"
 
     # 4. 等待生成开始 (出现 stop 按钮、streaming 状态或新回复条数增加)
     for _ in range(30):
@@ -409,19 +449,35 @@ def send_turn(cdp, turn_input, max_wait=240):
           const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
           const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
           const currCount = document.querySelectorAll('.model-response-text, model-response, .response-content').length;
+          const retryBtn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
+          const toastEl = document.querySelector('toast-content, .toast, .error-message, [role="alert"]');
           return {{
             hasStop: !!stopBtn,
             isStreaming: isStreaming,
-            hasResponse: currCount > {prev_resp_count}
+            hasResponse: currCount > {prev_resp_count},
+            hasRetry: !!retryBtn,
+            toast: toastEl ? toastEl.textContent.trim() : null
           }};
         }})()
         """)
         if not state:
             continue
 
+        if state.get("hasRetry"):
+            print("      ⚠️ 检测到页面出现重试按钮，正在点击重试...")
+            cdp.eval("""(() => {
+                const btn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
+                if (btn) btn.click();
+            })()""")
+            time.sleep(2)
+            continue
+
         if not state.get("hasStop") and not state.get("isStreaming") and state.get("hasResponse"):
             time.sleep(1.5)
             return True, "生成完毕"
+
+        if time.time() - start_time > 25 and not state.get("hasStop") and not state.get("isStreaming") and not state.get("hasResponse") and state.get("toast"):
+            return False, f"页面报错: {state.get('toast')}"
 
     return False, "等待回复超时"
 
@@ -471,45 +527,100 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 sc_title = sc.get("title", f"测试会话 {chat_idx + 1}")
                 turns = sc.get("turns", [])
 
-                # 智能断点续跑：如果当前会话已包含本场景所有轮次提问，直接复用该真实会话
+                # 智能会话定位：优先从当前页面或侧边栏查找是否已有本场景的会话
                 prompts_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in turns]
+                first_p = prompts_clean[0][:14] if prompts_clean else ""
+
+                # 检查当前页面是否就是本场景
                 curr_ups = cdp_gemini.eval("""
                 (() => {
                     const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
                     return ups.map(p => p.textContent);
                 })()
                 """) or []
-                if curr_ups and len(curr_ups) >= len(prompts_clean) and all(any(p[:14] in up for up in curr_ups) for p in prompts_clean):
+
+                is_curr_page_match = any(first_p in up for up in curr_ups) if (curr_ups and first_p) else False
+
+                if not is_curr_page_match:
+                    # 检查侧边栏是否有本场景历史会话
+                    sidebar_links = cdp_gemini.eval("""
+                    (() => {
+                        const anchors = Array.from(document.querySelectorAll("a"));
+                        const links = anchors.filter(a => (a.getAttribute("href") || "").includes("/app/"));
+                        return links.map(a => ({
+                            cid: (a.getAttribute("href") || "").split("/app/")[1].split("?")[0],
+                            text: a.textContent.trim()
+                        }));
+                    })()
+                    """) or []
+                    sidebar_match = next((l for l in sidebar_links if first_p in l["text"] or sc_title[:8] in l["text"]), None)
+                    if sidebar_match and sidebar_match["cid"]:
+                        target_cid = sidebar_match["cid"]
+                        print(f"   🧭 侧边栏发现已有会话《{sidebar_match['text'][:20]}...》，跳转加载: /app/{target_cid}")
+                        cdp_gemini.eval(f"location.href = 'https://gemini.google.com/app/{target_cid}'")
+                        time.sleep(2.5)
+                        try:
+                            cdp_gemini.reconnect()
+                        except Exception:
+                            pass
+                        wait_for_gemini_ready(cdp_gemini, max_wait=15)
+                        curr_ups = cdp_gemini.eval("""
+                        (() => {
+                            const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
+                            return ups.map(p => p.textContent);
+                        })()
+                        """) or []
+
+                # 计算已存在的轮次与缺失的轮次
+                missing_turns = []
+                for idx, t in enumerate(turns, 1):
+                    p_text = t.get("prompt", "") if isinstance(t, dict) else str(t)
+                    if not any(p_text[:14] in up for up in curr_ups):
+                        missing_turns.append((idx, t))
+
+                if not missing_turns:
                     existing_cid = get_current_chat_id(cdp_gemini)
-                    if existing_cid:
-                        print(f"   ⚡ 检测到会话在当前页面已完整存在 ({len(prompts_clean)} 轮全部就绪)，直接复用！会话 ID: {existing_cid}")
-                        chat_records.append({
-                            "chat_id": existing_cid,
-                            "title": get_current_chat_title(cdp_gemini) or sc_title,
-                            "turns": prompts_clean
-                        })
-                        continue
+                    print(f"   ⚡ 检测到会话在当前页面已完整存在 ({len(prompts_clean)} 轮全部就绪)，直接复用！会话 ID: {existing_cid}")
+                    chat_records.append({
+                        "chat_id": existing_cid,
+                        "title": get_current_chat_title(cdp_gemini) or sc_title,
+                        "turns": prompts_clean
+                    })
+                    continue
 
-                # 开启独立新对话: 强制导航至 /app 并重连 WebSocket 确保页面与状态绝对干净
-                cdp_gemini.eval("location.href = 'https://gemini.google.com/app'")
-                time.sleep(1.8)
-                try:
-                    cdp_gemini.reconnect()
-                except Exception:
-                    pass
-                if not wait_for_gemini_ready(cdp_gemini):
-                    print("❌ 页面加载超时，未能就绪")
-                    return False
-                time.sleep(1.5)
+                chat_id = get_current_chat_id(cdp_gemini)
+                successful_turns = [p for p in prompts_clean if any(p[:14] in up for up in curr_ups)]
+                if curr_ups and len(missing_turns) < len(turns):
+                    print(f"   ⚡ 检测到当前会话已包含 {len(turns) - len(missing_turns)}/{len(turns)} 轮，补充发送剩余 {len(missing_turns)} 轮！会话 ID: {chat_id}")
+                    turns_to_run = missing_turns
+                else:
+                    # 全新对话
+                    cdp_gemini.eval("location.href = 'https://gemini.google.com/app'")
+                    time.sleep(1.8)
+                    try:
+                        cdp_gemini.reconnect()
+                    except Exception:
+                        pass
+                    if not wait_for_gemini_ready(cdp_gemini):
+                        print("❌ 页面加载超时，未能就绪")
+                        return False
+                    time.sleep(1.5)
+                    turns_to_run = list(enumerate(turns, 1))
+                    successful_turns = []
 
-                chat_id = None
-                successful_turns = []
-
-                for turn_no, turn_input in enumerate(turns, 1):
+                for turn_no, turn_input in turns_to_run:
                     prompt_text = turn_input.get("prompt", "") if isinstance(turn_input, dict) else str(turn_input)
                     preview = (prompt_text[:48] + "...") if len(prompt_text) > 48 else prompt_text
                     print(f"   ▶️ 轮次 {turn_no}/{len(turns)}: \"{preview}\"")
-                    ok, msg = send_turn(cdp_gemini, turn_input)
+                    ok = False
+                    msg = ""
+                    for try_idx in range(3):
+                        ok, msg = send_turn(cdp_gemini, turn_input, max_wait=300)
+                        if ok:
+                            break
+                        print(f"      ⚠️ 轮次 {turn_no} 提示: {msg}，等待 4 秒后重试 ({try_idx + 1}/3)...")
+                        time.sleep(4)
+
                     if ok:
                         chat_id = get_current_chat_id(cdp_gemini) or chat_id
                         print(f"      ✅ 回复完成 (会话 ID: {chat_id or '生成中'})")
@@ -523,9 +634,9 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 chat_records.append({
                     "chat_id": chat_id,
                     "title": real_title,
-                    "turns": successful_turns
+                    "turns": prompts_clean
                 })
-                print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，实际抓取到 {len(successful_turns)}/{len(turns)} 轮")
+                print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，总计 {len(prompts_clean)} 轮已全量就绪")
 
         finally:
             cdp_gemini.close()
