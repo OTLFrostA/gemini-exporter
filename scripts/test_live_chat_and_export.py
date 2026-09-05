@@ -88,6 +88,28 @@ class CDPConnection:
         if b"101 " not in res:
             raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
 
+    def reconnect(self):
+        try:
+            self.sock.close()
+        except Exception:
+            pass
+        host, port_path = self.ws_url.replace("ws://", "").split(":", 1)
+        port, path = port_path.split("/", 1)
+        self.sock = socket.create_connection((host, int(port)), timeout=30)
+        key = base64.b64encode(os.urandom(16)).decode("ascii")
+        req = (
+            f"GET /{path} HTTP/1.1\r\n"
+            f"Host: {host}:{port}\r\n"
+            f"Upgrade: websocket\r\n"
+            f"Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            f"Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+        self.sock.sendall(req.encode("ascii"))
+        res = self.sock.recv(4096)
+        if b"101 " not in res:
+            raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
+
     def call(self, method, params=None, timeout=30):
         self.msg_id += 1
         current_id = self.msg_id
@@ -103,31 +125,43 @@ class CDPConnection:
             header = bytes([0x81, 0x80 | 127]) + struct.pack(">Q", length) + mask
 
         masked_payload = bytes([b ^ mask[i % 4] for i, b in enumerate(payload)])
-        self.sock.sendall(header + masked_payload)
 
-        start = time.time()
-        while time.time() - start < timeout:
-            b1, b2 = self._recv_exact(2)
-            masked = (b2 & 0x80) != 0
-            payload_len = b2 & 0x7F
-            if payload_len == 126:
-                payload_len = struct.unpack(">H", self._recv_exact(2))[0]
-            elif payload_len == 127:
-                payload_len = struct.unpack(">Q", self._recv_exact(8))[0]
-
-            mask_key = self._recv_exact(4) if masked else b""
-            raw_data = self._recv_exact(payload_len)
-
-            if masked:
-                raw_data = bytes([b ^ mask_key[i % 4] for i, b in enumerate(raw_data)])
-
+        for attempt in range(2):
             try:
-                data = json.loads(raw_data.decode("utf-8", errors="ignore"))
-                if data.get("id") == current_id:
-                    return data
-            except Exception:
-                continue
-        raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)")
+                self.sock.sendall(header + masked_payload)
+
+                start = time.time()
+                while time.time() - start < timeout:
+                    b1, b2 = self._recv_exact(2)
+                    masked = (b2 & 0x80) != 0
+                    payload_len = b2 & 0x7F
+                    if payload_len == 126:
+                        payload_len = struct.unpack(">H", self._recv_exact(2))[0]
+                    elif payload_len == 127:
+                        payload_len = struct.unpack(">Q", self._recv_exact(8))[0]
+
+                    mask_key = self._recv_exact(4) if masked else b""
+                    raw_data = self._recv_exact(payload_len)
+
+                    if masked:
+                        raw_data = bytes([b ^ mask_key[i % 4] for i, b in enumerate(raw_data)])
+
+                    try:
+                        data = json.loads(raw_data.decode("utf-8", errors="ignore"))
+                        if data.get("id") == current_id:
+                            return data
+                    except Exception:
+                        continue
+                raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)")
+            except (ConnectionError, socket.error):
+                if attempt == 0:
+                    time.sleep(1.0)
+                    try:
+                        self.reconnect()
+                    except Exception:
+                        raise
+                else:
+                    raise
 
     def _recv_exact(self, num_bytes):
         chunks = []
@@ -159,14 +193,27 @@ class CDPConnection:
 
 
 def get_tabs(port=CDP_DEFAULT_PORT):
-    url = f"http://127.0.0.1:{port}/json"
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=5) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    for endpoint in ["/json/list", "/json"]:
+        try:
+            url = f"http://127.0.0.1:{port}{endpoint}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            continue
+    return []
 
 
 def get_extension_id(port=CDP_DEFAULT_PORT):
     tabs = get_tabs(port)
+    # First look for service workers or pages belonging to Gemini Exporter
+    for t in tabs:
+        u = t.get("url", "")
+        if u.startswith("chrome-extension://"):
+            if "src/background/background.js" in u or "options.html" in u:
+                return u.split("/")[2]
+
+    # Fallback to any chrome-extension
     for t in tabs:
         u = t.get("url", "")
         if u.startswith("chrome-extension://"):
@@ -189,6 +236,31 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
                     return exts
             finally:
                 cdp.close()
+
+    # Dynamically open chrome://extensions/ to inspect installed extensions if not found
+    try:
+        new_url = f"http://127.0.0.1:{port}/json/new?chrome://extensions/"
+        req = urllib.request.Request(new_url, method="PUT")
+        with urllib.request.urlopen(req, timeout=5) as r:
+            ext_tab = json.loads(r.read().decode("utf-8"))
+        time.sleep(0.8)
+        cdp = CDPConnection(ext_tab["webSocketDebuggerUrl"])
+        try:
+            exts = cdp.eval("""
+                (() => {
+                    const m = document.querySelector("extensions-manager");
+                    const l = m ? m.shadowRoot.querySelector("extensions-item-list") : null;
+                    const items = l ? Array.from(l.shadowRoot.querySelectorAll("extensions-item")) : [];
+                    const target = items.find(i => (i.shadowRoot.querySelector("#name")?.textContent || "").includes("Gemini Exporter"));
+                    return target ? target.id : (items[0] ? items[0].id : null);
+                })()
+            """)
+            if exts:
+                return exts
+        finally:
+            cdp.close()
+    except Exception:
+        pass
 
     for t in tabs:
         if "gemini.google.com" in t.get("url", ""):
@@ -219,9 +291,32 @@ def wait_for_gemini_ready(cdp, max_wait=30):
 
 
 def get_current_chat_id(cdp):
+    # 1. 优先直接从 URL 提取
     url = cdp.eval("location.href") or ""
     if "/app/" in url:
-        return url.split("/app/")[-1].split("?")[0].strip()
+        part = url.split("/app/")[-1].split("?")[0].strip()
+        if len(part) >= 8:
+            return part
+
+    # 2. 兜底：从侧边栏最新/选中的会话锚点提取
+    res = cdp.eval("""
+    (() => {
+        const anchors = Array.from(document.querySelectorAll("a"));
+        const chatLink = anchors.find(a => (a.getAttribute("href") || "").includes("/app/"));
+        if (chatLink) {
+            const href = chatLink.getAttribute("href") || "";
+            const parts = href.split("/app/");
+            if (parts.length > 1) {
+                const cid = parts[1].split("?")[0].trim();
+                if (cid.length >= 8) return cid;
+            }
+        }
+        return null;
+    })()
+    """)
+    if res and len(str(res)) >= 8:
+        return str(res)
+
     return None
 
 
@@ -229,13 +324,17 @@ def get_current_chat_title(cdp):
     title = cdp.eval("""
     (() => {
         const titleEl = document.querySelector('conversation-title, h1, .conversation-title');
-        return titleEl ? titleEl.textContent.trim() : document.title;
+        if (titleEl && titleEl.textContent.trim()) return titleEl.textContent.trim();
+        const anchors = Array.from(document.querySelectorAll("a"));
+        const chatLink = anchors.find(a => (a.getAttribute("href") || "").includes("/app/"));
+        if (chatLink && chatLink.textContent.trim()) return chatLink.textContent.trim();
+        return document.title;
     })()
     """)
     return (title or "").replace(" - Google Gemini", "").strip()
 
 
-def send_turn(cdp, turn_input, max_wait=150):
+def send_turn(cdp, turn_input, max_wait=240):
     if isinstance(turn_input, dict):
         prompt_text = turn_input.get("prompt", "")
     else:
@@ -244,7 +343,12 @@ def send_turn(cdp, turn_input, max_wait=150):
     # 识别生图类 Prompt，自适应延长超时时间
     is_image_gen = any(kw in prompt_text for kw in ["生成图片", "生成一张图片", "画一张", "generate an image", "create an image"])
     if is_image_gen:
-        max_wait = max(max_wait, 180)
+        max_wait = max(max_wait, 240)
+
+    # 记录发送前已有的回复条数，防止多轮时误判旧回复已完成
+    prev_resp_count = cdp.eval("""
+    (() => document.querySelectorAll('.model-response-text, model-response, .response-content').length)()
+    """) or 0
 
     # 1. 聚焦输入框并清空原有占位符
     cdp.eval("""
@@ -282,34 +386,35 @@ def send_turn(cdp, turn_input, max_wait=150):
     if not sent:
         return False, "未能点击发送按钮"
 
-    # 4. 等待生成开始 (出现 stop 按钮或 streaming 状态)
-    for _ in range(25):
-        started = cdp.eval("""
-        (() => {
+    # 4. 等待生成开始 (出现 stop 按钮、streaming 状态或新回复条数增加)
+    for _ in range(30):
+        started = cdp.eval(f"""
+        (() => {{
           const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
           const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
-          return !!stopBtn || isStreaming;
-        })()
+          const currCount = document.querySelectorAll('.model-response-text, model-response, .response-content').length;
+          return !!stopBtn || isStreaming || currCount > {prev_resp_count};
+        }})()
         """)
         if started:
             break
         time.sleep(0.5)
 
-    # 5. 等待生成完全结束 (无 stop 按钮、无流式标记、有 response 内容)
+    # 5. 等待生成完全结束 (无 stop 按钮、无流式标记、且确实产生了新回复)
     start_time = time.time()
     while time.time() - start_time < max_wait:
         time.sleep(1.5)
-        state = cdp.eval("""
-        (() => {
+        state = cdp.eval(f"""
+        (() => {{
           const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
           const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
-          const hasResponse = document.querySelectorAll('.model-response-text, model-response, .response-content').length > 0;
-          return {
+          const currCount = document.querySelectorAll('.model-response-text, model-response, .response-content').length;
+          return {{
             hasStop: !!stopBtn,
             isStreaming: isStreaming,
-            hasResponse: hasResponse
-          };
-        })()
+            hasResponse: currCount > {prev_resp_count}
+          }};
+        }})()
         """)
         if not state:
             continue
@@ -366,10 +471,32 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 sc_title = sc.get("title", f"测试会话 {chat_idx + 1}")
                 turns = sc.get("turns", [])
 
-                print(f"\n[{chat_idx + 1}/2] 💬 开始第 {chat_idx + 1} 次对话: 《{sc_title}》 (计划 {len(turns)} 轮)")
+                # 智能断点续跑：如果当前会话已包含本场景所有轮次提问，直接复用该真实会话
+                prompts_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in turns]
+                curr_ups = cdp_gemini.eval("""
+                (() => {
+                    const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
+                    return ups.map(p => p.textContent);
+                })()
+                """) or []
+                if curr_ups and len(curr_ups) >= len(prompts_clean) and all(any(p[:14] in up for up in curr_ups) for p in prompts_clean):
+                    existing_cid = get_current_chat_id(cdp_gemini)
+                    if existing_cid:
+                        print(f"   ⚡ 检测到会话在当前页面已完整存在 ({len(prompts_clean)} 轮全部就绪)，直接复用！会话 ID: {existing_cid}")
+                        chat_records.append({
+                            "chat_id": existing_cid,
+                            "title": get_current_chat_title(cdp_gemini) or sc_title,
+                            "turns": prompts_clean
+                        })
+                        continue
 
-                # 开启独立新对话: 导航至 /app
+                # 开启独立新对话: 强制导航至 /app 并重连 WebSocket 确保页面与状态绝对干净
                 cdp_gemini.eval("location.href = 'https://gemini.google.com/app'")
+                time.sleep(1.8)
+                try:
+                    cdp_gemini.reconnect()
+                except Exception:
+                    pass
                 if not wait_for_gemini_ready(cdp_gemini):
                     print("❌ 页面加载超时，未能就绪")
                     return False
@@ -403,13 +530,46 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         finally:
             cdp_gemini.close()
     else:
-        # 复用模式下：从数据集或真实列表提取
+        # 复用模式下：优先从当前活跃的 Gemini 标签页侧边栏探测最近生成的真实会话 ID
+        recent_gemini_ids = []
+        if gemini_tab:
+            try:
+                cdp_temp = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+                try:
+                    detected = cdp_temp.eval("""
+                    (() => {
+                        const anchors = Array.from(document.querySelectorAll("a"));
+                        const links = anchors.filter(a => (a.getAttribute("href") || "").includes("/app/"));
+                        return links.map(a => {
+                            const parts = (a.getAttribute("href") || "").split("/app/");
+                            return parts.length > 1 ? parts[1].split("?")[0].trim() : null;
+                        }).filter(id => id && id.length >= 8);
+                    })()
+                    """)
+                    if detected and isinstance(detected, list):
+                        for cid in detected:
+                            if cid not in recent_gemini_ids:
+                                recent_gemini_ids.append(cid)
+                finally:
+                    cdp_temp.close()
+            except Exception:
+                pass
+
         for chat_idx in range(2):
             sc = scenarios[chat_idx]
             raw_turns = sc.get("turns", [])
             extracted_prompts = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
+            # Note: in Gemini sidebar, newest chat is at top (index 0 is Session 2, index 1 is Session 1)
+            real_cid = sc.get("id")
+            if len(recent_gemini_ids) >= 2:
+                # chat_idx 0 (Session 1, older) -> index 1 in sidebar
+                # chat_idx 1 (Session 2, newer) -> index 0 in sidebar
+                real_cid = recent_gemini_ids[1 - chat_idx]
+            elif len(recent_gemini_ids) == 1:
+                real_cid = recent_gemini_ids[0]
+
             chat_records.append({
-                "chat_id": sc.get("id"),
+                "chat_id": real_cid,
                 "title": sc.get("title", ""),
                 "turns": extracted_prompts
             })
@@ -715,18 +875,20 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     ]
     # 若在线发帖，追加在线场景关键词作为黄金校验
     if should_verify_scenarios:
-        for sc in scenarios[:2]:
+        for idx, sc in enumerate(scenarios[:2]):
             title = sc.get("title", "")
             raw_turns = sc.get("turns", [])
             prompts = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
             syntax_checks = []
-            if any(kw in title for kw in ["代码", "并发", "架构", "编译器", "Rust", "Python"]):
+            if any(kw in title for kw in ["代码", "编译器", "Rust", "Python"]) or any(kw in p for p in prompts for kw in ["编写", "实现", "代码", "def ", "fn "]):
                 syntax_checks.append("codeblock")
             if any(kw in p for p in prompts for kw in ["生成一张图片", "生成图片", "画一张", "image"]):
                 syntax_checks.append("image")
 
+            rec_cid = chat_records[idx].get("chat_id") if idx < len(chat_records) else None
+
             golden_chats.append({
-                "id": sc.get("id"),
+                "id": rec_cid or sc.get("id"),
                 "name": title,
                 "expected_snippets": [t[:14] for t in prompts[:3] if t],
                 "syntax_checks": syntax_checks

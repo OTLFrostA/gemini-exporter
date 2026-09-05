@@ -46,7 +46,8 @@ global.document = {
     addEventListener: () => {},
     removeEventListener: () => {},
     getElementById: (id) => mockElements.get(id) || null,
-    querySelector: () => null
+    querySelector: () => null,
+    querySelectorAll: () => []
 };
 
 // Mock StorageService
@@ -189,6 +190,7 @@ function createMockElement(id) {
             (listeners[e.type] || []).forEach(f => f(e));
         },
         getBoundingClientRect: () => ({ top: 100, left: 100, width: 200, height: 50, bottom: 150, right: 300 }),
+        scrollIntoView: () => {},
         isConnected: true,
         offsetParent: {}
     };

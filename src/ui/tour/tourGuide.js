@@ -159,9 +159,11 @@
         if (overlayEl && overlayEl.parentNode) return;
 
         // Clean up any stale or orphan containers in DOM
-        document.querySelectorAll('.tour-overlay-container').forEach(el => {
-            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
-        });
+        if (typeof document.querySelectorAll === 'function') {
+            document.querySelectorAll('.tour-overlay-container').forEach(el => {
+                try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+            });
+        }
 
         overlayEl = document.createElement('div');
         overlayEl.className = 'tour-overlay-container';
@@ -187,9 +189,11 @@
     function removeElements() {
         stopPolling();
         clearActionListeners();
-        document.querySelectorAll('.tour-overlay-container').forEach(el => {
-            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
-        });
+        if (typeof document.querySelectorAll === 'function') {
+            document.querySelectorAll('.tour-overlay-container').forEach(el => {
+                try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+            });
+        }
         overlayEl = null;
         spotlightEl = null;
         popoverEl = null;
@@ -229,7 +233,9 @@
             spotlightEl.style.width = (rect.width + pad * 2) + 'px';
             spotlightEl.style.height = (rect.height + pad * 2) + 'px';
 
-            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (typeof target.scrollIntoView === 'function') {
+                target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
 
             // Position popover
             const popoverWidth = 360;
