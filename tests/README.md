@@ -89,16 +89,22 @@ npm run test:e2e     # 运行 npx playwright test (14 个 Playwright 用例)
 
 ### 3. 执行全流程测试
 ```bash
-# 标准实跑：动态生成 2 次 5 轮全新问答 + 自动导入 Takeout + 合流导出 + 规范断言
-npm run test:live
+# AI 协同验收模式：现场构思全新主题并于 2 分钟内传入执行
+python3 scripts/test_live_chat_and_export.py --dataset <path_to_fresh_dataset.json>
+
+# 人工本地调试或离线复现模式：追加 --allow-stale-dataset 绕过 2 分钟时效门禁限制
+npm run test:live -- --allow-stale-dataset
 
 # 支持的常用参数：
 python3 scripts/test_live_chat_and_export.py \
-  --delay 2           # 轮次间等待秒数 (默认 2) \
-  --port 9222         # Chrome 调试端口 (默认 9222) \
-  --dataset <path>    # 传入预先准备的特定 5 轮场景 JSON \
-  --skip-chat         # 跳过在线发帖，直接使用已有会话与 Takeout 跑导出与断言 \
-  --skip-takeout      # 跳过 Takeout 导入步骤
+  --delay 2               # 轮次间等待秒数 (默认 2) \
+  --port 9222             # Chrome 调试端口 (默认 9222) \
+  --dataset <path>        # 传入现场生成的测试用例 JSON (2 分钟内有效) \
+  --allow-stale-dataset   # 显式允许历史旧数据集或默认数据集（供人工调试使用） \
+  --skip-chat             # 跳过在线发帖，直接使用已有会话与 Takeout 跑导出与断言 \
+  --skip-takeout          # 跳过 Takeout 导入步骤 \
+  --skip-reinstall        # 跳过 CDP 扩展卸载与重装步骤 \
+  --skip-tour             # 跳过新手向导测试步骤
 ```
 
 ---

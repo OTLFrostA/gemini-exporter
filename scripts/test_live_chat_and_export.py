@@ -38,6 +38,7 @@ except Exception:
     pass
 
 CDP_DEFAULT_PORT = 9222
+DATASET_MAX_AGE_SECONDS = 120  # 2 分钟新鲜度时效限制
 
 DEFAULT_SCENARIOS = [
     {
@@ -741,6 +742,10 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         print("⚡ [模式] 已开启 --skip-chat：直接复用已有会话进行同步与导出校验")
     if not skip_takeout:
         print("📥 [增强] 已启用 Takeout 样本预置自动导入与历史合流验证")
+    if dataset:
+        print(f"📝 [数据集] 已加载动态注入测试数据集（包含 {len(scenarios)} 个会话场景）")
+    else:
+        print(f"📦 [数据集] 使用内置默认标准测试数据集（--allow-stale-dataset 模式，包含 {len(scenarios)} 个会话场景）")
     print("=" * 70)
 
     worktree_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -1350,9 +1355,67 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     return verification_success
 
 
+def validate_dataset_freshness(dataset_path, allow_stale=False, skip_chat=False, max_age_seconds=DATASET_MAX_AGE_SECONDS):
+    """
+    门禁检查：
+    在非 allow_stale 且非 skip_chat 模式下，强制要求必须传入 2 分钟之内新鲜生成的数据集文件。
+    若未传入或文件超过 max_age_seconds 秒，拦截并返回详细的错误指导说明。
+    """
+    if allow_stale or skip_chat:
+        if dataset_path:
+            if not os.path.isfile(dataset_path):
+                return False, f"❌ 指定的数据集文件不存在: {dataset_path}"
+            try:
+                with open(dataset_path, "r", encoding="utf-8") as f:
+                    return True, json.load(f)
+            except Exception as e:
+                return False, f"❌ 读取数据集 JSON 失败: {e}"
+        return True, None
+
+    sep = "=" * 70
+    if not dataset_path:
+        msg = f"""
+{sep}
+❌ [AI 执行门禁拦截] 未指定测试数据集（--dataset <path>）！
+{sep}
+💡 规则说明：根据本项目协作规范，由 AI Agent 驱动的测试与验收必须现场动态构思全新的测试场景并在 {max_age_seconds} 秒（2 分钟）之内生成 JSON 数据集文件，严禁直接复用内置或历史静态数据集。
+💡 人工调试提示：若本次运行并非由 AI Agent 驱动（例如人工本地调试或离线复现），请添加 `--allow-stale-dataset` 参数以绕过此时效限制并允许使用内置默认数据集：
+   python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
+{sep}"""
+        return False, msg
+
+    if not os.path.isfile(dataset_path):
+        return False, f"❌ 指定的数据集文件不存在: {dataset_path}"
+
+    try:
+        mtime = os.path.getmtime(dataset_path)
+        file_age = time.time() - mtime
+    except Exception as e:
+        return False, f"❌ 获取数据集文件修改时间失败: {e}"
+
+    if file_age > max_age_seconds:
+        msg = f"""
+{sep}
+❌ [AI 执行门禁拦截] 数据集文件 `{dataset_path}` 生成/修改于 {int(file_age)} 秒前（已超过 2 分钟 / {max_age_seconds} 秒时效限制）！
+{sep}
+💡 规则说明：在 AI Agent 驱动的测试与验收模式下，必须现场动态构思全新的测试场景并在 2 分钟内实时生成 JSON，严禁复用历史旧数据集。
+💡 人工调试提示：若本次运行并非由 AI Agent 驱动（例如人工本地调试或复现历史用例），请添加 `--allow-stale-dataset` 参数以绕过此时效限制：
+   python3 scripts/test_live_chat_and_export.py --dataset {dataset_path} --allow-stale-dataset
+{sep}"""
+        return False, msg
+
+    try:
+        with open(dataset_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return True, data
+    except Exception as e:
+        return False, f"❌ 读取数据集 JSON 失败: {e}"
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 2次×5轮真实对话、Takeout 导入与导出规范断言全生产测试流程")
-    parser.add_argument("--dataset", default=None, help="自定义测试数据集 JSON 文件路径 (为空时启用内置标准 5 轮数据集)")
+    parser.add_argument("--dataset", default=None, help="自定义测试数据集 JSON 文件路径 (AI 协同模式下必须在 2 分钟之内新鲜生成)")
+    parser.add_argument("--allow-stale-dataset", action="store_true", help="允许使用超过 2 分钟时效限制的历史数据集，或在未指定 --dataset 时使用内置默认数据集（供非 AI Agent 的人工本地调试使用）")
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
@@ -1363,13 +1426,15 @@ if __name__ == "__main__":
     parser.add_argument("--takeout-zip", default=None, help="自定义预置 Takeout ZIP 样本路径")
     args = parser.parse_args()
 
-    custom_dataset = None
-    if args.dataset:
-        if not os.path.isfile(args.dataset):
-            print(f"❌ 指定的数据集文件不存在: {args.dataset}")
-            sys.exit(1)
-        with open(args.dataset, "r", encoding="utf-8") as f:
-            custom_dataset = json.load(f)
+    valid, result_or_err = validate_dataset_freshness(
+        args.dataset,
+        allow_stale=args.allow_stale_dataset,
+        skip_chat=args.skip_chat
+    )
+    if not valid:
+        print(result_or_err)
+        sys.exit(1)
+    custom_dataset = result_or_err
 
     success = run_live_chat_and_export(
         dataset=custom_dataset,
@@ -1383,4 +1448,5 @@ if __name__ == "__main__":
         skip_tour=args.skip_tour
     )
     sys.exit(0 if success else 1)
+
 
