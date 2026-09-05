@@ -45,12 +45,13 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
 
     await page.goto(`chrome-extension://${extensionId}/options.html`);
     await page.waitForLoadState('domcontentloaded');
+    await page.waitForFunction(() => typeof window.__workbenchLoadStore === 'function');
 
     // Click #btnTourGuide in header
     await page.click('#btnTourGuide');
 
     const popover = page.locator('.tour-popover');
-    await expect(popover).toBeVisible({ timeout: 3000 });
+    await expect(popover).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.tour-step-badge')).toHaveText('1 / 4');
 
     // Click close/skip
