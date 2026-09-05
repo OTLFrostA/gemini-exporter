@@ -275,6 +275,244 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
     return None
 
 
+def get_browser_ws_url(port=CDP_DEFAULT_PORT):
+    for endpoint in ["/json/version"]:
+        try:
+            url = f"http://127.0.0.1:{port}{endpoint}"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data.get("webSocketDebuggerUrl")
+        except Exception:
+            continue
+    return None
+
+
+def reinstall_extension_via_cdp(port=CDP_DEFAULT_PORT, repo_path=None):
+    """
+    通过 Chrome DevTools Protocol 原生 Extensions 域指令彻底卸载并重新安装插件。
+    此方式能够 100% 真实触发 chrome.runtime.onInstalled(reason === 'install')，
+    且不会唤起操作系统原生文件选择框，全自动化无阻碍运行。
+    """
+    repo_path = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), ".."))
+    browser_ws = get_browser_ws_url(port)
+    if not browser_ws:
+        print(f"❌ 无法获取 Chrome Browser WebSocket (端口 {port})，请确认 Chrome 正在运行并开启了远程调试")
+        return None
+
+    old_ext_id = get_extension_id(port)
+    cdp = CDPConnection(browser_ws)
+    try:
+        if old_ext_id:
+            print(f"   🗑️ 正在通过 CDP Extensions.uninstall 彻底卸载旧扩展 ({old_ext_id})...")
+            try:
+                cdp.call("Extensions.uninstall", {"id": old_ext_id})
+            except Exception as e:
+                print(f"   ⚠️ 卸载旧扩展返回提示: {e}")
+            time.sleep(0.5)
+
+        print(f"   📦 正在通过 CDP Extensions.loadUnpacked 原生安装工作区扩展: {repo_path}...")
+        res = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
+        new_ext_id = res.get("result", {}).get("id")
+        if not new_ext_id:
+            print(f"❌ 扩展安装失败，CDP 返回: {res}")
+            return None
+        print(f"   ✅ 扩展安装成功！新 Extension ID: {new_ext_id}")
+        return new_ext_id
+    finally:
+        cdp.close()
+
+
+def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
+    """
+    全自动验证全新安装时触发的 options.html?welcome=1 及其新手向导 (TourGuide) 全流程：
+    1. 验证 Step 1 (连接引导): 校验 popover 渲染、badge '1 / 4' 并点击下一步；
+    2. 验证 Step 2 (扫描同步引导): 校验 badge '2 / 4'，触发 #btnIncrementalScan 动作推进；
+    3. 验证 Step 3 (会话选择引导): 校验 badge '3 / 4'，触发会话勾选或全选动作推进；
+    4. 验证 Step 4 (导出执行引导): 校验 badge '4 / 4'，点击完成按钮，校验向导销毁与 storage 落盘。
+    """
+    print("   🧭 正在定位安装后由 background 自动拉起的 options.html?welcome=1 标签页...")
+    start_time = time.time()
+    welcome_tab = None
+    welcome_url_part = f"chrome-extension://{ext_id}/options.html?welcome=1"
+    base_options_part = f"chrome-extension://{ext_id}/options.html"
+
+    while time.time() - start_time < timeout:
+        tabs = get_tabs(port)
+        welcome_tab = next((t for t in tabs if welcome_url_part in t.get("url", "")), None)
+        if welcome_tab:
+            break
+        if not welcome_tab:
+            opt = next((t for t in tabs if base_options_part in t.get("url", "")), None)
+            if opt:
+                welcome_tab = opt
+                break
+        time.sleep(0.5)
+
+    if not welcome_tab:
+        print("   ⚠️ 未在 15 秒内检测到自动弹出的 options 标签页，主动发起打开...")
+        new_url = f"http://127.0.0.1:{port}/json/new?{welcome_url_part}"
+        req = urllib.request.Request(new_url, method="PUT")
+        with urllib.request.urlopen(req, timeout=5) as r:
+            welcome_tab = json.loads(r.read().decode("utf-8"))
+
+    cdp = CDPConnection(welcome_tab["webSocketDebuggerUrl"])
+    try:
+        # 等待 options.html DOM 及 TourGuide 初始化
+        print("   🔍 正在等待 TourGuide 向导浮层加载与激活...")
+        tour_ready = False
+        for _ in range(20):
+            is_active = cdp.eval("""
+            (() => {
+                const popover = document.querySelector('.tour-popover');
+                const badge = document.querySelector('.tour-step-badge')?.textContent || '';
+                const active = window.TourGuide ? window.TourGuide.isActive() : false;
+                return active && !!popover;
+            })()
+            """)
+            if is_active:
+                tour_ready = True
+                break
+            time.sleep(0.4)
+
+        if not tour_ready:
+            print("   ⚠️ 尝试通过 TourGuide.startTour(0) 兜底激活向导...")
+            cdp.eval("if (window.TourGuide) window.TourGuide.startTour(0);")
+            time.sleep(0.5)
+
+        # -------------------------------------------------------------
+        # Step 1 校验：连接引导 (1 / 4) 或已由动态连接自动推进至 (2 / 4)
+        # -------------------------------------------------------------
+        step1_info = cdp.eval("""
+        (() => {
+            const badge = document.querySelector('.tour-step-badge')?.textContent || '';
+            const step = window.TourGuide ? window.TourGuide.getCurrentStep() : -1;
+            return { badge, step };
+        })()
+        """)
+        current_step_num = step1_info.get("step", 0)
+        if current_step_num == 0:
+            if "1 / 4" not in step1_info.get("badge", ""):
+                print(f"❌ 向导 Step 1 校验失败: {step1_info}")
+                return False
+            print("   ✓ [向导 1/4] 连接就绪步骤校验通过，点击前进...")
+
+            cdp.eval("""
+            (() => {
+                const nextBtn = document.getElementById('tourNextBtn');
+                if (nextBtn) nextBtn.click();
+                else if (window.TourGuide) window.TourGuide.nextStep();
+            })()
+            """)
+            time.sleep(0.5)
+        elif current_step_num == 1:
+            print("   ✓ [向导 1/4 ➔ 2/4] 检测到已连接 Gemini 页面，向导已自适应智能推进至 Step 2！")
+        else:
+            print(f"❌ 向导步骤异常: {step1_info}")
+            return False
+
+        # -------------------------------------------------------------
+        # Step 2 校验：扫描同步引导 (2 / 4) 并触发 #btnIncrementalScan
+        # -------------------------------------------------------------
+        step2_info = cdp.eval("""
+        (() => {
+            const badge = document.querySelector('.tour-step-badge')?.textContent || '';
+            const step = window.TourGuide ? window.TourGuide.getCurrentStep() : -1;
+            return { badge, step };
+        })()
+        """)
+        if "2 / 4" not in step2_info.get("badge", ""):
+            print(f"❌ 向导 Step 2 校验失败: {step2_info}")
+            return False
+        print("   ✓ [向导 2/4] 扫描同步步骤已就绪，触发 #btnIncrementalScan 动作推进...")
+
+        cdp.eval("""
+        (() => {
+            const btn = document.getElementById('btnIncrementalScan');
+            if (btn) btn.click();
+        })()
+        """)
+
+        step3_advanced = False
+        for _ in range(25):
+            time.sleep(0.15)
+            cur_step = cdp.eval("window.TourGuide ? window.TourGuide.getCurrentStep() : -1")
+            if cur_step == 2:
+                step3_advanced = True
+                break
+        if not step3_advanced:
+            print("❌ 点击 #btnIncrementalScan 后未能在超时前自动推进至 Step 3")
+            return False
+        print("   ✓ [向导 3/4] 行为驱动自动推进至选择会话步骤！")
+
+        # -------------------------------------------------------------
+        # Step 3 校验：会话勾选推进 (3 / 4) -> 模拟选择并推进
+        # -------------------------------------------------------------
+        cdp.eval("""
+        (() => {
+            const firstCb = document.querySelector('#list .item input[type=checkbox]');
+            if (firstCb) {
+                firstCb.checked = true;
+                firstCb.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                const btnAll = document.getElementById('btnSelectAll');
+                if (btnAll) btnAll.click();
+            }
+        })()
+        """)
+
+        step4_advanced = False
+        for _ in range(25):
+            time.sleep(0.15)
+            cur_step = cdp.eval("window.TourGuide ? window.TourGuide.getCurrentStep() : -1")
+            if cur_step == 3:
+                step4_advanced = True
+                break
+        if not step4_advanced:
+            print("❌ 勾选会话后未能在超时前自动推进至 Step 4")
+            return False
+        print("   ✓ [向导 4/4] 行为驱动自动推进至导出步骤！")
+
+        # -------------------------------------------------------------
+        # Step 4 校验：点击完成向导
+        # -------------------------------------------------------------
+        cdp.eval("""
+        (() => {
+            const nextBtn = document.getElementById('tourNextBtn');
+            if (nextBtn) nextBtn.click();
+            else if (window.TourGuide) window.TourGuide.completeTour();
+        })()
+        """)
+        time.sleep(0.5)
+
+        # 校验 storage 落盘与浮层销毁
+        completed_state = cdp.eval("""
+        (async () => {
+            const popover = document.querySelector('.tour-popover');
+            const isActive = window.TourGuide ? window.TourGuide.isActive() : false;
+            const storage = await chrome.storage.local.get('has_completed_tour');
+            return {
+                hasPopover: !!popover,
+                isActive,
+                storageCompleted: !!storage.has_completed_tour
+            };
+        })()
+        """, await_promise=True)
+
+        if completed_state.get("isActive") or completed_state.get("hasPopover"):
+            print(f"❌ 向导未能正确关闭销毁: {completed_state}")
+            return False
+        if not completed_state.get("storageCompleted"):
+            print("❌ 向导完成后 chrome.storage.local 中的 has_completed_tour 未能置为 true")
+            return False
+
+        # 清理 URL 参数并保持页面就绪
+        cdp.eval("history.replaceState(null, '', 'options.html');")
+        print("   🎉 新手向导 4 步交互与持久化状态断言 100% 通过！")
+        return True
+    finally:
+        cdp.close()
+
+
 def wait_for_gemini_ready(cdp, max_wait=30):
     start = time.time()
     while time.time() - start < max_wait:
@@ -482,7 +720,7 @@ def send_turn(cdp, turn_input, max_wait=240):
     return False, "等待回复超时"
 
 
-def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=None, delay=2, skip_chat=False, skip_takeout=False, takeout_zip=None):
+def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=None, delay=2, skip_chat=False, skip_takeout=False, takeout_zip=None, skip_reinstall=False, skip_tour=False):
     scenarios = dataset or DEFAULT_SCENARIOS
     if len(scenarios) < 2:
         print("❌ 场景数不足 2 个，本测试要求执行 2 次独立会话！")
@@ -492,15 +730,43 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     os.makedirs(abs_output_dir, exist_ok=True)
 
     print("=" * 70)
-    print("🚀 启动固定生产测试流：真实 Gemini 2次×5轮问答 ➔ 插件导出 ➔ 目录断言")
+    print("🚀 启动固定生产测试流：卸载重装 ➔ 新手向导 ➔ 真实 Gemini 问答 ➔ 导出 ➔ 规范断言")
     print(f"📁 导出目标目录: {abs_output_dir}")
     print(f"🌐 Chrome 端口: 127.0.0.1:{port}")
+    if skip_reinstall:
+        print("⚡ [模式] 已开启 --skip-reinstall：跳过扩展卸载与重装步骤")
+    if skip_tour:
+        print("⚡ [模式] 已开启 --skip-tour：跳过新手向导全流程测试步骤")
     if skip_chat:
         print("⚡ [模式] 已开启 --skip-chat：直接复用已有会话进行同步与导出校验")
     if not skip_takeout:
         print("📥 [增强] 已启用 Takeout 样本预置自动导入与历史合流验证")
     print("=" * 70)
 
+    worktree_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+    # ==========================================
+    # 阶段零：通过原生 CDP 彻底卸载旧插件并纯净重装当前代码
+    # ==========================================
+    if not skip_reinstall:
+        print("\n" + "-" * 70)
+        print("🔄 阶段零：通过 CDP Extensions 域彻底卸载旧扩展并纯净安装当前代码...")
+        print("-" * 70)
+        reinstalled_id = reinstall_extension_via_cdp(port, repo_path=worktree_root)
+        if not reinstalled_id:
+            print("❌ 扩展卸载重装失败，中断全流程测试！")
+            return False
+        ext_id = reinstalled_id
+        time.sleep(1.0)
+    else:
+        ext_id = get_extension_id(port)
+        if not ext_id:
+            print("❌ 未能获取到 Gemini Exporter 扩展程序 ID")
+            return False
+
+    print(f"🧩 当前活跃扩展 ID: {ext_id}")
+
+    # 检查 Gemini 页面并在重装后第一时间刷新以注入最新 Content Scripts
     tabs = get_tabs(port)
     gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
     if not gemini_tab and not skip_chat:
@@ -508,11 +774,28 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         print("💡 请先启动测试浏览器: ./scripts/open_test_chrome.sh")
         return False
 
-    ext_id = get_extension_id(port)
-    if not ext_id:
-        print("❌ 未能获取到 Gemini Exporter 扩展程序 ID")
-        return False
-    print(f"🧩 识别到扩展 ID: {ext_id}")
+    if gemini_tab and not skip_reinstall:
+        print("   🔄 扩展重新安装后，刷新 gemini.google.com 标签页以注入最新 Content Scripts...")
+        cdp_g = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+        try:
+            cdp_g.eval("location.reload()")
+        except Exception:
+            pass
+        finally:
+            cdp_g.close()
+        time.sleep(2.0)
+
+    # ==========================================
+    # 阶段零点五：全流程自动化验证新手向导 (TourGuide 4步交互与落盘)
+    # ==========================================
+    if not skip_tour:
+        print("\n" + "-" * 70)
+        print("🧭 阶段零点五：全流程自动化验证新手向导 (TourGuide 4步交互与持久化)...")
+        print("-" * 70)
+        tour_ok = verify_onboarding_tour(port, ext_id)
+        if not tour_ok:
+            print("❌ 新手向导全自动验证失败，中断全流程测试！")
+            return False
 
     chat_records = []
 
@@ -708,6 +991,19 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         except Exception:
             pass
 
+        browser_ws = get_browser_ws_url(port)
+        if browser_ws:
+            try:
+                b_cdp = CDPConnection(browser_ws)
+                b_cdp.call("Browser.setDownloadBehavior", {
+                    "behavior": "allow",
+                    "downloadPath": abs_output_dir,
+                    "eventsEnabled": True
+                })
+                b_cdp.close()
+            except Exception:
+                pass
+
         time.sleep(1.0)
 
         # ------------------------------------------------------------------
@@ -769,11 +1065,18 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         })()
         """)
 
-        # 等待同步完成 (SyncCtrl.isRunning() 变回 false)
+        # 等待同步完成 (SyncController.isScanning() 变回 false 且按钮恢复可用)
         print("   ⏳ 正在等待增量同步完成并渲染会话列表...")
-        for _ in range(20):
+        for _ in range(30):
             time.sleep(1)
-            syncing = cdp_opt.eval("typeof SyncCtrl !== 'undefined' ? SyncCtrl.isRunning() : false")
+            syncing = cdp_opt.eval("""
+            (() => {
+                const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
+                const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
+                const btn = document.getElementById('btnExport');
+                return isScan || (btn && btn.disabled);
+            })()
+            """)
             if not syncing:
                 break
         time.sleep(1.0)
@@ -841,16 +1144,34 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         time.sleep(0.5)
         print(f"   ✓ 成功勾选 {selected_count} 条会话")
 
+        # 等待导出按钮非 disabled 状态
+        for _ in range(20):
+            is_ready = cdp_opt.eval("""
+            (() => {
+                const btn = document.getElementById('btnExport');
+                return btn && !btn.disabled;
+            })()
+            """)
+            if is_ready:
+                break
+            time.sleep(0.5)
+
         start_export_time = time.time()
 
         # 点击【导出选中 → ZIP】
         print("   🚀 点击【导出选中 → ZIP】主按钮...")
-        cdp_opt.eval("""
-        (() => {
-            const btn = document.getElementById('btnExport');
-            if (btn) btn.click();
-        })()
-        """)
+        for attempt in range(5):
+            click_res = cdp_opt.eval("""
+            (() => {
+                const btn = document.getElementById('btnExport');
+                if (!btn || btn.disabled) return { ok: false, reason: 'btn disabled or missing' };
+                btn.click();
+                return { ok: true };
+            })()
+            """)
+            if click_res and click_res.get("ok"):
+                break
+            time.sleep(1.0)
 
         # 等待 ZIP 导出与下载完成
         print(f"   ⏳ 正在等待 ZIP 导出打包完成并落地...")
@@ -882,6 +1203,15 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         if not downloaded_zip:
             print("❌ 未在超时时间内检测到导出的 ZIP 文件！")
             return False
+
+        # 若从系统下载目录捕获，拷贝至本次专用的导出目录
+        sys_downloads = os.path.expanduser("~/Downloads")
+        if sys_downloads in downloaded_zip:
+            dest_zip = os.path.join(abs_output_dir, os.path.basename(downloaded_zip))
+            if os.path.abspath(downloaded_zip) != os.path.abspath(dest_zip):
+                import shutil
+                shutil.copy2(downloaded_zip, dest_zip)
+                downloaded_zip = dest_zip
 
         print(f"   ✅ 成功获取导出 ZIP: {downloaded_zip} ({os.path.getsize(downloaded_zip)} bytes)")
 
@@ -1028,6 +1358,8 @@ if __name__ == "__main__":
     parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
     parser.add_argument("--skip-chat", action="store_true", help="跳过发帖步骤，直接使用已有会话跑导出与目录校验")
     parser.add_argument("--skip-takeout", action="store_true", help="跳过预置 Takeout ZIP 导入步骤")
+    parser.add_argument("--skip-reinstall", action="store_true", help="跳过扩展卸载与重装步骤")
+    parser.add_argument("--skip-tour", action="store_true", help="跳过新手向导全流程测试步骤")
     parser.add_argument("--takeout-zip", default=None, help="自定义预置 Takeout ZIP 样本路径")
     args = parser.parse_args()
 
@@ -1046,7 +1378,9 @@ if __name__ == "__main__":
         delay=args.delay,
         skip_chat=args.skip_chat,
         skip_takeout=args.skip_takeout,
-        takeout_zip=args.takeout_zip
+        takeout_zip=args.takeout_zip,
+        skip_reinstall=args.skip_reinstall,
+        skip_tour=args.skip_tour
     )
     sys.exit(0 if success else 1)
 
