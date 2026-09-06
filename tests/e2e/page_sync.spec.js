@@ -207,4 +207,62 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     expect(chat.title).not.toBe('Google Gemini');
     expect(chat.title).not.toBe('Gemini');
   });
+
+  test('should render draggable export badge with default top 68px and persist dragged position', async ({ context, extensionId }) => {
+    const geminiPage = await context.newPage();
+
+    await geminiPage.route('https://gemini.google.com/app/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html; charset=utf-8',
+        body: `<!DOCTYPE html>
+        <html>
+        <head>
+          <title>测试对话 - Google Gemini</title>
+        </head>
+        <body style="width: 1000px; height: 800px;">
+          <h1 data-test-id="conversation-title">测试对话</h1>
+        </body>
+        </html>`
+      });
+    });
+
+    await geminiPage.goto('https://gemini.google.com/app/test_drag_badge');
+    await geminiPage.waitForLoadState('domcontentloaded');
+
+    const badge = geminiPage.locator('#geminiExportBadge');
+    await expect(badge).toBeVisible();
+
+    // 1. Verify default positioning (clears top bar: top is around 68px)
+    const initialBox = await badge.boundingBox();
+    expect(initialBox).toBeTruthy();
+    expect(initialBox.y).toBeGreaterThanOrEqual(60);
+
+    // 2. Drag badge via pointer down, move, up
+    await geminiPage.mouse.move(initialBox.x + initialBox.width / 2, initialBox.y + initialBox.height / 2);
+    await geminiPage.mouse.down();
+    await geminiPage.mouse.move(initialBox.x - 100, initialBox.y + 150, { steps: 5 });
+    await geminiPage.mouse.up();
+
+    // 3. Verify badge moved
+    const movedBox = await badge.boundingBox();
+    expect(movedBox.y).toBeGreaterThan(initialBox.y + 100);
+
+    // 4. Verify position was stored in localStorage
+    const storedPos = await geminiPage.evaluate(() => {
+      return JSON.parse(localStorage.getItem('gemini_export_badge_pos') || 'null');
+    });
+    expect(storedPos).toBeTruthy();
+    expect(typeof storedPos.left).toBe('number');
+    expect(typeof storedPos.top).toBe('number');
+
+    // 5. Reload page and check restored position
+    await geminiPage.reload();
+    await geminiPage.waitForLoadState('domcontentloaded');
+    const reloadedBadge = geminiPage.locator('#geminiExportBadge');
+    await expect(reloadedBadge).toBeVisible();
+    const reloadedBox = await reloadedBadge.boundingBox();
+    expect(Math.abs(reloadedBox.x - movedBox.x)).toBeLessThanOrEqual(5);
+    expect(Math.abs(reloadedBox.y - movedBox.y)).toBeLessThanOrEqual(5);
+  });
 });

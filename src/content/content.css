@@ -1,7 +1,7 @@
 #geminiExportBadge {
     position: fixed;
-    top: 12px;
-    right: 12px;
+    top: 68px;
+    right: 20px;
     z-index: 2147483647;
     background: #0f101a;
     color: #f1f3fc;
@@ -14,11 +14,12 @@
     justify-content: center;
     gap: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    cursor: pointer;
+    cursor: grab;
     user-select: none;
     white-space: nowrap;
     min-width: 88px;
-    transition: background-color 0.2s, transform 0.1s, border-color 0.2s, opacity 0.2s;
+    touch-action: none;
+    transition: background-color 0.2s, border-color 0.2s, opacity 0.2s;
 }
 
 #geminiExportBadge:hover {
@@ -26,7 +27,15 @@
     border-color: #4f46e5;
 }
 
-#geminiExportBadge:active {
+#geminiExportBadge.dragging {
+    cursor: grabbing !important;
+    user-select: none !important;
+    transition: none !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    opacity: 0.92;
+}
+
+#geminiExportBadge:active:not(.dragging) {
     transform: scale(0.97);
 }
 
