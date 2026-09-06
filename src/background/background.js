@@ -1,9 +1,27 @@
 try {
-    importScripts('/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
+    importScripts('/src/core/utils/constants.js', '/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
 } catch (e) {}
 
 console.log('[Gemini Exporter] Background service worker ready');
 let __bgAborted = false;
+
+const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
+    ? GeminiConstants.FEEDBACK_URL
+    : 'https://tally.so/r/Y56ZBB';
+
+function initUninstallUrl() {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
+        try {
+            chrome.runtime.setUninstallURL(FEEDBACK_URL, () => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[Gemini Exporter] Failed to set uninstall URL:', chrome.runtime.lastError.message);
+                }
+            });
+        } catch (err) {
+            console.warn('[Gemini Exporter] Error calling setUninstallURL:', err);
+        }
+    }
+}
 
 const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
 const isRealTitle = (t, fallbackId) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle ? GeminiUtils.isRealTitle(t, fallbackId) : !!(t && t.trim().length > 1));
@@ -12,12 +30,15 @@ const sendToGeminiTab = (msg, slot, timeoutMs) => (typeof TabService !== 'undefi
 const getGeminiTab = (slot) => (typeof TabService !== 'undefined' && TabService.getGeminiTab ? TabService.getGeminiTab(slot) : (typeof chrome !== 'undefined' && chrome.tabs ? chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(t => t[0] || null) : Promise.resolve(null)));
 
 chrome.runtime.onInstalled.addListener((details) => {
+    initUninstallUrl();
     if (details.reason === 'install') {
         chrome.tabs.create({
             url: chrome.runtime.getURL('options.html?welcome=1')
         });
     }
 });
+
+initUninstallUrl();
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'openOptions') {
