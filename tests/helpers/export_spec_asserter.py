@@ -214,17 +214,28 @@ class ExportSpecificationAsserter:
 
             matched_content = None
             matched_file = None
-            for fpath in self.md_files:
-                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
-                    text = f.read()
-                if cid and cid in text:
-                    matched_content = text
-                    matched_file = os.path.basename(fpath)
-                    break
-                elif any(snip in text for snip in snippets[:1]):
-                    matched_content = text
-                    matched_file = os.path.basename(fpath)
-                    break
+
+            # 1. 优先按 cid 精准检索（检查正文内容或文件名是否包含会话 ID）
+            if cid:
+                for fpath in self.md_files:
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
+                    if cid in text or cid in os.path.basename(fpath):
+                        matched_content = text
+                        matched_file = os.path.basename(fpath)
+                        break
+
+            # 2. 若未按 ID 匹配到，按 snippets 相似度加权匹配命中率最高的文件
+            if not matched_content and snippets:
+                best_score = 0
+                for fpath in self.md_files:
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                        text = f.read()
+                    score = sum(1 for snip in snippets if snip.lower() in text.lower())
+                    if score > best_score:
+                        best_score = score
+                        matched_content = text
+                        matched_file = os.path.basename(fpath)
 
             if not matched_content:
                 self.log_error("GoldenCheck", f"未在导出包中找到已知会话《{name}》 (ID: {cid})")
@@ -245,3 +256,15 @@ class ExportSpecificationAsserter:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含 Markdown 表格，但未找到")
                 elif syn == "image" and "![" not in matched_content:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含图片附件引用 ('![]')，但未找到")
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print("用法: python3 export_spec_asserter.py <解压目录路径> [min_conversations]")
+        sys.exit(1)
+    target_dir = sys.argv[1]
+    min_conv = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+    asserter = ExportSpecificationAsserter(target_dir)
+    success = asserter.run_all_assertions(min_conversations=min_conv)
+    sys.exit(0 if success else 1)
