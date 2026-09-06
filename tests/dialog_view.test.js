@@ -13,10 +13,14 @@ test('dialogView - exports', () => {
     assert.strictEqual(typeof DialogView.dismissExportBanner, 'function');
     assert.strictEqual(typeof DialogView.showDirectWritePrompt, 'function');
     assert.strictEqual(typeof DialogView.hideDirectWritePrompt, 'function');
+    assert.strictEqual(typeof DialogView.showTakeoutLimitPrompt, 'function');
+    assert.strictEqual(typeof DialogView.hideTakeoutLimitPrompt, 'function');
 });
 
 test('dialogView - render without DOM element does not crash', () => {
     DialogView.renderExportBanner(null, 'u0', false);
     DialogView.showDirectWritePrompt(100, () => {}, () => {});
     DialogView.hideDirectWritePrompt();
+    DialogView.showTakeoutLimitPrompt({ count: 600, onImportTakeout: () => {} });
+    DialogView.hideTakeoutLimitPrompt();
 });

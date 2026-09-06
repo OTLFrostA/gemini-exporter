@@ -211,6 +211,7 @@
                 totalPagesFetched: 0,
                 totalConversations: 0,
                 stopReason: '就绪（尚未触发同步）',
+                hitGoogleLimit: false,
                 pageHistory: []
             };
             this.aborted = false;
@@ -229,6 +230,10 @@
                     res = await this.getConversationList(token, targetSid);
                 } catch (err) {
                     console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
+                    const isLimit = String(err?.message || err).includes('BardErrorInfo') || String(err?.message || err).includes('1096');
+                    if (isLimit) {
+                        diagLog.hitGoogleLimit = true;
+                    }
                     diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
                     reachedMax = false;
                     if (all.length > 0) {
@@ -283,14 +288,16 @@
                                     total: all.length,
                                     stoppedEarly: true,
                                     unchangedStreak,
-                                    diagnostics: diagLog
+                                    diagnostics: diagLog,
+                                    hitGoogleLimit: !!diagLog.hitGoogleLimit
                                 };
                             }
                         }
                     }
                 }
                 if (!res.conversations || res.conversations.length === 0) {
-                    if (res?._debug?.bardError) {
+                    if (res?._debug?.bardError || res?._debug?.error === 'BARD_ERROR_INFO') {
+                        diagLog.hitGoogleLimit = true;
                         diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     } else {
                         diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
@@ -324,7 +331,8 @@
             return {
                 conversations: all,
                 total: all.length,
-                diagnostics: diagLog
+                diagnostics: diagLog,
+                hitGoogleLimit: !!diagLog.hitGoogleLimit
             };
         }
         async fetchConversationPage(conversationId, pageToken, targetSid, opts) {
