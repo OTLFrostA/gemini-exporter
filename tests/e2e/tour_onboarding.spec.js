@@ -1,7 +1,7 @@
 const { test, expect } = require('./fixtures');
 
 test.describe('Onboarding Tour Guide & Welcome Flow', () => {
-  test('should trigger tour on welcome param, navigate 4 steps, and complete', async ({ context, extensionId }) => {
+  test('should trigger tour on welcome param, navigate 5 steps, and complete', async ({ context, extensionId }) => {
     const page = await context.newPage();
 
     // 1. Open options page with ?welcome=1
@@ -13,20 +13,28 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
     await expect(popover).toBeVisible({ timeout: 5000 });
 
     // Step 1 check
-    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 4');
+    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 5');
     await expect(page.locator('#tourNextBtn')).toBeVisible();
 
     // 3. Step through tour
     await page.click('#tourNextBtn');
-    await expect(page.locator('.tour-step-badge')).toHaveText('2 / 4');
+    await expect(page.locator('.tour-step-badge')).toHaveText('2 / 5');
 
     await page.click('#tourNextBtn');
-    await expect(page.locator('.tour-step-badge')).toHaveText('3 / 4');
+    await expect(page.locator('.tour-step-badge')).toHaveText('3 / 5');
 
     await page.click('#tourNextBtn');
-    await expect(page.locator('.tour-step-badge')).toHaveText('4 / 4');
+    await expect(page.locator('.tour-step-badge')).toHaveText('4 / 5');
 
-    // Step 4 final button
+    await page.click('#tourNextBtn');
+    await expect(page.locator('.tour-step-badge')).toHaveText('5 / 5');
+
+    // Step 5 check: highlights feedback box and mentions active development
+    await expect(page.locator('.tour-title')).toContainText('Active Development & Feedback');
+    await expect(page.locator('.tour-content')).toContainText('actively under development');
+    await expect(page.locator('#tourNextBtn')).toHaveText('🎉 Got it & Start');
+
+    // Step 5 final button
     await page.click('#tourNextBtn');
 
     // Popover should be removed
@@ -52,7 +60,7 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
 
     const popover = page.locator('.tour-popover');
     await expect(popover).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 4');
+    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 5');
 
     // Click close/skip
     await page.click('#tourSkipBtn');

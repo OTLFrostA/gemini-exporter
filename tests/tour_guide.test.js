@@ -82,12 +82,13 @@ test('tourGuide - module structure and steps', () => {
     assert.strictEqual(typeof TourGuide.finishTour, 'function');
     assert.strictEqual(typeof TourGuide.skipTour, 'function');
 
-    assert.strictEqual(TourGuide.STEPS.length, 4, 'Tour should have exactly 4 streamlined steps');
+    assert.strictEqual(TourGuide.STEPS.length, 5, 'Tour should have exactly 5 streamlined steps');
     assert.strictEqual(TourGuide.STEPS[0].id, 'connect');
     assert.strictEqual(TourGuide.STEPS[1].id, 'sync');
     assert.strictEqual(TourGuide.STEPS[2].id, 'select');
     assert.strictEqual(TourGuide.STEPS[3].id, 'export');
-    assert.ok(TourGuide.STEPS[3].isFinal, 'Last step should be marked as final');
+    assert.strictEqual(TourGuide.STEPS[4].id, 'feedback');
+    assert.ok(TourGuide.STEPS[4].isFinal, 'Last step should be marked as final');
 });
 
 test('tourGuide - step navigation and completion', async () => {
@@ -200,10 +201,12 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     const mockScanBtn = createMockElement('btnIncrementalScan');
     const mockList = createMockElement('list');
     const mockExportBtn = createMockElement('btnExport');
+    const mockFeedbackBtn = createMockElement('btnFeedback');
 
     mockElements.set('btnIncrementalScan', mockScanBtn);
     mockElements.set('list', mockList);
     mockElements.set('btnExport', mockExportBtn);
+    mockElements.set('btnFeedback', mockFeedbackBtn);
 
     // 1. Start at step 1 (sync)
     await TourGuide.goToStep(1);
@@ -223,7 +226,13 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     // 3. In step 3 (export), simulate clicking export
     mockExportBtn.click();
     await new Promise(r => setTimeout(r, 250));
-    assert.strictEqual(TourGuide.isActive(), false, 'Tour should be completed and inactive after export click');
+    assert.strictEqual(TourGuide.getCurrentStep(), 4, 'Should advance to step 4 (feedback) after export click');
+    assert.strictEqual(TourGuide.isActive(), true);
+
+    // 4. In step 4 (feedback), simulate clicking feedback
+    mockFeedbackBtn.click();
+    await new Promise(r => setTimeout(r, 250));
+    assert.strictEqual(TourGuide.isActive(), false, 'Tour should be completed and inactive after feedback click');
 });
 
 test('tourGuide - listener cleanup when navigating backwards', async () => {

@@ -143,13 +143,28 @@
             titleKey: 'tourStep4Title',
             descKey: 'tourStep4Desc',
             hintKey: 'tourHintClickExport',
-            isFinal: true,
             setupAction: (advance) => {
                 const btnExport = document.getElementById('btnExport');
                 if (btnExport) {
                     const onExportClick = () => setTimeout(advance, 200);
                     btnExport.addEventListener('click', onExportClick);
                     return () => btnExport.removeEventListener('click', onExportClick);
+                }
+            }
+        },
+        {
+            id: 'feedback',
+            getTarget: () => document.getElementById('feedbackBox') || document.getElementById('btnFeedback') || null,
+            titleKey: 'tourStep5Title',
+            descKey: 'tourStep5Desc',
+            hintKey: 'tourHintClickFeedback',
+            isFinal: true,
+            setupAction: (advance) => {
+                const btnFeedback = document.getElementById('btnFeedback');
+                if (btnFeedback) {
+                    const onFeedbackClick = () => setTimeout(advance, 200);
+                    btnFeedback.addEventListener('click', onFeedbackClick);
+                    return () => btnFeedback.removeEventListener('click', onFeedbackClick);
                 }
             }
         }
