@@ -84,10 +84,7 @@
         const btnFolder = $('btnModalSwitchFolder');
         const btnZip = $('btnModalContinueZip');
         const btnClose = $('btnDirectWriteClose');
-        const chkRemember = $('chkModalRemember');
         if (!modal) return;
-
-        if (chkRemember) chkRemember.checked = false;
 
         if (textEl && typeof I18n !== 'undefined' && I18n.t) {
             textEl.textContent = I18n.t('directWritePromptDesc', count);
@@ -118,17 +115,15 @@
 
         if (btnFolder) {
             btnFolder.onclick = () => {
-                const remember = !!chkRemember?.checked;
                 cleanup();
-                if (onConfirmFolder) onConfirmFolder(remember);
+                if (onConfirmFolder) onConfirmFolder();
             };
         }
 
         if (btnZip) {
             btnZip.onclick = () => {
-                const remember = !!chkRemember?.checked;
                 cleanup();
-                if (onContinueZip) onContinueZip(remember);
+                if (onContinueZip) onContinueZip();
             };
         }
     }
