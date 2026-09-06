@@ -19,22 +19,12 @@
     const TakeoutCtrl = (typeof TakeoutController !== 'undefined') ? TakeoutController : null;
     const SyncCtrl = (typeof SyncController !== 'undefined') ? SyncController : null;
     const Tour = (typeof TourGuide !== 'undefined') ? TourGuide : null;
-
-    const normId = id => (typeof GeminiUtils !== 'undefined' && GeminiUtils.normId)
-        ? GeminiUtils.normId(id)
-        : String(id || '').replace(/^c_/, '');
-
-    const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle)
-        ? GeminiUtils.cleanTitle(t)
-        : (t || '').trim();
-
-    const isRealTitle = (t, id) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle)
-        ? GeminiUtils.isRealTitle(t, id)
-        : !!(t && String(t).trim().length > 1);
-
-    const resolveTitle = (chat) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
-        ? GeminiUtils.resolveTitle(chat)
-        : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
+    const Utils = (typeof GeminiUtils !== 'undefined') ? GeminiUtils : {};
+    const normId = id => (Utils.normId ? Utils.normId(id) : String(id || '').replace(/^c_/, ''));
+    const cleanTitle = (t) => (Utils.cleanTitle ? Utils.cleanTitle(t) : (t || '').trim());
+    const isRealTitle = (t, id) => (Utils.isRealTitle ? Utils.isRealTitle(t, id) : !!(t && String(t).trim().length > 1));
+    const resolveTitle = (chat) => (Utils.resolveTitle ? Utils.resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
+    const getEffectiveTime = (conv) => (Utils.getEffectiveTimestamp ? Utils.getEffectiveTimestamp(conv) : (conv ? ((typeof (conv.updatedAt || conv.timestamp || 0) === 'string') ? new Date(conv.updatedAt || conv.timestamp).getTime() : (conv.updatedAt || conv.timestamp || 0)) : 0));
 
     let __workbenchDebounceTimer = null;
     let __lastRenderedSignature = '';
@@ -174,14 +164,6 @@
             if (hasDirtyTitles && Storage) {
                 Storage.setConversations(slot, processed).catch(() => {});
             }
-
-            const getEffectiveTime = (typeof GeminiUtils !== 'undefined' && GeminiUtils.getEffectiveTimestamp)
-                ? GeminiUtils.getEffectiveTimestamp
-                : (conv) => {
-                    if (!conv) return 0;
-                    const raw = conv.updatedAt || conv.timestamp || conv.chatTime || conv.createdAt || 0;
-                    return typeof raw === 'string' ? new Date(raw).getTime() : (raw || 0);
-                };
 
             processed.sort((a, b) => {
                 let valA = getEffectiveTime(a);

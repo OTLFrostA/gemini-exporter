@@ -83,18 +83,7 @@
         if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
             return await TabService.getGeminiTab(slot);
         }
-        return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(tabs => {
-            if (!tabs.length) return null;
-            if (slot && slot !== 'u0') {
-                const slotNum = slot.replace('u', '');
-                const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
-                if (match) return match;
-            } else if (slot === 'u0') {
-                const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
-                if (defMatch) return defMatch;
-            }
-            return tabs.find(t => t.active) || tabs[0];
-        });
+        return chrome.tabs?.query({ url: 'https://gemini.google.com/*' }).then(tabs => tabs?.[0] || null);
     }
 
     class ExportEngine {
@@ -341,15 +330,6 @@
                 onItemExported(targetId, rec);
             }
 
-            const isRealTitle = (() => {
-                try {
-                    if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle;
-                    if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle;
-                    if (typeof globalThis !== 'undefined' && typeof globalThis.isRealTitle === 'function') return globalThis.isRealTitle;
-                } catch {}
-                return (t, id) => Boolean(t && typeof t === 'string' && t.trim().length >= 2 && t !== 'Untitled' && t !== '未命名');
-            })();
-
             const CONCURRENCY = 3;
             let nextIndex = 0;
             let completedCount = 0;
@@ -362,7 +342,7 @@
                     if (!requestedItem) break;
 
                     const nid = normId(requestedItem.id);
-                    let res = await new Promise(resolve => {
+                    let res = await new Promise(async (resolve) => {
                         let settled = false;
                         const onAbort = () => {
                             if (!settled) {
@@ -374,6 +354,37 @@
                             if (abortSignal.aborted) return onAbort();
                             abortSignal.addEventListener('abort', onAbort, { once: true });
                         }
+
+                        // Direct TabService communication first (eliminating Background relay hop)
+                        try {
+                            if (typeof TabService !== 'undefined' && TabService.sendToGeminiTab) {
+                                const directRes = await TabService.sendToGeminiTab({
+                                    action: 'getConversationDetail',
+                                    conversationId: nid,
+                                    accountSlot: currentSlot
+                                }, currentSlot);
+                                if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                                if (!settled) {
+                                    settled = true;
+                                    if (directRes && directRes.success) {
+                                        const chat = directRes.data || directRes.chat || directRes;
+                                        resolve({ success: true, results: [chat], skipped: 0 });
+                                        return;
+                                    } else if (directRes && directRes.error) {
+                                        resolve(directRes);
+                                        return;
+                                    }
+                                }
+                            }
+                        } catch (directErr) {
+                            if (String(directErr?.message || '').includes('aborted')) {
+                                if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                                if (!settled) { settled = true; resolve({ success: false, error: 'aborted' }); }
+                                return;
+                            }
+                        }
+
+                        // Fallback to runtime message if direct communication is unavailable
                         chrome.runtime.sendMessage({
                             action: 'fetchBatch',
                             ids: [requestedItem],
