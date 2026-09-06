@@ -11,8 +11,12 @@ test('dialogView - exports', () => {
     assert.ok(DialogView);
     assert.strictEqual(typeof DialogView.renderExportBanner, 'function');
     assert.strictEqual(typeof DialogView.dismissExportBanner, 'function');
+    assert.strictEqual(typeof DialogView.showDirectWritePrompt, 'function');
+    assert.strictEqual(typeof DialogView.hideDirectWritePrompt, 'function');
 });
 
 test('dialogView - render without DOM element does not crash', () => {
     DialogView.renderExportBanner(null, 'u0', false);
+    DialogView.showDirectWritePrompt(100, () => {}, () => {});
+    DialogView.hideDirectWritePrompt();
 });

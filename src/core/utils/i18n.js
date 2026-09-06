@@ -191,7 +191,12 @@
             tourBtnSkip: "跳过教程",
             tourHintClickButton: "💡 提示：直接点击上方高亮按钮即可自动进入下一步",
             tourHintSelectChat: "💡 提示：在列表中勾选任意对话即可自动进入下一步",
-            tourHintClickExport: "💡 提示：点击导出按钮即可开始导出并完成教程"
+            tourHintClickExport: "💡 提示：点击导出按钮即可开始导出并完成教程",
+            directWritePromptTitle: "💡 批量导出模式建议",
+            directWritePromptDesc: "检测到您当前勾选了 {0} 篇会话。由于大批量导出包含大量附件图片，在浏览器内存中打包 ZIP 可能会消耗较多资源；推荐切换至【本地目录直写】模式：每个会话与图片抓取后即刻写入电脑本地硬盘，零内存堆积，更加稳定安全。",
+            btnSwitchToFolder: "📁 选择本地目录并开始导出",
+            btnContinueZip: "继续使用 ZIP 导出",
+            rememberPromptChoice: "记住选择，今后大批量导出不再提示"
         },
         en: {
             extName: "Gemini Exporter",
@@ -373,7 +378,12 @@
             tourBtnSkip: "Skip Tour",
             tourHintClickButton: "💡 Tip: Click the highlighted button above to advance automatically",
             tourHintSelectChat: "💡 Tip: Check any conversation in the list to advance automatically",
-            tourHintClickExport: "💡 Tip: Click the Export button to start exporting and finish the tour"
+            tourHintClickExport: "💡 Tip: Click the Export button to start exporting and finish the tour",
+            directWritePromptTitle: "💡 Bulk Export Mode Suggestion",
+            directWritePromptDesc: "You have selected {0} conversations. Packaging a large batch into ZIP within browser memory can consume significant resources. We recommend switching to Folder Direct Write mode: files and images are written directly to your local disk with zero memory buildup.",
+            btnSwitchToFolder: "📁 Select Folder & Start Export",
+            btnContinueZip: "Continue with ZIP",
+            rememberPromptChoice: "Remember choice and do not show again"
         }
     };
 

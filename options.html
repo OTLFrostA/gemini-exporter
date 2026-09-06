@@ -272,6 +272,27 @@
   </div>
 </div>
 
+<!-- 大批量导出模式建议弹窗 (Direct Write Suggestion Modal) -->
+<div id="directWriteModal" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
+  <div style="background:var(--card); border:1px solid var(--border-focus); border-radius:14px; width:450px; max-width:92vw; padding:20px; box-shadow:0 12px 36px rgba(0,0,0,0.5); color:var(--text); display:flex; flex-direction:column; gap:14px; position:relative; box-sizing:border-box;">
+    <button id="btnDirectWriteClose" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px; line-height:1;" title="Close">✕</button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-size:15px; font-weight:700;" data-i18n="directWritePromptTitle">💡 批量导出模式建议</span>
+    </div>
+    <div id="directWritePromptText" style="font-size:13px; line-height:1.6; color:var(--muted);" data-i18n="directWritePromptDesc">
+      检测到您当前勾选了较多会话。由于大批量导出包含大量附件图片，在浏览器内存中打包 ZIP 可能会消耗较多资源；推荐切换至【本地目录直写】模式：每个会话与图片抓取后即刻写入电脑本地硬盘，零内存堆积，更加稳定安全。
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+      <button id="btnModalSwitchFolder" class="primary" style="height:36px; font-size:13px;" data-i18n="btnSwitchToFolder">📁 选择本地目录并开始导出</button>
+      <button id="btnModalContinueZip" class="ghost" style="height:36px; font-size:13px;" data-i18n="btnContinueZip">继续使用 ZIP 导出</button>
+    </div>
+    <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; margin-top:2px;">
+      <input type="checkbox" id="chkModalRemember" style="margin:0;">
+      <span data-i18n="rememberPromptChoice">记住选择，今后大批量导出不再提示</span>
+    </label>
+  </div>
+</div>
+
 <script src="/lib/jszip.min.js"></script>
 <script src="/src/core/utils/constants.js"></script>
 <script src="/src/core/utils/utils.js"></script>
