@@ -1,7 +1,7 @@
 const { test, expect } = require('./fixtures');
 
 test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () => {
-  test('should show suggestion modal when exporting >= 50 conversations and respect remember choice', async ({ context, extensionId }) => {
+  test('should show suggestion modal only once when exporting >= 50 conversations and never prompt again', async ({ context, extensionId }) => {
     const page = await context.newPage();
 
     // 1. Navigate to options page
@@ -49,26 +49,22 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
     await expect(page.locator('#btnModalSwitchFolder')).toBeVisible();
     await expect(page.locator('#btnModalContinueZip')).toBeVisible();
 
-    // 6. Test ESC closes the modal
-    await page.keyboard.press('Escape');
-    await expect(modal).toBeHidden();
-
-    // 7. Click Export again to reopen modal
-    await page.click('#btnExport');
-    await expect(modal).toBeVisible();
-
-    // 8. Check "Remember choice" checkbox and click "Continue with ZIP"
-    await page.check('#chkModalRemember');
+    // 6. Click "Continue with ZIP"
     await page.click('#btnModalContinueZip');
 
     // Modal should close immediately
     await expect(modal).toBeHidden();
 
-    // 9. Verify suppression flag is persisted in storage
+    // 7. Verify suppression flag is automatically persisted in storage
     const isSuppressed = await page.evaluate(async () => {
       const d = await chrome.storage.local.get('gemini_suppress_direct_write_prompt');
       return !!d.gemini_suppress_direct_write_prompt;
     });
     expect(isSuppressed).toBe(true);
+
+    // 8. Next time exporting >= 50 items, modal should NEVER appear again
+    await page.click('#btnExport');
+    await page.waitForTimeout(300);
+    await expect(modal).toBeHidden();
   });
 });

@@ -250,12 +250,12 @@
             } catch {}
 
             if (!isSuppressed) {
+                // 仅提示一次：展示的同时立即标记为已提示，杜绝后续重复打扰
+                try { await chrome.storage.local.set({ [suppressKey]: true }); } catch {}
+
                 Dialogs.showDirectWritePrompt(
                     selected.length,
-                    async (remember) => {
-                        if (remember) {
-                            try { await chrome.storage.local.set({ [suppressKey]: true }); } catch {}
-                        }
+                    async () => {
                         try {
                             let newHandle = null;
                             if (DirHandle) {
@@ -274,10 +274,7 @@
                             log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
                         }
                     },
-                    async (remember) => {
-                        if (remember) {
-                            try { await chrome.storage.local.set({ [suppressKey]: true }); } catch {}
-                        }
+                    async () => {
                         await startExportPipeline(selected, format, skip, includeIndex, includeAssets, true, null);
                     }
                 );
