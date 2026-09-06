@@ -202,7 +202,11 @@
             rememberPromptChoice: "记住选择，今后大批量导出不再提示",
             feedbackPrompt: "遇到问题或有新建议？",
             btnFeedback: "反馈",
-            btnFeedbackTip: "前往表单提交反馈或新功能建议"
+            btnFeedbackTip: "前往表单提交反馈或新功能建议",
+            takeoutLimitPromptTitle: "⚠️ 达到 Google 云端拉取上限",
+            takeoutLimitPromptDesc: "检测到已拉取约 {0} 条历史会话并触发 Google 官方接口限制（约 600 条）。Google 服务端游标链已达上限，无法通过网页在线加载更早历史。推荐使用 Google Takeout 导出完整官方归档包，并点击下方按钮一键导入全部历史数据与离线附件。",
+            btnModalImportTakeout: "📥 选择 Takeout ZIP 导入全部历史",
+            btnModalDismissTakeout: "我知道了"
         },
         en: {
             extName: "Gemini Exporter",
@@ -395,7 +399,11 @@
             rememberPromptChoice: "Remember choice and do not show again",
             feedbackPrompt: "Got questions or suggestions?",
             btnFeedback: "Feedback",
-            btnFeedbackTip: "Open form to submit feedback or feature requests"
+            btnFeedbackTip: "Open form to submit feedback or feature requests",
+            takeoutLimitPromptTitle: "⚠️ Reached Google Cloud History Limit",
+            takeoutLimitPromptDesc: "Detected that approximately {0} conversations were retrieved and reached Google's official API limit (~600 chats). Google's server cursor chain has hit its maximum, preventing further online fetching. We recommend exporting your full official archive via Google Takeout and clicking below to import all legacy conversations and offline assets losslessly.",
+            btnModalImportTakeout: "📥 Select Takeout ZIP to Import All",
+            btnModalDismissTakeout: "Got it"
         }
     };
 

@@ -42,16 +42,30 @@
                 if (onError) onError(new Error(err), errMsg);
                 return;
             }
+            const hitGoogleLimit = !!(
+                res?.hitGoogleLimit ||
+                res?.diagnostics?.hitGoogleLimit ||
+                (res?.diagnostics?.stopReason && (
+                    res.diagnostics.stopReason.includes('BardErrorInfo') ||
+                    res.diagnostics.stopReason.includes('服务端上限') ||
+                    res.diagnostics.stopReason.includes('1096')
+                )) ||
+                (res?.error && (
+                    String(res.error).includes('BardErrorInfo') ||
+                    String(res.error).includes('1096')
+                ))
+            );
+
             if (res && res.success) {
                 const count = res.count || res.total || 0;
                 const finishMsg = typeof I18n !== 'undefined' ? I18n.t(i18nKey, count) : fallbackMsgFn(count);
                 if (onLog) onLog(finishMsg, 'info');
-                if (onFinished) onFinished({ count, res, message: finishMsg });
+                if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });
             } else {
                 const err = (res && res.error) || '未知错误';
                 const errMsg = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `同步失败: ${err}`;
                 if (onLog) onLog(errMsg, 'error');
-                if (onError) onError(new Error(err), errMsg);
+                if (onError) onError(new Error(err), errMsg, { hitGoogleLimit, res });
             }
         });
     }

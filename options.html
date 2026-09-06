@@ -299,6 +299,23 @@
   </div>
 </div>
 
+<!-- Google 600条上限提示与 Takeout 导入建议弹窗 (Takeout Suggestion Modal on Google Limit) -->
+<div id="takeoutLimitModal" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
+  <div style="background:var(--card); border:1px solid var(--border-focus); border-radius:14px; width:480px; max-width:92vw; padding:20px; box-shadow:0 12px 36px rgba(0,0,0,0.5); color:var(--text); display:flex; flex-direction:column; gap:14px; position:relative; box-sizing:border-box;">
+    <button id="btnTakeoutLimitClose" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px; line-height:1;" title="Close">✕</button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-size:15px; font-weight:700;" data-i18n="takeoutLimitPromptTitle">⚠️ 达到 Google 云端拉取上限</span>
+    </div>
+    <div id="takeoutLimitPromptText" style="font-size:13px; line-height:1.6; color:var(--muted);" data-i18n="takeoutLimitPromptDesc">
+      检测到已拉取约 600 条历史会话并触发 Google 官方接口限制。Google 服务端游标链已达上限，无法通过网页在线加载更早历史。推荐使用 Google Takeout 导出完整官方归档包，并点击下方按钮一键导入全部历史数据与离线附件。
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+      <button id="btnModalImportTakeout" class="primary" style="height:36px; font-size:13px;" data-i18n="btnModalImportTakeout">📥 选择 Takeout ZIP 导入全部历史</button>
+      <button id="btnModalDismissTakeout" class="ghost" style="height:36px; font-size:13px;" data-i18n="btnModalDismissTakeout">我知道了</button>
+    </div>
+  </div>
+</div>
+
 <script src="/lib/jszip.min.js"></script>
 <script src="/src/core/utils/constants.js"></script>
 <script src="/src/core/utils/utils.js"></script>

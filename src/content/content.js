@@ -602,7 +602,10 @@
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
-                return { count: mergedLen, diagnostics: all.diagnostics };
+                return { count: mergedLen, diagnostics: all.diagnostics, hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit) };
+            }
+            if (all && all.diagnostics) {
+                return { count: 0, diagnostics: all.diagnostics, hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit) };
             }
         } catch (e) {
             console.debug('[Gemini Exporter] batch exec fail', e.message || e);
@@ -755,9 +758,15 @@
                         forceIncremental: msg.mode === 'incremental',
                         forceFull: msg.mode === 'full'
                     });
-                    sendResponse({ success: true, count: res?.count || 0, diagnostics: res?.diagnostics });
+                    sendResponse({
+                        success: true,
+                        count: res?.count || 0,
+                        diagnostics: res?.diagnostics,
+                        hitGoogleLimit: !!(res?.hitGoogleLimit || res?.diagnostics?.hitGoogleLimit)
+                    });
                 } catch (e) {
-                    sendResponse({ success: false, error: e.message });
+                    const isLimit = String(e?.message || e).includes('BardErrorInfo') || String(e?.message || e).includes('1096');
+                    sendResponse({ success: false, error: e.message, hitGoogleLimit: isLimit });
                 }
             })();
             return true;

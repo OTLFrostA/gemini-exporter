@@ -1,0 +1,102 @@
+const { test, expect } = require('./fixtures');
+
+test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
+  test('should display takeout suggestion modal with accurate count and close on dismiss', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const modal = page.locator('#takeoutLimitModal');
+    await expect(modal).toBeHidden();
+
+    // Trigger takeout limit prompt with count 620
+    await page.evaluate(() => {
+      if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
+        window.DialogView.showTakeoutLimitPrompt({ count: 620 });
+      }
+    });
+
+    await expect(modal).toBeVisible();
+    await expect(page.locator('#takeoutLimitPromptText')).toContainText('620');
+    await expect(page.locator('#btnModalImportTakeout')).toBeVisible();
+    await expect(page.locator('#btnModalDismissTakeout')).toBeVisible();
+
+    // Click "我知道了" to dismiss
+    await page.click('#btnModalDismissTakeout');
+    await expect(modal).toBeHidden();
+  });
+
+  test('should trigger takeout file input click when clicking import button', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const modal = page.locator('#takeoutLimitModal');
+
+    // Monitor takeoutFileInput clicks
+    await page.evaluate(() => {
+      window.__takeoutClicked = false;
+      const fileInput = document.getElementById('takeoutFileInput');
+      if (fileInput) {
+        fileInput.addEventListener('click', (e) => {
+          e.preventDefault(); // Prevent opening system dialog during automated test
+          window.__takeoutClicked = true;
+        });
+      }
+      window.DialogView.showTakeoutLimitPrompt({ count: 650 });
+    });
+
+    await expect(modal).toBeVisible();
+
+    // Click "📥 选择 Takeout ZIP 导入全部历史"
+    await page.click('#btnModalImportTakeout');
+    await expect(modal).toBeHidden();
+
+    const clicked = await page.evaluate(() => window.__takeoutClicked);
+    expect(clicked).toBe(true);
+  });
+
+  test('should automatically show modal when deep scan completes with hitGoogleLimit', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const modal = page.locator('#takeoutLimitModal');
+    await expect(modal).toBeHidden();
+
+    // Mock chrome.runtime.sendMessage to simulate deepScan returning hitGoogleLimit = true
+    await page.evaluate(() => {
+      const origSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
+      chrome.runtime.sendMessage = function(msg, callback) {
+        if (msg && msg.action === 'deepScan') {
+          setTimeout(() => {
+            if (callback) {
+              callback({
+                success: true,
+                count: 615,
+                hitGoogleLimit: true,
+                diagnostics: {
+                  stopReason: 'Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)',
+                  hitGoogleLimit: true
+                }
+              });
+            }
+          }, 50);
+          return true;
+        }
+        return origSendMessage(msg, callback);
+      };
+    });
+
+    // Click full deep scan button
+    await page.click('#btnDeepScan');
+
+    // Verify modal automatically appears with 615 count
+    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#takeoutLimitPromptText')).toContainText('615');
+
+    // Close via close button ✕
+    await page.click('#btnTakeoutLimitClose');
+    await expect(modal).toBeHidden();
+  });
+});

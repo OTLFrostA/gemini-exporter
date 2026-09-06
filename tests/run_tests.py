@@ -90,7 +90,7 @@ def test_module_exports():
         "src/ui/views/listView.js": ["render", "updateStat", "getSelected", "selectAll", "deselectAll", "selectUnexported", "selectNeedsUpdate", "setOnDelete"],
         "src/ui/views/logView.js": ["init", "log", "clear", "render", "getBuffer"],
         "src/ui/views/accountView.js": ["render", "bindChange"],
-        "src/ui/views/dialogView.js": ["renderExportBanner", "dismissExportBanner", "showDirectWritePrompt", "hideDirectWritePrompt"],
+        "src/ui/views/dialogView.js": ["renderExportBanner", "dismissExportBanner", "showDirectWritePrompt", "hideDirectWritePrompt", "showTakeoutLimitPrompt", "hideTakeoutLimitPrompt"],
         "src/ui/controllers/dirHandleController.js": ["getStoredDirHandle", "saveStoredDirHandle", "requestDirHandle"],
         "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],

@@ -133,10 +133,74 @@
         if (modal) modal.style.display = 'none';
     }
 
+    function showTakeoutLimitPrompt(options = {}) {
+        const modal = $('takeoutLimitModal');
+        const textEl = $('takeoutLimitPromptText');
+        const btnImport = $('btnModalImportTakeout');
+        const btnDismiss = $('btnModalDismissTakeout');
+        const btnClose = $('btnTakeoutLimitClose');
+        if (!modal) return;
+
+        const count = options.count || 600;
+        const onImportTakeout = options.onImportTakeout;
+
+        if (textEl && typeof I18n !== 'undefined' && I18n.t) {
+            textEl.textContent = I18n.t('takeoutLimitPromptDesc', count);
+        }
+
+        modal.style.display = 'flex';
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            if (typeof window !== 'undefined') window.removeEventListener('keydown', onKey);
+            if (btnImport) btnImport.onclick = null;
+            if (btnDismiss) btnDismiss.onclick = null;
+            if (btnClose) btnClose.onclick = null;
+        };
+
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+            }
+        };
+        if (typeof window !== 'undefined') window.addEventListener('keydown', onKey);
+
+        if (btnClose) {
+            btnClose.onclick = () => {
+                cleanup();
+            };
+        }
+
+        if (btnDismiss) {
+            btnDismiss.onclick = () => {
+                cleanup();
+            };
+        }
+
+        if (btnImport) {
+            btnImport.onclick = () => {
+                cleanup();
+                if (onImportTakeout) {
+                    onImportTakeout();
+                } else {
+                    const input = $('takeoutFileInput');
+                    if (input) input.click();
+                }
+            };
+        }
+    }
+
+    function hideTakeoutLimitPrompt() {
+        const modal = $('takeoutLimitModal');
+        if (modal) modal.style.display = 'none';
+    }
+
     return {
         renderExportBanner,
         dismissExportBanner,
         showDirectWritePrompt,
-        hideDirectWritePrompt
+        hideDirectWritePrompt,
+        showTakeoutLimitPrompt,
+        hideTakeoutLimitPrompt
     };
 }));

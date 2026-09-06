@@ -716,7 +716,7 @@
                         if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
                     },
                     onLog: (txt, lvl) => log(txt, lvl),
-                    onFinished: ({ message }) => {
+                    onFinished: ({ message, res, count, hitGoogleLimit }) => {
                         if (bar) bar.style.width = '100%';
                         if (progText) progText.textContent = message;
                         setTimeout(() => {
@@ -725,9 +725,25 @@
                             if (progText) progText.textContent = '';
                         }, 2500);
                         loadStore();
+                        if (hitGoogleLimit) {
+                            if (DialogView && DialogView.showTakeoutLimitPrompt) {
+                                DialogView.showTakeoutLimitPrompt({
+                                    count: count || res?.count || 600,
+                                    onImportTakeout: () => $('takeoutFileInput')?.click()
+                                });
+                            }
+                        }
                     },
-                    onError: (err, errMsg) => {
+                    onError: (err, errMsg, details) => {
                         if (progText) progText.textContent = errMsg;
+                        if (details?.hitGoogleLimit) {
+                            if (DialogView && DialogView.showTakeoutLimitPrompt) {
+                                DialogView.showTakeoutLimitPrompt({
+                                    count: 600,
+                                    onImportTakeout: () => $('takeoutFileInput')?.click()
+                                });
+                            }
+                        }
                     }
                 });
             }
