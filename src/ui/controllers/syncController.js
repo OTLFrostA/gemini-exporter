@@ -27,24 +27,24 @@
         if ($('btnClearAll')) $('btnClearAll').disabled = !!running;
     }
 
-    function startIncrementalScan(slot, { onStart, onProgress, onLog, onFinished, onError } = {}) {
+    function _runScan(mode, slot, { onStart, onProgress, onLog, onFinished, onError } = {}, i18nKey, fallbackMsgFn) {
         if (scanRunning) return;
         setScanRunning(true);
         if (onStart) onStart();
 
-        chrome.runtime.sendMessage({ action: 'deepScan', mode: 'incremental', accountSlot: slot || 'u0' }, (res) => {
+        chrome.runtime.sendMessage({ action: 'deepScan', mode, accountSlot: slot || 'u0' }, (res) => {
             setScanRunning(false);
 
             if (chrome.runtime.lastError) {
                 const err = chrome.runtime.lastError.message;
-                const errMsg = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `增量同步失败: ${err}`;
+                const errMsg = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `同步失败: ${err}`;
                 if (onLog) onLog(errMsg, 'error');
                 if (onError) onError(new Error(err), errMsg);
                 return;
             }
             if (res && res.success) {
                 const count = res.count || res.total || 0;
-                const finishMsg = typeof I18n !== 'undefined' ? I18n.t('syncFinished', count) : `增量同步完成，共 ${count} 条`;
+                const finishMsg = typeof I18n !== 'undefined' ? I18n.t(i18nKey, count) : fallbackMsgFn(count);
                 if (onLog) onLog(finishMsg, 'info');
                 if (onFinished) onFinished({ count, res, message: finishMsg });
             } else {
@@ -56,33 +56,12 @@
         });
     }
 
-    function startDeepScan(slot, { onStart, onProgress, onLog, onFinished, onError } = {}) {
-        if (scanRunning) return;
-        setScanRunning(true);
-        if (onStart) onStart();
+    function startIncrementalScan(slot, callbacks = {}) {
+        _runScan('incremental', slot, callbacks, 'syncFinished', count => `增量同步完成，共 ${count} 条`);
+    }
 
-        chrome.runtime.sendMessage({ action: 'deepScan', mode: 'full', accountSlot: slot || 'u0' }, (res) => {
-            setScanRunning(false);
-
-            if (chrome.runtime.lastError) {
-                const err = chrome.runtime.lastError.message;
-                const errMsg = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量扫描失败: ${err}`;
-                if (onLog) onLog(errMsg, 'error');
-                if (onError) onError(new Error(err), errMsg);
-                return;
-            }
-            if (res && res.success) {
-                const count = res.count || res.total || 0;
-                const finishMsg = typeof I18n !== 'undefined' ? I18n.t('deepSyncFinished', count) : `全量拉取完成，共 ${count} 条`;
-                if (onLog) onLog(finishMsg, 'info');
-                if (onFinished) onFinished({ count, res, message: finishMsg });
-            } else {
-                const err = (res && res.error) || '未知错误';
-                const errMsg = typeof I18n !== 'undefined' ? I18n.t('syncFailed', err) : `全量拉取失败: ${err}`;
-                if (onLog) onLog(errMsg, 'error');
-                if (onError) onError(new Error(err), errMsg);
-            }
-        });
+    function startDeepScan(slot, callbacks = {}) {
+        _runScan('full', slot, callbacks, 'deepSyncFinished', count => `全量拉取完成，共 ${count} 条`);
     }
 
     function stopScan(slot, { onStopped, onLog } = {}) {
