@@ -78,8 +78,70 @@
         } catch {}
     }
 
+    function showDirectWritePrompt(count, onConfirmFolder, onContinueZip) {
+        const modal = $('directWriteModal');
+        const textEl = $('directWritePromptText');
+        const btnFolder = $('btnModalSwitchFolder');
+        const btnZip = $('btnModalContinueZip');
+        const btnClose = $('btnDirectWriteClose');
+        const chkRemember = $('chkModalRemember');
+        if (!modal) return;
+
+        if (chkRemember) chkRemember.checked = false;
+
+        if (textEl && typeof I18n !== 'undefined' && I18n.t) {
+            textEl.textContent = I18n.t('directWritePromptDesc', count);
+        }
+
+        modal.style.display = 'flex';
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            if (typeof window !== 'undefined') window.removeEventListener('keydown', onKey);
+            if (btnFolder) btnFolder.onclick = null;
+            if (btnZip) btnZip.onclick = null;
+            if (btnClose) btnClose.onclick = null;
+        };
+
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+            }
+        };
+        if (typeof window !== 'undefined') window.addEventListener('keydown', onKey);
+
+        if (btnClose) {
+            btnClose.onclick = () => {
+                cleanup();
+            };
+        }
+
+        if (btnFolder) {
+            btnFolder.onclick = () => {
+                const remember = !!chkRemember?.checked;
+                cleanup();
+                if (onConfirmFolder) onConfirmFolder(remember);
+            };
+        }
+
+        if (btnZip) {
+            btnZip.onclick = () => {
+                const remember = !!chkRemember?.checked;
+                cleanup();
+                if (onContinueZip) onContinueZip(remember);
+            };
+        }
+    }
+
+    function hideDirectWritePrompt() {
+        const modal = $('directWriteModal');
+        if (modal) modal.style.display = 'none';
+    }
+
     return {
         renderExportBanner,
-        dismissExportBanner
+        dismissExportBanner,
+        showDirectWritePrompt,
+        hideDirectWritePrompt
     };
 }));

@@ -240,9 +240,59 @@
         const includeZip = $('includeZip') ? $('includeZip').checked : true;
         const dirHandle = DirHandle ? DirHandle.getDirHandle() : null;
 
+        const threshold = (typeof GeminiConstants !== 'undefined' && GeminiConstants.DIRECT_WRITE_THRESHOLD) ? GeminiConstants.DIRECT_WRITE_THRESHOLD : 50;
+        if (includeZip && !dirHandle && selected.length >= threshold && Dialogs && Dialogs.showDirectWritePrompt) {
+            const suppressKey = (typeof GeminiConstants !== 'undefined' && GeminiConstants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
+            let isSuppressed = false;
+            try {
+                const d = await chrome.storage.local.get([suppressKey]);
+                isSuppressed = !!d[suppressKey];
+            } catch {}
+
+            if (!isSuppressed) {
+                Dialogs.showDirectWritePrompt(
+                    selected.length,
+                    async (remember) => {
+                        if (remember) {
+                            try { await chrome.storage.local.set({ [suppressKey]: true }); } catch {}
+                        }
+                        try {
+                            let newHandle = null;
+                            if (DirHandle) {
+                                newHandle = await DirHandle.requestDirHandle();
+                                const dirLabel = $('dirLabel');
+                                if (dirLabel) dirLabel.textContent = typeof I18n !== 'undefined' ? I18n.t('dirCurrent', newHandle.name) : `已选目录: ${newHandle.name}`;
+                                log(typeof I18n !== 'undefined' ? I18n.t('logFolderSelected', newHandle.name) : `已选择保存目录: ${newHandle.name}`);
+                            }
+                            if (zipCheck) {
+                                zipCheck.checked = false;
+                                updateZipUi();
+                                try { await chrome.storage.local.set({ gemini_export_zip: false }); } catch {}
+                            }
+                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
+                        } catch (err) {
+                            log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
+                        }
+                    },
+                    async (remember) => {
+                        if (remember) {
+                            try { await chrome.storage.local.set({ [suppressKey]: true }); } catch {}
+                        }
+                        await startExportPipeline(selected, format, skip, includeIndex, includeAssets, true, null);
+                    }
+                );
+                return;
+            }
+        }
+
+        await startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle);
+    }
+
+    async function startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle) {
+        const convs = Store ? Store.getConversations() : [];
         if (!includeZip && !dirHandle) {
             try {
-                if (DirHandle) await DirHandle.requestDirHandle();
+                if (DirHandle) dirHandle = await DirHandle.requestDirHandle();
             } catch (err) {
                 log(typeof I18n !== 'undefined' ? I18n.t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
                 return;

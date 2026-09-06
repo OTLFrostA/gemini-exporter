@@ -6,10 +6,12 @@
     'use strict';
     const ALLOWED_FORMATS = ['markdown', 'json_openai', 'json', 'json_raw'];
     const DEFAULT_FORMAT = 'markdown';
+    const DIRECT_WRITE_THRESHOLD = 50;
     const STORAGE_KEYS = {
         FORMAT: 'gemini_export_format',
         ZIP: 'gemini_export_zip',
-        DEV_MODE: 'gemini_dev_mode'
+        DEV_MODE: 'gemini_dev_mode',
+        SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt'
     };
-    return { ALLOWED_FORMATS, DEFAULT_FORMAT, STORAGE_KEYS };
+    return { ALLOWED_FORMATS, DEFAULT_FORMAT, DIRECT_WRITE_THRESHOLD, STORAGE_KEYS };
 }));
