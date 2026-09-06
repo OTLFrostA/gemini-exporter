@@ -77,5 +77,24 @@ test.describe('Workbench UI & Selection Controls', () => {
     // Selection must still remain exactly 1 item (chat_002)
     expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
     expect(await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').isChecked()).toBe(true);
+
+    // 8. Test Feedback Box & Link
+    const feedbackBox = page.locator('#feedbackBox');
+    await expect(feedbackBox).toBeVisible();
+    const btnFeedback = page.locator('#btnFeedback');
+    await expect(btnFeedback).toBeVisible();
+    await expect(btnFeedback).toHaveAttribute('href', 'https://tally.so/r/Y56ZBB');
+    await expect(btnFeedback).toHaveAttribute('target', '_blank');
+    await expect(btnFeedback).toContainText('反馈');
+
+    // Switch to English and check feedback text
+    await page.click('#labelLangEn');
+    await expect(btnFeedback).toContainText('Feedback');
+    await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('Got questions or suggestions?');
+
+    // Switch back to Chinese
+    await page.click('#labelLangZh');
+    await expect(btnFeedback).toContainText('反馈');
+    await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('遇到问题或有新建议？');
   });
 });

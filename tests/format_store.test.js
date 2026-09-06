@@ -49,3 +49,7 @@ test('formatStore - validateAgainstSelect', () => {
     assert.strictEqual(FormatStore.validateAgainstSelect('json_raw', mockSelect), false);
     assert.strictEqual(FormatStore.validateAgainstSelect('markdown', null), true);
 });
+
+test('constants - FEEDBACK_URL is configured', () => {
+    assert.strictEqual(Constants.FEEDBACK_URL, 'https://tally.so/r/Y56ZBB');
+});

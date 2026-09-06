@@ -196,7 +196,10 @@
             directWritePromptDesc: "检测到您当前勾选了 {0} 篇会话。由于大批量导出包含大量附件图片，在浏览器内存中打包 ZIP 可能会消耗较多资源；推荐切换至【本地目录直写】模式：每个会话与图片抓取后即刻写入电脑本地硬盘，零内存堆积，更加稳定安全。",
             btnSwitchToFolder: "📁 选择本地目录并开始导出",
             btnContinueZip: "继续使用 ZIP 导出",
-            rememberPromptChoice: "记住选择，今后大批量导出不再提示"
+            rememberPromptChoice: "记住选择，今后大批量导出不再提示",
+            feedbackPrompt: "遇到问题或有新建议？",
+            btnFeedback: "反馈",
+            btnFeedbackTip: "前往表单提交反馈或新功能建议"
         },
         en: {
             extName: "Gemini Exporter",
@@ -383,7 +386,10 @@
             directWritePromptDesc: "You have selected {0} conversations. Packaging a large batch into ZIP within browser memory can consume significant resources. We recommend switching to Folder Direct Write mode: files and images are written directly to your local disk with zero memory buildup.",
             btnSwitchToFolder: "📁 Select Folder & Start Export",
             btnContinueZip: "Continue with ZIP",
-            rememberPromptChoice: "Remember choice and do not show again"
+            rememberPromptChoice: "Remember choice and do not show again",
+            feedbackPrompt: "Got questions or suggestions?",
+            btnFeedback: "Feedback",
+            btnFeedbackTip: "Open form to submit feedback or feature requests"
         }
     };
 
