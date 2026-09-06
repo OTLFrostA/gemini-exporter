@@ -14,6 +14,11 @@
     const Storage = (typeof StorageService !== 'undefined') ? StorageService : (window.StorageService || null);
     const Scraper = (typeof DomScraper !== 'undefined') ? DomScraper : (window.DomScraper || null);
     const Assets = (typeof AssetFetcher !== 'undefined') ? AssetFetcher : (window.AssetFetcher || null);
+    const Utils = (typeof GeminiUtils !== 'undefined') ? GeminiUtils : (window.GeminiUtils || {});
+    const cleanTitle = (t) => (Utils.cleanTitle ? Utils.cleanTitle(t) : (t || '').trim());
+    const isRealTitle = (t, id) => (Utils.isRealTitle ? Utils.isRealTitle(t, id) : !!(t && String(t).trim().length > 1));
+    const resolveTitle = (chat) => (Utils.resolveTitle ? Utils.resolveTitle(chat) : { title: chat?.title || '未命名对话', source: 'default' });
+    const setTitleBySource = (it, src, val) => (Utils.setTitleBySource ? Utils.setTitleBySource(it, src, val) : ((it.titles = it.titles || {})[src] = val));
 
     function getAccountSlot() {
         const m = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
@@ -89,7 +94,6 @@
             }
         } catch {}
     }
-    const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
 
     function extractActiveChatTitle(activeId) {
         if (!activeId) return null;
@@ -248,18 +252,6 @@
             console.warn('[Gemini Exporter] updateBadge err', e);
         }
     }
-
-    const isRealTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle)
-        ? GeminiUtils.isRealTitle
-        : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.isRealTitle)
-            ? globalThis.GeminiUtils.isRealTitle
-            : (t, id) => !!(t && String(t).trim().length > 1));
-
-    const resolveTitle = (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle)
-        ? GeminiUtils.resolveTitle
-        : ((typeof globalThis.GeminiUtils !== 'undefined' && globalThis.GeminiUtils.resolveTitle)
-            ? globalThis.GeminiUtils.resolveTitle
-            : (chat) => ({ title: chat?.title || '未命名对话', source: 'default' }));
 
     let __storageWriteQueue = Promise.resolve();
 
@@ -711,16 +703,7 @@
                             const list = await Storage.getConversations(slot);
                             const item = list.find(c => normId(c.id) === nid);
                             if (item) {
-                                const setTitleBySourceFn = (typeof GeminiUtils !== 'undefined' && GeminiUtils.setTitleBySource)
-                                    ? GeminiUtils.setTitleBySource
-                                    : (it, src, val) => {
-                                        it.titles = it.titles || {};
-                                        it.titles[src] = val;
-                                        const res = resolveTitle(it);
-                                        it.title = res.title;
-                                        it.titleSource = res.source;
-                                    };
-                                setTitleBySourceFn(item, detectedSource, chatObj.title);
+                                setTitleBySource(item, detectedSource, chatObj.title);
                                 await Storage.setConversations(slot, list);
                             }
                         }
