@@ -381,7 +381,7 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
             time.sleep(0.5)
 
         # -------------------------------------------------------------
-        # Step 1 校验：连接引导 (1 / 4) 或已由动态连接自动推进至 (2 / 4)
+        # Step 1 校验：连接引导 (1 / 5) 或已由动态连接自动推进至 (2 / 5)
         # -------------------------------------------------------------
         step1_info = cdp.eval("""
         (() => {
@@ -392,10 +392,10 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         """)
         current_step_num = step1_info.get("step", 0)
         if current_step_num == 0:
-            if "1 / 4" not in step1_info.get("badge", ""):
+            if "1 / 5" not in step1_info.get("badge", "") and "1 / 4" not in step1_info.get("badge", ""):
                 print(f"❌ 向导 Step 1 校验失败: {step1_info}")
                 return False
-            print("   ✓ [向导 1/4] 连接就绪步骤校验通过，点击前进...")
+            print("   ✓ [向导 1/5] 连接就绪步骤校验通过，点击前进...")
 
             cdp.eval("""
             (() => {
@@ -406,13 +406,13 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
             """)
             time.sleep(0.5)
         elif current_step_num == 1:
-            print("   ✓ [向导 1/4 ➔ 2/4] 检测到已连接 Gemini 页面，向导已自适应智能推进至 Step 2！")
+            print("   ✓ [向导 1/5 ➔ 2/5] 检测到已连接 Gemini 页面，向导已自适应智能推进至 Step 2！")
         else:
             print(f"❌ 向导步骤异常: {step1_info}")
             return False
 
         # -------------------------------------------------------------
-        # Step 2 校验：扫描同步引导 (2 / 4) 并触发 #btnIncrementalScan
+        # Step 2 校验：扫描同步引导 (2 / 5) 并触发 #btnIncrementalScan
         # -------------------------------------------------------------
         step2_info = cdp.eval("""
         (() => {
@@ -421,10 +421,10 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
             return { badge, step };
         })()
         """)
-        if "2 / 4" not in step2_info.get("badge", ""):
+        if "2 / 5" not in step2_info.get("badge", "") and "2 / 4" not in step2_info.get("badge", ""):
             print(f"❌ 向导 Step 2 校验失败: {step2_info}")
             return False
-        print("   ✓ [向导 2/4] 扫描同步步骤已就绪，触发 #btnIncrementalScan 动作推进...")
+        print("   ✓ [向导 2/5] 扫描同步步骤已就绪，触发 #btnIncrementalScan 动作推进...")
 
         cdp.eval("""
         (() => {
@@ -443,10 +443,10 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         if not step3_advanced:
             print("❌ 点击 #btnIncrementalScan 后未能在超时前自动推进至 Step 3")
             return False
-        print("   ✓ [向导 3/4] 行为驱动自动推进至选择会话步骤！")
+        print("   ✓ [向导 3/5] 行为驱动自动推进至选择会话步骤！")
 
         # -------------------------------------------------------------
-        # Step 3 校验：会话勾选推进 (3 / 4) -> 模拟选择并推进
+        # Step 3 校验：会话勾选推进 (3 / 5) -> 模拟选择并推进
         # -------------------------------------------------------------
         cdp.eval("""
         (() => {
@@ -471,16 +471,39 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         if not step4_advanced:
             print("❌ 勾选会话后未能在超时前自动推进至 Step 4")
             return False
-        print("   ✓ [向导 4/4] 行为驱动自动推进至导出步骤！")
+        print("   ✓ [向导 4/5] 行为驱动自动推进至导出步骤！")
 
         # -------------------------------------------------------------
-        # Step 4 校验：点击完成向导
+        # Step 4 校验：导出步骤 -> 点击下一步推进至 Step 5 (反馈引导)
         # -------------------------------------------------------------
         cdp.eval("""
         (() => {
             const nextBtn = document.getElementById('tourNextBtn');
             if (nextBtn) nextBtn.click();
-            else if (window.TourGuide) window.TourGuide.completeTour();
+            else if (window.TourGuide) window.TourGuide.nextStep();
+        })()
+        """)
+
+        step5_advanced = False
+        for _ in range(25):
+            time.sleep(0.15)
+            cur_step = cdp.eval("window.TourGuide ? window.TourGuide.getCurrentStep() : -1")
+            if cur_step == 4:
+                step5_advanced = True
+                break
+        if not step5_advanced:
+            print("❌ 点击下一步后未能在超时前推进至 Step 5 (反馈引导)")
+            return False
+        print("   ✓ [向导 5/5] 推进至产品反馈与持续迭代步骤！")
+
+        # -------------------------------------------------------------
+        # Step 5 校验：点击完成向导
+        # -------------------------------------------------------------
+        cdp.eval("""
+        (() => {
+            const nextBtn = document.getElementById('tourNextBtn');
+            if (nextBtn) nextBtn.click();
+            else if (window.TourGuide) window.TourGuide.finishTour();
         })()
         """)
         time.sleep(0.5)
@@ -508,7 +531,7 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
 
         # 清理 URL 参数并保持页面就绪
         cdp.eval("history.replaceState(null, '', 'options.html');")
-        print("   🎉 新手向导 4 步交互与持久化状态断言 100% 通过！")
+        print("   🎉 新手向导 5 步交互与持久化状态断言 100% 通过！")
         return True
     finally:
         cdp.close()
@@ -774,6 +797,19 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     # 检查 Gemini 页面并在重装后第一时间刷新以注入最新 Content Scripts
     tabs = get_tabs(port)
     gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+    if not gemini_tab and not skip_chat:
+        print("   🌐 未在 Chrome 中检测到打开的 gemini.google.com 页面，尝试通过 CDP 自动拉起...")
+        try:
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/json/new?https://gemini.google.com/app", method="PUT")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                new_tab = json.loads(resp.read().decode())
+                print(f"   ✓ 已成功通过 CDP 自动创建 Gemini 标签页 (ID: {new_tab.get('id', '')[:8]}...)")
+                time.sleep(3.0)
+                tabs = get_tabs(port)
+                gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+        except Exception as e:
+            print(f"   ⚠️ 自动打开 Gemini 页面异常: {e}")
+
     if not gemini_tab and not skip_chat:
         print("❌ 未在 Chrome 中找到打开的 gemini.google.com 页面")
         print("💡 请先启动测试浏览器: ./scripts/open_test_chrome.sh")

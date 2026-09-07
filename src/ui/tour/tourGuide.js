@@ -65,6 +65,7 @@
         {
             id: 'connect',
             getTarget: () => document.getElementById('accountSlotSelect') || document.querySelector('header h1') || null,
+            placement: 'bottom',
             titleKey: 'tourStep1Title',
             isDynamicConnect: true,
             setupAction: (advance) => {
@@ -81,6 +82,7 @@
         {
             id: 'sync',
             getTarget: () => document.getElementById('btnIncrementalScan') || null,
+            placement: 'bottom',
             titleKey: 'tourStep2Title',
             descKey: 'tourStep2Desc',
             hintKey: 'tourHintClickButton',
@@ -107,6 +109,7 @@
                 const firstCheckbox = document.querySelector('#list .item input[type=checkbox]');
                 return firstCheckbox ? firstCheckbox.closest('.item') : document.getElementById('btnSelectAll');
             },
+            placement: 'left',
             titleKey: 'tourStep3Title',
             descKey: 'tourStep3Desc',
             hintKey: 'tourHintSelectChat',
@@ -140,6 +143,7 @@
         {
             id: 'export',
             getTarget: () => document.getElementById('btnExport') || null,
+            placement: 'right',
             titleKey: 'tourStep4Title',
             descKey: 'tourStep4Desc',
             hintKey: 'tourHintClickExport',
@@ -155,6 +159,7 @@
         {
             id: 'feedback',
             getTarget: () => document.getElementById('feedbackBox') || document.getElementById('btnFeedback') || null,
+            placement: 'right',
             titleKey: 'tourStep5Title',
             descKey: 'tourStep5Desc',
             hintKey: 'tourHintClickFeedback',
@@ -252,15 +257,85 @@
                 target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
 
-            // Position popover
-            const popoverWidth = 360;
-            const popoverHeight = 220; // approximate
-            let popTop = rect.bottom + 14;
-            let popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+            // Real measured popover dimensions
+            const popoverWidth = popoverEl.offsetWidth || 360;
+            const popoverHeight = popoverEl.offsetHeight || 240;
+            const gap = 16;
+            const placement = step.placement || 'bottom';
 
-            // Flip above if overflowing bottom
-            if (popTop + popoverHeight > window.innerHeight && rect.top > popoverHeight + 20) {
-                popTop = Math.max(16, rect.top - popoverHeight - 14);
+            let popTop = 0;
+            let popLeft = 0;
+
+            if (placement === 'right') {
+                popLeft = rect.right + gap;
+                popTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - popoverHeight - 16));
+                // Fallback to top or bottom if screen too narrow on the right
+                if (popLeft + popoverWidth > window.innerWidth - 16) {
+                    popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+                    if (rect.top > popoverHeight + gap + 16) {
+                        popTop = rect.top - popoverHeight - gap;
+                    } else {
+                        popTop = rect.bottom + gap;
+                    }
+                }
+            } else if (placement === 'left') {
+                popLeft = rect.left - popoverWidth - gap;
+                popTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - popoverHeight - 16));
+                // Fallback if screen too narrow on the left: clamp inside viewport
+                if (popLeft < 16) {
+                    popLeft = 16;
+                    popTop = Math.max(16, Math.min(rect.top, window.innerHeight - popoverHeight - 16));
+                }
+            } else if (placement === 'top') {
+                popTop = rect.top - popoverHeight - gap;
+                popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+                if (popTop < 16) {
+                    popTop = rect.bottom + gap;
+                }
+            } else {
+                // Default 'bottom'
+                popTop = rect.bottom + gap;
+                popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+                if (popTop + popoverHeight > window.innerHeight - 16) {
+                    popTop = Math.max(16, rect.top - popoverHeight - gap);
+                }
+            }
+
+            // Non-overlap safety verification:
+            // Ensure popover DOES NOT collide with target clickable area
+            const targetSafe = {
+                left: rect.left - pad,
+                top: rect.top - pad,
+                right: rect.right + pad,
+                bottom: rect.bottom + pad
+            };
+
+            const isOverlapping = !(
+                (popLeft + popoverWidth) <= targetSafe.left ||
+                popLeft >= targetSafe.right ||
+                (popTop + popoverHeight) <= targetSafe.top ||
+                popTop >= targetSafe.bottom
+            );
+
+            if (isOverlapping) {
+                const spaceRight = window.innerWidth - targetSafe.right - 16;
+                const spaceLeft = targetSafe.left - 16;
+                const spaceTop = targetSafe.top - 16;
+                const spaceBottom = window.innerHeight - targetSafe.bottom - 16;
+
+                if (spaceRight >= popoverWidth) {
+                    popLeft = targetSafe.right + gap;
+                    popTop = Math.max(16, Math.min(targetSafe.top, window.innerHeight - popoverHeight - 16));
+                } else if (spaceLeft >= popoverWidth) {
+                    popLeft = Math.max(16, targetSafe.left - popoverWidth - gap);
+                    popTop = Math.max(16, Math.min(targetSafe.top, window.innerHeight - popoverHeight - 16));
+                } else if (spaceTop >= popoverHeight) {
+                    popTop = Math.max(16, targetSafe.top - popoverHeight - gap);
+                    popLeft = Math.max(16, Math.min(targetSafe.left, window.innerWidth - popoverWidth - 16));
+                } else if (spaceBottom >= popoverHeight) {
+                    popTop = targetSafe.bottom + gap;
+                    popLeft = Math.max(16, Math.min(targetSafe.left, window.innerWidth - popoverWidth - 16));
+                }
             }
 
             popoverEl.style.top = `${popTop}px`;
