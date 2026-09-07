@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Gemini Exporter - Free Bulk Export All Chats",
+    "message": "Gemini Exporter - Bulk Export All Chats",
     "description": "The name of the extension."
   },
   "extDesc": {
-    "message": "Free bulk export all Google Gemini chats to Markdown (Obsidian/Notion), JSON or ZIP with images & attachments. 100% private & free.",
+    "message": "Bulk export Google Gemini chats to Markdown (Obsidian/Notion), JSON or ZIP with images & attachments. Private & client-side only.",
     "description": "The description of the extension."
   }
 }

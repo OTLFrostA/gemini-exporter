@@ -44,3 +44,12 @@ Chrome Web Store enforces a strict single-purpose policy requiring explicit just
 - **100% Client-Side Execution**: All parsing, image bundling, Markdown generation, and ZIP compression occur purely within the local browser sandbox.
 - **No Remote Telemetry**: Zero analytics, zero third-party tracking, zero external servers.
 - **No Credential Harvesting**: Never reads, stores, or transmits Google account passwords or authentication Cookies.
+
+---
+
+## 🏷️ Title & Promotional Assets Policy Compliance (Red Nickel Prevention)
+
+In compliance with Chrome Web Store Developer Program Policies (*Ensuring Responsible Marketing and Monetization - Impersonation and Intellectual Property*):
+- **No Ranking or Status Claims**: The extension name, description, and promotional assets (`store_assets/promo_marquee_1400x560.png`, `store_assets/promo_tile_440x280.png`) must NEVER contain promotional buzzwords, ranking claims, or deceptive status indicators such as `Free`, `100% Free`, `#1`, `Best`, `Top`, `New`, `Recommended`, or `Premium`.
+- **Factual & Feature-Oriented**: Titles and descriptions focus strictly on factual functionality (e.g., `Bulk Export All Chats`, `Client-Side • Unlimited • Offline`).
+
