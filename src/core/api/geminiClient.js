@@ -295,8 +295,7 @@
                     const isLimit = errMsg.includes('BardErrorInfo')
                         || errMsg.includes('1096')
                         || errMsg.includes('429')
-                        || /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(errMsg)
-                        || (!incremental && all.length >= 300);
+                        || /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(errMsg);
                     if (isLimit) {
                         diagLog.hitGoogleLimit = true;
                     }
@@ -362,10 +361,10 @@
                     }
                 }
                 if (!res.conversations || res.conversations.length === 0) {
-                    const isGoogleLimit = res?._debug?.bardError || res?._debug?.error === 'BARD_ERROR_INFO' || (!incremental && all.length >= 500);
+                    const isGoogleLimit = res?._debug?.bardError || res?._debug?.error === 'BARD_ERROR_INFO';
                     if (isGoogleLimit) {
                         diagLog.hitGoogleLimit = true;
-                        diagLog.stopReason = res?._debug?.bardError ? `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)` : `Google 服务端游标链到达上限 (~600条限制，共 ${all.length} 条)`;
+                        diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     } else {
                         diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                     }
@@ -381,12 +380,7 @@
                     batch: res.conversations
                 });
                 if (!res.nextPageToken) {
-                    if (!incremental && all.length >= 500) {
-                        diagLog.hitGoogleLimit = true;
-                        diagLog.stopReason = `Google 服务端游标链已到底 (~600条上限截断，共 ${all.length} 条)`;
-                    } else {
-                        diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
-                    }
+                    diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
                     reachedMax = false;
                     console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, hitGoogleLimit: ${diagLog.hitGoogleLimit}`);
                     break;
@@ -398,9 +392,8 @@
             if (reachedMax && maxPages > 0) {
                 diagLog.stopReason = `已达到最大页数限制 (${maxPages} 页)`;
             }
-            if (!incremental && all.length >= 500) {
-                diagLog.hitGoogleLimit = true;
-            }
+            // Note: If all.length >= 500 but no server-side error occurred, geminiClient marks normal completion.
+            // UI layer provides browsing window limit guidance to recommend Takeout when all.length >= 500.
             diagLog.totalConversations = all.length;
             diagLog.endTime = new Date().toISOString();
             return {

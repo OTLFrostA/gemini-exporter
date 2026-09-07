@@ -135,6 +135,7 @@
 
     async function showTakeoutLimitPrompt(options = {}) {
         const modal = $('takeoutLimitModal');
+        const titleEl = $('takeoutLimitPromptTitle');
         const textEl = $('takeoutLimitPromptText');
         const btnImport = $('btnModalImportTakeout');
         const btnOpenWeb = $('btnModalOpenTakeoutWeb');
@@ -165,10 +166,18 @@
         }
 
         const count = options.count || 600;
+        const hitGoogleLimit = !!options.hitGoogleLimit;
         const onImportTakeout = options.onImportTakeout;
 
+        if (titleEl && typeof I18n !== 'undefined' && I18n.t) {
+            titleEl.textContent = hitGoogleLimit
+                ? I18n.t('takeoutLimitPromptTitle')
+                : I18n.t('takeoutBrowsingLimitTitle');
+        }
         if (textEl && typeof I18n !== 'undefined' && I18n.t) {
-            textEl.textContent = I18n.t('takeoutLimitPromptDesc', count);
+            textEl.textContent = hitGoogleLimit
+                ? I18n.t('takeoutLimitPromptDesc', count)
+                : (I18n.t('takeoutBrowsingLimitDesc', count) || I18n.t('takeoutLimitPromptDesc', count));
         }
         if (btnOpenWeb && typeof I18n !== 'undefined' && I18n.t) {
             btnOpenWeb.textContent = I18n.t('btnModalOpenTakeoutWeb');

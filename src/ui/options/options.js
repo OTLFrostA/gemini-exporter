@@ -142,28 +142,33 @@
         }
     }
 
+    async function maybePromptTakeout(count, hitGoogleLimit = false) {
+        try {
+            const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
+                ? await StorageService.isTakeoutPromptCompleted()
+                : false;
+            const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
+                (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
+            if (!isCompleted && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
+                DialogView.showTakeoutLimitPrompt({
+                    count: count || 600,
+                    hitGoogleLimit: !!hitGoogleLimit,
+                    onImportTakeout: () => $('takeoutFileInput')?.click()
+                });
+            }
+        } catch (e) {
+            console.debug('[workbench] maybePromptTakeout error', e);
+        }
+    }
+
     async function checkPendingTakeoutPrompt() {
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
-                    ? await StorageService.isTakeoutPromptCompleted()
-                    : false;
-                const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
-                    (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
-                if (isCompleted || hasTakeout) {
-                    await chrome.storage.local.remove('gemini_pending_takeout_prompt');
-                    return;
-                }
                 const data = await chrome.storage.local.get(['gemini_pending_takeout_prompt']);
                 if (data && data.gemini_pending_takeout_prompt) {
                     const info = data.gemini_pending_takeout_prompt;
                     await chrome.storage.local.remove('gemini_pending_takeout_prompt');
-                    if (DialogView && DialogView.showTakeoutLimitPrompt) {
-                        DialogView.showTakeoutLimitPrompt({
-                            count: info.count || 600,
-                            onImportTakeout: () => $('takeoutFileInput')?.click()
-                        });
-                    }
+                    await maybePromptTakeout(info.count || 600, !!info.hitGoogleLimit);
                 }
             }
         } catch (e) {
@@ -699,17 +704,7 @@
                         const currentCount = count || res?.count || (Store && Store.getAllConversations ? Store.getAllConversations().length : 0);
                         const isLimit = hitGoogleLimit || (currentCount >= 500);
                         if (isLimit) {
-                            const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
-                                ? await StorageService.isTakeoutPromptCompleted()
-                                : false;
-                            const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
-                                (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
-                            if (!isCompleted && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
-                                DialogView.showTakeoutLimitPrompt({
-                                    count: currentCount || 600,
-                                    onImportTakeout: () => $('takeoutFileInput')?.click()
-                                });
-                            }
+                            await maybePromptTakeout(currentCount, !!hitGoogleLimit);
                         }
                     },
                     onError: async (err, errMsg, details) => {
@@ -717,17 +712,7 @@
                         const currentCount = (Store && Store.getAllConversations) ? Store.getAllConversations().length : 0;
                         const isLimit = details?.hitGoogleLimit || (currentCount >= 500) || (details?.count >= 500);
                         if (isLimit) {
-                            const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
-                                ? await StorageService.isTakeoutPromptCompleted()
-                                : false;
-                            const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
-                                (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
-                            if (!isCompleted && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
-                                DialogView.showTakeoutLimitPrompt({
-                                    count: currentCount || details?.count || 600,
-                                    onImportTakeout: () => $('takeoutFileInput')?.click()
-                                });
-                            }
+                            await maybePromptTakeout(currentCount || details?.count || 600, !!details?.hitGoogleLimit);
                         }
                     }
                 });
@@ -851,21 +836,9 @@
                 if (progText && msg.title) progText.textContent = msg.title;
                 if (msg.title) log(msg.title);
 
-                // Auto prompt Takeout if scan completed and hit Google limit
-                if ((msg.percent === 100 || msg.done === 1) && msg.hitGoogleLimit) {
-                    (async () => {
-                        const isDone = (StorageService && StorageService.isTakeoutPromptCompleted)
-                            ? await StorageService.isTakeoutPromptCompleted()
-                            : false;
-                        const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
-                            (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
-                        if (!isDone && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
-                            DialogView.showTakeoutLimitPrompt({
-                                count: msg.count || 600,
-                                onImportTakeout: () => $('takeoutFileInput')?.click()
-                            });
-                        }
-                    })();
+                // Auto prompt Takeout if scan completed and hit Google limit or history exceeds limit
+                if ((msg.percent === 100 || msg.done === 1) && (msg.hitGoogleLimit || (msg.count >= 500))) {
+                    maybePromptTakeout(msg.count || 600, !!msg.hitGoogleLimit);
                 }
             }
             if (msg.action === 'syncUpdate') {
