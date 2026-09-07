@@ -26,6 +26,15 @@
     const isRealTitle = (t, fallbackId) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
     const resolveTitle = (chat) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
 
+    const getAssetPipelineClass = () => {
+        if (typeof AssetPipeline !== 'undefined') return AssetPipeline;
+        if (typeof globalThis !== 'undefined' && globalThis.AssetPipeline) return globalThis.AssetPipeline;
+        if (typeof require !== 'undefined') {
+            try { return require('./assetPipeline.js'); } catch {}
+        }
+        return null;
+    };
+
     function toIso(v) {
         if (!v) return null;
         let ms = typeof v === 'number' ? v : new Date(v).getTime();
@@ -608,6 +617,17 @@
 
             const { zip, folder, writeFileDirect } = await this._initWriter(options, onLog);
 
+            const AssetPipelineClass = getAssetPipelineClass();
+            const assetPipeline = AssetPipelineClass ? new AssetPipelineClass({
+                currentSlot,
+                useZip,
+                folder,
+                writeFileDirect,
+                takeoutEngine,
+                getGeminiTab,
+                onLog
+            }) : null;
+
             let totalAssets = 0;
             let downloadedAssets = 0;
             let landedChats = 0;
@@ -791,6 +811,36 @@
                     }
 
                     let queuedAssetsForThisChat = 0;
+                    const queueAsset = (item, isImage) => {
+                        totalAssets++;
+                        queuedAssetsForThisChat++;
+                        updateProgress();
+                        attachmentQueue.push(async () => {
+                            let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                            if (assetPipeline) {
+                                assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle });
+                            }
+                            if (assetRes.saved) {
+                                downloadedAssets++;
+                                updateProgress();
+                                const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                pendingAssetsPerChat.set(nid, left);
+                                if (left === 0) finalizeChatExport(chat.id);
+                            } else {
+                                chatFailedAssetsSet.add(nid);
+                                failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired' });
+                                const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
+                                const fallbackMsg = isImage
+                                    ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
+                                    : `[${chat.title || chat.id}] 附件获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`;
+                                onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired') : fallbackMsg, 'warn');
+                                const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                pendingAssetsPerChat.set(nid, left);
+                                if (left === 0) finalizeChatExport(chat.id);
+                            }
+                        });
+                    };
+
                     if (includeAssets && chat.messages && writeOk) {
                         for (const m of chat.messages) {
                             if (m.attachments && m.attachments.length) {
@@ -833,194 +883,13 @@
                                         continue;
                                     }
 
-                                    totalAssets++;
-                                    queuedAssetsForThisChat++;
-                                    updateProgress();
-                                    attachmentQueue.push(async () => {
-                                        let saved = false;
-                                        let failReason = '';
-                                        try {
-                                            let tab = await getGeminiTab(currentSlot);
-                                            if (tab) {
-                                                let candidates = [att.url, att.sourceUrl, att.src].filter(Boolean);
-                                                let candidateUrl = candidates[0];
-                                                if (candidateUrl) {
-                                                    let r = await new Promise(resolve => {
-                                                        chrome.tabs.sendMessage(tab.id, {
-                                                            action: 'downloadAssetDirect',
-                                                            url: candidateUrl,
-                                                            referer: `https://gemini.google.com/app/${chat.id}`,
-                                                            preferBuffer: false
-                                                        }, (resp) => {
-                                                            if (chrome.runtime.lastError) {
-                                                                resolve({ success: false, error: chrome.runtime.lastError.message });
-                                                            } else {
-                                                                resolve(resp);
-                                                            }
-                                                        });
-                                                    });
-                                                    if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
-                                                        const isValidBuffer = r.dataBuffer && (
-                                                            (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
-                                                            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && r.dataBuffer.byteLength > 0)
-                                                        );
-                                                        const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
-                                                        const b64 = r.dataBase64 || r.blobBase64;
-                                                        if (useZip) {
-                                                            if (bytes && bytes.length > 0) {
-                                                                folder.file(sanitizeZipPath(att.localName), bytes);
-                                                                saved = true;
-                                                            } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                                                folder.file(sanitizeZipPath(att.localName), b64, { base64: true });
-                                                                saved = true;
-                                                            }
-                                                        } else {
-                                                            if (bytes && bytes.length > 0) {
-                                                                saved = await writeFileDirect(att.localName, bytes);
-                                                            } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                                                const binStr = atob(b64);
-                                                                const len = binStr.length;
-                                                                const b = new Uint8Array(len);
-                                                                for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
-                                                                saved = await writeFileDirect(att.localName, b);
-                                                            }
-                                                        }
-                                                    } else {
-                                                        failReason = r ? r.error : 'downloadAssetDirect failed';
-                                                    }
-                                                }
-                                            }
-                                        } catch (e) {
-                                            failReason = e.message;
-                                        }
-
-                                        if (!saved && takeoutEngine) {
-                                            try {
-                                                let offlineBin = await takeoutEngine.getTakeoutFallbackMedia(chat.id, att.localName || att.fileName || att.title);
-                                                if (offlineBin && offlineBin.length > 0) {
-                                                    if (useZip) {
-                                                        folder.file(sanitizeZipPath(att.localName), offlineBin);
-                                                        saved = true;
-                                                    } else {
-                                                        saved = await writeFileDirect(att.localName, offlineBin);
-                                                    }
-                                                    if (saved) {
-                                                        onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutAssetRecovered', chat.title || chat.id, att.localName) : `[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${att.localName}`, 'info');
-                                                    }
-                                                }
-                                            } catch (takeoutErr) {}
-                                        }
-
-                                        if (saved) {
-                                            downloadedAssets++;
-                                            updateProgress();
-                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                            pendingAssetsPerChat.set(nid, left);
-                                            if (left === 0) finalizeChatExport(chat.id);
-                                        } else {
-                                            chatFailedAssetsSet.add(nid);
-                                            failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName || att.fileName, error: failReason || 'CDN auth expired' });
-                                            onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetFailed', chat.title || chat.id, att.localName || att.fileName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 附件获取失败 (${att.localName || att.fileName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
-                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                            pendingAssetsPerChat.set(nid, left);
-                                            if (left === 0) finalizeChatExport(chat.id);
-                                        }
-                                    });
+                                    queueAsset(att, false);
                                 }
                             }
 
                             if (m.images && m.images.length) {
                                 for (const img of m.images) {
-                                    totalAssets++;
-                                    queuedAssetsForThisChat++;
-                                    updateProgress();
-                                    attachmentQueue.push(async () => {
-                                        let saved = false;
-                                        let failReason = '';
-                                        const targetUrl = img.resolvedUrl || img.sourceUrl;
-                                        try {
-                                            let tab = await getGeminiTab(currentSlot);
-                                            if (tab && targetUrl) {
-                                                let r = await new Promise(resolve => {
-                                                    chrome.tabs.sendMessage(tab.id, {
-                                                        action: 'downloadAssetDirect',
-                                                        url: targetUrl,
-                                                        referer: `https://gemini.google.com/app/${chat.id}`,
-                                                        preferBuffer: false
-                                                    }, (resp) => {
-                                                        if (chrome.runtime.lastError) {
-                                                            resolve({ success: false, error: chrome.runtime.lastError.message });
-                                                        } else {
-                                                            resolve(resp);
-                                                        }
-                                                    });
-                                                });
-                                                if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
-                                                    const isValidBuffer = r.dataBuffer && (
-                                                        (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
-                                                        (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && r.dataBuffer.byteLength > 0)
-                                                    );
-                                                    const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
-                                                    const b64 = r.dataBase64 || r.blobBase64;
-                                                    if (useZip) {
-                                                        if (bytes && bytes.length > 0) {
-                                                            folder.file(sanitizeZipPath(img.localName), bytes);
-                                                            saved = true;
-                                                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                                            folder.file(sanitizeZipPath(img.localName), b64, { base64: true });
-                                                            saved = true;
-                                                        }
-                                                    } else {
-                                                        if (bytes && bytes.length > 0) {
-                                                            saved = await writeFileDirect(img.localName, bytes);
-                                                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                                            const binStr = atob(b64);
-                                                            const len = binStr.length;
-                                                            const b = new Uint8Array(len);
-                                                            for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
-                                                            saved = await writeFileDirect(img.localName, b);
-                                                        }
-                                                    }
-                                                } else {
-                                                    failReason = r ? r.error : 'image direct download failed';
-                                                }
-                                            }
-                                        } catch (e) {
-                                            failReason = e.message;
-                                        }
-
-                                        if (!saved && takeoutEngine) {
-                                            try {
-                                                let offlineBin = await takeoutEngine.getTakeoutFallbackMedia(chat.id, img.localName || img.fileName);
-                                                if (offlineBin && offlineBin.length > 0) {
-                                                    if (useZip) {
-                                                        folder.file(sanitizeZipPath(img.localName), offlineBin);
-                                                        saved = true;
-                                                    } else {
-                                                        saved = await writeFileDirect(img.localName, offlineBin);
-                                                    }
-                                                    if (saved) {
-                                                        onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutImageRecovered', chat.title || chat.id, img.localName) : `[${chat.title || chat.id}] ⚡ 图片从 Takeout 离线池补全成功: ${img.localName}`, 'info');
-                                                    }
-                                                }
-                                            } catch (takeoutErr) {}
-                                        }
-
-                                        if (saved) {
-                                            downloadedAssets++;
-                                            updateProgress();
-                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                            pendingAssetsPerChat.set(nid, left);
-                                            if (left === 0) finalizeChatExport(chat.id);
-                                        } else {
-                                            chatFailedAssetsSet.add(nid);
-                                            failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: img.localName, error: failReason || 'CDN auth expired' });
-                                            onLog(typeof I18n !== 'undefined' ? I18n.t('logImageFailed', chat.title || chat.id, img.localName, failReason || 'CDN auth expired') : `[${chat.title || chat.id}] 图片获取失败 (${img.localName}): ${failReason || 'CDN鉴权过期或资源不可达'}`, 'warn');
-                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                            pendingAssetsPerChat.set(nid, left);
-                                            if (left === 0) finalizeChatExport(chat.id);
-                                        }
-                                    });
+                                    queueAsset(img, true);
                                 }
                             }
                         }
