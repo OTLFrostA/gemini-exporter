@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const DomScraper = require('../src/core/engine/domScraper.js');
+const DomScraper = require('../src/content/domScraper.js');
 
 test('dom_scraper - exports and methods', () => {
     assert.strictEqual(typeof DomScraper.cleanText, 'function');

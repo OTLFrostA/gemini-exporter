@@ -353,6 +353,7 @@
 
         async _resolveChat(chat, requestedItem, listConversation, takeoutEngine, currentSlot, onTitleUpdated, onLog) {
             const nid = normId(requestedItem.id);
+            const slot = currentSlot || 'u0';
             let convsNeedSave = false;
 
             // Takeout offline chat fallback

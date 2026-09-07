@@ -67,7 +67,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     initUninstallUrl();
     if (details.reason === 'install') {
         chrome.tabs.create({
-            url: chrome.runtime.getURL('options.html?welcome=1')
+            url: chrome.runtime.getURL('src/ui/options/options.html?welcome=1')
         });
     }
 });
