@@ -131,8 +131,12 @@
         // 5. Bold & italic
         res = res.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, '**$1**');
         res = res.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, '*$1*');
-        // 6. Strip any other HTML tags
-        res = res.replace(/<[^>]+>/g, '');
+        // 6. Strip any other HTML tags repeatedly to remove nested tags
+        let prev;
+        do {
+            prev = res;
+            res = res.replace(/<[^>]+>/g, '');
+        } while (res !== prev);
         return res;
     }
 

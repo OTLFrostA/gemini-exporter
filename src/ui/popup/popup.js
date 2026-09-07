@@ -13,12 +13,22 @@
   const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
   const sanitizeFileName = (name, fallback = 'untitled') => (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName ? GeminiUtils.sanitizeFileName(name, fallback) : (name || fallback).trim() || fallback);
 
+  function isGeminiUrl(urlStr) {
+    if (!urlStr || typeof urlStr !== 'string') return false;
+    try {
+      const u = new URL(urlStr);
+      return u.hostname === 'gemini.google.com';
+    } catch {
+      return false;
+    }
+  }
+
   // Update synced count badge
   async function updateCount(){
     try{
       let slot = 'u0';
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.url && tab.url.includes('gemini.google.com')) {
+      if (tab?.url && isGeminiUrl(tab.url)) {
         const m = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
         if (m) slot = 'u' + m[1];
       }
@@ -112,7 +122,7 @@
     try{
       const tabs = await chrome.tabs.query({active:true, currentWindow:true});
       const tab = tabs[0];
-      if(!tab || !tab.url || !tab.url.includes('gemini.google.com')){
+      if(!tab || !tab.url || !isGeminiUrl(tab.url)){
         log(typeof I18n !== 'undefined' ? I18n.t('popupNotGemini') : '当前页不是 gemini.google.com，请先打开 Gemini 对话页');
         return;
       }
