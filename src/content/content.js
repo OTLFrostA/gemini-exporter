@@ -411,7 +411,7 @@
                         mergedLen = recRes.kept;
                     }
                 }
-                const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (!useIncremental && mergedLen >= 500));
+                const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (!useIncremental && mergedLen >= GeminiProtocol.LIMITS.SLIDING_WINDOW));
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
                 if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -466,7 +466,8 @@
             cleanTitle,
             updateBadge,
             ensureBadge,
-            Storage
+            Storage,
+            protocol: (typeof globalThis !== 'undefined' && globalThis.GeminiProtocol) || null
         });
     }
 

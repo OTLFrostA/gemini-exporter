@@ -45,11 +45,11 @@
             const hitGoogleLimit = !!(
                 res?.hitGoogleLimit ||
                 res?.diagnostics?.hitGoogleLimit ||
-                (mode === 'full' && ((res?.count >= 500) || (res?.total >= 500))) ||
+                (mode === 'full' && ((res?.count >= GeminiProtocol.LIMITS.SLIDING_WINDOW) || (res?.total >= GeminiProtocol.LIMITS.SLIDING_WINDOW))) ||
                 (res?.diagnostics?.stopReason && (
                     res.diagnostics.stopReason.includes('BardErrorInfo') ||
                     res.diagnostics.stopReason.includes('服务端上限') ||
-                    res.diagnostics.stopReason.includes('600条') ||
+                    res.diagnostics.stopReason.includes(GeminiProtocol.LIMITS.SERVER_LIMIT_TEXT) ||
                     res.diagnostics.stopReason.includes('1096') ||
                     res.diagnostics.stopReason.includes('429') ||
                     /quota|rate\s*limit|resource_exhausted/i.test(res.diagnostics.stopReason)

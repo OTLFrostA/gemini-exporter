@@ -702,7 +702,7 @@
                         }, 2500);
                         loadStore();
                         const currentCount = count || res?.count || (Store && Store.getAllConversations ? Store.getAllConversations().length : 0);
-                        const isLimit = hitGoogleLimit || (currentCount >= 500);
+                        const isLimit = hitGoogleLimit || (currentCount >= GeminiProtocol.LIMITS.SLIDING_WINDOW);
                         if (isLimit) {
                             await maybePromptTakeout(currentCount, !!hitGoogleLimit);
                         }
@@ -710,7 +710,7 @@
                     onError: async (err, errMsg, details) => {
                         if (progText) progText.textContent = errMsg;
                         const currentCount = (Store && Store.getAllConversations) ? Store.getAllConversations().length : 0;
-                        const isLimit = details?.hitGoogleLimit || (currentCount >= 500) || (details?.count >= 500);
+                        const isLimit = details?.hitGoogleLimit || (currentCount >= GeminiProtocol.LIMITS.SLIDING_WINDOW) || (details?.count >= GeminiProtocol.LIMITS.SLIDING_WINDOW);
                         if (isLimit) {
                             await maybePromptTakeout(currentCount || details?.count || 600, !!details?.hitGoogleLimit);
                         }
@@ -837,7 +837,7 @@
                 if (msg.title) log(msg.title);
 
                 // Auto prompt Takeout if scan completed and hit Google limit or history exceeds limit
-                if ((msg.percent === 100 || msg.done === 1) && (msg.hitGoogleLimit || (msg.count >= 500))) {
+                if ((msg.percent === 100 || msg.done === 1) && (msg.hitGoogleLimit || (msg.count >= GeminiProtocol.LIMITS.SLIDING_WINDOW))) {
                     maybePromptTakeout(msg.count || 600, !!msg.hitGoogleLimit);
                 }
             }

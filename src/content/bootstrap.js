@@ -1,5 +1,10 @@
 // content_cred_bootstrap.js - Credential bootstrap
+
+// Protocol anti-corruption layer — loads before this script (manifest order).
+const Proto = (typeof window !== 'undefined' && window.GeminiProtocol) || null;
+
 function extractAtFromPage() {
+    if (!Proto) return "";
     try {
         try {
             if (window.__gemExporterExtractedAt && typeof window.__gemExporterExtractedAt === 'string' && window.__gemExporterExtractedAt.length > 15) return window.__gemExporterExtractedAt;
@@ -7,25 +12,25 @@ function extractAtFromPage() {
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
 
         try {
-            if (window._WIZ_global_data?.SNlM0e) return window._WIZ_global_data.SNlM0e;
-            if (window.WIZ_global_data?.SNlM0e) return window.WIZ_global_data.SNlM0e;
-            if (window.__WIZ_global_data?.SNlM0e) return window.__WIZ_global_data.SNlM0e;
+            if (window._WIZ_global_data?.[Proto.TOKENS.AT]) return window._WIZ_global_data[Proto.TOKENS.AT];
+            if (window.WIZ_global_data?.[Proto.TOKENS.AT]) return window.WIZ_global_data[Proto.TOKENS.AT];
+            if (window.__WIZ_global_data?.[Proto.TOKENS.AT]) return window.__WIZ_global_data[Proto.TOKENS.AT];
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
 
         let scripts = document.querySelectorAll('script');
         for (let s of scripts) {
             let txt = s.textContent || '';
             if (!txt) continue;
-            let m = txt.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+            let m = txt.match(Proto.TOKEN_PATTERNS.atFromScript);
             if (m && m[1].length > 10) return m[1];
-            let m2 = txt.match(/"at"\s*:\s*"([^"]{20,})"/);
+            let m2 = txt.match(Proto.TOKEN_PATTERNS.atGenericFromScript);
             if (m2 && m2[1].length > 15 && !m2[1].includes('%') && !m2[1].includes('\\')) return m2[1];
-            let m3 = txt.match(/"cfb2h"\s*:\s*"([^"]+)"/);
+            let m3 = txt.match(Proto.TOKEN_PATTERNS.blKeyFromScript);
             if (m3 && m3[1].startsWith('A') && m3[1].length > 15) return m3[1];
         }
 
         try {
-            let ls = localStorage.getItem('SNlM0e') || sessionStorage.getItem('SNlM0e');
+            let ls = localStorage.getItem(Proto.TOKENS.AT) || sessionStorage.getItem(Proto.TOKENS.AT);
             if (ls) return ls;
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
     } catch (e) {
@@ -35,19 +40,20 @@ function extractAtFromPage() {
 }
 
 function extractBlFromPage() {
+    if (!Proto) return "";
     try {
         let scripts = document.querySelectorAll('script');
         for (let s of scripts) {
             let txt = s.textContent || '';
             if (!txt) continue;
-            let m = txt.match(/"bl"\s*:\s*"([^"]+)"/);
+            let m = txt.match(Proto.TOKEN_PATTERNS.blKeyFromScript);
             if (m && m[1] && m[1].startsWith('boq_')) return m[1];
-            let m2 = txt.match(/boq_assistant-bard-web-server_[^"']+/);
+            let m2 = txt.match(Proto.TOKEN_PATTERNS.boqBuildFromScript);
             if (m2) return m2[0];
         }
         // document html fallback
         let html = document.documentElement.innerHTML || '';
-        let m3 = html.match(/"bl":"(boq_[^"]+)"/);
+        let m3 = html.match(Proto.TOKEN_PATTERNS.blValueFromHtml);
         if (m3) return m3[1];
     } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
     return "";
@@ -136,7 +142,7 @@ async function ensureCreds() {
                 sid: fakeSid,
                 accountSlot: slot,
                 lastUsed: Date.now(),
-                bl: blFromPage || "boq_assistant-bard-web-server_20260802.09_p1"
+                bl: blFromPage || (Proto ? Proto.BL_FALLBACK : "")
             };
             await saveCredentials(map, {
                 at: atFromPage,
@@ -207,7 +213,7 @@ window.addEventListener('message', async (e) => {
                 sid,
                 accountSlot: slot || old.accountSlot || "default",
                 lastUsed: Date.now(),
-                bl: old.bl || extractBlFromPage() || "boq_assistant-bard-web-server_20260802.09_p1"
+                bl: old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : "")
             };
             await saveCredentials(map, {
                 at: map[sid].at,

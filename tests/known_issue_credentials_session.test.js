@@ -24,6 +24,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const code = fs.readFileSync(path.join(__dirname, '..', 'src', 'content', 'bootstrap.js'), 'utf8');
+const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', 'protocol', 'protocol.js'), 'utf8');
 
 function makeContext() {
     const ctx = {
@@ -95,10 +96,12 @@ function makeContext() {
     return ctx;
 }
 
-test('KNOWN ISSUE P1-2.6: session tokens must live in chrome.storage.session, never in chrome.storage.local', async () => {
+test('p1-lock: session tokens live in chrome.storage.session, never in chrome.storage.local', async () => {
     const ctx = makeContext();
     ctx.WIZ_global_data = { SNlM0e: 'ATTEST0123456789abcdef' };
 
+    // Mirror the browser load order: protocol.js loads before bootstrap.js.
+    vm.runInContext(protocolCode, ctx, { filename: 'protocol.js' });
     vm.runInContext(code, ctx, { filename: 'bootstrap.js' });
     // bootstrap runs ensureCreds() at load; let its async chain settle.
     await new Promise(r => setImmediate(r));

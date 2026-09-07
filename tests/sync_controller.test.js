@@ -5,6 +5,12 @@ const assert = (typeof require !== 'undefined' && require('node:assert')) ? requ
     ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
 };
 
+// Protocol anti-corruption layer must be present before consumers (mirrors
+// the browser load order where protocol.js is the first content script).
+if (typeof globalThis !== 'undefined' && !globalThis.GeminiProtocol) {
+    globalThis.GeminiProtocol = require('../src/core/protocol/protocol.js');
+}
+
 const SyncController = (typeof require !== 'undefined') ? require('../src/ui/controllers/syncController.js') : (typeof globalThis.SyncController !== 'undefined' ? globalThis.SyncController : null);
 
 test('syncController - exports', () => {

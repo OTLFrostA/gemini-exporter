@@ -29,10 +29,11 @@ def test_manifest_structure():
         assert "storage" in m["permissions"]
         assert m["background"]["service_worker"] == "dist/background/background.js", "background service_worker must point to the esbuild dist output"
         cs = m["content_scripts"]
-        for required in ["dist/core/utils/utils.js", "dist/core/storage/storageService.js", "dist/core/api/geminiParser.js", "dist/core/api/geminiClient.js", "dist/content/content.js"]:
+        for required in ["dist/core/protocol/protocol.js", "dist/core/utils/utils.js", "dist/core/storage/storageService.js", "dist/core/api/geminiParser.js", "dist/core/api/geminiClient.js", "dist/content/content.js"]:
             assert required in cs[0]["js"], f"Missing {required} in manifest content_scripts"
+        assert cs[0]["js"].index("dist/core/protocol/protocol.js") == 0, "protocol.js must load first in the ISOLATED content script"
         main_world = [c for c in cs if c.get("world") == "MAIN"]
-        assert len(main_world) == 1 and main_world[0]["js"] == ["dist/content/hookCredentials.js"], "MAIN world hook must load dist/content/hookCredentials.js"
+        assert len(main_world) == 1 and main_world[0]["js"] == ["dist/core/protocol/protocol.js", "dist/content/hookCredentials.js"], "MAIN world must load protocol.js before hookCredentials.js"
         war = m["web_accessible_resources"][0]["resources"]
         assert "dist/content/hookCredentials.js" in war, "web_accessible_resources must expose dist/content/hookCredentials.js"
         print("  ✓ manifest.json scripts and permissions verified")
@@ -54,6 +55,7 @@ def test_html_includes():
             opt_html = f.read()
             for script in [
                 "/lib/jszip.min.js",
+                "/dist/core/protocol/protocol.js",
                 "/dist/core/utils/constants.js",
                 "/dist/core/utils/utils.js",
                 "/dist/core/utils/tabService.js",
@@ -85,6 +87,7 @@ def test_html_includes():
     for pop_path in ["src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
             pop_html = f.read()
+            assert '<script src="/dist/core/protocol/protocol.js"></script>' in pop_html, f"Missing protocol.js in {pop_path}"
             assert '<script src="/dist/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
             assert '<script src="/dist/ui/popup/popup.js"></script>' in pop_html, f"Missing popup.js in {pop_path}"
     print("  ✓ options.html and popup.html script tags verified")
@@ -114,6 +117,7 @@ def test_module_exports():
         "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
+        "src/core/protocol/protocol.js": ["PROTOCOL_VERSION", "RPCS", "BL_FALLBACK", "LIMITS", "createReqidGenerator", "DELETION_ANCHORS"],
         "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
     }
     for filename, symbols in files.items():

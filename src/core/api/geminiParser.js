@@ -188,6 +188,18 @@
         return null;
     }
 
+    // Protocol anti-corruption layer (see core/protocol/protocol.js).
+    let __protocol = null;
+    function getProtocol() {
+        if (__protocol) return __protocol;
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiProtocol) {
+            __protocol = globalThis.GeminiProtocol;
+        } else if (typeof require !== 'undefined') {
+            try { __protocol = require('../protocol/protocol.js'); } catch (e) { /* intentional: require fallback in browser context */ }
+        }
+        return __protocol;
+    }
+
     function normId(id) {
         const u = getUtils();
         if (u && typeof u.normId === 'function') return u.normId(id);
@@ -361,7 +373,7 @@
             let innerStr = null;
             if (Array.isArray(top)) {
                 for (let item of top) {
-                    if (Array.isArray(item) && item[0] === "wrb.fr" && item[1] === "MaZiqc" && typeof item[2] === "string") {
+                    if (Array.isArray(item) && item[0] === getProtocol().WRB && item[1] === getProtocol().RPCS.LIST && typeof item[2] === "string") {
                         innerStr = item[2];
                         break;
                     }
@@ -927,7 +939,7 @@
         if (!Array.isArray(top)) return null;
         const targetNid = normId(targetConvId);
         for (let item of top) {
-            if (Array.isArray(item) && item[0] === "wrb.fr" && (item[1] === "MaZiqc" || item[1] === "b7Lged") && typeof item[2] === "string") {
+            if (Array.isArray(item) && item[0] === getProtocol().WRB && (item[1] === getProtocol().RPCS.LIST || item[1] === getProtocol().RPCS.LEGACY_LIST) && typeof item[2] === "string") {
                 try {
                     let metaInner = JSON.parse(item[2]);
                     let list = Array.isArray(metaInner[1]) ? metaInner[1] : (Array.isArray(metaInner[2]) ? metaInner[2] : []);
@@ -970,7 +982,7 @@
                         return { idx:i, rpc, innerLen, preview };
                     }) : { topType: typeof top, len: text?.length };
                     if (!top || !Array.isArray(top)) console.log('[Parser Verbose] top candidates', summary);
-                    if (!top || (Array.isArray(top) && !top.some(it=>Array.isArray(it)&&it[1]==='hNvQHb'&&typeof it[2]==='string'&&it[2].includes('rc_')))) {
+                    if (!top || (Array.isArray(top) && !top.some(it=>Array.isArray(it)&&it[1]===getProtocol().RPCS.DETAIL&&typeof it[2]==='string'&&it[2].includes('rc_')))) {
                         console.warn('[Parser Verbose] no hNvQHb with rc_ found, top summary', summary);
                     }
                 } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
@@ -978,7 +990,7 @@
             let innerStr = null;
             if (Array.isArray(top)) {
                 for (let item of top) {
-                    if (Array.isArray(item) && item[0] === "wrb.fr" && item[1] === "hNvQHb" && typeof item[2] === "string") {
+                    if (Array.isArray(item) && item[0] === getProtocol().WRB && item[1] === getProtocol().RPCS.DETAIL && typeof item[2] === "string") {
                         innerStr = item[2];
                         break;
                     }
