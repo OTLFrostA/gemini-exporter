@@ -12,7 +12,7 @@
     if (typeof require !== 'undefined') {
         try {
             return require('../../content/domScraper.js');
-        } catch {}
+        } catch { /* intentional: require fallback in browser context */ }
     }
     if (typeof self !== 'undefined' && self.DomScraper) return self.DomScraper;
     if (typeof globalThis !== 'undefined' && globalThis.DomScraper) return globalThis.DomScraper;

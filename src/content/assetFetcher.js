@@ -73,13 +73,13 @@
                     if (msg.fileName && (txt.includes(msg.fileName) || href.includes(encodeURIComponent(msg.fileName)))) candidates.push(href);
                     else if (href.includes('googleusercontent') && href.includes('download')) candidates.push(href);
                 }
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
 
             try {
                 let html = document.documentElement.innerHTML || "";
                 let m = html.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*download[^\s"'<>]*/i);
                 if (m) candidates.push(m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&'));
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
 
             candidates = [...new Set(candidates.filter(Boolean))];
             if (!candidates.length) {
@@ -208,7 +208,7 @@
                                 reasons.push('blob is redirect text');
                                 continue;
                             }
-                        } catch {}
+                        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
                     }
                     if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
                         try {
@@ -223,7 +223,7 @@
                                 contentType: ct || blob.type
                             });
                             return;
-                        } catch (e) {}
+                        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
                     }
                     let dataUrl = await toDataUrl(blob);
                     sendResponse({
@@ -293,7 +293,7 @@
                                     contentType: ct
                                 });
                                 return;
-                            } catch (e) {}
+                            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
                         }
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
@@ -344,7 +344,7 @@
                                     finalUrl: r.url || u
                                 });
                                 return;
-                            } catch (e) {}
+                            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
                         }
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
@@ -401,7 +401,7 @@
                                     size: blob.size
                                 });
                                 return;
-                            } catch (e) {}
+                            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
                         }
                         const dataUrl = await toDataUrl(blob);
                         sendResponse({
@@ -413,7 +413,7 @@
                         return;
                     }
                 }
-            } catch (e) {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetFetcher.js]", e); }
 
             handleGetImageBlob(msg, (res) => {
                 if (res && res.success && (res.dataBuffer || res.blobBuffer || res.blobBase64)) {

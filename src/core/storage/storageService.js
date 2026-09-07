@@ -229,7 +229,7 @@
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
             await chrome.storage.local.set({ has_completed_tour: !!completed });
-        } catch {}
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function isTakeoutPromptCompleted() {
@@ -246,14 +246,14 @@
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
             await chrome.storage.local.set({ has_completed_takeout_prompt: !!completed });
-        } catch {}
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function setHasImportedTakeout(imported = true) {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
             await chrome.storage.local.set({ has_imported_takeout: !!imported });
-        } catch {}
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function hasTakeoutData(slot = 'u0') {

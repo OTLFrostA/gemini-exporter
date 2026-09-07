@@ -15,7 +15,7 @@
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
                 return chrome.runtime.getManifest().version || '1.3.8';
             }
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
         return '1.3.8';
     }
 
@@ -30,7 +30,7 @@
         if (typeof AssetPipeline !== 'undefined') return AssetPipeline;
         if (typeof globalThis !== 'undefined' && globalThis.AssetPipeline) return globalThis.AssetPipeline;
         if (typeof require !== 'undefined') {
-            try { return require('./assetPipeline.js'); } catch {}
+            try { return require('./assetPipeline.js'); } catch { /* intentional: require fallback in browser context */ }
         }
         return null;
     };
@@ -76,7 +76,7 @@
                 let onAbort = null;
                 const waiter = (task) => {
                     if (onAbort && abortSignal) {
-                        try { abortSignal.removeEventListener('abort', onAbort); } catch {}
+                        try { abortSignal.removeEventListener('abort', onAbort); } catch { /* intentional: best-effort cleanup */ }
                     }
                     resolve(task);
                 };
@@ -87,7 +87,7 @@
                         resolve(null);
                     };
                     if (abortSignal.aborted) return resolve(null);
-                    try { abortSignal.addEventListener('abort', onAbort, { once: true }); } catch {}
+                    try { abortSignal.addEventListener('abort', onAbort, { once: true }); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                 }
                 this._waiters.push(waiter);
             });
@@ -133,14 +133,14 @@
 
         abort() {
             this.aborted = true;
-            try { this._abortController && this._abortController.abort(); } catch {}
+            try { this._abortController && this._abortController.abort(); } catch { /* intentional: best-effort cleanup */ }
             try {
                 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
                     chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
                         if (chrome.runtime.lastError) {}
                     });
                 }
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
             try {
                 chrome.storage.local.get(['gemini_last_export_session'], (data) => {
                     if (data?.gemini_last_export_session) {
@@ -153,7 +153,7 @@
                         });
                     }
                 });
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
         }
 
         async _initSession(options, callbacks) {
@@ -203,7 +203,7 @@
                         updatedAt: Date.now()
                     }
                 });
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
 
             return {
                 payloadIds,
@@ -431,7 +431,7 @@
                                 if (p && p.catch) p.catch(() => {});
                             }
                         }
-                    } catch {}
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                     onLog(typeof I18n !== 'undefined' ? I18n.t('logChatDeletedAndPruned', displayTitle) : `[${displayTitle}] ⚡ 云端已确认该会话不存在或已被删除，已自动从本地列表中移除`, 'warn');
                 } else {
                     onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', displayTitle, errMsg) : `[${displayTitle}] 导出跳过: ${errMsg}`, 'error');
@@ -862,7 +862,7 @@
                                                 const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                                 pendingAssetsPerChat.set(nid, left);
                                                 if (left === 0) finalizeChatExport(chat.id);
-                                            } catch {}
+                                            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                                         } else {
                                             attachmentQueue.push(async () => {
                                                 const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
@@ -946,7 +946,7 @@
                                 updatedAt: Date.now()
                             }
                         });
-                    } catch {}
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                 }
             };
 
@@ -981,7 +981,7 @@
             try {
                 const devData = await chrome.storage.local.get(['gemini_dev_mode']);
                 isDevMode = !!devData?.gemini_dev_mode;
-            } catch {}
+            } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
 
             if (isDevMode || failedChats.length > 0 || failedAttachments.length > 0) {
                 let fullLogText = `=======================================================\n`;
@@ -1004,11 +1004,11 @@
                             if (fc.debug && typeof fc.debug === 'object') {
                                 try {
                                     fullLogText += `    [debug] ${JSON.stringify(fc.debug).slice(0, 800)}\n`;
-                                } catch {}
+                                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                             } else if (fc.raw && typeof fc.raw === 'object') {
                                 try {
                                     fullLogText += `    [raw_preview] ${JSON.stringify(fc.raw).slice(0, 400)}\n`;
-                                } catch {}
+                                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                             }
                         }
                     }
@@ -1058,7 +1058,7 @@
                         updatedAt: Date.now()
                     }
                 });
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
 
             return {
                 landedChats,

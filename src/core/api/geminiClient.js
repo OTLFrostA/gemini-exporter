@@ -20,8 +20,8 @@
             return global.GeminiResponseParserClass;
         }
         if (typeof require !== 'undefined') {
-            try { return require('./geminiParser.js').GeminiResponseParserClass; } catch {}
-            try { return require('./gemini_parser.js').GeminiResponseParserClass; } catch {}
+            try { return require('./geminiParser.js').GeminiResponseParserClass; } catch { /* intentional: require fallback in browser context */ }
+            try { return require('./gemini_parser.js').GeminiResponseParserClass; } catch { /* intentional: require fallback in browser context */ }
         }
         throw new Error('GeminiResponseParserClass not found. Make sure gemini_parser.js is loaded.');
     }
@@ -42,7 +42,7 @@
             let m = html.match(/"cfb2h"\s*:\s*"([^"]+)"/) || html.match(/"bl"\s*:\s*"(boq_assistant[^"]+)"/);
             if (m) return m[1];
             if (global.__gemExporterBl) return global.__gemExporterBl;
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
         return null;
     }
 
@@ -65,7 +65,7 @@
             let html = (global.document && global.document.documentElement && global.document.documentElement.innerHTML) || "";
             let mHtml = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
             if (mHtml) return mHtml[1];
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
         return "";
     }
 
@@ -75,7 +75,7 @@
         try {
             let m = (global.location && global.location.pathname || "").match(/\/u\/(\d+)/);
             if (m) return `u${m[1]}`;
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
         return "default";
     }
 
@@ -123,7 +123,7 @@
                         sid
                     }
                 });
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
         } else if (pageBl && vals[0] && !vals[0].bl) {
             vals[0].bl = pageBl;
         }
@@ -210,7 +210,7 @@
                 let snippet = "";
                 try {
                     snippet = (await resp.text()).slice(0, 320);
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
                 if (resp.status === 400 && !opts?._retried) {
                     const mXsrf = snippet.includes('xsrf') ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
                     const freshAt = (mXsrf && mXsrf[1]) ? mXsrf[1] : getAtFromPage();
@@ -225,7 +225,7 @@
                                     await chrome.storage.local.set({ gemini_credentials_map: map });
                                 }
                             }
-                        } catch {}
+                        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
                         return this.getConversationList(pageToken, targetSid, customFilter, {
                             ...(opts || {}),
                             _retried: true,
@@ -444,7 +444,7 @@
             if (typeof AbortController !== 'undefined') {
                 controller = new AbortController();
                 timeoutId = setTimeout(() => {
-                    try { controller.abort(); } catch {}
+                    try { controller.abort(); } catch { /* intentional: best-effort cleanup */ }
                 }, 15000);
             }
             let resp;
@@ -466,7 +466,7 @@
                 let snippet = "";
                 try {
                     snippet = (await resp.text()).slice(0, 320);
-                } catch {}
+                } catch { /* intentional: best-effort cleanup */ }
                 if (resp.status === 400 && !opts?._retriedXsrf) {
                     const mXsrf = snippet.includes('xsrf') ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
                     const freshAt = (mXsrf && mXsrf[1]) ? mXsrf[1] : getAtFromPage();
@@ -481,7 +481,7 @@
                                     await chrome.storage.local.set({ gemini_credentials_map: map });
                                 }
                             }
-                        } catch {}
+                        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
                         return this.fetchConversationPage(conversationId, pageToken, targetSid, {
                             ...(opts || {}),
                             _retriedXsrf: true,

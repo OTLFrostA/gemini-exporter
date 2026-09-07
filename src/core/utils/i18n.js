@@ -450,7 +450,7 @@
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 await chrome.storage.local.set({ gemini_exporter_lang: lang });
             }
-        } catch {}
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
         applyI18n();
         for (const listener of langChangeListeners) {
             try { listener(currentLang); } catch (e) { console.error('langChangeListener err', e); }

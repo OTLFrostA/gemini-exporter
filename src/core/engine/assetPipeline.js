@@ -125,7 +125,7 @@
                             this.onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, localName) : defaultMsg, 'info');
                         }
                     }
-                } catch (takeoutErr) {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetPipeline.js]", e); }
             }
 
             return { saved, failReason, recoveredFromTakeout, localName };

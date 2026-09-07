@@ -12,7 +12,7 @@
     if (typeof require !== 'undefined') {
         try {
             return require('../../content/assetFetcher.js');
-        } catch {}
+        } catch { /* intentional: require fallback in browser context */ }
     }
     if (typeof self !== 'undefined' && self.AssetFetcher) return self.AssetFetcher;
     if (typeof globalThis !== 'undefined' && globalThis.AssetFetcher) return globalThis.AssetFetcher;

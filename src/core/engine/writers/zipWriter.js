@@ -26,7 +26,7 @@
                 try {
                     const u = require('../../utils/utils.js');
                     if (u && u.sanitizeRelativePath) return u.sanitizeRelativePath(p, 'file');
-                } catch {}
+                } catch { /* intentional: require fallback in browser context */ }
             }
             return p.split(/[/\\]/).map(seg => {
                 if (!seg || seg === '.' || seg === '..') return '_';

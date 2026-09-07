@@ -1,6 +1,6 @@
 try {
     importScripts('/src/core/utils/constants.js', '/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
-} catch (e) {}
+} catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
 
 const __bgAborts = new Map();
 
@@ -21,7 +21,7 @@ function startKeepAlive() {
             if (chrome.runtime.getPlatformInfo) {
                 chrome.runtime.getPlatformInfo(() => {});
             }
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
     }, 20000);
     return () => clearInterval(interval);
 }

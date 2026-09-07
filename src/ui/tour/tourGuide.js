@@ -181,7 +181,7 @@
         // Clean up any stale or orphan containers in DOM
         if (typeof document.querySelectorAll === 'function') {
             document.querySelectorAll('.tour-overlay-container').forEach(el => {
-                try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+                try { el.parentNode && el.parentNode.removeChild(el); } catch { /* intentional: best-effort cleanup */ }
             });
         }
 
@@ -211,7 +211,7 @@
         clearActionListeners();
         if (typeof document.querySelectorAll === 'function') {
             document.querySelectorAll('.tour-overlay-container').forEach(el => {
-                try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+                try { el.parentNode && el.parentNode.removeChild(el); } catch { /* intentional: best-effort cleanup */ }
             });
         }
         overlayEl = null;

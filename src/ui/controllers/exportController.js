@@ -40,7 +40,7 @@
 
     function abort() {
         if (activeEngine) {
-            try { activeEngine.abort(); } catch {}
+            try { activeEngine.abort(); } catch { /* intentional: best-effort cleanup */ }
         }
         try {
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -48,7 +48,7 @@
                     if (chrome.runtime.lastError) {}
                 });
             }
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportController.js]", e); }
         setRunning(false);
         const pw = $('progWrap');
         if (pw) pw.style.display = 'none';

@@ -30,7 +30,7 @@
         try {
             if (typeof GeminiUtils !== 'undefined' && GeminiUtils.normId) return GeminiUtils.normId(id);
             if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.normId) return globalThis.GeminiUtils.normId(id);
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
         if (!id) return '';
         return String(id).replace(/^c_/, '').trim();
     }
@@ -84,7 +84,7 @@
         const globalMedia = store.globalMedia || __takeoutGlobalMedia;
 
         let target = String(filenameOrId).replace(/^.*[\\\/]/, '').trim();
-        try { target = decodeURIComponent(target); } catch {}
+        try { target = decodeURIComponent(target); } catch { /* intentional: invalid date or URI fallback */ }
         let targetStem = target.replace(/\.[^/.]+$/, '').toLowerCase();
         let cleanTargetStem = targetStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
         let cleanTarget = target.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
@@ -99,14 +99,14 @@
                     try {
                         let bin = await item.fileObj.async('uint8array');
                         if (bin && bin.length > 0) return bin;
-                    } catch {}
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
                 }
             }
             if (convMedia.length === 1 && (/^image(?:-\d+)?$/i.test(cleanTargetStem) || /^file/i.test(cleanTargetStem) || /^asset/i.test(cleanTargetStem))) {
                 try {
                     let bin = await convMedia[0].fileObj.async('uint8array');
                     if (bin && bin.length > 0) return bin;
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
             }
         }
 
@@ -115,7 +115,7 @@
             try {
                 let bin = await fObj.async('uint8array');
                 if (bin && bin.length > 0) return bin;
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
         }
 
         for (const [stem, fileObj] of Object.entries(globalMedia)) {
@@ -125,7 +125,7 @@
                 try {
                     let bin = await fileObj.async('uint8array');
                     if (bin && bin.length > 0) return bin;
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
             }
         }
 
