@@ -594,13 +594,16 @@
                 if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
                 if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                     try {
-                        chrome.storage.local.set({
-                            gemini_pending_takeout_prompt: {
-                                slot,
-                                count: mergedLen,
-                                timestamp: Date.now()
-                            }
-                        }).catch(() => {});
+                        const existing = await chrome.storage.local.get(['has_completed_takeout_prompt']);
+                        if (!existing?.has_completed_takeout_prompt) {
+                            chrome.storage.local.set({
+                                gemini_pending_takeout_prompt: {
+                                    slot,
+                                    count: mergedLen,
+                                    timestamp: Date.now()
+                                }
+                            }).catch(() => {});
+                        }
                     } catch (e) {}
                 }
                 try {

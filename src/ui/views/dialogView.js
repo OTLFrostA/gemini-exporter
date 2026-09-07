@@ -133,7 +133,7 @@
         if (modal) modal.style.display = 'none';
     }
 
-    function showTakeoutLimitPrompt(options = {}) {
+    async function showTakeoutLimitPrompt(options = {}) {
         const modal = $('takeoutLimitModal');
         const textEl = $('takeoutLimitPromptText');
         const btnImport = $('btnModalImportTakeout');
@@ -141,6 +141,13 @@
         const btnDismiss = $('btnModalDismissTakeout');
         const btnClose = $('btnTakeoutLimitClose');
         if (!modal) return;
+
+        if (!options.force && typeof StorageService !== 'undefined' && StorageService.isTakeoutPromptCompleted) {
+            try {
+                const isCompleted = await StorageService.isTakeoutPromptCompleted();
+                if (isCompleted) return;
+            } catch {}
+        }
 
         const count = options.count || 600;
         const onImportTakeout = options.onImportTakeout;
@@ -151,8 +158,17 @@
         if (btnOpenWeb && typeof I18n !== 'undefined' && I18n.t) {
             btnOpenWeb.textContent = I18n.t('btnModalOpenTakeoutWeb');
         }
+        if (btnDismiss && typeof I18n !== 'undefined' && I18n.t) {
+            btnDismiss.textContent = I18n.t('btnModalDismissTakeout');
+        }
 
         modal.style.display = 'flex';
+
+        const markCompleted = () => {
+            if (typeof StorageService !== 'undefined' && StorageService.setTakeoutPromptCompleted) {
+                StorageService.setTakeoutPromptCompleted(true);
+            }
+        };
 
         const cleanup = () => {
             modal.style.display = 'none';
@@ -161,6 +177,7 @@
             if (btnOpenWeb) btnOpenWeb.onclick = null;
             if (btnDismiss) btnDismiss.onclick = null;
             if (btnClose) btnClose.onclick = null;
+            markCompleted();
         };
 
         const onKey = (e) => {
@@ -179,6 +196,12 @@
         if (btnDismiss) {
             btnDismiss.onclick = () => {
                 cleanup();
+            };
+        }
+
+        if (btnOpenWeb) {
+            btnOpenWeb.onclick = () => {
+                markCompleted();
             };
         }
 

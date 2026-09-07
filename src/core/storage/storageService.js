@@ -232,6 +232,23 @@
         } catch {}
     }
 
+    async function isTakeoutPromptCompleted() {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
+        try {
+            const data = await chrome.storage.local.get(['has_completed_takeout_prompt']);
+            return !!data.has_completed_takeout_prompt;
+        } catch {
+            return false;
+        }
+    }
+
+    async function setTakeoutPromptCompleted(completed = true) {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ has_completed_takeout_prompt: !!completed });
+        } catch {}
+    }
+
     return {
         normSlot,
         normId,
@@ -253,6 +270,8 @@
         getDevMode,
         setDevMode,
         isTourCompleted,
-        setTourCompleted
+        setTourCompleted,
+        isTakeoutPromptCompleted,
+        setTakeoutPromptCompleted
     };
 }));
