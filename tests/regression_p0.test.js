@@ -109,7 +109,10 @@ test('regression: empty cloud response must be logged as error with debug', () =
 
 // P0-6: DOM 空壳 fallback 必须尝试 live document
 test('regression: dom_scraper must try live document before fetch shell', () => {
-    const domContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/domScraper.js'), 'utf8');
+    const domPath = fs.existsSync(path.join(__dirname, '../src/content/domScraper.js'))
+        ? path.join(__dirname, '../src/content/domScraper.js')
+        : path.join(__dirname, '../src/core/engine/domScraper.js');
+    const domContent = fs.readFileSync(domPath, 'utf8');
     assert.ok(domContent.includes('location.pathname.includes(cleanId)'), 'should try live parseDoc when location matches');
     assert.ok(domContent.includes('debugCurrentPage'), 'should expose debugCurrentPage');
     assert.ok(domContent.includes('fallbackUsed'), 'parseDoc should log fallbackUsed');

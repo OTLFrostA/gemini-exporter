@@ -500,6 +500,12 @@
         });
 
         // 5. Language Switch UI State
+        _applyLangToggleUI();
+    }
+
+    // @ui-specific - manipulate explicit DOM IDs for language toggle
+    function _applyLangToggleUI() {
+        if (typeof document === 'undefined') return;
         const langToggle = document.getElementById('langToggle');
         if (langToggle) {
             langToggle.checked = (currentLang === 'en');
@@ -515,6 +521,7 @@
     }
 
     return {
+        applyLangToggleUI: _applyLangToggleUI,
         LOCALES,
         initLanguage,
         getLang,

@@ -12,17 +12,17 @@ src/
     content.css                Sync status floating UI & badge styles
     bootstrap.js               Page token & credential bootstrap
     hookCredentials.js         MAIN world network interceptor & credential bridge
+    domScraper.js              DOM fallback scraper
+    assetFetcher.js            Media, images, and blob streaming fetcher
 
   core/                        Pure Domain Logic & Engine (Decoupled from DOM)
-    api/
+    api/                       Note: limited DOM access (content script only)
       geminiClient.js          batchexecute RPC client & abort handling
       geminiParser.js          Protocol parsing, turns, attachments & title extraction
     engine/
       exportEngine.js          Export pipeline coordinator (streaming & recovery)
       takeoutEngine.js         Google Takeout archive parser & offline fallback
       chatFormatter.js         Markdown, JSON, OpenAI schema formatters
-      assetFetcher.js          Media, images, and blob streaming fetcher
-      domScraper.js            DOM fallback scraper
       writers/
         zipWriter.js           JSZip in-memory zip packaging writer
         fsWriter.js            FileSystem Access API directory tree writer
@@ -58,7 +58,7 @@ src/
 
 ## Architectural Rules
 
-1. **`core` has zero DOM dependencies**: Core algorithms (parsing, formatting, title arbitration) run identically in Node.js unit tests, extension service workers, and UI pages.
+1. **`core` has zero DOM dependencies except the `api/` layer which runs exclusively in content script context**: Core algorithms (parsing, formatting, title arbitration) run identically in Node.js unit tests, extension service workers, and UI pages.
 2. **Strict UI Separation**: `state` handles storage sync, `views` handles HTML rendering, `controllers` orchestrates workflows, and `options.js` acts as a thin coordinator.
 3. **Single Source of Truth**: All string sanitization, filename cleaning, and multi-tier title arbitration logic resides exclusively in `src/core/utils/utils.js`.
 4. **100% Test Coverage**: All core modules are verified by Node.js unit tests (`tests/*.test.js`) and Playwright E2E browser tests (`tests/e2e/*.spec.js`).

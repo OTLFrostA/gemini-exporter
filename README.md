@@ -120,6 +120,8 @@ src/
     content.css                Sync status floating UI & badge styles
     bootstrap.js               Page token & credential bootstrap
     hookCredentials.js         MAIN world sandboxed network interceptor & credential bridge
+    domScraper.js              Live document fallback DOM scraper
+    assetFetcher.js            Media, images, and blob streaming fetcher
 
   core/                        Pure Domain Logic & Engine (Decoupled from DOM)
     api/
@@ -129,8 +131,6 @@ src/
       exportEngine.js          Event-driven AsyncQueue export coordinator & streaming
       takeoutEngine.js         Google Takeout archive parser & isolated offline media pool
       chatFormatter.js         Markdown, JSON, OpenAI schema formatters
-      assetFetcher.js          Media, images, and blob streaming fetcher
-      domScraper.js            Live document fallback DOM scraper
       writers/
         zipWriter.js           JSZip in-memory zip packaging writer
         fsWriter.js            FileSystem Access API directory tree writer

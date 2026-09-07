@@ -363,11 +363,11 @@
 
     let __storageWriteQueue = Promise.resolve();
 
-    function upsertConversations(incomingItems, source, forceWrite = false) {
+    function upsertConversations(incomingItems, source, forceWrite = false, targetSlot = null) {
         if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
         __storageWriteQueue = __storageWriteQueue.then(async () => {
             try {
-                const slot = getAccountSlot();
+                const slot = targetSlot || getAccountSlot();
                 const existing = Storage ? await Storage.getConversations(slot) : [];
                 const map = new Map();
                 existing.forEach(c => {
@@ -636,7 +636,7 @@
                     try {
                         const listRes = parser.parseList(text);
                         if (listRes && listRes.conversations && listRes.conversations.length) {
-                            await upsertConversations(listRes.conversations, 'network-list');
+                            await upsertConversations(listRes.conversations, 'network-list', false, slot || getAccountSlot());
                         }
                     } catch (e) {
                         console.debug('[Gemini Exporter] parseList err', e);
@@ -675,7 +675,7 @@
                                     updatedAt: detailRes.updatedAt || detailRes.timestamp,
                                     createdAt: detailRes.createdAt,
                                     sidebarIndex: 0
-                                }], 'network-detail');
+                                }], 'network-detail', false, slot || getAccountSlot());
                             }
                         }
                     } catch (e) {

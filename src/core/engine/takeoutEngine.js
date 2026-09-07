@@ -461,11 +461,11 @@
                         extractedMap[cleanId].titles = extractedMap[cleanId].titles || {};
                         extractedMap[cleanId].titles.takeout = cleanPrompt;
                         if (hasExplicitPrompt) extractedMap[cleanId].hasExplicitPrompt = true;
-                        if (__takeoutConvCache[cleanId]) {
-                            __takeoutConvCache[cleanId].title = cleanPrompt;
-                            __takeoutConvCache[cleanId].titles = __takeoutConvCache[cleanId].titles || {};
-                            __takeoutConvCache[cleanId].titles.takeout = cleanPrompt;
-                            if (hasExplicitPrompt) __takeoutConvCache[cleanId].hasExplicitPrompt = true;
+                        if (localConvCache[cleanId]) {
+                            localConvCache[cleanId].title = cleanPrompt;
+                            localConvCache[cleanId].titles = localConvCache[cleanId].titles || {};
+                            localConvCache[cleanId].titles.takeout = cleanPrompt;
+                            if (hasExplicitPrompt) localConvCache[cleanId].hasExplicitPrompt = true;
                         }
                     }
                     if (ts && (!extractedMap[cleanId].timestamp || ts > extractedMap[cleanId].timestamp)) {

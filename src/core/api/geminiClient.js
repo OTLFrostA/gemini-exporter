@@ -30,7 +30,9 @@
         return GEMINI_API_URL;
     }
 
+    // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
     function getBlFromPage() {
+        if (typeof document === 'undefined') return null;
         try {
             let html = (global.document && global.document.documentElement && global.document.documentElement.innerHTML) || "";
             let m = html.match(/"cfb2h"\s*:\s*"([^"]+)"/) || html.match(/"bl"\s*:\s*"(boq_assistant[^"]+)"/);
@@ -40,7 +42,9 @@
         return null;
     }
 
+    // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
     function getAtFromPage() {
+        if (typeof document === 'undefined') return null;
         try {
             if (global.__gemExporterExtractAt) {
                 let a = global.__gemExporterExtractAt();
@@ -61,7 +65,9 @@
         return "";
     }
 
+    // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
     function detectSlot() {
+        if (typeof document === 'undefined') return null;
         try {
             let m = (global.location && global.location.pathname || "").match(/\/u\/(\d+)/);
             if (m) return `u${m[1]}`;
@@ -542,7 +548,9 @@
                 attachmentCount
             };
         }
+        // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
         getCurrentConversationId() {
+            if (typeof document === 'undefined') return null;
             try {
                 let u = new URL(global.location.href);
                 let parts = u.pathname.split('/');

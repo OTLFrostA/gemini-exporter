@@ -250,7 +250,7 @@
             return;
         }
 
-        const format = Formats ? Formats.getFormatFromSelect($('format')) : ($('format')?.value || 'markdown');
+        const format = Formats ? Formats.getCurrentFormat(document.body.classList.contains('dev-mode'), $('format')?.value) : ($('format')?.value || 'markdown');
         const skip = $('skipExported')?.checked || false;
         const includeIndex = $('includeIndex')?.checked || false;
         const includeAssets = $('includeAssets') ? $('includeAssets').checked : true;
@@ -508,8 +508,9 @@
         };
 
         if (Formats && Formats.loadFormat) {
-            await Formats.loadFormat($('format'));
-            Formats.bindFormatSelect($('format'));
+            const { format, isDev } = await Formats.loadFormat();
+            if ($('format')) $('format').value = format;
+            $('format')?.addEventListener('change', e => Formats.saveFormat(e.target.value));
         }
 
         if (zipCheck) {
@@ -572,7 +573,14 @@
             }
             if (devOn) renderLog();
             if (Formats && Formats.handleDevToggle) {
-                await Formats.handleDevToggle(devOn, $('format'));
+                const selectEl = $('format');
+                if (selectEl) {
+                    const result = Formats.handleDevToggle(devOn, selectEl.value);
+                    if (result.changed) {
+                        selectEl.value = result.format;
+                        await Formats.saveFormat(result.format);
+                    }
+                }
             }
             if (Store) await Store.setDevMode(devOn);
         };
