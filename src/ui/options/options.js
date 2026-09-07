@@ -744,7 +744,7 @@
                         if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
                     },
                     onLog: (txt, lvl) => log(txt, lvl),
-                    onFinished: ({ message, res, count, hitGoogleLimit }) => {
+                    onFinished: async ({ message, res, count, hitGoogleLimit }) => {
                         if (bar) bar.style.width = '100%';
                         if (progText) progText.textContent = message;
                         setTimeout(() => {
