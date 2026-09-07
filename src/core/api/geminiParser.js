@@ -177,15 +177,26 @@
     const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-    function isRealTitle(t, fallbackId) {
-        try {
-            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
-            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
-            if (typeof require !== 'undefined') {
-                const u = require('./utils.js');
-                if (u && u.isRealTitle) return u.isRealTitle(t, fallbackId);
+    function getUtils() {
+        if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+        if (typeof require !== 'undefined') {
+            try { return require('../utils/utils.js'); } catch (e) {
+                try { return require('./utils.js'); } catch (e2) { return null; }
             }
-        } catch {}
+        }
+        return null;
+    }
+
+    function normId(id) {
+        const u = getUtils();
+        if (u && typeof u.normId === 'function') return u.normId(id);
+        return String(id || '').replace(/^c_/, '').trim();
+    }
+
+    function isRealTitle(t, fallbackId) {
+        const u = getUtils();
+        if (u && typeof u.isRealTitle === 'function') return u.isRealTitle(t, fallbackId);
         if (!t || typeof t !== 'string') return false;
         const s = t.trim();
         if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
@@ -198,14 +209,8 @@
     }
 
     function cleanTitle(rawTitle) {
-        try {
-            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(rawTitle);
-            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(rawTitle);
-            if (typeof require !== 'undefined') {
-                const u = require('./utils.js');
-                if (u && u.cleanTitle) return u.cleanTitle(rawTitle);
-            }
-        } catch {}
+        const u = getUtils();
+        if (u && typeof u.cleanTitle === 'function') return u.cleanTitle(rawTitle);
         if (!rawTitle || typeof rawTitle !== 'string') return '';
         let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
         if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
@@ -863,7 +868,6 @@
 
     function extractMetaTitleFromTop(top, targetConvId) {
         if (!Array.isArray(top)) return null;
-        const normId = id => String(id || '').replace(/^c_/, '').trim();
         const targetNid = normId(targetConvId);
         for (let item of top) {
             if (Array.isArray(item) && item[0] === "wrb.fr" && (item[1] === "MaZiqc" || item[1] === "b7Lged") && typeof item[2] === "string") {
@@ -1308,6 +1312,8 @@
         extractConversationId,
         extractConversationTitle,
         isRealTitle,
+        cleanTitle,
+        normId,
         extractListItemTimestamp,
         parseList,
         parseDetail
@@ -1316,6 +1322,8 @@
     return {
         GeminiResponseParserClass,
         isRealTitle,
+        cleanTitle,
+        normId,
         GEMINI_JSPB_SCHEMA,
         detectTurnSchemaDrift,
         extractListItemTimestamp

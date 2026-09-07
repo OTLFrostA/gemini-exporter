@@ -10,9 +10,21 @@
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
 
+    const __slotTakeouts = new Map();
     let __takeoutMediaMap = {};
     let __takeoutGlobalMedia = {};
     let __takeoutConvCache = {};
+
+    function getStore(slot) {
+        if (slot && __slotTakeouts.has(slot)) {
+            return __slotTakeouts.get(slot);
+        }
+        return {
+            mediaMap: __takeoutMediaMap,
+            globalMedia: __takeoutGlobalMedia,
+            convCache: __takeoutConvCache
+        };
+    }
 
     function normId(id) {
         try {
@@ -50,28 +62,34 @@
         return Date.UTC(year, month - 1, day, hour, min, sec);
     }
 
-    function getTakeoutOfflineChat(chatId) {
+    function getTakeoutOfflineChat(chatId, slot) {
         if (!chatId) return null;
         const nid = normId(chatId);
-        return __takeoutConvCache[nid] || null;
+        const store = getStore(slot);
+        return store.convCache[nid] || __takeoutConvCache[nid] || null;
     }
 
-    function getTakeoutMediaForChat(chatId) {
+    function getTakeoutMediaForChat(chatId, slot) {
         if (!chatId) return [];
         const nid = normId(chatId);
-        return __takeoutMediaMap[nid] || [];
+        const store = getStore(slot);
+        return (store.mediaMap && store.mediaMap[nid]) || __takeoutMediaMap[nid] || [];
     }
 
-    async function getTakeoutFallbackMedia(chatId, filenameOrId) {
+    async function getTakeoutFallbackMedia(chatId, filenameOrId, slot) {
         if (!filenameOrId) return null;
         const nid = normId(chatId);
+        const store = getStore(slot);
+        const mediaMap = store.mediaMap || __takeoutMediaMap;
+        const globalMedia = store.globalMedia || __takeoutGlobalMedia;
+
         let target = String(filenameOrId).replace(/^.*[\\\/]/, '').trim();
         try { target = decodeURIComponent(target); } catch {}
         let targetStem = target.replace(/\.[^/.]+$/, '').toLowerCase();
         let cleanTargetStem = targetStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
         let cleanTarget = target.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
 
-        const convMedia = __takeoutMediaMap[nid];
+        const convMedia = mediaMap[nid];
         if (convMedia && convMedia.length) {
             for (const item of convMedia) {
                 let itemFilename = item.filename;
@@ -92,15 +110,15 @@
             }
         }
 
-        if (__takeoutGlobalMedia[cleanTargetStem] || __takeoutGlobalMedia[targetStem] || __takeoutGlobalMedia[cleanTarget] || __takeoutGlobalMedia[target]) {
-            const fObj = __takeoutGlobalMedia[cleanTargetStem] || __takeoutGlobalMedia[targetStem] || __takeoutGlobalMedia[cleanTarget] || __takeoutGlobalMedia[target];
+        if (globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target]) {
+            const fObj = globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target];
             try {
                 let bin = await fObj.async('uint8array');
                 if (bin && bin.length > 0) return bin;
             } catch {}
         }
 
-        for (const [stem, fileObj] of Object.entries(__takeoutGlobalMedia)) {
+        for (const [stem, fileObj] of Object.entries(globalMedia)) {
             let cleanStem = stem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
             if ((cleanStem.length > 4 && (cleanStem === cleanTargetStem || cleanStem.includes(cleanTargetStem) || cleanTargetStem.includes(cleanStem))) ||
                 (stem.length > 4 && (stem === cleanTargetStem || stem.includes(cleanTargetStem) || cleanTargetStem.includes(stem)))) {
@@ -114,7 +132,7 @@
         return null;
     }
 
-    async function parseTakeoutZip(file, onProgress) {
+    async function parseTakeoutZip(file, onProgress, slot = null) {
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip 库未加载，无法解析 ZIP');
         }
@@ -142,13 +160,18 @@
                 }
             }
         }
-        if (onProgress) onProgress(40, '正在检索 Gemini / Bard 活动记录...');
+        if (onProgress) onProgress(40, typeof I18n !== 'undefined' ? I18n.t('takeoutParsingStructure') : '正在扫描 Takeout 目录结构...');
 
         let activityFile = null;
-        for (const filename of Object.keys(zip.files)) {
-            if (zip.files[filename].dir) continue;
-            if (/MyActivity\.html$/i.test(filename) && (/Gemini/i.test(filename) || /Bard/i.test(filename) || /我的活动/i.test(filename))) {
-                activityFile = zip.files[filename];
+        for (const [path, fObj] of Object.entries(zip.files)) {
+            if (fObj.dir) continue;
+            if (path.includes('Takeout/Gemini/我的活动') ||
+                path.includes('Takeout/Bard/我的活动') ||
+                path.includes('Takeout/Gemini/MyActivity') ||
+                path.includes('Takeout/Bard/MyActivity') ||
+                path.includes('Takeout/Gemini/My Activity') ||
+                path.includes('Takeout/Bard/My Activity')) {
+                activityFile = fObj;
                 break;
             }
         }
@@ -169,9 +192,9 @@
         const htmlText = await activityFile.async('text');
         if (onProgress) onProgress(70, typeof I18n !== 'undefined' ? I18n.t('takeoutParsingDetail') : '正在解析对话并建立离线媒体索引...');
 
-        __takeoutMediaMap = {};
-        __takeoutGlobalMedia = {};
-        __takeoutConvCache = {};
+        const localMediaMap = {};
+        const localGlobalMedia = {};
+        const localConvCache = {};
         let totalMediaCount = 0;
 
         const watermarkedImages = [];
@@ -180,9 +203,9 @@
             let filename = path.replace(/^.*[\\\/]/, '').trim();
             let stem = filename.replace(/\.[^/.]+$/, '').toLowerCase();
             let cleanStem = stem.replace(/-[0-9a-fA-F]{16}$/i, '');
-            __takeoutGlobalMedia[cleanStem] = fObj;
-            __takeoutGlobalMedia[stem] = fObj;
-            __takeoutGlobalMedia[filename] = fObj;
+            localGlobalMedia[cleanStem] = fObj;
+            localGlobalMedia[stem] = fObj;
+            localGlobalMedia[filename] = fObj;
             totalMediaCount++;
 
             if (/watermarked_img_/i.test(filename)) {
@@ -368,7 +391,7 @@
             }
 
             for (const cleanId of foundIds) {
-                if (!__takeoutMediaMap[cleanId]) __takeoutMediaMap[cleanId] = [];
+                if (!localMediaMap[cleanId]) localMediaMap[cleanId] = [];
                 for (const refName of localMediaNames) {
                     const refStem = refName.replace(/\.[^/.]+$/, '').toLowerCase();
                     for (const [path, fObj] of Object.entries(zip.files)) {
@@ -376,16 +399,16 @@
                         const zipFilename = path.replace(/^.*[\\\/]/, '').trim();
                         const zipStem = zipFilename.replace(/\.[^/.]+$/, '').toLowerCase();
                         if (zipFilename === refName || zipStem === refStem || zipFilename.endsWith(refName) || (refStem.length > 5 && zipStem.includes(refStem))) {
-                            if (!__takeoutMediaMap[cleanId].some(x => x.filename === zipFilename)) {
-                                __takeoutMediaMap[cleanId].push({ filename: zipFilename, fileObj: fObj });
+                            if (!localMediaMap[cleanId].some(x => x.filename === zipFilename)) {
+                                localMediaMap[cleanId].push({ filename: zipFilename, fileObj: fObj });
                             }
                         }
                     }
                 }
 
                 const promptTitle = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : 'Takeout conversation';
-                if (!__takeoutConvCache[cleanId]) {
-                    __takeoutConvCache[cleanId] = {
+                if (!localConvCache[cleanId]) {
+                    localConvCache[cleanId] = {
                         id: cleanId,
                         title: promptTitle,
                         titleSource: 'takeout',
@@ -398,14 +421,14 @@
                         hasExplicitPrompt
                     };
                 } else if (turnMsgs.length > 0) {
-                    __takeoutConvCache[cleanId].messages.push(...turnMsgs);
-                    __takeoutConvCache[cleanId].messageCount = __takeoutConvCache[cleanId].messages.length;
-                    __takeoutConvCache[cleanId].attachmentCount = (__takeoutConvCache[cleanId].attachmentCount || 0) + localMediaNames.length;
-                    if (hasExplicitPrompt && !__takeoutConvCache[cleanId].hasExplicitPrompt && promptTitle) {
-                        __takeoutConvCache[cleanId].title = promptTitle;
-                        __takeoutConvCache[cleanId].titles = __takeoutConvCache[cleanId].titles || {};
-                        __takeoutConvCache[cleanId].titles.takeout = promptTitle;
-                        __takeoutConvCache[cleanId].hasExplicitPrompt = true;
+                    localConvCache[cleanId].messages.push(...turnMsgs);
+                    localConvCache[cleanId].messageCount = localConvCache[cleanId].messages.length;
+                    localConvCache[cleanId].attachmentCount = (localConvCache[cleanId].attachmentCount || 0) + localMediaNames.length;
+                    if (hasExplicitPrompt && !localConvCache[cleanId].hasExplicitPrompt && promptTitle) {
+                        localConvCache[cleanId].title = promptTitle;
+                        localConvCache[cleanId].titles = localConvCache[cleanId].titles || {};
+                        localConvCache[cleanId].titles.takeout = promptTitle;
+                        localConvCache[cleanId].hasExplicitPrompt = true;
                     }
                 }
 
@@ -456,9 +479,9 @@
         // Correlate watermarked generated images with conversations
         if (watermarkedImages.length > 0 && genBlocks.length > 0) {
             function linkTakeoutGeneratedImage(chatId, img) {
-                if (!__takeoutMediaMap[chatId]) __takeoutMediaMap[chatId] = [];
-                if (!__takeoutMediaMap[chatId].some(x => x.filename === img.filename)) {
-                    __takeoutMediaMap[chatId].push({
+                if (!localMediaMap[chatId]) localMediaMap[chatId] = [];
+                if (!localMediaMap[chatId].some(x => x.filename === img.filename)) {
+                    localMediaMap[chatId].push({
                         filename: img.filename,
                         fileObj: img.fileObj,
                         isGenerated: true
@@ -472,7 +495,7 @@
                     source: 'takeout',
                     isGenerated: true
                 };
-                const cached = __takeoutConvCache[chatId];
+                const cached = localConvCache[chatId];
                 if (cached && Array.isArray(cached.messages)) {
                     let modelTurn = cached.messages.find(m => m.role === 'model');
                     if (!modelTurn) {
@@ -531,19 +554,36 @@
         const conversations = Object.values(extractedMap);
         if (onProgress) onProgress(100, `Takeout 解析完成，共发现 ${conversations.length} 条对话与 ${totalMediaCount} 个离线资源`);
 
+        // Atomic commit upon successful parsing
+        __takeoutMediaMap = localMediaMap;
+        __takeoutGlobalMedia = localGlobalMedia;
+        __takeoutConvCache = localConvCache;
+        if (slot) {
+            __slotTakeouts.set(slot, {
+                mediaMap: localMediaMap,
+                globalMedia: localGlobalMedia,
+                convCache: localConvCache
+            });
+        }
+
         return {
             conversations,
             totalMediaCount,
-            convCache: __takeoutConvCache,
-            mediaMap: __takeoutMediaMap,
-            globalMedia: __takeoutGlobalMedia
+            convCache: localConvCache,
+            mediaMap: localMediaMap,
+            globalMedia: localGlobalMedia
         };
     }
 
-    function clearTakeoutData() {
-        __takeoutMediaMap = {};
-        __takeoutGlobalMedia = {};
-        __takeoutConvCache = {};
+    function clearTakeoutData(slot) {
+        if (slot && __slotTakeouts.has(slot)) {
+            __slotTakeouts.delete(slot);
+        } else {
+            __slotTakeouts.clear();
+            __takeoutMediaMap = {};
+            __takeoutGlobalMedia = {};
+            __takeoutConvCache = {};
+        }
     }
 
     return {

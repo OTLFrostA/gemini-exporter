@@ -26,4 +26,7 @@ node_modules
 node_modules/
 test-results/
 playwright-report/
-tests/output/
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo

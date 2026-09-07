@@ -25,6 +25,7 @@
     const isRealTitle = (t, id) => (Utils.isRealTitle ? Utils.isRealTitle(t, id) : !!(t && String(t).trim().length > 1));
     const resolveTitle = (chat) => (Utils.resolveTitle ? Utils.resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
     const getEffectiveTime = (conv) => (Utils.getEffectiveTimestamp ? Utils.getEffectiveTimestamp(conv) : (conv ? ((typeof (conv.updatedAt || conv.timestamp || 0) === 'string') ? new Date(conv.updatedAt || conv.timestamp).getTime() : (conv.updatedAt || conv.timestamp || 0)) : 0));
+    const compareConversations = (a, b) => (Utils.compareConversations ? Utils.compareConversations(a, b) : 0);
 
     let __workbenchDebounceTimer = null;
     let __lastRenderedSignature = '';
@@ -165,19 +166,7 @@
                 Storage.setConversations(slot, processed).catch(() => {});
             }
 
-            processed.sort((a, b) => {
-                let valA = getEffectiveTime(a);
-                let valB = getEffectiveTime(b);
-                if (valA !== valB) return valB - valA;
-
-                let idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
-                let idxB = typeof b.sidebarIndex === 'number' ? b.sidebarIndex : 999999;
-                if (idxA !== idxB) return idxA - idxB;
-
-                let lsA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
-                let lsB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
-                return lsB - lsA;
-            });
+            processed.sort(compareConversations);
 
             Store.setConversations(processed);
 

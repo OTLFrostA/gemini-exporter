@@ -95,7 +95,7 @@ def test_module_exports():
         "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
-        "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp"]
+        "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations"]
     }
     for filename, symbols in files.items():
         with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:
@@ -461,6 +461,41 @@ def test_takeout_limit_modal_and_wall_detection():
 
     print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
 
+def test_stage1_architecture_ssot_and_state_isolation():
+    # 1. Verify per-slot aborts in background.js
+    bg_js_path = os.path.join(BASE_DIR, "src/background/background.js")
+    with open(bg_js_path, "r", encoding="utf-8") as f:
+        bg_code = f.read()
+    assert "__bgAborts = new Map()" in bg_code, "background.js must isolate abort flags per account slot using Map"
+    assert "let __bgAborted = false;" not in bg_code, "background.js must not contain mutable global __bgAborted"
+    assert "isSlotAborted" in bg_code and "setSlotAborted" in bg_code, "background.js must provide slot-aware abort helpers"
+
+    # 2. Verify per-slot Takeout cache in takeoutEngine.js
+    takeout_js_path = os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.js")
+    with open(takeout_js_path, "r", encoding="utf-8") as f:
+        takeout_code = f.read()
+    assert "__slotTakeouts = new Map()" in takeout_code, "takeoutEngine.js must isolate takeout dictionaries per account slot"
+    assert "getStore(slot)" in takeout_code or "getStore(" in takeout_code, "takeoutEngine.js must route through getStore(slot)"
+
+    # 3. Verify SSoT compareConversations in content.js and options.js
+    content_js_path = os.path.join(BASE_DIR, "src/content/content.js")
+    with open(content_js_path, "r", encoding="utf-8") as f:
+        content_code = f.read()
+    assert "compareConversations" in content_code, "content.js upsertConversations must use compareConversations SSoT"
+
+    options_js_path = os.path.join(BASE_DIR, "src/ui/options/options.js")
+    with open(options_js_path, "r", encoding="utf-8") as f:
+        options_code = f.read()
+    assert "compareConversations" in options_code, "options.js loadStore must use compareConversations SSoT"
+
+    # 4. Verify SSoT sanitizeFileName and cleanTitle delegation in exportEngine.js
+    export_js_path = os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
+    with open(export_js_path, "r", encoding="utf-8") as f:
+        export_code = f.read()
+    assert "sanitizeFileName" in export_code and "getUtils()?.sanitizeFileName" in export_code, "exportEngine.js sanitizeFileName must delegate to GeminiUtils SSoT"
+
+    print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
@@ -471,6 +506,7 @@ test_exported_history_and_slot_fallback()
 test_dataset_freshness_gate()
 test_tour_status_indicator_styling()
 test_takeout_limit_modal_and_wall_detection()
+test_stage1_architecture_ssot_and_state_isolation()
 test_javascript_syntax()
 test_javascript_unit_tests()
 
