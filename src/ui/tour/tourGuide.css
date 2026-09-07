@@ -160,14 +160,20 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 500;
+  line-height: 1.4;
+  background: transparent !important;
 }
 
-.tour-status-indicator.ok {
-  color: #10b981;
+.tour-status-indicator.ok,
+.tour-status-indicator.tour-status-ok {
+  color: #34d399 !important;
+  background: transparent !important;
 }
 
-.tour-status-indicator.warn {
-  color: #f59e0b;
+.tour-status-indicator.warn,
+.tour-status-indicator.tour-status-warn {
+  color: #fbbf24 !important;
+  background: transparent !important;
 }
 
 .tour-footer {

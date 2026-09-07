@@ -380,6 +380,30 @@ def test_dataset_freshness_gate():
 
     print("  ✓ Dataset 2-minute freshness gate & bypass options verified")
 
+def test_tour_status_indicator_styling():
+    # 1. Ensure options.html does not define unscoped .ok { ... }
+    for html_file in ["options.html", "src/ui/options/options.html"]:
+        with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
+            content = f.read()
+        assert not re.search(r'(?<!button)\.ok\s*\{', content), f"Unscoped .ok rule found in {html_file}"
+
+    # 2. Ensure tourGuide.css explicitly sets background: transparent and high-contrast color for ok/warn indicators
+    tour_css_path = os.path.join(BASE_DIR, "src/ui/tour/tourGuide.css")
+    with open(tour_css_path, "r", encoding="utf-8") as f:
+        tour_css = f.read()
+    assert ".tour-status-indicator.ok" in tour_css and ".tour-status-indicator.tour-status-ok" in tour_css, "tourGuide.css missing tour-status-ok"
+    assert "background: transparent" in tour_css, "tourGuide.css must ensure status indicators have transparent background"
+    assert "#34d399" in tour_css, "tourGuide.css should use crisp high-contrast emerald color (#34d399) for status ok"
+
+    # 3. Ensure tourGuide.js uses tour-status-ok and tour-status-warn
+    tour_js_path = os.path.join(BASE_DIR, "src/ui/tour/tourGuide.js")
+    with open(tour_js_path, "r", encoding="utf-8") as f:
+        tour_js = f.read()
+    assert "tour-status-indicator tour-status-ok" in tour_js, "tourGuide.js missing tour-status-ok class"
+    assert "tour-status-indicator tour-status-warn" in tour_js, "tourGuide.js missing tour-status-warn class"
+
+    print("  ✓ TourGuide status indicator styles and class scoping verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
@@ -388,6 +412,7 @@ test_i18n_keys()
 test_content_badge_flicker_prevention()
 test_exported_history_and_slot_fallback()
 test_dataset_freshness_gate()
+test_tour_status_indicator_styling()
 test_javascript_syntax()
 test_javascript_unit_tests()
 

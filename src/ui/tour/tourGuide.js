@@ -414,7 +414,7 @@
                 bodyHtml = `
                     <div class="tour-content">${t('tourStep1NoTab')}</div>
                     <div class="tour-action-box">
-                        <div class="tour-status-indicator warn">⚠️ ${t('notSynced')}</div>
+                        <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('notSynced')}</div>
                         <button id="tourBtnOpenGemini" class="tour-action-btn">
                             ${t('tourStep1BtnOpen')}
                         </button>
@@ -424,7 +424,7 @@
                 bodyHtml = `
                     <div class="tour-content">${t('tourStep1NeedRefresh')}</div>
                     <div class="tour-action-box">
-                        <div class="tour-status-indicator warn">⚠️ ${t('tourStep1NeedRefresh')}</div>
+                        <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NeedRefresh')}</div>
                         <button id="tourBtnReloadGemini" class="tour-action-btn secondary">
                             ${t('tourStep1BtnRefresh')}
                         </button>
@@ -432,9 +432,9 @@
                 `;
             } else {
                 bodyHtml = `
-                    <div class="tour-content">${t('tourStep1Connected')}</div>
+                    <div class="tour-content">${t('tourStep1ConnectedDesc') || t('tourStep1Connected')}</div>
                     <div class="tour-action-box">
-                        <div class="tour-status-indicator ok">✅ ${t('tourStep1Connected')}</div>
+                        <div class="tour-status-indicator tour-status-ok ok">✅ ${t('tourStep1Connected')}</div>
                     </div>
                 `;
             }
