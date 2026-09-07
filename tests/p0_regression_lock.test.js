@@ -211,6 +211,7 @@ test('p0-lock: staged image asset finalizes exactly once via the queue (no dupli
 // ----------------------------------- hookCredentials.js MAIN-world behavior
 
 const hookCode = fs.readFileSync(path.join(SRC, 'content', 'hookCredentials.js'), 'utf8');
+const protocolCode = fs.readFileSync(path.join(SRC, 'core', 'protocol', 'protocol.js'), 'utf8');
 
 function createHookSandbox() {
     const posted = [];
@@ -233,6 +234,9 @@ function createHookSandbox() {
         URLSearchParams
     };
     vm.createContext(sandbox);
+    // Mirror the browser load order: protocol.js is the first MAIN-world script.
+    vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });
+    win.GeminiProtocol = sandbox.GeminiProtocol;
     vm.runInContext(hookCode, sandbox, { filename: 'hookCredentials.js' });
     return { posted, win };
 }

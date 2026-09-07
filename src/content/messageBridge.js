@@ -45,9 +45,11 @@
                     ? GeminiResponseParserClass
                     : (typeof globalThis !== 'undefined' ? globalThis.GeminiResponseParserClass : null);
                 if (!parser) return;
+                const Proto = (_deps && _deps.protocol) || (typeof window !== 'undefined' && window.GeminiProtocol) || null;
+                if (!Proto) return;
 
                 // If response contains conversation list (sidebar scroll or search)
-                if (text.includes('MaZiqc') && typeof upsertConversations === 'function') {
+                if (text.includes(Proto.RPCS.LIST) && typeof upsertConversations === 'function') {
                     try {
                         const listRes = parser.parseList(text);
                         if (listRes && listRes.conversations && listRes.conversations.length) {
@@ -60,7 +62,7 @@
                 }
 
                 // If response contains conversation detail (opening any chat)
-                if (text.includes('hNvQHb') && typeof upsertConversations === 'function') {
+                if (text.includes(Proto.RPCS.DETAIL) && typeof upsertConversations === 'function') {
                     try {
                         const detailRes = parser.parseDetail(text);
                         if (detailRes && detailRes.id) {

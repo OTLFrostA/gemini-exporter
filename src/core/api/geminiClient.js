@@ -3,13 +3,24 @@
     'use strict';
 
     const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
-    const RPCS = {
-        LIST: "MaZiqc",
-        DETAIL: "hNvQHb",
-        GEMS: "CNgdBe"
-    };
-    const BL_FALLBACK = "boq_assistant-bard-web-server_20260802.09_p1";
     const generateFallbackSid = () => String(Math.floor(Math.random() * 1e19));
+
+    // Protocol anti-corruption layer (see core/protocol/protocol.js).
+    let __protocol = null;
+    function getProtocol() {
+        if (__protocol) return __protocol;
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiProtocol) {
+            __protocol = globalThis.GeminiProtocol;
+        } else if (typeof require !== 'undefined') {
+            try { __protocol = require('../protocol/protocol.js'); } catch { /* intentional: require fallback in browser context */ }
+        }
+        if (!__protocol) throw new Error('GeminiProtocol not found. Make sure core/protocol/protocol.js is loaded.');
+        return __protocol;
+    }
+
+    // _reqid: one incrementing generator per client (matches real frontend
+    // convention; pure Math.random() per request is fingerprintable).
+    const nextReqid = getProtocol().createReqidGenerator();
 
     // Get parser instance (from gemini_parser.js or fallback)
     function getParser() {
@@ -137,7 +148,7 @@
             let entry = {
                 sid,
                 at: pageAt,
-                bl: pageBl || BL_FALLBACK,
+                bl: pageBl || getProtocol().BL_FALLBACK,
                 accountSlot: slot,
                 lastUsed: Date.now()
             };
@@ -167,7 +178,7 @@
         if (targetSid && map[targetSid]) {
             result = {
                 ...map[targetSid],
-                bl: map[targetSid].bl || pageBl || BL_FALLBACK,
+                bl: map[targetSid].bl || pageBl || getProtocol().BL_FALLBACK,
                 at: map[targetSid].at || pageAt || ""
             };
         } else {
@@ -178,7 +189,7 @@
             if (arr[0]) {
                 result = {
                     ...arr[0],
-                    bl: arr[0].bl || pageBl || BL_FALLBACK,
+                    bl: arr[0].bl || pageBl || getProtocol().BL_FALLBACK,
                     at: arr[0].at || pageAt || ""
                 };
             } else {
@@ -186,7 +197,7 @@
                     sid: generateFallbackSid(),
                     at: pageAt || "",
                     accountSlot: "default",
-                    bl: pageBl || BL_FALLBACK
+                    bl: pageBl || getProtocol().BL_FALLBACK
                 };
             }
         }
@@ -211,23 +222,23 @@
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             let params = new URLSearchParams({
-                rpcids: RPCS.LIST,
+                rpcids: getProtocol().RPCS.LIST,
                 "source-path": "/app",
-                bl: cred.bl || BL_FALLBACK,
+                bl: cred.bl || getProtocol().BL_FALLBACK,
                 "f.sid": cred.sid || generateFallbackSid(),
-                _reqid: Math.floor(1e5 * Math.random()).toString(),
+                _reqid: nextReqid(),
                 rt: "c"
             });
             let body = new URLSearchParams();
             const filter = customFilter || [0, null, 1];
             let req = pageToken ? JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([50, pageToken, filter]), null, "generic"]
+                        [getProtocol().RPCS.LIST, JSON.stringify([50, pageToken, filter]), null, "generic"]
                     ]
                 ]) :
                 JSON.stringify([
                     [
-                        [RPCS.LIST, JSON.stringify([50, null, filter]), null, "generic"]
+                        [getProtocol().RPCS.LIST, JSON.stringify([50, null, filter]), null, "generic"]
                     ]
                 ]);
             body.append("f.req", req);
@@ -468,11 +479,11 @@
             }
             const detailOnly = !!(opts && opts.detailOnly);
             let params = new URLSearchParams({
-                rpcids: detailOnly ? RPCS.DETAIL : `${RPCS.DETAIL},${RPCS.LIST}`,
+                rpcids: detailOnly ? getProtocol().RPCS.DETAIL : `${getProtocol().RPCS.DETAIL},${getProtocol().RPCS.LIST}`,
                 "source-path": "/app",
-                bl: cred.bl || BL_FALLBACK,
+                bl: cred.bl || getProtocol().BL_FALLBACK,
                 "f.sid": cred.sid || generateFallbackSid(),
-                _reqid: Math.floor(1e5 * Math.random()).toString(),
+                _reqid: nextReqid(),
                 rt: "c"
             });
             let body = new URLSearchParams();
@@ -482,8 +493,8 @@
                 : JSON.stringify([id, 10, pageToken || null, 1, [1], [4], null, 1]);
             let innerMeta = JSON.stringify([1, null, [null, null, 1, null, 1, id]]);
             let fReq = detailOnly
-                ? JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"]]])
-                : JSON.stringify([[[RPCS.DETAIL, innerDetail, null, "generic"], [RPCS.LIST, innerMeta, null, "generic"]]]);
+                ? JSON.stringify([[[getProtocol().RPCS.DETAIL, innerDetail, null, "generic"]]])
+                : JSON.stringify([[[getProtocol().RPCS.DETAIL, innerDetail, null, "generic"], [getProtocol().RPCS.LIST, innerMeta, null, "generic"]]]);
             body.append("f.req", fReq);
             if (cred.at) body.append("at", cred.at);
             let controller = null;

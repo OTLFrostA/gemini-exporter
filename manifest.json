@@ -41,6 +41,7 @@
         "src/content/content.css"
       ],
       "js": [
+        "dist/core/protocol/protocol.js",
         "dist/core/utils/utils.js",
         "dist/core/storage/storageService.js",
         "dist/core/api/geminiParser.js",
@@ -60,6 +61,7 @@
         "https://gemini.google.com/*"
       ],
       "js": [
+        "dist/core/protocol/protocol.js",
         "dist/content/hookCredentials.js"
       ],
       "world": "MAIN",

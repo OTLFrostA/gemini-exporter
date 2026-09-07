@@ -1,6 +1,12 @@
 // public/hook-credentials.js - MAIN world, captures Gemini credentials safely (no inline)
 (function() {
     if (typeof window === 'undefined') return;
+    // Protocol anti-corruption layer — must load before this script (manifest order).
+    const Proto = window.GeminiProtocol;
+    if (!Proto) {
+        console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
+        return;
+    }
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
     const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
@@ -51,8 +57,8 @@
 
     function detectDeletedConversation(url, body, responseText) {
         try {
-            const hasGz = (body && typeof body === 'string' && body.includes('GzXR5e')) ||
-                          (responseText && typeof responseText === 'string' && responseText.includes('GzXR5e'));
+            const hasGz = (body && typeof body === 'string' && body.includes(Proto.RPCS.DELETE)) ||
+                          (responseText && typeof responseText === 'string' && responseText.includes(Proto.RPCS.DELETE));
             if (!hasGz) return;
 
             let slot = 'default';
@@ -71,9 +77,9 @@
                 }
             } catch { /* intentional: invalid date or URI fallback */ }
 
-            // Anchor specifically to GzXR5e payload parameter context to prevent false positives
-            let idMatch = targetText.match(/GzXR5e[^\w]{1,60}["'](?:c_)?([a-f0-9]{8,64})["']/i) ||
-                          targetText.match(/["']GzXR5e["'][\s\S]{1,120}?["'](?:c_)?([a-f0-9]{8,64})["']/i);
+            // Anchor specifically to the delete-RPC payload parameter context to prevent false positives
+            let idMatch = targetText.match(Proto.DELETION_ANCHORS[0]) ||
+                          targetText.match(Proto.DELETION_ANCHORS[1]);
             if (idMatch && idMatch[1]) {
                 const deletedId = idMatch[1];
                 window.postMessage({
@@ -86,7 +92,7 @@
 
     function broadcastBatchexecute(url, text) {
         try {
-            if (!text || (!text.includes('MaZiqc') && !text.includes('hNvQHb') && !text.includes('GzXR5e') && !text.includes('wrb.fr'))) return;
+            if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL) && !text.includes(Proto.RPCS.DELETE) && !text.includes(Proto.WRB))) return;
             let slot = 'default';
             let uStr = (url || '').toString();
             let m = uStr.match(/\/u\/(\d+)\//);
@@ -158,13 +164,13 @@
     // Also expose SNlM0e fallback for content script
     function broadcastAt() {
         try {
-            let at = window.WIZ_global_data?.SNlM0e || window._WIZ_global_data?.SNlM0e || '';
-            let bl = window.WIZ_global_data?.cfb2h || window._WIZ_global_data?.cfb2h || '';
+            let at = window.WIZ_global_data?.[Proto.TOKENS.AT] || window._WIZ_global_data?.[Proto.TOKENS.AT] || '';
+            let bl = window.WIZ_global_data?.[Proto.TOKENS.BL] || window._WIZ_global_data?.[Proto.TOKENS.BL] || '';
             if (!at) {
                 let scripts = document.querySelectorAll('script');
                 for (let s of scripts) {
                     if (!s.textContent) continue;
-                    let m = s.textContent.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+                    let m = s.textContent.match(Proto.TOKEN_PATTERNS.atFromScript);
                     if (m) { at = m[1]; break; }
                 }
             }
