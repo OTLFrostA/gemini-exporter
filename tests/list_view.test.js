@@ -55,3 +55,35 @@ test('listView - selectAll & deselectAll DOM simulation', () => {
         globalThis.document = origDoc;
     }
 });
+
+test('listView - updateItemExportStatus in-place DOM update', () => {
+    let queriedSelector = null;
+    const fakeBadge = { textContent: 'New', style: {} };
+    const fakeItem = {
+        querySelector: (sel) => {
+            if (sel === '.badge') return fakeBadge;
+            return null;
+        }
+    };
+    const fakeDoc = {
+        querySelector: (sel) => {
+            queriedSelector = sel;
+            if (sel.includes('test_chat_123')) return fakeItem;
+            return null;
+        },
+        querySelectorAll: () => [],
+        getElementById: () => null
+    };
+
+    const origDoc = globalThis.document;
+    try {
+        globalThis.document = fakeDoc;
+        assert.strictEqual(typeof ListView.updateItemExportStatus, 'function');
+        ListView.updateItemExportStatus('c_test_chat_123', { exportedAt: '2026-09-07' });
+        assert.ok(queriedSelector && queriedSelector.includes('test_chat_123'));
+        assert.ok(fakeBadge.textContent === '已导出' || fakeBadge.textContent === 'Exported');
+    } finally {
+        globalThis.document = origDoc;
+    }
+});
+

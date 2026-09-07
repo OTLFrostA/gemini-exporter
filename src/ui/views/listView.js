@@ -50,10 +50,45 @@
         onDeleteCallback = cb;
     }
 
+    let currentConversationsRef = [];
+    let currentOnDeleteChatRef = null;
+
+    function ensureListDelegation(list) {
+        if (!list || list._delegated) return;
+        list._delegated = true;
+
+        list.addEventListener('click', (e) => {
+            if (e.target.closest('a.open-link')) {
+                e.stopPropagation();
+                return;
+            }
+            const btn = e.target.closest('.btn-remove-chat');
+            if (btn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const chatId = btn.dataset.removeId || btn.dataset.chatId || btn.closest('[data-chat-id]')?.dataset?.chatId;
+                if (chatId) {
+                    const cb = currentOnDeleteChatRef || onDeleteCallback;
+                    if (typeof cb === 'function') cb(chatId);
+                }
+            }
+        });
+
+        list.addEventListener('change', (e) => {
+            if (e.target.matches('input[type=checkbox]')) {
+                updateStat(currentConversationsRef);
+            }
+        });
+    }
+
     function render(conversations, exportedIds, prevSelectedSet, searchFilter, onDeleteChat) {
         const list = $('list');
         if (!list) return;
-        if (!conversations.length) {
+        currentConversationsRef = conversations || [];
+        currentOnDeleteChatRef = onDeleteChat || onDeleteCallback;
+        ensureListDelegation(list);
+
+        if (!conversations || !conversations.length) {
             list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof I18n!=='undefined'?I18n.t('emptyList'):'No conversations found.'}</div>`;
             return;
         }
@@ -73,8 +108,14 @@
             return exportedIds[id] || exportedIds['c_'+nid] || exportedIds[nid] || null;
         }
 
+        // Precompute index map in O(N) to eliminate O(N^2) conversations.indexOf(c) inside map
+        const convIndexMap = new Map();
+        for (let i = 0; i < conversations.length; i++) {
+            convIndexMap.set(conversations[i], i);
+        }
+
         list.innerHTML = filtered.map(c=>{
-            const origIdx = conversations.indexOf(c);
+            const origIdx = convIndexMap.has(c) ? convIndexMap.get(c) : conversations.indexOf(c);
             const nid = String(c.id||'').replace(/^c_/,'');
             const rec = getRec(c.id);
             const isExported = !!rec;
@@ -99,24 +140,21 @@
             const removeTip = typeof I18n !== 'undefined' ? I18n.t('removeChatTip') : 'Remove this conversation from local list';
             return `<label class="item" data-chat-id="${nid}" style="display:flex; align-items:center; gap:8px;"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title" style="flex:1; min-width:0;"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank" class="open-link">${openTxt}</a> | ${dateStr}</div></div><button type="button" class="btn-remove-chat" data-remove-id="${nid}" title="${removeTip}" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px 6px; font-size:13px; border-radius:4px; opacity:0.4; transition:all 0.15s; flex:none;">🗑️</button></label>`;
         }).join('');
-        list.querySelectorAll('a.open-link').forEach(a=>a.addEventListener('click', e=>e.stopPropagation()));
-        list.querySelectorAll('.btn-remove-chat').forEach(btn => {
-            btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; btn.style.color = '#f87171'; });
-            btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.4'; btn.style.color = 'var(--muted)'; });
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const chatId = btn.dataset.removeId || btn.dataset.chatId || btn.closest('[data-chat-id]')?.dataset?.chatId;
-                if (chatId) {
-                    if (typeof onDeleteChat === 'function') {
-                        onDeleteChat(chatId);
-                    } else if (typeof onDeleteCallback === 'function') {
-                        onDeleteCallback(chatId);
-                    }
-                }
-            });
-        });
-        list.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change', updateStat.bind(null, conversations)));
+    }
+
+    function updateItemExportStatus(chatId, record) {
+        if (typeof document === 'undefined') return;
+        const nid = String(chatId || '').replace(/^c_/, '');
+        const item = document.querySelector(`#list .item[data-chat-id="${nid}"]`);
+        if (!item) return;
+        const bExported = typeof I18n !== 'undefined' ? I18n.t('badgeExported') : 'Exported';
+        const badgeEl = item.querySelector('.badge');
+        if (badgeEl) {
+            badgeEl.textContent = bExported;
+            badgeEl.style.background = '#1d3a2a';
+            badgeEl.style.borderColor = '#2a5a3a';
+            badgeEl.style.color = '#8ae6b0';
+        }
     }
 
     function updateStat(conversations) {
@@ -201,5 +239,5 @@
         updateStat(conversations);
     }
 
-    return { render, updateStat, getSelected, getSelectedIds, selectAll, deselectAll, selectUnexported, selectNeedsUpdate, isRealTitle, setOnDelete };
+    return { render, updateStat, getSelected, getSelectedIds, selectAll, deselectAll, selectUnexported, selectNeedsUpdate, isRealTitle, setOnDelete, updateItemExportStatus };
 }));
