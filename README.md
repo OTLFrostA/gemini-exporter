@@ -23,28 +23,36 @@
   - An intuitive dark-themed dashboard to view, filter, and manage all your synced conversations.
   - Filter chats by status: *All*, *Exported*, *Needs Re-export*, *Unexported*, or *Failed*.
   - Full **Bilingual Support (English / 简体中文)** with a 1-click language switcher in the header.
+- 🧭 **Interactive Guided Onboarding Tour**:
+  - A friendly, 4-step visual walkthrough for first-time users. Highlights synchronization, conversation selection, export configuration, and final export with high-contrast indicator badges and auto-completion persistence.
 - 📦 **Multiple Export Formats**:
   - **Markdown (`.md`)**: Beautiful formatting, syntax-highlighted code blocks, math equations, collapsible thinking details (`<details>`), and web citations.
   - **JSON (OpenAI Format)**: Ready-to-use format for LLM fine-tuning pipelines and third-party tools.
   - **JSON (Raw / Complete Metadata)**: Complete structured payload containing raw timestamps and conversation metadata.
-- 🖼️ **Full Support for Attachments & High-Res Images**:
-  - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution images across all conversation turns.
+- 🖼️ **Full Support for Attachments, Deep Research Reports & High-Res Imagen Assets**:
+  - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution Imagen pictures with globally unique asset filenames.
+  - **Deep Research Deduplication**: Smartly parses and mounts multi-turn Gemini 2.0 Deep Research report documents without duplicating attachments across turns.
   - Assets are neatly organized into an `assets/` subfolder with relative references preserved in Markdown.
-- ⚡ **High-Concurrency Streaming & Interruption Recovery**:
-  - Sliding window worker pool for ultra-fast concurrent downloads with real-time fluid progress tracking.
+- ⚡ **Event-Driven Async Pipeline (`AsyncQueue`) & Keepalive Resilience**:
+  - Replaces busy polling with an event-driven `AsyncQueue` worker pool for ultra-fast, CPU-efficient concurrent attachment downloading.
+  - **MV3 Service Worker Keepalive Heartbeat**: Dispatches lightweight keepalive pings during long batch exports and deep scans, preventing Chrome from suspending the background worker mid-session.
   - **Crash & Interruption Recovery Banner**: Automatically detects unfinished export sessions and offers 1-click resumption.
-- 👥 **Multi-Account Switching Support**:
-  - Seamlessly switch between multiple logged-in Google accounts (`u0`, `u1`, `u2`, etc.) with independent local storage, conversation lists, and export tracking per account.
+- 👥 **Multi-Account Switching & Complete State Isolation**:
+  - Seamlessly switch between multiple logged-in Google accounts (`u0`, `u1`, `u2`, etc.) with independent local storage, conversation lists, Takeout media caches, and per-slot abort controllers (`__bgAborts`).
 - 📥 **Google Takeout Integration & Legacy Chat Recovery (Takeout ZIP Import)**:
   - Directly load your Google Takeout archive (`takeout-*.zip`) to recover legacy conversations truncated by Gemini's cloud UI pagination limits.
   - **Offline Media Fallback Pool**: Automatically indexes offline media from the ZIP, seamlessly replacing any failed online asset downloads (e.g., due to expired tokens or 403 errors).
-- 🏷️ **Multi-Tier Title Arbitration (`TITLE_SOURCE_PRIORITY`)**:
-  - Smart title resolution hierarchy (RPC > DOM > Takeout > Sniff > Legacy) preventing brand name pollution ("Google Gemini") and preserving genuine conversation titles.
+- 🚨 **Google Sliding Window Wall Detection & Takeout Limit Modal**:
+  - Automatically detects when a full scan hits Google's server-side ~500–650 cursor pagination wall (`BardErrorInfo 1096` or HTTP 429), popping up a helpful guidance modal to direct users to Google Takeout import with single-time tutorial dismissal protection.
+- 🏷️ **Single Source of Truth (SSoT) Architecture**:
+  - **Path Traversal Defense (`sanitizeRelativePath`)**: Authoritative path sanitizer preventing directory traversal (`..`) and Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`, etc.) across ZIP and FileSystem writers.
+  - **Unified Title Arbitration (`TITLE_SOURCE_PRIORITY`)**: Strict multi-tier hierarchy (RPC > DOM > Takeout > Sniff > Legacy) preventing brand name pollution ("Google Gemini") and preserving genuine conversation titles.
+  - **Deterministic Sorting (`compareConversations`)**: Completely unified conversation sorting algorithm between content scripts and UI workbench, eliminating list jitter and sorting drift.
 - 🔄 **Smart Incremental Sync & Change Detection**:
   - Locally records conversation IDs, update timestamps, and message counts.
   - Supports "Skip already exported" mode. When an existing conversation receives new replies, it is automatically flagged as "Needs Re-export" for ultra-fast incremental backups.
 - ⚡ **Zero-Configuration Ready**:
-  - No official Gemini API key required. No account passwords exposed. Simply browse Google Gemini as usual, and session state is automatically detected.
+  - No official Gemini API key required. No account passwords exposed. Simply browse Google Gemini as usual, and session credentials (`at`, `bl`) are automatically intercepted in a sandboxed MAIN-world hook with automatic HTTP 400 self-healing refresh.
 
 ---
 
@@ -82,59 +90,97 @@ Install directly from the official Chrome Web Store with one click:
 
 ### 2. Batch Export & Incremental Sync (Workbench)
 1. Click **"Go to Workbench"** in the popup (or right-click the extension icon and select "Options").
-2. In the Workbench:
+2. For first-time visitors, follow the **Interactive Onboarding Tour** to explore the main controls.
+3. In the Workbench:
    - Click **"Sync Latest"** for fast incremental sync, or **"Deep Scan"** to gather your entire chat history.
    - Select the conversations you want to export (supports *Select All*, *Unexported Only*, *Updated Only*, and real-time search).
-   - Configure options: download assets, package as ZIP, custom folder, etc.
+   - Configure options: download assets, package as ZIP, direct write to local folder via FileSystem API, etc.
    - Click **"Export Selected → ZIP"** (or Folder) to archive your chats.
 
 ### 3. Google Takeout Import & Legacy Chat Recovery
 For heavy users with thousands of conversations, Google's web interface enforces a sliding window ceiling (~600–650 chats). You can recover and archive your complete legacy history using official Google Takeout:
 1. Visit **[Google Takeout](https://takeout.google.com)**, deselect all, and check only **Gemini**. Create and download the exported `takeout-*.zip` archive.
-2. Open the Gemini Exporter **Workbench (Options)**, navigate to the **"Google Takeout Import"** section, and select or drag-and-drop the ZIP file.
+2. Open the Gemini Exporter **Workbench (Options)**, navigate to the **"Google Takeout Import"** section, and select or drag-and-drop the ZIP file (or click "Import Takeout" directly from the Takeout Limit guidance modal).
 3. The extension instantly parses all prompt histories and conversation indexes completely inside your browser's local sandbox.
-4. **Offline Media Fallback Pool**: If cloud assets encounter 403 or expired token errors during export, the extension automatically retrieves the original images and attachments from the Takeout archive, ensuring 100% complete backups.
+4. **Offline Media Fallback Pool**: If cloud assets encounter 403 or expired token errors during export, the extension automatically retrieves original images and attachments from the Takeout archive, ensuring 100% complete backups.
 
 ---
 
 ## 🛡️ Architecture & Layered Design
 
-The extension follows a clean, decoupled layered architecture with zero external telemetry:
+Gemini Exporter enforces a strict 4-tier modular architecture across Chrome MV3 boundaries and domain responsibilities:
 
 ```
-src/core/                 Pure logic layer (no DOM dependencies)
-  ├── constants.js        Allowed formats, storage keys, default constants
-  ├── formatStore.js      Format normalization & validation
-  ├── tabService.js       Centralized Gemini Tab discovery & communication
-  └── exporter/
-      ├── zipWriter.js    JSZip stream packaging writer
-      └── fsWriter.js     FileSystem Access API writer & dirHandle directory builder
+src/
+  background/                  Extension Service Worker Subsystem
+    background.js              MV3 Service Worker, keepalive heartbeat & session routing
 
-src/ui/                   Workbench UI Layer (Decoupled Views & Controllers)
-  ├── state/
-  │   └── conversationsStore.js   Multi-account storage & signature tracking
-  ├── views/
-  │   ├── listView.js             Conversation table rendering & selection
-  │   ├── logView.js              Real-time log buffer & filtering
-  │   ├── accountView.js          Account slot dropdown rendering
-  │   └── dialogView.js           Interruption recovery banner & dialogs
-  └── controllers/
-      ├── exportController.js     Export pipeline orchestration
-      ├── syncController.js       Incremental & full sync management
-      ├── takeoutController.js    Takeout ZIP import & chat merging
-      └── dirHandleController.js  FileSystem Access API IndexedDB persistence
+  content/                     Injected Gemini Content Script Subsystem
+    content.js                 In-page DOM observation & sync coordinator
+    content.css                Sync status floating UI & badge styles
+    bootstrap.js               Page token & credential bootstrap
+    hookCredentials.js         MAIN world sandboxed network interceptor & credential bridge
 
-Content & Core Engine
-  ├── utils.js            Single source of truth for string sanitization & title resolution
-  ├── gemini_parser.js    Pure batchexecute RPC response parser
-  ├── gemini_client.js    Gemini batchexecute API network client
-  ├── takeout_engine.js   Takeout ZIP parsing & offline media matching
-  ├── export_engine.js    High-concurrency batch export pipeline
-  └── storage_service.js  Chrome storage multi-slot persistence
+  core/                        Pure Domain Logic & Engine (Decoupled from DOM)
+    api/
+      geminiClient.js          batchexecute RPC client, HTTP 400 auto-retry & token refresh
+      geminiParser.js          Protocol parsing, turns, attachments & title extraction
+    engine/
+      exportEngine.js          Event-driven AsyncQueue export coordinator & streaming
+      takeoutEngine.js         Google Takeout archive parser & isolated offline media pool
+      chatFormatter.js         Markdown, JSON, OpenAI schema formatters
+      assetFetcher.js          Media, images, and blob streaming fetcher
+      domScraper.js            Live document fallback DOM scraper
+      writers/
+        zipWriter.js           JSZip in-memory zip packaging writer
+        fsWriter.js            FileSystem Access API directory tree writer
+    storage/
+      storageService.js        Multi-account slot chrome.storage abstraction
+      formatStore.js           Export format validation & persistence
+    utils/
+      utils.js                 Single Source of Truth: path sanitization, title arbitration, sorting
+      constants.js             Enums, format definitions, storage keys
+      tabService.js            Tab query, routing, and message failover
+      i18n.js                  Bilingual dictionary & translation engine
+
+  ui/                          User Interface Subsystem
+    options/                   Workbench markup & options coordinator
+    popup/                     Browser action popup markup & coordinator
+    tour/                      Interactive onboarding tour guide & styling
+    state/
+      conversationsStore.js    Reactive conversation state & slot manager
+    views/
+      listView.js              Virtual conversation list & selection renderer
+      logView.js               Diagnostic console log view
+      accountView.js           Multi-account slot selector dropdown
+      dialogView.js            Session recovery banner & modal dialogs
+    controllers/
+      exportController.js      Export execution & progress orchestration
+      syncController.js        Incremental & deep history scan coordinator
+      takeoutController.js     Takeout ZIP import & conflict resolution
+      dirHandleController.js   FileSystem Access API IndexedDB persistence
 ```
 
-- **Credential Interception**: Intercepts the anti-CSRF token (`at`) and session identifier (`f.sid`) from native network requests in the MAIN world, avoiding raw Cookie exposure.
-- **Local Packaging**: All chat content and binary images are compressed and saved directly in the browser via JSZip and modern web APIs, requiring zero excessive browser permissions.
+### Key Engineering Invariants
+1. **Core Zero DOM Dependencies**: Core parsing, formatting, path sanitization, and sorting logic have zero DOM dependencies, running identically in Node.js unit tests, Web Workers, and extension pages.
+2. **Strict UI Separation**: `state` handles storage sync, `views` handles HTML rendering, `controllers` orchestrates workflows, and `options.js` acts as a thin coordinator.
+3. **Single Source of Truth (SSoT)**: All path sanitization (`sanitizeRelativePath`), filename cleaning, sorting arbitration (`compareConversations`), and title resolution reside exclusively in `src/core/utils/utils.js`.
+4. **Sandboxed Credential Bridge**: `hookCredentials.js` runs in the host page's MAIN world, sandboxing all interceptions so that extension errors never affect native Google Gemini operations.
+
+---
+
+## 🧪 Testing & Quality Architecture
+
+The project adopts a rigorous **Two-Tier Testing Architecture**:
+
+### Tier 1: Fast & Headless CI Gate
+- **Execution Command**: `npm test` (or `python tests/run_tests.py && npx playwright test`)
+- **Coverage**: 22 unit test suites and 14 headless Playwright E2E browser tests (~18 seconds total runtime). Fully self-contained with no external network or real Google credentials required. Enforced on all Pull Requests via GitHub Actions.
+
+### Tier 2: Live Debug Staging Harness
+- **Execution Command**: `npm run test:live` (or `python scripts/test_live_chat_and_export.py`)
+- **Environment**: Connects to an active Chrome instance with remote debugging port 9222 (`./scripts/open_test_chrome.sh` / `open_test_chrome.ps1`).
+- **Dynamic Dataset Freshness Gate**: Enforces a strict 2-minute dataset freshness gate during automated collaborative development to prevent stale test data reuse.
 
 ---
 
@@ -162,7 +208,7 @@ Third-party open-source components used in this project:
 - **Google Gemini API Sliding Window Ceiling (~600–650 Conversations)**:
   - **Symptom**: For accounts with a large number of conversations, full sync typically stops after retrieving approximately 600–650 conversations, unable to paginate further into older history;
   - **Root Cause (Google API Defect)**: In-depth reverse engineering shows that Google Gemini's web conversation listing RPC (`MaZiqc`) uses an accumulative stateless cursor. The continuation token accumulates ~14 bytes of traversal state per conversation. Upon reaching ~650 conversations, the token size hits Google's ~9KB server-side API gateway parameter limit, causing Google to abort with `BardErrorInfo 1096` (**Note: even on the official `gemini.google.com` interface, manually scrolling down the sidebar will crash the page at the same threshold**);
-  - **Recommendation**: The extension features **real-time streaming persistence** and a **Stop Sync** button to ensure all retrieved conversations are safely saved. We recommend using **"Sync Latest"** for regular incremental backups, and using Google Takeout for comprehensive archiving of older history.
+  - **Recommendation**: The extension features **real-time streaming persistence**, an **automated Takeout Limit guidance modal**, and a **Stop Sync** button to ensure all retrieved conversations are safely saved. We recommend using **"Sync Latest"** for regular incremental backups, and using Google Takeout for comprehensive archiving of older history.
 
 ---
 
