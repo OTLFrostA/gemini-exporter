@@ -77,7 +77,7 @@ def test_module_exports():
         "src/core/api/geminiClient.js": ["GeminiAPIClient", "resolveCred", "getApiUrl"],
         "src/core/engine/takeoutEngine.js": ["parseTakeoutZip", "getTakeoutOfflineChat", "getTakeoutFallbackMedia"],
         "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName"],
-        "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "removeConversation", "reconcileConversations"],
+        "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "isTakeoutPromptCompleted", "setTakeoutPromptCompleted", "removeConversation", "reconcileConversations"],
         "src/core/engine/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
         "src/core/engine/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
         "src/core/utils/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "DIRECT_WRITE_THRESHOLD", "STORAGE_KEYS"],
@@ -444,6 +444,20 @@ def test_takeout_limit_modal_and_wall_detection():
     with open(content_js_path, "r", encoding="utf-8") as f:
         content_code = f.read()
     assert "gemini_pending_takeout_prompt" in content_code, "content.js should persist gemini_pending_takeout_prompt"
+
+    # 6. Ensure single-time tutorial prompt behavior (isTakeoutPromptCompleted & has_completed_takeout_prompt)
+    storage_js_path = os.path.join(BASE_DIR, "src/core/storage/storageService.js")
+    with open(storage_js_path, "r", encoding="utf-8") as f:
+        storage_code = f.read()
+    assert "has_completed_takeout_prompt" in storage_code, "storageService.js should track has_completed_takeout_prompt"
+    assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService.js should export takeout prompt completion helpers"
+
+    dialog_js_path = os.path.join(BASE_DIR, "src/ui/views/dialogView.js")
+    with open(dialog_js_path, "r", encoding="utf-8") as f:
+        dialog_code = f.read()
+    assert "isTakeoutPromptCompleted" in dialog_code and "setTakeoutPromptCompleted" in dialog_code, "dialogView.js should guard and mark takeout prompt completed"
+
+    assert "isTakeoutPromptCompleted" in options_code, "options.js should check isTakeoutPromptCompleted"
 
     print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
 

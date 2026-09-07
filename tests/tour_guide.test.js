@@ -171,6 +171,28 @@ test('storageService - isTourCompleted and setTourCompleted', async () => {
     assert.strictEqual(await StorageService.isTourCompleted(), true);
 });
 
+test('storageService - isTakeoutPromptCompleted and setTakeoutPromptCompleted', async () => {
+    let storageMap = {};
+    global.chrome = {
+        storage: {
+            local: {
+                get: async (keys) => {
+                    const res = {};
+                    for (const k of keys) res[k] = storageMap[k];
+                    return res;
+                },
+                set: async (obj) => {
+                    Object.assign(storageMap, obj);
+                }
+            }
+        }
+    };
+
+    assert.strictEqual(await StorageService.isTakeoutPromptCompleted(), false);
+    await StorageService.setTakeoutPromptCompleted(true);
+    assert.strictEqual(await StorageService.isTakeoutPromptCompleted(), true);
+});
+
 function createMockElement(id) {
     const listeners = {};
     return {

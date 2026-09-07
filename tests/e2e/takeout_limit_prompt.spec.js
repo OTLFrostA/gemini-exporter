@@ -21,8 +21,23 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await expect(page.locator('#btnModalImportTakeout')).toBeVisible();
     await expect(page.locator('#btnModalDismissTakeout')).toBeVisible();
 
-    // Click "我知道了" to dismiss
+    // Click "我知道了，不再提示" to dismiss
     await page.click('#btnModalDismissTakeout');
+    await expect(modal).toBeHidden();
+
+    // Verify storage recorded has_completed_takeout_prompt = true
+    const isPromptCompleted = await page.evaluate(async () => {
+      const data = await chrome.storage.local.get('has_completed_takeout_prompt');
+      return !!data.has_completed_takeout_prompt;
+    });
+    expect(isPromptCompleted).toBe(true);
+
+    // Verify subsequent showTakeoutLimitPrompt call without force is suppressed
+    await page.evaluate(() => {
+      if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
+        window.DialogView.showTakeoutLimitPrompt({ count: 630 });
+      }
+    });
     await expect(modal).toBeHidden();
   });
 

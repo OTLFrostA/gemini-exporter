@@ -226,6 +226,13 @@
     async function checkPendingTakeoutPrompt() {
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
+                    ? await StorageService.isTakeoutPromptCompleted()
+                    : false;
+                if (isCompleted) {
+                    await chrome.storage.local.remove('gemini_pending_takeout_prompt');
+                    return;
+                }
                 const data = await chrome.storage.local.get(['gemini_pending_takeout_prompt']);
                 if (data && data.gemini_pending_takeout_prompt) {
                     const info = data.gemini_pending_takeout_prompt;
@@ -737,7 +744,7 @@
                         if (progText) progText.textContent = typeof I18n !== 'undefined' ? I18n.t('deepSyncing') : '正在全量扫描历史...';
                     },
                     onLog: (txt, lvl) => log(txt, lvl),
-                    onFinished: ({ message, res, count, hitGoogleLimit }) => {
+                    onFinished: async ({ message, res, count, hitGoogleLimit }) => {
                         if (bar) bar.style.width = '100%';
                         if (progText) progText.textContent = message;
                         setTimeout(() => {
@@ -749,7 +756,10 @@
                         const currentCount = count || res?.count || (Store && Store.getAllConversations ? Store.getAllConversations().length : 0);
                         const isLimit = hitGoogleLimit || (currentCount >= 500);
                         if (isLimit) {
-                            if (DialogView && DialogView.showTakeoutLimitPrompt) {
+                            const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
+                                ? await StorageService.isTakeoutPromptCompleted()
+                                : false;
+                            if (!isCompleted && DialogView && DialogView.showTakeoutLimitPrompt) {
                                 DialogView.showTakeoutLimitPrompt({
                                     count: currentCount || 600,
                                     onImportTakeout: () => $('takeoutFileInput')?.click()
@@ -757,12 +767,15 @@
                             }
                         }
                     },
-                    onError: (err, errMsg, details) => {
+                    onError: async (err, errMsg, details) => {
                         if (progText) progText.textContent = errMsg;
                         const currentCount = (Store && Store.getAllConversations) ? Store.getAllConversations().length : 0;
                         const isLimit = details?.hitGoogleLimit || (currentCount >= 500) || (details?.count >= 500);
                         if (isLimit) {
-                            if (DialogView && DialogView.showTakeoutLimitPrompt) {
+                            const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
+                                ? await StorageService.isTakeoutPromptCompleted()
+                                : false;
+                            if (!isCompleted && DialogView && DialogView.showTakeoutLimitPrompt) {
                                 DialogView.showTakeoutLimitPrompt({
                                     count: currentCount || details?.count || 600,
                                     onImportTakeout: () => $('takeoutFileInput')?.click()
@@ -893,12 +906,17 @@
 
                 // Auto prompt Takeout if scan completed and hit Google limit
                 if ((msg.percent === 100 || msg.done === 1) && msg.hitGoogleLimit) {
-                    if (DialogView && DialogView.showTakeoutLimitPrompt) {
-                        DialogView.showTakeoutLimitPrompt({
-                            count: msg.count || 600,
-                            onImportTakeout: () => $('takeoutFileInput')?.click()
-                        });
-                    }
+                    (async () => {
+                        const isDone = (StorageService && StorageService.isTakeoutPromptCompleted)
+                            ? await StorageService.isTakeoutPromptCompleted()
+                            : false;
+                        if (!isDone && DialogView && DialogView.showTakeoutLimitPrompt) {
+                            DialogView.showTakeoutLimitPrompt({
+                                count: msg.count || 600,
+                                onImportTakeout: () => $('takeoutFileInput')?.click()
+                            });
+                        }
+                    })();
                 }
             }
             if (msg.action === 'syncUpdate') {
@@ -942,11 +960,17 @@
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1' || urlParams.get('tour') === '1';
+            const isExplicitTour = urlParams.get('tour') === '1';
 
             if (isWelcome) {
-                setTimeout(() => {
-                    if (Tour && Tour.startTour) {
-                        Tour.startTour(0);
+                setTimeout(async () => {
+                    const tourDone = (StorageService && StorageService.isTourCompleted)
+                        ? await StorageService.isTourCompleted()
+                        : false;
+                    if (!tourDone || isExplicitTour) {
+                        if (Tour && Tour.startTour) {
+                            Tour.startTour(0);
+                        }
                     }
                 }, 400);
             }
