@@ -316,9 +316,13 @@
                         const cSlot = Store.getCurrentSlot();
                         await Store.saveExportedIds(cSlot, cur);
                         const currentConvs = Store.getConversations();
-                        const currentSelected = List ? List.getSelectedIds() : new Set();
                         if (List) {
-                            List.render(currentConvs, cur, currentSelected, __chatSearchFilter);
+                            if (typeof List.updateItemExportStatus === 'function') {
+                                List.updateItemExportStatus(chatId, exportRecord);
+                            } else {
+                                const currentSelected = List.getSelectedIds() || new Set();
+                                List.render(currentConvs, cur, currentSelected, __chatSearchFilter);
+                            }
                             List.updateStat(currentConvs);
                         }
                     }
@@ -537,12 +541,22 @@
         });
 
         // 9. Search Bar Handler
+        let __searchDebounceTimer = null;
         ($('chatSearchInput') || $('search'))?.addEventListener('input', (e) => {
             __chatSearchFilter = (e.target.value || '').trim();
+            const doFilter = () => {
+                const convs = Store ? Store.getConversations() : [];
+                const expMap = Store ? Store.getExportedIds() : {};
+                const currentSelected = List ? List.getSelectedIds() : new Set();
+                if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter);
+            };
             const convs = Store ? Store.getConversations() : [];
-            const expMap = Store ? Store.getExportedIds() : {};
-            const currentSelected = List ? List.getSelectedIds() : new Set();
-            if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter);
+            if (convs && convs.length > 100) {
+                clearTimeout(__searchDebounceTimer);
+                __searchDebounceTimer = setTimeout(doFilter, 100);
+            } else {
+                doFilter();
+            }
         });
 
         // 10. List Selection Filter Buttons
