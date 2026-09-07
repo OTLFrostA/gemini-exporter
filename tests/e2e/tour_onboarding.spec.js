@@ -55,6 +55,11 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForFunction(() => typeof window.__workbenchLoadStore === 'function');
 
+    // Verify #btnTourGuide has exactly one lightbulb emoji
+    const btnText = await page.locator('#btnTourGuide').innerText();
+    expect((btnText.match(/💡/g) || []).length).toBe(1);
+    expect(['💡 新手引导', '💡 Tour Guide']).toContain(btnText.replace(/\s+/g, ' ').trim());
+
     // Click #btnTourGuide in header
     await page.click('#btnTourGuide');
 
