@@ -51,6 +51,8 @@
         atGenericFromScript: /"at"\s*:\s*"([^"]{20,})"/,
         blKeyFromScript: /"bl"\s*:\s*"([^"]+)"/,
         blValueFromHtml: /"bl":"(boq_[^"]+)"/,
+        blCfb2hFromHtml: /"cfb2h"\s*:\s*"([^"]+)"/,
+        blAssistantFromHtml: /"bl"\s*:\s*"(boq_assistant[^"]+)"/,
         boqBuildFromScript: /boq_assistant-bard-web-server_[^"']+/
     };
 

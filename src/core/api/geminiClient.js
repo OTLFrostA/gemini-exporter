@@ -49,8 +49,9 @@
     function getBlFromPage() {
         if (typeof document === 'undefined') return null;
         try {
+            const P = getProtocol();
             let html = (global.document && global.document.documentElement && global.document.documentElement.innerHTML) || "";
-            let m = html.match(/"cfb2h"\s*:\s*"([^"]+)"/) || html.match(/"bl"\s*:\s*"(boq_assistant[^"]+)"/);
+            let m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
             if (m) return m[1];
             if (global.__gemExporterBl) return global.__gemExporterBl;
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
@@ -65,16 +66,17 @@
                 let a = global.__gemExporterExtractAt();
                 if (a) return a;
             }
-            if (global._WIZ_global_data && global._WIZ_global_data.SNlM0e) return global._WIZ_global_data.SNlM0e;
-            if (global.WIZ_global_data && global.WIZ_global_data.SNlM0e) return global.WIZ_global_data.SNlM0e;
+            const P = getProtocol();
+            if (global._WIZ_global_data && global._WIZ_global_data[P.TOKENS.AT]) return global._WIZ_global_data[P.TOKENS.AT];
+            if (global.WIZ_global_data && global.WIZ_global_data[P.TOKENS.AT]) return global.WIZ_global_data[P.TOKENS.AT];
             let scripts = global.document ? global.document.querySelectorAll('script') : [];
             for (let s of scripts) {
                 let txt = s.textContent || "";
-                let m = txt.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+                let m = txt.match(P.TOKEN_PATTERNS.atFromScript);
                 if (m) return m[1];
             }
             let html = (global.document && global.document.documentElement && global.document.documentElement.innerHTML) || "";
-            let mHtml = html.match(/"SNlM0e"\s*:\s*"([^"]+)"/);
+            let mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
             if (mHtml) return mHtml[1];
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
         return "";

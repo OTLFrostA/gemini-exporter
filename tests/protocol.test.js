@@ -24,9 +24,13 @@ test('protocol - token keys and extraction patterns are single-sourced', () => {
     assert.strictEqual(html.match(Proto.TOKEN_PATTERNS.atFromScript)[1], 'ATToken123456789');
     assert.strictEqual(html.match(Proto.TOKEN_PATTERNS.blKeyFromScript)[1], 'boq_assistant-bard-web-server_20260901.00_p1');
     assert.strictEqual(html.match(Proto.TOKEN_PATTERNS.boqBuildFromScript)[0], 'boq_assistant-bard-web-server_20260901.00_p1');
+
+    const htmlDoc = '<html><head><script>"cfb2h":"boq_assistant-bard-web-server_20260901.00_p1","bl":"boq_assistant-bard-web-server_20260901.00_p1"</script></head></html>';
+    assert.strictEqual(htmlDoc.match(Proto.TOKEN_PATTERNS.blCfb2hFromHtml)[1], 'boq_assistant-bard-web-server_20260901.00_p1');
+    assert.strictEqual(htmlDoc.match(Proto.TOKEN_PATTERNS.blAssistantFromHtml)[1], 'boq_assistant-bard-web-server_20260901.00_p1');
 });
 
-test('protocol - BL_FALLBACK is the single hardcoded build label', () => {
+test('protocol - BL_FALLBACK is the single hardcoded build label and token literals are removed from client', () => {
     assert.ok(Proto.BL_FALLBACK.startsWith('boq_assistant-bard-web-server_'));
     assert.strictEqual(typeof Proto.BL_FALLBACK, 'string');
     // The old duplicated literals must stay gone from consumers.
@@ -36,6 +40,9 @@ test('protocol - BL_FALLBACK is the single hardcoded build label', () => {
         const code = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
         assert.ok(!code.includes('boq_assistant-bard-web-server_2026'), `${f} must not hardcode the build label`);
     }
+    const clientCode = fs.readFileSync(path.join(__dirname, '..', 'src/core/api/geminiClient.js'), 'utf8');
+    assert.ok(!clientCode.includes('"SNlM0e"'), 'geminiClient.js must not hardcode "SNlM0e"');
+    assert.ok(!clientCode.includes('"cfb2h"'), 'geminiClient.js must not hardcode "cfb2h"');
 });
 
 test('protocol - LIMITS constants unify the sliding-window checks', () => {
