@@ -66,4 +66,30 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
     await page.click('#tourSkipBtn');
     await expect(popover).toBeHidden();
   });
+
+  test('should never overlap target element across all 5 steps', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/options.html?welcome=1`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const popover = page.locator('.tour-popover');
+    await expect(popover).toBeVisible({ timeout: 5000 });
+
+    for (let i = 0; i < 5; i++) {
+      const isOverlapping = await page.evaluate(() => {
+        const popEl = document.querySelector('.tour-popover');
+        const step = window.TourGuide.STEPS[window.TourGuide.getCurrentStep()];
+        const target = step.getTarget ? step.getTarget() : null;
+        if (!popEl || !target) return false;
+        const pRect = popEl.getBoundingClientRect();
+        const tRect = target.getBoundingClientRect();
+        return !(pRect.right <= tRect.left || pRect.left >= tRect.right || pRect.bottom <= tRect.top || pRect.top >= tRect.bottom);
+      });
+      expect(isOverlapping).toBe(false);
+      if (i < 4) {
+        await page.click('#tourNextBtn');
+        await page.waitForTimeout(200);
+      }
+    }
+  });
 });
