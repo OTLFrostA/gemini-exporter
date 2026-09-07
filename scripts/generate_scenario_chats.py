@@ -31,105 +31,20 @@ import urllib.request
 import urllib.error
 
 try:
+    from scripts.cdp_client import CDPConnection, get_tabs, CDP_DEFAULT_PORT
+except ImportError:
+    from cdp_client import CDPConnection, get_tabs, CDP_DEFAULT_PORT
+
+try:
     sys.stdout.reconfigure(line_buffering=True)
 except Exception:
     pass
 
-CDP_DEFAULT_PORT = 9222
-
-class CDPConnection:
-    def __init__(self, ws_url):
-        self.ws_url = ws_url
-        self.msg_id = 0
-        host, port_path = ws_url.replace("ws://", "").split(":", 1)
-        port, path = port_path.split("/", 1)
-        self.sock = socket.create_connection((host, int(port)), timeout=30)
-        
-        # WebSocket Handshake
-        key = base64.b64encode(os.urandom(16)).decode("ascii")
-        req = (
-            f"GET /{path} HTTP/1.1\r\n"
-            f"Host: {host}:{port}\r\n"
-            f"Upgrade: websocket\r\n"
-            f"Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\n"
-            f"Sec-WebSocket-Version: 13\r\n\r\n"
-        )
-        self.sock.sendall(req.encode("ascii"))
-        res = self.sock.recv(4096)
-        if b"101 " not in res:
-            raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
-
-    def call(self, method, params=None):
-        self.msg_id += 1
-        current_id = self.msg_id
-        payload = json.dumps({"id": current_id, "method": method, "params": params or {}}).encode("utf-8")
-        
-        mask = os.urandom(4)
-        length = len(payload)
-        if length <= 125:
-            header = bytes([0x81, 0x80 | length]) + mask
-        elif length <= 65535:
-            header = bytes([0x81, 0x80 | 126]) + struct.pack(">H", length) + mask
-        else:
-            header = bytes([0x81, 0x80 | 127]) + struct.pack(">Q", length) + mask
-            
-        masked_payload = bytes([b ^ mask[i % 4] for i, b in enumerate(payload)])
-        self.sock.sendall(header + masked_payload)
-
-        # 循环读取帧直到收到当前 msg_id 的应答
-        while True:
-            b1, b2 = self._recv_exact(2)
-            masked = (b2 & 0x80) != 0
-            payload_len = b2 & 0x7F
-            if payload_len == 126:
-                payload_len = struct.unpack(">H", self._recv_exact(2))[0]
-            elif payload_len == 127:
-                payload_len = struct.unpack(">Q", self._recv_exact(8))[0]
-            
-            mask_key = self._recv_exact(4) if masked else b""
-            raw_data = self._recv_exact(payload_len)
-            
-            if masked:
-                raw_data = bytes([b ^ mask_key[i % 4] for i, b in enumerate(raw_data)])
-                
-            try:
-                data = json.loads(raw_data.decode("utf-8", errors="ignore"))
-                if data.get("id") == current_id:
-                    return data
-            except Exception:
-                continue
-
-    def _recv_exact(self, num_bytes):
-        chunks = []
-        received = 0
-        while received < num_bytes:
-            chunk = self.sock.recv(num_bytes - received)
-            if not chunk:
-                raise ConnectionError("WebSocket 连接意外关闭")
-            chunks.append(chunk)
-            received += len(chunk)
-        return b"".join(chunks)
-
-    def eval(self, expr):
-        res = self.call("Runtime.evaluate", {"expression": expr, "returnByValue": True})
-        return res.get("result", {}).get("result", {}).get("value")
-
-    def close(self):
-        try:
-            self.sock.close()
-        except Exception:
-            pass
-
 
 def get_gemini_tab(port=CDP_DEFAULT_PORT):
-    try:
-        url = f"http://127.0.0.1:{port}/json/list"
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5) as response:
-            tabs = json.loads(response.read().decode("utf-8"))
-    except Exception as e:
-        print(f"❌ 无法连接到 Chrome CDP 端口 {port}: {e}")
+    tabs = get_tabs(port)
+    if not tabs:
+        print(f"❌ 无法连接到 Chrome CDP 端口 {port}")
         print("💡 请先运行 ./scripts/open_test_chrome.sh 启动测试浏览器")
         sys.exit(1)
 
@@ -142,6 +57,7 @@ def get_gemini_tab(port=CDP_DEFAULT_PORT):
     req = urllib.request.Request(new_url, method="PUT")
     with urllib.request.urlopen(req, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
+
 
 
 def wait_for_ready(cdp, max_wait=30):

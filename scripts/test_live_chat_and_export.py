@@ -66,226 +66,11 @@ DEFAULT_SCENARIOS = [
 ]
 
 
-class CDPConnection:
-    def __init__(self, ws_url):
-        self.ws_url = ws_url
-        self.msg_id = 0
-        host, port_path = ws_url.replace("ws://", "").split(":", 1)
-        port, path = port_path.split("/", 1)
-        self.sock = socket.create_connection((host, int(port)), timeout=30)
+try:
+    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
+except ImportError:
+    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
 
-        # WebSocket Handshake
-        key = base64.b64encode(os.urandom(16)).decode("ascii")
-        req = (
-            f"GET /{path} HTTP/1.1\r\n"
-            f"Host: {host}:{port}\r\n"
-            f"Upgrade: websocket\r\n"
-            f"Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\n"
-            f"Sec-WebSocket-Version: 13\r\n\r\n"
-        )
-        self.sock.sendall(req.encode("ascii"))
-        res = self.sock.recv(4096)
-        if b"101 " not in res:
-            raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
-
-    def reconnect(self):
-        try:
-            self.sock.close()
-        except Exception:
-            pass
-        host, port_path = self.ws_url.replace("ws://", "").split(":", 1)
-        port, path = port_path.split("/", 1)
-        self.sock = socket.create_connection((host, int(port)), timeout=30)
-        key = base64.b64encode(os.urandom(16)).decode("ascii")
-        req = (
-            f"GET /{path} HTTP/1.1\r\n"
-            f"Host: {host}:{port}\r\n"
-            f"Upgrade: websocket\r\n"
-            f"Connection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\n"
-            f"Sec-WebSocket-Version: 13\r\n\r\n"
-        )
-        self.sock.sendall(req.encode("ascii"))
-        res = self.sock.recv(4096)
-        if b"101 " not in res:
-            raise RuntimeError(f"WebSocket 握手失败: {res.decode('utf-8', errors='ignore')}")
-
-    def call(self, method, params=None, timeout=30):
-        self.msg_id += 1
-        current_id = self.msg_id
-        payload = json.dumps({"id": current_id, "method": method, "params": params or {}}).encode("utf-8")
-
-        mask = os.urandom(4)
-        length = len(payload)
-        if length <= 125:
-            header = bytes([0x81, 0x80 | length]) + mask
-        elif length <= 65535:
-            header = bytes([0x81, 0x80 | 126]) + struct.pack(">H", length) + mask
-        else:
-            header = bytes([0x81, 0x80 | 127]) + struct.pack(">Q", length) + mask
-
-        masked_payload = bytes([b ^ mask[i % 4] for i, b in enumerate(payload)])
-
-        for attempt in range(2):
-            try:
-                self.sock.sendall(header + masked_payload)
-
-                start = time.time()
-                while time.time() - start < timeout:
-                    b1, b2 = self._recv_exact(2)
-                    masked = (b2 & 0x80) != 0
-                    payload_len = b2 & 0x7F
-                    if payload_len == 126:
-                        payload_len = struct.unpack(">H", self._recv_exact(2))[0]
-                    elif payload_len == 127:
-                        payload_len = struct.unpack(">Q", self._recv_exact(8))[0]
-
-                    mask_key = self._recv_exact(4) if masked else b""
-                    raw_data = self._recv_exact(payload_len)
-
-                    if masked:
-                        raw_data = bytes([b ^ mask_key[i % 4] for i, b in enumerate(raw_data)])
-
-                    try:
-                        data = json.loads(raw_data.decode("utf-8", errors="ignore"))
-                        if data.get("id") == current_id:
-                            return data
-                    except Exception:
-                        continue
-                raise TimeoutError(f"CDP call {method} 超时 ({timeout}s)")
-            except (ConnectionError, socket.error):
-                if attempt == 0:
-                    time.sleep(1.0)
-                    try:
-                        self.reconnect()
-                    except Exception:
-                        raise
-                else:
-                    raise
-
-    def _recv_exact(self, num_bytes):
-        chunks = []
-        received = 0
-        while received < num_bytes:
-            chunk = self.sock.recv(num_bytes - received)
-            if not chunk:
-                raise ConnectionError("WebSocket 连接意外关闭")
-            chunks.append(chunk)
-            received += len(chunk)
-        return b"".join(chunks)
-
-    def eval(self, expr, await_promise=False, timeout=30):
-        params = {"expression": expr, "returnByValue": True}
-        if await_promise:
-            params["awaitPromise"] = True
-        res = self.call("Runtime.evaluate", params, timeout=timeout)
-        result = res.get("result", {})
-        if "exceptionDetails" in result:
-            desc = result["exceptionDetails"].get("text") or result["exceptionDetails"].get("exception", {}).get("description")
-            print(f"    ⚠️ JS 执行异常: {desc}")
-        return result.get("result", {}).get("value")
-
-    def close(self):
-        try:
-            self.sock.close()
-        except Exception:
-            pass
-
-
-def get_tabs(port=CDP_DEFAULT_PORT):
-    for endpoint in ["/json/list", "/json"]:
-        try:
-            url = f"http://127.0.0.1:{port}{endpoint}"
-            req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except Exception:
-            continue
-    return []
-
-
-def get_extension_id(port=CDP_DEFAULT_PORT):
-    tabs = get_tabs(port)
-    # First look for service workers or pages belonging to Gemini Exporter
-    for t in tabs:
-        u = t.get("url", "")
-        if u.startswith("chrome-extension://"):
-            if "src/background/background.js" in u or "options.html" in u:
-                return u.split("/")[2]
-
-    # Fallback to any chrome-extension
-    for t in tabs:
-        u = t.get("url", "")
-        if u.startswith("chrome-extension://"):
-            return u.split("/")[2]
-
-    for t in tabs:
-        if t.get("url") == "chrome://extensions/":
-            cdp = CDPConnection(t["webSocketDebuggerUrl"])
-            try:
-                exts = cdp.eval("""
-                    (() => {
-                        const m = document.querySelector("extensions-manager");
-                        const l = m ? m.shadowRoot.querySelector("extensions-item-list") : null;
-                        const items = l ? Array.from(l.shadowRoot.querySelectorAll("extensions-item")) : [];
-                        const target = items.find(i => (i.shadowRoot.querySelector("#name")?.textContent || "").includes("Gemini Exporter"));
-                        return target ? target.id : (items[0] ? items[0].id : null);
-                    })()
-                """)
-                if exts:
-                    return exts
-            finally:
-                cdp.close()
-
-    # Dynamically open chrome://extensions/ to inspect installed extensions if not found
-    try:
-        new_url = f"http://127.0.0.1:{port}/json/new?chrome://extensions/"
-        req = urllib.request.Request(new_url, method="PUT")
-        with urllib.request.urlopen(req, timeout=5) as r:
-            ext_tab = json.loads(r.read().decode("utf-8"))
-        time.sleep(0.8)
-        cdp = CDPConnection(ext_tab["webSocketDebuggerUrl"])
-        try:
-            exts = cdp.eval("""
-                (() => {
-                    const m = document.querySelector("extensions-manager");
-                    const l = m ? m.shadowRoot.querySelector("extensions-item-list") : null;
-                    const items = l ? Array.from(l.shadowRoot.querySelectorAll("extensions-item")) : [];
-                    const target = items.find(i => (i.shadowRoot.querySelector("#name")?.textContent || "").includes("Gemini Exporter"));
-                    return target ? target.id : (items[0] ? items[0].id : null);
-                })()
-            """)
-            if exts:
-                return exts
-        finally:
-            cdp.close()
-    except Exception:
-        pass
-
-    for t in tabs:
-        if "gemini.google.com" in t.get("url", ""):
-            cdp = CDPConnection(t["webSocketDebuggerUrl"])
-            try:
-                eid = cdp.eval("typeof chrome !== 'undefined' && chrome.runtime ? chrome.runtime.id : null")
-                if eid:
-                    return eid
-            finally:
-                cdp.close()
-
-    return None
-
-
-def get_browser_ws_url(port=CDP_DEFAULT_PORT):
-    for endpoint in ["/json/version"]:
-        try:
-            url = f"http://127.0.0.1:{port}{endpoint}"
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                return data.get("webSocketDebuggerUrl")
-        except Exception:
-            continue
-    return None
 
 
 def reinstall_extension_via_cdp(port=CDP_DEFAULT_PORT, repo_path=None):
@@ -608,9 +393,18 @@ def send_turn(cdp, turn_input, max_wait=240):
         max_wait = max(max_wait, 240)
 
     # 记录发送前已有的回复条数与用户消息条数，防止多轮时误判旧回复已完成
-    prev_resp_count = cdp.eval("""
-    (() => document.querySelectorAll('.model-response-text, model-response, .response-content').length)()
-    """) or 0
+    prev_model_info = cdp.eval("""
+    (() => {
+        const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text'));
+        return {
+            count: allModels.length,
+            lastLen: allModels.length ? (allModels[allModels.length - 1].textContent || '').trim().length : 0
+        };
+    })()
+    """) or {"count": 0, "lastLen": 0}
+    prev_resp_count = prev_model_info.get("count", 0)
+    prev_last_len = prev_model_info.get("lastLen", 0)
+
     prev_user_count = cdp.eval("""
     (() => document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length)()
     """) or 0
@@ -644,56 +438,48 @@ def send_turn(cdp, turn_input, max_wait=240):
 
     # 3. 点击发送按钮并确保派发
     sent = False
-    for attempt in range(15):
-        # 检查是否已经由前次点击或回车成功派发
+    for attempt in range(12):
         status = cdp.eval(f"""
         (() => {{
-          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
-          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
           const currUserCount = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length;
-          if (!!stopBtn || isStreaming || currUserCount > {prev_user_count}) {{
-            return {{ sent: true }};
+          const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+          const editorText = editor ? editor.textContent.trim() : '';
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
+          
+          if (currUserCount > {prev_user_count} || (editorText === '' && isStreaming)) {{
+            return {{ sent: true, userCount: currUserCount }};
           }}
 
-          const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="发送"]');
-          const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-          if (editor) {{
-            editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            editor.dispatchEvent(new Event('change', {{ bubbles: true }}));
+          const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="发送"], [aria-label="Send message"], .send-button button, gem-icon-button.send-button');
+          if (sendBtn) {{
+            const isDisabled = sendBtn.disabled || sendBtn.getAttribute('aria-disabled') === 'true';
+            if (!isDisabled) {{
+              sendBtn.click();
+              if (sendBtn.parentElement && sendBtn.parentElement.tagName === 'GEM-ICON-BUTTON') {{
+                sendBtn.parentElement.click();
+              }}
+            }}
           }}
-          if (sendBtn && !sendBtn.disabled) {{
-            sendBtn.click();
-          }}
-          return {{ sent: false }};
+          return {{ sent: false, userCount: currUserCount }};
         }})()
         """)
         if status and status.get("sent"):
             sent = True
             break
-        if attempt == 5:
-            cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 13, "unmodifiedText": "\r", "text": "\r"})
-            cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 13, "unmodifiedText": "\r", "text": "\r"})
-        time.sleep(0.6)
+        if attempt in [2, 5, 8]:
+            cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 13, "unmodifiedText": "\\r", "text": "\\r"})
+            cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 13, "unmodifiedText": "\\r", "text": "\\r"})
+        time.sleep(0.5)
 
     if not sent:
-        sent = cdp.eval(f"""
-        (() => {{
-          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
-          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
-          const currUserCount = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length;
-          return !!stopBtn || isStreaming || currUserCount > {prev_user_count};
-        }})()
-        """)
-
-    if not sent:
-        return False, "未能成功派发消息（发送按钮未响应或输入未提交）"
+        return False, "未能成功派发消息（输入未提交到对话流）"
 
     # 4. 等待生成开始 (出现 stop 按钮、streaming 状态或新回复条数增加)
     for _ in range(30):
         started = cdp.eval(f"""
         (() => {{
-          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
-          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
+          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
           const currCount = document.querySelectorAll('.model-response-text, model-response, .response-content').length;
           return !!stopBtn || isStreaming || currCount > {prev_resp_count};
         }})()
@@ -704,21 +490,32 @@ def send_turn(cdp, turn_input, max_wait=240):
 
     # 5. 等待生成完全结束 (无 stop 按钮、无流式标记、且确实产生了新回复)
     start_time = time.time()
+    last_seen_len = 0
+    stable_count = 0
+    loop_idx = 0
     while time.time() - start_time < max_wait:
-        time.sleep(1.5)
+        time.sleep(1.2)
+        loop_idx += 1
+        elapsed = time.time() - start_time
         state = cdp.eval(f"""
         (() => {{
-          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"]');
-          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"]');
-          const currCount = document.querySelectorAll('.model-response-text, model-response, .response-content').length;
+          const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
+          const isStopActive = !!(stopBtn && stopBtn.offsetWidth > 0);
+          const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
+          const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text'));
+          const currCount = allModels.length;
           const retryBtn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
           const toastEl = document.querySelector('toast-content, .toast, .error-message, [role="alert"]');
+          const lastModel = currCount > 0 ? allModels[currCount - 1] : null;
+          const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
           return {{
-            hasStop: !!stopBtn,
+            hasStop: isStopActive,
             isStreaming: isStreaming,
-            hasResponse: currCount > {prev_resp_count},
+            currCount: currCount,
+            hasResponse: currCount > {prev_resp_count} || (currCount === {prev_resp_count} && lastLen > {prev_last_len} + 30),
             hasRetry: !!retryBtn,
-            toast: toastEl ? toastEl.textContent.trim() : null
+            toast: toastEl ? toastEl.textContent.trim() : null,
+            lastLen: lastLen
           }};
         }})()
         """)
@@ -734,14 +531,33 @@ def send_turn(cdp, turn_input, max_wait=240):
             time.sleep(2)
             continue
 
-        if not state.get("hasStop") and not state.get("isStreaming") and state.get("hasResponse"):
-            time.sleep(1.5)
-            return True, "生成完毕"
+        last_len = state.get("lastLen", 0)
+        has_resp = state.get("hasResponse", False)
+        is_stream = state.get("isStreaming", False)
+        has_stop = state.get("hasStop", False)
+        curr_count = state.get("currCount", 0)
 
-        if time.time() - start_time > 25 and not state.get("hasStop") and not state.get("isStreaming") and not state.get("hasResponse") and state.get("toast"):
+        # 详细日志输出：每 ~2.4 秒打印一次当前状态
+        if loop_idx % 2 == 0:
+            print(f"      ⏳ 等待回复 [t={elapsed:.1f}s]: 回复数={curr_count} (前值={prev_resp_count}), 流式中={is_stream}, Stop按钮={has_stop}, 尾部长={last_len}, 稳定计数={stable_count}/3")
+
+        if has_resp and not is_stream:
+            if not has_stop:
+                time.sleep(1.0)
+                return True, f"生成完毕 (耗时 {elapsed:.1f}s, 尾部长度: {last_len})"
+            if last_len == last_seen_len and last_seen_len > 30:
+                stable_count += 1
+                if stable_count >= 3:
+                    time.sleep(1.0)
+                    return True, f"生成完毕 (文本已稳定 {stable_count} 次, 耗时 {elapsed:.1f}s, 尾部长度: {last_len})"
+            else:
+                last_seen_len = last_len
+                stable_count = 0
+
+        if elapsed > 25 and not has_stop and not is_stream and not has_resp and state.get("toast"):
             return False, f"页面报错: {state.get('toast')}"
 
-    return False, "等待回复超时"
+    return False, f"等待回复超时 ({max_wait}s)"
 
 
 def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=None, delay=2, skip_chat=False, skip_takeout=False, takeout_zip=None, skip_reinstall=False, skip_tour=False):
@@ -865,7 +681,23 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
 
                 is_curr_page_match = any(first_p in up for up in curr_ups) if (curr_ups and first_p) else False
 
-                if not is_curr_page_match:
+                target_chat_id = sc.get("chat_id")
+                if target_chat_id:
+                    print(f"   🧭 数据集指定会话 ID: /app/{target_chat_id}，直接加载！")
+                    cdp_gemini.eval(f"location.href = 'https://gemini.google.com/app/{target_chat_id}'")
+                    time.sleep(3.0)
+                    try:
+                        cdp_gemini.reconnect()
+                    except Exception:
+                        pass
+                    wait_for_gemini_ready(cdp_gemini, max_wait=15)
+                    curr_ups = cdp_gemini.eval("""
+                    (() => {
+                        const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
+                        return ups.map(p => p.textContent);
+                    })()
+                    """) or []
+                elif not is_curr_page_match:
                     # 检查侧边栏是否有本场景历史会话
                     sidebar_links = cdp_gemini.eval("""
                     (() => {
@@ -877,7 +709,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                         }));
                     })()
                     """) or []
-                    sidebar_match = next((l for l in sidebar_links if first_p in l["text"] or sc_title[:8] in l["text"]), None)
+                    sidebar_match = next((l for l in sidebar_links if (first_p and first_p[:8] in l["text"]) or (sc_title and sc_title[:6] in l["text"]) or any(k in l["text"] for k in [sc_title.split()[0], "WebRTC", "eBPF"] if k)), None)
                     if sidebar_match and sidebar_match["cid"]:
                         target_cid = sidebar_match["cid"]
                         print(f"   🧭 侧边栏发现已有会话《{sidebar_match['text'][:20]}...》，跳转加载: /app/{target_cid}")

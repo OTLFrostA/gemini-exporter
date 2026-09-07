@@ -170,6 +170,88 @@
         return { kept: conversations.length, removed: 0, removedIds: [] };
     }
 
+    function normalizeAndDeduplicate(incoming) {
+        const getUtils = () => (typeof GeminiUtils !== 'undefined' ? GeminiUtils : (typeof window !== 'undefined' && window.GeminiUtils) || null);
+        const uResolveTitle = (chat) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: (chat?.title || '').trim() || '未命名对话', source: chat?.titleSource || 'legacy' });
+        const uIsRealTitle = (t, fallbackId) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
+        const uCompare = (a, b) => (getUtils()?.compareConversations ? getUtils().compareConversations(a, b) : 0);
+
+        const dedupMap = new Map();
+        let hasDirtyTitles = false;
+        (incoming || []).forEach(c => {
+            if (!c || !c.id) return;
+            const nid = normId(c.id);
+            const u = (c.url || c.href || '').toString();
+            if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
+
+            const old = dedupMap.get(nid);
+            const cleanForBad = t => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
+            const isBad = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
+
+            if (!old) {
+                const resolved = uResolveTitle(c);
+                if (isBad(c.title) || c.title !== resolved.title) {
+                    hasDirtyTitles = true;
+                }
+                dedupMap.set(nid, {
+                    ...c,
+                    title: resolved.title,
+                    titleSource: resolved.source,
+                    titles: c.titles || (uIsRealTitle(c.title, nid) ? { [c.titleSource || 'legacy']: c.title } : {})
+                });
+            } else {
+                const mergedTitles = { ...(old.titles || {}), ...(c.titles || {}) };
+                if (uIsRealTitle(c.title, nid) && c.titleSource) {
+                    mergedTitles[c.titleSource] = c.title;
+                }
+                if (uIsRealTitle(old.title, nid) && old.titleSource) {
+                    mergedTitles[old.titleSource] = old.title;
+                }
+                const resolved = uResolveTitle({ id: nid, titles: mergedTitles, title: old.title, titleSource: old.titleSource });
+                if (isBad(old.title) || old.title !== resolved.title) {
+                    hasDirtyTitles = true;
+                }
+                let cUpdated = c.updatedAt || c.timestamp || null;
+                if (typeof cUpdated === 'string') cUpdated = new Date(cUpdated).getTime();
+                let oldUpdated = old.updatedAt || old.timestamp || null;
+                if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
+
+                let isRpcSource = c.titleSource === 'rpc' || c.source === 'network-list';
+                let bestUpdatedAt = oldUpdated;
+                if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+                    bestUpdatedAt = cUpdated;
+                }
+
+                let cCreated = c.createdAt || null;
+                if (typeof cCreated === 'string') cCreated = new Date(cCreated).getTime();
+                let oldCreated = old.createdAt || null;
+                if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
+                let bestCreatedAt = oldCreated || cCreated || null;
+                if (cCreated && oldCreated && cCreated < oldCreated) {
+                    bestCreatedAt = cCreated;
+                }
+
+                let bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old.timestamp || c.timestamp || null);
+
+                dedupMap.set(nid, {
+                    ...old,
+                    ...c,
+                    titles: mergedTitles,
+                    title: resolved.title,
+                    titleSource: resolved.source,
+                    timestamp: bestTimestamp,
+                    updatedAt: bestUpdatedAt || bestTimestamp,
+                    createdAt: bestCreatedAt,
+                    sidebarIndex: typeof c.sidebarIndex === 'number' ? c.sidebarIndex : old.sidebarIndex
+                });
+            }
+        });
+
+        const processed = Array.from(dedupMap.values());
+        processed.sort(uCompare);
+        return { processed, hasDirtyTitles };
+    }
+
     return {
         getConversations, setConversations,
         removeConversation, reconcileWithCloud,
@@ -179,6 +261,7 @@
         getExportedRecord, getSignature,
         loadStore, getLastSync, saveConversations, saveExportedIds, clearExported, clearAll,
         getDevMode, setDevMode,
+        normalizeAndDeduplicate,
         normId
     };
 }));
