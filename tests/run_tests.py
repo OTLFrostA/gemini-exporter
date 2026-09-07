@@ -404,6 +404,30 @@ def test_tour_status_indicator_styling():
 
     print("  ✓ TourGuide status indicator styles and class scoping verified")
 
+def test_takeout_limit_modal_and_wall_detection():
+    # 1. Ensure options.html and src/ui/options/options.html contain takeoutLimitModal with required actions
+    for html_file in ["options.html", "src/ui/options/options.html"]:
+        with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
+            content = f.read()
+        assert 'id="takeoutLimitModal"' in content, f"takeoutLimitModal missing in {html_file}"
+        assert 'id="btnModalImportTakeout"' in content, f"btnModalImportTakeout missing in {html_file}"
+        assert 'id="btnModalOpenTakeoutWeb"' in content, f"btnModalOpenTakeoutWeb missing in {html_file}"
+
+    # 2. Ensure geminiClient.js and syncController.js recognize Google 500+ sliding window limit & 429 errors
+    client_path = os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
+    with open(client_path, "r", encoding="utf-8") as f:
+        client_code = f.read()
+    assert "all.length >= 500" in client_code, "geminiClient.js should flag hitGoogleLimit for full scans reaching 500+ chats"
+    assert "429" in client_code, "geminiClient.js should detect 429 rate limit wall"
+
+    sync_path = os.path.join(BASE_DIR, "src/ui/controllers/syncController.js")
+    with open(sync_path, "r", encoding="utf-8") as f:
+        sync_code = f.read()
+    assert "res?.count >= 500" in sync_code or "res.count >= 500" in sync_code, "syncController.js should treat full scan >= 500 as hitGoogleLimit"
+    assert "429" in sync_code, "syncController.js should treat 429 as hitGoogleLimit"
+
+    print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
@@ -413,6 +437,7 @@ test_content_badge_flicker_prevention()
 test_exported_history_and_slot_fallback()
 test_dataset_freshness_gate()
 test_tour_status_indicator_styling()
+test_takeout_limit_modal_and_wall_detection()
 test_javascript_syntax()
 test_javascript_unit_tests()
 

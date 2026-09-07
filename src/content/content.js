@@ -765,7 +765,11 @@
                         hitGoogleLimit: !!(res?.hitGoogleLimit || res?.diagnostics?.hitGoogleLimit)
                     });
                 } catch (e) {
-                    const isLimit = String(e?.message || e).includes('BardErrorInfo') || String(e?.message || e).includes('1096');
+                    const errStr = String(e?.message || e);
+                    const isLimit = errStr.includes('BardErrorInfo')
+                        || errStr.includes('1096')
+                        || errStr.includes('429')
+                        || /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(errStr);
                     sendResponse({ success: false, error: e.message, hitGoogleLimit: isLimit });
                 }
             })();
