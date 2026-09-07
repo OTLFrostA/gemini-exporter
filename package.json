@@ -4,9 +4,10 @@
   "description": "A privacy-first Chrome extension to batch export and archive your Google Gemini conversations.",
   "main": "background.js",
   "scripts": {
+    "build": "node build.js",
     "test:unit": "python3 tests/run_tests.py",
-    "test:e2e": "playwright test",
-    "test": "python3 tests/run_tests.py && playwright test",
+    "test:e2e": "node build.js && playwright test",
+    "test": "python3 tests/run_tests.py && node build.js && playwright test",
     "test:manual": "./scripts/open_test_chrome.sh",
     "test:manual:win": "powershell -ExecutionPolicy Bypass -File ./scripts/open_test_chrome.ps1",
     "test:generate-chats": "python3 scripts/generate_scenario_chats.py",
@@ -24,6 +25,7 @@
   "author": "Wenbo Cui",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.62.1",
+    "esbuild": "^0.28.2"
   }
 }

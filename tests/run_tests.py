@@ -27,10 +27,26 @@ def test_manifest_structure():
         m = json.load(f)
         assert m["manifest_version"] == 3
         assert "storage" in m["permissions"]
-        cs = m["content_scripts"][0]["js"]
-        for required in ["src/core/storage/storageService.js", "src/core/api/geminiParser.js", "src/core/api/geminiClient.js", "src/content/domScraper.js", "src/content/assetFetcher.js", "src/content/content.js"]:
-            assert required in cs, f"Missing {required} in manifest content_scripts"
+        assert m["background"]["service_worker"] == "dist/background/background.js", "background service_worker must point to the esbuild dist output"
+        cs = m["content_scripts"]
+        for required in ["dist/core/utils/utils.js", "dist/core/storage/storageService.js", "dist/core/api/geminiParser.js", "dist/core/api/geminiClient.js", "dist/content/content.js"]:
+            assert required in cs[0]["js"], f"Missing {required} in manifest content_scripts"
+        main_world = [c for c in cs if c.get("world") == "MAIN"]
+        assert len(main_world) == 1 and main_world[0]["js"] == ["dist/content/hookCredentials.js"], "MAIN world hook must load dist/content/hookCredentials.js"
+        war = m["web_accessible_resources"][0]["resources"]
+        assert "dist/content/hookCredentials.js" in war, "web_accessible_resources must expose dist/content/hookCredentials.js"
         print("  ✓ manifest.json scripts and permissions verified")
+
+def test_build_pipeline():
+    assert os.path.isfile(os.path.join(BASE_DIR, "build.js")), "build.js (esbuild pipeline) must exist"
+    with open(os.path.join(BASE_DIR, "package.json"), "r", encoding="utf-8") as f:
+        pkg = json.load(f)
+    assert pkg["scripts"].get("build") == "node build.js", "package.json must define npm run build"
+    assert "esbuild" in pkg.get("devDependencies", {}), "esbuild must be a devDependency"
+    with open(os.path.join(BASE_DIR, ".gitignore"), "r", encoding="utf-8") as f:
+        gi = f.read()
+    assert re.search(r'^dist/?$', gi, re.MULTILINE), "dist/ build output must be gitignored"
+    print("  ✓ esbuild build pipeline verified (build.js + npm script + devDependency)")
 
 def test_html_includes():
     for opt_path in ["src/ui/options/options.html"]:
@@ -38,38 +54,39 @@ def test_html_includes():
             opt_html = f.read()
             for script in [
                 "/lib/jszip.min.js",
-                "/src/core/utils/constants.js",
-                "/src/core/utils/utils.js",
-                "/src/core/utils/tabService.js",
-                "/src/core/utils/i18n.js",
-                "/src/core/storage/storageService.js",
-                "/src/core/storage/formatStore.js",
-                "/src/core/engine/writers/zipWriter.js",
-                "/src/core/engine/writers/fsWriter.js",
-                "/src/core/engine/chatFormatter.js",
-                "/src/core/api/geminiParser.js",
-                "/src/core/api/geminiClient.js",
-                "/src/core/engine/takeoutEngine.js",
-                "/src/core/engine/assetPipeline.js",
-                "/src/core/engine/exportEngine.js",
-                "/src/ui/state/conversationsStore.js",
-                "/src/ui/tour/tourGuide.js",
-                "/src/ui/views/logView.js",
-                "/src/ui/views/listView.js",
-                "/src/ui/views/accountView.js",
-                "/src/ui/views/dialogView.js",
-                "/src/ui/controllers/dirHandleController.js",
-                "/src/ui/controllers/takeoutController.js",
-                "/src/ui/controllers/syncController.js",
-                "/src/ui/controllers/exportController.js",
-                "/src/ui/options/options.js"
+                "/dist/core/utils/constants.js",
+                "/dist/core/utils/utils.js",
+                "/dist/core/utils/tabService.js",
+                "/dist/core/utils/i18n.js",
+                "/dist/core/storage/storageService.js",
+                "/dist/core/storage/formatStore.js",
+                "/dist/core/engine/writers/zipWriter.js",
+                "/dist/core/engine/writers/fsWriter.js",
+                "/dist/core/engine/chatFormatter.js",
+                "/dist/core/api/geminiParser.js",
+                "/dist/core/api/geminiClient.js",
+                "/dist/core/engine/takeoutEngine.js",
+                "/dist/core/engine/assetPipeline.js",
+                "/dist/core/engine/exportEngine.js",
+                "/dist/ui/state/conversationsStore.js",
+                "/dist/ui/tour/tourGuide.js",
+                "/dist/ui/views/logView.js",
+                "/dist/ui/views/listView.js",
+                "/dist/ui/views/accountView.js",
+                "/dist/ui/views/dialogView.js",
+                "/dist/ui/controllers/dirHandleController.js",
+                "/dist/ui/controllers/takeoutController.js",
+                "/dist/ui/controllers/syncController.js",
+                "/dist/ui/controllers/exportController.js",
+                "/dist/ui/options/options.js"
             ]:
                 assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in {opt_path}"
-    
+
     for pop_path in ["src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
             pop_html = f.read()
-            assert '<script src="/src/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
+            assert '<script src="/dist/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
+            assert '<script src="/dist/ui/popup/popup.js"></script>' in pop_html, f"Missing popup.js in {pop_path}"
     print("  ✓ options.html and popup.html script tags verified")
 
 def test_module_exports():
@@ -140,7 +157,7 @@ def test_javascript_syntax():
     import shutil
     js_files = []
     for root, dirs, files in os.walk(BASE_DIR):
-        if any(x in root for x in ["node_modules", ".git", "lib"]):
+        if any(x in root for x in ["node_modules", ".git", "lib", "dist"]):
             continue
         for file in files:
             if file.endswith(".js"):
@@ -184,7 +201,7 @@ def test_javascript_unit_tests():
     # Preload files for mock fs in JSC
     file_map = {}
     for root, dirs, files in os.walk(BASE_DIR):
-        if any(x in root for x in ["node_modules", ".git", "playwright"]):
+        if any(x in root for x in ["node_modules", ".git", "playwright", "dist"]):
             continue
         for f in files:
             if f.endswith((".js", ".html", ".json", ".md")):
@@ -566,6 +583,7 @@ def test_stage2_architecture_improvements():
 
 test_json_files()
 test_manifest_structure()
+test_build_pipeline()
 test_html_includes()
 test_module_exports()
 test_i18n_keys()

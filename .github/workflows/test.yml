@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install
 
+      - name: Build dist bundles (verify esbuild pipeline)
+        run: node build.js
+
       - name: Run Unit Tests & Syntax Verification
         run: npm run test:unit
 
@@ -44,6 +47,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci || npm install
+
+      - name: Build dist bundles (manifest loads dist/)
+        run: node build.js
 
       - name: Cache Playwright Chromium
         uses: actions/cache@v4
