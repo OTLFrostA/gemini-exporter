@@ -76,15 +76,15 @@ def test_module_exports():
         "src/core/api/geminiParser.js": ["parseList", "parseDetail", "isRealTitle", "extractDocumentsMeta"],
         "src/core/api/geminiClient.js": ["GeminiAPIClient", "resolveCred", "getApiUrl"],
         "src/core/engine/takeoutEngine.js": ["parseTakeoutZip", "getTakeoutOfflineChat", "getTakeoutFallbackMedia"],
-        "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName"],
+        "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName", "sanitizeZipPath", "AsyncQueue"],
         "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "isTakeoutPromptCompleted", "setTakeoutPromptCompleted", "removeConversation", "reconcileConversations"],
         "src/core/engine/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
         "src/core/engine/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
         "src/core/utils/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "DIRECT_WRITE_THRESHOLD", "STORAGE_KEYS"],
         "src/core/utils/tabService.js": ["getGeminiTab", "sendToGeminiTab", "checkGeminiStatus", "openGeminiPage", "reloadGeminiTab"],
         "src/core/storage/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
-        "src/core/engine/writers/zipWriter.js": ["ZipWriter", "generateBlob", "writeFile"],
-        "src/core/engine/writers/fsWriter.js": ["FsWriter", "ensureSubDir", "writeFile"],
+        "src/core/engine/writers/zipWriter.js": ["ZipWriter", "generateBlob", "writeFile", "sanitizePath"],
+        "src/core/engine/writers/fsWriter.js": ["FsWriter", "ensureSubDir", "writeFile", "sanitizeRelativePath"],
         "src/ui/state/conversationsStore.js": ["getConversations", "setConversations", "getExportedIds", "loadStore", "getLastSync", "clearExported", "clearAll", "removeConversation", "reconcileWithCloud"],
         "src/ui/tour/tourGuide.js": ["startTour", "goToStep", "finishTour", "skipTour"],
         "src/ui/views/listView.js": ["render", "updateStat", "getSelected", "selectAll", "deselectAll", "selectUnexported", "selectNeedsUpdate", "setOnDelete"],
@@ -95,7 +95,7 @@ def test_module_exports():
         "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
-        "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations"]
+        "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
     }
     for filename, symbols in files.items():
         with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:
@@ -218,7 +218,7 @@ def test_javascript_unit_tests():
                 if (id === 'node:path' || id === 'path') {
                     return {
                         join: (...parts) => {
-                            let p = parts.join('/').replace(/\/+/g, '/');
+                            let p = parts.join('/').replace(/\\/+/g, '/');
                             const segments = p.split('/');
                             const resolved = [];
                             for (const seg of segments) {
@@ -232,7 +232,7 @@ def test_javascript_unit_tests():
                 if (id === 'node:fs' || id === 'fs') {
                     return {
                         readFileSync: (p, enc) => {
-                            let norm = p.replace(/\/+/g, '/');
+                            let norm = p.replace(/\\/+/g, '/');
                             const segments = norm.split('/');
                             const resolved = [];
                             for (const seg of segments) {
@@ -496,6 +496,60 @@ def test_stage1_architecture_ssot_and_state_isolation():
 
     print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
 
+def test_stage2_architecture_improvements():
+    # 1. Verify sanitizeRelativePath in utils.js, zipWriter.js, fsWriter.js, and exportEngine.js
+    utils_path = os.path.join(BASE_DIR, "src/core/utils/utils.js")
+    with open(utils_path, "r", encoding="utf-8") as f:
+        utils_code = f.read()
+    assert "function sanitizeRelativePath(" in utils_code, "utils.js must implement sanitizeRelativePath"
+    assert "sanitizeRelativePath" in utils_code, "utils.js must export sanitizeRelativePath"
+
+    zip_writer_path = os.path.join(BASE_DIR, "src/core/engine/writers/zipWriter.js")
+    with open(zip_writer_path, "r", encoding="utf-8") as f:
+        zip_code = f.read()
+    assert "sanitizeRelativePath" in zip_code, "zipWriter.js must use sanitizeRelativePath"
+
+    fs_writer_path = os.path.join(BASE_DIR, "src/core/engine/writers/fsWriter.js")
+    with open(fs_writer_path, "r", encoding="utf-8") as f:
+        fs_code = f.read()
+    assert "sanitizeRelativePath" in fs_code, "fsWriter.js must use sanitizeRelativePath"
+    assert "ensureSubDir" in fs_code and "writeFile" in fs_code, "fsWriter.js must support flexible path writing"
+
+    # 2. Verify exportEngine.js AsyncQueue and elimination of busy-polling
+    export_path = os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
+    with open(export_path, "r", encoding="utf-8") as f:
+        export_code = f.read()
+    assert "class AsyncQueue" in export_code, "exportEngine.js must implement event-driven AsyncQueue"
+    assert "new AsyncQueue(" in export_code, "exportEngine.js must instantiate AsyncQueue for attachments"
+    assert "await new Promise(r => setTimeout(r, 100));" not in export_code, "exportEngine.js must not use busy-polling setTimeout(r, 100)"
+    assert "attachmentQueue.close()" in export_code, "exportEngine.js must properly close attachmentQueue"
+    assert "writeFileDirect" in export_code, "exportEngine.js must have writeFileDirect"
+
+    # 3. Verify hookCredentials.js error sandboxing
+    hook_path = os.path.join(BASE_DIR, "src/content/hookCredentials.js")
+    with open(hook_path, "r", encoding="utf-8") as f:
+        hook_code = f.read()
+    assert "if (origFetch)" in hook_code, "hookCredentials.js must guard origFetch"
+    assert "if (origOpen && origSend)" in hook_code, "hookCredentials.js must guard origOpen and origSend"
+    assert "RegExp.$1" not in hook_code, "hookCredentials.js must not use deprecated RegExp.$1"
+
+    # 4. Verify geminiClient.js dynamic credential refresh on HTTP 400
+    client_path = os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
+    with open(client_path, "r", encoding="utf-8") as f:
+        client_code = f.read()
+    assert "cachedCredentials" not in client_code, "geminiClient.js must not reference undefined cachedCredentials"
+    assert "_retried" in client_code, "geminiClient.js must support automatic retry on 400 with fresh credentials"
+    assert "async function resolveCred(targetSid, overrides)" in client_code, "geminiClient.js resolveCred must accept credential overrides"
+
+    # 5. Verify background.js MV3 keepalive
+    bg_path = os.path.join(BASE_DIR, "src/background/background.js")
+    with open(bg_path, "r", encoding="utf-8") as f:
+        bg_code = f.read()
+    assert "function startKeepAlive(" in bg_code, "background.js must implement startKeepAlive"
+    assert "stopKeepAlive" in bg_code, "background.js must invoke and clean up keepalive in long-running jobs"
+
+    print("  ✓ Stage 2 Architecture: Pipeline decoupling, event-driven AsyncQueue, and path sanitization verified")
+
 test_json_files()
 test_manifest_structure()
 test_html_includes()
@@ -507,6 +561,7 @@ test_dataset_freshness_gate()
 test_tour_status_indicator_styling()
 test_takeout_limit_modal_and_wall_detection()
 test_stage1_architecture_ssot_and_state_isolation()
+test_stage2_architecture_improvements()
 test_javascript_syntax()
 test_javascript_unit_tests()
 

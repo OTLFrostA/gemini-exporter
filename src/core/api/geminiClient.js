@@ -87,7 +87,7 @@
         }
     }
 
-    async function resolveCred(targetSid) {
+    async function resolveCred(targetSid, overrides) {
         let map = await loadCredMap();
         let vals = Object.values(map);
         let pageAt = getAtFromPage();
@@ -118,26 +118,38 @@
             vals[0].bl = pageBl;
         }
         const normSlot = s => (s === 'u0' || !s ? 'default' : s);
-        if (targetSid && map[targetSid]) return {
-            ...map[targetSid],
-            bl: map[targetSid].bl || pageBl || BL_FALLBACK,
-            at: map[targetSid].at || pageAt || ""
-        };
-        let cur = normSlot(detectSlot());
-        let f = vals.filter(v => normSlot(v.accountSlot) === cur);
-        let arr = f.length ? f : vals;
-        arr.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-        if (arr[0]) return {
-            ...arr[0],
-            bl: arr[0].bl || pageBl || BL_FALLBACK,
-            at: arr[0].at || pageAt || ""
-        };
-        return {
-            sid: generateFallbackSid(),
-            at: pageAt || "",
-            accountSlot: "default",
-            bl: pageBl || BL_FALLBACK
-        };
+        let result;
+        if (targetSid && map[targetSid]) {
+            result = {
+                ...map[targetSid],
+                bl: map[targetSid].bl || pageBl || BL_FALLBACK,
+                at: map[targetSid].at || pageAt || ""
+            };
+        } else {
+            let cur = normSlot(detectSlot());
+            let f = vals.filter(v => normSlot(v.accountSlot) === cur);
+            let arr = f.length ? f : vals;
+            arr.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+            if (arr[0]) {
+                result = {
+                    ...arr[0],
+                    bl: arr[0].bl || pageBl || BL_FALLBACK,
+                    at: arr[0].at || pageAt || ""
+                };
+            } else {
+                result = {
+                    sid: generateFallbackSid(),
+                    at: pageAt || "",
+                    accountSlot: "default",
+                    bl: pageBl || BL_FALLBACK
+                };
+            }
+        }
+        if (overrides) {
+            if (overrides.at) result.at = overrides.at;
+            if (overrides.bl) result.bl = overrides.bl;
+        }
+        return result;
     }
 
     class GeminiAPIClient {
@@ -150,8 +162,8 @@
         getApiUrl(s) {
             return getApiUrl(s);
         }
-        async getConversationList(pageToken, targetSid, customFilter) {
-            let cred = await resolveCred(targetSid);
+        async getConversationList(pageToken, targetSid, customFilter, opts) {
+            let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             let params = new URLSearchParams({
                 rpcids: RPCS.LIST,
@@ -189,6 +201,29 @@
                 try {
                     snippet = (await resp.text()).slice(0, 320);
                 } catch {}
+                if (resp.status === 400 && !opts?._retried) {
+                    const mXsrf = snippet.includes('xsrf') ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
+                    const freshAt = (mXsrf && mXsrf[1]) ? mXsrf[1] : getAtFromPage();
+                    const freshBl = getBlFromPage();
+                    if ((freshAt && freshAt !== cred.at) || (freshBl && freshBl !== cred.bl)) {
+                        try {
+                            let map = await loadCredMap();
+                            if (cred.sid && map[cred.sid]) {
+                                if (freshAt) map[cred.sid].at = freshAt;
+                                if (freshBl) map[cred.sid].bl = freshBl;
+                                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                    await chrome.storage.local.set({ gemini_credentials_map: map });
+                                }
+                            }
+                        } catch {}
+                        return this.getConversationList(pageToken, targetSid, customFilter, {
+                            ...(opts || {}),
+                            _retried: true,
+                            _overrideAt: freshAt || cred.at,
+                            _overrideBl: freshBl || cred.bl
+                        });
+                    }
+                }
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sid:${cred.sid?.slice(0,6)} atLen:${cred.at?.length} bl:${cred.bl?.slice(0,12)}`);
             }
             let txt = await resp.text();
@@ -351,7 +386,7 @@
         }
         async fetchConversationPage(conversationId, pageToken, targetSid, opts) {
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
-            let cred = await resolveCred(targetSid);
+            let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             const isDevMode = (typeof globalThis !== 'undefined' && globalThis.__gemExporterDevMode)
                 || (typeof window !== 'undefined' && window.__gemExporterDevMode);
@@ -406,11 +441,27 @@
                 try {
                     snippet = (await resp.text()).slice(0, 320);
                 } catch {}
-                if (resp.status === 400 && snippet.includes('xsrf') && !opts?._retriedXsrf) {
-                    const mXsrf = snippet.match(/"xsrf"\s*,\s*"([^"]+)"/);
-                    if (mXsrf && mXsrf[1]) {
-                        if (cachedCredentials[cred.accountSlot]) cachedCredentials[cred.accountSlot].at = mXsrf[1];
-                        return this.fetchConversationPage(conversationId, pageToken, targetSid, { ...(opts || {}), _retriedXsrf: true });
+                if (resp.status === 400 && !opts?._retriedXsrf) {
+                    const mXsrf = snippet.includes('xsrf') ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
+                    const freshAt = (mXsrf && mXsrf[1]) ? mXsrf[1] : getAtFromPage();
+                    const freshBl = getBlFromPage();
+                    if ((freshAt && freshAt !== cred.at) || (freshBl && freshBl !== cred.bl)) {
+                        try {
+                            let map = await loadCredMap();
+                            if (cred.sid && map[cred.sid]) {
+                                if (freshAt) map[cred.sid].at = freshAt;
+                                if (freshBl) map[cred.sid].bl = freshBl;
+                                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                    await chrome.storage.local.set({ gemini_credentials_map: map });
+                                }
+                            }
+                        } catch {}
+                        return this.fetchConversationPage(conversationId, pageToken, targetSid, {
+                            ...(opts || {}),
+                            _retriedXsrf: true,
+                            _overrideAt: freshAt || cred.at,
+                            _overrideBl: freshBl || cred.bl
+                        });
                     }
                 }
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);

@@ -14,6 +14,18 @@ function setSlotAborted(slot = 'u0', val = true) {
     else __bgAborts.delete(s);
 }
 
+function startKeepAlive() {
+    if (typeof chrome === 'undefined' || !chrome.runtime) return () => {};
+    const interval = setInterval(() => {
+        try {
+            if (chrome.runtime.getPlatformInfo) {
+                chrome.runtime.getPlatformInfo(() => {});
+            }
+        } catch {}
+    }, 20000);
+    return () => clearInterval(interval);
+}
+
 const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
     ? GeminiConstants.FEEDBACK_URL
     : 'https://tally.so/r/Y56ZBB';
@@ -120,6 +132,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     if (msg.action === 'deepScan') {
         (async () => {
+            const stopKeepAlive = startKeepAlive();
             try {
                 const timeoutMs = (msg.mode === 'full' || msg.mode === 'auto') ? 300000 : 90000;
                 const res = await sendToGeminiTab({
@@ -130,6 +143,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 sendResponse(res);
             } catch (e) {
                 sendResponse({ success: false, error: e.message });
+            } finally {
+                stopKeepAlive();
             }
         })();
         return true;
@@ -158,74 +173,79 @@ function toMs(v) {
     return Number.isFinite(n) ? n : 0;
 }
 async function fetchBatch(list, format, skipExported, portSendResponse, globalOffset = 0, globalTotal = 0, accountSlot = 'u0') {
-    const slot = accountSlot || 'u0';
-    if (!list || !list.length) {
-        portSendResponse({ success: true, results: [], skipped: 0 });
-        return;
-    }
-    const tab = await getGeminiTab(slot);
-    if (!tab) {
-        portSendResponse({
-            success: false,
-            error: '请先打开 gemini.google.com，保持登录状态'
-        });
-        return;
-    }
+    const stopKeepAlive = startKeepAlive();
+    try {
+        const slot = accountSlot || 'u0';
+        if (!list || !list.length) {
+            portSendResponse({ success: true, results: [], skipped: 0 });
+            return;
+        }
+        const tab = await getGeminiTab(slot);
+        if (!tab) {
+            portSendResponse({
+                success: false,
+                error: '请先打开 gemini.google.com，保持登录状态'
+            });
+            return;
+        }
 
-    const totalCount = globalTotal || list.length;
-    const results = [];
-    let done = 0;
+        const totalCount = globalTotal || list.length;
+        const results = [];
+        let done = 0;
 
-    for (const item of list) {
-        if (isSlotAborted(slot)) break;
-        const cid = item.id || item;
-        try {
-            const res = await sendToGeminiTab({
-                action: 'getConversationDetail',
-                conversationId: cid
-            }, slot);
+        for (const item of list) {
+            if (isSlotAborted(slot)) break;
+            const cid = item.id || item;
+            try {
+                const res = await sendToGeminiTab({
+                    action: 'getConversationDetail',
+                    conversationId: cid
+                }, slot);
 
-            if (res && res.success) {
-                const chat = res.data || res.chat || res;
-                chat.id = cid;
-                results.push(chat);
-            } else {
+                if (res && res.success) {
+                    const chat = res.data || res.chat || res;
+                    chat.id = cid;
+                    results.push(chat);
+                } else {
+                    results.push({
+                        id: cid,
+                        title: item.title,
+                        url: item.url || `https://gemini.google.com/app/${cid}`,
+                        error: res?.error || '抓取失败',
+                        messages: [],
+                        _empty: true,
+                        _debug: res?._debug || null,
+                        _raw: res?._raw || null
+                    });
+                }
+            } catch (e) {
                 results.push({
                     id: cid,
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${cid}`,
-                    error: res?.error || '抓取失败',
+                    error: e.message || '抓取异常',
                     messages: [],
                     _empty: true,
-                    _debug: res?._debug || null,
-                    _raw: res?._raw || null
+                    _debug: e.stack || null,
+                    _raw: null
                 });
             }
-        } catch (e) {
-            results.push({
-                id: cid,
+            done++;
+            chrome.runtime.sendMessage({
+                action: 'exportProgress',
+                done: globalOffset + done,
+                total: totalCount,
                 title: item.title,
-                url: item.url || `https://gemini.google.com/app/${cid}`,
-                error: e.message || '抓取异常',
-                messages: [],
-                _empty: true,
-                _debug: e.stack || null,
-                _raw: null
-            });
+                id: cid
+            }).catch(() => {});
         }
-        done++;
-        chrome.runtime.sendMessage({
-            action: 'exportProgress',
-            done: globalOffset + done,
-            total: totalCount,
-            title: item.title,
-            id: cid
-        }).catch(() => {});
-    }
 
-    portSendResponse({
-        success: true,
-        results,
-        skipped: 0
-    });
+        portSendResponse({
+            success: true,
+            results,
+            skipped: 0
+        });
+    } finally {
+        stopKeepAlive();
+    }
 }

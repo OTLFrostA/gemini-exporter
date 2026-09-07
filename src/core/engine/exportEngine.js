@@ -34,10 +34,65 @@
 
     function sanitizeZipPath(p) {
         if (!p) return p;
-        return p.split('/').map(seg => {
+        if (getUtils()?.sanitizeRelativePath) {
+            return getUtils().sanitizeRelativePath(p, 'file');
+        }
+        return p.split(/[/\\]/).map(seg => {
             if (!seg || seg === '.' || seg === '..') return '_';
             return sanitizeFileName(seg.replace(/\.\./g, '_'), 'file');
         }).filter(Boolean).join('/');
+    }
+
+    class AsyncQueue {
+        constructor() {
+            this._queue = [];
+            this._waiters = [];
+            this._closed = false;
+        }
+        push(task) {
+            if (this._closed) return;
+            if (this._waiters.length > 0) {
+                const waiter = this._waiters.shift();
+                waiter(task);
+            } else {
+                this._queue.push(task);
+            }
+        }
+        async pop(abortSignal) {
+            if (this._queue.length > 0) {
+                return this._queue.shift();
+            }
+            if (this._closed) return null;
+            return new Promise((resolve) => {
+                let onAbort = null;
+                const waiter = (task) => {
+                    if (onAbort && abortSignal) {
+                        try { abortSignal.removeEventListener('abort', onAbort); } catch {}
+                    }
+                    resolve(task);
+                };
+                if (abortSignal) {
+                    onAbort = () => {
+                        const idx = this._waiters.indexOf(waiter);
+                        if (idx !== -1) this._waiters.splice(idx, 1);
+                        resolve(null);
+                    };
+                    if (abortSignal.aborted) return resolve(null);
+                    try { abortSignal.addEventListener('abort', onAbort, { once: true }); } catch {}
+                }
+                this._waiters.push(waiter);
+            });
+        }
+        close() {
+            this._closed = true;
+            while (this._waiters.length > 0) {
+                const waiter = this._waiters.shift();
+                waiter(null);
+            }
+        }
+        get length() {
+            return this._queue.length;
+        }
     }
 
     async function ensureSubDir(root, subPath) {
@@ -163,6 +218,7 @@
             let batchDirHandle;
             let zip;
             let folder;
+            let fsWriter = null;
             const exportFolderName = 'gemini_export';
 
             if (useZip) {
@@ -172,18 +228,26 @@
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
-                    // 持久句柄权限校验，过期则回退
-                    if (dirHandle.queryPermission) {
-                        const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
-                        if (perm !== 'granted') {
-                            const req = dirHandle.requestPermission ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
-                            if (req !== 'granted') throw new Error('Directory permission not granted: ' + req);
-                        }
-                    }
-                    if (dirHandle.name === exportFolderName) {
-                        batchDirHandle = dirHandle;
+                    const FsWriterClass = (typeof FsWriter !== 'undefined' && FsWriter.FsWriter)
+                        ? FsWriter.FsWriter
+                        : (typeof FsWriter === 'function' ? FsWriter : null);
+                    if (FsWriterClass) {
+                        fsWriter = new FsWriterClass(dirHandle, exportFolderName);
+                        batchDirHandle = await fsWriter.init();
                     } else {
-                        batchDirHandle = await dirHandle.getDirectoryHandle(exportFolderName, { create: true });
+                        // 持久句柄权限校验，过期则回退
+                        if (dirHandle.queryPermission) {
+                            const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+                            if (perm !== 'granted') {
+                                const req = dirHandle.requestPermission ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
+                                if (req !== 'granted') throw new Error('Directory permission not granted: ' + req);
+                            }
+                        }
+                        if (dirHandle.name === exportFolderName) {
+                            batchDirHandle = dirHandle;
+                        } else {
+                            batchDirHandle = await dirHandle.getDirectoryHandle(exportFolderName, { create: true });
+                        }
                     }
                 } catch (e) {
                     onLog(`创建子文件夹失败: ${e.message}`, 'warn');
@@ -196,12 +260,14 @@
 
             async function writeFileDirect(localName, data) {
                 try {
-                    // 防路径穿越：过滤 .. 与 .，且对每段 sanitize
-                    const parts = localName.split('/').filter(Boolean).filter(p => p !== '.' && p !== '..');
-                    let fileName = parts.pop();
-                    fileName = sanitizeFileName(fileName, 'file');
-                    if (fileName === '.' || fileName === '..') fileName = 'file';
-                    const dirPath = parts.map(p => sanitizeFileName(p, 'dir')).filter(Boolean).join('/');
+                    const cleanPath = sanitizeZipPath(localName);
+                    if (fsWriter) {
+                        await fsWriter.writeFile(cleanPath, data);
+                        return true;
+                    }
+                    const parts = cleanPath.split('/').filter(Boolean);
+                    let fileName = parts.pop() || 'file';
+                    const dirPath = parts.join('/');
                     let targetDir = batchDirHandle;
                     if (dirPath) {
                         targetDir = await ensureSubDir(batchDirHandle, dirPath);
@@ -248,37 +314,28 @@
 
             updateProgress(0, 'Preparing...');
 
-            let attachmentQueue = [];
-            let isFetchingDone = false;
-            let activeDownloads = 0;
+            const attachmentQueue = new AsyncQueue();
             const MAX_CONCURRENT = 4;
 
-            const processAttachmentQueue = async () => {
-                while (!this.aborted && !(abortSignal && abortSignal.aborted) && (!isFetchingDone || attachmentQueue.length > 0)) {
-                    if (this.aborted || (abortSignal && abortSignal.aborted)) break;
-                    if (attachmentQueue.length === 0 || activeDownloads >= MAX_CONCURRENT) {
-                        // 可中断的等待
-                        await new Promise(r => {
-                            let t = setTimeout(r, 100);
-                            if (abortSignal) abortSignal.addEventListener('abort', () => { clearTimeout(t); r(); }, { once: true });
-                        });
-                        continue;
-                    }
-                    if (abortSignal && abortSignal.aborted) break;
-                    const task = attachmentQueue.shift();
-                    activeDownloads++;
+            if (abortSignal) {
+                abortSignal.addEventListener('abort', () => attachmentQueue.close(), { once: true });
+            }
+
+            const processAttachmentWorker = async () => {
+                while (!this.aborted && !(abortSignal && abortSignal.aborted)) {
+                    const task = await attachmentQueue.pop(abortSignal);
+                    if (!task) break;
                     try {
                         await task();
                     } catch (e) {
                         if (abortSignal && abortSignal.aborted) break;
                     }
-                    activeDownloads--;
                 }
             };
 
             const consumerPool = [];
             for (let i = 0; i < MAX_CONCURRENT; i++) {
-                consumerPool.push(processAttachmentQueue());
+                consumerPool.push(processAttachmentWorker());
             }
 
             const pendingAssetsPerChat = new Map();
@@ -827,7 +884,7 @@
                 }
             }
 
-            isFetchingDone = true;
+            attachmentQueue.close();
             try {
                 await Promise.all(consumerPool);
             } catch (e) {
