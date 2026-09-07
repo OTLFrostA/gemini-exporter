@@ -37,7 +37,7 @@ def run_e2e_tour_tests():
         return False
     print(f"🧩 Detected Extension ID: {ext_id}")
 
-    options_url = f"chrome-extension://{ext_id}/options.html"
+    options_url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
     tabs = get_tabs(PORT)
     opt_tab = next((t for t in tabs if options_url in t.get("url", "")), None)
     if not opt_tab:

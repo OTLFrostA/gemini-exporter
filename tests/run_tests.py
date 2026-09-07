@@ -33,7 +33,7 @@ def test_manifest_structure():
         print("  ✓ manifest.json scripts and permissions verified")
 
 def test_html_includes():
-    for opt_path in ["options.html", "src/ui/options/options.html"]:
+    for opt_path in ["src/ui/options/options.html"]:
         with open(os.path.join(BASE_DIR, opt_path), "r", encoding="utf-8") as f:
             opt_html = f.read()
             for script in [
@@ -66,7 +66,7 @@ def test_html_includes():
             ]:
                 assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in {opt_path}"
     
-    for pop_path in ["popup.html", "src/ui/popup/popup.html"]:
+    for pop_path in ["src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
             pop_html = f.read()
             assert '<script src="/src/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
@@ -125,7 +125,7 @@ def test_i18n_keys():
             v = parts[1].strip().rstrip(",").strip('"').strip("'")
             cur[k] = v
 
-    for html_file in ["options.html", "popup.html", "src/ui/options/options.html", "src/ui/popup/popup.html"]:
+    for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
         html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder)?=["\']([^"\']+)["\']', content))
@@ -398,7 +398,7 @@ def test_dataset_freshness_gate():
 
 def test_tour_status_indicator_styling():
     # 1. Ensure options.html does not define unscoped .ok { ... }
-    for html_file in ["options.html", "src/ui/options/options.html"]:
+    for html_file in ["src/ui/options/options.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
         assert not re.search(r'(?<!button)\.ok\s*\{', content), f"Unscoped .ok rule found in {html_file}"
@@ -421,8 +421,8 @@ def test_tour_status_indicator_styling():
     print("  ✓ TourGuide status indicator styles and class scoping verified")
 
 def test_takeout_limit_modal_and_wall_detection():
-    # 1. Ensure options.html and src/ui/options/options.html contain takeoutLimitModal with required actions
-    for html_file in ["options.html", "src/ui/options/options.html"]:
+    # 1. Ensure src/ui/options/options.html contains takeoutLimitModal with required actions
+    for html_file in ["src/ui/options/options.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
         assert 'id="takeoutLimitModal"' in content, f"takeoutLimitModal missing in {html_file}"

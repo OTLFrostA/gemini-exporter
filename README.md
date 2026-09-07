@@ -190,7 +190,7 @@ Gemini Exporter is built with privacy as a foundational principle:
 - **100% Client-Side**: Operates entirely in your browser sandbox with zero remote telemetry, tracking, or data collection.
 - **Zero Credential Transmission**: Never collects, stores, or transmits your Google account credentials, cookies, or conversation contents.
 
-For our full policy, see [PRIVACY_POLICY.md](./PRIVACY_POLICY.md).
+For our full policy, see [PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md).
 
 ---
 

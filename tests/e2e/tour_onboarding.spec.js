@@ -5,7 +5,7 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
     const page = await context.newPage();
 
     // 1. Open options page with ?welcome=1
-    await page.goto(`chrome-extension://${extensionId}/options.html?welcome=1`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?welcome=1`);
     await page.waitForLoadState('domcontentloaded');
 
     // 2. Wait for Tour popover to appear
@@ -51,7 +51,7 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
   test('should launch tour on clicking header button', async ({ context, extensionId }) => {
     const page = await context.newPage();
 
-    await page.goto(`chrome-extension://${extensionId}/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await page.waitForLoadState('domcontentloaded');
     await page.waitForFunction(() => typeof window.__workbenchLoadStore === 'function');
 
@@ -74,7 +74,7 @@ test.describe('Onboarding Tour Guide & Welcome Flow', () => {
 
   test('should never overlap target element across all 5 steps', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/options.html?welcome=1`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?welcome=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const popover = page.locator('.tour-popover');

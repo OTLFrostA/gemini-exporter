@@ -190,7 +190,7 @@ Gemini Exporter 坚持以隐私安全为核心原则：
 - **100% 本地沙箱运行**：所有会话处理、图片下载与压缩均在浏览器本地进行，零外部遥测与追踪。
 - **绝不上报凭据**：绝不收集、存储或传输您的 Google 账号信息、Cookie 或对话文本。
 
-详细条款请参阅 [隐私权政策文件 (PRIVACY_POLICY.md)](./PRIVACY_POLICY.md)。
+详细条款请参阅 [隐私权政策文件 (PRIVACY_POLICY.md)](./docs/PRIVACY_POLICY.md)。
 
 ---
 

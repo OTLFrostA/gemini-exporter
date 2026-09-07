@@ -119,8 +119,8 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
     print("   🧭 正在定位安装后由 background 自动拉起的 options.html?welcome=1 标签页...")
     start_time = time.time()
     welcome_tab = None
-    welcome_url_part = f"chrome-extension://{ext_id}/options.html?welcome=1"
-    base_options_part = f"chrome-extension://{ext_id}/options.html"
+    welcome_url_part = f"chrome-extension://{ext_id}/src/ui/options/options.html?welcome=1"
+    base_options_part = f"chrome-extension://{ext_id}/src/ui/options/options.html"
 
     while time.time() - start_time < timeout:
         tabs = get_tabs(port)
@@ -848,7 +848,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     print("📦 阶段三：打开扩展后台 Options 页面，触发同步并导出选中的 2 个会话...")
     print("-" * 70)
 
-    options_url = f"chrome-extension://{ext_id}/options.html"
+    options_url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
     tabs = get_tabs(port)
     opt_tab = next((t for t in tabs if options_url in t.get("url", "")), None)
     if not opt_tab:
