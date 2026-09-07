@@ -300,3 +300,31 @@ test('Conversation merge - authoritative RPC server list heals contaminated Date
     assert.strictEqual(merged[0].timestamp, 1700000000000, 'timestamp must be healed to true server timestamp');
 });
 
+test('GeminiUtils.compareConversations - authoritative SSoT comparator', () => {
+    assert.strictEqual(typeof GeminiUtils.compareConversations, 'function', 'compareConversations must be exported');
+
+    // 1. Sort by effective timestamp descending (newer first)
+    const convNew = { id: 'c1', updatedAt: 2000 };
+    const convOld = { id: 'c2', updatedAt: 1000 };
+    assert.ok(GeminiUtils.compareConversations(convNew, convOld) < 0, 'Newer should come before older');
+    assert.ok(GeminiUtils.compareConversations(convOld, convNew) > 0, 'Older should come after newer');
+
+    // 2. When timestamps are identical, sort by sidebarIndex ascending (0 before 1)
+    const convIdx0 = { id: 'c3', updatedAt: 1000, sidebarIndex: 0 };
+    const convIdx1 = { id: 'c4', updatedAt: 1000, sidebarIndex: 1 };
+    assert.ok(GeminiUtils.compareConversations(convIdx0, convIdx1) < 0, 'Lower sidebarIndex should come first');
+    assert.ok(GeminiUtils.compareConversations(convIdx1, convIdx0) > 0, 'Higher sidebarIndex should come second');
+
+    // 3. When sidebarIndex is also equal or absent, sort by lastSeen descending
+    const convSeenLater = { id: 'c5', updatedAt: 1000, sidebarIndex: 0, lastSeen: '2026-09-01T12:00:00.000Z' };
+    const convSeenEarlier = { id: 'c6', updatedAt: 1000, sidebarIndex: 0, lastSeen: '2026-09-01T10:00:00.000Z' };
+    assert.ok(GeminiUtils.compareConversations(convSeenLater, convSeenEarlier) < 0, 'More recent lastSeen should come first');
+    assert.ok(GeminiUtils.compareConversations(convSeenEarlier, convSeenLater) > 0, 'Older lastSeen should come second');
+
+    // 4. Array sort stability
+    const list = [convOld, convNew, convIdx1, convIdx0];
+    list.sort(GeminiUtils.compareConversations);
+    assert.deepStrictEqual(list.map(c => c.id), ['c1', 'c3', 'c4', 'c2']);
+});
+
+

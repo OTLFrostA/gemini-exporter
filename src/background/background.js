@@ -2,8 +2,17 @@ try {
     importScripts('/src/core/utils/constants.js', '/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
 } catch (e) {}
 
-console.log('[Gemini Exporter] Background service worker ready');
-let __bgAborted = false;
+const __bgAborts = new Map();
+
+function isSlotAborted(slot = 'u0') {
+    return !!__bgAborts.get(slot || 'u0');
+}
+
+function setSlotAborted(slot = 'u0', val = true) {
+    const s = slot || 'u0';
+    if (val) __bgAborts.set(s, true);
+    else __bgAborts.delete(s);
+}
 
 const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
     ? GeminiConstants.FEEDBACK_URL
@@ -80,20 +89,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.action === 'fetchBatch') {
-        __bgAborted = false;
-        fetchBatch(msg.ids, msg.format, msg.skipExported, sendResponse, msg.globalOffset, msg.globalTotal, msg.accountSlot);
+        const slot = msg.accountSlot || 'u0';
+        setSlotAborted(slot, false);
+        fetchBatch(msg.ids, msg.format, msg.skipExported, sendResponse, msg.globalOffset, msg.globalTotal, slot);
         return true;
     }
 
     if (msg.action === 'cancelExport') {
-        __bgAborted = true;
+        const slot = msg.accountSlot || 'u0';
+        setSlotAborted(slot, true);
         sendResponse({ ok: true, aborted: true });
         return true;
     }
 
     if (msg.action === 'abortSync') {
-        __bgAborted = true;
-        sendToGeminiTab({ action: 'abortSync' }, msg.accountSlot).catch(() => {});
+        const slot = msg.accountSlot || 'u0';
+        setSlotAborted(slot, true);
+        sendToGeminiTab({ action: 'abortSync' }, slot).catch(() => {});
         sendResponse({ ok: true, aborted: true });
         return true;
     }
@@ -124,8 +136,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.action === 'stopDeepScan') {
-        __bgAborted = true;
-        sendToGeminiTab({ action: 'stopDeepScan' }, msg.accountSlot)
+        const slot = msg.accountSlot || 'u0';
+        setSlotAborted(slot, true);
+        sendToGeminiTab({ action: 'stopDeepScan' }, slot)
             .then(r => sendResponse(r || { ok: true, aborted: true }))
             .catch(() => sendResponse({ ok: true, aborted: true }));
         return true;
@@ -164,7 +177,7 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
     let done = 0;
 
     for (const item of list) {
-        if (__bgAborted) break;
+        if (isSlotAborted(slot)) break;
         const cid = item.id || item;
         try {
             const res = await sendToGeminiTab({

@@ -19,38 +19,12 @@
         return '1.3.8';
     }
 
-    function sanitizeFileName(name, fallback = 'untitled') {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName) {
-            return GeminiUtils.sanitizeFileName(name, fallback);
-        }
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.sanitizeFileName) {
-            return globalThis.GeminiUtils.sanitizeFileName(name, fallback);
-        }
-        return (name || fallback).trim() || fallback;
-    }
-
-    function normId(id) {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.normId) return GeminiUtils.normId(id);
-        return String(id || '').replace(/^c_/, '').trim();
-    }
-
-    function cleanTitle(t) {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
-        return (t || '').trim();
-    }
-
-    function isRealTitle(t, fallbackId) {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle) return GeminiUtils.isRealTitle(t, fallbackId);
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.isRealTitle) return globalThis.GeminiUtils.isRealTitle(t, fallbackId);
-        return !!(t && typeof t === 'string' && t.trim().length > 1);
-    }
-
-    function resolveTitle(chat) {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.resolveTitle) return GeminiUtils.resolveTitle(chat);
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.resolveTitle) return globalThis.GeminiUtils.resolveTitle(chat);
-        return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
-    }
+    const getUtils = () => (typeof GeminiUtils !== 'undefined' ? GeminiUtils : (typeof globalThis !== 'undefined' ? globalThis.GeminiUtils : null));
+    const sanitizeFileName = (name, fallback) => (getUtils()?.sanitizeFileName ? getUtils().sanitizeFileName(name, fallback) : (name || fallback || 'untitled').trim());
+    const normId = (id) => (getUtils()?.normId ? getUtils().normId(id) : String(id || '').replace(/^c_/, '').trim());
+    const cleanTitle = (t) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(t) : (t || '').trim());
+    const isRealTitle = (t, fallbackId) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
+    const resolveTitle = (chat) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
 
     function toIso(v) {
         if (!v) return null;

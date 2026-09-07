@@ -215,6 +215,40 @@
         return { text, pct: Math.min(Math.max(pct, 0), 100) };
     }
 
+    /**
+     * Authoritative conversation comparator for consistent ordering across UI and background sync.
+     * Orders descending by effective activity time, then ascending by sidebarIndex,
+     * and finally descending by lastSeen timestamp.
+     * @param {Object} a - First conversation
+     * @param {Object} b - Second conversation
+     * @returns {number} Negative if a should precede b, positive if b should precede a, 0 if equal
+     */
+    function compareConversations(a, b) {
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
+
+        const tsA = getEffectiveTimestamp(a);
+        const tsB = getEffectiveTimestamp(b);
+        if (tsA !== tsB) return tsB - tsA;
+
+        const idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
+        const idxB = typeof b.sidebarIndex === 'number' ? b.sidebarIndex : 999999;
+        if (idxA !== idxB) return idxA - idxB;
+
+        let lsA = 0;
+        if (a.lastSeen) {
+            lsA = (typeof a.lastSeen === 'string') ? new Date(a.lastSeen).getTime() : Number(a.lastSeen);
+            if (!Number.isFinite(lsA)) lsA = 0;
+        }
+        let lsB = 0;
+        if (b.lastSeen) {
+            lsB = (typeof b.lastSeen === 'string') ? new Date(b.lastSeen).getTime() : Number(b.lastSeen);
+            if (!Number.isFinite(lsB)) lsB = 0;
+        }
+        return lsB - lsA;
+    }
+
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
         module.exports = {
@@ -225,6 +259,7 @@
             resolveTitle,
             setTitleBySource,
             getEffectiveTimestamp,
+            compareConversations,
             formatExportProgress,
             TITLE_SOURCE_PRIORITY
         };
@@ -237,6 +272,7 @@
         global.GeminiUtils.resolveTitle = resolveTitle;
         global.GeminiUtils.setTitleBySource = setTitleBySource;
         global.GeminiUtils.getEffectiveTimestamp = getEffectiveTimestamp;
+        global.GeminiUtils.compareConversations = compareConversations;
         global.GeminiUtils.formatExportProgress = formatExportProgress;
         global.GeminiUtils.TITLE_SOURCE_PRIORITY = TITLE_SOURCE_PRIORITY;
     }

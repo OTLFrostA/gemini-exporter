@@ -458,27 +458,10 @@
                 });
 
                 const merged = Array.from(map.values());
-                const getEffectiveTime = (typeof GeminiUtils !== 'undefined' && GeminiUtils.getEffectiveTimestamp)
-                    ? GeminiUtils.getEffectiveTimestamp
-                    : (conv) => {
-                        if (!conv) return 0;
-                        const raw = conv.updatedAt || conv.timestamp || conv.chatTime || conv.createdAt || 0;
-                        return typeof raw === 'string' ? new Date(raw).getTime() : (raw || 0);
-                    };
-
-                merged.sort((a, b) => {
-                    let tsA = getEffectiveTime(a);
-                    let tsB = getEffectiveTime(b);
-                    if (tsA !== tsB) return tsB - tsA;
-
-                    let idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
-                    let idxB = typeof b.sidebarIndex === 'number' ? b.sidebarIndex : 999999;
-                    if (idxA !== idxB) return idxA - idxB;
-
-                    let lsA = a.lastSeen ? new Date(a.lastSeen).getTime() : 0;
-                    let lsB = b.lastSeen ? new Date(b.lastSeen).getTime() : 0;
-                    return lsB - lsA;
-                });
+                const comparator = (typeof GeminiUtils !== 'undefined' && GeminiUtils.compareConversations)
+                    ? GeminiUtils.compareConversations
+                    : (a, b) => 0;
+                merged.sort(comparator);
 
                 if (!forceWrite && changed === 0) {
                     if (__lastKnownCount !== merged.length) {
