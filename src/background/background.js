@@ -109,11 +109,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'deepScan') {
         (async () => {
             try {
+                const timeoutMs = (msg.mode === 'full' || msg.mode === 'auto') ? 300000 : 90000;
                 const res = await sendToGeminiTab({
                     action: 'deepScan',
                     maxIter: msg.maxIter || 150,
                     mode: msg.mode || 'auto'
-                }, msg.accountSlot);
+                }, msg.accountSlot, timeoutMs);
                 sendResponse(res);
             } catch (e) {
                 sendResponse({ success: false, error: e.message });

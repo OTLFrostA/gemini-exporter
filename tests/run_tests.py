@@ -426,6 +426,25 @@ def test_takeout_limit_modal_and_wall_detection():
     assert "res?.count >= 500" in sync_code or "res.count >= 500" in sync_code, "syncController.js should treat full scan >= 500 as hitGoogleLimit"
     assert "429" in sync_code, "syncController.js should treat 429 as hitGoogleLimit"
 
+    # 3. Ensure tabService.js allocates at least 300000ms (5m) for deepScan
+    tab_service_path = os.path.join(BASE_DIR, "src/core/utils/tabService.js")
+    with open(tab_service_path, "r", encoding="utf-8") as f:
+        tab_code = f.read()
+    assert "300000" in tab_code and "deepScan" in tab_code, "tabService.js should allow at least 300000ms timeout for deepScan"
+
+    # 4. Ensure options.js checks gemini_pending_takeout_prompt on store load
+    options_js_path = os.path.join(BASE_DIR, "src/ui/options/options.js")
+    with open(options_js_path, "r", encoding="utf-8") as f:
+        options_code = f.read()
+    assert "gemini_pending_takeout_prompt" in options_code, "options.js should check gemini_pending_takeout_prompt"
+    assert "checkPendingTakeoutPrompt" in options_code, "options.js should have checkPendingTakeoutPrompt"
+
+    # 5. Ensure content.js records gemini_pending_takeout_prompt when limit hit
+    content_js_path = os.path.join(BASE_DIR, "src/content/content.js")
+    with open(content_js_path, "r", encoding="utf-8") as f:
+        content_code = f.read()
+    assert "gemini_pending_takeout_prompt" in content_code, "content.js should persist gemini_pending_takeout_prompt"
+
     print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
 
 test_json_files()

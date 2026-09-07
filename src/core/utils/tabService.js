@@ -20,9 +20,12 @@
         return tabs.find(t => t.active) || tabs[0];
     }
 
-    async function sendToGeminiTab(msg, slot, timeoutMs = 25000) {
+    async function sendToGeminiTab(msg, slot, timeoutMs) {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
             throw new Error('chrome.tabs API 不可用');
+        }
+        if (!timeoutMs || typeof timeoutMs !== 'number') {
+            timeoutMs = (msg && msg.action === 'deepScan') ? 300000 : 25000;
         }
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
