@@ -46,8 +46,8 @@
         "src/core/api/geminiParser.js",
         "src/content/bootstrap.js",
         "src/core/api/geminiClient.js",
-        "src/core/engine/domScraper.js",
-        "src/core/engine/assetFetcher.js",
+        "src/content/domScraper.js",
+        "src/content/assetFetcher.js",
         "src/content/content.js"
       ],
       "run_at": "document_start",

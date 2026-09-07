@@ -120,6 +120,8 @@ src/
     content.css                同步状态指示器与悬浮 Badge 样式
     bootstrap.js               页面 Token 初始化与凭据引导
     hookCredentials.js         主世界（MAIN world）安全沙盒网络拦截与凭据提取
+    domScraper.js              实时页面 DOM 兜底解析器
+    assetFetcher.js            高清晰度媒体与二进制 Blob 流式抓取器
 
   core/                        纯领域逻辑与解析导出引擎（与 DOM 彻底解耦）
     api/
@@ -129,8 +131,6 @@ src/
       exportEngine.js          事件驱动 AsyncQueue 高并发流式导出调度器
       takeoutEngine.js         Google Takeout 归档秒级解析器与多账号离线媒体池
       chatFormatter.js         Markdown、JSON、OpenAI 规范格式化渲染器
-      assetFetcher.js          高清晰度媒体与二进制 Blob 流式抓取器
-      domScraper.js            实时页面 DOM 兜底解析器
       writers/
         zipWriter.js           JSZip 流式打包写入器
         fsWriter.js            FileSystem Access API 目录树落盘写入器

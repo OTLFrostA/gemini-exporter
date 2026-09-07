@@ -28,7 +28,7 @@ def test_manifest_structure():
         assert m["manifest_version"] == 3
         assert "storage" in m["permissions"]
         cs = m["content_scripts"][0]["js"]
-        for required in ["src/core/storage/storageService.js", "src/core/api/geminiParser.js", "src/core/api/geminiClient.js", "src/core/engine/domScraper.js", "src/core/engine/assetFetcher.js", "src/content/content.js"]:
+        for required in ["src/core/storage/storageService.js", "src/core/api/geminiParser.js", "src/core/api/geminiClient.js", "src/content/domScraper.js", "src/content/assetFetcher.js", "src/content/content.js"]:
             assert required in cs, f"Missing {required} in manifest content_scripts"
         print("  ✓ manifest.json scripts and permissions verified")
 
@@ -78,8 +78,8 @@ def test_module_exports():
         "src/core/engine/takeoutEngine.js": ["parseTakeoutZip", "getTakeoutOfflineChat", "getTakeoutFallbackMedia"],
         "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName", "sanitizeZipPath", "AsyncQueue"],
         "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "isTakeoutPromptCompleted", "setTakeoutPromptCompleted", "removeConversation", "reconcileConversations"],
-        "src/core/engine/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
-        "src/core/engine/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
+        "src/content/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
+        "src/content/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
         "src/core/utils/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "DIRECT_WRITE_THRESHOLD", "STORAGE_KEYS"],
         "src/core/utils/tabService.js": ["getGeminiTab", "sendToGeminiTab", "checkGeminiStatus", "openGeminiPage", "reloadGeminiTab"],
         "src/core/storage/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
@@ -145,14 +145,18 @@ def test_javascript_syntax():
                 js_files.append(os.path.join(root, file))
 
     jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
-    node_bin = shutil.which("node") or (os.path.expanduser("~/.local/node/bin/node") if os.path.exists(os.path.expanduser("~/.local/node/bin/node")) else None)
+    node_bin = None
+    for cand in [shutil.which("node"), os.path.expanduser("~/.local/node/bin/node"), os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"), r"C:\Program Files\nodejs\node.exe"]:
+        if cand and os.path.exists(cand):
+            node_bin = cand
+            break
 
     for js_path in sorted(js_files):
         rel_path = os.path.relpath(js_path, BASE_DIR)
         with open(js_path, "r", encoding="utf-8") as f:
             code = f.read()
         if node_bin:
-            res = subprocess.run([node_bin, "-c", js_path], capture_output=True, text=True)
+            res = subprocess.run([node_bin, "-c", js_path], capture_output=True, text=True, encoding="utf-8", errors="replace")
             assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr}"
         elif os.path.exists(jsc_bin):
             script = f"new Function({json.dumps(code)});"
@@ -167,7 +171,11 @@ def test_javascript_unit_tests():
     import tempfile
 
     jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
-    node_bin = shutil.which("node") or (os.path.expanduser("~/.local/node/bin/node") if os.path.exists(os.path.expanduser("~/.local/node/bin/node")) else None)
+    node_bin = None
+    for cand in [shutil.which("node"), os.path.expanduser("~/.local/node/bin/node"), os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"), r"C:\Program Files\nodejs\node.exe"]:
+        if cand and os.path.exists(cand):
+            node_bin = cand
+            break
 
     test_files = sorted(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")))
 
@@ -186,7 +194,7 @@ def test_javascript_unit_tests():
     for tf in test_files:
         rel = os.path.relpath(tf, BASE_DIR)
         if node_bin:
-            res = subprocess.run([node_bin, "--test", tf], capture_output=True, text=True)
+            res = subprocess.run([node_bin, "--test", tf], capture_output=True, text=True, encoding="utf-8", errors="replace")
             assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
             print(f"  ✓ Unit test suite passed: {rel}")
         elif os.path.exists(jsc_bin):

@@ -78,8 +78,10 @@
 
   const ALLOWED_FORMATS = (typeof FormatStore !== 'undefined' ? FormatStore.ALLOWED_FORMATS : ['markdown', 'json_openai', 'json', 'json_raw']);
   if (typeof FormatStore !== 'undefined' && FormatStore.loadFormat) {
-    FormatStore.loadFormat($('format'));
-    FormatStore.bindFormatSelect($('format'));
+    FormatStore.loadFormat().then(({ format }) => {
+        if ($('format')) $('format').value = format;
+    });
+    $('format')?.addEventListener('change', e => FormatStore.saveFormat(e.target.value));
   } else {
     chrome.storage.local.get(['gemini_export_format'], data => {
       if (data.gemini_export_format && $('format')) {
@@ -99,7 +101,7 @@
 
   // "只导当前页" button
   $('btnCurrent')?.addEventListener('click', async ()=>{
-    let format = (typeof FormatStore !== 'undefined' && FormatStore.getFormatFromSelect) ? FormatStore.getFormatFromSelect($('format')) : ($('format')?.value || 'markdown');
+    let format = (typeof FormatStore !== 'undefined' && FormatStore.getCurrentFormat) ? FormatStore.getCurrentFormat(false, $('format')?.value) : ($('format')?.value || 'markdown');
     if (typeof FormatStore === 'undefined' && !ALLOWED_FORMATS.includes(format)) format = 'markdown';
     log(typeof I18n !== 'undefined' ? I18n.t('popupExporting') : '正在导出当前页…');
     const progWrap = $('progWrap');
