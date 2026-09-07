@@ -29,6 +29,15 @@
     }
 
     function toDataUrl(blob) {
+        if (typeof FileReader === 'undefined') {
+            if (typeof Buffer !== 'undefined' && typeof blob.arrayBuffer === 'function') {
+                return blob.arrayBuffer().then(buf => {
+                    const b64 = Buffer.from(buf).toString('base64');
+                    const type = blob.type || 'application/octet-stream';
+                    return `data:${type};base64,${b64}`;
+                });
+            }
+        }
         return new Promise((res, rej) => {
             let fr = new FileReader();
             fr.onloadend = () => res(String(fr.result || ""));
