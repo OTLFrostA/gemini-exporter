@@ -12,6 +12,8 @@
             }
             this.zip = new JSZip();
             this.folder = this.zip.folder(folderName);
+            this.totalBytes = 0;
+            this.MAX_SAFE_ZIP_BYTES = 500 * 1024 * 1024; // 500MB safe memory warning threshold
         }
 
         sanitizePath(p) {
@@ -36,7 +38,23 @@
 
         writeFile(relativePath, content, options = {}) {
             const cleanPath = this.sanitizePath(relativePath);
+            if (content) {
+                if (typeof content === 'string') {
+                    this.totalBytes += content.length * (options && options.base64 ? 0.75 : 1);
+                } else if (content.byteLength) {
+                    this.totalBytes += content.byteLength;
+                } else if (content.length) {
+                    this.totalBytes += content.length;
+                }
+            }
+            if (this.totalBytes > this.MAX_SAFE_ZIP_BYTES) {
+                console.warn(`[ZipWriter] Warning: Total uncompressed content exceeds ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB. May risk tab memory pressure.`);
+            }
             this.folder.file(cleanPath, content, options);
+        }
+
+        getTotalBytes() {
+            return this.totalBytes;
         }
 
         async generateBlob(onUpdate) {
