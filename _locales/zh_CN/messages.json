@@ -4,7 +4,7 @@
     "description": "扩展程序名称。"
   },
   "extDesc": {
-    "message": "批量导出 Google Gemini 全部对话为 Markdown（适配 Obsidian/Notion）、JSON 或 ZIP，完整保存图片附件。本地客户端运行，隐私安全。",
+    "message": "批量导出 Google Gemini 对话与 Google Takeout 归档为 Markdown、JSON 或 ZIP，完整保存图片附件。本地安全运行。",
     "description": "扩展程序描述。"
   }
 }
