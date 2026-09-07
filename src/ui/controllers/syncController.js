@@ -45,14 +45,20 @@
             const hitGoogleLimit = !!(
                 res?.hitGoogleLimit ||
                 res?.diagnostics?.hitGoogleLimit ||
+                (mode === 'full' && ((res?.count >= 500) || (res?.total >= 500))) ||
                 (res?.diagnostics?.stopReason && (
                     res.diagnostics.stopReason.includes('BardErrorInfo') ||
                     res.diagnostics.stopReason.includes('服务端上限') ||
-                    res.diagnostics.stopReason.includes('1096')
+                    res.diagnostics.stopReason.includes('600条') ||
+                    res.diagnostics.stopReason.includes('1096') ||
+                    res.diagnostics.stopReason.includes('429') ||
+                    /quota|rate\s*limit|resource_exhausted/i.test(res.diagnostics.stopReason)
                 )) ||
                 (res?.error && (
                     String(res.error).includes('BardErrorInfo') ||
-                    String(res.error).includes('1096')
+                    String(res.error).includes('1096') ||
+                    String(res.error).includes('429') ||
+                    /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(String(res.error))
                 ))
             );
 
