@@ -79,9 +79,19 @@
         return "default";
     }
 
+    function getCredStorage() {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            if (chrome.storage.session) return chrome.storage.session;
+            return chrome.storage.local;
+        }
+        return null;
+    }
+
     async function loadCredMap() {
+        const storage = getCredStorage();
+        if (!storage) return {};
         try {
-            let s = await chrome.storage.local.get(["gemini_credentials_map", "gemini_credentials"]);
+            let s = await storage.get(["gemini_credentials_map", "gemini_credentials"]);
             let map = s.gemini_credentials_map || {};
             if (s.gemini_credentials && s.gemini_credentials.sid && !map[s.gemini_credentials.sid]) {
                 map[s.gemini_credentials.sid] = {
@@ -90,6 +100,25 @@
                     accountSlot: "default",
                     lastUsed: Date.now()
                 };
+            }
+            if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
+                try {
+                    let localS = await chrome.storage.local.get(["gemini_credentials_map", "gemini_credentials"]);
+                    let localMap = localS.gemini_credentials_map || {};
+                    if (localS.gemini_credentials && localS.gemini_credentials.sid && !localMap[localS.gemini_credentials.sid]) {
+                        localMap[localS.gemini_credentials.sid] = {
+                            at: localS.gemini_credentials.at || "",
+                            sid: localS.gemini_credentials.sid,
+                            accountSlot: "default",
+                            lastUsed: Date.now()
+                        };
+                    }
+                    if (Object.keys(localMap).length > 0) {
+                        map = localMap;
+                        await storage.set({ gemini_credentials_map: map });
+                        await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                    }
+                } catch { /* intentional: migration fallback */ }
             }
             return map;
         } catch {
@@ -114,15 +143,21 @@
             };
             vals = [entry];
             try {
-                await chrome.storage.local.set({
-                    gemini_credentials_map: {
-                        [sid]: entry
-                    },
-                    gemini_credentials: {
-                        at: pageAt,
-                        sid
+                const storage = getCredStorage();
+                if (storage) {
+                    await storage.set({
+                        gemini_credentials_map: {
+                            [sid]: entry
+                        },
+                        gemini_credentials: {
+                            at: pageAt,
+                            sid
+                        }
+                    });
+                    if (storage !== chrome.storage.local && chrome.storage.local) {
+                        await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
                     }
-                });
+                }
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
         } else if (pageBl && vals[0] && !vals[0].bl) {
             vals[0].bl = pageBl;
@@ -221,8 +256,12 @@
                             if (cred.sid && map[cred.sid]) {
                                 if (freshAt) map[cred.sid].at = freshAt;
                                 if (freshBl) map[cred.sid].bl = freshBl;
-                                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                                    await chrome.storage.local.set({ gemini_credentials_map: map });
+                                const storage = getCredStorage();
+                                if (storage) {
+                                    await storage.set({ gemini_credentials_map: map });
+                                    if (storage !== chrome.storage.local && chrome.storage.local) {
+                                        await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                                    }
                                 }
                             }
                         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
@@ -233,6 +272,21 @@
                             _overrideBl: freshBl || cred.bl
                         });
                     }
+                }
+                if (resp.status === 401) {
+                    try {
+                        let map = await loadCredMap();
+                        if (cred.sid && map[cred.sid]) {
+                            delete map[cred.sid];
+                            const storage = getCredStorage();
+                            if (storage) {
+                                await storage.set({ gemini_credentials_map: map });
+                                if (storage !== chrome.storage.local && chrome.storage.local) {
+                                    await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                                }
+                            }
+                        }
+                    } catch { /* intentional: best-effort 401 cleanup */ }
                 }
                 const retryCount = (opts && opts._retryCount) || 0;
                 const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
@@ -470,8 +524,12 @@
                             if (cred.sid && map[cred.sid]) {
                                 if (freshAt) map[cred.sid].at = freshAt;
                                 if (freshBl) map[cred.sid].bl = freshBl;
-                                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                                    await chrome.storage.local.set({ gemini_credentials_map: map });
+                                const storage = getCredStorage();
+                                if (storage) {
+                                    await storage.set({ gemini_credentials_map: map });
+                                    if (storage !== chrome.storage.local && chrome.storage.local) {
+                                        await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                                    }
                                 }
                             }
                         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
@@ -482,6 +540,21 @@
                             _overrideBl: freshBl || cred.bl
                         });
                     }
+                }
+                if (resp.status === 401) {
+                    try {
+                        let map = await loadCredMap();
+                        if (cred.sid && map[cred.sid]) {
+                            delete map[cred.sid];
+                            const storage = getCredStorage();
+                            if (storage) {
+                                await storage.set({ gemini_credentials_map: map });
+                                if (storage !== chrome.storage.local && chrome.storage.local) {
+                                    await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                                }
+                            }
+                        }
+                    } catch { /* intentional: best-effort 401 cleanup */ }
                 }
                 const retryCount = (opts && opts._retryCount) || 0;
                 const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;

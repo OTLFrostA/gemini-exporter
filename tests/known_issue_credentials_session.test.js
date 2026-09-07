@@ -51,19 +51,41 @@ function makeContext() {
                     remove: async () => {}
                 },
                 session: {
-                    get: async () => ({}),
-                    set: async (items) => { ctx.__sessionWrites.push(items); },
-                    remove: async () => {}
+                    get: async (keys) => {
+                        const keyList = Array.isArray(keys) ? keys : [keys];
+                        const out = {};
+                        for (const k of keyList) {
+                            if (ctx.__sessionData && Object.prototype.hasOwnProperty.call(ctx.__sessionData, k)) {
+                                out[k] = ctx.__sessionData[k];
+                            }
+                        }
+                        return out;
+                    },
+                    set: async (items) => {
+                        ctx.__sessionWrites.push(items);
+                        ctx.__sessionData = ctx.__sessionData || {};
+                        Object.assign(ctx.__sessionData, JSON.parse(JSON.stringify(items)));
+                    },
+                    remove: async (keys) => {
+                        const keyList = Array.isArray(keys) ? keys : [keys];
+                        for (const k of keyList) {
+                            if (ctx.__sessionData) delete ctx.__sessionData[k];
+                        }
+                    }
                 }
             }
         },
+        addEventListener: () => {},
+        removeEventListener: () => {},
         __localWrites: [],
-        __sessionWrites: []
+        __sessionWrites: [],
+        __sessionData: {}
     };
     ctx.window = ctx;
     ctx.document = {
         querySelectorAll: () => [],
         addEventListener: () => {},
+        removeEventListener: () => {},
         documentElement: { innerHTML: '' }
     };
     ctx.location = { origin: 'https://gemini.google.com', href: 'https://gemini.google.com/u/0/app', pathname: '/u/0/app' };
@@ -92,4 +114,111 @@ test('KNOWN ISSUE P1-2.6: session tokens must live in chrome.storage.session, ne
         'credentials must NOT be written to chrome.storage.local — plaintext tokens on disk survive logout ' +
         'and are readable by any extension code. Migrate to chrome.storage.session (+401/logout cleanup).'
     );
+});
+
+test('StorageService credentials storage uses chrome.storage.session and cleans local', async () => {
+    const StorageService = require('../src/core/storage/storageService.js');
+    const localStore = { gemini_credentials_map: { old_sid: { at: 'old_at', sid: 'old_sid' } } };
+    const sessionStore = {};
+    global.chrome = {
+        storage: {
+            local: {
+                get: async (keys) => {
+                    const out = {};
+                    for (const k of (Array.isArray(keys) ? keys : [keys])) {
+                        if (localStore[k]) out[k] = JSON.parse(JSON.stringify(localStore[k]));
+                    }
+                    return out;
+                },
+                set: async (items) => {
+                    Object.assign(localStore, JSON.parse(JSON.stringify(items)));
+                },
+                remove: async (keys) => {
+                    for (const k of (Array.isArray(keys) ? keys : [keys])) delete localStore[k];
+                }
+            },
+            session: {
+                get: async (keys) => {
+                    const out = {};
+                    for (const k of (Array.isArray(keys) ? keys : [keys])) {
+                        if (sessionStore[k]) out[k] = JSON.parse(JSON.stringify(sessionStore[k]));
+                    }
+                    return out;
+                },
+                set: async (items) => {
+                    Object.assign(sessionStore, JSON.parse(JSON.stringify(items)));
+                },
+                remove: async (keys) => {
+                    for (const k of (Array.isArray(keys) ? keys : [keys])) delete sessionStore[k];
+                }
+            }
+        }
+    };
+
+    // 1. getCredentialsMap migrates from local to session and cleans local
+    const map = await StorageService.getCredentialsMap();
+    assert.strictEqual(map.old_sid?.at, 'old_at');
+    assert.strictEqual(sessionStore.gemini_credentials_map?.old_sid?.at, 'old_at');
+    assert.strictEqual(localStore.gemini_credentials_map, undefined);
+
+    // 2. setCredentialsMap writes to session and ensures local is clean
+    await StorageService.setCredentialsMap({
+        new_sid: { at: 'new_at', sid: 'new_sid' }
+    });
+    assert.strictEqual(sessionStore.gemini_credentials_map.new_sid.at, 'new_at');
+    assert.strictEqual(localStore.gemini_credentials_map, undefined);
+
+    // 3. clearCredentials deletes specific sid from session
+    await StorageService.clearCredentials('new_sid');
+    assert.strictEqual(sessionStore.gemini_credentials_map.new_sid, undefined);
+});
+
+test('GeminiAPIClient 401 response purges expired sid from session storage', async () => {
+    const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+    const sessionStore = {
+        gemini_credentials_map: {
+            bad_sid: { at: 'bad_token', sid: 'bad_sid', accountSlot: 'default' }
+        }
+    };
+    const localStore = {};
+    global.chrome = {
+        storage: {
+            local: {
+                get: async () => ({ ...localStore }),
+                set: async (items) => Object.assign(localStore, items),
+                remove: async (keys) => { for (const k of [keys].flat()) delete localStore[k]; }
+            },
+            session: {
+                get: async (keys) => {
+                    const out = {};
+                    for (const k of [keys].flat()) {
+                        if (sessionStore[k]) out[k] = JSON.parse(JSON.stringify(sessionStore[k]));
+                    }
+                    return out;
+                },
+                set: async (items) => Object.assign(sessionStore, JSON.parse(JSON.stringify(items))),
+                remove: async (keys) => { for (const k of [keys].flat()) delete sessionStore[k]; }
+            }
+        }
+    };
+
+    const client = new GeminiAPIClient();
+    const originalFetch = global.fetch;
+    global.fetch = async () => ({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: async () => 'Unauthorized'
+    });
+
+    try {
+        await client.getConversationList(null, 'bad_sid');
+        assert.fail('should have thrown 401');
+    } catch (err) {
+        assert.ok(err.message.includes('401'));
+    } finally {
+        global.fetch = originalFetch;
+    }
+
+    assert.strictEqual(sessionStore.gemini_credentials_map.bad_sid, undefined, '401 must evict bad_sid from session storage');
 });

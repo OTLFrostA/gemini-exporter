@@ -2,6 +2,13 @@ try {
     importScripts('/src/core/utils/constants.js', '/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
 } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
 
+// Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
+try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.setAccessLevel) {
+        chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
+    }
+} catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
+
 const __bgAborts = new Map();
 
 function isSlotAborted(slot = 'u0') {

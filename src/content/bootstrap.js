@@ -70,13 +70,52 @@ function isExtAlive() {
     }
 }
 
+function getCredStorage() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+        if (chrome.storage.session) return chrome.storage.session;
+        return chrome.storage.local;
+    }
+    return null;
+}
+
+async function loadCredentialsMap() {
+    const storage = getCredStorage();
+    if (!storage) return {};
+    let mapObj = await storage.get(['gemini_credentials_map']);
+    let map = mapObj.gemini_credentials_map || {};
+    if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
+        try {
+            const localObj = await chrome.storage.local.get(['gemini_credentials_map']);
+            if (localObj && localObj.gemini_credentials_map) {
+                map = localObj.gemini_credentials_map;
+                await storage.set({ gemini_credentials_map: map });
+                await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+            }
+        } catch { /* intentional: storage migration fallback */ }
+    }
+    return map;
+}
+
+async function saveCredentials(map, cred) {
+    const storage = getCredStorage();
+    if (!storage) return;
+    const toSave = { gemini_credentials_map: map };
+    if (cred) toSave.gemini_credentials = cred;
+    await storage.set(toSave);
+    if (storage !== chrome.storage.local && chrome.storage.local) {
+        try {
+            await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+        } catch { /* intentional: local purge fallback */ }
+    }
+}
+
 async function ensureCreds() {
-    if (!isExtAlive()) return null;
     try {
+        if (!isExtAlive()) return null;
         let atFromPage = extractAtFromPage();
         let blFromPage = extractBlFromPage();
         if (blFromPage) {
-            window.__gemExporterBl = blFromPage;
+            window.__gemExporterExtractedBl = blFromPage;
             try {
                 localStorage.setItem('__gemExporterBl', blFromPage);
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
@@ -87,8 +126,7 @@ async function ensureCreds() {
                 window.__geminiAt = atFromPage;
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
         }
-        let mapObj = await chrome.storage.local.get(['gemini_credentials_map']);
-        let map = mapObj.gemini_credentials_map || {};
+        let map = await loadCredentialsMap();
         let vals = Object.values(map);
         if (atFromPage && vals.length === 0) {
             let slot = detectSlotFromUrl();
@@ -100,12 +138,9 @@ async function ensureCreds() {
                 lastUsed: Date.now(),
                 bl: blFromPage || "boq_assistant-bard-web-server_20260802.09_p1"
             };
-            await chrome.storage.local.set({
-                gemini_credentials_map: map,
-                gemini_credentials: {
-                    at: atFromPage,
-                    sid: fakeSid
-                }
+            await saveCredentials(map, {
+                at: atFromPage,
+                sid: fakeSid
             });
             console.log('[Gemini Exporter] at fallback created fake sid', atFromPage.slice(0, 12) + '... bl ' + (blFromPage || 'fallback').slice(0, 20));
             return map[fakeSid];
@@ -118,20 +153,15 @@ async function ensureCreds() {
                 best.lastUsed = Date.now();
                 if (blFromPage) best.bl = blFromPage;
                 map[best.sid || Object.keys(map)[0]] = best;
-                await chrome.storage.local.set({
-                    gemini_credentials_map: map,
-                    gemini_credentials: {
-                        at: best.at,
-                        sid: best.sid
-                    }
+                await saveCredentials(map, {
+                    at: best.at,
+                    sid: best.sid
                 });
                 console.log('[Gemini Exporter] at refreshed from page', atFromPage.slice(0, 12));
             } else if (blFromPage && best.bl !== blFromPage) {
                 best.bl = blFromPage;
                 map[best.sid] = best;
-                await chrome.storage.local.set({
-                    gemini_credentials_map: map
-                });
+                await saveCredentials(map);
             }
         } else if (blFromPage && vals.length > 0) {
             vals.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
@@ -139,9 +169,7 @@ async function ensureCreds() {
             if (best.bl !== blFromPage) {
                 best.bl = blFromPage;
                 map[best.sid] = best;
-                await chrome.storage.local.set({
-                    gemini_credentials_map: map
-                });
+                await saveCredentials(map);
                 console.log('[Gemini Exporter] bl refreshed', blFromPage);
             }
         }
@@ -172,8 +200,7 @@ window.addEventListener('message', async (e) => {
             let sid = p.sid || "";
             if (!sid) return;
             let slot = p.accountSlot || detectSlotFromUrl(e.data.url || location.href) || "default";
-            let store = await chrome.storage.local.get('gemini_credentials_map');
-            let map = store.gemini_credentials_map || {};
+            let map = await loadCredentialsMap();
             let old = map[sid] || {};
             map[sid] = {
                 at: p.at || old.at || extractAtFromPage() || "",
@@ -182,12 +209,9 @@ window.addEventListener('message', async (e) => {
                 lastUsed: Date.now(),
                 bl: old.bl || extractBlFromPage() || "boq_assistant-bard-web-server_20260802.09_p1"
             };
-            await chrome.storage.local.set({
-                gemini_credentials_map: map,
-                gemini_credentials: {
-                    at: map[sid].at,
-                    sid
-                }
+            await saveCredentials(map, {
+                at: map[sid].at,
+                sid
             });
             console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
         } catch (err) {
