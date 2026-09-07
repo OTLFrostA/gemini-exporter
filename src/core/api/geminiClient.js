@@ -13,10 +13,14 @@
 
     // Get parser instance (from gemini_parser.js or fallback)
     function getParser() {
-        if (typeof global.GeminiResponseParserClass !== 'undefined') {
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiResponseParserClass) {
+            return globalThis.GeminiResponseParserClass;
+        }
+        if (typeof global !== 'undefined' && global.GeminiResponseParserClass) {
             return global.GeminiResponseParserClass;
         }
         if (typeof require !== 'undefined') {
+            try { return require('./geminiParser.js').GeminiResponseParserClass; } catch {}
             try { return require('./gemini_parser.js').GeminiResponseParserClass; } catch {}
         }
         throw new Error('GeminiResponseParserClass not found. Make sure gemini_parser.js is loaded.');
@@ -229,6 +233,22 @@
                             _overrideBl: freshBl || cred.bl
                         });
                     }
+                }
+                const retryCount = (opts && opts._retryCount) || 0;
+                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
+                if (resp.status === 429 && retryCount < maxRetries) {
+                    const retryAfter = resp.headers?.get ? resp.headers.get('retry-after') : null;
+                    let delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                    if (retryAfter) {
+                        const s = parseInt(retryAfter, 10);
+                        if (!isNaN(s) && s > 0) delayMs = Math.max(delayMs, s * 1000);
+                    }
+                    console.warn(`[Gemini Exporter Client] getConversationList 429 rate limited, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(r => setTimeout(r, delayMs));
+                    return this.getConversationList(pageToken, targetSid, customFilter, {
+                        ...(opts || {}),
+                        _retryCount: retryCount + 1
+                    });
                 }
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sid:${cred.sid?.slice(0,6)} atLen:${cred.at?.length} bl:${cred.bl?.slice(0,12)}`);
             }
@@ -470,6 +490,22 @@
                         });
                     }
                 }
+                const retryCount = (opts && opts._retryCount) || 0;
+                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
+                if (resp.status === 429 && retryCount < maxRetries) {
+                    const retryAfter = resp.headers?.get ? resp.headers.get('retry-after') : null;
+                    let delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                    if (retryAfter) {
+                        const s = parseInt(retryAfter, 10);
+                        if (!isNaN(s) && s > 0) delayMs = Math.max(delayMs, s * 1000);
+                    }
+                    console.warn(`[Gemini Exporter Client] fetchConversationPage 429 rate limited for ${id}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                    await new Promise(r => setTimeout(r, delayMs));
+                    return this.fetchConversationPage(conversationId, pageToken, targetSid, {
+                        ...(opts || {}),
+                        _retryCount: retryCount + 1
+                    });
+                }
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
             }
@@ -571,4 +607,14 @@
     global.resolveCred = resolveCred;
     global.loadCredMap = loadCredMap;
 
-})(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : this));
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = {
+            GeminiAPIClient,
+            getApiUrl,
+            detectSlot,
+            resolveCred,
+            loadCredMap
+        };
+    }
+
+})(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : (typeof globalThis !== "undefined" ? globalThis : this)));

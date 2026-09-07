@@ -119,6 +119,19 @@
                             continue;
                         }
                         if (msg.fileName && /\.html?$/i.test(msg.fileName)) {
+                            if (msg.preferBuffer !== false && typeof TextEncoder !== 'undefined') {
+                                const dataBuffer = new TextEncoder().encode(txt).buffer;
+                                sendResponse({
+                                    success: true,
+                                    dataBuffer: dataBuffer,
+                                    blobBuffer: dataBuffer,
+                                    mime: 'text/html',
+                                    size: dataBuffer.byteLength,
+                                    finalUrl: resp.url || u,
+                                    contentType: 'text/html'
+                                });
+                                return;
+                            }
                             let blob = new Blob([txt], { type: 'text/html' });
                             let dataUrl = await toDataUrl(blob);
                             sendResponse({
@@ -142,6 +155,19 @@
                             continue;
                         }
                         if (trimmed.startsWith('http') && trimmed.length < 2000) continue;
+                        if (msg.preferBuffer !== false && typeof TextEncoder !== 'undefined') {
+                            const dataBuffer = new TextEncoder().encode(txt).buffer;
+                            sendResponse({
+                                success: true,
+                                dataBuffer: dataBuffer,
+                                blobBuffer: dataBuffer,
+                                mime: ct || 'text/plain',
+                                size: dataBuffer.byteLength,
+                                finalUrl: resp.url || u,
+                                contentType: ct
+                            });
+                            return;
+                        }
                         let blob = new Blob([txt], { type: ct || 'text/plain' });
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
@@ -174,6 +200,21 @@
                                 continue;
                             }
                         } catch {}
+                    }
+                    if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                        try {
+                            const dataBuffer = await blob.arrayBuffer();
+                            sendResponse({
+                                success: true,
+                                dataBuffer: dataBuffer,
+                                blobBuffer: dataBuffer,
+                                mime: blob.type || ct,
+                                size: blob.size,
+                                finalUrl: resp.url || u,
+                                contentType: ct || blob.type
+                            });
+                            return;
+                        } catch (e) {}
                     }
                     let dataUrl = await toDataUrl(blob);
                     sendResponse({
@@ -230,6 +271,21 @@
                             console.warn('[AssetFetcher] image too large skip base64', (blob.size / 1024 / 1024).toFixed(1) + 'MB', u);
                             continue;
                         }
+                        if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                            try {
+                                const dataBuffer = await blob.arrayBuffer();
+                                sendResponse({
+                                    success: true,
+                                    dataBuffer: dataBuffer,
+                                    blobBuffer: dataBuffer,
+                                    mime: blob.type,
+                                    size: blob.size,
+                                    finalUrl: r.url || u,
+                                    contentType: ct
+                                });
+                                return;
+                            } catch (e) {}
+                        }
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
                             success: true,
@@ -267,6 +323,20 @@
                         continue;
                     }
                     if (blob.size > 800) {
+                        if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                            try {
+                                const dataBuffer = await blob.arrayBuffer();
+                                sendResponse({
+                                    success: true,
+                                    dataBuffer: dataBuffer,
+                                    blobBuffer: dataBuffer,
+                                    mime: blob.type || ct,
+                                    size: blob.size,
+                                    finalUrl: r.url || u
+                                });
+                                return;
+                            } catch (e) {}
+                        }
                         let dataUrl = await toDataUrl(blob);
                         sendResponse({
                             success: true,
@@ -312,11 +382,23 @@
                     if (blob.size > MAX_BASE64_BLOB_SIZE) {
                         console.warn('[AssetFetcher] direct download too large, fallback', (blob.size / 1024 / 1024).toFixed(1) + 'MB');
                     } else if (blob.size > 0 && (!ct.startsWith('text/html') || blob.size > 2000)) {
+                        if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                            try {
+                                const dataBuffer = await blob.arrayBuffer();
+                                sendResponse({
+                                    success: true,
+                                    dataBuffer: dataBuffer,
+                                    mime: blob.type || ct,
+                                    size: blob.size
+                                });
+                                return;
+                            } catch (e) {}
+                        }
                         const dataUrl = await toDataUrl(blob);
                         sendResponse({
                             success: true,
                             dataBase64: dataUrl.split(',')[1],
-                            mime: blob.type,
+                            mime: blob.type || ct,
                             size: blob.size
                         });
                         return;
@@ -325,9 +407,10 @@
             } catch (e) {}
 
             handleGetImageBlob(msg, (res) => {
-                if (res && res.success && res.blobBase64) {
+                if (res && res.success && (res.dataBuffer || res.blobBuffer || res.blobBase64)) {
                     sendResponse({
                         success: true,
+                        dataBuffer: res.dataBuffer || res.blobBuffer,
                         dataBase64: res.blobBase64,
                         mime: res.mime,
                         size: res.size
