@@ -60,7 +60,8 @@ test('Bug repro - network batchexecute slot isolation dropped', async () => {
     const fs = require('node:fs');
     const path = require('node:path');
     const contentPath = path.resolve(__dirname, '../src/content/content.js');
-    const code = fs.readFileSync(contentPath, 'utf8');
+    const bridgePath = path.resolve(__dirname, '../src/content/messageBridge.js');
+    const code = (fs.existsSync(bridgePath) ? fs.readFileSync(bridgePath, 'utf8') : '') + '\n' + fs.readFileSync(contentPath, 'utf8');
 
     // 检查 content.js 是否在处理 GEMINI_NETWORK_BATCHEXECUTE 时使用 slot 变量
     // 正确的应为: const { text, slot } = d.payload; ... upsertConversations(..., slot) 或按slot隔离

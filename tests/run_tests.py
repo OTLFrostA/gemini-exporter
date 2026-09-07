@@ -327,10 +327,16 @@ def test_content_badge_flicker_prevention():
     js_path = os.path.join(BASE_DIR, "src/content/content.js")
     with open(js_path, "r", encoding="utf-8") as f:
         js = f.read()
+    badge_js_path = os.path.join(BASE_DIR, "src/content/badgeView.js")
+    badge_js = ""
+    if os.path.exists(badge_js_path):
+        with open(badge_js_path, "r", encoding="utf-8") as f:
+            badge_js = f.read()
+    combined_js = js + badge_js
     assert "debouncedSyncOnce" in js, "content.js should debounce syncOnce triggers"
     assert re.search(r'changed\s*===?\s*0', js), "content.js upsertConversations should skip writes when changed === 0"
-    assert "textContent" in js and "targetText" in js, "content.js updateBadge should guard textContent updates"
-    assert "existing.isConnected" in js or "isConnected" in js, "content.js ensureBadge should check isConnected"
+    assert "textContent" in combined_js and "targetText" in combined_js, "badgeView/content.js updateBadge should guard textContent updates"
+    assert "existing.isConnected" in combined_js or "isConnected" in combined_js, "badgeView/content.js ensureBadge should check isConnected"
     print("  ✓ Content badge flicker prevention verified")
 
 def test_exported_history_and_slot_fallback():
