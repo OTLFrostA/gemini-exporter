@@ -236,6 +236,16 @@
         const genBlocks = [];
 
         for (let i = 1; i < rawBlocks.length; i++) {
+            if (i % 50 === 0) {
+                await new Promise(r => setTimeout(r, 0));
+                if (onProgress && i % 100 === 0) {
+                    const pct = Math.min(88, 70 + Math.floor((i / rawBlocks.length) * 18));
+                    const msg = typeof I18n !== 'undefined'
+                        ? I18n.t('takeoutParsingDetailProgress', i, rawBlocks.length - 1)
+                        : `正在解析对话并建立离线媒体索引 (${i}/${rawBlocks.length - 1})...`;
+                    onProgress(pct, msg);
+                }
+            }
             const block = rawBlocks[i];
             const linkMatches = Array.from(block.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g));
             if (!linkMatches.length) continue;

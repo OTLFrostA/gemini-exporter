@@ -119,6 +119,7 @@
         constructor() {
             this.aborted = false;
             this._abortController = null;
+            this.rateLimitCooldownUntil = 0;
         }
 
         abort() {
@@ -159,6 +160,7 @@
             }
 
             this.aborted = false;
+            this.rateLimitCooldownUntil = 0;
             this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
@@ -699,12 +701,45 @@
 
             const exportWorker = async () => {
                 while (nextIndex < payloadIds.length && !this.aborted && !(abortSignal && abortSignal.aborted)) {
+                    if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
+                        const waitMs = Math.max(0, this.rateLimitCooldownUntil - Date.now());
+                        if (waitMs > 0) {
+                            await new Promise(r => setTimeout(r, waitMs));
+                            if (this.aborted || (abortSignal && abortSignal.aborted)) break;
+                        }
+                    }
+
                     const currentIndex = nextIndex++;
                     const requestedItem = payloadIds[currentIndex];
                     if (!requestedItem) break;
 
                     const nid = normId(requestedItem.id);
-                    let res = await this._fetchChatDetail(requestedItem, currentIndex, payloadIds.length, currentSlot, skip, format, abortSignal);
+                    let res = null;
+                    let retryCount = 0;
+                    const maxRateLimitRetries = 3;
+
+                    while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
+                        res = await this._fetchChatDetail(requestedItem, currentIndex, payloadIds.length, currentSlot, skip, format, abortSignal);
+
+                        if (this.aborted || (abortSignal && abortSignal.aborted)) break;
+
+                        const isRateLimited = res && !res.success && (
+                            res.status === 429 ||
+                            /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res.error || '')
+                        );
+
+                        if (isRateLimited && retryCount < maxRateLimitRetries) {
+                            const delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                            this.rateLimitCooldownUntil = Date.now() + delayMs;
+                            onLog(typeof I18n !== 'undefined'
+                                ? I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1))
+                                : `[${requestedItem.title || nid}] ⚠️ 触发 Google 限频 (429)，退避等待 ${(delayMs / 1000).toFixed(1)} 秒后重试...`, 'warn');
+                            await new Promise(r => setTimeout(r, delayMs));
+                            retryCount++;
+                            continue;
+                        }
+                        break;
+                    }
 
                     if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
@@ -814,7 +849,8 @@
                                                         chrome.tabs.sendMessage(tab.id, {
                                                             action: 'downloadAssetDirect',
                                                             url: candidateUrl,
-                                                            referer: `https://gemini.google.com/app/${chat.id}`
+                                                            referer: `https://gemini.google.com/app/${chat.id}`,
+                                                            preferBuffer: true
                                                         }, (resp) => {
                                                             if (chrome.runtime.lastError) {
                                                                 resolve({ success: false, error: chrome.runtime.lastError.message });
@@ -823,16 +859,25 @@
                                                             }
                                                         });
                                                     });
-                                                    if (r && r.success && r.dataBase64) {
+                                                    if (r && r.success && (r.dataBuffer || r.dataBase64)) {
+                                                        const bytes = r.dataBuffer ? new Uint8Array(r.dataBuffer) : null;
                                                         if (useZip) {
-                                                            folder.file(sanitizeZipPath(att.localName), r.dataBase64, { base64: true });
+                                                            if (bytes) {
+                                                                folder.file(sanitizeZipPath(att.localName), bytes);
+                                                            } else {
+                                                                folder.file(sanitizeZipPath(att.localName), r.dataBase64, { base64: true });
+                                                            }
                                                             saved = true;
                                                         } else {
-                                                            const binStr = atob(r.dataBase64);
-                                                            const len = binStr.length;
-                                                            const bytes = new Uint8Array(len);
-                                                            for (let k = 0; k < len; k++) bytes[k] = binStr.charCodeAt(k);
-                                                            saved = await writeFileDirect(att.localName, bytes);
+                                                            if (bytes) {
+                                                                saved = await writeFileDirect(att.localName, bytes);
+                                                            } else {
+                                                                const binStr = atob(r.dataBase64);
+                                                                const len = binStr.length;
+                                                                const b = new Uint8Array(len);
+                                                                for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
+                                                                saved = await writeFileDirect(att.localName, b);
+                                                            }
                                                         }
                                                     } else {
                                                         failReason = r ? r.error : 'downloadAssetDirect failed';
@@ -894,7 +939,8 @@
                                                     chrome.tabs.sendMessage(tab.id, {
                                                         action: 'downloadAssetDirect',
                                                         url: targetUrl,
-                                                        referer: `https://gemini.google.com/app/${chat.id}`
+                                                        referer: `https://gemini.google.com/app/${chat.id}`,
+                                                        preferBuffer: true
                                                     }, (resp) => {
                                                         if (chrome.runtime.lastError) {
                                                             resolve({ success: false, error: chrome.runtime.lastError.message });
@@ -903,16 +949,25 @@
                                                         }
                                                     });
                                                 });
-                                                if (r && r.success && r.dataBase64) {
+                                                if (r && r.success && (r.dataBuffer || r.dataBase64)) {
+                                                    const bytes = r.dataBuffer ? new Uint8Array(r.dataBuffer) : null;
                                                     if (useZip) {
-                                                        folder.file(sanitizeZipPath(img.localName), r.dataBase64, { base64: true });
+                                                        if (bytes) {
+                                                            folder.file(sanitizeZipPath(img.localName), bytes);
+                                                        } else {
+                                                            folder.file(sanitizeZipPath(img.localName), r.dataBase64, { base64: true });
+                                                        }
                                                         saved = true;
                                                     } else {
-                                                        const binStr = atob(r.dataBase64);
-                                                        const len = binStr.length;
-                                                        const bytes = new Uint8Array(len);
-                                                        for (let k = 0; k < len; k++) bytes[k] = binStr.charCodeAt(k);
-                                                        saved = await writeFileDirect(img.localName, bytes);
+                                                        if (bytes) {
+                                                            saved = await writeFileDirect(img.localName, bytes);
+                                                        } else {
+                                                            const binStr = atob(r.dataBase64);
+                                                            const len = binStr.length;
+                                                            const b = new Uint8Array(len);
+                                                            for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
+                                                            saved = await writeFileDirect(img.localName, b);
+                                                        }
                                                     }
                                                 } else {
                                                     failReason = r ? r.error : 'image direct download failed';

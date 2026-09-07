@@ -197,10 +197,30 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
             if (isSlotAborted(slot)) break;
             const cid = item.id || item;
             try {
-                const res = await sendToGeminiTab({
-                    action: 'getConversationDetail',
-                    conversationId: cid
-                }, slot);
+                let res = null;
+                let retryCount = 0;
+                const maxRetries = 3;
+
+                while (retryCount <= maxRetries && !isSlotAborted(slot)) {
+                    res = await sendToGeminiTab({
+                        action: 'getConversationDetail',
+                        conversationId: cid
+                    }, slot);
+
+                    const isRateLimit = res && !res.success && (
+                        res.status === 429 ||
+                        /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res.error || '')
+                    );
+
+                    if (isRateLimit && retryCount < maxRetries) {
+                        const delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                        console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                        await new Promise(r => setTimeout(r, delayMs));
+                        retryCount++;
+                        continue;
+                    }
+                    break;
+                }
 
                 if (res && res.success) {
                     const chat = res.data || res.chat || res;
