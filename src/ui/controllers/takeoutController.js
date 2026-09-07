@@ -20,12 +20,13 @@
         }
 
         try {
+            const Store = (typeof ConversationsStore !== 'undefined') ? ConversationsStore : null;
+            const slot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';
             const res = await Takeout.parseTakeoutZip(file, (pct, txt) => {
                 if (onProgress) onProgress(pct, txt);
                 if (onLog) onLog(txt, 'info');
-            });
+            }, slot);
 
-            const Store = (typeof ConversationsStore !== 'undefined') ? ConversationsStore : null;
             const convs = Store ? Store.getConversations() : [];
             const existingMap = new Map();
             for (const c of convs) {

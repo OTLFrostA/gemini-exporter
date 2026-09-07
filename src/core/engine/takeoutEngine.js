@@ -132,7 +132,7 @@
         return null;
     }
 
-    async function parseTakeoutZip(file, onProgress) {
+    async function parseTakeoutZip(file, onProgress, slot = null) {
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip 库未加载，无法解析 ZIP');
         }
