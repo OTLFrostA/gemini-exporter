@@ -205,6 +205,7 @@
             __lastRenderedSignature = Store.getSignature(processed);
             __lastRenderTime = Date.now();
             checkExportSession();
+            checkPendingTakeoutPrompt();
         } catch (e) {
             console.error('[workbench] loadStore error', e);
         }
@@ -219,6 +220,26 @@
             Dialogs.renderExportBanner(session, slot, isRunning);
         } catch (e) {
             console.debug('[workbench] checkExportSession error', e);
+        }
+    }
+
+    async function checkPendingTakeoutPrompt() {
+        try {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const data = await chrome.storage.local.get(['gemini_pending_takeout_prompt']);
+                if (data && data.gemini_pending_takeout_prompt) {
+                    const info = data.gemini_pending_takeout_prompt;
+                    await chrome.storage.local.remove('gemini_pending_takeout_prompt');
+                    if (DialogView && DialogView.showTakeoutLimitPrompt) {
+                        DialogView.showTakeoutLimitPrompt({
+                            count: info.count || 600,
+                            onImportTakeout: () => $('takeoutFileInput')?.click()
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.debug('[workbench] checkPendingTakeoutPrompt error', e);
         }
     }
 
@@ -725,10 +746,12 @@
                             if (progText) progText.textContent = '';
                         }, 2500);
                         loadStore();
-                        if (hitGoogleLimit) {
+                        const currentCount = count || res?.count || (Store && Store.getAllConversations ? Store.getAllConversations().length : 0);
+                        const isLimit = hitGoogleLimit || (currentCount >= 500);
+                        if (isLimit) {
                             if (DialogView && DialogView.showTakeoutLimitPrompt) {
                                 DialogView.showTakeoutLimitPrompt({
-                                    count: count || res?.count || 600,
+                                    count: currentCount || 600,
                                     onImportTakeout: () => $('takeoutFileInput')?.click()
                                 });
                             }
@@ -736,10 +759,12 @@
                     },
                     onError: (err, errMsg, details) => {
                         if (progText) progText.textContent = errMsg;
-                        if (details?.hitGoogleLimit) {
+                        const currentCount = (Store && Store.getAllConversations) ? Store.getAllConversations().length : 0;
+                        const isLimit = details?.hitGoogleLimit || (currentCount >= 500) || (details?.count >= 500);
+                        if (isLimit) {
                             if (DialogView && DialogView.showTakeoutLimitPrompt) {
                                 DialogView.showTakeoutLimitPrompt({
-                                    count: 600,
+                                    count: currentCount || details?.count || 600,
                                     onImportTakeout: () => $('takeoutFileInput')?.click()
                                 });
                             }
@@ -858,13 +883,23 @@
         chrome.runtime.onMessage.addListener((msg) => {
             if (msg.action === 'scanProgress') {
                 const progWrap = $('progWrap');
-                const bar = $('bar');
+                const bar = $('progBar') || $('bar');
                 const progText = $('progText');
                 if (progWrap) progWrap.style.display = 'block';
                 let pct = typeof msg.percent === 'number' ? msg.percent : 50;
                 if (bar) bar.style.width = Math.min(Math.max(pct, 5), 100) + '%';
                 if (progText && msg.title) progText.textContent = msg.title;
                 if (msg.title) log(msg.title);
+
+                // Auto prompt Takeout if scan completed and hit Google limit
+                if ((msg.percent === 100 || msg.done === 1) && msg.hitGoogleLimit) {
+                    if (DialogView && DialogView.showTakeoutLimitPrompt) {
+                        DialogView.showTakeoutLimitPrompt({
+                            count: msg.count || 600,
+                            onImportTakeout: () => $('takeoutFileInput')?.click()
+                        });
+                    }
+                }
             }
             if (msg.action === 'syncUpdate') {
                 loadStore(true);

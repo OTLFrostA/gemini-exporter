@@ -589,8 +589,20 @@
                         mergedLen = recRes.kept;
                     }
                 }
+                const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (!useIncremental && mergedLen >= 500));
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
+                if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                    try {
+                        chrome.storage.local.set({
+                            gemini_pending_takeout_prompt: {
+                                slot,
+                                count: mergedLen,
+                                timestamp: Date.now()
+                            }
+                        }).catch(() => {});
+                    } catch (e) {}
+                }
                 try {
                     const _p = chrome.runtime.sendMessage({
                         action: 'scanProgress',
@@ -598,11 +610,12 @@
                         total: 1,
                         percent: 100,
                         count: mergedLen,
+                        hitGoogleLimit: isLimit,
                         title: `同步完成，共 ${mergedLen} 条`
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {}
-                return { count: mergedLen, diagnostics: all.diagnostics, hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit) };
+                return { count: mergedLen, diagnostics: all.diagnostics, hitGoogleLimit: isLimit };
             }
             if (all && all.diagnostics) {
                 return { count: 0, diagnostics: all.diagnostics, hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit) };
