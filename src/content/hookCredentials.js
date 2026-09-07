@@ -1,8 +1,9 @@
 // public/hook-credentials.js - MAIN world, captures Gemini credentials safely (no inline)
 (function() {
+    if (typeof window === 'undefined') return;
     const origFetch = window.fetch;
-    const origOpen = XMLHttpRequest.prototype.open;
-    const origSend = XMLHttpRequest.prototype.send;
+    const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
+    const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
 
     function captureFromUrl(url, body) {
         try {
@@ -99,48 +100,58 @@
         } catch {}
     }
 
-    window.fetch = function(input, init) {
-        let url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
-        try {
-            let body = init && init.body ? (typeof init.body === 'string' ? init.body : '') : '';
-            captureFromUrl(url, body);
-            detectDeletedConversation(url, body, null);
-        } catch {}
-        return origFetch.apply(this, arguments).then(function(response) {
+    if (origFetch) {
+        window.fetch = function(input, init) {
+            let url = '';
             try {
-                if (url && url.toString().includes('batchexecute') && response && response.ok) {
-                    let clone = response.clone();
-                    clone.text().then(function(text) {
-                        broadcastBatchexecute(url, text);
-                        detectDeletedConversation(url, null, text);
-                    }).catch(function() {});
+                url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+                let body = init && init.body ? (typeof init.body === 'string' ? init.body : '') : '';
+                captureFromUrl(url, body);
+                detectDeletedConversation(url, body, null);
+            } catch {}
+            return origFetch.apply(this, arguments).then(function(response) {
+                try {
+                    if (url && url.toString().includes('batchexecute') && response && response.ok) {
+                        let clone = response.clone();
+                        clone.text().then(function(text) {
+                            try {
+                                broadcastBatchexecute(url, text);
+                                detectDeletedConversation(url, null, text);
+                            } catch {}
+                        }).catch(function() {});
+                    }
+                } catch {}
+                return response;
+            });
+        };
+    }
+
+    if (origOpen && origSend) {
+        XMLHttpRequest.prototype.open = function(method, url) {
+            try {
+                this._gemini_url = url;
+            } catch {}
+            return origOpen.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.send = function(body) {
+            try {
+                const bodyStr = typeof body === 'string' ? body : '';
+                captureFromUrl(this._gemini_url, bodyStr);
+                detectDeletedConversation(this._gemini_url, bodyStr, null);
+                if (this._gemini_url && this._gemini_url.toString().includes('batchexecute')) {
+                    const reqUrl = this._gemini_url;
+                    this.addEventListener('load', function() {
+                        try {
+                            let text = this.responseText;
+                            broadcastBatchexecute(reqUrl, text);
+                            detectDeletedConversation(reqUrl, null, text);
+                        } catch {}
+                    });
                 }
             } catch {}
-            return response;
-        });
-    };
-    XMLHttpRequest.prototype.open = function(method, url) {
-        this._gemini_url = url;
-        return origOpen.apply(this, arguments);
-    };
-    XMLHttpRequest.prototype.send = function(body) {
-        const bodyStr = typeof body === 'string' ? body : '';
-        try {
-            captureFromUrl(this._gemini_url, bodyStr);
-            detectDeletedConversation(this._gemini_url, bodyStr, null);
-            if (this._gemini_url && this._gemini_url.toString().includes('batchexecute')) {
-                const reqUrl = this._gemini_url;
-                this.addEventListener('load', function() {
-                    try {
-                        let text = this.responseText;
-                        broadcastBatchexecute(reqUrl, text);
-                        detectDeletedConversation(reqUrl, null, text);
-                    } catch {}
-                });
-            }
-        } catch {}
-        return origSend.apply(this, arguments);
-    };
+            return origSend.apply(this, arguments);
+        };
+    }
 
     // Also expose SNlM0e fallback for content script
     function broadcastAt() {
@@ -156,13 +167,15 @@
                 }
             }
             if (at) {
+                let slotMatch = location.pathname.match(/\/u\/(\d+)/);
+                let slot = (slotMatch && slotMatch[1]) ? `u${slotMatch[1]}` : 'default';
                 window.postMessage({
                     type: 'GEMINI_CREDENTIALS',
                     payload: {
                         at,
                         sid: '',
                         bl,
-                        accountSlot: (location.pathname.match(/\/u\/(\d+)/)?.[1] ? 'u' + RegExp.$1 : 'default'),
+                        accountSlot: slot,
                         lastUsed: Date.now(),
                         from: 'MAIN_WIZ'
                     }

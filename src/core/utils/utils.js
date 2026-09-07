@@ -58,6 +58,23 @@
         return s + ext;
     }
 
+    /**
+     * Unified sanitizeRelativePath - 单一源，拆分各级相对路径分段清洗，阻断 .. 路径穿越并统一正斜杠
+     * @param {string} p - 相对路径字符串，例如 "assets/image.png" 或 "subdir\\notes.md"
+     * @param {string} [defaultName='file'] - 单分段兜底名称
+     * @returns {string} 清洗后的标准化正斜杠相对路径
+     */
+    function sanitizeRelativePath(p, defaultName = 'file') {
+        if (!p || typeof p !== 'string') return '';
+        const segments = p.split(/[/\\]/).map(seg => {
+            let clean = seg.trim();
+            if (!clean || clean === '.' || clean === '..') return '_';
+            clean = clean.replace(/\.\./g, '_');
+            return sanitizeFileName(clean, defaultName);
+        }).filter(Boolean);
+        return segments.join('/');
+    }
+
     function normId(id) {
         if (!id) return '';
         return String(id).replace(/^c_/, '').trim();
@@ -255,6 +272,7 @@
             isRealTitle,
             cleanTitle,
             sanitizeFileName,
+            sanitizeRelativePath,
             normId,
             resolveTitle,
             setTitleBySource,
@@ -268,6 +286,7 @@
         global.GeminiUtils.isRealTitle = isRealTitle;
         global.GeminiUtils.cleanTitle = cleanTitle;
         global.GeminiUtils.sanitizeFileName = sanitizeFileName;
+        global.GeminiUtils.sanitizeRelativePath = sanitizeRelativePath;
         global.GeminiUtils.normId = normId;
         global.GeminiUtils.resolveTitle = resolveTitle;
         global.GeminiUtils.setTitleBySource = setTitleBySource;

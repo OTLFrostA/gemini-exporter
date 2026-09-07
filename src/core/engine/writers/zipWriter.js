@@ -16,12 +16,21 @@
 
         sanitizePath(p) {
             if (!p) return p;
-            const sanitize = (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeFileName)
-                ? GeminiUtils.sanitizeFileName
-                : (name, fallback) => (name || fallback);
-            return p.split('/').map(seg => {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeRelativePath) {
+                return GeminiUtils.sanitizeRelativePath(p, 'file');
+            }
+            if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils?.sanitizeRelativePath) {
+                return globalThis.GeminiUtils.sanitizeRelativePath(p, 'file');
+            }
+            if (typeof require !== 'undefined') {
+                try {
+                    const u = require('../../utils/utils.js');
+                    if (u && u.sanitizeRelativePath) return u.sanitizeRelativePath(p, 'file');
+                } catch {}
+            }
+            return p.split(/[/\\]/).map(seg => {
                 if (!seg || seg === '.' || seg === '..') return '_';
-                return sanitize(seg.replace(/\.\./g, '_'), 'file');
+                return seg.replace(/\.\./g, '_');
             }).filter(Boolean).join('/');
         }
 
