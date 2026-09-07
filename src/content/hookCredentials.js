@@ -22,7 +22,7 @@
                         let a = params.get('at');
                         if (a) atMatch = [null, a];
                     }
-                } catch {}
+                } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
             }
             if (atMatch || sidMatch) {
                 // Infer account slot from URL path /u/1/
@@ -46,7 +46,7 @@
                     payload
                 }, location.origin);
             }
-        } catch {}
+        } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
     }
 
     function detectDeletedConversation(url, body, responseText) {
@@ -69,7 +69,7 @@
                 if (targetText.includes('%')) {
                     targetText = decodeURIComponent(targetText);
                 }
-            } catch {}
+            } catch { /* intentional: invalid date or URI fallback */ }
 
             let idMatch = targetText.match(/["'](?:c_)?([a-f0-9]{8,64})["']/i);
             if (idMatch && idMatch[1]) {
@@ -79,7 +79,7 @@
                     payload: { id: deletedId, slot }
                 }, location.origin);
             }
-        } catch {}
+        } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
     }
 
     function broadcastBatchexecute(url, text) {
@@ -97,7 +97,7 @@
                 type: 'GEMINI_NETWORK_BATCHEXECUTE',
                 payload: { text, slot }
             }, location.origin);
-        } catch {}
+        } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
     }
 
     if (origFetch) {
@@ -108,7 +108,7 @@
                 let body = init && init.body ? (typeof init.body === 'string' ? init.body : '') : '';
                 captureFromUrl(url, body);
                 detectDeletedConversation(url, body, null);
-            } catch {}
+            } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
             return origFetch.apply(this, arguments).then(function(response) {
                 try {
                     if (url && url.toString().includes('batchexecute') && response && response.ok) {
@@ -117,10 +117,10 @@
                             try {
                                 broadcastBatchexecute(url, text);
                                 detectDeletedConversation(url, null, text);
-                            } catch {}
-                        }).catch(function() {});
+                            } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
+                        }).catch(function(e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); });
                     }
-                } catch {}
+                } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
                 return response;
             });
         };
@@ -130,7 +130,7 @@
         XMLHttpRequest.prototype.open = function(method, url) {
             try {
                 this._gemini_url = url;
-            } catch {}
+            } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
             return origOpen.apply(this, arguments);
         };
         XMLHttpRequest.prototype.send = function(body) {
@@ -145,10 +145,10 @@
                             let text = this.responseText;
                             broadcastBatchexecute(reqUrl, text);
                             detectDeletedConversation(reqUrl, null, text);
-                        } catch {}
+                        } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
                     });
                 }
-            } catch {}
+            } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
             return origSend.apply(this, arguments);
         };
     }
@@ -181,7 +181,7 @@
                     }
                 }, location.origin);
             }
-        } catch {}
+        } catch (e) { if (typeof window !== 'undefined' && window.__gemExporterDevMode) console.debug("[GemExporter:hook]", e); }
     }
     broadcastAt();
     setTimeout(broadcastAt, 400);

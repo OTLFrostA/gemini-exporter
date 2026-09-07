@@ -21,7 +21,7 @@
         try {
             if (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle) return GeminiUtils.cleanTitle(t);
             if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils && globalThis.GeminiUtils.cleanTitle) return globalThis.GeminiUtils.cleanTitle(t);
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:listView.js]", e); }
         if (!t || typeof t !== 'string') return '';
         let s = t.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
         s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
@@ -125,7 +125,7 @@
                     let cTs=typeof c.timestamp==='string'?new Date(c.timestamp).getTime():c.timestamp;
                     let rTs=typeof rec.exportedAt==='string'?new Date(rec.exportedAt).getTime():rec.exportedAt;
                     if(cTs&&rTs&&cTs>rTs+60000) isUpdated=true;
-                }catch{}
+                }catch { /* intentional: invalid date or URI fallback */ }
             }
             const safeTitle = escapeHtml(resolveTitle(c).title || c.id || '');
             let checked=true;
@@ -232,7 +232,7 @@
                     let cTs = typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : c.timestamp;
                     let rTs = typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : rec.exportedAt;
                     if (cTs && rTs && cTs > rTs + 60000) needsUpdate = true;
-                } catch {}
+                } catch { /* intentional: invalid date or URI fallback */ }
             }
             cb.checked = needsUpdate;
         });

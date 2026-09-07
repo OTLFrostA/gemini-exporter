@@ -40,7 +40,7 @@
                 try {
                     const alt = doc.querySelectorAll(sel);
                     if (alt.length) { nodes = alt; fallbackUsed = sel; break; }
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:domScraper.js]", e); }
             }
         }
         if (!nodes.length) {
@@ -136,7 +136,7 @@
                 if (typeof window !== 'undefined' && window.__gemExporterDevMode) {
                     console.warn('[Gemini Exporter][DOM] parseDoc empty dedup', id, _debug);
                 }
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:domScraper.js]", e); }
         }
         return {
             id,
@@ -172,7 +172,7 @@
         if (typeof AbortController !== 'undefined') {
             controller = new AbortController();
             timeoutId = setTimeout(() => {
-                try { controller.abort(); } catch {}
+                try { controller.abort(); } catch { /* intentional: best-effort cleanup */ }
             }, 15000);
         }
         let resp;
@@ -210,7 +210,7 @@
                         return liveFallback;
                     }
                 }
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:domScraper.js]", e); }
         }
         return parsed;
     }
@@ -228,7 +228,7 @@
                 bodySnippet: (doc.body.innerText || '').slice(0, 600)
             };
             const alts = ['[data-test-id*="user-query"]','[data-test-id*="model-response"]','[data-message-author-role]','div[role="article"]'];
-            alts.forEach(s => { try { info.altSelectors[s] = doc.querySelectorAll(s).length; } catch {} });
+            alts.forEach(s => { try { info.altSelectors[s] = doc.querySelectorAll(s).length; } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:domScraper.js]", e); } });
             console.log('[Gemini Exporter][DOM Debug]', info);
             return info;
         } catch (e) { console.warn('debugCurrentPage fail', e); return null; }
@@ -281,7 +281,7 @@
         for (const sel of sels) {
             try {
                 document.querySelectorAll(sel).forEach(a => nodes.push(a));
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:domScraper.js]", e); }
         }
         nodes = [...new Set(nodes)];
         if (!nodes.length) nodes = [...document.querySelectorAll('a[href*="/app/"]')];
@@ -331,7 +331,7 @@
         try {
             const btn = document.querySelector('button[aria-label="Toggle Recents"]') || document.querySelector('[aria-label="Toggle Recents"]');
             if (btn && btn.getAttribute('aria-expanded') === 'false') btn.click();
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:domScraper.js]", e); }
     }
 
     return {

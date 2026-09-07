@@ -146,7 +146,7 @@
             const list = Storage ? await Storage.getConversations(slot) : [];
             const found = list.find(c => c.id === convId || c.id === `c_${convId}`);
             if (found && found.title) chat.title = cleanTitle(found.title);
-          } catch {}
+          } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:popup.js]", e); }
         }
 
         const formatted = (typeof ChatFormatter !== 'undefined')
@@ -194,7 +194,7 @@
             curExp[convId] = rec;
             await chrome.storage.local.set({ [expKey]: curExp });
           }
-        } catch {}
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
       });
     }catch(e){
       log(typeof I18n !== 'undefined' ? I18n.t('popupExportError', e.message) : ('导出异常: '+e.message));

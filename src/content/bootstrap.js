@@ -4,13 +4,13 @@ function extractAtFromPage() {
         try {
             if (window.__gemExporterExtractedAt && typeof window.__gemExporterExtractedAt === 'string' && window.__gemExporterExtractedAt.length > 15) return window.__gemExporterExtractedAt;
             if (window.__geminiAt && typeof window.__geminiAt === 'string' && window.__geminiAt.length > 15) return window.__geminiAt;
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
 
         try {
             if (window._WIZ_global_data?.SNlM0e) return window._WIZ_global_data.SNlM0e;
             if (window.WIZ_global_data?.SNlM0e) return window.WIZ_global_data.SNlM0e;
             if (window.__WIZ_global_data?.SNlM0e) return window.__WIZ_global_data.SNlM0e;
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
 
         let scripts = document.querySelectorAll('script');
         for (let s of scripts) {
@@ -27,7 +27,7 @@ function extractAtFromPage() {
         try {
             let ls = localStorage.getItem('SNlM0e') || sessionStorage.getItem('SNlM0e');
             if (ls) return ls;
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
     } catch (e) {
         console.warn('extractAt fail', e);
     }
@@ -49,7 +49,7 @@ function extractBlFromPage() {
         let html = document.documentElement.innerHTML || '';
         let m3 = html.match(/"bl":"(boq_[^"]+)"/);
         if (m3) return m3[1];
-    } catch {}
+    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
     return "";
 }
 
@@ -58,7 +58,7 @@ function detectSlotFromUrl(url) {
         let u = new URL(url || location.href);
         let m = u.pathname.match(/\/u\/(\d+)(?:\/|$)/);
         if (m) return `u${m[1]}`;
-    } catch {}
+    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
     return "default";
 }
 
@@ -79,13 +79,13 @@ async function ensureCreds() {
             window.__gemExporterBl = blFromPage;
             try {
                 localStorage.setItem('__gemExporterBl', blFromPage);
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
         }
         if (atFromPage) {
             window.__gemExporterExtractedAt = atFromPage;
             try {
                 window.__geminiAt = atFromPage;
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
         }
         let mapObj = await chrome.storage.local.get(['gemini_credentials_map']);
         let map = mapObj.gemini_credentials_map || {};
@@ -156,7 +156,7 @@ try {
     window.__gemExporterExtractAt = extractAtFromPage;
     window.__gemExporterExtractBl = extractBlFromPage;
     window.__gemExporterEnsureCreds = ensureCreds;
-} catch {}
+} catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:bootstrap.js]", e); }
 ensureCreds();
 document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });
 window.addEventListener('load', () => ensureCreds(), { once: true });

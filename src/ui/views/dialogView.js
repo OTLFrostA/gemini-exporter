@@ -75,7 +75,7 @@
         if (banner) banner.style.display = 'none';
         try {
             chrome.storage.local.remove(['gemini_last_export_session']);
-        } catch {}
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     function showDirectWritePrompt(count, onConfirmFolder, onContinueZip) {
@@ -148,19 +148,19 @@
                     try {
                         const isCompleted = await StorageService.isTakeoutPromptCompleted();
                         if (isCompleted) return;
-                    } catch {}
+                    } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
                 }
                 if (StorageService.hasTakeoutData) {
                     try {
                         const hasTakeout = await StorageService.hasTakeoutData();
                         if (hasTakeout) return;
-                    } catch {}
+                    } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
                 }
             }
             if (typeof ConversationsStore !== 'undefined' && ConversationsStore.hasTakeoutData) {
                 try {
                     if (ConversationsStore.hasTakeoutData()) return;
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:dialogView.js]", e); }
             }
         }
 

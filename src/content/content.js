@@ -5,7 +5,7 @@
     if (window.__gemExporterInjected) {
         try {
             document.getElementById('geminiExportBadge')?.remove();
-        } catch {}
+        } catch { /* intentional: best-effort cleanup */ }
         window.__gemExporterInjected = false;
         window.__gemExporterScrollAll = null;
     }
@@ -49,7 +49,7 @@
                 window.__gemExporterDevMode = !!changes.gemini_dev_mode.newValue;
             }
         });
-    } catch {}
+    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
 
     let __lastKnownCount = null;
 
@@ -70,7 +70,7 @@
                     el.style.bottom = 'auto';
                 }
             }
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
     }
 
     function makeBadgeDraggable(div) {
@@ -91,7 +91,7 @@
             origTop = rect.top;
             try {
                 div.setPointerCapture(e.pointerId);
-            } catch {}
+            } catch { /* intentional: best-effort cleanup */ }
         });
 
         div.addEventListener('pointermove', (e) => {
@@ -123,7 +123,7 @@
             div.classList.remove('dragging');
             try {
                 div.releasePointerCapture(e.pointerId);
-            } catch {}
+            } catch { /* intentional: best-effort cleanup */ }
 
             if (hasMoved) {
                 justDragged = true;
@@ -135,7 +135,7 @@
                     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                         chrome.storage.local.set({ gemini_export_badge_pos: pos }).catch?.(() => {});
                     }
-                } catch {}
+                } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
             }
         };
 
@@ -151,7 +151,7 @@
             try {
                 const p = chrome.runtime.sendMessage({ action: 'openOptions' });
                 if (p && p.catch) p.catch(() => {});
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
         });
     }
 
@@ -200,7 +200,7 @@
                 const zh = isZh();
                 updateBadge(0, 0, zh ? '就绪 (0 条)' : 'Ready (0)');
             }
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
     }
 
     function extractActiveChatTitle(activeId) {
@@ -490,7 +490,7 @@
                         from: source
                     });
                     if (p && p.catch) p.catch(() => {});
-                } catch (e) {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
 
                 updateBadge(merged.length, incomingItems.length);
                 return merged.length;
@@ -544,7 +544,7 @@
                         title: `正在同步第 ${page} 页 (已获取 ${prog.total} 条)${prog.hasMore ? '…' : ''}`
                     });
                     if (_p && _p.catch) _p.catch(() => {});
-                } catch (e) {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
 
                 if (prog.batch && prog.batch.length) {
                     saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute', true));
@@ -559,7 +559,7 @@
             if (all && all.diagnostics) {
                 try {
                     await chrome.storage.local.set({ gemini_last_sync_diagnostics: all.diagnostics });
-                } catch {}
+                } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
             }
 
             if (all && all.conversations && all.conversations.length) {
@@ -587,7 +587,7 @@
                                 }
                             }).catch(() => {});
                         }
-                    } catch (e) {}
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
                 }
                 try {
                     const _p = chrome.runtime.sendMessage({
@@ -600,7 +600,7 @@
                         title: `同步完成，共 ${mergedLen} 条`
                     });
                     if (_p && _p.catch) _p.catch(() => {});
-                } catch (e) {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
                 return { count: mergedLen, diagnostics: all.diagnostics, hitGoogleLimit: isLimit };
             }
             if (all && all.diagnostics) {
@@ -707,7 +707,7 @@
                                         count: updatedList.length,
                                         from: 'delete-event'
                                     });
-                                } catch {}
+                                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
                                 console.log(`[Gemini Exporter] Realtime pruned deleted conversation ${id} from slot ${targetSlot}`);
                             }
                         }
@@ -736,7 +736,7 @@
                     if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
                     else ensureBadge();
                 }
-            } catch (e) {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
         }
     });
 
@@ -777,7 +777,7 @@
 
         if (msg.action === 'stopDeepScan') {
             window.__gemExporterAborted = true;
-            try { window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort(); } catch {}
+            try { window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort(); } catch { /* intentional: best-effort cleanup */ }
             sendResponse({ ok: true, aborted: true });
             return true;
         }
@@ -884,9 +884,9 @@
                                                 count: updatedList.length,
                                                 from: 'prune-dead-chat'
                                             });
-                                        } catch {}
+                                        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
                                     }
-                                } catch {}
+                                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
                             }
                             // 合并 batchexecute 与 DOM 的诊断，一并返回给 background
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
@@ -962,7 +962,7 @@
                 debouncedSyncOnce(500);
             }).observe(titleEl, { childList: true, characterData: true, subtree: true });
         }
-    } catch {}
+    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:content.js]", e); }
 
     if (document.readyState !== 'loading') {
         autoInitSync();

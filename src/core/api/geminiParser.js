@@ -248,7 +248,7 @@
                             i = j;
                             break;
                         }
-                    } catch {}
+                    } catch { /* intentional: parse chunk candidate fallback */ }
                 }
             }
         }
@@ -483,7 +483,7 @@
                 let u = String(url).split('?')[0].split('#')[0];
                 let m = u.match(/\.([a-z0-9]{3,4})$/i);
                 if (m && /^(jpg|jpeg|png|webp|gif|bmp)$/i.test(m[1])) return '.' + m[1].toLowerCase().replace('jpeg','jpg');
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
             return '.jpg';
         }
 
@@ -499,7 +499,7 @@
                         // 使用全局序号 + URL hash 片段保证跨 turn 唯一
                         let ext = inferExt(sourceUrl);
                         let hashFrag = '';
-                        try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi,'').slice(0,4); } catch {}
+                        try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi,'').slice(0,4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
                         let fileName = `image-${counter.value++}${hashFrag ? '-'+hashFrag : ''}${ext}`;
                         let mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
                         let key = getImageDedupKey({
@@ -539,7 +539,7 @@
                     let mimeType = typeof node[11] === "string" ? node[11] : (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
 
                     let hashFrag = '';
-                    try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, '').slice(0, 4); } catch {}
+                    try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, '').slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
                     let fileName = rawFileName || `image-${counter.value++}${hashFrag ? '-' + hashFrag : ''}${ext}`;
 
                     let key = getImageDedupKey({
@@ -655,7 +655,7 @@
                                 chipUrl: chip
                             });
                         }
-                    } catch {}
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
                     walk(item);
                 }
             }
@@ -887,7 +887,7 @@
                             }
                         }
                     }
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
             }
         }
         return null;
@@ -916,7 +916,7 @@
                     if (!top || (Array.isArray(top) && !top.some(it=>Array.isArray(it)&&it[1]==='hNvQHb'&&typeof it[2]==='string'&&it[2].includes('rc_')))) {
                         console.warn('[Parser Verbose] no hNvQHb with rc_ found, top summary', summary);
                     }
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
             }
             let innerStr = null;
             if (Array.isArray(top)) {
@@ -939,14 +939,14 @@
             if (innerStr) {
                 try {
                     inner = JSON.parse(innerStr);
-                } catch {}
+                } catch { /* intentional: parse chunk candidate fallback */ }
             }
             if (!inner && Array.isArray(top)) {
                 for (let item of top) {
                     if (typeof item === "string" && item.startsWith("[[")) {
                         try {
                             inner = JSON.parse(item);
-                        } catch {}
+                        } catch { /* intentional: parse chunk candidate fallback */ }
                     }
                     if (inner) break;
                 }
@@ -1001,7 +1001,7 @@
                         const altInner = JSON.parse(item[2]);
                         const altTurns = findTurnsDeep(altInner);
                         if (altTurns) { turns = altTurns; inner = altInner; break; }
-                    } catch {}
+                    } catch { /* intentional: parse chunk candidate fallback */ }
                 }
                 if (!turns) {
                     const topTurns = findTurnsDeep(top);
@@ -1262,7 +1262,7 @@
             if (!allMsgs.length) {
                 try {
                     _debug = { turnsLen: turns?.length || 0, innerKeys: inner ? Object.keys(inner) : null, innerPreview: JSON.stringify(inner).slice(0, 1500), topPreview: top ? JSON.stringify(top).slice(0, 800) : null };
-                } catch {}
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiParser.js]", e); }
             }
             if (schemaDriftWarnings.length) {
                 if (!_debug) _debug = {};

@@ -9,7 +9,7 @@
         if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
         if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
         if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch {}
+            try { return require('../../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
         }
         return null;
     }

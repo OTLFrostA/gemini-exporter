@@ -196,11 +196,11 @@
             try {
                 const d = await chrome.storage.local.get([suppressKey]);
                 isSuppressed = !!d[suppressKey];
-            } catch {}
+            } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
 
             if (!isSuppressed) {
                 // 仅提示一次：展示的同时立即标记为已提示，杜绝后续重复打扰
-                try { await chrome.storage.local.set({ [suppressKey]: true }); } catch {}
+                try { await chrome.storage.local.set({ [suppressKey]: true }); } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
 
                 Dialogs.showDirectWritePrompt(
                     selected.length,
@@ -216,7 +216,7 @@
                             if (zipCheck) {
                                 zipCheck.checked = false;
                                 updateZipUi();
-                                try { await chrome.storage.local.set({ gemini_export_zip: false }); } catch {}
+                                try { await chrome.storage.local.set({ gemini_export_zip: false }); } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
                             }
                             await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
                         } catch (err) {
@@ -393,7 +393,7 @@
         if (verEl) {
             try {
                 verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || '1.4.1');
-            } catch {}
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:options.js]", e); }
         }
 
         // 2. Initialize LogView
@@ -418,7 +418,7 @@
             if (labelDev) {
                 labelDev.style.color = devOn ? 'var(--accent2, #06b6d4)' : 'var(--muted, #8a92b2)';
             }
-        } catch (e) {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:options.js]", e); }
 
         // 5. Export Settings Init (ZIP & Formats)
         const zipCheck = $('includeZip');
@@ -894,7 +894,7 @@
                     }
                 }
             }
-        } catch {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:options.js]", e); }
 
         $('btnTourGuide')?.addEventListener('click', () => {
             if (Tour && Tour.startTour) {
@@ -902,7 +902,7 @@
             }
         });
 
-        try { window.__workbenchLoadStore = loadStore; } catch {}
+        try { window.__workbenchLoadStore = loadStore; } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:options.js]", e); }
         await loadStore();
 
         // Check for welcome / onboarding tour
@@ -923,7 +923,7 @@
                     }
                 }, 400);
             }
-        } catch (e) {}
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:options.js]", e); }
     }
 
     if (document.readyState === 'loading') {
