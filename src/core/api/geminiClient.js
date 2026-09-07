@@ -22,6 +22,14 @@
     // convention; pure Math.random() per request is fingerprintable).
     const nextReqid = getProtocol().createReqidGenerator();
 
+    function getUtils() {
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+        if (typeof require !== 'undefined') {
+            try { return require('../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
+        }
+        return null;
+    }
+
     // Get parser instance (from gemini_parser.js or fallback)
     function getParser() {
         if (typeof globalThis !== 'undefined' && globalThis.GeminiResponseParserClass) {
@@ -474,8 +482,7 @@
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
-            const isDevMode = (typeof globalThis !== 'undefined' && globalThis.__gemExporterDevMode)
-                || (typeof window !== 'undefined' && window.__gemExporterDevMode);
+            const isDevMode = getUtils().isDevMode();
             if (isDevMode) {
                 console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
             }
@@ -644,8 +651,7 @@
                             }
                         }
                     } catch (retryErr) {
-                        const isDevMode = (typeof globalThis !== 'undefined' && globalThis.__gemExporterDevMode)
-                            || (typeof window !== 'undefined' && window.__gemExporterDevMode);
+                        const isDevMode = getUtils().isDevMode();
                         if (isDevMode) {
                             console.warn('[Gemini Exporter Client] metadata-only retry also failed:', retryErr.message);
                         }

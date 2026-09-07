@@ -19,7 +19,14 @@
         return '1.3.8';
     }
 
-    const getUtils = () => (typeof GeminiUtils !== 'undefined' ? GeminiUtils : (typeof globalThis !== 'undefined' ? globalThis.GeminiUtils : null));
+    const getUtils = () => {
+        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
+        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+        if (typeof require !== 'undefined') {
+            try { return require('../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
+        }
+        return null;
+    };
     const sanitizeFileName = (name, fallback) => (getUtils()?.sanitizeFileName ? getUtils().sanitizeFileName(name, fallback) : (name || fallback || 'untitled').trim());
     const normId = (id) => (getUtils()?.normId ? getUtils().normId(id) : String(id || '').replace(/^c_/, '').trim());
     const cleanTitle = (t) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(t) : (t || '').trim());
@@ -42,14 +49,8 @@
     }
 
     function sanitizeZipPath(p) {
-        if (!p) return p;
-        if (getUtils()?.sanitizeRelativePath) {
-            return getUtils().sanitizeRelativePath(p, 'file');
-        }
-        return p.split(/[/\\]/).map(seg => {
-            if (!seg || seg === '.' || seg === '..') return '_';
-            return sanitizeFileName(seg.replace(/\.\./g, '_'), 'file');
-        }).filter(Boolean).join('/');
+        // Single source: GeminiUtils.sanitizeRelativePath (load order guarantees utils first).
+        return getUtils().sanitizeRelativePath(p, 'file');
     }
 
     class AsyncQueue {

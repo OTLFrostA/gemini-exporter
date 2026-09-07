@@ -30,10 +30,7 @@
                     if (u && u.sanitizeRelativePath) return u.sanitizeRelativePath(p, 'file');
                 } catch { /* intentional: require fallback in browser context */ }
             }
-            return p.split(/[/\\]/).map(seg => {
-                if (!seg || seg === '.' || seg === '..') return '_';
-                return seg.replace(/\.\./g, '_');
-            }).filter(Boolean).join('/');
+            throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
         }
 
         writeFile(relativePath, content, options = {}) {

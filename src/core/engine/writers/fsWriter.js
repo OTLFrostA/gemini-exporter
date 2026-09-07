@@ -23,14 +23,12 @@
     }
 
     function sanitizeRelativePath(p, defaultName = 'file') {
+        // Single source: GeminiUtils.sanitizeRelativePath (getUtils has a require fallback).
         const u = getUtils();
         if (u && u.sanitizeRelativePath) {
             return u.sanitizeRelativePath(p, defaultName);
         }
-        return p.split(/[/\\]/).map(seg => {
-            if (!seg || seg === '.' || seg === '..') return '_';
-            return sanitizeFileName(seg.replace(/\.\./g, '_'), defaultName);
-        }).filter(Boolean).join('/');
+        throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
     }
 
     async function ensureSubDir(root, subPath) {

@@ -118,7 +118,7 @@ def test_module_exports():
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
         "src/core/protocol/protocol.js": ["PROTOCOL_VERSION", "RPCS", "BL_FALLBACK", "LIMITS", "createReqidGenerator", "DELETION_ANCHORS"],
-        "src/core/utils/utils.js": ["isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
+        "src/core/utils/utils.js": ["isDevMode", "isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
     }
     for filename, symbols in files.items():
         with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:

@@ -209,36 +209,15 @@
     function isRealTitle(t, fallbackId) {
         const u = getUtils();
         if (u && typeof u.isRealTitle === 'function') return u.isRealTitle(t, fallbackId);
-        if (!t || typeof t !== 'string') return false;
-        const s = t.trim();
-        if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
-        if (fallbackId) {
-            let cleanId = String(fallbackId).replace(/^c_/, '').trim();
-            let cleanT = s.replace(/^c_/, '').trim();
-            if (cleanT === cleanId) return false;
-            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
-            if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;
-        }
-        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI|New chat|新对话|Search|搜索)$/i.test(s)) return false;
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
-        if (/^(Google Account|Sign in|Sign-in|Sign in with Google|登录|重新登录)/i.test(s)) return false;
-        if (/^[a-f0-9_-]{8,64}$/i.test(s)) return false;
-        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s)) return false;
-        if (RESEARCH_PROMPT_PREFIX_RE.test(s)) return false;
-        return true;
+        // Last-resort only — utils is resolvable via require fallback in every runtime.
+        const s = String(t || '').trim();
+        return s.length >= 2 && !/^(c_)?[a-f0-9_-]{8,64}$/i.test(s);
     }
 
     function cleanTitle(rawTitle) {
         const u = getUtils();
         if (u && typeof u.cleanTitle === 'function') return u.cleanTitle(rawTitle);
-        if (!rawTitle || typeof rawTitle !== 'string') return '';
-        let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
-        t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-        t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-        t = t.trim();
-        if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
-        return t;
+        return String(rawTitle || '').trim();
     }
 
     function safeStructureClean(str) {
@@ -970,8 +949,7 @@
             // CSS class is applied to the *options* page document.body — a different document.
             // content.js reads gemini_dev_mode from storage and sets window.__gemExporterDevMode
             // so we check that global flag instead of document.body.classList.
-            const isDevMode = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll))
-                || (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
+            const isDevMode = (() => { const u = getUtils(); return (u && typeof u.isDevMode === 'function') ? u.isDevMode() : false; })();
             const shouldVerbose = !!isDevMode;
             if (shouldVerbose) {
                 try {

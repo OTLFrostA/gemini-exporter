@@ -153,7 +153,13 @@
 
     async function contentFetchChatDetail(id) {
         const cleanId = String(id).replace(/^c_/, '').trim();
-        const isDevMode = typeof window !== 'undefined' && window.__gemExporterDevMode;
+        const isDevMode = (() => {
+            if (typeof GeminiUtils !== 'undefined' && GeminiUtils.isDevMode) return GeminiUtils.isDevMode();
+            if (typeof require !== 'undefined') {
+                try { return require('../core/utils/utils.js').isDevMode(); } catch { /* intentional: require fallback in browser context */ }
+            }
+            return false;
+        })();
         // 1. 若当前页即为目标对话，直接解析 live DOM（SPA 场景 fetch 拿到的只是空壳）
         try {
             if (location.pathname.includes(cleanId) || location.href.includes(cleanId)) {
