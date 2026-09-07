@@ -23,28 +23,36 @@
   - 沉浸式深色模式管理面板，支持查看全部已同步对话列表。
   - 支持按状态过滤：全部、已导出、未导出、有更新待重新导出、失败记录。
   - 完整支持 **中英双语 (Bilingual UI)**，界面右上角可一键切换语言。
+- 🧭 **交互式新手引导教程 (Interactive Onboarding Tour)**：
+  - 专为初次使用设计的 4 步沉浸式导览。通过翠绿色高对比度状态指示灯与平滑视图滚动，一步步引导完成同步数据、勾选对话、格式设置与一键导出，并支持状态持久化只弹一次。
 - 📦 **多格式自由导出**：
   - **Markdown (`.md`)**：完美排版，代码高亮，公式渲染，支持思考过程折叠（`<details>`）与网络参考来源标注。
   - **JSON (OpenAI 格式)**：标准化对话格式，便于将数据直接喂给大模型微调或第三方评测工具。
   - **JSON (原始结构)**：包含完整上下文与会话元数据（可在开发者模式下开启）。
-- 🖼️ **完整支持高清晰度图片与多回合附件下载**：
+- 🖼️ **完整支持高清晰度图片、深度研究报告与多回合附件下载**：
   - 自动嗅探并下载对话中的用户上传附件（PDF、DOCX、ZIP 等）以及 AI 生成图片（高清晰度源图），严格保障多轮生图的文件名全局唯一。
+  - **深度研究报告智能去重**：完美解析 Gemini 2.0 深度研究报告，多轮次间去重挂载完整报告正文，附件不膨胀。
   - 图片与附件自动规整至 `assets/` 资源目录并于 Markdown 中建立相对引用。
-- ⚡ **高并发流式导出与中断自愈横幅**：
-  - 滑动窗口任务池，支持高并发流畅导出与实时进度展示。
+- ⚡ **事件驱动异步流水线 (`AsyncQueue`) 与服务保活**：
+  - 采用生产-消费者 Promise 通知模型的 `AsyncQueue` 附件下载队列，彻底淘汰 100ms 忙轮询定时器，零延迟且无 CPU 浪费。
+  - **MV3 Service Worker 专属心跳保活**：在长耗时批量拉取与全量地毯扫描期间自动派发轻量保活心跳，彻底解决 Chrome MV3 后台在 30 秒无交互后强制挂起 Service Worker 导致任务被杀的痛点。
   - **会话中断自愈横幅**：自动感知未完成的导出任务，支持一键恢复未导出项。
-- 👥 **多账号便捷切换 (Multi-Account)**：
-  - 完美支持同时登录多个 Google 账号（`u0`, `u1`, `u2` 等），支持按账号插槽独立隔离存储、会话索引与导出状态记录。
+- 👥 **多账号便捷切换与状态强隔离 (Multi-Account)**：
+  - 完美支持同时登录多个 Google 账号（`u0`, `u1`, `u2` 等），每个账号插槽独立隔离本地存储、会话索引、Takeout 媒体池与中止控制器（`__bgAborts`）。
 - 📥 **Google Takeout 深度联动与远古对话找回 (Takeout ZIP Import)**：
   - 支持直接导入 Google Takeout 导出的 `takeout-*.zip`，利用本地 JSZip 沙盒秒级解析 `MyActivity.html`，找回云端侧边栏分页截断而无法扫到的远古历史对话。
   - **离线媒体智能兜底池**：自动索引 ZIP 内的所有图片与附件，当云端 API 附件下载遇到 Token 过期或 403 时，自动回退到 Takeout 离线池无损补全！
-- 🏷️ **多层级权威标题决议 (`TITLE_SOURCE_PRIORITY`)**：
-  - 智能多源标题判定与优先级防污染机制，彻底剔除 Google Gemini 品牌词干扰，精准保护原始真实标题。
+- 🚨 **Google 滑动窗口限制感知与引导弹窗 (Wall Detection Modal)**：
+  - 全量扫描触达 Google 服务端游标硬上限（~500–650 条截断或 429 频率受限，`BardErrorInfo 1096`）时，自动触发友好引导弹窗，一键跳转 Google Takeout 导入或导出页面，并具备新手教程级单次免打扰防护。
+- 🏷️ **单一数据源权威架构 (SSoT Architecture)**：
+  - **权威路径消毒与防穿透 (`sanitizeRelativePath`)**：严格防御跨目录穿越（`..`）与 Windows 保留设备名（`CON`, `PRN`, `AUX`, `NUL` 等），全面统一 ZIP 与本地文件系统写入安全。
+  - **多层级权威标题决议 (`TITLE_SOURCE_PRIORITY`)**：智能多源标题判定与优先级防污染机制，彻底剔除 Google Gemini 品牌词干扰，精准保护原始真实标题。
+  - **双端确定性排序 (`compareConversations`)**：内容脚本抓取层与工作台视图层 100% 采用同一套基准排序仲裁器，彻底终结会话列表跳动与排序漂移。
 - 🔄 **智能增量同步与变更感知**：
   - 本地记录每一个对话的唯一 ID、更新时间与消息总数。
   - 支持“跳过已导出”，当旧对话产生新回复时自动标记为“有更新”，实现极致省时的增量备份。
-- ⚡ **无感就绪**：
-  - 无需申请官方 API Key，无需暴露 Google 账号密码；正常浏览 Gemini 页面即可全自动嗅探会话态并就绪。
+- ⚡ **无感就绪与凭据自愈**：
+  - 无需申请官方 API Key，无需暴露 Google 账号密码；正常浏览 Gemini 页面即可通过主世界沙盒全自动嗅探会话凭据（`at`, `bl`），并在遇到 HTTP 400 异常时自动刷新凭据完成自愈重试。
 
 ---
 
@@ -82,16 +90,17 @@
 
 ### 2. 批量导出与增量同步 (Workbench)
 1. 在弹窗中点击 **“去工作台选 批量导出”**（或直接右键插件图标选择“选项”）。
-2. 在工作台中：
+2. 初次打开时，可跟随 **“交互式新手引导教程”** 沉浸式熟悉工作台核心操作。
+3. 在工作台中：
    - 点击 **“同步最新会话”**（快速增量同步）或 **“全量拉取历史”**（地毯式扫描所有历史），自动汇总左侧所有历史对话。
    - 勾选你需要导出的对话（支持“全选”、“只选未导出”、“只选已更新”，以及搜索栏实时过滤）。
-   - 按需配置导出选项：是否下载附件、是否打包为单个 ZIP、目标本地文件夹等。
+   - 按需配置导出选项：是否下载附件、是否打包为单个 ZIP、目标本地文件夹（通过 FileSystem Access API 直接落盘）等。
    - 点击 **“导出选中 → ZIP”**（或文件夹），静候浏览器自动批量保存文件。
 
 ### 3. Google Takeout 历史归档导入与远古对话找回 (Takeout Import)
 对于拥有成百上千条历史记录的深度用户，Google 云端界面存在滑动窗口限制（约 600~650 条）。您可以通过官方 Takeout 轻松实现全量远古归档：
 1. 前往 **[Google Takeout (Google 导出)](https://takeout.google.com)**，取消全选，仅勾选 **Gemini**，生成并下载 `takeout-*.zip` 压缩包。
-2. 打开本插件的 **批量工作台 (Options)**，找到 **“Google Takeout 导入”** 区域，点击选择或直接拖拽 ZIP 归档文件。
+2. 打开本插件的 **批量工作台 (Options)**，找到 **“Google Takeout 导入”** 区域，点击选择或直接拖拽 ZIP 归档文件（或在全量同步触碰上限时直接点击弹窗中的“导入 Takeout”）。
 3. 扩展将在浏览器本地内存中秒级解析全部历史 Prompt 与会话记录，并自动与本地数据库进行去重合并。
 4. **离线媒体智能兜底池**：导出时若云端图片/附件因 Token 过期出现 403 失败，插件将全自动从 Takeout 离线池中调取原图，确保归档 100% 零缺失！
 
@@ -99,42 +108,79 @@
 
 ## 🛡️ 架构与核心模块 (Architecture & Layered Design)
 
-本插件采用严格的高内聚低耦合分层架构，零外部遥测与数据上报：
+本插件采用严格的 4 层模块化分层架构，跨 Chrome MV3 边界清晰解耦，零外部遥测与数据上报：
 
 ```
-src/core/                 纯逻辑核心层（无 DOM 依赖，可独立单测）
-  ├── constants.js        支持的格式定义、存储键名常量
-  ├── formatStore.js      导出格式归一化与校验
-  ├── tabService.js       统一 Gemini 标签页发现与安全通信服务
-  └── exporter/
-      ├── zipWriter.js    JSZip 流式打包写入器
-      └── fsWriter.js     FileSystem Access API 目录树落盘写入器
+src/
+  background/                  后台服务工作线程 (Extension Service Worker)
+    background.js              MV3 Service Worker、保活心跳与消息路由中心
 
-src/ui/                   工作台 UI 分层（视图与控制器彻底解耦）
-  ├── state/
-  │   └── conversationsStore.js   多账号数据仓储与签名快照
-  ├── views/
-  │   ├── listView.js             会话表格渲染与多模式勾选
-  │   ├── logView.js              实时日志缓冲与过滤
-  │   ├── accountView.js          多账号 Slot 下拉选择器视图
-  │   └── dialogView.js           中断恢复横幅与弹窗组件
-  └── controllers/
-      ├── exportController.js     导出任务并发调度门面
-      ├── syncController.js       增量同步与全量地毯扫描调度
-      ├── takeoutController.js    Takeout ZIP 解析与底账合并调度
-      └── dirHandleController.js  FileSystem Access API IndexedDB 持久化控制
+  content/                     页面注入内容脚本子系统 (Content Script)
+    content.js                 页面 DOM 观测、会话同步协调器与浮动 Badge
+    content.css                同步状态指示器与悬浮 Badge 样式
+    bootstrap.js               页面 Token 初始化与凭据引导
+    hookCredentials.js         主世界（MAIN world）安全沙盒网络拦截与凭据提取
 
-Content 与核心服务层
-  ├── utils.js            单一数据源（文件名消毒、标题清理、有效性判定）
-  ├── gemini_parser.js    纯 RPC batchexecute 反序列化解析器
-  ├── gemini_client.js    Gemini batchexecute 网络请求客户端
-  ├── takeout_engine.js   Google Takeout 离线压缩包解析与媒体哈希池
-  ├── export_engine.js    高并发批量导出流水线
-  └── storage_service.js  Chrome 本地存储多 Slot 隔离服务
+  core/                        纯领域逻辑与解析导出引擎（与 DOM 彻底解耦）
+    api/
+      geminiClient.js          batchexecute RPC 请求客户端、HTTP 400 凭据自愈与重试
+      geminiParser.js          协议反序列化、对话轮次提取、附件与标题决议
+    engine/
+      exportEngine.js          事件驱动 AsyncQueue 高并发流式导出调度器
+      takeoutEngine.js         Google Takeout 归档秒级解析器与多账号离线媒体池
+      chatFormatter.js         Markdown、JSON、OpenAI 规范格式化渲染器
+      assetFetcher.js          高清晰度媒体与二进制 Blob 流式抓取器
+      domScraper.js            实时页面 DOM 兜底解析器
+      writers/
+        zipWriter.js           JSZip 流式打包写入器
+        fsWriter.js            FileSystem Access API 目录树落盘写入器
+    storage/
+      storageService.js        多账号插槽隔离与 chrome.storage 持久化抽象
+      formatStore.js           导出格式校验与用户偏好持久化
+    utils/
+      utils.js                 单一数据源（SSoT）：路径防穿透消毒、标题仲裁、排序比对
+      constants.js             枚举常量、格式定义、存储键名
+      tabService.js            Gemini 标签页发现、路由与安全通信降级
+      i18n.js                  中英双语词典与动态国际化引擎
+
+  ui/                          工作台用户界面子系统 (Workbench UI)
+    options/                   批量工作台页面与核心协调器
+    popup/                     浏览器右上角快捷弹窗与控制器
+    tour/                      交互式新手引导导览组件与高对比度指示灯样式
+    state/
+      conversationsStore.js    响应式会话数据仓储与多账号状态管理
+    views/
+      listView.js              高性能虚拟表格渲染与多模式勾选视图
+      logView.js               实时诊断日志缓冲与级别过滤视图
+      accountView.js           多账号 Slot 切换下拉视图
+      dialogView.js            会话中断恢复横幅与引导弹窗组件
+    controllers/
+      exportController.js      导出任务状态机并发调度门面
+      syncController.js        增量同步与全量地毯式扫描调度
+      takeoutController.js     Takeout ZIP 解析导入与数据合流调度
+      dirHandleController.js   FileSystem Access API IndexedDB 授权持久化
 ```
 
-- **凭据捕获**：通过主世界（MAIN world）轻量拦截原生网络请求中携带的防 CSRF 标记（`at`）与会话 ID（`f.sid`），规避 Cookie 泄露。
-- **本地落盘**：所有对话内容与二进制图片均在本地浏览器中由 JSZip 和现代 Web API 直接保存，0 过度权限，不经过任何中转后端。
+### 核心架构铁律
+1. **Core 核心层零 DOM 依赖**：核心解析、格式化、路径消毒与排序比对等算法无任何 DOM 依赖，在 Node.js 单测、Web Worker 和扩展页面中行为 100% 绝对一致。
+2. **严格的 UI 视图分离**：`state` 负责存储联动与响应式订阅，`views` 负责纯 HTML 视图渲染，`controllers` 封装完整业务编排，`options.js` 仅作为轻量装配门面。
+3. **单一数据源（SSoT）**：所有跨目录防穿越路径消毒（`sanitizeRelativePath`）、文件名过滤、会话排序仲裁（`compareConversations`）与标题决议逻辑均收口于 `src/core/utils/utils.js`。
+4. **沙盒化凭据通道**：`hookCredentials.js` 在宿主页面主世界运行，内部所有拦截逻辑均被独立沙盒保护，扩展代码任何异常绝不干扰 Google Gemini 原生业务操作。
+
+---
+
+## 🧪 双层测试体系与工程质量保障 (Two-Tier Testing)
+
+本项目建立了严格的双层质量门禁保障体系：
+
+### 第一层：CI 自动化门禁测试 (Tier 1: Fast & Headless)
+- **执行命令**：`npm test`（对应 `python tests/run_tests.py && npx playwright test`）
+- **覆盖范围**：包含 22 个单元测试套件与 14 个无头 Playwright 端到端用例（约 18 秒极速执行完成），自包含且不依赖外网或真实账号，GitHub Actions 门禁强制全绿拦截。
+
+### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
+- **执行命令**：`npm run test:live`（对应 `python scripts/test_live_chat_and_export.py`）
+- **适用场景**：调试底层 Protobuf/JSPB 协议解析、Takeout 导入、网络拦截或版本发布前。
+- **动态数据集时效门禁**：通过 9222 远程调试端口连接真实 Chrome，并在自动化开发协作中严格执行 2 分钟新鲜度门禁校验，杜绝测试数据老化造假。
 
 ---
 
@@ -162,7 +208,7 @@ Gemini Exporter 坚持以隐私安全为核心原则：
 - **Google Gemini 官方会话列表的拉取上限（约 600~650 条）**：
   - **现象**：当用户的 Gemini 账号历史会话超过 600 条时，全量拉取通常会在约 600~650 条处停止，无法继续向更早的历史翻页；
   - **原因定位（Google 接口缺陷）**：经深入协议逆向分析，Google Gemini 网页端的列表接口（`MaZiqc`）采用了无状态累计游标机制，游标 Token 每遍历一条对话会累积约 14 字节的状态信息。当遍历到约 650 条时，Token 长度将达到约 9KB，直接触碰 Google 服务端网关的参数大小上限，被 Google 后端抛出 `BardErrorInfo 1096` 异常强制阻断（**注：即使在 Google Gemini 官方网页上手动滚动侧边栏，滑到底部同样会因此卡死崩溃**）；
-  - **建议**：插件支持**实时流式保存**与**终止同步**功能，拉取到的会话均会安全持久化。建议用户定期使用**“同步最新会话”**功能进行日常增量备份；更久远的历史数据可通过 Google Takeout 进行补充归档。
+  - **建议**：插件具备**实时流式保存**、**智能触顶感知与引导弹窗**以及**终止同步**功能，拉取到的会话均会安全持久化。建议用户定期使用**“同步最新会话”**功能进行日常增量备份；更久远的历史数据可通过 Google Takeout 进行完整无损补全。
 
 ---
 
