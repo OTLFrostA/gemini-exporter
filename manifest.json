@@ -49,6 +49,7 @@
         "src/content/domScraper.js",
         "src/content/assetFetcher.js",
         "src/content/badgeView.js",
+        "src/content/messageBridge.js",
         "src/content/content.js"
       ],
       "run_at": "document_start",

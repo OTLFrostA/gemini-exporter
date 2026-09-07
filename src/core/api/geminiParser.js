@@ -903,7 +903,7 @@
             // so we check that global flag instead of document.body.classList.
             const isDevMode = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll))
                 || (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
-            const shouldVerbose = isDevMode || !text || text.length < 500;
+            const shouldVerbose = !!isDevMode;
             if (shouldVerbose) {
                 try {
                     const summary = Array.isArray(top) ? top.map((it,i) => {

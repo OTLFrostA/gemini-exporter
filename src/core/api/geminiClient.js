@@ -517,6 +517,13 @@
                 }
                 return parsed;
             } catch (err) {
+                const isDeletedOrInaccessible = text && (text.includes('BardErrorInfo') || text.includes('1167'));
+                if (isDeletedOrInaccessible) {
+                    if (isDevMode) {
+                        console.info(`[Gemini Exporter Client] Conversation ${id} is inaccessible or deleted on server (BardErrorInfo: 1167). Skipping.`);
+                    }
+                    throw new Error(`会话已在服务端删除或不可访问 (${id})`);
+                }
                 console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, 'raw text snippet:', text.slice(0, 400));
                 throw new Error(`解析详情失败 (${err.message}): ${text.slice(0, 100)}`);
             }
