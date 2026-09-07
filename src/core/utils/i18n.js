@@ -475,6 +475,37 @@
         return str;
     }
 
+    function _setSafeFormattedContent(el, val) {
+        el.textContent = '';
+        if (!val || typeof val !== 'string') return;
+        const parts = val.split(/(<b>.*?<\/b>|<strong>.*?<\/strong>|<i>.*?<\/i>|<em>.*?<\/em>|<br\s*\/?>)/gi);
+        for (const part of parts) {
+            if (!part) continue;
+            const lower = part.toLowerCase();
+            if (lower.startsWith('<b>') && lower.endsWith('</b>')) {
+                const b = document.createElement('b');
+                b.textContent = part.slice(3, -4);
+                el.appendChild(b);
+            } else if (lower.startsWith('<strong>') && lower.endsWith('</strong>')) {
+                const strong = document.createElement('strong');
+                strong.textContent = part.slice(8, -9);
+                el.appendChild(strong);
+            } else if (lower.startsWith('<i>') && lower.endsWith('</i>')) {
+                const i = document.createElement('i');
+                i.textContent = part.slice(3, -4);
+                el.appendChild(i);
+            } else if (lower.startsWith('<em>') && lower.endsWith('</em>')) {
+                const em = document.createElement('em');
+                em.textContent = part.slice(4, -5);
+                el.appendChild(em);
+            } else if (lower === '<br>' || lower === '<br/>' || lower === '<br />') {
+                el.appendChild(document.createElement('br'));
+            } else {
+                el.appendChild(document.createTextNode(part));
+            }
+        }
+    }
+
     function applyI18n(container) {
         if (typeof document === 'undefined') return;
         const root = container || document;
@@ -486,11 +517,11 @@
             if (val) el.textContent = val;
         });
 
-        // 2. HTML content: data-i18n-html
+        // 2. HTML content: data-i18n-html (rendered safely via DOM construction)
         root.querySelectorAll('[data-i18n-html]').forEach(el => {
             const key = el.getAttribute('data-i18n-html');
             const val = t(key);
-            if (val) el.innerHTML = val;
+            if (val) _setSafeFormattedContent(el, val);
         });
 
         // 3. Tooltips / Titles: data-i18n-title

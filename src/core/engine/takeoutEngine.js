@@ -35,6 +35,16 @@
         return String(id).replace(/^c_/, '').trim();
     }
 
+    function stripHtmlTags(html) {
+        if (!html || typeof html !== 'string') return '';
+        let prev;
+        do {
+            prev = html;
+            html = html.replace(/<[^>]+>/g, '');
+        } while (html !== prev);
+        return html;
+    }
+
     function extractC2PATimestamp(bufferOrArray) {
         if (!bufferOrArray) return null;
         let str = '';
@@ -279,11 +289,11 @@
             const promptMatch = block.match(/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)\s*([\s\S]*?)(?:<br\s*\/?>|\n)/i);
             if (promptMatch) {
                 hasExplicitPrompt = true;
-                promptText = promptMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
+                promptText = stripHtmlTags(promptMatch[1]).replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
             } else {
                 const contentCellMatchFallback = block.match(/<div class="content-cell[^>]*>([\s\S]*?)(?:<br\s*\/?>|\n)/i);
                 if (contentCellMatchFallback) {
-                    promptText = contentCellMatchFallback[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
+                    promptText = stripHtmlTags(contentCellMatchFallback[1]).replace(/&nbsp;/g, ' ').replace(/[\u202f\xa0]/g, ' ').trim();
                 }
             }
 

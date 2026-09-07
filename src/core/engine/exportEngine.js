@@ -520,7 +520,11 @@
                 ? `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`
                 : `# Gemini Conversation Export Index\n\n> Export Time: ${new Date().toLocaleString()} · Total Chats: ${landedChats} · Assets: ${downloadedAssets}/${totalAssets}\n\n| Conversation Title | Messages | Assets | Original URL | Exported File |\n| :--- | :--- | :--- | :--- | :--- |\n`;
             for (const meta of metaResults) {
-                const safeT = meta.title.replace(/\|/g, '\\|');
+                const safeT = (meta.title || '')
+                    .replace(/\\/g, '\\\\')
+                    .replace(/\|/g, '\\|')
+                    .replace(/\[/g, '\\[')
+                    .replace(/\]/g, '\\]');
                 const linkText = isZh ? '🔗 原文' : '🔗 Link';
                 indexContent += `| **[${safeT}](${meta.exportFile})** | ${meta.messageCount} | ${meta.attachmentCount} | [${linkText}](${meta.url}) | \`${meta.exportFile}\` |\n`;
             }
