@@ -422,6 +422,7 @@
                                 gemini_pending_takeout_prompt: {
                                     slot,
                                     count: mergedLen,
+                                    hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit),
                                     timestamp: Date.now()
                                 }
                             }).catch(() => {});

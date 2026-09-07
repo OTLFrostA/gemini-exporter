@@ -50,7 +50,7 @@
         } else if (typeof bufferOrArray === 'string') {
             str = bufferOrArray;
         }
-        const m = str.match(/(202\d[01]\d[0-3]\d[0-2]\d[0-5]\d[0-5]\dZ)/);
+        const m = str.match(/(20\d{2}[01]\d[0-3]\d[0-2]\d[0-5]\d[0-5]\dZ)/);
         if (!m) return null;
         const s = m[1];
         const year = parseInt(s.slice(0, 4), 10);
@@ -110,22 +110,37 @@
             }
         }
 
-        if (globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target]) {
-            const fObj = globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target];
-            try {
-                let bin = await fObj.async('uint8array');
-                if (bin && bin.length > 0) return bin;
-            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
+        const isGenericName = (s) => /^(?:image(?:[_-]?\d+)?|file(?:[_-]?\d+)?|asset(?:[_-]?\d+)?|media(?:[_-]?\d+)?|thumb(?:nail)?(?:[_-]?\d+)?)$/i.test(s);
+
+        if (!isGenericName(cleanTargetStem) && !isGenericName(targetStem)) {
+            if (globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target]) {
+                const fObj = globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target];
+                try {
+                    let bin = await fObj.async('uint8array');
+                    if (bin && bin.length > 0) return bin;
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
+            }
         }
 
         for (const [stem, fileObj] of Object.entries(globalMedia)) {
+            const hasNid = nid && (stem.includes(nid) || (fileObj.name && fileObj.name.includes(nid)));
             let cleanStem = stem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
-            if ((cleanStem.length > 4 && (cleanStem === cleanTargetStem || cleanStem.includes(cleanTargetStem) || cleanTargetStem.includes(cleanStem))) ||
-                (stem.length > 4 && (stem === cleanTargetStem || stem.includes(cleanTargetStem) || cleanTargetStem.includes(stem)))) {
-                try {
-                    let bin = await fileObj.async('uint8array');
-                    if (bin && bin.length > 0) return bin;
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
+
+            if (hasNid) {
+                if (cleanStem === cleanTargetStem || stem === targetStem ||
+                    (cleanStem.length > 4 && (cleanStem.includes(cleanTargetStem) || cleanTargetStem.includes(cleanStem)))) {
+                    try {
+                        let bin = await fileObj.async('uint8array');
+                        if (bin && bin.length > 0) return bin;
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
+                }
+            } else if (!isGenericName(cleanTargetStem) && !isGenericName(cleanStem)) {
+                if (cleanStem === cleanTargetStem || stem === targetStem) {
+                    try {
+                        let bin = await fileObj.async('uint8array');
+                        if (bin && bin.length > 0) return bin;
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:takeoutEngine.js]", e); }
+                }
             }
         }
 
@@ -587,9 +602,20 @@
 
     function clearTakeoutData(slot) {
         if (slot && __slotTakeouts.has(slot)) {
+            const slotData = __slotTakeouts.get(slot);
+            if (slotData) {
+                if (__takeoutMediaMap === slotData.mediaMap) __takeoutMediaMap = {};
+                if (__takeoutGlobalMedia === slotData.globalMedia) __takeoutGlobalMedia = {};
+                if (__takeoutConvCache === slotData.convCache) __takeoutConvCache = {};
+            }
             __slotTakeouts.delete(slot);
         } else {
             __slotTakeouts.clear();
+            __takeoutMediaMap = {};
+            __takeoutGlobalMedia = {};
+            __takeoutConvCache = {};
+        }
+        if (__slotTakeouts.size === 0) {
             __takeoutMediaMap = {};
             __takeoutGlobalMedia = {};
             __takeoutConvCache = {};
