@@ -414,7 +414,7 @@
                 bodyHtml = `
                     <div class="tour-content">${t('tourStep1NoTab')}</div>
                     <div class="tour-action-box">
-                        <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('notSynced')}</div>
+                        <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NoTabStatus') || t('notSynced')}</div>
                         <button id="tourBtnOpenGemini" class="tour-action-btn">
                             ${t('tourStep1BtnOpen')}
                         </button>

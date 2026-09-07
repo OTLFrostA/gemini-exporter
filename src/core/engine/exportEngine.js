@@ -850,7 +850,7 @@
                                                             action: 'downloadAssetDirect',
                                                             url: candidateUrl,
                                                             referer: `https://gemini.google.com/app/${chat.id}`,
-                                                            preferBuffer: true
+                                                            preferBuffer: false
                                                         }, (resp) => {
                                                             if (chrome.runtime.lastError) {
                                                                 resolve({ success: false, error: chrome.runtime.lastError.message });
@@ -859,20 +859,26 @@
                                                             }
                                                         });
                                                     });
-                                                    if (r && r.success && (r.dataBuffer || r.dataBase64)) {
-                                                        const bytes = r.dataBuffer ? new Uint8Array(r.dataBuffer) : null;
+                                                    if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
+                                                        const isValidBuffer = r.dataBuffer && (
+                                                            (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
+                                                            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && r.dataBuffer.byteLength > 0)
+                                                        );
+                                                        const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
+                                                        const b64 = r.dataBase64 || r.blobBase64;
                                                         if (useZip) {
-                                                            if (bytes) {
+                                                            if (bytes && bytes.length > 0) {
                                                                 folder.file(sanitizeZipPath(att.localName), bytes);
-                                                            } else {
-                                                                folder.file(sanitizeZipPath(att.localName), r.dataBase64, { base64: true });
+                                                                saved = true;
+                                                            } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                                                                folder.file(sanitizeZipPath(att.localName), b64, { base64: true });
+                                                                saved = true;
                                                             }
-                                                            saved = true;
                                                         } else {
-                                                            if (bytes) {
+                                                            if (bytes && bytes.length > 0) {
                                                                 saved = await writeFileDirect(att.localName, bytes);
-                                                            } else {
-                                                                const binStr = atob(r.dataBase64);
+                                                            } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                                                                const binStr = atob(b64);
                                                                 const len = binStr.length;
                                                                 const b = new Uint8Array(len);
                                                                 for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
@@ -940,7 +946,7 @@
                                                         action: 'downloadAssetDirect',
                                                         url: targetUrl,
                                                         referer: `https://gemini.google.com/app/${chat.id}`,
-                                                        preferBuffer: true
+                                                        preferBuffer: false
                                                     }, (resp) => {
                                                         if (chrome.runtime.lastError) {
                                                             resolve({ success: false, error: chrome.runtime.lastError.message });
@@ -949,20 +955,26 @@
                                                         }
                                                     });
                                                 });
-                                                if (r && r.success && (r.dataBuffer || r.dataBase64)) {
-                                                    const bytes = r.dataBuffer ? new Uint8Array(r.dataBuffer) : null;
+                                                if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
+                                                    const isValidBuffer = r.dataBuffer && (
+                                                        (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
+                                                        (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && r.dataBuffer.byteLength > 0)
+                                                    );
+                                                    const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
+                                                    const b64 = r.dataBase64 || r.blobBase64;
                                                     if (useZip) {
-                                                        if (bytes) {
+                                                        if (bytes && bytes.length > 0) {
                                                             folder.file(sanitizeZipPath(img.localName), bytes);
-                                                        } else {
-                                                            folder.file(sanitizeZipPath(img.localName), r.dataBase64, { base64: true });
+                                                            saved = true;
+                                                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                                                            folder.file(sanitizeZipPath(img.localName), b64, { base64: true });
+                                                            saved = true;
                                                         }
-                                                        saved = true;
                                                     } else {
-                                                        if (bytes) {
+                                                        if (bytes && bytes.length > 0) {
                                                             saved = await writeFileDirect(img.localName, bytes);
-                                                        } else {
-                                                            const binStr = atob(r.dataBase64);
+                                                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                                                            const binStr = atob(b64);
                                                             const len = binStr.length;
                                                             const b = new Uint8Array(len);
                                                             for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);

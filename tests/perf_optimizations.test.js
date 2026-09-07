@@ -157,6 +157,39 @@ test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true
     }
 });
 
+test('perf - assetFetcher returns base64 when preferBuffer is false', async () => {
+    const AssetFetcher = require('../src/content/assetFetcher.js');
+
+    const originalFetch = global.fetch;
+    const testData = Buffer.from('fake image binary content 1234567890');
+    try {
+        global.fetch = async () => ({
+            ok: true,
+            headers: new Map([['content-type', 'image/png']]),
+            blob: async () => ({
+                size: testData.length,
+                type: 'image/png',
+                arrayBuffer: async () => testData.buffer.slice(testData.byteOffset, testData.byteOffset + testData.byteLength)
+            })
+        });
+
+        let responsePayload = null;
+        await AssetFetcher.downloadAssetDirect({
+            url: 'https://lh3.googleusercontent.com/test_img.png',
+            preferBuffer: false
+        }, (res) => {
+            responsePayload = res;
+        });
+
+        assert.ok(responsePayload, 'should receive response');
+        assert.strictEqual(responsePayload.success, true);
+        assert.ok(responsePayload.dataBase64, 'dataBase64 should be generated when preferBuffer is false');
+        assert.strictEqual(responsePayload.dataBuffer, undefined, 'dataBuffer should not be generated when preferBuffer is false');
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 // 4. Test ExportEngine rateLimitCooldownUntil initialization
 test('perf - ExportEngine initializes and tracks rateLimitCooldownUntil', () => {
     const { ExportEngine } = require('../src/core/engine/exportEngine.js');
