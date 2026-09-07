@@ -99,7 +99,7 @@
 
 ### 3. Google Takeout 历史归档导入与远古对话找回 (Takeout Import)
 对于拥有成百上千条历史记录的深度用户，Google 云端界面存在滑动窗口限制（约 600~650 条）。您可以通过官方 Takeout 轻松实现全量远古归档：
-1. 前往 **[Google Takeout (Google 导出)](https://takeout.google.com)**，取消全选，仅勾选 **Gemini**，生成并下载 `takeout-*.zip` 压缩包。
+1. 前往 **[Google Takeout (已自动勾选 Gemini 专属直达链接)](https://takeout.google.com/settings/takeout/custom/gemini)**，该链接已预设自动取消勾选其他全部 60+ 款 Google 产品并**仅勾选 Gemini**，只需点击“下一步”→“创建导出项”，待打包完成后下载 `takeout-*.zip` 压缩包。
 2. 打开本插件的 **批量工作台 (Options)**，找到 **“Google Takeout 导入”** 区域，点击选择或直接拖拽 ZIP 归档文件（或在全量同步触碰上限时直接点击弹窗中的“导入 Takeout”）。
 3. 扩展将在浏览器本地内存中秒级解析全部历史 Prompt 与会话记录，并自动与本地数据库进行去重合并。
 4. **离线媒体智能兜底池**：导出时若云端图片/附件因 Token 过期出现 403 失败，插件将全自动从 Takeout 离线池中调取原图，确保归档 100% 零缺失！

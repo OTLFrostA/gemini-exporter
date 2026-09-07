@@ -142,11 +142,26 @@
         const btnClose = $('btnTakeoutLimitClose');
         if (!modal) return;
 
-        if (!options.force && typeof StorageService !== 'undefined' && StorageService.isTakeoutPromptCompleted) {
-            try {
-                const isCompleted = await StorageService.isTakeoutPromptCompleted();
-                if (isCompleted) return;
-            } catch {}
+        if (!options.force) {
+            if (typeof StorageService !== 'undefined') {
+                if (StorageService.isTakeoutPromptCompleted) {
+                    try {
+                        const isCompleted = await StorageService.isTakeoutPromptCompleted();
+                        if (isCompleted) return;
+                    } catch {}
+                }
+                if (StorageService.hasTakeoutData) {
+                    try {
+                        const hasTakeout = await StorageService.hasTakeoutData();
+                        if (hasTakeout) return;
+                    } catch {}
+                }
+            }
+            if (typeof ConversationsStore !== 'undefined' && ConversationsStore.hasTakeoutData) {
+                try {
+                    if (ConversationsStore.hasTakeoutData()) return;
+                } catch {}
+            }
         }
 
         const count = options.count || 600;

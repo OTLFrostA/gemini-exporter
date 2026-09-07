@@ -249,6 +249,32 @@
         } catch {}
     }
 
+    async function setHasImportedTakeout(imported = true) {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ has_imported_takeout: !!imported });
+        } catch {}
+    }
+
+    async function hasTakeoutData(slot = 'u0') {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
+        try {
+            const data = await chrome.storage.local.get(['has_imported_takeout']);
+            if (data && data.has_imported_takeout) return true;
+            const convs = await getConversations(slot);
+            return (convs || []).some(c => (
+                c && (
+                    c.source === 'takeout' ||
+                    c.titleSource === 'takeout' ||
+                    c.isTakeoutOnly ||
+                    (c.titles && c.titles.takeout)
+                )
+            ));
+        } catch {
+            return false;
+        }
+    }
+
     return {
         normSlot,
         normId,
@@ -272,6 +298,8 @@
         isTourCompleted,
         setTourCompleted,
         isTakeoutPromptCompleted,
-        setTakeoutPromptCompleted
+        setTakeoutPromptCompleted,
+        hasTakeoutData,
+        setHasImportedTakeout
     };
 }));
