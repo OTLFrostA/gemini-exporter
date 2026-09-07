@@ -14,6 +14,7 @@
     const Storage = (typeof StorageService !== 'undefined') ? StorageService : (window.StorageService || null);
     const Scraper = (typeof DomScraper !== 'undefined') ? DomScraper : (window.DomScraper || null);
     const Assets = (typeof AssetFetcher !== 'undefined') ? AssetFetcher : (window.AssetFetcher || null);
+    const Badge = (typeof BadgeView !== 'undefined') ? BadgeView : (window.BadgeView || null);
     const Utils = (typeof GeminiUtils !== 'undefined') ? GeminiUtils : (window.GeminiUtils || {});
     const cleanTitle = (t) => (Utils.cleanTitle ? Utils.cleanTitle(t) : (t || '').trim());
     const isRealTitle = (t, id) => (Utils.isRealTitle ? Utils.isRealTitle(t, id) : !!(t && String(t).trim().length > 1));
@@ -54,6 +55,10 @@
     let __lastKnownCount = null;
 
     function applyStoredBadgePosition(el) {
+        if (Badge && Badge.applyStoredBadgePosition) {
+            Badge.applyStoredBadgePosition(el);
+            return;
+        }
         if (!el) return;
         try {
             const raw = localStorage.getItem('gemini_export_badge_pos');
@@ -74,6 +79,10 @@
     }
 
     function makeBadgeDraggable(div) {
+        if (Badge && Badge.makeBadgeDraggable) {
+            Badge.makeBadgeDraggable(div);
+            return;
+        }
         let isDragging = false;
         let hasMoved = false;
         let startX = 0, startY = 0;
@@ -165,6 +174,14 @@
     }
 
     function ensureBadge() {
+        if (Badge && Badge.ensureBadge) {
+            const b = Badge.ensureBadge({ isZh, getAccountSlot });
+            if (b && !b.__initialRefreshed) {
+                b.__initialRefreshed = true;
+                refreshInitialBadge();
+            }
+            return b;
+        }
         let existing = document.getElementById('geminiExportBadge');
         if (existing) {
             if (!existing.isConnected) {
@@ -326,6 +343,10 @@
     }
 
     function updateBadge(mergedLen, visible, overrideText, isSyncing = false) {
+        if (Badge && Badge.updateBadge) {
+            Badge.updateBadge(mergedLen, visible, overrideText, isSyncing, { isZh, getAccountSlot });
+            return;
+        }
         try {
             const { txt, badge } = ensureBadgeAndText();
             if (!txt) return;
