@@ -159,6 +159,7 @@
                     throw new Error(`ZIP 未压缩体积估算超过 1GB，已中止以防 OOM`);
                 }
             }
+        }
         if (onProgress) onProgress(40, typeof I18n !== 'undefined' ? I18n.t('takeoutParsingStructure') : '正在扫描 Takeout 目录结构...');
 
         let activityFile = null;
