@@ -472,9 +472,11 @@
     // Message router
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.action === 'ping') {
+            const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.4.3';
             sendResponse({
                 ok: true,
-                version: (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.4.1'
+                version: ver,
+                ver: ver
             });
             return true;
         }
@@ -504,7 +506,7 @@
             return true;
         }
 
-        if (msg.action === 'stopDeepScan') {
+        if (msg.action === 'stopDeepScan' || msg.action === 'abortSync') {
             window.__gemExporterAborted = true;
             try { window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort(); } catch { /* intentional: best-effort cleanup */ }
             sendResponse({ ok: true, aborted: true });

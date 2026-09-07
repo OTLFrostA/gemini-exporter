@@ -357,7 +357,7 @@
 
             // Takeout offline chat fallback
             if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0) && takeoutEngine) {
-                const fbChat = takeoutEngine.getTakeoutOfflineChat(nid);
+                const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
                 if (fbChat && fbChat.messages && fbChat.messages.length > 0) {
                     chat = {
                         ...fbChat,
@@ -373,7 +373,7 @@
 
             // Supplement missing offline generated media from Takeout
             if (takeoutEngine && typeof takeoutEngine.getTakeoutMediaForChat === 'function' && Array.isArray(chat.messages) && chat.messages.length > 0) {
-                const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid);
+                const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
                 if (takeoutMedia && takeoutMedia.length > 0) {
                     for (const tm of takeoutMedia) {
                         const alreadyHas = chat.messages.some(m =>
@@ -694,11 +694,14 @@
             const pendingAssetsPerChat = new Map();
             const chatRecordsMap = new Map();
             const chatFailedAssetsSet = new Set();
+            const finalizedChatsSet = new Set();
 
             async function finalizeChatExport(targetId) {
                 const targetNid = normId(targetId);
+                if (finalizedChatsSet.has(targetNid)) return;
                 const rec = chatRecordsMap.get(targetNid);
                 if (!rec || chatFailedAssetsSet.has(targetNid)) return;
+                finalizedChatsSet.add(targetNid);
                 curIds[targetId] = rec;
                 curIds[targetNid] = rec;
                 curIds['c_' + targetNid] = rec;
@@ -811,11 +814,12 @@
                     }
 
                     let queuedAssetsForThisChat = 0;
+                    const chatAssetTasks = [];
                     const queueAsset = (item, isImage) => {
                         totalAssets++;
                         queuedAssetsForThisChat++;
                         updateProgress();
-                        attachmentQueue.push(async () => {
+                        chatAssetTasks.push(async () => {
                             let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
                             if (assetPipeline) {
                                 assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle });
@@ -851,20 +855,18 @@
                                         if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
                                             continue;
                                         }
-                                        totalAssets++;
-                                        queuedAssetsForThisChat++;
-                                        updateProgress();
                                         if (useZip) {
                                             try {
                                                 folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
+                                                totalAssets++;
                                                 downloadedAssets++;
                                                 updateProgress();
-                                                const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                                pendingAssetsPerChat.set(nid, left);
-                                                if (left === 0) finalizeChatExport(chat.id);
                                             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportEngine.js]", e); }
                                         } else {
-                                            attachmentQueue.push(async () => {
+                                            totalAssets++;
+                                            queuedAssetsForThisChat++;
+                                            updateProgress();
+                                            chatAssetTasks.push(async () => {
                                                 const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
                                                 if (ok) {
                                                     downloadedAssets++;
@@ -913,6 +915,9 @@
                                 finalizeChatExport(chat.id);
                             } else {
                                 pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
+                                for (const task of chatAssetTasks) {
+                                    attachmentQueue.push(task);
+                                }
                             }
                         }
                     }

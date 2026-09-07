@@ -143,24 +143,32 @@
         await chrome.storage.local.set(updates);
     }
 
+    let _saveRecordChain = Promise.resolve();
+
     async function saveExportRecord(slot, id, record) {
-        const { expKey, slot: s } = getStorageKeys(slot);
-        const cur = await getExportedIds(slot);
-        const nid = normId(id);
-        cur[id] = record;
-        cur[nid] = record;
-        cur['c_' + nid] = record;
-        const updates = { [expKey]: cur };
-        if (s !== 'u0') {
-            const globalData = await chrome.storage.local.get(['exportedIds']);
-            const globalExp = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds : {};
-            globalExp[id] = record;
-            globalExp[nid] = record;
-            globalExp['c_' + nid] = record;
-            updates['exportedIds'] = globalExp;
-        }
-        await chrome.storage.local.set(updates);
-        return cur;
+        return new Promise((resolve, reject) => {
+            _saveRecordChain = _saveRecordChain.then(async () => {
+                const { expKey, slot: s } = getStorageKeys(slot);
+                const cur = await getExportedIds(slot);
+                const nid = normId(id);
+                cur[id] = record;
+                cur[nid] = record;
+                cur['c_' + nid] = record;
+                const updates = { [expKey]: cur };
+                if (s !== 'u0') {
+                    const globalData = await chrome.storage.local.get(['exportedIds']);
+                    const globalExp = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds : {};
+                    globalExp[id] = record;
+                    globalExp[nid] = record;
+                    globalExp['c_' + nid] = record;
+                    updates['exportedIds'] = globalExp;
+                } else {
+                    updates['exportedIds'] = cur;
+                }
+                await chrome.storage.local.set(updates);
+                return cur;
+            }).then(resolve).catch(reject);
+        });
     }
 
     async function getLastSync(slot) {

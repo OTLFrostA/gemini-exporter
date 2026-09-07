@@ -10,8 +10,21 @@ function isSlotAborted(slot = 'u0') {
 
 function setSlotAborted(slot = 'u0', val = true) {
     const s = slot || 'u0';
-    if (val) __bgAborts.set(s, true);
-    else __bgAborts.delete(s);
+    if (val) {
+        __bgAborts.set(s, true);
+        try {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) {
+                chrome.storage.session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
+            }
+        } catch { /* intentional: session storage fallback */ }
+    } else {
+        __bgAborts.delete(s);
+        try {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) {
+                chrome.storage.session.remove([`gemini_abort_${s}`]).catch(() => {});
+            }
+        } catch { /* intentional: session storage fallback */ }
+    }
 }
 
 function startKeepAlive() {
@@ -123,9 +136,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     if (msg.action === 'ping') {
+        const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.4.3';
         sendResponse({
             ok: true,
-            ver: chrome.runtime.getManifest()?.version || '1.1.0'
+            version: ver,
+            ver: ver
         });
         return;
     }
