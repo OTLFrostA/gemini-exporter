@@ -200,10 +200,18 @@
         if (!t || typeof t !== 'string') return false;
         const s = t.trim();
         if (!s || s.length < 2 || s === 'Untitled' || s === '未命名' || s === 'New chat' || s === '新对话') return false;
+        if (fallbackId) {
+            let cleanId = String(fallbackId).replace(/^c_/, '').trim();
+            let cleanT = s.replace(/^c_/, '').trim();
+            if (cleanT === cleanId) return false;
+            if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
+            if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;
+        }
+        if (/^(未命名对话|Untitled conversation|Untitled|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI|New chat|新对话|Search|搜索)$/i.test(s)) return false;
         if (/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(s)) return false;
-        if (fallbackId && (s === fallbackId || s === 'c_' + fallbackId || fallbackId === 'c_' + s)) return false;
-        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s) || /^[a-f0-9_-]{8,64}$/i.test(s)) return false;
-        if (/^(未命名对话|Untitled conversation|Document|Gemini|Google Gemini|Bard|Google Bard|Google AI)$/i.test(s)) return false;
+        if (/^(Google Account|Sign in|Sign-in|Sign in with Google|登录|重新登录)/i.test(s)) return false;
+        if (/^[a-f0-9_-]{8,64}$/i.test(s)) return false;
+        if (/^[0-9a-f]{16}$/i.test(s) || /^c_[0-9a-f]{16}$/i.test(s)) return false;
         if (RESEARCH_PROMPT_PREFIX_RE.test(s)) return false;
         return true;
     }
@@ -221,6 +229,37 @@
         return t;
     }
 
+    function safeStructureClean(str) {
+        if (!str || typeof str !== 'string') return '';
+        let out = '';
+        let inString = false;
+        let escape = false;
+        for (let k = 0; k < str.length; k++) {
+            const ch = str[k];
+            if (inString) {
+                out += ch;
+                if (escape) {
+                    escape = false;
+                } else if (ch === '\\') {
+                    escape = true;
+                } else if (ch === '"') {
+                    inString = false;
+                }
+            } else {
+                if (ch === '"') {
+                    inString = true;
+                    out += ch;
+                } else {
+                    if (ch.charCodeAt(0) < 32 && ch !== '\t' && ch !== '\r' && ch !== '\n') {
+                        continue;
+                    }
+                    out += ch;
+                }
+            }
+        }
+        return out;
+    }
+
     function robustFirstPayload(text) {
         if (!text || typeof text !== "string") return null;
         let lines = text.split("\n");
@@ -231,17 +270,35 @@
             let startIdx = line.indexOf("[");
             let candidate = line.slice(startIdx);
             try {
-                let cleaned = candidate.replace(/[\x00-\x1F\x7F]/g, "").trim();
-                let parsed = JSON.parse(cleaned);
+                let parsed = JSON.parse(candidate);
                 if (Array.isArray(parsed)) {
                     allTop.push(...parsed);
+                    continue;
                 }
             } catch {
-                let acc = candidate;
-                for (let j = i + 1; j < lines.length; j++) {
-                    acc += lines[j];
+                try {
+                    let cleaned = safeStructureClean(candidate).trim();
+                    let parsed = JSON.parse(cleaned);
+                    if (Array.isArray(parsed)) {
+                        allTop.push(...parsed);
+                        continue;
+                    }
+                } catch { /* intentional: proceed to multiline accumulation */ }
+            }
+
+            let acc = candidate;
+            for (let j = i + 1; j < lines.length; j++) {
+                acc += "\n" + lines[j];
+                try {
+                    let p2 = JSON.parse(acc);
+                    if (Array.isArray(p2)) {
+                        allTop.push(...p2);
+                        i = j;
+                        break;
+                    }
+                } catch {
                     try {
-                        let c2 = acc.replace(/[\x00-\x1F\x7F]/g, "").replace(/,\s*null\s*,/g, ",null,").replace(/,\s*\[/g, ",[").replace(/\]\s*,/g, "],").trim();
+                        let c2 = safeStructureClean(acc).trim();
                         let p2 = JSON.parse(c2);
                         if (Array.isArray(p2)) {
                             allTop.push(...p2);

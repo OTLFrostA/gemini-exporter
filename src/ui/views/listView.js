@@ -138,7 +138,12 @@
             const dateStr=rawTs?new Date(rawTs).toLocaleDateString():'-';
             const openTxt = typeof I18n !== 'undefined' ? I18n.t('openLink') : 'Open';
             const removeTip = typeof I18n !== 'undefined' ? I18n.t('removeChatTip') : 'Remove this conversation from local list';
-            return `<label class="item" data-chat-id="${nid}" style="display:flex; align-items:center; gap:8px;"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title" style="flex:1; min-width:0;"><div>${safeTitle} ${badge}</div><div class="meta">${c.id} | <a href="${c.url||c.href||'https://gemini.google.com/app/'+c.id}" target="_blank" class="open-link">${openTxt}</a> | ${dateStr}</div></div><button type="button" class="btn-remove-chat" data-remove-id="${nid}" title="${removeTip}" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px 6px; font-size:13px; border-radius:4px; opacity:0.4; transition:all 0.15s; flex:none;">🗑️</button></label>`;
+            const rawUrl = c.url || c.href || ('https://gemini.google.com/app/' + encodeURIComponent(c.id || ''));
+            const safeUrl = escapeHtml(rawUrl);
+            const safeId = escapeHtml(c.id || '');
+            const safeNid = escapeHtml(nid || '');
+            const safeTip = escapeHtml(removeTip);
+            return `<label class="item" data-chat-id="${safeNid}" style="display:flex; align-items:center; gap:8px;"><input type="checkbox" data-idx="${origIdx}" ${checked?'checked':''}><div class="title" style="flex:1; min-width:0;"><div>${safeTitle} ${badge}</div><div class="meta">${safeId} | <a href="${safeUrl}" target="_blank" class="open-link">${openTxt}</a> | ${dateStr}</div></div><button type="button" class="btn-remove-chat" data-remove-id="${safeNid}" title="${safeTip}" style="background:transparent; border:none; color:var(--muted); cursor:pointer; padding:4px 6px; font-size:13px; border-radius:4px; opacity:0.4; transition:all 0.15s; flex:none;">🗑️</button></label>`;
         }).join('');
     }
 

@@ -12,10 +12,10 @@
         if (slot && slot !== 'u0') {
             const slotNum = slot.replace('u', '');
             const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
-            if (match) return match;
+            return match || null;
         } else if (slot === 'u0') {
             const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
-            if (defMatch) return defMatch;
+            return defMatch || tabs.find(t => t.active) || tabs[0];
         }
         return tabs.find(t => t.active) || tabs[0];
     }
@@ -34,10 +34,15 @@
         if (slot && slot !== 'u0') {
             const slotNum = slot.replace('u', '');
             candidates = tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
+            if (!candidates.length) {
+                throw new Error(`未找到多账号 slot ${slot} 对应的 Gemini 标签页，请在浏览器中打开该账号标签页`);
+            }
         } else if (slot === 'u0') {
             candidates = tabs.filter(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+            if (!candidates.length) candidates = tabs;
+        } else {
+            candidates = tabs;
         }
-        if (!candidates.length) candidates = tabs;
         candidates.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
 
         let lastError = null;

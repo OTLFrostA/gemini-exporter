@@ -71,7 +71,9 @@
                 }
             } catch { /* intentional: invalid date or URI fallback */ }
 
-            let idMatch = targetText.match(/["'](?:c_)?([a-f0-9]{8,64})["']/i);
+            // Anchor specifically to GzXR5e payload parameter context to prevent false positives
+            let idMatch = targetText.match(/GzXR5e[^\w]{1,60}["'](?:c_)?([a-f0-9]{8,64})["']/i) ||
+                          targetText.match(/["']GzXR5e["'][\s\S]{1,120}?["'](?:c_)?([a-f0-9]{8,64})["']/i);
             if (idMatch && idMatch[1]) {
                 const deletedId = idMatch[1];
                 window.postMessage({

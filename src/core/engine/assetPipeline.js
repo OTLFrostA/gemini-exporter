@@ -108,7 +108,7 @@
             // Fallback: Takeout Offline Media Pool
             if (!saved && this.takeoutEngine) {
                 try {
-                    const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName);
+                    const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot);
                     if (offlineBin && offlineBin.length > 0) {
                         if (this.useZip && this.folder) {
                             this.folder.file(sanitizeZipPath(localName), offlineBin);
