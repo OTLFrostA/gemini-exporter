@@ -252,6 +252,17 @@
         return { processed, hasDirtyTitles };
     }
 
+    function hasTakeoutData() {
+        return (conversations || []).some(c => (
+            c && (
+                c.source === 'takeout' ||
+                c.titleSource === 'takeout' ||
+                c.isTakeoutOnly ||
+                (c.titles && c.titles.takeout)
+            )
+        ));
+    }
+
     return {
         getConversations, setConversations,
         removeConversation, reconcileWithCloud,
@@ -262,6 +273,7 @@
         loadStore, getLastSync, saveConversations, saveExportedIds, clearExported, clearAll,
         getDevMode, setDevMode,
         normalizeAndDeduplicate,
+        hasTakeoutData,
         normId
     };
 }));

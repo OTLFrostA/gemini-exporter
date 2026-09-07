@@ -148,7 +148,9 @@
                 const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
                     ? await StorageService.isTakeoutPromptCompleted()
                     : false;
-                if (isCompleted) {
+                const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
+                    (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
+                if (isCompleted || hasTakeout) {
                     await chrome.storage.local.remove('gemini_pending_takeout_prompt');
                     return;
                 }
@@ -686,7 +688,9 @@
                             const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
                                 ? await StorageService.isTakeoutPromptCompleted()
                                 : false;
-                            if (!isCompleted && DialogView && DialogView.showTakeoutLimitPrompt) {
+                            const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
+                                (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
+                            if (!isCompleted && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
                                 DialogView.showTakeoutLimitPrompt({
                                     count: currentCount || 600,
                                     onImportTakeout: () => $('takeoutFileInput')?.click()
@@ -702,7 +706,9 @@
                             const isCompleted = (StorageService && StorageService.isTakeoutPromptCompleted)
                                 ? await StorageService.isTakeoutPromptCompleted()
                                 : false;
-                            if (!isCompleted && DialogView && DialogView.showTakeoutLimitPrompt) {
+                            const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
+                                (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
+                            if (!isCompleted && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
                                 DialogView.showTakeoutLimitPrompt({
                                     count: currentCount || details?.count || 600,
                                     onImportTakeout: () => $('takeoutFileInput')?.click()
@@ -837,7 +843,9 @@
                         const isDone = (StorageService && StorageService.isTakeoutPromptCompleted)
                             ? await StorageService.isTakeoutPromptCompleted()
                             : false;
-                        if (!isDone && DialogView && DialogView.showTakeoutLimitPrompt) {
+                        const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
+                            (StorageService && StorageService.hasTakeoutData && await StorageService.hasTakeoutData());
+                        if (!isDone && !hasTakeout && DialogView && DialogView.showTakeoutLimitPrompt) {
                             DialogView.showTakeoutLimitPrompt({
                                 count: msg.count || 600,
                                 onImportTakeout: () => $('takeoutFileInput')?.click()

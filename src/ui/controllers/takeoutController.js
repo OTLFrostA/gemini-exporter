@@ -48,6 +48,12 @@
                 await Store.saveConversations(slot, convs);
             }
 
+            const Storage = (typeof StorageService !== 'undefined') ? StorageService : null;
+            if (Storage) {
+                if (Storage.setTakeoutPromptCompleted) await Storage.setTakeoutPromptCompleted(true);
+                if (Storage.setHasImportedTakeout) await Storage.setHasImportedTakeout(true);
+            }
+
             const successMsg = typeof I18n !== 'undefined'
                 ? I18n.t('takeoutSuccessDetail', res.conversations.length, addedCount, res.totalMediaCount)
                 : `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;

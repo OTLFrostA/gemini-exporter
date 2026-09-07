@@ -20,3 +20,8 @@ test('storage_service - getStorageKeys', () => {
     assert.strictEqual(keys1.convKey, 'gemini_conversations_u1');
     assert.strictEqual(keys1.expKey, 'gemini_exported_u1');
 });
+
+test('storage_service - hasTakeoutData & setHasImportedTakeout functions exist', () => {
+    assert.strictEqual(typeof StorageService.hasTakeoutData, 'function');
+    assert.strictEqual(typeof StorageService.setHasImportedTakeout, 'function');
+});

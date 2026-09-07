@@ -59,3 +59,27 @@ test('conversationsStore - getSignature', () => {
     const sigD = ConversationsStore.getSignature([{ id: 'a', title: 'Real Title' }, { id: 'b', title: 'Title 2' }]);
     assert.ok(sigA !== sigD);
 });
+
+test('conversationsStore - hasTakeoutData detection', () => {
+    ConversationsStore.setConversations([
+        { id: '1', title: 'Normal Chat 1' },
+        { id: '2', title: 'Normal Chat 2' }
+    ]);
+    assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
+
+    ConversationsStore.setConversations([
+        { id: '1', title: 'Normal Chat 1' },
+        { id: '2', title: 'Takeout Chat 2', source: 'takeout' }
+    ]);
+    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
+
+    ConversationsStore.setConversations([
+        { id: '3', title: 'Takeout Chat 3', titleSource: 'takeout' }
+    ]);
+    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
+
+    ConversationsStore.setConversations([
+        { id: '4', title: 'Takeout Chat 4', titles: { takeout: 'Takeout Title' } }
+    ]);
+    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
+});

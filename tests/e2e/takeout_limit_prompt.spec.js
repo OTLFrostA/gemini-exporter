@@ -114,4 +114,37 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await page.click('#btnTakeoutLimitClose');
     await expect(modal).toBeHidden();
   });
+
+  test('should verify Google Takeout button links to custom Gemini deep link', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const link = page.locator('#btnModalOpenTakeoutWeb');
+    await expect(link).toHaveAttribute('href', 'https://takeout.google.com/settings/takeout/custom/gemini');
+  });
+
+  test('should suppress takeout limit prompt if takeout conversations already exist', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const modal = page.locator('#takeoutLimitModal');
+    await expect(modal).toBeHidden();
+
+    // Inject a takeout conversation into ConversationsStore
+    await page.evaluate(() => {
+      if (window.ConversationsStore) {
+        window.ConversationsStore.setConversations([
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout' }
+        ]);
+      }
+      if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
+        window.DialogView.showTakeoutLimitPrompt({ count: 620 });
+      }
+    });
+
+    // Modal should NOT be shown because Takeout data is already present
+    await expect(modal).toBeHidden();
+  });
 });
