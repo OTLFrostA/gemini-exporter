@@ -205,13 +205,58 @@
         return map;
     }
 
+    function getCredStorage() {
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            if (chrome.storage.session) return chrome.storage.session;
+            return chrome.storage.local;
+        }
+        return null;
+    }
+
     async function getCredentialsMap() {
-        const data = await chrome.storage.local.get(['gemini_credentials_map']);
-        return data.gemini_credentials_map || {};
+        const storage = getCredStorage();
+        if (!storage) return {};
+        const data = await storage.get(['gemini_credentials_map']);
+        let map = data.gemini_credentials_map || {};
+        if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
+            try {
+                const localData = await chrome.storage.local.get(['gemini_credentials_map']);
+                if (localData && localData.gemini_credentials_map) {
+                    map = localData.gemini_credentials_map;
+                    await storage.set({ gemini_credentials_map: map });
+                    await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+                }
+            } catch { /* intentional: migration fallback */ }
+        }
+        return map;
     }
 
     async function setCredentialsMap(map) {
-        await chrome.storage.local.set({ gemini_credentials_map: map || {} });
+        const storage = getCredStorage();
+        if (!storage) return;
+        await storage.set({ gemini_credentials_map: map || {} });
+        if (storage !== chrome.storage.local && chrome.storage.local) {
+            try {
+                await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+            } catch { /* intentional: local purge */ }
+        }
+    }
+
+    async function clearCredentials(sid) {
+        const storage = getCredStorage();
+        if (!storage) return;
+        if (sid) {
+            const map = await getCredentialsMap();
+            delete map[sid];
+            await setCredentialsMap(map);
+        } else {
+            await storage.remove(['gemini_credentials_map', 'gemini_credentials']);
+        }
+        if (storage !== chrome.storage.local && chrome.storage.local) {
+            try {
+                await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+            } catch { /* intentional: local purge */ }
+        }
     }
 
     async function getDevMode() {
@@ -301,6 +346,7 @@
         updateAccountSlot,
         getCredentialsMap,
         setCredentialsMap,
+        clearCredentials,
         getDevMode,
         setDevMode,
         isTourCompleted,
