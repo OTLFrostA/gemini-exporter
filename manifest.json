@@ -30,7 +30,7 @@
   },
   "options_page": "src/ui/options/options.html",
   "background": {
-    "service_worker": "src/background/background.js"
+    "service_worker": "dist/background/background.js"
   },
   "content_scripts": [
     {
@@ -41,16 +41,16 @@
         "src/content/content.css"
       ],
       "js": [
-        "src/core/utils/utils.js",
-        "src/core/storage/storageService.js",
-        "src/core/api/geminiParser.js",
-        "src/content/bootstrap.js",
-        "src/core/api/geminiClient.js",
-        "src/content/domScraper.js",
-        "src/content/assetFetcher.js",
-        "src/content/badgeView.js",
-        "src/content/messageBridge.js",
-        "src/content/content.js"
+        "dist/core/utils/utils.js",
+        "dist/core/storage/storageService.js",
+        "dist/core/api/geminiParser.js",
+        "dist/content/bootstrap.js",
+        "dist/core/api/geminiClient.js",
+        "dist/content/domScraper.js",
+        "dist/content/assetFetcher.js",
+        "dist/content/badgeView.js",
+        "dist/content/messageBridge.js",
+        "dist/content/content.js"
       ],
       "run_at": "document_start",
       "all_frames": false
@@ -60,7 +60,7 @@
         "https://gemini.google.com/*"
       ],
       "js": [
-        "src/content/hookCredentials.js"
+        "dist/content/hookCredentials.js"
       ],
       "world": "MAIN",
       "run_at": "document_start",
@@ -70,7 +70,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/content/hookCredentials.js",
+        "dist/content/hookCredentials.js",
         "icons/*",
         "lib/*"
       ],

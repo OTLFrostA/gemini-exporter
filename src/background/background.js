@@ -1,5 +1,5 @@
 try {
-    importScripts('/src/core/utils/constants.js', '/src/core/utils/utils.js', '/src/core/storage/storageService.js', '/src/core/utils/tabService.js');
+    importScripts('/dist/core/utils/constants.js', '/dist/core/utils/utils.js', '/dist/core/storage/storageService.js', '/dist/core/utils/tabService.js');
 } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials

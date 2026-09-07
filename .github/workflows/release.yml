@@ -104,6 +104,21 @@ jobs:
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
           echo "TAG=${TAG}" >> $GITHUB_ENV
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build dist bundles
+        run: |
+          # esbuild transform of src/ -> dist/ (manifest loads dist/ for all JS)
+          node build.js
+          ls -lh dist | head -5
+
       - name: Package extension zip
         run: |
           ZIP_NAME="gemini-exporter-${{ env.TAG }}.zip"
@@ -114,6 +129,7 @@ jobs:
             _locales \
             icons \
             lib \
+            dist \
             src \
             *.html \
             LICENSE \
