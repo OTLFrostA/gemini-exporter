@@ -76,7 +76,7 @@
                             action: 'downloadAssetDirect',
                             url: targetUrl,
                             referer: `https://gemini.google.com/app/${chat.id}`,
-                            preferBuffer: false
+                            preferBuffer: true
                         }, (resp) => {
                             if (timer) clearTimeout(timer);
                             if (!settled) {
