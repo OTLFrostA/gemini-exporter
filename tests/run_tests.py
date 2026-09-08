@@ -60,12 +60,10 @@ def test_html_includes():
     for pop_path in ["src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
             pop_html = f.read()
-            assert '<script src="/dist/core/protocol/protocol.js"></script>' in pop_html, f"Missing protocol.js in {pop_path}"
-            assert '<script src="/dist/core/utils/locales/zh.js"></script>' in pop_html, f"Missing zh.js in {pop_path}"
-            assert '<script src="/dist/core/utils/locales/en.js"></script>' in pop_html, f"Missing en.js in {pop_path}"
-            assert '<script src="/dist/core/utils/i18n.js"></script>' in pop_html, f"Missing i18n.js in {pop_path}"
-            assert '<script src="/dist/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
-            assert '<script src="/dist/ui/popup/popup.js"></script>' in pop_html, f"Missing popup.js in {pop_path}"
+            # Phase 3: popup.html uses single bundled dist/ui/popup.js
+            assert '<script src="/dist/ui/popup.js"></script>' in pop_html, f"Missing /dist/ui/popup.js in {pop_path}"
+            # Ensure legacy per-file scripts are removed
+            assert '/dist/core/protocol/protocol.js' not in pop_html or pop_html.count('<script') == 1, f"Legacy per-file scripts must be removed in {pop_path}"
     print("  ✓ options.html and popup.html script tags verified")
 
 def test_module_exports():

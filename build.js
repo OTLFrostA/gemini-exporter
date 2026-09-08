@@ -146,6 +146,50 @@ async function build() {
         }
     }
 
+    // 4. Background Service Worker bundle (Phase 3)
+    const bgEntry = path.join(SRC, 'background', 'background.ts');
+    if (fs.existsSync(bgEntry)) {
+        const bgBundleResult = await esbuild.build({
+            entryPoints: {
+                'background/background': bgEntry
+            },
+            outdir: DIST,
+            bundle: true,
+            format: 'iife',
+            minify: true,
+            sourcemap: true,
+            target: ['chrome120'],
+            legalComments: 'none',
+            logLevel: 'silent',
+            write: true,
+        });
+        if ((bgBundleResult.errors || []).length > 0) {
+            throw new Error(`Background bundle failed with ${bgBundleResult.errors.length} error(s)`);
+        }
+    }
+
+    // 5. Popup bundle (Phase 3)
+    const popupEntry = path.join(SRC, 'ui', 'popup', 'popup.ts');
+    if (fs.existsSync(popupEntry)) {
+        const popupBundleResult = await esbuild.build({
+            entryPoints: {
+                'ui/popup': popupEntry
+            },
+            outdir: DIST,
+            bundle: true,
+            format: 'iife',
+            minify: true,
+            sourcemap: true,
+            target: ['chrome120'],
+            legalComments: 'none',
+            logLevel: 'silent',
+            write: true,
+        });
+        if ((popupBundleResult.errors || []).length > 0) {
+            throw new Error(`Popup bundle failed with ${popupBundleResult.errors.length} error(s)`);
+        }
+    }
+
     const jsFiles = [];
     (function collect(dir) {
         for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -177,6 +221,16 @@ async function build() {
     }
     if (!fs.existsSync(path.join(DIST, 'content', 'hook.js'))) {
         throw new Error('missing dist artifact for content/hook.js');
+    }
+
+    // Sanity: Background bundle must exist (Phase 3)
+    if (!fs.existsSync(path.join(DIST, 'background', 'background.js'))) {
+        throw new Error('missing dist artifact for background/background.js');
+    }
+
+    // Sanity: Popup bundle must exist (Phase 3)
+    if (!fs.existsSync(path.join(DIST, 'ui', 'popup.js'))) {
+        throw new Error('missing dist artifact for ui/popup.js');
     }
 }
 
