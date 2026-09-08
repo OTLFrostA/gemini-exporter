@@ -1,0 +1,48 @@
+// zipBombGuard.js - ZipBomb protection guards and entry size estimators for Takeout ZIP extraction
+(function(root, factory) {
+    if (typeof define === 'function' && define.amd) {
+        define([], factory);
+    } else if (typeof module === 'object' && module.exports) {
+        module.exports = factory();
+    } else {
+        root.ZipBombGuard = factory();
+    }
+}(typeof self !== 'undefined' ? self : this, function() {
+    'use strict';
+
+    const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
+    const MAX_ENTRY_COUNT = 10000; // 10,000 files
+    const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
+
+    function validateZipFile(file) {
+        if (file && typeof file.size === 'number' && file.size > MAX_ZIP_SIZE) {
+            throw new Error(`Takeout ZIP 体积过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，超过 ${MAX_ZIP_SIZE / 1024 / 1024}MB 上限，请确认是否为完整 Takeout 归档`);
+        }
+    }
+
+    function validateZipEntries(zip) {
+        if (!zip || !zip.files) return;
+        const entryCount = Object.keys(zip.files).length;
+        if (entryCount > MAX_ENTRY_COUNT) {
+            throw new Error(`ZIP 条目数过多 (${entryCount})，超过 ${MAX_ENTRY_COUNT} 上限，疑似 ZipBomb，已中止`);
+        }
+
+        let approxUncompressed = 0;
+        for (const f of Object.values(zip.files)) {
+            if (!f.dir && f._data && typeof f._data.uncompressedSize === 'number') {
+                approxUncompressed += f._data.uncompressedSize;
+                if (approxUncompressed > MAX_TOTAL_UNCOMPRESSED) {
+                    throw new Error(`ZIP 未压缩体积估算超过 1GB，已中止以防 OOM`);
+                }
+            }
+        }
+    }
+
+    return {
+        MAX_ZIP_SIZE,
+        MAX_ENTRY_COUNT,
+        MAX_TOTAL_UNCOMPRESSED,
+        validateZipFile,
+        validateZipEntries
+    };
+}));
