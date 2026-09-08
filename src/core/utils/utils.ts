@@ -1,5 +1,50 @@
-// utils.js - Shared utilities for Gemini Exporter
-(function(global) {
+// utils.ts - Shared utilities for Gemini Exporter
+
+import type { Conversation } from '../../types/index.js';
+
+export interface TitleResolution {
+    title: string;
+    source: string;
+}
+
+export interface ExportProgressFormatted {
+    text: string;
+    pct: number;
+}
+
+export interface ExportProgressInput {
+    pct?: number;
+    current?: number;
+    total?: number;
+    title?: string;
+    assetsDownloaded?: number;
+    assetsTotal?: number;
+    [key: string]: any;
+}
+
+export interface GeminiUtilsModule {
+    isDevMode: () => boolean;
+    isRealTitle: (title?: string | null, id?: string | number) => boolean;
+    cleanTitle: (rawTitle?: string | null) => string;
+    sanitizeFileName: (name?: string | null, fallback?: string) => string;
+    sanitizeRelativePath: (p?: string | null, defaultName?: string) => string;
+    normId: (id?: string | number | null) => string;
+    resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
+    setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
+    getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
+    compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
+    formatExportProgress: (progress?: ExportProgressInput | number | null, txt?: string, isEn?: boolean) => ExportProgressFormatted;
+    TITLE_SOURCE_PRIORITY: string[];
+}
+
+declare global {
+    var GeminiUtils: GeminiUtilsModule;
+    var __gemExporterDevMode: boolean | undefined;
+    var __gemExporterVerboseLog: boolean | undefined;
+    var __gemExporterLogAll: boolean | undefined;
+}
+
+(function(global: any) {
     'use strict';
 
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
@@ -7,11 +52,8 @@
     /**
      * Determine if a title is a real, meaningful conversation title
      * (not a placeholder, ID, or auto-generated default).
-     * @param {string} title - The conversation title to check
-     * @param {string} [id] - The conversation ID for comparison
-     * @returns {boolean} true if the title is a real, user-facing title
      */
-    function isRealTitle(title, id) {
+    function isRealTitle(title?: string | null, id?: string | number): boolean {
         if (!title || typeof title !== 'string') return false;
         let t = title.trim();
         if (!t || t.length < 2) return false;
@@ -35,7 +77,7 @@
     /**
      * Unified sanitizeFileName - 单一源，70字符上限，防路径穿越与 Windows 保留名
      */
-    function sanitizeFileName(name, fallback = 'untitled') {
+    function sanitizeFileName(name?: string | null, fallback: string = 'untitled'): string {
         if (!name) return fallback;
         let s = String(name).replace(/[\r\n\t\f\v]+/g, ' ').replace(/[\u0000-\u001F\u007F-\u009F]/g, '_');
         // 防路径穿越 ../  ..\  ...
@@ -60,11 +102,8 @@
 
     /**
      * Unified sanitizeRelativePath - 单一源，拆分各级相对路径分段清洗，阻断 .. 路径穿越并统一正斜杠
-     * @param {string} p - 相对路径字符串，例如 "assets/image.png" 或 "subdir\\notes.md"
-     * @param {string} [defaultName='file'] - 单分段兜底名称
-     * @returns {string} 清洗后的标准化正斜杠相对路径
      */
-    function sanitizeRelativePath(p, defaultName = 'file') {
+    function sanitizeRelativePath(p?: string | null, defaultName: string = 'file'): string {
         if (!p || typeof p !== 'string') return '';
         const segments = p.split(/[/\\]/).map(seg => {
             let clean = seg.trim();
@@ -75,51 +114,40 @@
         return segments.join('/');
     }
 
-    function normId(id) {
+    function normId(id?: string | number | null): string {
         if (!id) return '';
         return String(id).replace(/^c_/, '').trim();
     }
 
     /**
      * Single source for the synchronous dev/verbose flags
-     * (__gemExporterDevMode / __gemExporterVerboseLog / __gemExporterLogAll).
-     * NOTE: exportEngine additionally reads the persisted gemini_dev_mode
-     * storage flag (async, different mechanism) — intentionally not covered here.
      */
-    function isDevMode() {
+    function isDevMode(): boolean {
         if (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll)) return true;
-        if (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog || window.__gemExporterLogAll)) return true;
+        if (typeof window !== 'undefined' && ((window as any).__gemExporterDevMode || (window as any).__gemExporterVerboseLog || (window as any).__gemExporterLogAll)) return true;
         return false;
     }
 
     /**
      * Clean conversation title by removing brand suffixes and prefixes
-     * (e.g., " - Google Gemini", " - Gemini", " | Google Gemini", "Gemini - ").
-     * If the title is simply the brand name alone (e.g., "Google Gemini"), returns empty string.
-     * @param {string} rawTitle - The raw title string
-     * @returns {string} The cleaned title string
      */
-    function cleanTitle(rawTitle) {
+    function cleanTitle(rawTitle?: string | null): string {
         if (!rawTitle || typeof rawTitle !== 'string') return '';
         let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
         if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
-        // Remove trailing branding suffixes like " - Google Gemini", " - Gemini", " | Google AI", " · Gemini"
         t = t.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-        // Remove leading branding prefixes like "Google Gemini - ", "Gemini - "
         t = t.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
         t = t.trim();
         if (/^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(t)) return '';
         return t;
     }
 
-    const TITLE_SOURCE_PRIORITY = ['rpc', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
+    const TITLE_SOURCE_PRIORITY: string[] = ['rpc', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
 
     /**
      * Resolve the most authoritative valid title from a chat object with multi-tier source slots.
-     * @param {Object} chat - Conversation object
-     * @returns {{ title: string, source: string }}
      */
-    function resolveTitle(chat) {
+    function resolveTitle(chat?: Partial<Conversation> | null): TitleResolution {
         if (!chat) return { title: '未命名对话', source: 'default' };
         const id = chat.id || '';
 
@@ -152,14 +180,9 @@
     }
 
     /**
-     * Set a title into a specific source tier slot without destroying other tiers,
-     * and automatically re-calculate the chat.title and chat.titleSource.
-     * @param {Object} chat - Conversation object to update
-     * @param {string} source - Tier name ('rpc' | 'dom' | 'takeout' | 'sniff')
-     * @param {string} rawTitle - Raw title string
-     * @returns {{ title: string, source: string }} The resolved title and source
+     * Set a title into a specific source tier slot without destroying other tiers.
      */
-    function setTitleBySource(chat, source, rawTitle) {
+    function setTitleBySource(chat: any, source: string, rawTitle?: string): TitleResolution {
         if (!chat) return { title: '未命名对话', source: 'default' };
         chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
         const cleaned = cleanTitle(rawTitle);
@@ -176,14 +199,10 @@
 
     /**
      * Get the authoritative effective timestamp (milliseconds) of a conversation.
-     * Prioritizes the latest activity time (updatedAt), then main timestamp,
-     * chatTime, createdAt, and finally lastSeen.
-     * @param {Object} chat - The conversation object
-     * @returns {number} Effective timestamp in milliseconds, or 0 if unknown
      */
-    function getEffectiveTimestamp(chat) {
+    function getEffectiveTimestamp(chat?: Partial<Conversation> | null): number {
         if (!chat || typeof chat !== 'object') return 0;
-        const candidates = [chat.updatedAt, chat.timestamp, chat.chatTime, chat.createdAt, chat.lastSeen];
+        const candidates = [chat.updatedAt, chat.timestamp, (chat as any).chatTime, chat.createdAt, (chat as any).lastSeen];
         for (const raw of candidates) {
             if (raw === null || raw === undefined) continue;
             let ms = (typeof raw === 'string') ? new Date(raw).getTime() : Number(raw);
@@ -196,13 +215,8 @@
 
     /**
      * Formats export progress details into human-readable text and percentage.
-     * Includes current/total conversation counts, chat title, and attachment download statistics.
-     * @param {Object|number} progress - Progress object from ExportEngine or numeric percentage
-     * @param {string} [txt] - Optional fallback text string
-     * @param {boolean} [isEn=false] - Whether to format in English
-     * @returns {{ text: string, pct: number }}
      */
-    function formatExportProgress(progress, txt, isEn = false) {
+    function formatExportProgress(progress?: ExportProgressInput | number | null, txt?: string, isEn: boolean = false): ExportProgressFormatted {
         let pct = 0;
         let text = '';
 
@@ -222,7 +236,7 @@
                 title = isEn ? 'Export complete!' : '导出完成！';
             }
 
-            const parts = [];
+            const parts: string[] = [];
             if (total > 0) {
                 const chatLabel = isEn ? 'Exporting' : '导出中';
                 parts.push(`${chatLabel} (${current}/${total})`);
@@ -246,13 +260,8 @@
 
     /**
      * Authoritative conversation comparator for consistent ordering across UI and background sync.
-     * Orders descending by effective activity time, then ascending by sidebarIndex,
-     * and finally descending by lastSeen timestamp.
-     * @param {Object} a - First conversation
-     * @param {Object} b - Second conversation
-     * @returns {number} Negative if a should precede b, positive if b should precede a, 0 if equal
      */
-    function compareConversations(a, b) {
+    function compareConversations(a?: any, b?: any): number {
         if (!a && !b) return 0;
         if (!a) return 1;
         if (!b) return -1;
@@ -278,35 +287,26 @@
         return lsB - lsA;
     }
 
+    const utilsModule: GeminiUtilsModule = {
+        isDevMode,
+        isRealTitle,
+        cleanTitle,
+        sanitizeFileName,
+        sanitizeRelativePath,
+        normId,
+        resolveTitle,
+        setTitleBySource,
+        getEffectiveTimestamp,
+        compareConversations,
+        formatExportProgress,
+        TITLE_SOURCE_PRIORITY
+    };
+
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
-        module.exports = {
-            isDevMode,
-            isRealTitle,
-            cleanTitle,
-            sanitizeFileName,
-            sanitizeRelativePath,
-            normId,
-            resolveTitle,
-            setTitleBySource,
-            getEffectiveTimestamp,
-            compareConversations,
-            formatExportProgress,
-            TITLE_SOURCE_PRIORITY
-        };
+        module.exports = utilsModule;
     } else {
         global.GeminiUtils = global.GeminiUtils || {};
-        global.GeminiUtils.isDevMode = isDevMode;
-        global.GeminiUtils.isRealTitle = isRealTitle;
-        global.GeminiUtils.cleanTitle = cleanTitle;
-        global.GeminiUtils.sanitizeFileName = sanitizeFileName;
-        global.GeminiUtils.sanitizeRelativePath = sanitizeRelativePath;
-        global.GeminiUtils.normId = normId;
-        global.GeminiUtils.resolveTitle = resolveTitle;
-        global.GeminiUtils.setTitleBySource = setTitleBySource;
-        global.GeminiUtils.getEffectiveTimestamp = getEffectiveTimestamp;
-        global.GeminiUtils.compareConversations = compareConversations;
-        global.GeminiUtils.formatExportProgress = formatExportProgress;
-        global.GeminiUtils.TITLE_SOURCE_PRIORITY = TITLE_SOURCE_PRIORITY;
+        Object.assign(global.GeminiUtils, utilsModule);
     }
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));

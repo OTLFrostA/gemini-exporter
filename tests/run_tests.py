@@ -291,10 +291,13 @@ def test_javascript_unit_tests():
                     content = fp.read()
                     file_map[os.path.normpath(p)] = content
 
+    register_hook = os.path.join(BASE_DIR, "tests", "ts_register.js")
+
     for tf in test_files:
         rel = os.path.relpath(tf, BASE_DIR)
         if node_bin:
-            res = subprocess.run([node_bin, "--test", tf], capture_output=True, text=True, encoding="utf-8", errors="replace")
+            cmd = [node_bin, "-r", register_hook, "--test", tf] if os.path.exists(register_hook) else [node_bin, "--test", tf]
+            res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
             assert res.returncode == 0, f"Unit test failed in {rel}:\n{res.stdout}\n{res.stderr}"
             print(f"  ✓ Unit test suite passed: {rel}")
         elif os.path.exists(jsc_bin):
@@ -674,22 +677,25 @@ def test_stage1_architecture_ssot_and_state_isolation():
     print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
 
 def test_stage2_architecture_improvements():
-    # 1. Verify sanitizeRelativePath in utils.js, zipWriter.js, fsWriter.js, and exportEngine.js
-    utils_path = os.path.join(BASE_DIR, "src/core/utils/utils.js")
+    # 1. Verify sanitizeRelativePath in utils, zipWriter, fsWriter, and exportEngine
+    utils_ts = os.path.join(BASE_DIR, "src/core/utils/utils.ts")
+    utils_path = utils_ts if os.path.isfile(utils_ts) else os.path.join(BASE_DIR, "src/core/utils/utils.js")
     with open(utils_path, "r", encoding="utf-8") as f:
         utils_code = f.read()
-    assert "sanitizeRelativePath" in utils_code, "utils.js must implement and export sanitizeRelativePath"
+    assert "sanitizeRelativePath" in utils_code, "utils must implement and export sanitizeRelativePath"
 
-    zip_writer_path = os.path.join(BASE_DIR, "src/core/engine/writers/zipWriter.js")
+    zip_writer_ts = os.path.join(BASE_DIR, "src/core/engine/writers/zipWriter.ts")
+    zip_writer_path = zip_writer_ts if os.path.isfile(zip_writer_ts) else os.path.join(BASE_DIR, "src/core/engine/writers/zipWriter.js")
     with open(zip_writer_path, "r", encoding="utf-8") as f:
         zip_code = f.read()
-    assert "sanitizeRelativePath" in zip_code or "sanitizePath" in zip_code, "zipWriter.js must use sanitizeRelativePath"
+    assert "sanitizeRelativePath" in zip_code or "sanitizePath" in zip_code, "zipWriter must use sanitizeRelativePath"
 
-    fs_writer_path = os.path.join(BASE_DIR, "src/core/engine/writers/fsWriter.js")
+    fs_writer_ts = os.path.join(BASE_DIR, "src/core/engine/writers/fsWriter.ts")
+    fs_writer_path = fs_writer_ts if os.path.isfile(fs_writer_ts) else os.path.join(BASE_DIR, "src/core/engine/writers/fsWriter.js")
     with open(fs_writer_path, "r", encoding="utf-8") as f:
         fs_code = f.read()
-    assert "sanitizeRelativePath" in fs_code, "fsWriter.js must use sanitizeRelativePath"
-    assert "ensureSubDir" in fs_code and "writeFile" in fs_code, "fsWriter.js must support flexible path writing"
+    assert "sanitizeRelativePath" in fs_code, "fsWriter must use sanitizeRelativePath"
+    assert "ensureSubDir" in fs_code and "writeFile" in fs_code, "fsWriter must support flexible path writing"
 
     # 2. Verify exportEngine.js AsyncQueue and elimination of busy-polling
     export_path = os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")

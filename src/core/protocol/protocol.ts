@@ -1,27 +1,61 @@
-// protocol/protocol.js — protocol anti-corruption layer (Phase 1).
+// protocol/protocol.ts — protocol anti-corruption layer (Phase 1).
 //
 // Single source of truth for every piece of Google-side reverse-engineered
 // knowledge: RPC endpoint names, the batchexecute wrapper format, token
 // key names and extraction patterns, the fallback build number, sliding
 // window limits, and the request-id convention.
-//
-// When Google rotates any of these, fix THIS module only. Consumers:
-//   geminiClient, geminiParser, hookCredentials (MAIN world), messageBridge,
-//   bootstrap. Load order: protocol.js must load before all of them —
-//   manifest content_scripts (both worlds), background importScripts,
-//   options.html and popup.html script tags.
-//
-// Remote hot-fix note: this module is deliberately data-shaped so it can be
-// externalized to a remotely-updatable JSON profile later (Chrome Web Store
-// allows remote data, not remote code).
 
-(function(root, factory) {
+export interface ProtocolRPCS {
+    LIST: string;
+    DETAIL: string;
+    LEGACY_LIST: string;
+    GEMS: string;
+    DELETE: string;
+}
+
+export interface ProtocolTokens {
+    AT: string;
+    BL: string;
+}
+
+export interface ProtocolTokenPatterns {
+    atFromScript: RegExp;
+    atGenericFromScript: RegExp;
+    blKeyFromScript: RegExp;
+    blValueFromHtml: RegExp;
+    blCfb2hFromHtml: RegExp;
+    blAssistantFromHtml: RegExp;
+    boqBuildFromScript: RegExp;
+}
+
+export interface ProtocolLimits {
+    SLIDING_WINDOW: number;
+    SERVER_LIMIT_TEXT: string;
+}
+
+export interface GeminiProtocolModule {
+    PROTOCOL_VERSION: string;
+    WRB: string;
+    RPCS: ProtocolRPCS;
+    TOKENS: ProtocolTokens;
+    TOKEN_PATTERNS: ProtocolTokenPatterns;
+    DELETION_ANCHORS: RegExp[];
+    BL_FALLBACK: string;
+    LIMITS: ProtocolLimits;
+    createReqidGenerator: () => () => string;
+}
+
+declare global {
+    var GeminiProtocol: GeminiProtocolModule;
+}
+
+(function(root: any, factory: () => GeminiProtocolModule) {
     if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.GeminiProtocol = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): GeminiProtocolModule {
     'use strict';
 
     const PROTOCOL_VERSION = '2026-09-07';
@@ -31,7 +65,7 @@
 
     // RPC endpoint names (compiled Google-side identifiers — rotate together
     // with WRB consumers when Google redeploys).
-    const RPCS = {
+    const RPCS: ProtocolRPCS = {
         LIST: 'MaZiqc',        // conversation list (sidebar pagination)
         DETAIL: 'hNvQHb',      // conversation detail (turns payload)
         LEGACY_LIST: 'b7Lged', // legacy list payload shape still returned by detail calls
@@ -40,13 +74,13 @@
     };
 
     // WIZ_global_data token key names.
-    const TOKENS = {
+    const TOKENS: ProtocolTokens = {
         AT: 'SNlM0e', // XSRF/at token
         BL: 'cfb2h'   // frontend build label key (the "bl" request param)
     };
 
     // Extraction patterns for tokens from page HTML/scripts.
-    const TOKEN_PATTERNS = {
+    const TOKEN_PATTERNS: ProtocolTokenPatterns = {
         atFromScript: /"SNlM0e"\s*:\s*"([^"]+)"/,
         atGenericFromScript: /"at"\s*:\s*"([^"]{20,})"/,
         blKeyFromScript: /"bl"\s*:\s*"([^"]+)"/,
@@ -59,7 +93,7 @@
     // Deletion sniffing: the deleted conversation id must be anchored to the
     // GzXR5e payload context (#194) — never take the first hex token in the
     // response text.
-    const DELETION_ANCHORS = [
+    const DELETION_ANCHORS: RegExp[] = [
         /GzXR5e[^\w]{1,60}["'](?:c_)?([a-f0-9]{8,64})["']/i,
         /["']GzXR5e["'][\s\S]{1,120}?["'](?:c_)?([a-f0-9]{8,64})["']/i
     ];
@@ -73,16 +107,16 @@
     // Conversation count limits. 500 is Google's sliding-window size: counts
     // reaching it trigger the Takeout guidance flow. SERVER_LIMIT_TEXT is the
     // (localized-ish) marker inside the server-side error message.
-    const LIMITS = {
+    const LIMITS: ProtocolLimits = {
         SLIDING_WINDOW: 500,
         SERVER_LIMIT_TEXT: '600条'
     };
 
     // Real frontends use an incrementing _reqid starting from a random base;
     // a pure Math.random() per request is a fingerprintable deviation.
-    function createReqidGenerator() {
+    function createReqidGenerator(): () => string {
         let n = 100000 + Math.floor(Math.random() * 900000);
-        return function nextReqid() {
+        return function nextReqid(): string {
             return String(n++);
         };
     }
