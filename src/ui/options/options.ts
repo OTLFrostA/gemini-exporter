@@ -133,7 +133,7 @@ export async function initWorkbench(): Promise<void> {
         await OptionsSync.init({
             loadStore,
             log,
-            maybePromptTakeout: (count: number, hitLimit: boolean) => (OptionsTakeout ? OptionsTakeout.maybePromptTakeout(count, hitLimit) : null)
+            maybePromptTakeout: (count: number, hitLimit: boolean) => (OptionsTakeout ? (OptionsTakeout.maybePromptTakeout(count, hitLimit) as Promise<void>) : undefined)
         });
     }
 
@@ -144,7 +144,7 @@ export async function initWorkbench(): Promise<void> {
             clearLog,
             renderLog,
             updateZipUi: () => (OptionsExport ? OptionsExport.updateZipUi() : null),
-            checkExportSession: () => (OptionsInit ? OptionsInit.checkExportSession() : null),
+            checkExportSession: () => (OptionsInit ? (OptionsInit.checkExportSession() as unknown as Promise<void>) : undefined),
             updateAccountSlotSelector: () => (OptionsInit ? OptionsInit.updateAccountSlotSelector() : null),
             getSearchFilter: () => (OptionsInit ? OptionsInit.getSearchFilter() : '')
         });

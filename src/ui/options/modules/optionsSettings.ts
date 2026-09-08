@@ -201,7 +201,7 @@ function bindStorageCleanup(): void {
         List.setOnDelete(async (chatId: string) => {
             if (!chatId) return;
             const convs = Store ? Store.getConversations() : [];
-            const targetChat = convs.find(c => normId(c.id) === normId(chatId));
+            const targetChat = convs.find((c: any) => normId(c.id) === normId(chatId));
             const chatTitle = targetChat ? (resolveTitle(targetChat).title || chatId) : chatId;
             const confirmMsg = typeof t === 'function'
                 ? t('confirmDeleteChat', chatTitle)
@@ -219,7 +219,7 @@ function bindStorageCleanup(): void {
         if (Store) await Store.clearExported(slot);
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
-        const currentSelected = new Set(List ? List.getSelected(convs).map(x => x.id) : []);
+        const currentSelected = new Set(List ? List.getSelected(convs).map((x: any) => x.id) : []);
         if (List) {
             List.render(convs, expMap, currentSelected, __getSearchFilter());
             List.updateStat(convs);

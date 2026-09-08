@@ -66,7 +66,7 @@ export const normId = (id?: string | null): string => {
 };
 
 export const isRealTitle = (tStr?: string | null, id?: string | null): boolean => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(tStr, id);
+    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(tStr as string, id as string);
     return !!(tStr && String(tStr).trim().length > 1);
 };
 
@@ -176,7 +176,7 @@ export async function startExportPipeline(
             onLog: (msg: string, lvl: 'info' | 'warn' | 'error') => log(msg, lvl),
             onTitleUpdated: (chatId: string, newTitle: string, source: string) => {
                 const currentConvs = Store ? Store.getConversations() : [];
-                const item = currentConvs.find(c => normId(c.id) === normId(chatId));
+                const item = currentConvs.find((c: any) => normId(c.id) === normId(chatId));
                 if (item && isRealTitle(newTitle, chatId)) {
                     if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.setTitleBySource === 'function') {
                         GeminiUtils.setTitleBySource(item, source || 'rpc', newTitle);
@@ -196,8 +196,8 @@ export async function startExportPipeline(
                     cur['c_' + normId(chatId)] = exportRecord;
                     cur[normId(chatId)] = exportRecord;
                     Store.setExportedIds(cur);
-                    const cSlot = Store.getCurrentSlot();
-                    await Store.saveExportedIds(cSlot, cur);
+                    const cSlot = Store.getCurrentSlot()!;
+                    await Store!.saveExportedIds(cSlot, cur);
                     const currentConvs = Store.getConversations();
                     if (List) {
                         if (typeof List.updateItemExportStatus === 'function') {
@@ -258,7 +258,8 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     if (!selected.length) {
         const noSelMsg = typeof t === 'function' ? t('noSelection') : 'Please select at least one conversation!';
         log(noSelMsg, 'warn');
-        if ($('progText')) $('progText').textContent = noSelMsg;
+        const progTextEl = $('progText');
+        if (progTextEl) progTextEl.textContent = noSelMsg;
         return;
     }
 

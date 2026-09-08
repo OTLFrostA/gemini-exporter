@@ -77,7 +77,7 @@ export const cleanTitle = (tStr?: string | null): string => {
 };
 
 export const isRealTitle = (tStr?: string | null, id?: string | null): boolean => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(tStr, id);
+    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(tStr as string, id as string);
     return !!(tStr && String(tStr).trim().length > 1);
 };
 

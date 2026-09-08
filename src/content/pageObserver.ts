@@ -49,13 +49,13 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
         const originalReplaceState = history.replaceState;
 
         history.pushState = function(...args: any[]) {
-            const res = originalPushState.apply(this, args);
+            const res = originalPushState.apply(this, args as unknown as [any, string, string | undefined]);
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };
 
         history.replaceState = function(...args: any[]) {
-            const res = originalReplaceState.apply(this, args);
+            const res = originalReplaceState.apply(this, args as unknown as [any, string, string | undefined]);
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };

@@ -238,7 +238,7 @@ declare global {
         let first: any = null;
         let attempts = 0;
         do {
-            let page = await client.fetchConversationPage(conversationId, token, targetSid);
+            let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
             msgs = [...page.messages, ...msgs];
             token = page.nextPageToken || null;

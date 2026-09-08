@@ -204,7 +204,7 @@ declare global {
             if (!linkMatches.length) continue;
 
             const foundIds: string[] = [];
-            for (const lm of linkMatches) {
+            for (const lm of linkMatches as RegExpMatchArray[]) {
                 const cleanId = normId(lm[1]);
                 if (cleanId.length >= 8 && !foundIds.includes(cleanId)) {
                     foundIds.push(cleanId);
@@ -257,7 +257,7 @@ declare global {
                 let rawZh = timeMatchZh[1];
                 let isPm = rawZh.includes('下午');
                 let isAm = rawZh.includes('上午');
-                let cleanZh = rawZh.replace(/上午|下午/g, '').replace(/[年月日]/g, (m) => m === '年' || m === '月' ? '-' : ' ')
+                let cleanZh = rawZh.replace(/上午|下午/g, '').replace(/[年月日]/g, (m: string) => m === '年' || m === '月' ? '-' : ' ')
                                    .replace(/[\u202f\xa0]/g, ' ').replace(/\s+/g, ' ').trim();
                 let dt = new Date(cleanZh);
                 if (!isNaN(dt.getTime())) {

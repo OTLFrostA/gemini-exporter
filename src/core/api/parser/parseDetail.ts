@@ -439,7 +439,7 @@ declare global {
                                 thoughts: thoughts || void 0,
                                 citations: citations.length ? citations : void 0,
                                 timestamp: ts,
-                                images: filteredImages.length ? filteredImages.map(img => ({
+                                images: filteredImages.length ? filteredImages.map((img: any) => ({
                                     ...img,
                                     resolvedUrl: highResVariant(img.sourceUrl),
                                     localName: `assets/${shortScope}${(img.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`,

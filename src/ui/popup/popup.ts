@@ -243,7 +243,7 @@
                         }
                     } else {
                         const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                        const expData = await chrome.storage.local.get([expKey]);
+                        const expData: any = await chrome.storage.local.get([expKey]);
                         const curExp = expData[expKey] || {};
                         curExp[convId] = rec;
                         await chrome.storage.local.set({ [expKey]: curExp });
