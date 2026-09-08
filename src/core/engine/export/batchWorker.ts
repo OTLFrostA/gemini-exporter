@@ -53,29 +53,40 @@ declare global {
     var BatchWorker: BatchWorkerModule;
 }
 
-(function(root: any, factory: () => BatchWorkerModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.BatchWorker = factory();
+import GeminiUtils, {
+    normId as utilsNormId,
+    cleanTitle as utilsCleanTitle,
+    isRealTitle as utilsIsRealTitle,
+    resolveTitle as utilsResolveTitle
+} from "../../utils/utils.js";
+
+const normId = (id?: string | number | null): string => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.normId) {
+        return (globalThis as any).GeminiUtils.normId(id);
     }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): BatchWorkerModule {
-    'use strict';
+    return utilsNormId(id);
+};
 
-    const getUtils = (): GeminiUtilsModule | null => {
-        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch (_) { /* intentional: require fallback in browser context */ }
-        }
-        return null;
-    };
+const cleanTitle = (t?: string | null): string => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.cleanTitle) {
+        return (globalThis as any).GeminiUtils.cleanTitle(t);
+    }
+    return utilsCleanTitle(t);
+};
 
-    const normId = (id?: string | number | null): string => (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
-    const cleanTitle = (t?: string | null): string => (getUtils()?.cleanTitle ? getUtils()!.cleanTitle(t) : (t || '').trim());
-    const isRealTitle = (t?: string | null, fallbackId?: string | number): boolean => (getUtils()?.isRealTitle ? getUtils()!.isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
-    const resolveTitle = (chat?: any) => (getUtils()?.resolveTitle ? getUtils()!.resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
+const isRealTitle = (t?: string | null, fallbackId?: string | number): boolean => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.isRealTitle) {
+        return (globalThis as any).GeminiUtils.isRealTitle(t, fallbackId);
+    }
+    return utilsIsRealTitle(t, fallbackId);
+};
+
+const resolveTitle = (chat?: any) => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.resolveTitle) {
+        return (globalThis as any).GeminiUtils.resolveTitle(chat);
+    }
+    return utilsResolveTitle(chat);
+};
 
     async function fetchChatDetail(
         requestedItem: any,
@@ -344,8 +355,23 @@ declare global {
         };
     }
 
-    return {
-        fetchChatDetail,
-        resolveChat
-    };
-}));
+export {
+    fetchChatDetail,
+    resolveChat
+};
+
+export const BatchWorker: BatchWorkerModule = {
+    fetchChatDetail,
+    resolveChat
+};
+
+(BatchWorker as any).BatchWorker = BatchWorker;
+(BatchWorker as any).default = BatchWorker;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).BatchWorker) {
+    (globalThis as any).BatchWorker = BatchWorker;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = BatchWorker;
+}
+export default BatchWorker;

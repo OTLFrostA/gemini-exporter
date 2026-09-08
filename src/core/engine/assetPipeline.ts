@@ -49,36 +49,12 @@ declare global {
     var AssetPipeline: AssetPipelineClass;
 }
 
-(function(root: any, factory: () => AssetPipelineClass) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.AssetPipeline = factory();
-    }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): AssetPipelineClass {
-    'use strict';
+import { sanitizeRelativePath } from "../utils/utils.js";
 
-    function getUtils(): GeminiUtilsModule | null {
-        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try {
-                return require('../utils/utils.js');
-            } catch (_) { /* intentional: require fallback in browser context */ }
-        }
-        return null;
-    }
-
-    function sanitizeZipPath(p?: string | null): string {
-        // Single source: GeminiUtils.sanitizeRelativePath (load order guarantees utils first).
-        if (!p) return '';
-        const u = getUtils();
-        if (u && typeof u.sanitizeRelativePath === 'function') {
-            return u.sanitizeRelativePath(p, 'file');
-        }
-        throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
-    }
+export function sanitizeZipPath(p?: string | null): string {
+    if (!p) return '';
+    return sanitizeRelativePath(p, 'file');
+}
 
     class AssetPipeline implements AssetPipelineInstance {
         currentSlot: string;
@@ -232,5 +208,17 @@ declare global {
         }
     }
 
-    return AssetPipeline;
-}));
+export {
+    AssetPipeline
+};
+
+(AssetPipeline as any).AssetPipeline = AssetPipeline;
+(AssetPipeline as any).default = AssetPipeline;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).AssetPipeline) {
+    (globalThis as any).AssetPipeline = AssetPipeline;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = AssetPipeline;
+}
+export default AssetPipeline;

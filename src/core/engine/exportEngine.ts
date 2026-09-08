@@ -1,8 +1,4 @@
 // exportEngine.ts - Unified export facade for batch downloading, JSZip packaging, and FileSystem Access API
-import type { GeminiUtilsModule } from "../utils/utils.js";
-import type { ExportOrchestratorModule, ExportOptions, ExportCallbacks, ExportResult } from "./export/exportOrchestrator.js";
-import type { BatchWorkerModule } from "./export/batchWorker.js";
-import type { SessionRecoveryModule } from "./export/sessionRecovery.js";
 
 export type { ExportOptions, ExportCallbacks, ExportResult };
 
@@ -21,70 +17,78 @@ declare global {
     var I18n: any;
 }
 
-(function(root: any, factory: () => ExportEngineModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.ExportEngine = factory();
+import GeminiUtils, {
+    type GeminiUtilsModule,
+    sanitizeFileName as utilsSanitizeFileName,
+    normId as utilsNormId,
+    sanitizeRelativePath
+} from "../utils/utils.js";
+import ExportOrchestratorModuleImpl, {
+    ExportOrchestrator,
+    sanitizeFileName as orchSanitizeFileName,
+    sanitizeZipPath as orchSanitizeZipPath,
+    getExtensionVersion as orchGetExtensionVersion,
+    type ExportOrchestratorModule,
+    type ExportOptions,
+    type ExportCallbacks,
+    type ExportResult
+} from "./export/exportOrchestrator.js";
+import BatchWorker, { type BatchWorkerModule } from "./export/batchWorker.js";
+import SessionRecovery, { type SessionRecoveryModule } from "./export/sessionRecovery.js";
+
+export function getExtensionVersion(): string {
+    return orchGetExtensionVersion();
+}
+
+const getUtils = (): GeminiUtilsModule | null => {
+    if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
+    return GeminiUtils;
+};
+
+const getOrchestratorModule = (): ExportOrchestratorModule => {
+    if (typeof (globalThis as any).ExportOrchestrator !== 'undefined') {
+        return {
+            ExportOrchestrator: (globalThis as any).ExportOrchestrator,
+            AsyncQueue,
+            ensureSubDir: ExportOrchestratorModuleImpl.ensureSubDir,
+            sanitizeFileName: orchSanitizeFileName,
+            sanitizeZipPath: orchSanitizeZipPath,
+            getExtensionVersion: orchGetExtensionVersion
+        };
     }
-}(typeof self !== 'undefined' ? self : this, function(): ExportEngineModule {
-    'use strict';
+    return ExportOrchestratorModuleImpl;
+};
 
-    function getExtensionVersion(): string {
-        try {
-            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
-                return chrome.runtime.getManifest().version || '1.3.8';
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportEngine.js]', e);
-        }
-        return '1.3.8';
+const getBatchWorkerModule = (): BatchWorkerModule => {
+    if (typeof (globalThis as any).BatchWorker !== 'undefined') return (globalThis as any).BatchWorker;
+    return BatchWorker;
+};
+
+const getSessionRecoveryModule = (): SessionRecoveryModule => {
+    if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
+    return SessionRecovery;
+};
+
+export const sanitizeFileName = (name?: string | null, fallback?: string): string => {
+    if (typeof (globalThis as any).GeminiUtils?.sanitizeFileName === 'function') {
+        return (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback);
     }
+    return utilsSanitizeFileName(name, fallback);
+};
 
-    const getUtils = (): GeminiUtilsModule | null => {
-        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
-        }
-        return null;
-    };
+export const sanitizeZipPath = (p?: string | null): string => {
+    if (typeof (globalThis as any).GeminiUtils?.sanitizeRelativePath === 'function') {
+        return (globalThis as any).GeminiUtils.sanitizeRelativePath(p, 'file');
+    }
+    return sanitizeRelativePath(p, 'file');
+};
 
-    const getOrchestratorModule = (): ExportOrchestratorModule | null => {
-        if (typeof ExportOrchestrator !== 'undefined') return ExportOrchestrator;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).ExportOrchestrator) return (globalThis as any).ExportOrchestrator;
-        if (typeof require !== 'undefined') {
-            try { return require('./export/exportOrchestrator.js'); } catch { /* intentional */ }
-        }
-        return null;
-    };
-
-    const getBatchWorkerModule = (): BatchWorkerModule | null => {
-        if (typeof BatchWorker !== 'undefined') return BatchWorker;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).BatchWorker) return (globalThis as any).BatchWorker;
-        if (typeof require !== 'undefined') {
-            try { return require('./export/batchWorker.js'); } catch { /* intentional */ }
-        }
-        return null;
-    };
-
-    const getSessionRecoveryModule = (): SessionRecoveryModule | null => {
-        if (typeof SessionRecovery !== 'undefined') return SessionRecovery;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).SessionRecovery) return (globalThis as any).SessionRecovery;
-        if (typeof require !== 'undefined') {
-            try { return require('./export/sessionRecovery.js'); } catch { /* intentional */ }
-        }
-        return null;
-    };
-
-    const sanitizeFileName = (name?: string | null, fallback?: string): string =>
-        (getUtils()?.sanitizeFileName ? getUtils()!.sanitizeFileName(name, fallback) : (name || fallback || 'untitled').trim());
-    const sanitizeZipPath = (p?: string | null): string =>
-        (getUtils()?.sanitizeRelativePath ? getUtils()!.sanitizeRelativePath(p, 'file') : (p || 'file').replace(/^[/\\]+/, ''));
-    const normId = (id: any): string =>
-        (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
+export const normId = (id: any): string => {
+    if (typeof (globalThis as any).GeminiUtils?.normId === 'function') {
+        return (globalThis as any).GeminiUtils.normId(id);
+    }
+    return utilsNormId(id);
+};
 
     // AsyncQueue: Event-driven queue implementation (re-exported for SSoT compatibility)
     class AsyncQueue<T = any> {
@@ -354,11 +358,37 @@ declare global {
         }
     }
 
-    return {
-        ExportEngine,
-        sanitizeFileName,
-        sanitizeZipPath,
-        getExtensionVersion,
-        AsyncQueue
-    };
-}));
+export {
+    ExportEngine,
+    AsyncQueue
+};
+
+export const ExportEngineModule: ExportEngineModule = {
+    ExportEngine,
+    sanitizeFileName,
+    sanitizeZipPath,
+    getExtensionVersion,
+    AsyncQueue
+};
+
+(ExportEngineModule as any).ExportEngine = ExportEngine;
+(ExportEngineModule as any).sanitizeFileName = sanitizeFileName;
+(ExportEngineModule as any).sanitizeZipPath = sanitizeZipPath;
+(ExportEngineModule as any).getExtensionVersion = getExtensionVersion;
+(ExportEngineModule as any).AsyncQueue = AsyncQueue;
+(ExportEngineModule as any).default = ExportEngine;
+
+(ExportEngine as any).ExportEngine = ExportEngine;
+(ExportEngine as any).AsyncQueue = AsyncQueue;
+(ExportEngine as any).sanitizeFileName = sanitizeFileName;
+(ExportEngine as any).sanitizeZipPath = sanitizeZipPath;
+(ExportEngine as any).getExtensionVersion = getExtensionVersion;
+(ExportEngine as any).default = ExportEngine;
+
+if (typeof globalThis !== 'undefined') {
+    if (!(globalThis as any).ExportEngine) (globalThis as any).ExportEngine = ExportEngine;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = ExportEngineModule;
+}
+export default ExportEngine;

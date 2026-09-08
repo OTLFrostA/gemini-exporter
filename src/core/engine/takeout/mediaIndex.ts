@@ -1,5 +1,4 @@
-// mediaIndex.ts - Offline media indexing, per-slot isolation, and C2PA timestamp extraction
-import type { GeminiUtilsModule } from "../../utils/utils.js";
+import { normId as utilsNormId } from "../../utils/utils.js";
 
 export interface TakeoutStore {
     mediaMap: Record<string, any>;
@@ -23,52 +22,33 @@ declare global {
     var MediaIndex: MediaIndexModule;
 }
 
-(function(root: any, factory: () => MediaIndexModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.MediaIndex = factory();
+const __slotTakeouts = new Map<string, TakeoutStore>();
+let __takeoutMediaMap: Record<string, any> = {};
+let __takeoutGlobalMedia: Record<string, any> = {};
+let __takeoutConvCache: Record<string, any> = {};
+
+export function getStore(slot?: string | null): TakeoutStore {
+    if (slot && __slotTakeouts.has(slot)) {
+        return __slotTakeouts.get(slot)!;
     }
-}(typeof self !== 'undefined' ? self : this, function(): MediaIndexModule {
-    'use strict';
+    return {
+        mediaMap: __takeoutMediaMap,
+        globalMedia: __takeoutGlobalMedia,
+        convCache: __takeoutConvCache
+    };
+}
 
-    const __slotTakeouts = new Map<string, TakeoutStore>();
-    let __takeoutMediaMap: Record<string, any> = {};
-    let __takeoutGlobalMedia: Record<string, any> = {};
-    let __takeoutConvCache: Record<string, any> = {};
-
-    function getStore(slot?: string | null): TakeoutStore {
-        if (slot && __slotTakeouts.has(slot)) {
-            return __slotTakeouts.get(slot)!;
+export function normId(id?: string | null): string {
+    try {
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils?.normId) {
+            return (globalThis as any).GeminiUtils.normId(id);
         }
-        return {
-            mediaMap: __takeoutMediaMap,
-            globalMedia: __takeoutGlobalMedia,
-            convCache: __takeoutConvCache
-        };
+        return utilsNormId(id);
+    } catch {
+        if (!id) return "";
+        return String(id).replace(/^c_/, "").trim();
     }
-
-    function getUtils(): GeminiUtilsModule | null {
-        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch { /* intentional */ }
-        }
-        return null;
-    }
-
-    function normId(id?: string | null): string {
-        try {
-            const u = getUtils();
-            if (u && u.normId) return u.normId(id);
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
-        }
-        if (!id) return '';
-        return String(id).replace(/^c_/, '').trim();
-    }
+}
 
     function extractC2PATimestamp(bufferOrArray: any): number | null {
         if (!bufferOrArray) return null;
@@ -219,15 +199,35 @@ declare global {
         }
     }
 
-    return {
-        getStore,
-        normId,
-        extractC2PATimestamp,
-        getTakeoutOfflineChat,
-        getTakeoutMediaForChat,
-        getTakeoutFallbackMedia,
-        commitTakeoutData,
-        clearTakeoutData,
-        __slotTakeouts
-    };
-}));
+export {
+    extractC2PATimestamp,
+    getTakeoutOfflineChat,
+    getTakeoutMediaForChat,
+    getTakeoutFallbackMedia,
+    commitTakeoutData,
+    clearTakeoutData,
+    __slotTakeouts
+};
+
+export const MediaIndex: MediaIndexModule = {
+    getStore,
+    normId,
+    extractC2PATimestamp,
+    getTakeoutOfflineChat,
+    getTakeoutMediaForChat,
+    getTakeoutFallbackMedia,
+    commitTakeoutData,
+    clearTakeoutData,
+    __slotTakeouts
+};
+
+(MediaIndex as any).MediaIndex = MediaIndex;
+(MediaIndex as any).default = MediaIndex;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).MediaIndex) {
+    (globalThis as any).MediaIndex = MediaIndex;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = MediaIndex;
+}
+export default MediaIndex;

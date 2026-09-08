@@ -30,16 +30,6 @@ declare global {
     var ChatFormatter: ChatFormatterModule;
 }
 
-(function (root: any, factory: () => ChatFormatterModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.ChatFormatter = factory();
-    }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function (): ChatFormatterModule {
-    'use strict';
 
     /**
      * Intelligently shift Markdown heading levels (e.g. # -> ###, ## -> ####)
@@ -433,13 +423,33 @@ declare global {
         };
     }
 
-    return {
-        adjustHeadingHierarchy,
-        renderAttachments,
-        convertHtmlToMarkdown,
-        cleanMessageBody,
-        toMarkdown,
-        toOpenAIJson,
-        formatContent
-    };
-}));
+export {
+    adjustHeadingHierarchy,
+    renderAttachments,
+    convertHtmlToMarkdown,
+    cleanMessageBody,
+    toMarkdown,
+    toOpenAIJson,
+    formatContent
+};
+
+export const ChatFormatter: ChatFormatterModule = {
+    adjustHeadingHierarchy,
+    renderAttachments,
+    convertHtmlToMarkdown,
+    cleanMessageBody,
+    toMarkdown,
+    toOpenAIJson,
+    formatContent
+};
+
+(ChatFormatter as any).ChatFormatter = ChatFormatter;
+(ChatFormatter as any).default = ChatFormatter;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).ChatFormatter) {
+    (globalThis as any).ChatFormatter = ChatFormatter;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = ChatFormatter;
+}
+export default ChatFormatter;

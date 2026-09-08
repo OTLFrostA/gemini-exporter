@@ -1,7 +1,6 @@
-// takeoutParser.ts - Google Takeout HTML parsing, conversation extraction, and multi-turn reconciliation
-import type { GeminiUtilsModule } from "../../utils/utils.js";
-import type { ZipBombGuardModule } from "./zipBombGuard.js";
-import type { MediaIndexModule } from "./mediaIndex.js";
+import { normId as utilsNormId } from "../../utils/utils.js";
+import { ZipBombGuard, type ZipBombGuardModule } from "./zipBombGuard.js";
+import { MediaIndex, type MediaIndexModule } from "./mediaIndex.js";
 import type { Conversation } from "../../../types/index.js";
 
 export interface TakeoutParseResult {
@@ -23,54 +22,27 @@ declare global {
     var I18n: any;
 }
 
-(function(root: any, factory: () => TakeoutParserModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.TakeoutParser = factory();
-    }
-}(typeof self !== 'undefined' ? self : this, function(): TakeoutParserModule {
-    'use strict';
+function getZipBombGuard(): ZipBombGuardModule {
+    if (typeof globalThis !== "undefined" && (globalThis as any).ZipBombGuard) return (globalThis as any).ZipBombGuard;
+    return ZipBombGuard;
+}
 
-    function getUtils(): GeminiUtilsModule | null {
-        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch { /* intentional */ }
-        }
-        return null;
-    }
+function getMediaIndex(): MediaIndexModule {
+    if (typeof globalThis !== "undefined" && (globalThis as any).MediaIndex) return (globalThis as any).MediaIndex;
+    return MediaIndex;
+}
 
-    function getZipBombGuard(): ZipBombGuardModule | null {
-        if (typeof ZipBombGuard !== 'undefined') return ZipBombGuard;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) return (globalThis as any).ZipBombGuard;
-        if (typeof require !== 'undefined') {
-            try { return require('./zipBombGuard.js'); } catch { /* intentional */ }
+function normId(id?: string | null): string {
+    try {
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils?.normId) {
+            return (globalThis as any).GeminiUtils.normId(id);
         }
-        return null;
+        return utilsNormId(id);
+    } catch {
+        if (!id) return "";
+        return String(id).replace(/^c_/, "").trim();
     }
-
-    function getMediaIndex(): MediaIndexModule | null {
-        if (typeof MediaIndex !== 'undefined') return MediaIndex;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).MediaIndex) return (globalThis as any).MediaIndex;
-        if (typeof require !== 'undefined') {
-            try { return require('./mediaIndex.js'); } catch { /* intentional */ }
-        }
-        return null;
-    }
-
-    function normId(id?: string | null): string {
-        try {
-            const u = getUtils();
-            if (u && u.normId) return u.normId(id);
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:takeoutParser.js]', e);
-        }
-        if (!id) return '';
-        return String(id).replace(/^c_/, '').trim();
-    }
+}
 
     function stripHtmlTags(html?: string | null | any): string {
         if (!html || typeof html !== 'string') return '';
@@ -530,8 +502,23 @@ declare global {
         };
     }
 
-    return {
-        stripHtmlTags,
-        parseTakeoutZip
-    };
-}));
+export {
+    stripHtmlTags,
+    parseTakeoutZip
+};
+
+export const TakeoutParser: TakeoutParserModule = {
+    stripHtmlTags,
+    parseTakeoutZip
+};
+
+(TakeoutParser as any).TakeoutParser = TakeoutParser;
+(TakeoutParser as any).default = TakeoutParser;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).TakeoutParser) {
+    (globalThis as any).TakeoutParser = TakeoutParser;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = TakeoutParser;
+}
+export default TakeoutParser;

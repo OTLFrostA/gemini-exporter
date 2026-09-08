@@ -1,7 +1,3 @@
-import type { GeminiUtilsModule } from "../../utils/utils.js";
-import type { BatchWorkerModule } from "./batchWorker.js";
-import type { SessionRecoveryModule } from "./sessionRecovery.js";
-import type { RateLimitModule } from "./rateLimiter.js";
 
 export interface ExportOptions {
     selected: any[];
@@ -48,78 +44,73 @@ declare global {
     var ExportOrchestrator: any;
 }
 
-(function(root: any, factory: () => ExportOrchestratorModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.ExportOrchestrator = factory();
+import GeminiUtils, {
+    type GeminiUtilsModule,
+    sanitizeFileName as utilsSanitizeFileName,
+    normId as utilsNormId,
+    sanitizeRelativePath
+} from "../../utils/utils.js";
+import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
+import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
+import rateLimitModule, { RateLimitManager, type RateLimitModule } from "./rateLimiter.js";
+import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
+
+export function getExtensionVersion(): string {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+            return chrome.runtime.getManifest().version || '1.3.8';
+        }
+    } catch (e) {
+        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e);
     }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): ExportOrchestratorModule {
-    'use strict';
+    return '1.3.8';
+}
 
-    function getExtensionVersion(): string {
-        try {
-            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
-                return chrome.runtime.getManifest().version || '1.3.8';
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e);
-        }
-        return '1.3.8';
+const getUtils = (): GeminiUtilsModule | null => {
+    if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
+    return GeminiUtils;
+};
+
+const getProgressReporter = (): any => {
+    if (typeof (globalThis as any).ProgressReporter !== 'undefined') return (globalThis as any).ProgressReporter;
+    return progressReporterModule;
+};
+
+const getBatchWorker = (): BatchWorkerModule => {
+    if (typeof (globalThis as any).BatchWorker !== 'undefined') return (globalThis as any).BatchWorker;
+    return BatchWorker;
+};
+
+const getSessionRecovery = (): SessionRecoveryModule => {
+    if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
+    return SessionRecovery;
+};
+
+const getRateLimiter = (): RateLimitModule => {
+    if (typeof (globalThis as any).RateLimitModule !== 'undefined') return (globalThis as any).RateLimitModule;
+    return rateLimitModule;
+};
+
+export const sanitizeFileName = (name?: string | null, fallback?: string): string => {
+    if (typeof (globalThis as any).GeminiUtils?.sanitizeFileName === 'function') {
+        return (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback);
     }
+    return utilsSanitizeFileName(name, fallback);
+};
 
-    const getUtils = (): GeminiUtilsModule | null => {
-        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch (_) { /* intentional: require fallback in browser context */ }
-        }
-        return null;
-    };
+export const normId = (id?: string | number | null): string => {
+    if (typeof (globalThis as any).GeminiUtils?.normId === 'function') {
+        return (globalThis as any).GeminiUtils.normId(id);
+    }
+    return utilsNormId(id);
+};
 
-    const getProgressReporter = (): any => {
-        if (typeof (globalThis as any).ProgressReporter !== 'undefined') return (globalThis as any).ProgressReporter;
-        if (typeof require !== 'undefined') {
-            try { return require('./progressReporter.js'); } catch (_) { /* intentional */ }
-        }
-        return null;
-    };
-
-    const getBatchWorker = (): BatchWorkerModule | null => {
-        if (typeof (globalThis as any).BatchWorker !== 'undefined') return (globalThis as any).BatchWorker;
-        if (typeof require !== 'undefined') {
-            try { return require('./batchWorker.js'); } catch (_) { /* intentional */ }
-        }
-        return null;
-    };
-
-    const getSessionRecovery = (): SessionRecoveryModule | null => {
-        if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
-        if (typeof require !== 'undefined') {
-            try { return require('./sessionRecovery.js'); } catch (_) { /* intentional */ }
-        }
-        return null;
-    };
-
-    const getRateLimiter = (): RateLimitModule | null => {
-        if (typeof (globalThis as any).RateLimitModule !== 'undefined') return (globalThis as any).RateLimitModule;
-        if (typeof (globalThis as any).RateLimitManager !== 'undefined') {
-            return {
-                RateLimitManager: (globalThis as any).RateLimitManager,
-                isRateLimited: (globalThis as any).RateLimitManager.isRateLimited || ((res: any) => res?.status === 429),
-                calculateBackoff: (globalThis as any).RateLimitManager.calculateBackoff || ((rc: number) => 2000 * Math.pow(2, rc))
-            };
-        }
-        if (typeof require !== 'undefined') {
-            try { return require('./rateLimiter.js'); } catch (_) { /* intentional */ }
-        }
-        return null;
-    };
-
-    const sanitizeFileName = (name?: string | null, fallback?: string): string => (getUtils()?.sanitizeFileName ? getUtils()!.sanitizeFileName(name, fallback) : (name || fallback || 'untitled').trim());
-    const normId = (id?: string | number | null): string => (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
-    const sanitizeZipPath = (p?: string | null): string => (getUtils()?.sanitizeRelativePath ? getUtils()!.sanitizeRelativePath(p, 'file') : (p || 'file').replace(/^[/\\]+/, ''));
+export const sanitizeZipPath = (p?: string | null): string => {
+    if (typeof (globalThis as any).GeminiUtils?.sanitizeRelativePath === 'function') {
+        return (globalThis as any).GeminiUtils.sanitizeRelativePath(p, 'file');
+    }
+    return sanitizeRelativePath(p, 'file');
+};
 
     function toIso(v: any): string | null {
         if (!v) return null;
@@ -1020,12 +1011,33 @@ declare global {
         }
     }
 
-    return {
-        ExportOrchestrator,
-        AsyncQueue,
-        ensureSubDir,
-        sanitizeFileName,
-        sanitizeZipPath,
-        getExtensionVersion
-    };
-}));
+export {
+    ExportOrchestrator,
+    AsyncQueue,
+    ensureSubDir
+};
+
+export const ExportOrchestratorModule: ExportOrchestratorModule = {
+    ExportOrchestrator,
+    AsyncQueue,
+    ensureSubDir,
+    sanitizeFileName,
+    sanitizeZipPath,
+    getExtensionVersion
+};
+
+(ExportOrchestratorModule as any).ExportOrchestrator = ExportOrchestrator;
+(ExportOrchestratorModule as any).AsyncQueue = AsyncQueue;
+(ExportOrchestratorModule as any).ensureSubDir = ensureSubDir;
+(ExportOrchestratorModule as any).sanitizeFileName = sanitizeFileName;
+(ExportOrchestratorModule as any).sanitizeZipPath = sanitizeZipPath;
+(ExportOrchestratorModule as any).getExtensionVersion = getExtensionVersion;
+(ExportOrchestratorModule as any).default = ExportOrchestratorModule;
+
+if (typeof globalThis !== 'undefined') {
+    if (!(globalThis as any).ExportOrchestrator) (globalThis as any).ExportOrchestrator = ExportOrchestrator;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = ExportOrchestratorModule;
+}
+export default ExportOrchestratorModule;
