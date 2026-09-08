@@ -1,20 +1,68 @@
-// retryPolicy.js - Centralized HTTP 400 XSRF recovery, 401 cleanup, and 429 backoff policy
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
+// retryPolicy.ts - Centralized HTTP 400 XSRF recovery, 401 cleanup, and 429 backoff policy
+import type { GeminiClientCredentialManagerModule } from "./credentialManager.js";
+
+export interface Http400Params {
+    resp: { status: number; [key: string]: any };
+    snippet?: string;
+    cred?: any;
+    isRetried?: boolean;
+    getAtFromPage?: () => string;
+    getBlFromPage?: () => string | null;
+    loadCredMap?: () => Promise<any>;
+    getCredStorage?: () => any;
+}
+
+export interface Http400Result {
+    shouldRetry: boolean;
+    freshAt?: string;
+    freshBl?: string | null;
+}
+
+export interface Http401Params {
+    cred?: any;
+    loadCredMap?: () => Promise<any>;
+    getCredStorage?: () => any;
+}
+
+export interface Http429Params {
+    resp: { status: number; headers?: { get?: (header: string) => string | null }; [key: string]: any };
+    retryCount?: number;
+    maxRetries?: number;
+    label?: string;
+}
+
+export interface Http429Result {
+    shouldRetry: boolean;
+    delayMs?: number;
+    nextRetryCount?: number;
+}
+
+export interface GeminiClientRetryPolicyModule {
+    handleHttp400: (params: Http400Params) => Promise<Http400Result>;
+    handleHttp401: (params: Http401Params) => Promise<void>;
+    handleHttp429: (params: Http429Params) => Promise<Http429Result>;
+}
+
+declare global {
+    var GeminiClientRetryPolicy: GeminiClientRetryPolicyModule;
+}
+
+(function(root: any, factory: () => GeminiClientRetryPolicyModule) {
+    if (typeof define === "function" && (define as any).amd) {
+        (define as any)([], factory);
+    } else if (typeof module === "object" && module.exports) {
         module.exports = factory();
     } else {
         root.GeminiClientRetryPolicy = factory();
     }
-}(typeof self !== 'undefined' ? self : (typeof window !== 'undefined' ? window : this), function() {
-    'use strict';
+}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiClientRetryPolicyModule {
+    "use strict";
 
-    function getCredentialManager() {
-        if (typeof GeminiClientCredentialManager !== 'undefined') return GeminiClientCredentialManager;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiClientCredentialManager) return globalThis.GeminiClientCredentialManager;
-        if (typeof require !== 'undefined') {
-            try { return require('./credentialManager.js'); } catch (_) {}
+    function getCredentialManager(): GeminiClientCredentialManagerModule | null {
+        if (typeof GeminiClientCredentialManager !== "undefined") return GeminiClientCredentialManager;
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiClientCredentialManager) return (globalThis as any).GeminiClientCredentialManager;
+        if (typeof require !== "undefined") {
+            try { return require("./credentialManager.js"); } catch (_) {}
         }
         return null;
     }
@@ -22,11 +70,11 @@
     /**
      * Attempts automatic XSRF credential recovery on HTTP 400
      */
-    async function handleHttp400(params) {
+    async function handleHttp400(params: Http400Params): Promise<Http400Result> {
         const { resp, snippet, cred, isRetried, getAtFromPage, getBlFromPage, loadCredMap, getCredStorage } = params;
         if (resp.status !== 400 || isRetried) return { shouldRetry: false };
 
-        const mXsrf = snippet && snippet.includes('xsrf') ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
+        const mXsrf = snippet && snippet.includes("xsrf") ? snippet.match(/"xsrf"\s*,\s*"([^"]+)"/) : null;
         const atFn = getAtFromPage || getCredentialManager()?.getAtFromPage;
         const blFn = getBlFromPage || getCredentialManager()?.getBlFromPage;
 
@@ -46,7 +94,7 @@
                         const storage = getStorageFn();
                         if (storage) {
                             await storage.set({ gemini_credentials_map: map });
-                            if (typeof chrome !== 'undefined' && storage !== chrome.storage.local && chrome.storage.local) {
+                            if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
                                 await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
                             }
                         }
@@ -67,7 +115,7 @@
     /**
      * Cleans up expired credentials on HTTP 401
      */
-    async function handleHttp401(params) {
+    async function handleHttp401(params: Http401Params): Promise<void> {
         const { cred, loadCredMap, getCredStorage } = params;
         try {
             const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
@@ -80,7 +128,7 @@
                     const storage = getStorageFn();
                     if (storage) {
                         await storage.set({ gemini_credentials_map: map });
-                        if (typeof chrome !== 'undefined' && storage !== chrome.storage.local && chrome.storage.local) {
+                        if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
                             await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
                         }
                     }
@@ -92,11 +140,11 @@
     /**
      * Handles HTTP 429 rate limit backoff and wait
      */
-    async function handleHttp429(params) {
-        const { resp, retryCount = 0, maxRetries = 3, label = 'request' } = params;
+    async function handleHttp429(params: Http429Params): Promise<Http429Result> {
+        const { resp, retryCount = 0, maxRetries = 3, label = "request" } = params;
         if (resp.status !== 429 || retryCount >= maxRetries) return { shouldRetry: false };
 
-        const retryAfter = resp.headers?.get ? resp.headers.get('retry-after') : null;
+        const retryAfter = resp.headers?.get ? resp.headers.get("retry-after") : null;
         let delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
         if (retryAfter) {
             const s = parseInt(retryAfter, 10);

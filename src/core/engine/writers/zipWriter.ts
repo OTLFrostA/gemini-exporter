@@ -11,7 +11,7 @@ declare global {
     var ZipWriter: ZipWriterClass;
 }
 
-export class ZipWriter implements IExportWriter {
+class ZipWriter implements IExportWriter {
     zip: any;
     folder: any;
     totalBytes: number;

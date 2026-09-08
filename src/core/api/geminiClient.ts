@@ -1,78 +1,91 @@
-// geminiClient.js - Gemini internal batchexecute API network and credentials client
-(function(global) {
-    'use strict';
+// geminiClient.ts - Gemini internal batchexecute API network and credentials client
+import type { GeminiProtocolModule } from "../protocol/protocol.js";
+import type { GeminiClientCredentialManagerModule, GeminiCredentials } from "./client/credentialManager.js";
+import type { GeminiClientRetryPolicyModule } from "./client/retryPolicy.js";
+import type { GeminiClientRpcClientModule } from "./client/rpcClient.js";
+import type { GeminiClientPaginationModule, PaginationOptions, PaginationResult } from "./client/pagination.js";
+import type { ListParseResult } from "./parser/parseList.js";
+import type { DetailParseResult } from "./parser/parseDetail.js";
 
-    function resolveModule(globalName, relPath) {
-        if (typeof globalThis !== 'undefined' && globalThis[globalName]) return globalThis[globalName];
-        if (typeof global !== 'undefined' && global[globalName]) return global[globalName];
-        if (typeof self !== 'undefined' && self[globalName]) return self[globalName];
-        if (typeof require !== 'undefined') {
+export interface GeminiAPIClientOptions {
+    signal?: AbortSignal | null;
+    [key: string]: any;
+}
+
+(function(global: any) {
+    "use strict";
+
+    function resolveModule(globalName: string, relPath: string): any {
+        if (typeof globalThis !== "undefined" && (globalThis as any)[globalName]) return (globalThis as any)[globalName];
+        if (typeof global !== "undefined" && global[globalName]) return global[globalName];
+        if (typeof self !== "undefined" && (self as any)[globalName]) return (self as any)[globalName];
+        if (typeof require !== "undefined") {
             try { return require(relPath); } catch (_) {}
         }
         return null;
     }
 
-    const credentialManager = resolveModule('GeminiClientCredentialManager', './client/credentialManager.js') || {};
-    const retryPolicy = resolveModule('GeminiClientRetryPolicy', './client/retryPolicy.js') || {};
-    const rpcClient = resolveModule('GeminiClientRpcClient', './client/rpcClient.js') || {};
-    const pagination = resolveModule('GeminiClientPagination', './client/pagination.js') || {};
+    const credentialManager: GeminiClientCredentialManagerModule = resolveModule("GeminiClientCredentialManager", "./client/credentialManager.js") || {};
+    const retryPolicy: GeminiClientRetryPolicyModule = resolveModule("GeminiClientRetryPolicy", "./client/retryPolicy.js") || {};
+    const rpcClient: GeminiClientRpcClientModule = resolveModule("GeminiClientRpcClient", "./client/rpcClient.js") || {};
+    const pagination: GeminiClientPaginationModule = resolveModule("GeminiClientPagination", "./client/pagination.js") || {};
 
-    const getProtocol = () => {
+    const getProtocol = (): GeminiProtocolModule => {
         if (rpcClient.getProtocol) return rpcClient.getProtocol();
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiProtocol) return globalThis.GeminiProtocol;
-        if (typeof require !== 'undefined') {
-            try { return require('../protocol/protocol.js'); } catch (_) {}
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
+        if (typeof require !== "undefined") {
+            try { return require("../protocol/protocol.js"); } catch (_) {}
         }
-        throw new Error('GeminiProtocol not found. Make sure core/protocol/protocol.js is loaded.');
+        throw new Error("GeminiProtocol not found. Make sure core/protocol/protocol.js is loaded.");
     };
 
-    const getUtils = () => {
+    const getUtils = (): any => {
         if (rpcClient.getUtils) return rpcClient.getUtils();
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../utils/utils.js'); } catch (_) {}
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+        if (typeof require !== "undefined") {
+            try { return require("../utils/utils.js"); } catch (_) {}
         }
         return null;
     };
 
-    const getParser = () => {
+    const getParser = (): any => {
         if (rpcClient.getParser) return rpcClient.getParser();
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiResponseParserClass) return globalThis.GeminiResponseParserClass;
-        if (typeof global !== 'undefined' && global.GeminiResponseParserClass) return global.GeminiResponseParserClass;
-        if (typeof require !== 'undefined') {
-            try { return require('./geminiParser.js').GeminiResponseParserClass; } catch (_) {}
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiResponseParserClass) return (globalThis as any).GeminiResponseParserClass;
+        if (typeof global !== "undefined" && global.GeminiResponseParserClass) return global.GeminiResponseParserClass;
+        if (typeof require !== "undefined") {
+            try { return require("./geminiParser.js").GeminiResponseParserClass; } catch (_) {}
         }
-        throw new Error('GeminiResponseParserClass not found. Make sure geminiParser.js is loaded.');
+        throw new Error("GeminiResponseParserClass not found. Make sure geminiParser.js is loaded.");
     };
 
-    const postBatchexecute = rpcClient.postBatchexecute || (async () => { throw new Error('rpcClient not found'); });
+    const postBatchexecute = rpcClient.postBatchexecute || (async () => { throw new Error("rpcClient not found"); });
 
-    function getApiUrl(slot) {
+    function getApiUrl(slot?: string | null): string {
         if (rpcClient.getApiUrl) return rpcClient.getApiUrl(slot);
         if (slot && slot !== "default") {
-            let t = slot.replace(/^u/, "/u/");
+            let t = slot.startsWith("/") ? slot : (slot.startsWith("u/") ? `/${slot}` : slot.replace(/^u/, "/u/"));
             return `https://gemini.google.com${t}/_/BardChatUi/data/batchexecute`;
         }
         return "https://gemini.google.com/_/BardChatUi/data/batchexecute";
     }
 
-    function getBlFromPage() {
+    function getBlFromPage(): string | null {
         return credentialManager.getBlFromPage ? credentialManager.getBlFromPage() : null;
     }
 
-    function getAtFromPage() {
+    function getAtFromPage(): string {
         return credentialManager.getAtFromPage ? credentialManager.getAtFromPage() : "";
     }
 
-    function detectSlot() {
+    function detectSlot(): string | null {
         return credentialManager.detectSlot ? credentialManager.detectSlot() : "default";
     }
 
-    async function loadCredMap() {
+    async function loadCredMap(): Promise<any> {
         return credentialManager.loadCredMap ? credentialManager.loadCredMap() : {};
     }
 
-    async function resolveCred(targetSid, overrides) {
+    async function resolveCred(targetSid?: string | null, overrides?: any): Promise<GeminiCredentials> {
         if (credentialManager.resolveCred) {
             return credentialManager.resolveCred(targetSid, overrides);
         }
@@ -80,36 +93,43 @@
     }
 
     class GeminiAPIClient {
-        constructor(options = {}) {
+        public aborted: boolean;
+        public signal: AbortSignal | null;
+
+        constructor(options: GeminiAPIClientOptions = {}) {
             this.aborted = false;
             this.signal = options?.signal || null;
             if (this.signal) {
                 if (this.signal.aborted) {
                     this.aborted = true;
-                } else if (typeof this.signal.addEventListener === 'function') {
-                    this.signal.addEventListener('abort', () => {
+                } else if (typeof this.signal.addEventListener === "function") {
+                    this.signal.addEventListener("abort", () => {
                         this.aborted = true;
                     }, { once: true });
                 }
             }
         }
-        abort() {
+
+        abort(): void {
             this.aborted = true;
         }
+
         // 兼容标准 AbortSignal 及过渡期全局标志（仅作 fallback）
-        isAborted(callSignal) {
+        isAborted(callSignal?: AbortSignal | null): boolean {
             if (this.aborted) return true;
             if (callSignal && callSignal.aborted) return true;
             if (this.signal && this.signal.aborted) return true;
             return !!(
-                (typeof window !== 'undefined' && window.__gemExporterAborted) ||
-                (typeof globalThis !== 'undefined' && globalThis.__gemExporterAborted)
+                (typeof window !== "undefined" && (window as any).__gemExporterAborted) ||
+                (typeof globalThis !== "undefined" && (globalThis as any).__gemExporterAborted)
             );
         }
-        getApiUrl(s) {
+
+        getApiUrl(s?: string | null): string {
             return getApiUrl(s);
         }
-        async getConversationList(pageToken, targetSid, customFilter, opts) {
+
+        async getConversationList(pageToken?: string | null, targetSid?: string | null, customFilter?: any, opts?: any): Promise<ListParseResult> {
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             const filter = customFilter || [0, null, 1];
@@ -130,14 +150,15 @@
                 rpcids: P.RPCS.LIST,
                 fReq: req,
                 cred,
-                sourcePath: "/app"
+                sourcePath: "/app",
+                signal: opts?.signal || this.signal
             });
 
             if (!resp.ok) {
                 let snippet = "";
                 try {
                     snippet = (await resp.text()).slice(0, 320);
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.js]", e); }
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.ts]", e); }
 
                 // 400 Bad Request XSRF token retry
                 const retry400 = retryPolicy.handleHttp400 ? await retryPolicy.handleHttp400({
@@ -176,7 +197,7 @@
                     resp,
                     retryCount,
                     maxRetries,
-                    label: 'getConversationList'
+                    label: "getConversationList"
                 }) : { shouldRetry: false };
 
                 if (retry429.shouldRetry) {
@@ -194,20 +215,20 @@
 
         // Note: If all.length >= 500 or pagination flags hitGoogleLimit / 429 errors,
         // UI layer provides browsing window limit guidance to recommend Takeout.
-        async getAllConversations(maxPages = 2000, onProgress, targetSid, opts) {
+        async getAllConversations(maxPages: number | PaginationOptions = 2000, onProgress?: any, targetSid?: string | null, opts?: any): Promise<PaginationResult> {
             if (pagination.getAllConversations) {
                 return pagination.getAllConversations(this, maxPages, onProgress, targetSid, opts);
             }
-            throw new Error('pagination module not found');
+            throw new Error("pagination module not found");
         }
 
-        async fetchConversationPage(conversationId, pageToken, targetSid, opts) {
+        async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: any): Promise<DetailParseResult> {
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             const isDevMode = !!(getUtils()?.isDevMode ? getUtils().isDevMode() : false);
             if (isDevMode) {
-                console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
+                console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || "").length}`);
             }
             const detailOnly = !!(opts && opts.detailOnly);
             const P = getProtocol();
@@ -227,7 +248,8 @@
                 fReq,
                 cred,
                 sourcePath: "/app",
-                timeoutMs: 15000
+                timeoutMs: 15000,
+                signal: opts?.signal || this.signal
             });
 
             if (!resp.ok) {
@@ -293,35 +315,35 @@
                     console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
                 }
                 return parsed;
-            } catch (err) {
-                const isDeletedOrInaccessible = text && (text.includes('BardErrorInfo') || text.includes('1167'));
+            } catch (err: any) {
+                const isDeletedOrInaccessible = text && (text.includes("BardErrorInfo") || text.includes("1167"));
                 if (isDeletedOrInaccessible) {
                     if (isDevMode) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is inaccessible or deleted on server (BardErrorInfo: 1167). Skipping.`);
                     }
                     throw new Error(`会话已在服务端删除或不可访问 (${id})`);
                 }
-                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, 'raw text snippet:', text.slice(0, 400));
+                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, "raw text snippet:", text.slice(0, 400));
                 throw new Error(`解析详情失败 (${err.message}): ${text.slice(0, 100)}`);
             }
         }
 
-        async getConversationDetail(conversationId, targetSid) {
+        async getConversationDetail(conversationId: string, targetSid?: string | null): Promise<DetailParseResult> {
             if (pagination.getConversationDetail) {
                 return pagination.getConversationDetail(this, conversationId, targetSid);
             }
-            throw new Error('pagination module not found');
+            throw new Error("pagination module not found");
         }
 
         // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
-        getCurrentConversationId() {
-            if (typeof document === 'undefined') return null;
+        getCurrentConversationId(): string | null {
+            if (typeof document === "undefined") return null;
             try {
                 let u = new URL(global.location.href);
-                let parts = u.pathname.split('/');
-                let idx = parts.indexOf('app');
+                let parts = u.pathname.split("/");
+                let idx = parts.indexOf("app");
                 if (idx !== -1 && idx < parts.length - 1) return parts[idx + 1];
-                let g = parts.indexOf('gem');
+                let g = parts.indexOf("gem");
                 if (g !== -1 && g < parts.length - 2) return parts[g + 2];
                 return null;
             } catch {
@@ -336,7 +358,7 @@
     global.resolveCred = resolveCred;
     global.loadCredMap = loadCredMap;
 
-    if (typeof module !== 'undefined' && module.exports) {
+    if (typeof module !== "undefined" && module.exports) {
         module.exports = {
             GeminiAPIClient,
             getApiUrl,
