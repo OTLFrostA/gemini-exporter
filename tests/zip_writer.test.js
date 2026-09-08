@@ -35,3 +35,15 @@ test('zipWriter - exports and instantiation', () => {
 
     assert.strictEqual(writer.sanitizePath('foo/../bar/test.md'), 'foo/_/bar/test.md');
 });
+
+test('zipWriter - writeFile and generateBlob', async () => {
+    const writer = new ZipWriter('my_export');
+    writer.writeFile('test.txt', 'Hello world');
+    assert.strictEqual(writer.getTotalBytes(), 11);
+    let progressReported = null;
+    const blob = await writer.generateBlob((pct) => {
+        progressReported = pct;
+    });
+    assert.ok(blob);
+    assert.strictEqual(progressReported, 100);
+});

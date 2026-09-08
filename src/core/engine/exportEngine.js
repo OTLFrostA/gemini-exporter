@@ -221,12 +221,22 @@
             let batchDirHandle = null;
             let zip = null;
             let folder = null;
+            let zipWriter = null;
             let fsWriter = null;
 
             if (useZip) {
-                if (typeof JSZip === 'undefined') throw new Error('JSZip library not found');
-                zip = new JSZip();
-                folder = zip.folder(exportFolderName);
+                const ZipWriterClass = (typeof ZipWriter !== 'undefined' && ZipWriter.ZipWriter)
+                    ? ZipWriter.ZipWriter
+                    : (typeof ZipWriter === 'function' ? ZipWriter : null);
+                if (ZipWriterClass) {
+                    zipWriter = new ZipWriterClass(exportFolderName);
+                    zip = zipWriter.zip;
+                    folder = zipWriter.folder;
+                } else {
+                    if (typeof JSZip === 'undefined') throw new Error('JSZip library not found');
+                    zip = new JSZip();
+                    folder = zip.folder(exportFolderName);
+                }
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
@@ -284,7 +294,7 @@
                 }
             };
 
-            return { zip, folder, batchDirHandle, fsWriter, writeFileDirect };
+            return { zip, folder, zipWriter, batchDirHandle, fsWriter, writeFileDirect };
         }
 
         async _fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal) {
@@ -572,19 +582,22 @@
             }
         }
 
-        async _packageAndDownload(zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress) {
+        async _packageAndDownload(zipWriterOrZip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress) {
             const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
             onLog(typeof I18n !== 'undefined' ? I18n.t('logPackagingZip') : '正在打包 ZIP 压缩包…', 'info');
-            const blob = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+            const onUpdate = (percent) => {
                 onProgress({
                     current: payloadIds.length,
                     total: payloadIds.length,
-                    pct: Math.floor(metadata.percent),
-                    title: typeof I18n !== 'undefined' ? I18n.t('progPackagingZip', Math.floor(metadata.percent)) : `打包 ZIP 中 (${Math.floor(metadata.percent)}%)`,
+                    pct: Math.floor(percent),
+                    title: typeof I18n !== 'undefined' ? I18n.t('progPackagingZip', Math.floor(percent)) : `打包 ZIP 中 (${Math.floor(percent)}%)`,
                     assetsDownloaded: downloadedAssets,
                     assetsTotal: totalAssets
                 });
-            });
+            };
+            const blob = (zipWriterOrZip && typeof zipWriterOrZip.generateBlob === 'function')
+                ? await zipWriterOrZip.generateBlob(onUpdate)
+                : await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata) => onUpdate(metadata.percent));
 
             if (options.downloadHandler && typeof options.downloadHandler === 'function') {
                 await options.downloadHandler(blob, zipFileName);
@@ -621,7 +634,7 @@
                 takeoutEngine = null
             } = options;
 
-            const { zip, folder, writeFileDirect } = await this._initWriter(options, onLog);
+            const { zip, folder, zipWriter, writeFileDirect } = await this._initWriter(options, onLog);
 
             const AssetPipelineClass = getAssetPipelineClass();
             const assetPipeline = AssetPipelineClass ? new AssetPipelineClass({
@@ -1054,7 +1067,7 @@
             }
 
             if (useZip) {
-                await this._packageAndDownload(zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
+                await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
             }
 
             try {
