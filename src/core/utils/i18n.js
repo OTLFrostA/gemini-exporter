@@ -43,7 +43,8 @@
                     currentLang = sys.startsWith('zh') ? 'zh' : 'en';
                 }
             } else {
-                currentLang = 'zh';
+                const sys = (typeof navigator !== 'undefined' ? navigator.language || '' : '').toLowerCase();
+                currentLang = sys.startsWith('zh') ? 'zh' : 'en';
             }
         } catch {
             currentLang = 'en';
@@ -77,9 +78,10 @@
     function t(key, ...args) {
         ensureLocales();
         let str = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
+        if (typeof str !== 'string') return String(str);
         if (args.length) {
             args.forEach((val, idx) => {
-                str = str.replace(new RegExp(`\\{${idx}\\}`, 'g'), val != null ? val : '');
+                str = str.replace(new RegExp(`\\{${idx}\\}`, 'g'), val != null ? String(val) : '');
             });
         }
         return str;
@@ -120,48 +122,55 @@
         if (typeof document === 'undefined') return;
         const root = container || document;
 
-        // 1. Text content: data-i18n
-        root.querySelectorAll('[data-i18n]').forEach(el => {
-            const key = el.getAttribute('data-i18n');
-            const val = t(key);
-            if (val) el.textContent = val;
-        });
+        const applyToElement = (el) => {
+            if (!el || !el.getAttribute) return;
+            const textKey = el.getAttribute('data-i18n');
+            if (textKey) {
+                const val = t(textKey);
+                if (val) el.textContent = val;
+            }
+            const htmlKey = el.getAttribute('data-i18n-html');
+            if (htmlKey) {
+                const val = t(htmlKey);
+                if (val) _setSafeFormattedContent(el, val);
+            }
+            const titleKey = el.getAttribute('data-i18n-title');
+            if (titleKey) {
+                const val = t(titleKey);
+                if (val) el.title = val;
+            }
+            const placeholderKey = el.getAttribute('data-i18n-placeholder');
+            if (placeholderKey) {
+                const val = t(placeholderKey);
+                if (val) el.placeholder = val;
+            }
+        };
 
-        // 2. HTML content: data-i18n-html (rendered safely via DOM construction)
-        root.querySelectorAll('[data-i18n-html]').forEach(el => {
-            const key = el.getAttribute('data-i18n-html');
-            const val = t(key);
-            if (val) _setSafeFormattedContent(el, val);
-        });
+        if (root !== document && root.nodeType === 1) {
+            applyToElement(root);
+        }
 
-        // 3. Tooltips / Titles: data-i18n-title
-        root.querySelectorAll('[data-i18n-title]').forEach(el => {
-            const key = el.getAttribute('data-i18n-title');
-            const val = t(key);
-            if (val) el.title = val;
-        });
-
-        // 4. Input Placeholders: data-i18n-placeholder
-        root.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-            const key = el.getAttribute('data-i18n-placeholder');
-            const val = t(key);
-            if (val) el.placeholder = val;
-        });
-
+        if (root.querySelectorAll) {
+            root.querySelectorAll('[data-i18n], [data-i18n-html], [data-i18n-title], [data-i18n-placeholder]').forEach(applyToElement);
+        }
     }
 
-    // @ui-specific - manipulate explicit DOM IDs for language toggle
-    function _applyLangToggleUI() {
-        if (typeof document === 'undefined') return;
-        const langToggle = document.getElementById('langToggle');
+    // Update language toggle UI if elements are present (or passed in options).
+    // Pure utility: accepts explicit element references or falls back to standard IDs.
+    function _applyLangToggleUI(opts = {}) {
+        const hasDoc = typeof document !== 'undefined';
+        if (!hasDoc && !opts.toggle && !opts.labelZh && !opts.labelEn) return;
+        const langToggle = opts.toggle || (hasDoc ? document.getElementById('langToggle') : null);
         if (langToggle) {
             langToggle.checked = (currentLang === 'en');
         }
-        const labelZh = document.getElementById('labelLangZh');
-        const labelEn = document.getElementById('labelLangEn');
-        if (labelZh && labelEn) {
+        const labelZh = opts.labelZh || (hasDoc ? document.getElementById('labelLangZh') : null);
+        const labelEn = opts.labelEn || (hasDoc ? document.getElementById('labelLangEn') : null);
+        if (labelZh && labelZh.style) {
             labelZh.style.color = currentLang === 'zh' ? 'var(--text, #f1f3fc)' : 'var(--muted, #8a92b2)';
             labelZh.style.opacity = currentLang === 'zh' ? '1' : '0.6';
+        }
+        if (labelEn && labelEn.style) {
             labelEn.style.color = currentLang === 'en' ? 'var(--text, #f1f3fc)' : 'var(--muted, #8a92b2)';
             labelEn.style.opacity = currentLang === 'en' ? '1' : '0.6';
         }

@@ -82,3 +82,86 @@ test('i18n - dynamic dictionary recovery via ensureLocales and direct locale exp
     assert.strictEqual(I18n.t('extName'), 'Gemini Exporter');
 });
 
+test('i18n - applyI18n translates root element and descendants safely', async () => {
+    await I18n.setLang('zh');
+
+    class MockElement {
+        constructor(attrs = {}) {
+            this.attrs = attrs;
+            this.textContent = '';
+            this.title = '';
+            this.placeholder = '';
+            this.children = [];
+            this.nodeType = 1;
+        }
+        getAttribute(name) {
+            return this.attrs[name] || null;
+        }
+        appendChild(child) {
+            this.children.push(child);
+        }
+        querySelectorAll(selector) {
+            const results = [];
+            const walk = (el) => {
+                for (const c of el.children) {
+                    if (c.attrs['data-i18n'] || c.attrs['data-i18n-html'] || c.attrs['data-i18n-title'] || c.attrs['data-i18n-placeholder']) {
+                        results.push(c);
+                    }
+                    walk(c);
+                }
+            };
+            walk(this);
+            return results;
+        }
+    }
+
+    const rootEl = new MockElement({ 'data-i18n': 'extName' });
+    const childEl = new MockElement({ 'data-i18n-title': 'btnSetDir', 'data-i18n-placeholder': 'searchPlaceholder' });
+    rootEl.children.push(childEl);
+
+    // Mock global document if needed
+    const origDoc = global.document;
+    global.document = {
+        createElement: (tag) => new MockElement(),
+        createTextNode: (text) => ({ textContent: text })
+    };
+
+    try {
+        I18n.applyI18n(rootEl);
+        assert.strictEqual(rootEl.textContent, 'Gemini Exporter', 'Root element data-i18n should be translated');
+        assert.strictEqual(childEl.title, '设置目录...', 'Child element data-i18n-title should be translated');
+        assert.strictEqual(childEl.placeholder, '搜索标题 / ID...', 'Child element data-i18n-placeholder should be translated');
+    } finally {
+        if (origDoc !== undefined) global.document = origDoc;
+        else delete global.document;
+    }
+});
+
+test('i18n - applyLangToggleUI operates with injected elements without DOM coupling', async () => {
+    await I18n.setLang('zh');
+    const mockToggle = { checked: true };
+    const mockZh = { style: {} };
+    const mockEn = { style: {} };
+
+    I18n.applyLangToggleUI({
+        toggle: mockToggle,
+        labelZh: mockZh,
+        labelEn: mockEn
+    });
+
+    assert.strictEqual(mockToggle.checked, false, 'zh language should have toggle unchecked');
+    assert.strictEqual(mockZh.style.opacity, '1', 'zh label should be full opacity');
+    assert.strictEqual(mockEn.style.opacity, '0.6', 'en label should be muted opacity');
+
+    await I18n.setLang('en');
+    I18n.applyLangToggleUI({
+        toggle: mockToggle,
+        labelZh: mockZh,
+        labelEn: mockEn
+    });
+    assert.strictEqual(mockToggle.checked, true, 'en language should have toggle checked');
+    assert.strictEqual(mockEn.style.opacity, '1', 'en label should be full opacity');
+    assert.strictEqual(mockZh.style.opacity, '0.6', 'zh label should be muted opacity');
+});
+
+

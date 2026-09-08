@@ -125,6 +125,7 @@ def test_module_exports():
         "src/core/protocol/protocol.js": ["PROTOCOL_VERSION", "RPCS", "BL_FALLBACK", "LIMITS", "createReqidGenerator", "DELETION_ANCHORS"],
         "src/core/utils/locales/zh.js": ["extName", "takeoutLimitPromptTitle"],
         "src/core/utils/locales/en.js": ["extName", "tourBtnNext"],
+        "src/core/utils/i18n.js": ["initLanguage", "getLang", "setLang", "onLanguageChange", "t", "applyI18n"],
         "src/core/utils/utils.js": ["isDevMode", "isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
     }
     for filename, symbols in files.items():
@@ -164,7 +165,7 @@ def test_i18n_keys():
     for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
-        html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder)?=["\']([^"\']+)["\']', content))
+        html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder|-html)?=["\']([^"\']+)["\']', content))
         missing_zh = html_keys - set(zh_dict.keys())
         missing_en = html_keys - set(en_dict.keys())
         assert not missing_zh, f"Missing in zh ({html_file}): {missing_zh}"
