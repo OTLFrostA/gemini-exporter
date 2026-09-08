@@ -482,7 +482,7 @@
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
-            const isDevMode = getUtils().isDevMode();
+            const isDevMode = !!(getUtils()?.isDevMode ? getUtils().isDevMode() : false);
             if (isDevMode) {
                 console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || '').length}`);
             }
@@ -651,7 +651,7 @@
                             }
                         }
                     } catch (retryErr) {
-                        const isDevMode = getUtils().isDevMode();
+                        const isDevMode = !!(getUtils()?.isDevMode ? getUtils().isDevMode() : false);
                         if (isDevMode) {
                             console.warn('[Gemini Exporter Client] metadata-only retry also failed:', retryErr.message);
                         }
