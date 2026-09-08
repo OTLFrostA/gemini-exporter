@@ -6,7 +6,10 @@ import { contentContext } from './contentContext';
 const getStorage = () => (typeof StorageService !== 'undefined' ? StorageService : null) as any;
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
-const getUtils = () => (typeof GeminiUtils !== 'undefined' ? GeminiUtils : null) as any;
+const getUtils = () => (typeof GeminiUtils !== 'undefined'
+    ? GeminiUtils
+    : (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils)
+        || (typeof require !== 'undefined' ? require('../core/utils/utils.js') : null)) as any;
 const getProtocol = () => (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : null) as any;
 const getApiClientClass = () => (typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : null) as any;
 
@@ -14,6 +17,8 @@ export const cleanTitle = (t?: string | null) => (getUtils()?.cleanTitle ? getUt
 export const isRealTitle = (t?: string | null, id?: string) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
 export const resolveTitle = (chat: any) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: chat?.title || '未命名对话', source: 'default' });
 export const compareConversations = (a: any, b: any) => (getUtils()?.compareConversations ? getUtils().compareConversations(a, b) : 0);
+export const mergeConversation = (old: any, incoming: any, options?: any) => (getUtils()?.mergeConversation ? getUtils().mergeConversation(old, incoming, options) : { merged: { ...(old || {}), ...(incoming || {}) }, isChanged: true, hasDirtyTitles: false });
+export const deduplicateConversations = (list: any[], options?: any) => (getUtils()?.deduplicateConversations ? getUtils().deduplicateConversations(list, options) : { processed: list || [], changedCount: 0, hasDirtyTitles: false });
 
 export function isZh(): boolean {
     return contentContext.isZh();
@@ -150,75 +155,21 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                 c.id = nid;
                 const old = map.get(nid);
 
-                const mergedTitles = { ...(old?.titles || {}) };
-                if (c.titles && typeof c.titles === 'object') {
-                    Object.assign(mergedTitles, c.titles);
-                }
-                if (c.titleSource && c.title) {
-                    const cleanT = cleanTitle(c.title);
-                    if (cleanT && (isRealTitle(cleanT, nid) || c.titleSource === 'takeout')) {
-                        mergedTitles[c.titleSource] = cleanT;
-                    }
-                } else if (c.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
-                    const cleanT = cleanTitle(c.title);
-                    if (cleanT && isRealTitle(cleanT, nid)) {
-                        mergedTitles.legacy = cleanT;
-                    }
-                }
-
-                const tempChat = {
-                    id: nid,
-                    titles: mergedTitles,
-                    title: c.title || old?.title,
-                    titleSource: c.titleSource || old?.titleSource
-                };
-
-                const resolved = resolveTitle(tempChat);
-                const resolvedTitle = resolved.title;
-                const resolvedSource = resolved.source;
-
-                let cUpdated = c.updatedAt || c.timestamp || null;
-                if (typeof cUpdated === 'string') cUpdated = new Date(cUpdated).getTime();
-                let oldUpdated = old?.updatedAt || old?.timestamp || null;
-                if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
-
-                const isRpcSource = source === 'network-list' || c.titleSource === 'rpc';
-                let bestUpdatedAt = oldUpdated;
-                if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
-                    bestUpdatedAt = cUpdated;
-                }
-
-                let cCreated = c.createdAt || null;
-                if (typeof cCreated === 'string') cCreated = new Date(cCreated).getTime();
-                let oldCreated = old?.createdAt || null;
-                if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
-                let bestCreatedAt = oldCreated || cCreated || null;
-                if (cCreated && oldCreated && cCreated < oldCreated) {
-                    bestCreatedAt = cCreated;
-                }
-
-                const bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old?.timestamp || c.timestamp || null);
-
-                if (!old) {
-                    changed++;
-                } else if (old.title !== resolvedTitle || (!old.timestamp && bestTimestamp) || (bestUpdatedAt && bestUpdatedAt !== oldUpdated)) {
-                    changed++;
-                }
-                map.set(nid, {
-                    ...(old || {}),
-                    ...c,
-                    id: nid,
-                    titles: mergedTitles,
-                    title: resolvedTitle,
-                    titleSource: resolvedSource,
-                    timestamp: bestTimestamp,
-                    updatedAt: bestUpdatedAt || bestTimestamp,
-                    createdAt: bestCreatedAt,
-                    sidebarIndex: typeof c.sidebarIndex === 'number' ? c.sidebarIndex : old?.sidebarIndex,
-                    lastSeen: (c.lastSeen || (old && old.lastSeen) || new Date(now - idx).toISOString()),
-                    source: source || (old && old.source) || 'unknown',
-                    accountSlot: slot
+                const res = mergeConversation(old, c, {
+                    source,
+                    isRpcSource: source === 'network-list' || c.titleSource === 'rpc',
+                    targetSlot: slot
                 });
+
+                if (res.isChanged) {
+                    changed++;
+                }
+
+                res.merged.lastSeen = (c.lastSeen || (old && old.lastSeen) || new Date(now - idx).toISOString());
+                res.merged.source = source || (old && old.source) || 'unknown';
+                res.merged.accountSlot = slot;
+
+                map.set(nid, res.merged);
             });
 
             const merged = Array.from(map.values());
