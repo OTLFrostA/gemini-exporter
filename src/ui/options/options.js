@@ -409,6 +409,8 @@
             try {
                 await I18n.initLanguage();
                 I18n.applyI18n();
+                I18n.applyLangToggleUI();
+                I18n.onLanguageChange(() => I18n.applyLangToggleUI());
             } catch (e) {
                 console.warn('[workbench] i18n init error', e);
             }

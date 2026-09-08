@@ -232,6 +232,8 @@
   if (typeof I18n !== 'undefined') {
     I18n.initLanguage().then(() => {
       I18n.applyI18n();
+      I18n.applyLangToggleUI();
+      I18n.onLanguageChange(() => I18n.applyLangToggleUI());
       updateCount();
     });
   } else {
