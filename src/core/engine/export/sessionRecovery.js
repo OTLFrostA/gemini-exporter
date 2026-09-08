@@ -10,7 +10,8 @@
 }(typeof self !== 'undefined' ? self : this, function() {
     'use strict';
 
-    function getExtensionVersion() {
+    function getExtensionVersion(customVersion) {
+        if (customVersion) return customVersion;
         try {
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
                 return chrome.runtime.getManifest().version || '1.3.8';
@@ -159,6 +160,7 @@
             curIds,
             exportedIds,
             Storage,
+            storageAdapter = Storage,
             slot = 'u0',
             onItemExported = (() => {})
         } = context;
@@ -182,8 +184,11 @@
         }
 
         try {
-            if (Storage && typeof Storage.saveExportRecord === 'function') {
-                await Storage.saveExportRecord(slot, targetId, rec);
+            if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
+                await storageAdapter.saveExportRecord(slot, targetId, rec);
+            } else if (storageAdapter && typeof storageAdapter.set === 'function') {
+                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                await storageAdapter.set({ [expKey]: curIds });
             } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
                 await chrome.storage.local.set({ [expKey]: curIds });

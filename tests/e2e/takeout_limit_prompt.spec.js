@@ -135,8 +135,13 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     const modal = page.locator('#takeoutLimitModal');
     await expect(modal).toBeHidden();
 
-    // Inject a takeout conversation into ConversationsStore and await the prompt check
+    // Inject a takeout conversation into storage & ConversationsStore and await the prompt check
     await page.evaluate(async () => {
+      await chrome.storage.local.set({
+        gemini_conversations_u0: [
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout' }
+        ]
+      });
       if (window.ConversationsStore) {
         window.ConversationsStore.setConversations([
           { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout' }
