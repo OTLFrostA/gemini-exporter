@@ -28,56 +28,24 @@ declare global {
     var GeminiClientRpcClient: GeminiClientRpcClientModule;
 }
 
-(function(root: any, factory: () => GeminiClientRpcClientModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        root.GeminiClientRpcClient = factory();
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiClientRpcClientModule {
-    "use strict";
+import { GeminiProtocol } from "../../protocol/protocol.js";
+import { GeminiUtils } from "../../utils/utils.js";
+import { GeminiResponseParserClass } from "../geminiParser.js";
 
-    let __protocol: GeminiProtocolModule | null = null;
-    function getProtocol(): GeminiProtocolModule {
-        if (__protocol) return __protocol;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
-            __protocol = (globalThis as any).GeminiProtocol;
-        } else if (typeof require !== "undefined") {
-            try { __protocol = require("../../protocol/protocol.js"); } catch (_) {
-                try { __protocol = require("../protocol/protocol.js"); } catch (_) {}
-            }
-        }
-        if (!__protocol) throw new Error("GeminiProtocol not found. Make sure core/protocol/protocol.js is loaded.");
-        return __protocol;
-    }
+function getProtocol(): GeminiProtocolModule {
+    return GeminiProtocol;
+}
 
-    const nextReqid = getProtocol().createReqidGenerator();
+const nextReqid = GeminiProtocol.createReqidGenerator();
 
-    function getUtils(): any {
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== "undefined") {
-            try { return require("../../utils/utils.js"); } catch (_) {
-                try { return require("../utils/utils.js"); } catch (_) {}
-            }
-        }
-        return null;
-    }
+function getUtils(): any {
+    return GeminiUtils;
+}
 
-    function getParser(): any {
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiResponseParserClass) {
-            return (globalThis as any).GeminiResponseParserClass;
-        }
-        if (typeof self !== "undefined" && (self as any).GeminiResponseParserClass) {
-            return (self as any).GeminiResponseParserClass;
-        }
-        if (typeof require !== "undefined") {
-            try { return require("../geminiParser.js").GeminiResponseParserClass; } catch (_) {}
-            try { return require("./geminiParser.js").GeminiResponseParserClass; } catch (_) {}
-        }
-        throw new Error("GeminiResponseParserClass not found. Make sure geminiParser.js is loaded.");
-    }
+function getParser(): any {
+    return GeminiResponseParserClass;
+}
+
 
     function getApiUrl(slot?: string | null): string {
         if (slot && slot !== "default") {
@@ -146,14 +114,30 @@ declare global {
         }
     }
 
-    return {
-        GEMINI_API_URL,
-        getProtocol,
-        getUtils,
-        getParser,
-        getApiUrl,
-        nextReqid,
-        generateFallbackSid,
-        postBatchexecute
-    };
-}));
+export {
+    GEMINI_API_URL,
+    getProtocol,
+    getUtils,
+    getParser,
+    getApiUrl,
+    nextReqid,
+    generateFallbackSid,
+    postBatchexecute
+};
+
+export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
+    GEMINI_API_URL,
+    getProtocol,
+    getUtils,
+    getParser,
+    getApiUrl,
+    nextReqid,
+    generateFallbackSid,
+    postBatchexecute
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).GeminiClientRpcClient = GeminiClientRpcClient;
+if (typeof module === 'object' && module.exports) module.exports = GeminiClientRpcClient;
+
+export default GeminiClientRpcClient;
+

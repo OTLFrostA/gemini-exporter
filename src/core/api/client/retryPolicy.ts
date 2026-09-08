@@ -47,16 +47,7 @@ declare global {
     var GeminiClientRetryPolicy: GeminiClientRetryPolicyModule;
 }
 
-(function(root: any, factory: () => GeminiClientRetryPolicyModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        root.GeminiClientRetryPolicy = factory();
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiClientRetryPolicyModule {
-    "use strict";
+
 
     function getCredentialManager(): GeminiClientCredentialManagerModule | null {
         if (typeof GeminiClientCredentialManager !== "undefined") return GeminiClientCredentialManager;
@@ -161,9 +152,20 @@ declare global {
         };
     }
 
-    return {
-        handleHttp400,
-        handleHttp401,
-        handleHttp429
-    };
-}));
+export {
+    handleHttp400,
+    handleHttp401,
+    handleHttp429
+};
+
+export const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
+    handleHttp400,
+    handleHttp401,
+    handleHttp429
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).GeminiClientRetryPolicy = GeminiClientRetryPolicy;
+if (typeof module === 'object' && module.exports) module.exports = GeminiClientRetryPolicy;
+
+export default GeminiClientRetryPolicy;
+

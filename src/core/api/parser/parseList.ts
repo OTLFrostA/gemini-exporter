@@ -32,80 +32,21 @@ declare global {
     var parseList: (text: string) => ListParseResult;
 }
 
-(function(root: any, factory: () => GeminiParserParseListModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        const exports = factory();
-        root.GeminiParserParseList = exports;
-        root.extractListItemTimestamp = exports.extractListItemTimestamp;
-        root.parseList = exports.parseList;
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserParseListModule {
-    "use strict";
+import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
+import { GeminiProtocol } from "../../protocol/protocol.js";
 
-    function getExtractors(): GeminiParserExtractorsModule | null {
-        if (typeof GeminiParserExtractors !== "undefined" && GeminiParserExtractors) return GeminiParserExtractors;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserExtractors) return (globalThis as any).GeminiParserExtractors;
-        if (typeof require !== "undefined") {
-            try { return require("./extractors.js"); } catch (_) {}
-            try { return require("./parser/extractors.js"); } catch (_) {}
-        }
-        return null;
-    }
+const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
 
-    const FALLBACK_SCHEMA = {
-        LIST_ITEM: {
-            ID: 0,
-            TITLE: 1,
-            TIMESTAMP: 5,
-            UPDATE_TIME_ALT: 2,
-            CREATE_TIME_ALT: 3,
-            COUNT_ALT1: 4,
-            COUNT_ALT2: 9
-        }
-    };
+function getSchema(): any {
+    return GEMINI_JSPB_SCHEMA;
+}
 
-    function getSchema(): any {
-        const ext = getExtractors();
-        return (ext && ext.GEMINI_JSPB_SCHEMA) || (typeof GEMINI_JSPB_SCHEMA !== "undefined" ? GEMINI_JSPB_SCHEMA : FALLBACK_SCHEMA);
-    }
+function getProtocol(): any {
+    return GeminiProtocol;
+}
 
-    function getProtocol(): any {
-        const ext = getExtractors();
-        if (ext && typeof ext.getProtocol === "function") {
-            const p = ext.getProtocol();
-            if (p) return p;
-        }
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
-        if (typeof require !== "undefined") {
-            try { return require("../../protocol/protocol.js"); } catch (_) {}
-            try { return require("../protocol/protocol.js"); } catch (_) {}
-        }
-        return { WRB: "wrb.fr", RPCS: { LIST: "MaZiqc", LEGACY_LIST: "hXcbkd" } };
-    }
 
-    function cleanTitle(t?: string | null): string {
-        const ext = getExtractors();
-        if (ext && typeof ext.cleanTitle === "function") return ext.cleanTitle(t);
-        return String(t || "").trim();
-    }
 
-    function isRealTitle(t?: string | null, fallbackId?: string | number): boolean {
-        const ext = getExtractors();
-        if (ext && typeof ext.isRealTitle === "function") return ext.isRealTitle(t, fallbackId);
-        const s = String(t || "").trim();
-        return s.length >= 2 && !/^(c_)?[a-f0-9_-]{8,64}$/i.test(s);
-    }
-
-    function robustFirstPayload(text?: string | null): unknown[] | null {
-        const ext = getExtractors();
-        if (ext && typeof ext.robustFirstPayload === "function") return ext.robustFirstPayload(text);
-        if (!text || typeof text !== "string") return null;
-        try { return JSON.parse(text); } catch (_) { return null; }
-    }
 
     /**
      * Extracts official server-side last updated timestamp from a MaZiqc list item.
@@ -282,8 +223,22 @@ declare global {
         }
     }
 
-    return {
-        extractListItemTimestamp,
-        parseList
-    };
-}));
+export {
+    extractListItemTimestamp,
+    parseList
+};
+
+export const GeminiParserParseList: GeminiParserParseListModule = {
+    extractListItemTimestamp,
+    parseList
+};
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).GeminiParserParseList = GeminiParserParseList;
+    (globalThis as any).extractListItemTimestamp = extractListItemTimestamp;
+    (globalThis as any).parseList = parseList;
+}
+if (typeof module === 'object' && module.exports) module.exports = GeminiParserParseList;
+
+export default GeminiParserParseList;
+

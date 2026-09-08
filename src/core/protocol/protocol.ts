@@ -125,6 +125,9 @@ export const GeminiProtocol: GeminiProtocolModule = {
     createReqidGenerator
 };
 
+(GeminiProtocol as any).GeminiProtocol = GeminiProtocol;
+(GeminiProtocol as any).default = GeminiProtocol;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).GeminiProtocol = GeminiProtocol;
 }

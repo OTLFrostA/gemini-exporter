@@ -55,49 +55,11 @@ declare global {
     var GeminiParserAttachments: GeminiParserAttachmentsModule;
 }
 
-(function(root: any, factory: () => GeminiParserAttachmentsModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        root.GeminiParserAttachments = factory();
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserAttachmentsModule {
-    "use strict";
+import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
 
-    const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
-    const DEFAULT_RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
+const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
+const DEFAULT_RESEARCH_PROMPT_PREFIX_RE = RESEARCH_PROMPT_PREFIX_RE;
 
-    function getExtractors(): GeminiParserExtractorsModule | null {
-        if (typeof GeminiParserExtractors !== "undefined" && GeminiParserExtractors) return GeminiParserExtractors;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserExtractors) return (globalThis as any).GeminiParserExtractors;
-        if (typeof require !== "undefined") {
-            try { return require("./extractors.js"); } catch (_) {}
-            try { return require("./parser/extractors.js"); } catch (_) {}
-        }
-        return null;
-    }
-
-    function deepWalk(root: any, visitor: (node: any, depth: number) => boolean | void, maxDepth: number = 50): void {
-        const ext = getExtractors();
-        if (ext && typeof ext.deepWalk === "function") {
-            return ext.deepWalk(root, visitor, maxDepth);
-        }
-        function walk(node: any, depth: number) {
-            if (!node || typeof node !== "object" || depth > maxDepth) return;
-            const shouldDescend = visitor(node, depth);
-            if (shouldDescend === false) return;
-            if (Array.isArray(node)) {
-                for (let i = 0; i < node.length; i++) walk(node[i], depth + 1);
-            } else {
-                for (const k in node) {
-                    if (Object.prototype.hasOwnProperty.call(node, k)) walk(node[k], depth + 1);
-                }
-            }
-        }
-        walk(root, 0);
-    }
 
     function extractImageSelectionIndex(sourceUrl?: string | null): number | undefined {
         if (!sourceUrl || typeof sourceUrl !== "string") return undefined;
@@ -254,8 +216,7 @@ declare global {
     function extractDocumentsMeta(root: unknown): DeepResearchDocMeta[] {
         let out: DeepResearchDocMeta[] = [];
         let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-        const ext = getExtractors();
-        const researchPrefixRe = (ext && ext.RESEARCH_PROMPT_PREFIX_RE) || DEFAULT_RESEARCH_PROMPT_PREFIX_RE;
+        const researchPrefixRe = RESEARCH_PROMPT_PREFIX_RE;
 
         function pushMeta(metaObj: DeepResearchDocMeta) {
             if (metaObj.id && metaObj.title) {
@@ -395,18 +356,38 @@ declare global {
         return candidates[0] || "";
     }
 
-    return {
-        IMAGE_GEN_RE,
-        highResVariant,
-        isInternalChipUrl,
-        extractImageSelectionIndex,
-        getImageDedupKey,
-        filterNewImages,
-        extractImages,
-        extractUserFiles,
-        extractDocumentsMeta,
-        findDocContentById,
-        parseDocSections,
-        findDocMarkdownByClues
-    };
-}));
+export {
+    IMAGE_GEN_RE,
+    highResVariant,
+    isInternalChipUrl,
+    extractImageSelectionIndex,
+    getImageDedupKey,
+    filterNewImages,
+    extractImages,
+    extractUserFiles,
+    extractDocumentsMeta,
+    findDocContentById,
+    parseDocSections,
+    findDocMarkdownByClues
+};
+
+export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
+    IMAGE_GEN_RE,
+    highResVariant,
+    isInternalChipUrl,
+    extractImageSelectionIndex,
+    getImageDedupKey,
+    filterNewImages,
+    extractImages,
+    extractUserFiles,
+    extractDocumentsMeta,
+    findDocContentById,
+    parseDocSections,
+    findDocMarkdownByClues
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).GeminiParserAttachments = GeminiParserAttachments;
+if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
+
+export default GeminiParserAttachments;
+

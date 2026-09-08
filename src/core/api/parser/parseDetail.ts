@@ -34,82 +34,91 @@ declare global {
     var parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
 }
 
-(function(root: any, factory: () => GeminiParserParseDetailModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        const exports = factory();
-        root.GeminiParserParseDetail = exports;
-        root.findTurnsDeep = exports.findTurnsDeep;
-        root.parseDetail = exports.parseDetail;
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserParseDetailModule {
-    "use strict";
+import {
+    GEMINI_JSPB_SCHEMA,
+    detectTurnSchemaDrift,
+    extractModelCandidates,
+    extractCandidateText,
+    safeStructureClean,
+    robustFirstPayload,
+    deepWalk,
+    extractThoughts,
+    extractCitations,
+    extractConversationId,
+    smartSummarizePrompt,
+    extractConversationTitle,
+    extractMetaTitleFromTop,
+    extractTurnTimestamp,
+    normId,
+    cleanTitle,
+    isRealTitle
+} from "./extractors.js";
+import {
+    extractImages,
+    extractUserFiles,
+    extractDocumentsMeta,
+    findDocContentById,
+    parseDocSections,
+    findDocMarkdownByClues,
+    filterNewImages,
+    highResVariant,
+    isInternalChipUrl
+} from "./attachments.js";
+import GeminiProtocol, { WRB, RPCS } from "../../protocol/protocol.js";
+import GeminiUtils from "../../utils/utils.js";
 
-    function getExtractors(): GeminiParserExtractorsModule | null {
-        if (typeof GeminiParserExtractors !== "undefined" && GeminiParserExtractors) return GeminiParserExtractors;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserExtractors) return (globalThis as any).GeminiParserExtractors;
-        if (typeof require !== "undefined") {
-            try { return require("./extractors.js"); } catch (_) {}
-            try { return require("./parser/extractors.js"); } catch (_) {}
-        }
-        return null;
-    }
-
-    function getAttachments(): GeminiParserAttachmentsModule | null {
-        if (typeof GeminiParserAttachments !== "undefined" && GeminiParserAttachments) return GeminiParserAttachments;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserAttachments) return (globalThis as any).GeminiParserAttachments;
-        if (typeof require !== "undefined") {
-            try { return require("./attachments.js"); } catch (_) {}
-            try { return require("./parser/attachments.js"); } catch (_) {}
-        }
-        return null;
-    }
-
-    function getUtils(): any {
-        const ext = getExtractors();
-        if (ext && typeof ext.getUtils === "function") {
-            const u = ext.getUtils();
-            if (u) return u;
-        }
-        if (typeof GeminiUtils !== "undefined" && GeminiUtils) return GeminiUtils;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== "undefined") {
-            try { return require("../../utils/utils.js"); } catch (_) {}
-            try { return require("../utils/utils.js"); } catch (_) {}
-        }
-        return null;
-    }
-
-    function getProtocol(): any {
-        const ext = getExtractors();
-        if (ext && typeof ext.getProtocol === "function") {
-            const p = ext.getProtocol();
-            if (p) return p;
-        }
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
-        if (typeof require !== "undefined") {
-            try { return require("../../protocol/protocol.js"); } catch (_) {}
-            try { return require("../protocol/protocol.js"); } catch (_) {}
-        }
-        return { WRB: "wrb.fr", RPCS: { DETAIL: "hNvQHb", LIST: "MaZiqc", LEGACY_LIST: "hXcbkd" } };
-    }
-
-    const FALLBACK_SCHEMA = {
-        TURN: { ID_META: 0, TIMESTAMP: 1, USER_PAYLOAD: 2, MODEL_PAYLOAD: 3 },
-        MODEL_PAYLOAD: { CANDIDATES: 0, SEARCH_QUERIES: 1, PROVIDER: 2, TELEMETRY_START: 3 },
-        CANDIDATE: { ID: 0, BODY: 1, LANGUAGE_CODE: 2 },
-        CANDIDATE_BODY: { PARTS: 0 }
+function getExtractors(): any {
+    return {
+        GEMINI_JSPB_SCHEMA,
+        detectTurnSchemaDrift,
+        extractModelCandidates,
+        extractCandidateText,
+        safeStructureClean,
+        robustFirstPayload,
+        deepWalk,
+        extractThoughts,
+        extractCitations,
+        extractConversationId,
+        smartSummarizePrompt,
+        extractConversationTitle,
+        extractMetaTitleFromTop,
+        extractTurnTimestamp,
+        normId,
+        cleanTitle,
+        isRealTitle
     };
+}
 
-    function getSchema(): any {
-        const ext = getExtractors();
-        return (ext && ext.GEMINI_JSPB_SCHEMA) || FALLBACK_SCHEMA;
-    }
+function getAttachments(): any {
+    return {
+        extractImages,
+        extractUserFiles,
+        extractDocumentsMeta,
+        findDocContentById,
+        parseDocSections,
+        findDocMarkdownByClues,
+        filterNewImages,
+        highResVariant,
+        isInternalChipUrl
+    };
+}
 
-    const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
+function getUtils(): any {
+    return (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) || GeminiUtils;
+}
+
+function getProtocol(): any {
+    return (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) || GeminiProtocol;
+}
+
+const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
+
+function getSchema(): any {
+    return GEMINI_JSPB_SCHEMA;
+}
+
+const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
+
 
     function isTurn(turn: unknown): boolean {
         if (!Array.isArray(turn) || turn.length < 3) return false;
@@ -556,10 +565,25 @@ declare global {
         }
     }
 
-    return {
-        isTurn,
-        isTurnsArray,
-        findTurnsDeep,
-        parseDetail
-    };
-}));
+export {
+    isTurn,
+    isTurnsArray,
+    findTurnsDeep,
+    parseDetail
+};
+
+export const GeminiParserParseDetail: GeminiParserParseDetailModule = {
+    isTurn,
+    isTurnsArray,
+    findTurnsDeep,
+    parseDetail
+};
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).GeminiParserParseDetail = GeminiParserParseDetail;
+    (globalThis as any).findTurnsDeep = findTurnsDeep;
+    (globalThis as any).parseDetail = parseDetail;
+}
+if (typeof module === 'object' && module.exports) module.exports = GeminiParserParseDetail;
+
+export default GeminiParserParseDetail;
