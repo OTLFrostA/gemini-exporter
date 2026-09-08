@@ -90,6 +90,9 @@ def test_html_includes():
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
             pop_html = f.read()
             assert '<script src="/dist/core/protocol/protocol.js"></script>' in pop_html, f"Missing protocol.js in {pop_path}"
+            assert '<script src="/dist/core/utils/locales/zh.js"></script>' in pop_html, f"Missing zh.js in {pop_path}"
+            assert '<script src="/dist/core/utils/locales/en.js"></script>' in pop_html, f"Missing en.js in {pop_path}"
+            assert '<script src="/dist/core/utils/i18n.js"></script>' in pop_html, f"Missing i18n.js in {pop_path}"
             assert '<script src="/dist/core/storage/storageService.js"></script>' in pop_html, f"Missing storageService.js in {pop_path}"
             assert '<script src="/dist/ui/popup/popup.js"></script>' in pop_html, f"Missing popup.js in {pop_path}"
     print("  ✓ options.html and popup.html script tags verified")
@@ -328,6 +331,12 @@ def test_javascript_unit_tests():
                 ("chat_formatter.js", "../chat_formatter.js"),
                 ("gemini_parser.js", "../gemini_parser.js"),
                 ("takeout_engine.js", "../takeout_engine.js"),
+                ("src/core/utils/locales/zh.js", "./locales/zh.js"),
+                ("src/core/utils/locales/en.js", "./locales/en.js"),
+                ("src/core/utils/locales/zh.js", "../src/core/utils/locales/zh.js"),
+                ("src/core/utils/locales/en.js", "../src/core/utils/locales/en.js"),
+                ("src/core/utils/i18n.js", "../src/core/utils/i18n.js"),
+                ("src/core/utils/i18n.js", "./i18n.js"),
                 ("i18n.js", "../i18n.js")
             ]:
                 full_p = os.path.join(BASE_DIR, mod_path)

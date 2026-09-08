@@ -73,3 +73,12 @@ test('i18n - ensure no duplicate object literal keys in locale sources', () => {
         assert.deepStrictEqual(duplicates, [], `Found duplicate keys in ${lang} dictionary: ${duplicates.join(', ')}`);
     }
 });
+
+test('i18n - dynamic dictionary recovery via ensureLocales and direct locale exports', () => {
+    const zh = require('../src/core/utils/locales/zh.js');
+    const en = require('../src/core/utils/locales/en.js');
+    assert.ok(zh && zh.extName, 'zh locale export should be valid');
+    assert.ok(en && en.extName, 'en locale export should be valid');
+    assert.strictEqual(I18n.t('extName'), 'Gemini Exporter');
+});
+

@@ -23,10 +23,16 @@
     }
     const LOCALES = { zh: loadLocaleDict('zh'), en: loadLocaleDict('en') };
 
+    function ensureLocales() {
+        if (!LOCALES.zh) LOCALES.zh = loadLocaleDict('zh');
+        if (!LOCALES.en) LOCALES.en = loadLocaleDict('en');
+    }
+
     let currentLang = 'en';
     const langChangeListeners = new Set();
 
     async function initLanguage() {
+        ensureLocales();
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 const data = await chrome.storage.local.get('gemini_exporter_lang');
@@ -50,6 +56,7 @@
     }
 
     async function setLang(lang) {
+        ensureLocales();
         if (!LOCALES[lang]) return;
         currentLang = lang;
         try {
@@ -68,6 +75,7 @@
     }
 
     function t(key, ...args) {
+        ensureLocales();
         let str = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
         if (args.length) {
             args.forEach((val, idx) => {
