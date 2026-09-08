@@ -419,6 +419,8 @@
     return {
         adjustHeadingHierarchy,
         renderAttachments,
+        convertHtmlToMarkdown,
+        cleanMessageBody,
         toMarkdown,
         toOpenAIJson,
         formatContent

@@ -92,8 +92,14 @@
             } finally {
                 await writable.close();
             }
+            return cleanName;
         }
     }
+
+    FsWriter.FsWriter = FsWriter;
+    FsWriter.ensureSubDir = ensureSubDir;
+    FsWriter.sanitizeFileName = sanitizeFileName;
+    FsWriter.sanitizeRelativePath = sanitizeRelativePath;
 
     return {
         FsWriter,

@@ -40,3 +40,41 @@ test('chat_formatter - formatContent json_openai', () => {
     assert.strictEqual(parsed.messages[1].role, 'assistant');
     assert.strictEqual(parsed.messages[1].content, 'Hi there!');
 });
+
+test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () => {
+    const rawHtml = '<p>Here is a code snippet:</p><pre><code class="language-js">console.log(&quot;hello&quot;);</code></pre><p>And some <b>bold</b> and <i>italic</i> text with <br/>break.</p>';
+    const md = ChatFormatter.convertHtmlToMarkdown(rawHtml);
+    assert.ok(md.includes('```js'), 'Code block should have language');
+    assert.ok(md.includes('console.log("hello");'), 'Entities should be unescaped');
+    assert.ok(md.includes('**bold**'), 'Bold should be markdown');
+    assert.ok(md.includes('*italic*'), 'Italic should be markdown');
+});
+
+test('chat_formatter - adjustHeadingHierarchy shifts headings outside code blocks', () => {
+    const md = '# Title\n## Subtitle\n```\n# Not a heading\n```\n### Inner';
+    const shifted = ChatFormatter.adjustHeadingHierarchy(md, 2);
+    const lines = shifted.split('\n');
+    assert.strictEqual(lines[0], '### Title');
+    assert.strictEqual(lines[1], '#### Subtitle');
+    assert.strictEqual(lines[3], '# Not a heading');
+    assert.strictEqual(lines[5], '##### Inner');
+});
+
+test('chat_formatter - cleanMessageBody strips placeholder urls and chips', () => {
+    const text = 'Hello world\nhttps://googleusercontent.com/immersive_entry_chip/12345\nNext line';
+    const cleaned = ChatFormatter.cleanMessageBody(text);
+    assert.ok(!cleaned.includes('immersive_entry_chip'), 'Immersive chip url should be stripped');
+    assert.ok(cleaned.includes('Hello world'));
+    assert.ok(cleaned.includes('Next line'));
+});
+
+test('chat_formatter - renderAttachments renders images and file attachments', () => {
+    const atts = [
+        { type: 'image', localName: 'assets/cat.png', alt: 'Cute cat', src: 'https://images.google.com/cat.png' },
+        { type: 'file', localName: 'files/data.csv', name: 'data.csv', title: 'Data File' }
+    ];
+    const rendered = ChatFormatter.renderAttachments(atts, true);
+    assert.ok(rendered.includes('![Cute cat](assets/cat.png)'), 'Image markdown should be rendered');
+    assert.ok(rendered.includes('- 📎 [Data File](files/data.csv)'), 'File attachment should be rendered');
+});
+

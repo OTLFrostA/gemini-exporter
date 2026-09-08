@@ -7,10 +7,14 @@
 
     class ZipWriter {
         constructor(folderName = 'gemini_export') {
-            if (typeof JSZip === 'undefined') {
+            const JSZipLib = (typeof JSZip !== 'undefined' ? JSZip : null)
+                || (typeof globalThis !== 'undefined' ? globalThis.JSZip : null)
+                || (typeof self !== 'undefined' ? self.JSZip : null)
+                || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null);
+            if (!JSZipLib) {
                 throw new Error('JSZip library is not available');
             }
-            this.zip = new JSZip();
+            this.zip = new JSZipLib();
             this.folder = this.zip.folder(folderName);
             this.totalBytes = 0;
             this.MAX_SAFE_ZIP_BYTES = 500 * 1024 * 1024; // 500MB safe memory warning threshold
@@ -48,6 +52,7 @@
                 console.warn(`[ZipWriter] Warning: Total uncompressed content exceeds ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB. May risk tab memory pressure.`);
             }
             this.folder.file(cleanPath, content, options);
+            return cleanPath;
         }
 
         getTotalBytes() {
@@ -67,5 +72,6 @@
         }
     }
 
+    ZipWriter.ZipWriter = ZipWriter;
     return ZipWriter;
 }));
