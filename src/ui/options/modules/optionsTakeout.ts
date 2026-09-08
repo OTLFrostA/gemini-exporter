@@ -3,6 +3,7 @@ import type { OptionsTakeoutOptions } from '../../../types/ui.js';
 import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
 import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
 import { TakeoutController as DefaultTakeoutCtrl } from '../../controllers/takeoutController.js';
+import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
@@ -21,7 +22,8 @@ const getDialogs = () => {
 };
 
 const getStorage = () => {
-    if (typeof StorageService !== 'undefined') return StorageService;
+    if (typeof StorageService !== 'undefined' && StorageService) return StorageService;
+    if (typeof DefaultStorageService !== 'undefined' && DefaultStorageService) return DefaultStorageService;
     if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
     return null;
 };
@@ -132,9 +134,14 @@ export const OptionsTakeout = {
     isTakeoutPromptCompleted
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsTakeout;
-}
+(OptionsTakeout as any).OptionsTakeout = OptionsTakeout;
+(OptionsTakeout as any).default = OptionsTakeout;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsTakeout = OptionsTakeout;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = OptionsTakeout;
+}
+
+export default OptionsTakeout;

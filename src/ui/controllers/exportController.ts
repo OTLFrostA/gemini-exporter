@@ -1,14 +1,12 @@
 // src/ui/controllers/exportController.ts - Orchestrates ExportEngine, no direct DOM except callbacks
 import type { ExportControllerContract } from '../../types/ui.js';
+import ExportEngine from '../../core/engine/exportEngine.js';
 
 const getExportEngineClass = (): any => {
-    if (typeof ExportEngine !== 'undefined') {
-        return (ExportEngine as any).ExportEngine || ExportEngine;
-    }
-    if (typeof globalThis !== 'undefined' && (globalThis as any).ExportEngine) {
+    if (typeof (globalThis as any).ExportEngine !== 'undefined') {
         return (globalThis as any).ExportEngine.ExportEngine || (globalThis as any).ExportEngine;
     }
-    return null;
+    return ExportEngine;
 };
 
 let activeEngine: any = null;
@@ -101,9 +99,14 @@ export const ExportController: ExportControllerContract = {
     abort
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = ExportController;
-}
+(ExportController as any).ExportController = ExportController;
+(ExportController as any).default = ExportController;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).ExportController = ExportController;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = ExportController;
+}
+
+export default ExportController;

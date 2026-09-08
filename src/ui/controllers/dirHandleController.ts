@@ -110,9 +110,14 @@ export const DirHandleController: DirHandleControllerContract = {
     setDirHandle
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = DirHandleController;
-}
+(DirHandleController as any).DirHandleController = DirHandleController;
+(DirHandleController as any).default = DirHandleController;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).DirHandleController = DirHandleController;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = DirHandleController;
+}
+
+export default DirHandleController;

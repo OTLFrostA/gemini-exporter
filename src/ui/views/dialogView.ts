@@ -1,6 +1,7 @@
 // src/ui/views/dialogView.ts - Dialog and Banner Views
 import type { IDialogView } from '../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../state/conversationsStore.js';
+import StorageService from '../../core/storage/storageService.js';
+import ConversationsStore from '../state/conversationsStore.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
@@ -14,15 +15,13 @@ const t = (key: string, ...args: any[]): string => {
 };
 
 const getStorage = () => {
-    if (typeof StorageService !== 'undefined') return StorageService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
-    return null;
+    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
+    return StorageService;
 };
 
 const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
+    if (typeof (globalThis as any).ConversationsStore !== 'undefined') return (globalThis as any).ConversationsStore;
+    return ConversationsStore;
 };
 
 export function renderExportBanner(session: any, currentSlot: string, isRunning: boolean): void {
@@ -288,9 +287,14 @@ export const DialogView: IDialogView = {
     hideTakeoutLimitPrompt
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = DialogView;
-}
+(DialogView as any).DialogView = DialogView;
+(DialogView as any).default = DialogView;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).DialogView = DialogView;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = DialogView;
+}
+
+export default DialogView;

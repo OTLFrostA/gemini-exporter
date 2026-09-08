@@ -3,16 +3,49 @@ import type { OptionsSyncOptions } from '../../../types/ui.js';
 import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
 import { ExportController as DefaultExportController } from '../../controllers/exportController.js';
 import { SyncController as DefaultSyncCtrl } from '../../controllers/syncController.js';
+import { GeminiAPIClient as DefaultApiClient } from '../../../core/api/geminiClient.js';
+import { GeminiProtocol as DefaultGeminiProtocol } from '../../../core/protocol/protocol.js';
+import { TabService as DefaultTabService } from '../../../core/utils/tabService.js';
+import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
 }
 
+const getI18n = () => {
+    if (typeof I18n !== 'undefined' && I18n) return I18n;
+    if (typeof DefaultI18n !== 'undefined' && DefaultI18n) return DefaultI18n;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).I18n) return (globalThis as any).I18n;
+    return null;
+};
+
 const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
+    const i18n = getI18n();
+    if (i18n && typeof i18n.t === 'function') {
+        return i18n.t(key, ...args);
     }
     return key;
+};
+
+const getProtocol = () => {
+    if (typeof GeminiProtocol !== 'undefined' && GeminiProtocol) return GeminiProtocol;
+    if (typeof DefaultGeminiProtocol !== 'undefined' && DefaultGeminiProtocol) return DefaultGeminiProtocol;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
+    return null;
+};
+
+const getApiClient = () => {
+    if (typeof GeminiAPIClient !== 'undefined' && GeminiAPIClient) return GeminiAPIClient;
+    if (typeof DefaultApiClient !== 'undefined' && DefaultApiClient) return DefaultApiClient;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiAPIClient) return (globalThis as any).GeminiAPIClient;
+    return null;
+};
+
+const getTabService = () => {
+    if (typeof TabService !== 'undefined' && TabService) return TabService;
+    if (typeof DefaultTabService !== 'undefined' && DefaultTabService) return DefaultTabService;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).TabService) return (globalThis as any).TabService;
+    return null;
 };
 
 const getStore = () => {
@@ -104,7 +137,8 @@ function bindSyncButtons(): void {
                     }, 2500);
                     if (__loadStore) __loadStore();
                     const currentCount = count || res?.count || (Store && (Store as any).getAllConversations ? (Store as any).getAllConversations().length : 0);
-                    const slidingLimit = (typeof GeminiProtocol !== 'undefined' && GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 600;
+                    const protocol = getProtocol();
+                    const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
                     const isLimit = hitGoogleLimit || (currentCount >= slidingLimit);
                     if (isLimit && __maybePromptTakeout) {
                         await __maybePromptTakeout(currentCount, !!hitGoogleLimit);
@@ -112,7 +146,8 @@ function bindSyncButtons(): void {
                 },
                 onError: async (err: any, errMsg: string, details: any) => {
                     if (progText) progText.textContent = errMsg;
-                    const slidingLimit = (typeof GeminiProtocol !== 'undefined' && GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 600;
+                    const protocol = getProtocol();
+                    const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
                     const currentCount = (Store && (Store as any).getAllConversations) ? (Store as any).getAllConversations().length : 0;
                     const isLimit = details?.hitGoogleLimit || (currentCount >= slidingLimit) || (details?.count >= slidingLimit);
                     if (isLimit && __maybePromptTakeout) {
@@ -142,8 +177,7 @@ function bindSyncButtons(): void {
         if (btn) btn.disabled = true;
         log(typeof t === 'function' ? t('logPruneStarted') : '正在检测云端存活会话并清理本地失效会话...', 'info');
         try {
-            const C: any = (typeof DefaultApiClient !== 'undefined' ? DefaultApiClient : null)
-                || (typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : (window as any).GeminiAPIClient);
+            const C: any = getApiClient();
             if (!C) throw new Error('GeminiAPIClient not loaded');
             const client = new C();
             const all = await client.getAllConversations(2000, null, null, { incremental: false });
@@ -184,7 +218,8 @@ export function bindBroadcastListeners(): void {
             if (progText && msg.title) progText.textContent = msg.title;
             if (msg.title) log(msg.title);
 
-            const slidingLimit = (typeof GeminiProtocol !== 'undefined' && GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 600;
+            const protocol = getProtocol();
+            const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
             if ((msg.percent === 100 || msg.done === 1) && (msg.hitGoogleLimit || (msg.count >= slidingLimit))) {
                 if (__maybePromptTakeout) {
                     __maybePromptTakeout(msg.count || slidingLimit, !!msg.hitGoogleLimit);
@@ -199,8 +234,7 @@ export function bindBroadcastListeners(): void {
 
 export async function autoDetectActiveSlot(): Promise<void> {
     try {
-        const TabService = (typeof DefaultTabService !== 'undefined' ? DefaultTabService : null)
-            || (typeof (window as any).TabService !== 'undefined' ? (window as any).TabService : null);
+        const TabService = getTabService();
         const Store = getStore();
         if (TabService && TabService.getGeminiTab) {
             const tab = await TabService.getGeminiTab();
@@ -232,9 +266,14 @@ export const OptionsSync = {
     autoDetectActiveSlot
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsSync;
-}
+(OptionsSync as any).OptionsSync = OptionsSync;
+(OptionsSync as any).default = OptionsSync;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsSync = OptionsSync;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = OptionsSync;
+}
+
+export default OptionsSync;

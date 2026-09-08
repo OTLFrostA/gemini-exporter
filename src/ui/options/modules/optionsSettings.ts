@@ -3,14 +3,26 @@ import type { OptionsSettingsOptions } from '../../../types/ui.js';
 import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
 import { ListView as DefaultListView } from '../../views/listView.js';
 import { TourGuide as DefaultTourGuide } from '../../tour/tourGuide.js';
+import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
+import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
+import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
+import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
 }
 
+const getI18n = () => {
+    if (typeof I18n !== 'undefined' && I18n) return I18n;
+    if (typeof DefaultI18n !== 'undefined' && DefaultI18n) return DefaultI18n;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).I18n) return (globalThis as any).I18n;
+    return null;
+};
+
 const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
+    const i18n = getI18n();
+    if (i18n && typeof i18n.t === 'function') {
+        return i18n.t(key, ...args);
     }
     return key;
 };
@@ -28,13 +40,15 @@ const getList = () => {
 };
 
 const getFormats = () => {
-    if (typeof FormatStore !== 'undefined') return FormatStore;
+    if (typeof FormatStore !== 'undefined' && FormatStore) return FormatStore;
+    if (typeof DefaultFormatStore !== 'undefined' && DefaultFormatStore) return DefaultFormatStore;
     if (typeof globalThis !== 'undefined' && (globalThis as any).FormatStore) return (globalThis as any).FormatStore;
     return null;
 };
 
 const getStorage = () => {
-    if (typeof StorageService !== 'undefined') return StorageService;
+    if (typeof StorageService !== 'undefined' && StorageService) return StorageService;
+    if (typeof DefaultStorageService !== 'undefined' && DefaultStorageService) return DefaultStorageService;
     if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
     return null;
 };
@@ -45,18 +59,28 @@ const getTour = () => {
     return null;
 };
 
+const getUtils = () => {
+    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
+    if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+    return null;
+};
+
 export const normId = (id?: string | null): string => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.normId === 'function') return GeminiUtils.normId(id);
+    const utils = getUtils();
+    if (utils && typeof utils.normId === 'function') return utils.normId(id);
     return String(id || '').replace(/^c_/, '');
 };
 
 export const cleanTitle = (tStr?: string | null): string => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.cleanTitle === 'function') return GeminiUtils.cleanTitle(tStr);
+    const utils = getUtils();
+    if (utils && typeof utils.cleanTitle === 'function') return utils.cleanTitle(tStr);
     return (tStr || '').trim();
 };
 
 export const resolveTitle = (chat: any): { title: string; source: string } => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.resolveTitle === 'function') return GeminiUtils.resolveTitle(chat);
+    const utils = getUtils();
+    if (utils && typeof utils.resolveTitle === 'function') return utils.resolveTitle(chat);
     return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
 };
 
@@ -80,8 +104,9 @@ export async function handleLangChange(targetLang: 'zh' | 'en'): Promise<void> {
     const Store = getStore();
     const currentSelected = List ? List.getSelectedIds() : new Set<string>();
 
-    if (typeof I18n !== 'undefined' && I18n.setLang) {
-        await I18n.setLang(targetLang);
+    const i18n = getI18n();
+    if (i18n && i18n.setLang) {
+        await i18n.setLang(targetLang);
     }
 
     if (__updateAccountSlotSelector) __updateAccountSlotSelector();
@@ -244,12 +269,13 @@ function bindStorageCleanup(): void {
 
 async function initLanguage(): Promise<void> {
     try {
-        if (typeof I18n !== 'undefined') {
-            if (I18n.initLanguage) await I18n.initLanguage();
-            if (I18n.applyI18n) I18n.applyI18n();
-            if (I18n.applyLangToggleUI) I18n.applyLangToggleUI();
-            if (I18n.onLanguageChange) I18n.onLanguageChange(() => {
-                if (I18n.applyLangToggleUI) I18n.applyLangToggleUI();
+        const i18n = getI18n();
+        if (i18n) {
+            if (i18n.initLanguage) await i18n.initLanguage();
+            if (i18n.applyI18n) i18n.applyI18n();
+            if (i18n.applyLangToggleUI) i18n.applyLangToggleUI();
+            if (i18n.onLanguageChange) i18n.onLanguageChange(() => {
+                if (i18n.applyLangToggleUI) i18n.applyLangToggleUI();
             });
         }
     } catch (e) {
@@ -334,9 +360,14 @@ export const OptionsSettings = {
     checkOnboardingTour
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsSettings;
-}
+(OptionsSettings as any).OptionsSettings = OptionsSettings;
+(OptionsSettings as any).default = OptionsSettings;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsSettings = OptionsSettings;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = OptionsSettings;
+}
+
+export default OptionsSettings;

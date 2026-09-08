@@ -199,9 +199,9 @@ const OptionsModule = {
     OptionsSettings
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsModule;
-}
+(OptionsModule as any).OptionsModule = OptionsModule;
+(OptionsModule as any).default = OptionsModule;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsModule = OptionsModule;
     (globalThis as any).OptionsInit = OptionsInit;
@@ -231,3 +231,9 @@ if (typeof window !== 'undefined') {
     (window as any).OptionsTakeout = OptionsTakeout;
     (window as any).OptionsSettings = OptionsSettings;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = OptionsModule;
+}
+
+export { OptionsModule };
+export default OptionsModule;

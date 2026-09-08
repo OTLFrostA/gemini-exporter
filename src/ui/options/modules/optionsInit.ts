@@ -7,9 +7,21 @@ import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
 import { AccountView as DefaultAccountView } from '../../views/accountView.js';
 import { ExportController as DefaultExportController } from '../../controllers/exportController.js';
 import { TourGuide as DefaultTourGuide } from '../../tour/tourGuide.js';
+import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
+import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
+import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
+
+const getI18n = () => {
+    if (typeof I18n !== 'undefined' && I18n) return I18n;
+    if (typeof DefaultI18n !== 'undefined' && DefaultI18n) return DefaultI18n;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).I18n) return (globalThis as any).I18n;
+    return null;
+};
+
 const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
+    const i18n = getI18n();
+    if (i18n && typeof i18n.t === 'function') {
+        return i18n.t(key, ...args);
     }
     return key;
 };
@@ -61,42 +73,56 @@ const getTour = () => {
 };
 
 const getStorage = () => {
-    if (typeof StorageService !== 'undefined') return StorageService;
+    if (typeof StorageService !== 'undefined' && StorageService) return StorageService;
+    if (typeof DefaultStorageService !== 'undefined' && DefaultStorageService) return DefaultStorageService;
     if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
     return null;
 };
 
+const getUtils = () => {
+    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
+    if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+    return null;
+};
+
 export const normId = (id?: string | null): string => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.normId === 'function') return GeminiUtils.normId(id);
+    const utils = getUtils();
+    if (utils && typeof utils.normId === 'function') return utils.normId(id);
     return String(id || '').replace(/^c_/, '');
 };
 
 export const cleanTitle = (tStr?: string | null): string => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.cleanTitle === 'function') return GeminiUtils.cleanTitle(tStr);
+    const utils = getUtils();
+    if (utils && typeof utils.cleanTitle === 'function') return utils.cleanTitle(tStr);
     return (tStr || '').trim();
 };
 
 export const isRealTitle = (tStr?: string | null, id?: string | null): boolean => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(tStr as string, id as string);
+    const utils = getUtils();
+    if (utils && typeof utils.isRealTitle === 'function') return utils.isRealTitle(tStr as string, id as string);
     return !!(tStr && String(tStr).trim().length > 1);
 };
 
 export const isBad = (tStr?: string | null, id?: string | null): boolean => !isRealTitle(tStr, id);
 
 export const resolveTitle = (chat: any): { title: string; source: string } => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.resolveTitle === 'function') return GeminiUtils.resolveTitle(chat);
+    const utils = getUtils();
+    if (utils && typeof utils.resolveTitle === 'function') return utils.resolveTitle(chat);
     return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
 };
 
 export const getEffectiveTime = (conv: any): number => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.getEffectiveTimestamp === 'function') return GeminiUtils.getEffectiveTimestamp(conv);
+    const utils = getUtils();
+    if (utils && typeof utils.getEffectiveTimestamp === 'function') return utils.getEffectiveTimestamp(conv);
     if (!conv) return 0;
     const ts = conv.updatedAt || conv.timestamp || 0;
     return (typeof ts === 'string') ? new Date(ts).getTime() : ts;
 };
 
 export const compareConversations = (a: any, b: any): number => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.compareConversations === 'function') return GeminiUtils.compareConversations(a, b);
+    const utils = getUtils();
+    if (utils && typeof utils.compareConversations === 'function') return utils.compareConversations(a, b);
     return 0;
 };
 
@@ -347,9 +373,14 @@ export const OptionsInit = {
     getEffectiveTime
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsInit;
-}
+(OptionsInit as any).OptionsInit = OptionsInit;
+(OptionsInit as any).default = OptionsInit;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsInit = OptionsInit;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = OptionsInit;
+}
+
+export default OptionsInit;

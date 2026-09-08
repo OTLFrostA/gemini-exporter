@@ -1,44 +1,43 @@
 // src/ui/popup/popup.ts - Popup UI controller for Gemini Exporter
 
-import '../../core/protocol/protocol.js';
-import '../../core/utils/constants.js';
-import '../../core/utils/utils.js';
-import '../../core/utils/locales/zh.js';
-import '../../core/utils/locales/en.js';
-import '../../core/utils/i18n.js';
-import '../../core/storage/storageService.js';
+import { GeminiUtils } from '../../core/utils/utils.js';
+import { I18n } from '../../core/utils/i18n.js';
+import { StorageService } from '../../core/storage/storageService.js';
+import { FormatStore } from '../../core/storage/formatStore.js';
+import { ChatFormatter } from '../../core/engine/chatFormatter.js';
 
-(function() {
-    'use strict';
+const Storage = (typeof StorageService !== 'undefined')
+    ? StorageService
+    : ((typeof (globalThis as any).StorageService !== 'undefined')
+        ? (globalThis as any).StorageService
+        : null);
 
-    const Storage = (typeof StorageService !== 'undefined')
-        ? StorageService
-        : ((typeof (globalThis as any).StorageService !== 'undefined')
-            ? (globalThis as any).StorageService
-            : ((typeof window !== 'undefined' && (window as any).StorageService) || null));
+function $(id: string): HTMLElement | null {
+    return typeof document !== 'undefined' ? document.getElementById(id) : null;
+}
 
-    function $(id: string): HTMLElement | null {
-        return document.getElementById(id);
-    }
+function log(msg: string): void {
+    const l = $('log');
+    if (!l) return;
+    const time = new Date().toLocaleTimeString();
+    l.textContent = `[${time}] ${msg}\n` + l.textContent.slice(0, 2000);
+}
 
-    function log(msg: string): void {
-        const l = $('log');
-        if (!l) return;
-        const time = new Date().toLocaleTimeString();
-        l.textContent = `[${time}] ${msg}\n` + l.textContent.slice(0, 2000);
-    }
-
-    const cleanTitle = (t: any): string =>
-        (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.cleanTitle
+const cleanTitle = (t: any): string =>
+    (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.cleanTitle === 'function'
+        ? GeminiUtils.cleanTitle(t)
+        : (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.cleanTitle
             ? (globalThis as any).GeminiUtils.cleanTitle(t)
-            : (t || '').trim());
+            : (t || '').trim()));
 
-    const sanitizeFileName = (name: any, fallback: string = 'untitled'): string =>
-        (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.sanitizeFileName
+const sanitizeFileName = (name: any, fallback: string = 'untitled'): string =>
+    (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.sanitizeFileName === 'function'
+        ? GeminiUtils.sanitizeFileName(name, fallback)
+        : (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.sanitizeFileName
             ? (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback)
-            : (name || fallback).trim() || fallback);
+            : (name || fallback).trim() || fallback));
 
-    const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n);
+const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n);
 
     function isGeminiUrl(urlStr?: string | null): boolean {
         if (!urlStr || typeof urlStr !== 'string') return false;
@@ -346,4 +345,5 @@ import '../../core/storage/storageService.js';
     }
     // Refresh count periodically
     setInterval(updateCount, 5000);
-})();
+
+export {};
