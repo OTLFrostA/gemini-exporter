@@ -11,6 +11,7 @@
     'use strict';
 
     function sanitizeZipPath(p) {
+        // Single source: GeminiUtils.sanitizeRelativePath (load order guarantees utils first).
         if (!p) return p;
         if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeRelativePath) {
             return GeminiUtils.sanitizeRelativePath(p, 'file');
@@ -18,10 +19,13 @@
         if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils?.sanitizeRelativePath) {
             return globalThis.GeminiUtils.sanitizeRelativePath(p, 'file');
         }
-        return p.split(/[/\\\\]/).map(seg => {
-            if (!seg || seg === '.' || seg === '..') return '_';
-            return seg.replace(/\.\./g, '_');
-        }).filter(Boolean).join('/');
+        if (typeof require !== 'undefined') {
+            try {
+                const u = require('../utils/utils.js');
+                if (u && u.sanitizeRelativePath) return u.sanitizeRelativePath(p, 'file');
+            } catch { /* intentional: require fallback in browser context */ }
+        }
+        throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
     }
 
     class AssetPipeline {

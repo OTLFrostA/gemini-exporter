@@ -81,6 +81,18 @@
     }
 
     /**
+     * Single source for the synchronous dev/verbose flags
+     * (__gemExporterDevMode / __gemExporterVerboseLog / __gemExporterLogAll).
+     * NOTE: exportEngine additionally reads the persisted gemini_dev_mode
+     * storage flag (async, different mechanism) — intentionally not covered here.
+     */
+    function isDevMode() {
+        if (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll)) return true;
+        if (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog || window.__gemExporterLogAll)) return true;
+        return false;
+    }
+
+    /**
      * Clean conversation title by removing brand suffixes and prefixes
      * (e.g., " - Google Gemini", " - Gemini", " | Google Gemini", "Gemini - ").
      * If the title is simply the brand name alone (e.g., "Google Gemini"), returns empty string.
@@ -269,6 +281,7 @@
     // Export for different module systems
     if (typeof module === 'object' && module.exports) {
         module.exports = {
+            isDevMode,
             isRealTitle,
             cleanTitle,
             sanitizeFileName,
@@ -283,6 +296,7 @@
         };
     } else {
         global.GeminiUtils = global.GeminiUtils || {};
+        global.GeminiUtils.isDevMode = isDevMode;
         global.GeminiUtils.isRealTitle = isRealTitle;
         global.GeminiUtils.cleanTitle = cleanTitle;
         global.GeminiUtils.sanitizeFileName = sanitizeFileName;

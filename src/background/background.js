@@ -11,6 +11,19 @@ try {
 
 const __bgAborts = new Map();
 
+// Restore persisted abort flags after MV3 worker restarts (setSlotAborted
+// mirrors every transition into chrome.storage.session).
+try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.get) {
+        chrome.storage.session.get(null).then((data) => {
+            for (const k of Object.keys(data || {})) {
+                const m = k.match(/^gemini_abort_(.+)$/);
+                if (m && data[k]) __bgAborts.set(m[1], true);
+            }
+        }).catch(() => { /* intentional: best-effort abort restore */ });
+    }
+} catch { /* intentional: best-effort abort restore */ }
+
 function isSlotAborted(slot = 'u0') {
     return !!__bgAborts.get(slot || 'u0');
 }
