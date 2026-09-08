@@ -124,20 +124,35 @@ jobs:
           ZIP_NAME="gemini-exporter-${{ env.TAG }}.zip"
           echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
 
+          # Runtime files only: the 5 esbuild entry bundles (referenced by
+          # manifest.json and the page HTMLs) plus the HTML/CSS assets under src/.
+          # Per-file dist artifacts, sourcemaps and .ts sources exist for node tests
+          # and debugging only — excluded to keep the store package small.
           zip -r "${ZIP_NAME}" \
             manifest.json \
             _locales \
             icons \
             lib \
-            dist \
-            src \
-            *.html \
             LICENSE \
             THIRD_PARTY_NOTICES.md \
             README.md \
             README_zh.md
 
+          zip -r "${ZIP_NAME}" src -x 'src/*.ts' \
+                                   'src/*/*.ts' \
+                                   'src/*/*/*.ts' \
+                                   'src/*/*/*/*.ts' \
+                                   'src/README.md'
+
+          zip -r "${ZIP_NAME}" dist \
+            -i 'dist/background/background.js' \
+               'dist/content/content.js' \
+               'dist/content/hook.js' \
+               'dist/ui/options.js' \
+               'dist/ui/popup.js'
+
           ls -lh "${ZIP_NAME}"
+          unzip -l "${ZIP_NAME}" | tail -n 8
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

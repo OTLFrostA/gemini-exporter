@@ -188,7 +188,18 @@ export async function saveCredentials(map: Record<string, any>, cred?: any): Pro
     }
 }
 
-export async function ensureCreds(): Promise<any> {
+// Credential read-modify-write cycles are serialized through one chain: the
+// module top-level call, the DOMContentLoaded/load hooks and the MAIN-world
+// postMessage listener can all fire back-to-back on page load, and
+// unsynchronized load→save cycles would overwrite each other's map entries.
+let _credOpChain: Promise<any> = Promise.resolve();
+function runSerializedCredOp<T>(op: () => Promise<T>): Promise<T> {
+    const run = _credOpChain.then(op, op);
+    _credOpChain = run.then(() => undefined, () => undefined);
+    return run;
+}
+
+async function ensureCredsOnce(): Promise<any> {
     try {
         if (!isExtAlive()) return null;
         const atFromPage = extractAtFromPage();
@@ -261,6 +272,10 @@ export async function ensureCreds(): Promise<any> {
     return null;
 }
 
+export function ensureCreds(): Promise<any> {
+    return runSerializedCredOp(ensureCredsOnce);
+}
+
 // Expose on window for backwards compatibility
 if (typeof window !== 'undefined') {
     const w = window as any;
@@ -273,36 +288,40 @@ if (typeof window !== 'undefined') {
     window.addEventListener('load', () => ensureCreds(), { once: true });
 
     // Listen to GEMINI_CREDENTIALS - only from same-origin window postMessage
-    window.addEventListener('message', async (e: MessageEvent) => {
+    window.addEventListener('message', (e: MessageEvent) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;
         if (e.data && e.data.type === 'GEMINI_CREDENTIALS') {
             if (!isExtAlive()) return;
-            try {
-                const p = e.data.payload || {};
-                const sid = p.sid || '';
-                if (!sid) return;
-                const slot = p.accountSlot || detectSlotFromUrl(e.data.url || location.href) || 'default';
-                const map = await loadCredentialsMap();
-                const old = map[sid] || {};
-                map[sid] = {
-                    at: p.at || old.at || extractAtFromPage() || '',
-                    sid,
-                    accountSlot: slot || old.accountSlot || 'default',
-                    lastUsed: Date.now(),
-                    bl: old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
-                };
-                await saveCredentials(map, {
-                    at: map[sid].at,
-                    sid
-                });
-                updateContextCreds(map[sid]);
-                if (isDev()) {
-                    console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
+            // Queued behind any in-flight ensureCreds so concurrent load→save
+            // cycles cannot overwrite each other's map entries.
+            runSerializedCredOp(async () => {
+                try {
+                    const p = e.data.payload || {};
+                    const sid = p.sid || '';
+                    if (!sid) return;
+                    const slot = p.accountSlot || detectSlotFromUrl(e.data.url || location.href) || 'default';
+                    const map = await loadCredentialsMap();
+                    const old = map[sid] || {};
+                    map[sid] = {
+                        at: p.at || old.at || extractAtFromPage() || '',
+                        sid,
+                        accountSlot: slot || old.accountSlot || 'default',
+                        lastUsed: Date.now(),
+                        bl: old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
+                    };
+                    await saveCredentials(map, {
+                        at: map[sid].at,
+                        sid
+                    });
+                    updateContextCreds(map[sid]);
+                    if (isDev()) {
+                        console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
+                    }
+                } catch (err: any) {
+                    if (!String(err?.message || err).includes('Extension context invalidated')) console.warn('creds store fail', err);
                 }
-            } catch (err: any) {
-                if (!String(err?.message || err).includes('Extension context invalidated')) console.warn('creds store fail', err);
-            }
+            });
         }
     });
 }
