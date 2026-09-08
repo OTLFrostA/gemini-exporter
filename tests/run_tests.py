@@ -646,8 +646,9 @@ def test_takeout_limit_modal_and_wall_detection():
     print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
 
 def test_stage1_architecture_ssot_and_state_isolation():
-    # 1. Verify per-slot aborts in background.js
-    bg_js_path = os.path.join(BASE_DIR, "src/background/background.js")
+    # 1. Verify per-slot aborts in background.ts/js
+    bg_ts = os.path.join(BASE_DIR, "src/background/background.ts")
+    bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/background/background.js")
     with open(bg_js_path, "r", encoding="utf-8") as f:
         bg_code = f.read()
     assert "__bgAborts" in bg_code and "Map" in bg_code, "background.js must isolate abort flags per account slot using Map"
@@ -730,8 +731,9 @@ def test_stage2_architecture_improvements():
     assert "_retried" in client_code, "geminiClient must support automatic retry on 400 with fresh credentials"
     assert re.search(r'async\s+function\s+resolveCred\s*\(', client_code) or "resolveCred" in client_code, "geminiClient resolveCred must accept credential overrides"
 
-    # 5. Verify background.js MV3 keepalive
-    bg_path = os.path.join(BASE_DIR, "src/background/background.js")
+    # 5. Verify background.ts/js MV3 keepalive
+    bg_ts = os.path.join(BASE_DIR, "src/background/background.ts")
+    bg_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/background/background.js")
     with open(bg_path, "r", encoding="utf-8") as f:
         bg_code = f.read()
     assert re.search(r'function\s+startKeepAlive\s*\(', bg_code) or "startKeepAlive" in bg_code, "background.js must implement startKeepAlive"
