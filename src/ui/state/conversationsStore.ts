@@ -7,8 +7,16 @@ let exportedIds: Record<string, ExportRecord> = {};
 let currentSlot: string = 'u0';
 let accountSlots: Record<string, any> = {};
 
-const getStorage = () => (typeof StorageService !== 'undefined' ? StorageService : (typeof window !== 'undefined' && (window as any).StorageService) || null);
-const getUtils = () => (typeof GeminiUtils !== 'undefined' ? GeminiUtils : (typeof window !== 'undefined' && (window as any).GeminiUtils) || null);
+const getStorage = () => (typeof StorageService !== 'undefined'
+    ? StorageService
+    : (typeof window !== 'undefined' && (window as any).StorageService)
+        || (typeof globalThis !== 'undefined' && (globalThis as any).StorageService)
+        || (typeof require !== 'undefined' ? require('../../core/storage/storageService.js') : null));
+const getUtils = () => (typeof GeminiUtils !== 'undefined'
+    ? GeminiUtils
+    : (typeof window !== 'undefined' && (window as any).GeminiUtils)
+        || (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils)
+        || (typeof require !== 'undefined' ? require('../../core/utils/utils.js') : null));
 
 export const normId = (id?: string | null): string => {
     const utils = getUtils();
@@ -179,86 +187,35 @@ export async function reconcileWithCloud(activeCloudList: any[], options: any = 
 }
 
 export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: Conversation[]; hasDirtyTitles: boolean } {
+    if (!Array.isArray(incoming)) return { processed: [], hasDirtyTitles: false };
     const utils = getUtils();
+    if (utils && typeof utils.deduplicateConversations === 'function') {
+        const res = utils.deduplicateConversations(incoming);
+        return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles };
+    }
+
     const uResolveTitle = (chat: any) => (utils && typeof utils.resolveTitle === 'function'
         ? utils.resolveTitle(chat)
         : { title: (chat?.title || '').trim() || '未命名对话', source: chat?.titleSource || 'legacy' });
-    const uIsRealTitle = (t: any, fallbackId?: string) => (utils && typeof utils.isRealTitle === 'function'
-        ? utils.isRealTitle(t, fallbackId)
-        : !!(t && typeof t === 'string' && t.trim().length > 1));
     const uCompare = (a: any, b: any) => (utils && typeof utils.compareConversations === 'function'
         ? utils.compareConversations(a, b)
         : 0);
 
     const dedupMap = new Map<string, Conversation>();
     let hasDirtyTitles = false;
-    (incoming || []).forEach(c => {
+    incoming.forEach(c => {
         if (!c || !c.id) return;
-        const nid = normId(c.id);
         const u = ((c as any).url || (c as any).href || '').toString();
         if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
 
-        const old = dedupMap.get(nid);
-        const cleanForBad = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
-        const isBad = (t: any) => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
-
-        if (!old) {
-            const resolved = uResolveTitle(c);
-            if (isBad(c.title) || c.title !== resolved.title) {
-                hasDirtyTitles = true;
-            }
-            dedupMap.set(nid, {
-                ...c,
-                title: resolved.title,
-                titleSource: resolved.source,
-                titles: c.titles || (uIsRealTitle(c.title, nid) ? { [c.titleSource || 'legacy']: c.title } : {})
-            });
-        } else {
-            const mergedTitles = { ...(old.titles || {}), ...(c.titles || {}) };
-            if (uIsRealTitle(c.title, nid) && c.titleSource) {
-                mergedTitles[c.titleSource] = c.title;
-            }
-            if (uIsRealTitle(old.title, nid) && old.titleSource) {
-                mergedTitles[old.titleSource] = old.title;
-            }
-            const resolved = uResolveTitle({ id: nid, titles: mergedTitles, title: old.title, titleSource: old.titleSource });
-            if (isBad(old.title) || old.title !== resolved.title) {
-                hasDirtyTitles = true;
-            }
-            let cUpdated: any = c.updatedAt || c.timestamp || null;
-            if (typeof cUpdated === 'string') cUpdated = new Date(cUpdated).getTime();
-            let oldUpdated: any = old.updatedAt || old.timestamp || null;
-            if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
-
-            let isRpcSource = c.titleSource === 'rpc' || c.source === 'network-list';
-            let bestUpdatedAt = oldUpdated;
-            if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
-                bestUpdatedAt = cUpdated;
-            }
-
-            let cCreated: any = (c as any).createdAt || null;
-            if (typeof cCreated === 'string') cCreated = new Date(cCreated).getTime();
-            let oldCreated: any = (old as any).createdAt || null;
-            if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
-            let bestCreatedAt = oldCreated || cCreated || null;
-            if (cCreated && oldCreated && cCreated < oldCreated) {
-                bestCreatedAt = cCreated;
-            }
-
-            let bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old.timestamp || c.timestamp || null);
-
-            dedupMap.set(nid, {
-                ...old,
-                ...c,
-                titles: mergedTitles,
-                title: resolved.title,
-                titleSource: resolved.source,
-                timestamp: bestTimestamp,
-                updatedAt: bestUpdatedAt || bestTimestamp,
-                createdAt: bestCreatedAt,
-                sidebarIndex: typeof c.sidebarIndex === 'number' ? c.sidebarIndex : old.sidebarIndex
-            });
-        }
+        const nid = normId(c.id);
+        const resolved = uResolveTitle(c);
+        dedupMap.set(nid, {
+            ...c,
+            id: nid,
+            title: resolved.title,
+            titleSource: resolved.source
+        });
     });
 
     const processed = Array.from(dedupMap.values());
