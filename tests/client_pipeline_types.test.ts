@@ -1,9 +1,9 @@
-const test = require("node:test");
-const assert = require("node:assert");
-const { GeminiAPIClient } = require("../src/core/api/geminiClient.js");
-const paginationMod = require("../src/core/api/client/pagination.js");
-const retryPolicyMod = require("../src/core/api/client/retryPolicy.js");
-const rpcClientMod = require("../src/core/api/client/rpcClient.js");
+import test from "node:test";
+import assert from "node:assert";
+import { GeminiAPIClient } from "../src/core/api/geminiClient.js";
+import * as paginationMod from "../src/core/api/client/pagination.js";
+import * as retryPolicyMod from "../src/core/api/client/retryPolicy.js";
+import * as rpcClientMod from "../src/core/api/client/rpcClient.js";
 
 test("TDD Red: getAllConversations must respect opts.signal when passed in options", async () => {
     const controller = new AbortController();
@@ -17,7 +17,7 @@ test("TDD Red: getAllConversations must respect opts.signal when passed in optio
         }
     };
 
-    const res = await paginationMod.getAllConversations(mockClient, {
+    const res = await paginationMod.getAllConversations(mockClient as any, {
         maxPages: 10,
         signal: controller.signal
     });
@@ -30,18 +30,19 @@ test("TDD Red: retryPolicy.handleHttp429 must return structured backoff metadata
     const mockResp = {
         status: 429,
         headers: {
-            get: (h) => (h.toLowerCase() === "retry-after" ? "0" : null)
+            get: (h: string) => (h.toLowerCase() === "retry-after" ? "0" : null)
         }
     };
 
     // Test with maxRetries exceeded
     const exceeded = await retryPolicyMod.handleHttp429({
-        resp: mockResp,
+        resp: mockResp as any,
         retryCount: 3,
         maxRetries: 3
     });
     assert.strictEqual(exceeded.shouldRetry, false);
 });
+
 
 test("TDD Red: rpcClient.getApiUrl handles both u0/u1 and /u/0 formats", () => {
     assert.strictEqual(rpcClientMod.getApiUrl("default"), "https://gemini.google.com/_/BardChatUi/data/batchexecute");

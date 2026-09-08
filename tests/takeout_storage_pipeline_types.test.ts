@@ -1,37 +1,38 @@
 // tests/takeout_storage_pipeline_types.test.js - TDD tests for Takeout & Storage pipeline
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert';
 
 // Mock chrome.storage.local for StorageService
-const mockStorage = {};
-global.chrome = {
+const mockStorage: Record<string, any> = {};
+(global as any).chrome = {
     storage: {
         local: {
-            get: async (keys) => {
+            get: async (keys: any) => {
                 if (keys === null) return { ...mockStorage };
                 if (typeof keys === 'string') keys = [keys];
-                const res = {};
-                for (const k of keys) {
+                const res: Record<string, any> = {};
+                for (const k of (keys || [])) {
                     if (k in mockStorage) res[k] = mockStorage[k];
                 }
                 return res;
             },
-            set: async (obj) => {
+            set: async (obj: any) => {
                 Object.assign(mockStorage, obj);
             },
-            remove: async (keys) => {
+            remove: async (keys: any) => {
                 if (typeof keys === 'string') keys = [keys];
-                for (const k of keys) delete mockStorage[k];
+                for (const k of (keys || [])) delete mockStorage[k];
             }
         }
     }
 };
 
-const MediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
-const TakeoutParser = require('../src/core/engine/takeout/takeoutParser.js');
-const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-const StorageService = require('../src/core/storage/storageService.js');
-const FormatStore = require('../src/core/storage/formatStore.js');
+import * as MediaIndex from '../src/core/engine/takeout/mediaIndex.js';
+import * as TakeoutParser from '../src/core/engine/takeout/takeoutParser.js';
+import * as TakeoutEngine from '../src/core/engine/takeoutEngine.js';
+import StorageService from '../src/core/storage/storageService.js';
+import * as FormatStore from '../src/core/storage/formatStore.js';
+
 
 test('TDD: MediaIndex - extractC2PATimestamp extracts ISO timestamp from C2PA binary block', () => {
     assert.strictEqual(MediaIndex.extractC2PATimestamp(null), null);
@@ -118,9 +119,9 @@ test('TDD: StorageService - normSlot and getStorageKeys manage slot namespace is
 
 test('TDD: StorageService - reconcileConversations preserves takeout entries and purges deleted cloud entries', async () => {
     await StorageService.setConversations('u0', [
-        { id: 'chat_active_1', title: 'Active Chat 1', source: 'network-list' },
-        { id: 'chat_deleted', title: 'Deleted Cloud Chat', source: 'network-list' },
-        { id: 'chat_takeout_only', title: 'Takeout Imported Chat', source: 'takeout', isTakeoutOnly: true }
+        { id: 'chat_active_1', title: 'Active Chat 1', source: 'network-list', timestamp: 1700000000000 },
+        { id: 'chat_deleted', title: 'Deleted Cloud Chat', source: 'network-list', timestamp: 1700000000000 },
+        { id: 'chat_takeout_only', title: 'Takeout Imported Chat', source: 'takeout', isTakeoutOnly: true, timestamp: 1700000000000 }
     ]);
 
     // Active cloud scan returns only chat_active_1 (chat_deleted was removed by user)

@@ -1,16 +1,8 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); },
-    throws: (fn) => {
-        let threw = false;
-        try { fn(); } catch { threw = true; }
-        if (!threw) throw new Error('Expected function to throw');
-    }
-};
+import test from 'node:test';
+import assert from 'node:assert';
 
-const WriterInterface = (typeof require !== 'undefined') ? require('../src/core/engine/writers/writerInterface.js') : (typeof globalThis.WriterInterface !== 'undefined' ? globalThis.WriterInterface : null);
+import * as WriterInterface from '../src/core/engine/writers/writerInterface.js';
+
 
 test('writerInterface - isWriter validation', () => {
     assert.ok(WriterInterface);
@@ -24,10 +16,11 @@ test('writerInterface - isWriter validation', () => {
 
 test('writerInterface - createWriter factory', () => {
     // Mock JSZip
-    global.JSZip = class MockJSZip {
+    (global as any).JSZip = class MockJSZip {
+        files: Record<string, any> = {};
         constructor() { this.files = {}; }
-        folder() { return { file: () => {} }; }
-        async generateAsync() { return new Blob(['']); }
+        folder(_name: string) { return { file: (_p: string, _c: any) => {} }; }
+        async generateAsync(_opts?: any) { return new Blob(['']); }
     };
 
     const zipWriter = WriterInterface.createWriter('zip', { folderName: 'test_export' });

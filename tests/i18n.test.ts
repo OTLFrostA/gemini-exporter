@@ -1,8 +1,10 @@
-const test = require('node:test');
-const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
-const I18n = require('../src/core/utils/i18n.js');
+import test from 'node:test';
+import assert from 'node:assert';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as I18n from '../src/core/utils/i18n.js';
+import zh from '../src/core/utils/locales/zh.js';
+import en from '../src/core/utils/locales/en.js';
 
 test('i18n - check dictionary parity between zh and en', () => {
     const zhKeys = Object.keys(I18n.LOCALES.zh);
@@ -45,7 +47,7 @@ test('i18n - parametric interpolation and language switching', async () => {
 });
 
 test('i18n - language change event listener', async () => {
-    let triggeredLang = null;
+    let triggeredLang: string | null = null;
     I18n.onLanguageChange((lang) => {
         triggeredLang = lang;
     });
@@ -59,13 +61,15 @@ test('i18n - language change event listener', async () => {
 
 test('i18n - ensure no duplicate object literal keys in locale sources', () => {
     for (const lang of ['zh', 'en']) {
-        const localePath = path.join(__dirname, '..', 'src', 'core', 'utils', 'locales', lang + '.js');
+        const tsPath = path.join(__dirname, '..', 'src', 'core', 'utils', 'locales', lang + '.ts');
+        const jsPath = path.join(__dirname, '..', 'src', 'core', 'utils', 'locales', lang + '.js');
+        const localePath = fs.existsSync(tsPath) ? tsPath : jsPath;
         const content = fs.readFileSync(localePath, 'utf8');
         const bodyMatch = content.match(/return \{([\s\S]*)\n\s*\};/);
         assert.ok(bodyMatch, lang + ' dictionary body should exist');
-        const block = bodyMatch[1];
+        const block = bodyMatch![1];
         const keyMatches = [...block.matchAll(/^\s*([a-zA-Z0-9_]+):/gm)].map(m => m[1]);
-        const counts = {};
+        const counts: Record<string, number> = {};
         for (const k of keyMatches) {
             counts[k] = (counts[k] || 0) + 1;
         }
@@ -75,34 +79,35 @@ test('i18n - ensure no duplicate object literal keys in locale sources', () => {
 });
 
 test('i18n - dynamic dictionary recovery via ensureLocales and direct locale exports', () => {
-    const zh = require('../src/core/utils/locales/zh.js');
-    const en = require('../src/core/utils/locales/en.js');
-    assert.ok(zh && zh.extName, 'zh locale export should be valid');
-    assert.ok(en && en.extName, 'en locale export should be valid');
+    assert.ok(zh && (zh as any).extName, 'zh locale export should be valid');
+    assert.ok(en && (en as any).extName, 'en locale export should be valid');
     assert.strictEqual(I18n.t('extName'), 'Gemini Exporter');
 });
+
 
 test('i18n - applyI18n translates root element and descendants safely', async () => {
     await I18n.setLang('zh');
 
     class MockElement {
-        constructor(attrs = {}) {
+        attrs: Record<string, any>;
+        textContent: string = '';
+        title: string = '';
+        placeholder: string = '';
+        children: MockElement[] = [];
+        nodeType: number = 1;
+
+        constructor(attrs: Record<string, any> = {}) {
             this.attrs = attrs;
-            this.textContent = '';
-            this.title = '';
-            this.placeholder = '';
-            this.children = [];
-            this.nodeType = 1;
         }
-        getAttribute(name) {
+        getAttribute(name: string) {
             return this.attrs[name] || null;
         }
-        appendChild(child) {
+        appendChild(child: MockElement) {
             this.children.push(child);
         }
-        querySelectorAll(selector) {
-            const results = [];
-            const walk = (el) => {
+        querySelectorAll(_selector: string) {
+            const results: MockElement[] = [];
+            const walk = (el: MockElement) => {
                 for (const c of el.children) {
                     if (c.attrs['data-i18n'] || c.attrs['data-i18n-html'] || c.attrs['data-i18n-title'] || c.attrs['data-i18n-placeholder']) {
                         results.push(c);
@@ -120,33 +125,33 @@ test('i18n - applyI18n translates root element and descendants safely', async ()
     rootEl.children.push(childEl);
 
     // Mock global document if needed
-    const origDoc = global.document;
-    global.document = {
-        createElement: (tag) => new MockElement(),
-        createTextNode: (text) => ({ textContent: text })
+    const origDoc = (global as any).document;
+    (global as any).document = {
+        createElement: () => new MockElement(),
+        createTextNode: (text: string) => ({ textContent: text })
     };
 
     try {
-        I18n.applyI18n(rootEl);
+        I18n.applyI18n(rootEl as any);
         assert.strictEqual(rootEl.textContent, 'Gemini Exporter', 'Root element data-i18n should be translated');
         assert.strictEqual(childEl.title, '设置目录...', 'Child element data-i18n-title should be translated');
         assert.strictEqual(childEl.placeholder, '搜索标题 / ID...', 'Child element data-i18n-placeholder should be translated');
     } finally {
-        if (origDoc !== undefined) global.document = origDoc;
-        else delete global.document;
+        if (origDoc !== undefined) (global as any).document = origDoc;
+        else delete (global as any).document;
     }
 });
 
 test('i18n - applyLangToggleUI operates with injected elements without DOM coupling', async () => {
     await I18n.setLang('zh');
     const mockToggle = { checked: true };
-    const mockZh = { style: {} };
-    const mockEn = { style: {} };
+    const mockZh = { style: { opacity: '' } };
+    const mockEn = { style: { opacity: '' } };
 
     I18n.applyLangToggleUI({
-        toggle: mockToggle,
-        labelZh: mockZh,
-        labelEn: mockEn
+        toggle: mockToggle as any,
+        labelZh: mockZh as any,
+        labelEn: mockEn as any
     });
 
     assert.strictEqual(mockToggle.checked, false, 'zh language should have toggle unchecked');
@@ -155,13 +160,15 @@ test('i18n - applyLangToggleUI operates with injected elements without DOM coupl
 
     await I18n.setLang('en');
     I18n.applyLangToggleUI({
-        toggle: mockToggle,
-        labelZh: mockZh,
-        labelEn: mockEn
+        toggle: mockToggle as any,
+        labelZh: mockZh as any,
+        labelEn: mockEn as any
     });
     assert.strictEqual(mockToggle.checked, true, 'en language should have toggle checked');
     assert.strictEqual(mockEn.style.opacity, '1', 'en label should be full opacity');
     assert.strictEqual(mockZh.style.opacity, '0.6', 'zh label should be muted opacity');
 });
+
+
 
 

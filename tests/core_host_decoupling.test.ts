@@ -1,28 +1,28 @@
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert';
 
-// Ensure GeminiUtils is loaded into globalThis if needed by core modules
-const GeminiUtils = require('../src/core/utils/utils.js');
-globalThis.GeminiUtils = GeminiUtils;
+import * as GeminiUtils from '../src/core/utils/utils.js';
+(globalThis as any).GeminiUtils = GeminiUtils;
 
-const AssetPipeline = require('../src/core/engine/assetPipeline.js');
-const BatchWorker = require('../src/core/engine/export/batchWorker.js');
-const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
-const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+import AssetPipeline from '../src/core/engine/assetPipeline.js';
+import * as BatchWorker from '../src/core/engine/export/batchWorker.js';
+import * as SessionRecovery from '../src/core/engine/export/sessionRecovery.js';
+import { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
 test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegate', async () => {
-    const origChrome = global.chrome;
-    delete global.chrome;
+    const origChrome = (global as any).chrome;
+    delete (global as any).chrome;
+
 
     try {
-        const savedFiles = [];
+        const savedFiles: any[] = [];
         const mockFolder = {
-            file: (name, bytes) => {
+            file: (name: string, bytes: any) => {
                 savedFiles.push({ name, bytes });
             }
         };
 
-        const delegateCalls = [];
+        const delegateCalls: any[] = [];
         const pipeline = new AssetPipeline({
             currentSlot: 'u0',
             useZip: true,
@@ -47,20 +47,21 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
         assert.strictEqual(result.saved, true, 'Asset should be successfully marked as saved');
         assert.strictEqual(savedFiles.length, 1, 'Asset file must be written to zip folder');
         assert.strictEqual(savedFiles[0].name, 'asset.png');
+
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 
 test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via injected messageSender', async () => {
-    const origChrome = global.chrome;
-    const origTabService = global.TabService;
-    delete global.chrome;
-    delete global.TabService;
+    const origChrome = (global as any).chrome;
+    const origTabService = (global as any).TabService;
+    delete (global as any).chrome;
+    delete (global as any).TabService;
 
     try {
-        let sentMessage = null;
-        const mockSender = (msg, callback) => {
+        let sentMessage: any = null;
+        const mockSender = (msg: any, callback: any) => {
             sentMessage = msg;
             callback({
                 success: true,
@@ -69,30 +70,30 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         };
 
         const result = await BatchWorker.fetchChatDetail(
-            { id: 'chat_999' },
+            { id: 'chat_999' } as any,
             0,
             1,
             'u0',
             false,
             'md',
-            null,
-            { messageSender: mockSender }
+            null as any,
+            { messageSender: mockSender } as any
         );
 
         assert.ok(sentMessage, 'Injected messageSender must be called');
         assert.strictEqual(sentMessage.action, 'fetchBatch');
         assert.strictEqual(result.success, true);
-        assert.strictEqual(result.results[0].title, 'Decoupled Remote Chat');
+        assert.strictEqual(result.results![0].title, 'Decoupled Remote Chat');
     } finally {
-        global.chrome = origChrome;
-        global.TabService = origTabService;
+        (global as any).chrome = origChrome;
+        (global as any).TabService = origTabService;
     }
 });
 
 test('Decoupling 3: GeminiAPIClient respects standard AbortSignal without window.__gemExporterAborted', () => {
-    const origWindow = global.window;
-    delete global.window;
-    if (globalThis.__gemExporterAborted) delete globalThis.__gemExporterAborted;
+    const origWindow = (global as any).window;
+    delete (global as any).window;
+    if ((globalThis as any).__gemExporterAborted) delete (globalThis as any).__gemExporterAborted;
 
     try {
         const controller = new AbortController();
@@ -107,18 +108,18 @@ test('Decoupling 3: GeminiAPIClient respects standard AbortSignal without window
             'client.isAborted() must return true when AbortSignal triggers abort'
         );
     } finally {
-        global.window = origWindow;
+        (global as any).window = origWindow;
     }
 });
 
 test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter without chrome.storage', async () => {
-    const origChrome = global.chrome;
-    delete global.chrome;
+    const origChrome = (global as any).chrome;
+    delete (global as any).chrome;
 
     try {
-        let persistedRecord = null;
+        let persistedRecord: any = null;
         const mockStorageAdapter = {
-            saveExportRecord: async (slot, id, rec) => {
+            saveExportRecord: async (slot: any, id: any, rec: any) => {
                 persistedRecord = { slot, id, rec };
             }
         };
@@ -128,15 +129,16 @@ test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter witho
 
         const finalized = await SessionRecovery.finalizeChatExport('12345', {
             chatRecordsMap: recordsMap,
-            storageAdapter: mockStorageAdapter,
+            storageAdapter: mockStorageAdapter as any,
             slot: 'u0'
-        });
+        } as any);
 
         assert.strictEqual(finalized, true);
         assert.ok(persistedRecord, 'Record must be saved via storageAdapter');
         assert.strictEqual(persistedRecord.id, '12345');
         assert.strictEqual(persistedRecord.slot, 'u0');
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
+

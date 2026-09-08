@@ -1,12 +1,14 @@
-// tests/engine_pipeline_types.test.js - Contract and edge case tests for Layer 4 Engine
-const test = require('node:test');
-const assert = require('node:assert/strict');
+// tests/engine_pipeline_types.test.ts - Contract and edge case tests for Layer 4 Engine
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-// Setup environment and load modules via ts_register
-require('./ts_register.js');
-const ChatFormatter = require('../src/core/engine/chatFormatter.js');
-const { AsyncQueue } = require('../src/core/engine/exportEngine.js');
-const BatchWorker = require('../src/core/engine/export/batchWorker.js');
+import * as ChatFormatter from '../src/core/engine/chatFormatter.js';
+import { AsyncQueue } from '../src/core/engine/exportEngine.js';
+import * as BatchWorker from '../src/core/engine/export/batchWorker.js';
+import AssetPipeline from '../src/core/engine/assetPipeline.js';
+import { sanitizeRelativePath } from '../src/core/utils/utils.js';
+import { RateLimitManager, isRateLimited, calculateBackoff } from '../src/core/engine/export/rateLimiter.js';
+import * as SessionRecovery from '../src/core/engine/export/sessionRecovery.js';
 
 test('TDD: ChatFormatter protects code fences and converts headings properly', () => {
     const raw = [
@@ -78,9 +80,9 @@ test('TDD: BatchWorker.resolveChat skips bad brand titles and preserves user sni
     };
 
     const resolved = await BatchWorker.resolveChat(
-        chat,
+        chat as any,
         { id: 'test_123', title: '如何设计微服务架构' },
-        listConv,
+        listConv as any,
         null,
         'u0',
         () => {},
@@ -94,29 +96,23 @@ test('TDD: BatchWorker.resolveChat skips bad brand titles and preserves user sni
 
 test('TDD: formatContent defaults to markdown on unknown format', () => {
     const chat = { id: 'test_fmt', title: 'Test Format', messages: [] };
-    const res = ChatFormatter.formatContent(chat, 'unknown_format');
+    const res = ChatFormatter.formatContent(chat as any, 'unknown_format');
     assert.equal(res.ext, 'md');
     assert.equal(res.mime, 'text/markdown');
     assert.match(res.content, /# Test Format/);
 });
 
 test('TDD: AssetPipeline rejects path traversal in sanitizeZipPath', () => {
-    const AssetPipeline = require('../src/core/engine/assetPipeline.js');
     const pipeline = new AssetPipeline();
-    // sanitizeZipPath should be available or called via utils
-    const sanitize = (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeRelativePath)
-        ? GeminiUtils.sanitizeRelativePath
-        : require('../src/core/utils/utils.js').sanitizeRelativePath;
-    assert.equal(sanitize('../../../etc/passwd', 'file'), '_/_/_/etc/passwd');
+    assert.ok(pipeline);
+    assert.equal(sanitizeRelativePath('../../../etc/passwd', 'file'), '_/_/_/etc/passwd');
 });
 
 test('TDD: RateLimiter detects 429 status and error messages, calculates backoff with jitter', () => {
-    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
-
     assert.equal(isRateLimited({ status: 429 }), true);
     assert.equal(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), true);
     assert.equal(isRateLimited({ error: 'Too many requests, quota exceeded' }), true);
-    assert.equal(isRateLimited({ success: true }), false);
+    assert.equal(isRateLimited({ success: true } as any), false);
     assert.equal(isRateLimited({ status: 200 }), false);
     assert.equal(isRateLimited(null), false);
 
@@ -132,16 +128,15 @@ test('TDD: RateLimiter detects 429 status and error messages, calculates backoff
 });
 
 test('TDD: SessionRecovery.updateSessionStatus updates chrome.storage.local safely', async () => {
-    const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
     assert.equal(typeof SessionRecovery.updateSessionStatus, 'function');
 
-    const origChrome = global.chrome;
-    let storedSession = { status: 'running', slot: 'u0', current: 1 };
-    global.chrome = {
+    const origChrome = (global as any).chrome;
+    let storedSession: any = { status: 'running', slot: 'u0', current: 1 };
+    (global as any).chrome = {
         storage: {
             local: {
-                get: async (keys) => ({ gemini_last_export_session: storedSession }),
-                set: async (obj) => {
+                get: async (_keys: any) => ({ gemini_last_export_session: storedSession }),
+                set: async (obj: any) => {
                     if (obj.gemini_last_export_session) {
                         storedSession = obj.gemini_last_export_session;
                     }
@@ -156,7 +151,7 @@ test('TDD: SessionRecovery.updateSessionStatus updates chrome.storage.local safe
         assert.equal(storedSession.status, 'completed');
         assert.ok(typeof storedSession.updatedAt === 'number');
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 

@@ -1,31 +1,29 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
-};
+import test from 'node:test';
+import assert from 'node:assert';
 
-const ZipWriter = (typeof require !== 'undefined') ? require('../src/core/engine/writers/zipWriter.js') : (typeof globalThis.ZipWriter !== 'undefined' ? globalThis.ZipWriter : null);
+import ZipWriter from '../src/core/engine/writers/zipWriter.js';
 
 test('zipWriter - exports and instantiation', () => {
     assert.ok(ZipWriter);
     // Mock JSZip
-    global.JSZip = class MockJSZip {
+    (global as any).JSZip = class MockJSZip {
+        files: Record<string, any> = {};
         constructor() {
             this.files = {};
         }
-        folder(name) {
+        folder(_name: string) {
             return {
-                file: (path, content) => {
+                file: (path: string, content: any) => {
                     this.files[path] = content;
                 }
             };
         }
-        async generateAsync(options, cb) {
+        async generateAsync(_options?: any, cb?: (p: { percent: number }) => void) {
             if (cb) cb({ percent: 100 });
             return new Blob(['mock-zip'], { type: 'application/zip' });
         }
     };
+
 
     const writer = new ZipWriter('test_folder');
     assert.ok(writer);

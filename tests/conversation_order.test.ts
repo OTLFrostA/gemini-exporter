@@ -1,29 +1,9 @@
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert';
 
-// 1. Load GeminiUtils
-let GeminiUtils;
-try {
-    GeminiUtils = require('../src/core/utils/utils.js');
-} catch {
-    try {
-        GeminiUtils = require('./src/core/utils/utils.js');
-    } catch {
-        GeminiUtils = require('./utils.js');
-    }
-}
+import * as GeminiUtils from '../src/core/utils/utils.js';
+import * as GeminiParser from '../src/core/api/geminiParser.js';
 
-// 2. Load GeminiResponseParser
-let GeminiParser;
-try {
-    GeminiParser = require('../src/core/api/geminiParser.js');
-} catch {
-    try {
-        GeminiParser = require('./src/core/api/geminiParser.js');
-    } catch {
-        GeminiParser = require('./gemini_parser.js');
-    }
-}
 
 test('GeminiUtils.getEffectiveTimestamp - hierarchy and type safety', () => {
     assert.strictEqual(typeof GeminiUtils.getEffectiveTimestamp, 'function', 'getEffectiveTimestamp must be exported');
@@ -109,7 +89,7 @@ test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as max
 test('Conversation sorting - accurately orders by latest activity and never puts new chats at tail', () => {
     const getEffectiveTime = GeminiUtils.getEffectiveTimestamp;
 
-    function sortConversations(list) {
+    function sortConversations(list: any[]) {
         return [...list].sort((a, b) => {
             let valA = getEffectiveTime(a);
             let valB = getEffectiveTime(b);
@@ -124,6 +104,7 @@ test('Conversation sorting - accurately orders by latest activity and never puts
             return lsB - lsA;
         });
     }
+
 
     const now = 1788460500000;
 
@@ -176,11 +157,11 @@ test('Conversation sorting - accurately orders by latest activity and never puts
 
 test('Conversation merge - updates updatedAt when conversation becomes active again', () => {
     // Simulate upsertConversations logic
-    function mergeConversations(existing, incoming) {
+    function mergeConversations(existing: any[], incoming: any[]) {
         const map = new Map();
-        existing.forEach(c => map.set(c.id, { ...c }));
+        existing.forEach((c: any) => map.set(c.id, { ...c }));
 
-        incoming.forEach(c => {
+        incoming.forEach((c: any) => {
             const old = map.get(c.id);
             let cUpdated = c.updatedAt || c.timestamp || null;
             let oldUpdated = old?.updatedAt || old?.timestamp || null;
@@ -256,11 +237,12 @@ test('GeminiParser.parseList - accurately extracts server timestamp from index 5
 });
 
 test('Conversation merge - authoritative RPC server list heals contaminated Date.now() timestamps', () => {
-    function mergeWithRpcAuthority(existing, incoming) {
+    function mergeWithRpcAuthority(existing: any[], incoming: any[]) {
         const map = new Map();
-        existing.forEach(c => map.set(c.id, { ...c }));
+        existing.forEach((c: any) => map.set(c.id, { ...c }));
 
-        incoming.forEach(c => {
+        incoming.forEach((c: any) => {
+
             const old = map.get(c.id);
             let cUpdated = c.updatedAt || c.timestamp || null;
             let oldUpdated = old?.updatedAt || old?.timestamp || null;

@@ -1,11 +1,11 @@
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert';
 
-// Require TabService and I18n via ts_register hook
-const TabService = require('../src/core/utils/tabService.js');
-const I18n = require('../src/core/utils/i18n.js');
-const zhLocale = require('../src/core/utils/locales/zh.js');
-const enLocale = require('../src/core/utils/locales/en.js');
+import * as TabService from '../src/core/utils/tabService.js';
+import * as I18n from '../src/core/utils/i18n.js';
+import zhLocale from '../src/core/utils/locales/zh.js';
+import enLocale from '../src/core/utils/locales/en.js';
+
 
 test('TabService - type and export contract', () => {
     assert.ok(TabService, 'TabService must be exported');
@@ -17,13 +17,13 @@ test('TabService - type and export contract', () => {
 });
 
 test('TabService - getGeminiTab handles missing API and empty queries', async () => {
-    const origChrome = global.chrome;
+    const origChrome = (global as any).chrome;
     try {
-        global.chrome = undefined;
+        (global as any).chrome = undefined;
         const noApiTab = await TabService.getGeminiTab('u0');
         assert.strictEqual(noApiTab, null, 'Should return null when chrome.tabs is undefined');
 
-        global.chrome = {
+        (global as any).chrome = {
             tabs: {
                 query: async () => []
             }
@@ -31,14 +31,14 @@ test('TabService - getGeminiTab handles missing API and empty queries', async ()
         const emptyTab = await TabService.getGeminiTab('u0');
         assert.strictEqual(emptyTab, null, 'Should return null when no tabs match');
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 
 test('TabService - getGeminiTab slot matching and active fallback', async () => {
-    const origChrome = global.chrome;
+    const origChrome = (global as any).chrome;
     try {
-        global.chrome = {
+        (global as any).chrome = {
             tabs: {
                 query: async () => [
                     { id: 10, url: 'https://gemini.google.com/app', active: false },
@@ -63,36 +63,36 @@ test('TabService - getGeminiTab slot matching and active fallback', async () => 
         const tabDefault = await TabService.getGeminiTab();
         assert.strictEqual(tabDefault?.id, 30, 'Should fallback to active tab when no slot is specified');
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 
 test('TabService - sendToGeminiTab failover across candidates and timeouts', async () => {
-    const origChrome = global.chrome;
+    const origChrome = (global as any).chrome;
     try {
         // Test missing chrome.tabs
-        global.chrome = undefined;
+        (global as any).chrome = undefined;
         await assert.rejects(
             () => TabService.sendToGeminiTab({ action: 'ping' }),
             /chrome\.tabs API 不可用/
         );
 
         // Test failover when first tab has 'Receiving end does not exist'
-        let attempts = [];
-        global.chrome = {
+        let attempts: any[] = [];
+        (global as any).chrome = {
             tabs: {
                 query: async () => [
                     { id: 101, url: 'https://gemini.google.com/app', active: false },
                     { id: 102, url: 'https://gemini.google.com/app', active: true }
                 ],
-                sendMessage: (tabId, msg, cb) => {
+                sendMessage: (tabId: any, msg: any, cb: any) => {
                     attempts.push(tabId);
                     if (tabId === 102) {
                         // 102 is active, so sorted first
-                        global.chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
+                        (global as any).chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
                         cb(null);
                     } else {
-                        global.chrome.runtime.lastError = null;
+                        (global as any).chrome.runtime.lastError = null;
                         cb({ success: true, fromTab: tabId });
                     }
                 }
@@ -105,14 +105,14 @@ test('TabService - sendToGeminiTab failover across candidates and timeouts', asy
         assert.deepStrictEqual(attempts, [102, 101], 'Should try active tab first then next candidate');
 
         // Test timeout calculation
-        let timeoutRecorded = null;
+        let timeoutRecorded: any = null;
         const origSetTimeout = global.setTimeout;
-        global.setTimeout = (fn, ms) => {
+        (global as any).setTimeout = (fn: any, ms: any) => {
             timeoutRecorded = ms;
             return origSetTimeout(fn, 1000000); // don't fire
         };
         try {
-            global.chrome.tabs.sendMessage = (tabId, msg, cb) => {
+            (global as any).chrome.tabs.sendMessage = (tabId: any, msg: any, cb: any) => {
                 // Immediate response so promise resolves
                 cb({ ok: true });
             };
@@ -128,18 +128,18 @@ test('TabService - sendToGeminiTab failover across candidates and timeouts', asy
             global.setTimeout = origSetTimeout;
         }
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 
 test('TabService - checkGeminiStatus lifecycle results', async () => {
-    const origChrome = global.chrome;
+    const origChrome = (global as any).chrome;
     try {
-        global.chrome = undefined;
+        (global as any).chrome = undefined;
         const noApi = await TabService.checkGeminiStatus();
         assert.strictEqual(noApi.status, 'NO_TABS_API');
 
-        global.chrome = {
+        (global as any).chrome = {
             tabs: {
                 query: async () => []
             }
@@ -148,10 +148,10 @@ test('TabService - checkGeminiStatus lifecycle results', async () => {
         assert.strictEqual(noTab.status, 'NO_TAB');
 
         // Connected
-        global.chrome = {
+        (global as any).chrome = {
             tabs: {
                 query: async () => [{ id: 55, url: 'https://gemini.google.com/app', active: true }],
-                sendMessage: (tabId, msg, cb) => {
+                sendMessage: (tabId: any, msg: any, cb: any) => {
                     cb({ ok: true, version: '1.0' });
                 }
             },
@@ -163,27 +163,27 @@ test('TabService - checkGeminiStatus lifecycle results', async () => {
         assert.deepStrictEqual(connected.response, { ok: true, version: '1.0' });
 
         // Ping error requires refresh
-        global.chrome.tabs.sendMessage = (tabId, msg, cb) => {
-            global.chrome.runtime.lastError = { message: 'Port closed' };
+        (global as any).chrome.tabs.sendMessage = (tabId: any, msg: any, cb: any) => {
+            (global as any).chrome.runtime.lastError = { message: 'Port closed' };
             cb(null);
         };
         const needRefresh = await TabService.checkGeminiStatus();
         assert.strictEqual(needRefresh.status, 'NEED_REFRESH');
         assert.strictEqual(needRefresh.error, 'Port closed');
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 
 test('TabService - openGeminiPage and reloadGeminiTab fallback delegation', async () => {
-    const origChrome = global.chrome;
+    const origChrome = (global as any).chrome;
     try {
-        let createdUrl = null;
-        let reloadedTabId = null;
-        global.chrome = {
+        let createdUrl: any = null;
+        let reloadedTabId: any = null;
+        (global as any).chrome = {
             tabs: {
-                create: async (opts) => { createdUrl = opts.url; return { id: 99 }; },
-                reload: async (id) => { reloadedTabId = id; }
+                create: async (opts: any) => { createdUrl = opts.url; return { id: 99 }; },
+                reload: async (id: any) => { reloadedTabId = id; }
             }
         };
 
@@ -194,10 +194,10 @@ test('TabService - openGeminiPage and reloadGeminiTab fallback delegation', asyn
         assert.strictEqual(reloadedTabId, 99);
 
         // Fallback to chrome.runtime.sendMessage
-        let runtimeMsg = null;
-        global.chrome = {
+        let runtimeMsg: any = null;
+        (global as any).chrome = {
             runtime: {
-                sendMessage: async (msg) => { runtimeMsg = msg; }
+                sendMessage: async (msg: any) => { runtimeMsg = msg; }
             }
         };
         await TabService.openGeminiPage();
@@ -206,7 +206,7 @@ test('TabService - openGeminiPage and reloadGeminiTab fallback delegation', asyn
         await TabService.reloadGeminiTab(77);
         assert.deepStrictEqual(runtimeMsg, { action: 'reloadGeminiTab', tabId: 77 });
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 

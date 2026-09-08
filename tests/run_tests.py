@@ -235,7 +235,8 @@ def test_javascript_unit_tests():
             node_bin = cand
             break
 
-    test_files = sorted(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")))
+    test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))))
+
 
     # Preload files for mock fs in JSC
     file_map = {}

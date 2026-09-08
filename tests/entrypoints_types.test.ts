@@ -1,7 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
+import test from 'node:test';
+import assert from 'node:assert';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 // Test that background source exists (ts or js) and satisfies architectural rules
 test('Background - static contract and AST checks', () => {
@@ -27,7 +27,7 @@ test('Background - static contract and AST checks', () => {
 
 // Test Popup controller helper contracts and URL detection
 test('Popup - isGeminiUrl validation logic', () => {
-    function isGeminiUrl(urlStr) {
+    function isGeminiUrl(urlStr: any) {
         if (!urlStr || typeof urlStr !== 'string') return false;
         try {
             const u = new URL(urlStr);
@@ -46,6 +46,7 @@ test('Popup - isGeminiUrl validation logic', () => {
     assert.strictEqual(isGeminiUrl(undefined), false);
     assert.strictEqual(isGeminiUrl('not a url'), false);
 });
+
 
 test('Popup - openOptions removal and disabled styling', () => {
     const popPath = path.join(__dirname, '../src/ui/popup/popup.html');
@@ -73,23 +74,23 @@ test('Background - tab action icon contextual state management', () => {
 });
 
 test('Background - slot abort isolation and session storage persistence', async () => {
-    const sessionStorageData = {};
+    const sessionStorageData: Record<string, any> = {};
     const mockStorageSession = {
-        get: async (keys) => {
+        get: async (keys: any) => {
             if (keys === null) return { ...sessionStorageData };
             if (typeof keys === 'string') return { [keys]: sessionStorageData[keys] };
             return {};
         },
-        set: async (obj) => {
+        set: async (obj: any) => {
             Object.assign(sessionStorageData, obj);
         },
-        remove: async (keys) => {
+        remove: async (keys: any) => {
             const arr = Array.isArray(keys) ? keys : [keys];
             for (const k of arr) delete sessionStorageData[k];
         }
     };
 
-    const __bgAborts = new Map();
+    const __bgAborts = new Map<string, boolean>();
 
     function isSlotAborted(slot = 'u0') {
         return !!__bgAborts.get(slot || 'u0');
@@ -125,20 +126,18 @@ test('Background - slot abort isolation and session storage persistence', async 
 test('Background - keepAlive lifecycle timer', () => {
     let platformInfoCalls = 0;
     const mockRuntime = {
-        getPlatformInfo: (cb) => { platformInfoCalls++; if (cb) cb(); }
+        getPlatformInfo: (cb?: any) => { platformInfoCalls++; if (cb) cb(); }
     };
 
-    let intervalId = null;
     let cleared = false;
     const origSetInterval = global.setInterval;
     const origClearInterval = global.clearInterval;
 
-    global.setInterval = (fn, ms) => {
-        intervalId = 1234;
+    (global as any).setInterval = (fn: any, _ms: number) => {
         fn(); // execute once immediately for test
-        return intervalId;
+        return 1234 as any;
     };
-    global.clearInterval = (id) => {
+    (global as any).clearInterval = (id: any) => {
         if (id === 1234) cleared = true;
     };
 
@@ -166,3 +165,4 @@ test('Background - keepAlive lifecycle timer', () => {
         global.clearInterval = origClearInterval;
     }
 });
+

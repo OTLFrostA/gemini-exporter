@@ -1,12 +1,9 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
-};
+import test from 'node:test';
+import assert from 'node:assert';
 
-const Constants = (typeof require !== 'undefined') ? require('../src/core/utils/constants.js') : (typeof globalThis.GeminiConstants !== 'undefined' ? globalThis.GeminiConstants : null);
-const FormatStore = (typeof require !== 'undefined') ? require('../src/core/storage/formatStore.js') : (typeof globalThis.FormatStore !== 'undefined' ? globalThis.FormatStore : null);
+import * as Constants from '../src/core/utils/constants.js';
+import * as FormatStore from '../src/core/storage/formatStore.js';
+
 
 test('formatStore - ALLOWED_FORMATS and DEFAULT_FORMAT', () => {
     assert.deepStrictEqual(FormatStore.ALLOWED_FORMATS, ['markdown', 'json_openai', 'json', 'json_raw']);
@@ -20,8 +17,9 @@ test('formatStore - isAllowed', () => {
     assert.strictEqual(FormatStore.isAllowed('json_raw'), true);
     assert.strictEqual(FormatStore.isAllowed('xml'), false);
     assert.strictEqual(FormatStore.isAllowed(''), false);
-    assert.strictEqual(FormatStore.isAllowed(null), false);
+    assert.strictEqual(FormatStore.isAllowed(null as any), false);
 });
+
 
 test('formatStore - normalizeFormat with dev mode awareness', () => {
     // Normal mode: json_raw should fall back to markdown

@@ -1,8 +1,9 @@
-const test = require("node:test");
-const assert = require("node:assert");
-const { GeminiResponseParserClass, detectTurnSchemaDrift } = require("../src/core/api/geminiParser.js");
-const parseDetailMod = require("../src/core/api/parser/parseDetail.js");
-const extractorsMod = require("../src/core/api/parser/extractors.js");
+import test from "node:test";
+import assert from "node:assert";
+import { GeminiResponseParserClass, detectTurnSchemaDrift } from "../src/core/api/geminiParser.js";
+import * as parseDetailMod from "../src/core/api/parser/parseDetail.js";
+import * as extractorsMod from "../src/core/api/parser/extractors.js";
+
 
 test("TDD Red: isTurn must accept r_ prefixed turn IDs in addition to c_ prefixed turn IDs", () => {
     // Both c_ and r_ prefixes are used by Google Gemini JSPB payloads
@@ -41,7 +42,7 @@ test("TDD Red: robustFirstPayload parses nested JSON strings with brackets insid
     const rpcText = `)]}'
 
 ${jsonWithBracketsInString}`;
-    const parsed = extractorsMod.robustFirstPayload(rpcText);
+    const parsed = extractorsMod.robustFirstPayload(rpcText) as any[][];
     assert.ok(Array.isArray(parsed));
     assert.strictEqual(parsed.length, 1);
     assert.strictEqual(parsed[0][0], "wrb.fr");
