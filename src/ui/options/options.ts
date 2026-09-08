@@ -208,4 +208,25 @@ if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsSync = OptionsSync;
     (globalThis as any).OptionsTakeout = OptionsTakeout;
     (globalThis as any).OptionsSettings = OptionsSettings;
+    (globalThis as any).TourGuide = TourGuide;
+    (globalThis as any).ConversationsStore = ConversationsStore;
+    (globalThis as any).ListView = ListView;
+    (globalThis as any).AccountView = AccountView;
+    (globalThis as any).DialogView = DialogView;
+    (globalThis as any).LogView = LogView;
+    (globalThis as any).__workbenchLoadStore = loadStore;
+}
+if (typeof window !== 'undefined') {
+    (window as any).TourGuide = TourGuide;
+    (window as any).__workbenchLoadStore = loadStore;
+    (window as any).ConversationsStore = ConversationsStore;
+    (window as any).ListView = ListView;
+    (window as any).AccountView = AccountView;
+    (window as any).DialogView = DialogView;
+    (window as any).LogView = LogView;
+    (window as any).OptionsInit = OptionsInit;
+    (window as any).OptionsExport = OptionsExport;
+    (window as any).OptionsSync = OptionsSync;
+    (window as any).OptionsTakeout = OptionsTakeout;
+    (window as any).OptionsSettings = OptionsSettings;
 }

@@ -3,8 +3,10 @@
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 
 (function(root: any, factory: () => TabServiceModule) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else root.TabService = factory();
+    const mod = factory();
+    if (typeof root !== 'undefined') root.TabService = mod;
+    if (typeof globalThis !== 'undefined') (globalThis as any).TabService = mod;
+    if (typeof module === 'object' && module.exports) module.exports = mod;
 }(typeof self !== 'undefined' ? self : this, function(): TabServiceModule {
     'use strict';
 

@@ -105,7 +105,7 @@ export const STEPS: any[] = [
             return () => cleanups.forEach(c => c());
         }
     },
-        {
+    {
         id: 'select',
         getTarget: () => {
             const firstCheckbox = document.querySelector('#list .item input[type=checkbox]');
@@ -181,227 +181,355 @@ export const STEPS: any[] = [
 
 function createElements(): void {
     if (typeof document === 'undefined') return;
-    if (!overlayEl) {
-        overlayEl = document.createElement('div');
-        overlayEl.id = 'tourOverlay';
-        overlayEl.className = 'tour-overlay';
-        overlayEl.addEventListener('click', (e) => {
-            if (e.target === overlayEl) {
-                skipTour();
-            }
+    if (overlayEl && overlayEl.parentNode) return;
+
+    if (typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('.tour-overlay-container').forEach(el => {
+            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
         });
-        document.body.appendChild(overlayEl);
     }
-    if (!spotlightEl) {
-        spotlightEl = document.createElement('div');
-        spotlightEl.id = 'tourSpotlight';
-        spotlightEl.className = 'tour-spotlight';
-        document.body.appendChild(spotlightEl);
-    }
-    if (!popoverEl) {
-        popoverEl = document.createElement('div');
-        popoverEl.id = 'tourPopover';
-        popoverEl.className = 'tour-popover';
-        document.body.appendChild(popoverEl);
-    }
+
+    overlayEl = document.createElement('div');
+    overlayEl.className = 'tour-overlay-container';
+    overlayEl.setAttribute('role', 'dialog');
+    overlayEl.setAttribute('aria-modal', 'true');
+
+    spotlightEl = document.createElement('div');
+    spotlightEl.className = 'tour-spotlight';
+
+    popoverEl = document.createElement('div');
+    popoverEl.className = 'tour-popover';
+
+    overlayEl.appendChild(spotlightEl);
+    overlayEl.appendChild(popoverEl);
+    document.body.appendChild(overlayEl);
+
+    document.removeEventListener('keydown', handleKeydown as any);
+    window.removeEventListener('resize', handleResize);
+    document.addEventListener('keydown', handleKeydown as any);
+    window.addEventListener('resize', handleResize);
 }
 
 function removeElements(): void {
+    stopPolling();
     clearActionListeners();
+    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('.tour-overlay-container').forEach(el => {
+            try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+        });
+    }
+    overlayEl = null;
+    spotlightEl = null;
+    popoverEl = null;
+    isActive = false;
+
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('keydown', handleKeydown as any);
+    }
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+    }
+}
+
+function handleKeydown(e: KeyboardEvent): void {
+    if (!isActive) return;
+    if (e.key === 'Escape') {
+        skipTour();
+    } else if (e.key === 'ArrowRight' && currentStep < STEPS.length - 1) {
+        nextStep();
+    } else if (e.key === 'ArrowLeft' && currentStep > 0) {
+        prevStep();
+    }
+}
+
+function handleResize(): void {
+    if (!isActive) return;
+    positionElements(STEPS[currentStep]);
+}
+
+function positionElements(step: any): void {
+    if (!spotlightEl || !popoverEl || typeof window === 'undefined') return;
+
+    const target = step.getTarget ? step.getTarget() : null;
+    if (target && target.isConnected && target.offsetParent !== null) {
+        const rect = target.getBoundingClientRect();
+        const pad = 6;
+
+        spotlightEl.classList.remove('tour-spotlight-hidden');
+        spotlightEl.style.top = Math.max(0, rect.top - pad) + 'px';
+        spotlightEl.style.left = Math.max(0, rect.left - pad) + 'px';
+        spotlightEl.style.width = (rect.width + pad * 2) + 'px';
+        spotlightEl.style.height = (rect.height + pad * 2) + 'px';
+
+        if (typeof target.scrollIntoView === 'function') {
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        const popoverWidth = (popoverEl as HTMLElement).offsetWidth || 360;
+        const popoverHeight = (popoverEl as HTMLElement).offsetHeight || 240;
+        const gap = 16;
+        const placement = step.placement || 'bottom';
+
+        let popTop = 0;
+        let popLeft = 0;
+
+        if (placement === 'right') {
+            popLeft = rect.right + gap;
+            popTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - popoverHeight - 16));
+            if (popLeft + popoverWidth > window.innerWidth - 16) {
+                popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+                if (rect.top > popoverHeight + gap + 16) {
+                    popTop = rect.top - popoverHeight - gap;
+                } else {
+                    popTop = rect.bottom + gap;
+                }
+            }
+        } else if (placement === 'left') {
+            popLeft = rect.left - popoverWidth - gap;
+            popTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - popoverHeight - 16));
+            if (popLeft < 16) {
+                popLeft = 16;
+                popTop = Math.max(16, Math.min(rect.top, window.innerHeight - popoverHeight - 16));
+            }
+        } else if (placement === 'top') {
+            popTop = rect.top - popoverHeight - gap;
+            popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+            if (popTop < 16) {
+                popTop = rect.bottom + gap;
+            }
+        } else {
+            popTop = rect.bottom + gap;
+            popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
+            if (popTop + popoverHeight > window.innerHeight - 16) {
+                popTop = Math.max(16, rect.top - popoverHeight - gap);
+            }
+        }
+
+        const targetSafe = {
+            left: rect.left - pad,
+            top: rect.top - pad,
+            right: rect.right + pad,
+            bottom: rect.bottom + pad
+        };
+
+        const isOverlapping = !(
+            (popLeft + popoverWidth) <= targetSafe.left ||
+            popLeft >= targetSafe.right ||
+            (popTop + popoverHeight) <= targetSafe.top ||
+            popTop >= targetSafe.bottom
+        );
+
+        if (isOverlapping) {
+            const spaceRight = window.innerWidth - targetSafe.right - 16;
+            const spaceLeft = targetSafe.left - 16;
+            const spaceTop = targetSafe.top - 16;
+            const spaceBottom = window.innerHeight - targetSafe.bottom - 16;
+
+            if (spaceRight >= popoverWidth) {
+                popLeft = targetSafe.right + gap;
+                popTop = Math.max(16, Math.min(targetSafe.top, window.innerHeight - popoverHeight - 16));
+            } else if (spaceLeft >= popoverWidth) {
+                popLeft = Math.max(16, targetSafe.left - popoverWidth - gap);
+                popTop = Math.max(16, Math.min(targetSafe.top, window.innerHeight - popoverHeight - 16));
+            } else if (spaceTop >= popoverHeight) {
+                popTop = Math.max(16, targetSafe.top - popoverHeight - gap);
+                popLeft = Math.max(16, Math.min(targetSafe.left, window.innerWidth - popoverWidth - 16));
+            } else if (spaceBottom >= popoverHeight) {
+                popTop = targetSafe.bottom + gap;
+                popLeft = Math.max(16, Math.min(targetSafe.left, window.innerWidth - popoverWidth - 16));
+            }
+        }
+
+        popoverEl.style.top = `${popTop}px`;
+        popoverEl.style.left = `${popLeft}px`;
+        popoverEl.style.transform = 'none';
+    } else {
+        spotlightEl.classList.add('tour-spotlight-hidden');
+        popoverEl.style.top = '50%';
+        popoverEl.style.left = '50%';
+        popoverEl.style.transform = 'translate(-50%, -50%)';
+    }
+}
+
+async function checkCurrentTabStatus(): Promise<{ status: string; error?: string }> {
+    const tabService = getTabService();
+    if (!tabService || !tabService.checkGeminiStatus) {
+        return { status: 'CONNECTED' };
+    }
+    try {
+        return await tabService.checkGeminiStatus();
+    } catch (e: any) {
+        return { status: 'ERROR', error: e.message };
+    }
+}
+
+function startPollingTabStatus(): void {
+    stopPolling();
+    pollTimer = setInterval(async () => {
+        if (!isActive || currentStep !== 0) {
+            stopPolling();
+            return;
+        }
+        const status = await checkCurrentTabStatus();
+        if (!isActive || currentStep !== 0) {
+            return;
+        }
+        const prevStatus = lastTabStatus;
+        if (status.status !== lastTabStatus) {
+            lastTabStatus = status.status;
+            updateStepContent(STEPS[0]);
+
+            if ((prevStatus === 'NO_TAB' || prevStatus === 'NEED_REFRESH') && status.status === 'CONNECTED') {
+                setTimeout(() => {
+                    if (isActive && currentStep === 0) {
+                        nextStep();
+                    }
+                }, 800);
+            }
+        }
+    }, 1500);
+}
+
+function stopPolling(): void {
     if (pollTimer) {
         clearInterval(pollTimer);
         pollTimer = null;
     }
-    if (overlayEl) {
-        try {
-            if (typeof overlayEl.remove === 'function') overlayEl.remove();
-            else if (overlayEl.parentNode) overlayEl.parentNode.removeChild(overlayEl);
-        } catch (e) {}
-        overlayEl = null;
-    }
-    if (spotlightEl) {
-        try {
-            if (typeof spotlightEl.remove === 'function') spotlightEl.remove();
-            else if (spotlightEl.parentNode) spotlightEl.parentNode.removeChild(spotlightEl);
-        } catch (e) {}
-        spotlightEl = null;
-    }
-    if (popoverEl) {
-        try {
-            if (typeof popoverEl.remove === 'function') popoverEl.remove();
-            else if (popoverEl.parentNode) popoverEl.parentNode.removeChild(popoverEl);
-        } catch (e) {}
-        popoverEl = null;
-    }
-    isActive = false;
 }
 
-function positionSpotlight(targetEl: HTMLElement | null): void {
-    if (!spotlightEl) return;
-    if (!targetEl) {
-        spotlightEl.style.display = 'none';
-        return;
-    }
-    const rect = targetEl.getBoundingClientRect();
-    const pad = 6;
-    spotlightEl.style.display = 'block';
-    spotlightEl.style.top = `${Math.max(0, rect.top - pad)}px`;
-    spotlightEl.style.left = `${Math.max(0, rect.left - pad)}px`;
-    spotlightEl.style.width = `${rect.width + pad * 2}px`;
-    spotlightEl.style.height = `${rect.height + pad * 2}px`;
-}
-
-function positionPopover(targetEl: HTMLElement | null, placement: string = 'bottom'): void {
+async function updateStepContent(step: any): Promise<void> {
     if (!popoverEl) return;
-    if (!targetEl) {
-        popoverEl.style.top = '50%';
-        popoverEl.style.left = '50%';
-        popoverEl.style.transform = 'translate(-50%, -50%)';
-        return;
-    }
 
-    const rect = targetEl.getBoundingClientRect();
-    const pRect = popoverEl.getBoundingClientRect();
-    const margin = 12;
+    const isFinal = !!step.isFinal;
+    const stepNum = currentStep + 1;
+    const totalSteps = STEPS.length;
 
-    let top = 0;
-    let left = 0;
+    let titleHtml = t(step.titleKey);
+    let bodyHtml = '';
 
-    if (placement === 'top') {
-        top = rect.top - pRect.height - margin;
-        left = rect.left + (rect.width - pRect.width) / 2;
-    } else if (placement === 'bottom') {
-        top = rect.bottom + margin;
-        left = rect.left + (rect.width - pRect.width) / 2;
-    } else if (placement === 'left') {
-        top = rect.top + (rect.height - pRect.height) / 2;
-        left = rect.left - pRect.width - margin;
-    } else {
-        top = rect.top + (rect.height - pRect.height) / 2;
-        left = rect.right + margin;
-    }
-
-    const maxLeft = window.innerWidth - pRect.width - 16;
-    const maxTop = window.innerHeight - pRect.height - 16;
-    left = Math.max(16, Math.min(left, maxLeft));
-    top = Math.max(16, Math.min(top, maxTop));
-
-    popoverEl.style.top = `${top}px`;
-    popoverEl.style.left = `${left}px`;
-    popoverEl.style.transform = 'none';
-}
-
-async function renderStepContent(step: any): Promise<void> {
-    if (!popoverEl) return;
-    const isFirst = currentStep === 0;
-    const isLast = currentStep === STEPS.length - 1;
-
-    let title = typeof t === 'function' ? t(step.titleKey) : step.titleKey;
-    let desc = step.descKey && typeof t === 'function' ? t(step.descKey) : (step.desc || '');
-
-    let dynamicContent = '';
     if (step.isDynamicConnect) {
-        const tabService = getTabService();
-        let isTabOpen = false;
-        if (tabService && tabService.getGeminiTab) {
-            try {
-                const tab = await tabService.getGeminiTab();
-                isTabOpen = !!tab;
-            } catch { /* intentional */ }
+        const status = await checkCurrentTabStatus();
+        lastTabStatus = status.status;
+
+        if (status.status === 'NO_TAB') {
+            bodyHtml = `
+                <div class="tour-content">${t('tourStep1NoTab')}</div>
+                <div class="tour-action-box">
+                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NoTabStatus') || t('notSynced')}</div>
+                    <button id="tourBtnOpenGemini" class="tour-action-btn">
+                        ${t('tourStep1BtnOpen')}
+                    </button>
+                </div>
+            `;
+        } else if (status.status === 'NEED_REFRESH') {
+            bodyHtml = `
+                <div class="tour-content">${t('tourStep1NeedRefresh')}</div>
+                <div class="tour-action-box">
+                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NeedRefresh')}</div>
+                    <button id="tourBtnReloadGemini" class="tour-action-btn secondary">
+                        ${t('tourStep1BtnRefresh')}
+                    </button>
+                </div>
+            `;
+        } else {
+            bodyHtml = `
+                <div class="tour-content">${t('tourStep1ConnectedDesc') || t('tourStep1Connected')}</div>
+                <div class="tour-action-box">
+                    <div class="tour-status-indicator tour-status-ok ok">✅ ${t('tourStep1Connected')}</div>
+                </div>
+            `;
         }
-        lastTabStatus = isTabOpen;
-
-        const statusClass = isTabOpen ? 'tour-status-indicator tour-status-ok' : 'tour-status-indicator tour-status-warn';
-        const statusColor = isTabOpen ? '#34d399' : '#fbbf24';
-        const statusText = isTabOpen
-            ? (typeof t === 'function' ? t('tourGeminiDetected') : 'Gemini 标签页已打开')
-            : (typeof t === 'function' ? t('tourGeminiNotDetected') : '未检测到 Gemini 标签页');
-
-        dynamicContent = `
-            <div class="tour-dynamic-status" style="margin: 8px 0 12px 0; font-size: 12px; display: flex; align-items: center; gap: 6px;">
-                <span class="${statusClass}" style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor}; display: inline-block;"></span>
-                <span>${statusText}</span>
-            </div>
-            ${!isTabOpen ? `<a href="https://gemini.google.com" target="_blank" style="color: var(--accent2, #06b6d4); font-size: 12px; text-decoration: underline; margin-bottom: 8px; display: inline-block;">${typeof t === 'function' ? t('tourOpenGemini') : '打开 gemini.google.com ↗'}</a>` : ''}
-        `;
+    } else {
+        bodyHtml = `<div class="tour-content">${t(step.descKey)}</div>`;
     }
 
-    const hint = step.hintKey && typeof t === 'function' ? t(step.hintKey) : '';
+    let hintHtml = '';
+    if (step.hintKey) {
+        hintHtml = `<div class="tour-action-hint">${t(step.hintKey)}</div>`;
+    }
+
+    if (!popoverEl || !isActive) return;
 
     popoverEl.innerHTML = `
-        <div class="tour-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #fff;">${title}</h4>
-            <span style="font-size: 11px; color: var(--muted, #8a92b2);">${currentStep + 1} / ${STEPS.length}</span>
+        <div class="tour-header">
+            <span class="tour-step-badge">${stepNum} / ${totalSteps}</span>
+            <button class="tour-close-btn" id="tourCloseBtn" title="Close (ESC)">✕</button>
         </div>
-        ${desc ? `<p style="margin: 0 0 8px 0; font-size: 12px; line-height: 1.5; color: #d1d5db;">${desc}</p>` : ''}
-        ${dynamicContent}
-        ${hint ? `<div style="font-size: 11px; color: var(--accent2, #06b6d4); margin-bottom: 12px; font-style: italic;">💡 ${hint}</div>` : ''}
-        <div class="tour-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
-            <button type="button" id="tourBtnSkip" class="ghost small" style="background: transparent; color: var(--muted, #8a92b2); border: none; font-size: 12px; cursor: pointer;">${typeof t === 'function' ? t('tourBtnSkip') : '跳过导览'}</button>
-            <div style="display: flex; gap: 8px;">
-                ${!isFirst ? `<button type="button" id="tourBtnPrev" class="ghost small" style="padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer;">${typeof t === 'function' ? t('tourBtnPrev') : '上一步'}</button>` : ''}
-                <button type="button" id="tourBtnNext" class="primary small" style="padding: 4px 12px; font-size: 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">${isLast ? (typeof t === 'function' ? t('tourBtnFinish') : '完成') : (typeof t === 'function' ? t('tourBtnNext') : '下一步')}</button>
+        <div class="tour-title">${titleHtml}</div>
+        ${bodyHtml}
+        ${hintHtml}
+        <div class="tour-footer">
+            <button class="tour-skip-btn" id="tourSkipBtn">${t('tourBtnSkip')}</button>
+            <div class="tour-nav-btns">
+                ${currentStep > 0 ? `<button class="tour-nav-btn" id="tourPrevBtn">${t('tourBtnPrev')}</button>` : ''}
+                <button class="tour-nav-btn primary" id="tourNextBtn">
+                    ${isFinal ? t('tourBtnDone') : t('tourBtnNext')}
+                </button>
             </div>
         </div>
     `;
 
-    document.getElementById('tourBtnSkip')?.addEventListener('click', skipTour);
-    document.getElementById('tourBtnPrev')?.addEventListener('click', prevStep);
-    document.getElementById('tourBtnNext')?.addEventListener('click', () => {
-        if (isLast) finishTour();
-        else nextStep();
+    document.getElementById('tourCloseBtn')?.addEventListener('click', skipTour);
+    document.getElementById('tourSkipBtn')?.addEventListener('click', skipTour);
+    document.getElementById('tourPrevBtn')?.addEventListener('click', prevStep);
+    document.getElementById('tourNextBtn')?.addEventListener('click', () => {
+        if (isFinal) {
+            finishTour();
+        } else {
+            nextStep();
+        }
     });
+
+    document.getElementById('tourBtnOpenGemini')?.addEventListener('click', async () => {
+        const tabService = getTabService();
+        if (tabService && tabService.openGeminiPage) {
+            await tabService.openGeminiPage();
+        } else if (typeof window !== 'undefined') {
+            window.open('https://gemini.google.com/app', '_blank');
+        }
+        startPollingTabStatus();
+    });
+
+    document.getElementById('tourBtnReloadGemini')?.addEventListener('click', async () => {
+        const tabService = getTabService();
+        if (tabService && tabService.reloadGeminiTab) {
+            await tabService.reloadGeminiTab();
+        }
+        startPollingTabStatus();
+    });
+
+    positionElements(step);
 }
 
 export async function goToStep(stepIndex: number): Promise<void> {
     if (stepIndex < 0 || stepIndex >= STEPS.length) return;
     currentStep = stepIndex;
-    isActive = true;
+
     createElements();
+    isActive = true;
 
     const step = STEPS[currentStep];
-    const targetEl = step.getTarget ? step.getTarget() : null;
-
-    positionSpotlight(targetEl);
-    await renderStepContent(step);
-    positionPopover(targetEl, step.placement || 'bottom');
-
-    bindStepAction(step);
-
     if (step.isDynamicConnect) {
-        if (pollTimer) clearInterval(pollTimer);
-        pollTimer = setInterval(async () => {
-            const tabService = getTabService();
-            if (tabService && tabService.getGeminiTab) {
-                try {
-                    const tab = await tabService.getGeminiTab();
-                    const isOpen = !!tab;
-                    if (isOpen !== lastTabStatus) {
-                        await renderStepContent(step);
-                        positionPopover(targetEl, step.placement || 'bottom');
-                    }
-                } catch { /* intentional */ }
-            }
-        }, 1500);
+        startPollingTabStatus();
     } else {
-        if (pollTimer) {
-            clearInterval(pollTimer);
-            pollTimer = null;
-        }
+        stopPolling();
     }
+
+    await updateStepContent(step);
+    bindStepAction(step);
 }
 
 export async function nextStep(): Promise<void> {
     if (currentStep < STEPS.length - 1) {
-        await goToStep(currentStep + 1);
+        return await goToStep(currentStep + 1);
     } else {
-        await finishTour();
+        return await finishTour();
     }
 }
 
 export async function prevStep(): Promise<void> {
     if (currentStep > 0) {
-        await goToStep(currentStep - 1);
+        return await goToStep(currentStep - 1);
     }
 }
 
@@ -422,7 +550,7 @@ export async function skipTour(): Promise<void> {
 }
 
 export async function startTour(stepIndex: number = 0): Promise<void> {
-    await goToStep(stepIndex);
+    return await goToStep(stepIndex);
 }
 
 export const TourGuide: TourGuideContract = {
@@ -445,4 +573,7 @@ if (typeof module === 'object' && module.exports) {
 }
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).TourGuide = TourGuide;
+}
+if (typeof window !== 'undefined') {
+    (window as any).TourGuide = TourGuide;
 }

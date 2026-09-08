@@ -4,11 +4,7 @@
 
 import type { LocaleDictionary } from '../../../types/utils.js';
 
-(function(root: any, factory: () => LocaleDictionary) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else { root.GeminiLocales = root.GeminiLocales || {}; root.GeminiLocales.zh = factory(); }
-}(typeof self !== 'undefined' ? self : this, function(): LocaleDictionary {
-    'use strict';
+const __zhFactory = (): LocaleDictionary => {
     return {
 
             extName: "Gemini Exporter",
@@ -214,4 +210,10 @@ import type { LocaleDictionary } from '../../../types/utils.js';
             btnModalOpenTakeoutWeb: "🌐 前往 Google Takeout (已自动勾选 Gemini)",
             btnModalDismissTakeout: "我知道了，不再提示"
     };
-}));
+};
+const __zhDict: LocaleDictionary = __zhFactory();
+if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.zh = __zhDict; }
+if (typeof self !== 'undefined') { (self as any).GeminiLocales = (self as any).GeminiLocales || {}; (self as any).GeminiLocales.zh = __zhDict; }
+if (typeof window !== 'undefined') { (window as any).GeminiLocales = (window as any).GeminiLocales || {}; (window as any).GeminiLocales.zh = __zhDict; }
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = __zhDict;
+
