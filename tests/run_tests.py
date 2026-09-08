@@ -29,7 +29,17 @@ def test_manifest_structure():
         assert "storage" in m["permissions"]
         assert m["background"]["service_worker"] == "dist/background/background.js", "background service_worker must point to the esbuild dist output"
         cs = m["content_scripts"]
-        for required in ["dist/core/protocol/protocol.js", "dist/core/utils/utils.js", "dist/core/storage/storageService.js", "dist/core/api/geminiParser.js", "dist/core/api/geminiClient.js", "dist/content/content.js"]:
+        for required in [
+            "dist/core/protocol/protocol.js",
+            "dist/core/utils/utils.js",
+            "dist/core/storage/storageService.js",
+            "dist/core/api/geminiParser.js",
+            "dist/core/api/geminiClient.js",
+            "dist/content/pageObserver.js",
+            "dist/content/syncEngine.js",
+            "dist/content/messageRouter.js",
+            "dist/content/content.js"
+        ]:
             assert required in cs[0]["js"], f"Missing {required} in manifest content_scripts"
         assert cs[0]["js"].index("dist/core/protocol/protocol.js") == 0, "protocol.js must load first in the ISOLATED content script"
         main_world = [c for c in cs if c.get("world") == "MAIN"]
@@ -143,6 +153,9 @@ def test_module_exports():
         "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "isTakeoutPromptCompleted", "setTakeoutPromptCompleted", "hasTakeoutData", "removeConversation", "reconcileConversations"],
         "src/content/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
         "src/content/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
+        "src/content/pageObserver.js": ["PageObserver", "cleanup", "debouncedSync", "hookHistoryEvents"],
+        "src/content/syncEngine.js": ["SyncEngine", "syncOnce", "upsertConversations", "tryBatchExecuteFull", "compareConversations"],
+        "src/content/messageRouter.js": ["MessageRouter", "init"],
         "src/core/utils/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "DIRECT_WRITE_THRESHOLD", "STORAGE_KEYS"],
         "src/core/utils/tabService.js": ["getGeminiTab", "sendToGeminiTab", "checkGeminiStatus", "openGeminiPage", "reloadGeminiTab"],
         "src/core/storage/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
