@@ -179,30 +179,23 @@ def test_javascript_syntax():
     import subprocess
     import shutil
     # PR7: delegate syntax validation to TypeScript compiler (strict mode covers JS + TS)
-    tsc_bin = None
-    for cand in [shutil.which("npx"), os.path.join(BASE_DIR, "node_modules", ".bin", "tsc"), os.path.join(BASE_DIR, "node_modules", ".bin", "tsc.cmd"), r"C:\Program Files\nodejs\npx.cmd"]:
+    node_bin = None
+    for cand in [shutil.which("node"), os.path.expanduser("~/.local/node/bin/node"), os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"), r"C:\Program Files\nodejs\node.exe"]:
         if cand and os.path.exists(cand):
-            # Prefer project-local tsc
-            local_tsc = os.path.join(BASE_DIR, "node_modules", ".bin", "tsc")
-            local_tsc_cmd = local_tsc + ".cmd"
-            if os.path.exists(local_tsc):
-                tsc_bin = local_tsc
-                break
-            if os.path.exists(local_tsc_cmd):
-                tsc_bin = local_tsc_cmd
-                break
-            tsc_bin = cand
+            node_bin = cand
             break
-    env = os.environ.copy()
-    # Ensure Node.js is in PATH for npx (Windows default install)
-    for p in [r"C:\Program Files\nodejs", r"C:\Program Files\nodejs\npx.cmd"]:
-        if p not in env.get("PATH", ""):
-            env["PATH"] = p + os.pathsep + env.get("PATH", "")
-    npx_bin = shutil.which("npx", path=env["PATH"]) or r"C:\Program Files\nodejs\npx.cmd"
-    if not os.path.exists(npx_bin):
-        npx_bin = "npx"
-    # Use shell on Windows to handle .cmd
-    res = subprocess.run(f'"{npx_bin}" tsc --noEmit', cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace", shell=True, env=env)
+
+    tsc_script = os.path.join(BASE_DIR, "node_modules", "typescript", "bin", "tsc")
+    if node_bin and os.path.exists(tsc_script):
+        res = subprocess.run([node_bin, tsc_script, "--noEmit"], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    else:
+        env = os.environ.copy()
+        for p in [r"C:\Program Files\nodejs", r"C:\Program Files\nodejs\npx.cmd"]:
+            if p not in env.get("PATH", ""):
+                env["PATH"] = p + os.pathsep + env.get("PATH", "")
+        npx_bin = shutil.which("npx", path=env["PATH"]) or r"C:\Program Files\nodejs\npx.cmd" or "npx"
+        res = subprocess.run(f'"{npx_bin}" tsc --noEmit', cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace", shell=True, env=env)
+
     assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
     print(f"  ✓ TypeScript strict syntax validated (tsc --noEmit)")
 
