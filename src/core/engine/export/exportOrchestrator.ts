@@ -1,97 +1,148 @@
-// exportOrchestrator.js - Top-level orchestrator for Gemini export workflows
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+// exportOrchestrator.ts - Top-level orchestrator for Gemini export workflows
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+import type { BatchWorkerModule } from "./batchWorker.js";
+import type { SessionRecoveryModule } from "./sessionRecovery.js";
+
+export interface ExportOptions {
+    selected: any[];
+    format?: string;
+    useZip?: boolean;
+    currentSlot?: string;
+    dirHandle?: any;
+    skip?: boolean;
+    includeIndex?: boolean;
+    includeAssets?: boolean;
+    conversations?: any[];
+    exportedIds?: Record<string, any>;
+    takeoutEngine?: any;
+    downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
+    [key: string]: any;
+}
+
+export interface ExportCallbacks {
+    onProgress?: (progress: any) => void;
+    onLog?: (msg: string, level?: string) => void;
+    onTitleUpdated?: (id: string, title: string, source?: string) => void;
+    onItemExported?: (id: string, record: any) => void;
+}
+
+export interface ExportResult {
+    landedChats: number;
+    failedChats: any[];
+    failedAttachments: any[];
+    skipped: number;
+    totalAssets: number;
+    downloadedAssets: number;
+}
+
+export interface ExportOrchestratorModule {
+    ExportOrchestrator: any;
+    AsyncQueue: any;
+    ensureSubDir: (root: any, subPath: string) => Promise<any>;
+    sanitizeFileName: (name?: string | null, fallback?: string) => string;
+    sanitizeZipPath: (p?: string | null) => string;
+    getExtensionVersion: () => string;
+}
+
+declare global {
+    var ExportOrchestrator: any;
+}
+
+(function(root: any, factory: () => ExportOrchestratorModule) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.ExportOrchestrator = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): ExportOrchestratorModule {
     'use strict';
 
-    function getExtensionVersion() {
+    function getExtensionVersion(): string {
         try {
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
                 return chrome.runtime.getManifest().version || '1.3.8';
             }
         } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e);
+            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e);
         }
         return '1.3.8';
     }
 
-    const getUtils = () => {
-        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+    const getUtils = (): GeminiUtilsModule | null => {
+        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
         if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
+            try { return require('../../utils/utils.js'); } catch (_) { /* intentional: require fallback in browser context */ }
         }
         return null;
     };
 
-    const getProgressReporter = () => {
-        if (typeof ProgressReporter !== 'undefined') return ProgressReporter;
-        if (typeof globalThis !== 'undefined' && globalThis.ProgressReporter) return globalThis.ProgressReporter;
+    const getProgressReporter = (): any => {
+        if (typeof (globalThis as any).ProgressReporter !== 'undefined') return (globalThis as any).ProgressReporter;
         if (typeof require !== 'undefined') {
-            try { return require('./progressReporter.js'); } catch { /* intentional */ }
+            try { return require('./progressReporter.js'); } catch (_) { /* intentional */ }
         }
         return null;
     };
 
-    const getBatchWorker = () => {
-        if (typeof BatchWorker !== 'undefined') return BatchWorker;
-        if (typeof globalThis !== 'undefined' && globalThis.BatchWorker) return globalThis.BatchWorker;
+    const getBatchWorker = (): BatchWorkerModule | null => {
+        if (typeof (globalThis as any).BatchWorker !== 'undefined') return (globalThis as any).BatchWorker;
         if (typeof require !== 'undefined') {
-            try { return require('./batchWorker.js'); } catch { /* intentional */ }
+            try { return require('./batchWorker.js'); } catch (_) { /* intentional */ }
         }
         return null;
     };
 
-    const getSessionRecovery = () => {
-        if (typeof SessionRecovery !== 'undefined') return SessionRecovery;
-        if (typeof globalThis !== 'undefined' && globalThis.SessionRecovery) return globalThis.SessionRecovery;
+    const getSessionRecovery = (): SessionRecoveryModule | null => {
+        if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
         if (typeof require !== 'undefined') {
-            try { return require('./sessionRecovery.js'); } catch { /* intentional */ }
+            try { return require('./sessionRecovery.js'); } catch (_) { /* intentional */ }
         }
         return null;
     };
 
-    const sanitizeFileName = (name, fallback) => (getUtils()?.sanitizeFileName ? getUtils().sanitizeFileName(name, fallback) : (name || fallback || 'untitled').trim());
-    const normId = (id) => (getUtils()?.normId ? getUtils().normId(id) : String(id || '').replace(/^c_/, '').trim());
-    const sanitizeZipPath = (p) => (getUtils()?.sanitizeRelativePath ? getUtils().sanitizeRelativePath(p, 'file') : (p || 'file').replace(/^[/\\]+/, ''));
+    const sanitizeFileName = (name?: string | null, fallback?: string): string => (getUtils()?.sanitizeFileName ? getUtils()!.sanitizeFileName(name, fallback) : (name || fallback || 'untitled').trim());
+    const normId = (id?: string | number | null): string => (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
+    const sanitizeZipPath = (p?: string | null): string => (getUtils()?.sanitizeRelativePath ? getUtils()!.sanitizeRelativePath(p, 'file') : (p || 'file').replace(/^[/\\]+/, ''));
 
-    function toIso(v) {
+    function toIso(v: any): string | null {
         if (!v) return null;
         let ms = typeof v === 'number' ? v : new Date(v).getTime();
         return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
     }
 
     class AsyncQueue {
+        _queue: any[];
+        _waiters: ((task: any) => void)[];
+        _closed: boolean;
+
         constructor() {
             this._queue = [];
             this._waiters = [];
             this._closed = false;
         }
-        push(task) {
+
+        push(task: any): void {
             if (this._closed) return;
             if (this._waiters.length > 0) {
-                const waiter = this._waiters.shift();
+                const waiter = this._waiters.shift()!;
                 waiter(task);
             } else {
                 this._queue.push(task);
             }
         }
-        async pop(abortSignal) {
+
+        async pop(abortSignal?: AbortSignal | null): Promise<any> {
             if (this._queue.length > 0) {
                 return this._queue.shift();
             }
             if (this._closed) return null;
             return new Promise((resolve) => {
-                let onAbort = null;
-                const waiter = (task) => {
+                let onAbort: any = null;
+                const waiter = (task: any) => {
                     if (onAbort && abortSignal) {
-                        try { abortSignal.removeEventListener('abort', onAbort); } catch { /* intentional */ }
+                        try { abortSignal.removeEventListener('abort', onAbort); } catch (_) { /* intentional */ }
                     }
                     resolve(task);
                 };
@@ -103,25 +154,28 @@
                     };
                     if (abortSignal.aborted) return resolve(null);
                     try { abortSignal.addEventListener('abort', onAbort, { once: true }); } catch (e) {
-                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e);
+                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e);
                     }
                 }
                 this._waiters.push(waiter);
             });
         }
-        close() {
+
+        close(): void {
             this._closed = true;
             while (this._waiters.length > 0) {
-                const waiter = this._waiters.shift();
+                const waiter = this._waiters.shift()!;
                 waiter(null);
             }
         }
-        get length() {
+
+        get length(): number {
             return this._queue.length;
         }
     }
 
-    async function ensureSubDir(root, subPath) {
+    async function ensureSubDir(root: any, subPath: string): Promise<any> {
+        const FsWriter = (globalThis as any).FsWriter;
         if (typeof FsWriter !== 'undefined' && FsWriter.ensureSubDir) {
             return await FsWriter.ensureSubDir(root, subPath);
         }
@@ -134,45 +188,49 @@
         return cur;
     }
 
-    async function getGeminiTab(slot) {
+    async function getGeminiTab(slot?: string): Promise<any> {
+        const TabService = (globalThis as any).TabService;
         if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
             return await TabService.getGeminiTab(slot);
         }
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-            return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(tabs => tabs?.[0] || null);
+            return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then((tabs: any[]) => tabs?.[0] || null);
         }
         return null;
     }
 
-    const getAssetPipelineClass = () => {
-        if (typeof AssetPipeline !== 'undefined') return AssetPipeline;
-        if (typeof globalThis !== 'undefined' && globalThis.AssetPipeline) return globalThis.AssetPipeline;
+    const getAssetPipelineClass = (): any => {
+        if (typeof (globalThis as any).AssetPipeline !== 'undefined') return (globalThis as any).AssetPipeline;
         if (typeof require !== 'undefined') {
-            try { return require('../assetPipeline.js'); } catch { /* intentional */ }
+            try { return require('../assetPipeline.js'); } catch (_) { /* intentional */ }
         }
         return null;
     };
 
     class ExportOrchestrator {
+        aborted: boolean;
+        _abortController: AbortController | null;
+        rateLimitCooldownUntil: number;
+
         constructor() {
             this.aborted = false;
             this._abortController = null;
             this.rateLimitCooldownUntil = 0;
         }
 
-        abort() {
+        abort(): void {
             this.aborted = true;
-            try { this._abortController && this._abortController.abort(); } catch { /* intentional */ }
+            try { this._abortController && this._abortController.abort(); } catch (_) { /* intentional */ }
             try {
                 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
                     chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
                         if (chrome.runtime.lastError) {}
                     });
                 }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e); }
+            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
             try {
                 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.get(['gemini_last_export_session'], (data) => {
+                    chrome.storage.local.get(['gemini_last_export_session'], (data: any) => {
                         if (data?.gemini_last_export_session) {
                             chrome.storage.local.set({
                                 gemini_last_export_session: {
@@ -184,10 +242,10 @@
                         }
                     });
                 }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e); }
+            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
         }
 
-        async _initSession(options, callbacks) {
+        async _initSession(options: ExportOptions, _callbacks: ExportCallbacks = {}): Promise<any> {
             const {
                 selected = [],
                 format = 'markdown',
@@ -204,7 +262,7 @@
             this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
-            const payloadIds = selected.map(s => ({
+            const payloadIds = selected.map((s: any) => ({
                 id: s.id,
                 title: s.title,
                 url: s.url || s.href || `https://gemini.google.com/app/${s.id}`,
@@ -213,7 +271,7 @@
             }));
 
             const slot = currentSlot || 'u0';
-            const Storage = (typeof StorageService !== 'undefined') ? StorageService : (globalThis.StorageService || null);
+            const Storage = (typeof (globalThis as any).StorageService !== 'undefined') ? (globalThis as any).StorageService : ((globalThis as any).StorageService || null);
             let curIds = Storage ? await Storage.getExportedIds(slot) : {};
             if (!Storage && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
@@ -236,7 +294,7 @@
                         }
                     });
                 }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e); }
+            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
 
             return {
                 payloadIds,
@@ -247,24 +305,26 @@
             };
         }
 
-        async _initWriter(options, onLog) {
+        async _initWriter(options: ExportOptions, onLog: (msg: string, level?: string) => void): Promise<any> {
             const { useZip = true, dirHandle = null } = options;
             const exportFolderName = 'gemini_export';
-            let batchDirHandle = null;
-            let zip = null;
-            let folder = null;
-            let zipWriter = null;
-            let fsWriter = null;
+            let batchDirHandle: any = null;
+            let zip: any = null;
+            let folder: any = null;
+            let zipWriter: any = null;
+            let fsWriter: any = null;
 
             if (useZip) {
-                const ZipWriterClass = (typeof ZipWriter !== 'undefined' && ZipWriter.ZipWriter)
-                    ? ZipWriter.ZipWriter
-                    : (typeof ZipWriter === 'function' ? ZipWriter : null);
+                const ZipWriterModule = (globalThis as any).ZipWriter;
+                const ZipWriterClass = (typeof ZipWriterModule !== 'undefined' && ZipWriterModule.ZipWriter)
+                    ? ZipWriterModule.ZipWriter
+                    : (typeof ZipWriterModule === 'function' ? ZipWriterModule : null);
                 if (ZipWriterClass) {
                     zipWriter = new ZipWriterClass(exportFolderName);
                     zip = zipWriter.zip;
                     folder = zipWriter.folder;
                 } else {
+                    const JSZip = (globalThis as any).JSZip;
                     if (typeof JSZip === 'undefined') throw new Error('JSZip library not found');
                     zip = new JSZip();
                     folder = zip.folder(exportFolderName);
@@ -272,9 +332,10 @@
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
-                    const FsWriterClass = (typeof FsWriter !== 'undefined' && FsWriter.FsWriter)
-                        ? FsWriter.FsWriter
-                        : (typeof FsWriter === 'function' ? FsWriter : null);
+                    const FsWriterModule = (globalThis as any).FsWriter;
+                    const FsWriterClass = (typeof FsWriterModule !== 'undefined' && FsWriterModule.FsWriter)
+                        ? FsWriterModule.FsWriter
+                        : (typeof FsWriterModule === 'function' ? FsWriterModule : null);
                     if (FsWriterClass) {
                         fsWriter = new FsWriterClass(dirHandle, exportFolderName);
                         batchDirHandle = await fsWriter.init();
@@ -292,7 +353,7 @@
                             batchDirHandle = await dirHandle.getDirectoryHandle(exportFolderName, { create: true });
                         }
                     }
-                } catch (e) {
+                } catch (e: any) {
                     onLog(`创建子文件夹失败: ${e.message}`, 'warn');
                     if (e.name === 'NotAllowedError' || String(e.message).includes('permission')) {
                         onLog('目录句柄权限失效，请重新授权文件夹', 'warn');
@@ -301,7 +362,7 @@
                 }
             }
 
-            const writeFileDirect = async (localName, data) => {
+            const writeFileDirect = async (localName: string, data: any): Promise<boolean> => {
                 try {
                     const cleanPath = sanitizeZipPath(localName);
                     if (fsWriter) {
@@ -320,7 +381,7 @@
                     await wr.write(data);
                     await wr.close();
                     return true;
-                } catch (e) {
+                } catch (e: any) {
                     onLog(`保存文件失败 (${localName}): ${e.message}`, 'error');
                     return false;
                 }
@@ -329,10 +390,19 @@
             return { zip, folder, zipWriter, batchDirHandle, fsWriter, writeFileDirect };
         }
 
-        async _packageAndDownload(zipWriterOrZip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress) {
+        async _packageAndDownload(
+            zipWriterOrZip: any,
+            payloadIds: any[],
+            downloadedAssets: number,
+            totalAssets: number,
+            options: ExportOptions,
+            onLog: (msg: string, level?: string) => void,
+            onProgress: (progress: any) => void
+        ): Promise<void> {
             const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
+            const I18n = (globalThis as any).I18n;
             onLog(typeof I18n !== 'undefined' ? I18n.t('logPackagingZip') : '正在打包 ZIP 压缩包…', 'info');
-            const onUpdate = (percent) => {
+            const onUpdate = (percent: number) => {
                 onProgress({
                     current: payloadIds.length,
                     total: payloadIds.length,
@@ -344,7 +414,7 @@
             };
             const blob = (zipWriterOrZip && typeof zipWriterOrZip.generateBlob === 'function')
                 ? await zipWriterOrZip.generateBlob(onUpdate)
-                : await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata) => onUpdate(metadata.percent));
+                : await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata: any) => onUpdate(metadata.percent));
 
             if (options.downloadHandler && typeof options.downloadHandler === 'function') {
                 await options.downloadHandler(blob, zipFileName);
@@ -360,7 +430,7 @@
             }
         }
 
-        async run(options, callbacks = {}) {
+        async run(options: ExportOptions, callbacks: ExportCallbacks = {}): Promise<ExportResult> {
             const onProgress = callbacks.onProgress || (() => {});
             const onLog = callbacks.onLog || (() => {});
             const onTitleUpdated = callbacks.onTitleUpdated || (() => {});
@@ -397,15 +467,15 @@
             let totalAssets = 0;
             let downloadedAssets = 0;
             let landedChats = 0;
-            let failedChats = [];
-            let failedAttachments = [];
+            let failedChats: any[] = [];
+            let failedAttachments: any[] = [];
             let skipped = 0;
-            let metaResults = [];
+            let metaResults: any[] = [];
 
             let currentExportTitle = '';
             let currentExportIdx = 0;
 
-            const updateProgress = (chatIdx, chatTitle) => {
+            const updateProgress = (chatIdx?: number, chatTitle?: string) => {
                 if (typeof chatIdx === 'number') currentExportIdx = chatIdx;
                 if (typeof chatTitle === 'string' && chatTitle) currentExportTitle = chatTitle;
 
@@ -452,20 +522,20 @@
                 }
             };
 
-            const consumerPool = [];
+            const consumerPool: Promise<void>[] = [];
             for (let i = 0; i < MAX_CONCURRENT; i++) {
                 consumerPool.push(processAttachmentWorker());
             }
 
-            const pendingAssetsPerChat = new Map();
-            const chatRecordsMap = new Map();
-            const chatFailedAssetsSet = new Set();
-            const finalizedChatsSet = new Set();
+            const pendingAssetsPerChat = new Map<string, number>();
+            const chatRecordsMap = new Map<string, any>();
+            const chatFailedAssetsSet = new Set<string>();
+            const finalizedChatsSet = new Set<string>();
 
             const recovery = getSessionRecovery();
             const worker = getBatchWorker();
 
-            async function finalizeChatExport(targetId) {
+            async function finalizeChatExport(targetId: string) {
                 const targetNid = normId(targetId);
                 if (finalizedChatsSet.has(targetNid)) return;
                 const rec = chatRecordsMap.get(targetNid);
@@ -506,14 +576,16 @@
                     if (!requestedItem) break;
 
                     const nid = normId(requestedItem.id);
-                    let res = null;
+                    let res: any = null;
                     let retryCount = 0;
                     const maxRateLimitRetries = 3;
+
+                    const I18n = (globalThis as any).I18n;
 
                     while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
                         res = worker && worker.fetchChatDetail
                             ? await worker.fetchChatDetail(requestedItem, currentIndex, payloadIds.length, currentSlot, skip, format, abortSignal)
-                            : await this._fetchChatDetail(requestedItem, currentIndex, payloadIds.length, currentSlot, skip, format, abortSignal);
+                            : null;
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
@@ -552,10 +624,10 @@
                     let chat = chunkResults[0] || { id: nid, title: requestedItem.title };
                     chat.id = nid;
 
-                    const listC = conversations.find(c => normId(c.id) === nid) || null;
+                    const listC = conversations.find((c: any) => normId(c.id) === nid) || null;
                     const resolvedRes = worker && worker.resolveChat
                         ? await worker.resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
-                        : await this._resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
+                        : { chat, listTitle: chat.title, displayTitle: chat.title, isError: false, errMsg: null, isConfirmedDeleted: false, convsNeedSave: false };
 
                     if (resolvedRes.convsNeedSave) convsNeedSave = true;
 
@@ -572,6 +644,7 @@
                     const listTitle = resolvedRes.listTitle;
                     chat.title = listTitle;
 
+                    const ChatFormatter = (globalThis as any).ChatFormatter;
                     const formatted = typeof ChatFormatter !== 'undefined' && ChatFormatter.formatContent
                         ? ChatFormatter.formatContent(chat, format)
                         : { content: JSON.stringify(chat, null, 2), ext: 'json' };
@@ -589,8 +662,8 @@
                     }
 
                     let queuedAssetsForThisChat = 0;
-                    const chatAssetTasks = [];
-                    const queueAsset = (item, isImage) => {
+                    const chatAssetTasks: (() => Promise<void>)[] = [];
+                    const queueAsset = (item: any, isImage: boolean) => {
                         totalAssets++;
                         queuedAssetsForThisChat++;
                         updateProgress();
@@ -636,7 +709,7 @@
                                                 totalAssets++;
                                                 downloadedAssets++;
                                                 updateProgress();
-                                            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e); }
+                                            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
                                         } else {
                                             totalAssets++;
                                             queuedAssetsForThisChat++;
@@ -728,11 +801,11 @@
                                 }
                             });
                         }
-                    } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e); }
+                    } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
                 }
             };
 
-            const exportWorkers = [];
+            const exportWorkers: Promise<void>[] = [];
             const workerCount = Math.min(CONCURRENCY, payloadIds.length);
             for (let w = 0; w < workerCount; w++) {
                 exportWorkers.push(exportWorker());
@@ -752,14 +825,13 @@
             try {
                 await Promise.all(consumerPool);
             } catch (e) {
+                const I18n = (globalThis as any).I18n;
                 if (this.aborted) onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetsAborted') : '附件下载因终止而中断', 'warn');
             }
 
             if (includeIndex && metaResults.length > 0) {
                 if (recovery && recovery.writeIndexAndMeta) {
                     await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip);
-                } else {
-                    await this._writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip);
                 }
             }
 
@@ -786,13 +858,6 @@
                         failedAttachments,
                         isDevMode
                     });
-                } else {
-                    fullLogText = `=======================================================\n`;
-                    fullLogText += ` Gemini Exporter Session Log${isDevMode ? ' (Dev Mode)' : ' (Error Report)'}\n`;
-                    fullLogText += ` Time: ${new Date().toISOString()}\n`;
-                    fullLogText += ` Summary: Landed ${landedChats}/${payloadIds.length} chats, Assets ${downloadedAssets}/${totalAssets}, Skipped ${skipped}\n`;
-                    fullLogText += ` Failed Chats: ${failedChats.length}, Failed Assets: ${failedAttachments.length}\n`;
-                    fullLogText += `=======================================================\n\n`;
                 }
 
                 const sessionJson = {
@@ -813,8 +878,6 @@
 
                 if (recovery && recovery.writeDiagnostics) {
                     await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog);
-                } else {
-                    await this._writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog);
                 }
             }
 
@@ -836,7 +899,7 @@
                         }
                     });
                 }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.js]', e); }
+            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
 
             return {
                 landedChats,

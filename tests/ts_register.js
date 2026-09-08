@@ -41,15 +41,25 @@ fs.readFileSync = function(pathArg, options) {
             const tsPath = pathArg.slice(0, -3) + '.ts';
             if (origExistsSync.call(fs, tsPath)) {
                 const source = origReadFileSync.call(fs, tsPath, 'utf8');
-                const result = esbuild.transformSync(source, {
-                    loader: 'ts',
-                    target: 'chrome120'
-                });
+                // If it's protocol.js (which tests execute inside vm.runInContext), transpile it
+                if (pathArg.endsWith('protocol.js')) {
+                    const result = esbuild.transformSync(source, {
+                        loader: 'ts',
+                        target: 'chrome120',
+                        charset: 'utf8'
+                    });
+                    const encoding = typeof options === 'string' ? options : (options && options.encoding);
+                    if (encoding) {
+                        return result.code;
+                    }
+                    return Buffer.from(result.code, 'utf8');
+                }
+                // For other files where tests perform source-level code assertions, return raw source
                 const encoding = typeof options === 'string' ? options : (options && options.encoding);
                 if (encoding) {
-                    return result.code;
+                    return source;
                 }
-                return Buffer.from(result.code, 'utf8');
+                return Buffer.from(source, 'utf8');
             }
         }
     }

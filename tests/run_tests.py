@@ -669,11 +669,12 @@ def test_stage1_architecture_ssot_and_state_isolation():
         options_code = f.read()
     assert "compareConversations" in options_code, "options.js loadStore must use compareConversations SSoT"
 
-    # 4. Verify SSoT sanitizeFileName and cleanTitle delegation in exportEngine.js
-    export_js_path = os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
-    with open(export_js_path, "r", encoding="utf-8") as f:
+    # 4. Verify SSoT sanitizeFileName and cleanTitle delegation in exportEngine
+    export_ts = os.path.join(BASE_DIR, "src/core/engine/exportEngine.ts")
+    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
+    with open(export_path, "r", encoding="utf-8") as f:
         export_code = f.read()
-    assert "sanitizeFileName" in export_code, "exportEngine.js sanitizeFileName must delegate to GeminiUtils SSoT"
+    assert "sanitizeFileName" in export_code, "exportEngine sanitizeFileName must delegate to GeminiUtils SSoT"
 
     print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
 
@@ -698,14 +699,15 @@ def test_stage2_architecture_improvements():
     assert "sanitizeRelativePath" in fs_code, "fsWriter must use sanitizeRelativePath"
     assert "ensureSubDir" in fs_code and "writeFile" in fs_code, "fsWriter must support flexible path writing"
 
-    # 2. Verify exportEngine.js AsyncQueue and elimination of busy-polling
-    export_path = os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
+    # 2. Verify exportEngine AsyncQueue and elimination of busy-polling
+    export_ts = os.path.join(BASE_DIR, "src/core/engine/exportEngine.ts")
+    export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
     with open(export_path, "r", encoding="utf-8") as f:
         export_code = f.read()
-    assert "AsyncQueue" in export_code, "exportEngine.js must implement event-driven AsyncQueue"
-    assert not re.search(r'setTimeout\s*\(\s*\w+\s*,\s*100\s*\)', export_code), "exportEngine.js must not use busy-polling setTimeout(r, 100)"
-    assert "attachmentQueue" in export_code, "exportEngine.js must properly manage attachmentQueue"
-    assert "writeFileDirect" in export_code, "exportEngine.js must have writeFileDirect"
+    assert "AsyncQueue" in export_code, "exportEngine must implement event-driven AsyncQueue"
+    assert not re.search(r'setTimeout\s*\(\s*\w+\s*,\s*100\s*\)', export_code), "exportEngine must not use busy-polling setTimeout(r, 100)"
+    assert "attachmentQueue" in export_code, "exportEngine must properly manage attachmentQueue"
+    assert "writeFileDirect" in export_code, "exportEngine must have writeFileDirect"
 
     # 3. Verify hookCredentials.js error sandboxing
     hook_path = os.path.join(BASE_DIR, "src/content/hookCredentials.js")

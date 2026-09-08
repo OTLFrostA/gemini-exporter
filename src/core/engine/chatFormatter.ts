@@ -1,31 +1,54 @@
 /**
- * chat_formatter.js
+ * chatFormatter.ts
  * Unified export formatter for Gemini conversations.
  * Supports Markdown (Obsidian / Notion / Logseq optimized), OpenAI JSON, Standard JSON, and Raw JSON.
  */
+import type { Conversation, ChatMessage, Attachment } from "../../types/conversation.js";
 
-(function (root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+export interface FormattedResult {
+    content: string;
+    ext: string;
+    mime: string;
+}
+
+export interface ChatFormatterOptions {
+    lang?: string;
+    [key: string]: any;
+}
+
+export interface ChatFormatterModule {
+    adjustHeadingHierarchy: (text: string, shift?: number) => string;
+    renderAttachments: (atts?: Attachment[] | null, isEn?: boolean) => string;
+    convertHtmlToMarkdown: (html?: string | null) => string;
+    cleanMessageBody: (text?: string | null) => string;
+    toMarkdown: (chat: any, opts?: ChatFormatterOptions) => string;
+    toOpenAIJson: (chat: any) => string;
+    formatContent: (chat: any, formatType?: string, opts?: ChatFormatterOptions) => FormattedResult;
+}
+
+declare global {
+    var ChatFormatter: ChatFormatterModule;
+}
+
+(function (root: any, factory: () => ChatFormatterModule) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.ChatFormatter = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function () {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function (): ChatFormatterModule {
     'use strict';
 
     /**
      * Intelligently shift Markdown heading levels (e.g. # -> ###, ## -> ####)
      * while protecting code fences (``` or ~~~) from being modified.
-     * @param {string} text - Raw Markdown content
-     * @param {number} [shift=2] - Number of heading levels to shift down
-     * @returns {string} - Heading-shifted Markdown
      */
-    function adjustHeadingHierarchy(text, shift = 2) {
+    function adjustHeadingHierarchy(text: string, shift: number = 2): string {
         if (!text || typeof text !== 'string') return text || '';
         const lines = text.split('\n');
-        const out = [];
+        const out: string[] = [];
         let inCodeBlock = false;
         let fenceChar = '';
         let fenceLen = 0;
@@ -70,7 +93,7 @@
     /**
      * Render message attachments in Markdown format.
      */
-    function renderAttachments(atts, isEn = false) {
+    function renderAttachments(atts?: any[] | null, isEn: boolean = false): string {
         if (!atts || !Array.isArray(atts) || !atts.length) return '';
         let block = '';
         for (const att of atts) {
@@ -98,13 +121,13 @@
     /**
      * Convert HTML content (from Google Takeout or HTML-rich model responses) to Markdown.
      */
-    function convertHtmlToMarkdown(html) {
+    function convertHtmlToMarkdown(html?: string | null): string {
         if (!html || typeof html !== 'string') return html || '';
         if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i)[\s>]/i.test(html)) return html;
 
         let res = html;
         // 1. Convert <pre><code> blocks
-        res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (match, lang, code) => {
+        res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match, lang, code) => {
             let cleanCode = code
                 .replace(/&quot;/g, '"')
                 .replace(/&#39;/g, "'")
@@ -114,7 +137,7 @@
             return `\n\`\`\`${lang || ''}\n${cleanCode.trim()}\n\`\`\`\n`;
         });
         // 2. Inline code
-        res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (match, code) => {
+        res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
             let cleanCode = code
                 .replace(/&quot;/g, '"')
                 .replace(/&#39;/g, "'")
@@ -124,7 +147,7 @@
             return `\`${cleanCode}\``;
         });
         // 3. Headings
-        res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
+        res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
         // 4. Paragraphs and breaks
         res = res.replace(/<br\s*\/?>/gi, '\n');
         res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
@@ -132,7 +155,7 @@
         res = res.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, '**$1**');
         res = res.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, '*$1*');
         // 6. Strip any other HTML tags repeatedly to remove nested tags
-        let prev;
+        let prev = '';
         do {
             prev = res;
             res = res.replace(/<[^>]+>/g, '');
@@ -143,7 +166,7 @@
     /**
      * Sanitize message body content from Google internal placeholder URLs and tool anchors
      */
-    function cleanMessageBody(text) {
+    function cleanMessageBody(text?: string | null): string {
         if (!text || typeof text !== 'string') return '';
         let converted = convertHtmlToMarkdown(text);
         // 1. Remove standalone tool/chip placeholder URL lines
@@ -158,7 +181,7 @@
     /**
      * Intelligently detect and encapsulate unfenced raw code in user messages.
      */
-    function sanitizeUserPrompt(text) {
+    function sanitizeUserPrompt(text?: string | null): string {
         if (!text || typeof text !== 'string') return '';
         let cleaned = cleanMessageBody(text);
         if (!cleaned) return '';
@@ -166,7 +189,7 @@
         // If message has raw userscript or ultra-long code without markdown code fence
         if (!cleaned.includes('```') && (cleaned.includes('// ==UserScript==') || cleaned.length > 400)) {
             const lines = cleaned.split('\n');
-            let outLines = [];
+            let outLines: string[] = [];
             let inFence = false;
             for (let line of lines) {
                 let s = line.trim();
@@ -191,13 +214,10 @@
     /**
      * Convert conversation object to standardized Markdown.
      * Compatible with Obsidian, Notion, Logseq, Typora, and GitHub Markdown.
-     * @param {Object} chat - Conversation data object
-     * @param {Object} [opts] - Formatter options
-     * @returns {string} - Formatted Markdown string
      */
-    function toMarkdown(chat, opts = {}) {
+    function toMarkdown(chat: any, opts: ChatFormatterOptions = {}): string {
         if (!chat) return '';
-        const isEn = (opts.lang === 'en') || (typeof I18n !== 'undefined' && I18n.getLang && I18n.getLang() === 'en');
+        const isEn = (opts.lang === 'en') || (typeof (globalThis as any).I18n !== 'undefined' && (globalThis as any).I18n.getLang && (globalThis as any).I18n.getLang() === 'en');
 
         if (chat.error) {
             const failTitle = isEn ? 'Export Failed' : '导出失败';
@@ -223,17 +243,17 @@
 
         // 2. Document Title & Metadata Badges
         md += `# ${safeTitleClean}\n\n`;
-        const metaBadges = [];
+        const metaBadges: string[] = [];
         const linkText = isEn ? '🔗 Chat Link' : '🔗 对话链接';
         if (convUrl) metaBadges.push(`[${linkText}](${convUrl})`);
         if (chat.id) metaBadges.push(`🆔 \`${chat.id}\``);
-        if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt).toLocaleString()}`);
+        if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt || createdIso).toLocaleString()}`);
         if (chat.attachmentCount) metaBadges.push(isEn ? `📎 ${chat.attachmentCount} attachments` : `📎 附件 ${chat.attachmentCount} 个`);
         if (metaBadges.length > 0) {
             md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
         }
 
-        const messages = chat.messages || [];
+        const messages: ChatMessage[] = chat.messages || [];
         if (!messages.length) {
             const emptyNotice = isEn ? '_Empty conversation or fetch failed_' : '_空对话或取回失败_';
             md += `${emptyNotice} URL: ${convUrl}\n`;
@@ -250,27 +270,27 @@
                 if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
                 let userAtts = [...(m.attachments || [])];
-                if (m.images && m.images.length) {
-                    for (const img of m.images) {
+                if ((m as any).images && (m as any).images.length) {
+                    for (const img of (m as any).images) {
                         if (!userAtts.some(a => a.localName === img.localName || a.url === img.url)) {
                             userAtts.push({
                                 type: 'image',
                                 localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
                                 name: img.fileName || 'image.jpg',
                                 src: img.resolvedUrl || img.sourceUrl || img.url
-                            });
+                            } as any);
                         }
                     }
                 }
-                if (m.documents && m.documents.length) {
-                    for (const doc of m.documents) {
+                if ((m as any).documents && (m as any).documents.length) {
+                    for (const doc of (m as any).documents) {
                         if (!userAtts.some(a => a.localName === doc.localName || a.url === doc.url)) {
                             userAtts.push({
                                 type: 'file',
                                 localName: doc.localName || `files/${doc.title || 'doc.md'}`,
                                 title: doc.title || 'document',
                                 url: doc.url
-                            });
+                            } as any);
                         }
                     }
                 }
@@ -287,7 +307,7 @@
                 if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
                 // Thinking Process (Isolated with double blank lines for strict Markdown parsers)
-                const thoughts = (m.thoughts || m.thinking || '').trim();
+                const thoughts = ((m as any).thoughts || (m as any).thinking || '').trim();
                 if (thoughts) {
                     const thoughtSummary = isEn ? '🧠 Thinking Process' : '🧠 思考过程';
                     md += `<details>\n<summary>${thoughtSummary}</summary>\n\n${thoughts}\n\n</details>\n\n`;
@@ -301,15 +321,15 @@
                 }
 
                 let modelAtts = [...(m.attachments || [])];
-                if (m.images && m.images.length) {
-                    for (const img of m.images) {
+                if ((m as any).images && (m as any).images.length) {
+                    for (const img of (m as any).images) {
                         if (!modelAtts.some(a => a.localName === img.localName || a.url === img.url)) {
                             modelAtts.push({
                                 type: 'image',
                                 localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
                                 name: img.fileName || 'image.jpg',
                                 src: img.resolvedUrl || img.sourceUrl || img.url
-                            });
+                            } as any);
                         }
                     }
                 }
@@ -318,10 +338,10 @@
                 }
 
                 // Citations / Sources
-                if (m.citations && m.citations.length) {
+                if ((m as any).citations && (m as any).citations.length) {
                     const sourceHeader = isEn ? `> 🌐 **Sources:**\n` : `> 🌐 **参考来源：**\n`;
                     md += sourceHeader;
-                    m.citations.forEach((c, idx) => {
+                    (m as any).citations.forEach((c: any, idx: number) => {
                         const citeTitle = c.title || c.url || (isEn ? `Source ${idx + 1}` : `来源 ${idx + 1}`);
                         md += `> [${idx + 1}] [${citeTitle}](${c.url})\n`;
                     });
@@ -338,15 +358,15 @@
     /**
      * Convert conversation to OpenAI API Compatible JSON format.
      */
-    function toOpenAIJson(chat) {
-        const messages = (chat.messages || []).map(m => {
+    function toOpenAIJson(chat: any): string {
+        const messages = (chat.messages || []).map((m: any) => {
             const role = m.role === 'model' ? 'assistant' : 'user';
             const text = m.content || '';
-            const imgs = (m.attachments || []).filter(a => a.type === 'image');
-            const item = {};
+            const imgs = (m.attachments || []).filter((a: any) => a.type === 'image');
+            const item: any = {};
 
             if (imgs.length > 0) {
-                const contentArr = [];
+                const contentArr: any[] = [];
                 if (text) contentArr.push({ type: 'text', text });
                 for (const im of imgs) {
                     contentArr.push({
@@ -383,11 +403,8 @@
 
     /**
      * Unified content formatter entry point.
-     * @param {Object} chat - Conversation object
-     * @param {string} formatType - 'markdown' | 'json_openai' | 'json' | 'json_raw'
-     * @returns {{ content: string, ext: string, mime: string }}
      */
-    function formatContent(chat, formatType = 'markdown', opts = {}) {
+    function formatContent(chat: any, formatType: string = 'markdown', opts: ChatFormatterOptions = {}): FormattedResult {
         if (formatType === 'json_openai') {
             return {
                 content: toOpenAIJson(chat),
