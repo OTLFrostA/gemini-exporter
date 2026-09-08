@@ -36,6 +36,7 @@
             this.writeFileDirect = options.writeFileDirect || null;
             this.takeoutEngine = options.takeoutEngine || null;
             this.getGeminiTab = options.getGeminiTab || null;
+            this.fetchAssetDelegate = options.fetchAssetDelegate || options.fetchAsset || null;
             this.onLog = options.onLog || (() => {});
             this.downloadTimeoutMs = options.downloadTimeoutMs || 15000;
         }
@@ -56,39 +57,54 @@
             let recoveredFromTakeout = false;
 
             try {
-                const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-                if (tab && targetUrl) {
-                    const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
-                    const r = await new Promise(resolve => {
-                        let timer = null;
-                        let settled = false;
+                let r = null;
+                const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
 
-                        if (timeoutMs > 0) {
-                            timer = setTimeout(() => {
+                if (this.fetchAssetDelegate && targetUrl) {
+                    r = await this.fetchAssetDelegate({
+                        url: targetUrl,
+                        referer: `https://gemini.google.com/app/${chat.id}`,
+                        preferBuffer: true,
+                        timeoutMs,
+                        slot: this.currentSlot,
+                        chat,
+                        item
+                    });
+                } else {
+                    const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
+                    if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.sendMessage) {
+                        r = await new Promise(resolve => {
+                            let timer = null;
+                            let settled = false;
+
+                            if (timeoutMs > 0) {
+                                timer = setTimeout(() => {
+                                    if (!settled) {
+                                        settled = true;
+                                        resolve({ success: false, error: `tabs.sendMessage timed out after ${timeoutMs}ms` });
+                                    }
+                                }, timeoutMs);
+                            }
+
+                            chrome.tabs.sendMessage(tab.id, {
+                                action: 'downloadAssetDirect',
+                                url: targetUrl,
+                                referer: `https://gemini.google.com/app/${chat.id}`,
+                                preferBuffer: true
+                            }, (resp) => {
+                                if (timer) clearTimeout(timer);
                                 if (!settled) {
                                     settled = true;
-                                    resolve({ success: false, error: `tabs.sendMessage timed out after ${timeoutMs}ms` });
+                                    if (chrome.runtime && chrome.runtime.lastError) {
+                                        resolve({ success: false, error: chrome.runtime.lastError.message });
+                                    } else {
+                                        resolve(resp);
+                                    }
                                 }
-                            }, timeoutMs);
-                        }
-
-                        chrome.tabs.sendMessage(tab.id, {
-                            action: 'downloadAssetDirect',
-                            url: targetUrl,
-                            referer: `https://gemini.google.com/app/${chat.id}`,
-                            preferBuffer: true
-                        }, (resp) => {
-                            if (timer) clearTimeout(timer);
-                            if (!settled) {
-                                settled = true;
-                                if (chrome.runtime.lastError) {
-                                    resolve({ success: false, error: chrome.runtime.lastError.message });
-                                } else {
-                                    resolve(resp);
-                                }
-                            }
+                            });
                         });
-                    });
+                    }
+                }
 
                     if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
                         const isValidBuffer = r.dataBuffer && (
@@ -122,7 +138,6 @@
                     } else {
                         failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
                     }
-                }
             } catch (e) {
                 failReason = e.message;
             }

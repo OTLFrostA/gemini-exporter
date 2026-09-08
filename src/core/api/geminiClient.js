@@ -80,15 +80,31 @@
     }
 
     class GeminiAPIClient {
-        constructor() {
+        constructor(options = {}) {
             this.aborted = false;
+            this.signal = options?.signal || null;
+            if (this.signal) {
+                if (this.signal.aborted) {
+                    this.aborted = true;
+                } else if (typeof this.signal.addEventListener === 'function') {
+                    this.signal.addEventListener('abort', () => {
+                        this.aborted = true;
+                    }, { once: true });
+                }
+            }
         }
         abort() {
             this.aborted = true;
         }
-        // 兼容 content.js 的 window 全局中止标志（旧链路仅置 window 标志，未调 client.abort）
-        isAborted() {
-            return this.aborted || (typeof window !== 'undefined' && window.__gemExporterAborted) || (typeof globalThis !== 'undefined' && globalThis.__gemExporterAborted);
+        // 兼容标准 AbortSignal 及过渡期全局标志（仅作 fallback）
+        isAborted(callSignal) {
+            if (this.aborted) return true;
+            if (callSignal && callSignal.aborted) return true;
+            if (this.signal && this.signal.aborted) return true;
+            return !!(
+                (typeof window !== 'undefined' && window.__gemExporterAborted) ||
+                (typeof globalThis !== 'undefined' && globalThis.__gemExporterAborted)
+            );
         }
         getApiUrl(s) {
             return getApiUrl(s);

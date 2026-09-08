@@ -24,8 +24,11 @@
     const isRealTitle = (t, fallbackId) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
     const resolveTitle = (chat) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
 
-    async function fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal) {
+    async function fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal, options = {}) {
         const nid = normId(requestedItem.id);
+        const messageSender = options.messageSender || null;
+        const tabService = options.tabService || (typeof TabService !== 'undefined' ? TabService : (typeof globalThis !== 'undefined' && globalThis.TabService ? globalThis.TabService : null));
+
         return new Promise(async (resolve) => {
             let settled = false;
             const onAbort = () => {
@@ -40,8 +43,8 @@
             }
 
             try {
-                if (typeof TabService !== 'undefined' && TabService.sendToGeminiTab) {
-                    const directRes = await TabService.sendToGeminiTab({
+                if (tabService && tabService.sendToGeminiTab) {
+                    const directRes = await tabService.sendToGeminiTab({
                         action: 'getConversationDetail',
                         conversationId: nid,
                         accountSlot: currentSlot
@@ -67,8 +70,10 @@
                 }
             }
 
-            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                chrome.runtime.sendMessage({
+            const sender = messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);
+
+            if (sender) {
+                sender({
                     action: 'fetchBatch',
                     ids: [requestedItem],
                     format,
@@ -80,7 +85,7 @@
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) {
                         settled = true;
-                        if (chrome.runtime.lastError) {
+                        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
                             resolve({ success: false, error: chrome.runtime.lastError.message });
                         } else {
                             resolve(response);
@@ -97,7 +102,7 @@
         });
     }
 
-    async function resolveChat(chat, requestedItem, listConversation, takeoutEngine, currentSlot, onTitleUpdated = (() => {}), onLog = (() => {})) {
+    async function resolveChat(chat, requestedItem, listConversation, takeoutEngine, currentSlot, onTitleUpdated = (() => {}), onLog = (() => {}), options = {}) {
         const nid = normId(requestedItem.id);
         const slot = currentSlot || 'u0';
         let convsNeedSave = false;
@@ -174,8 +179,9 @@
                     const storage = typeof StorageService !== 'undefined' ? StorageService : (typeof window !== 'undefined' && window.StorageService);
                     if (storage && typeof storage.removeConversation === 'function') {
                         await storage.removeConversation(currentSlot || 'u0', nid);
-                        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                            const p = chrome.runtime.sendMessage({ action: 'syncUpdate', slot: currentSlot || 'u0', count: -1, from: 'export-prune-deleted' });
+                        const sender = options.messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);
+                        if (sender) {
+                            const p = sender({ action: 'syncUpdate', slot: currentSlot || 'u0', count: -1, from: 'export-prune-deleted' });
                             if (p && p.catch) p.catch(() => {});
                         }
                     }
