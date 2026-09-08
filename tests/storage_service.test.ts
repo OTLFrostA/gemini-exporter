@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');

@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');

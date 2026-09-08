@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const { GeminiResponseParserClass, isRealTitle } = require('../src/core/api/geminiParser.js');
@@ -224,7 +225,7 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
     assert.strictEqual(parsed.messages[1].content.endsWith('zh'), false, 'Content must not end with language tag zh');
 
     // None of the telemetry or grounding tokens should exist as messages
-    const contents = parsed.messages.map(m => m.content);
+    const contents = parsed.messages.map((m: any) => m.content);
     assert.ok(!contents.includes('hoi4 air wing equipment filtering tags'));
     assert.ok(!contents.includes('google'));
     assert.ok(!contents.includes('c'));
@@ -264,9 +265,9 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     const parseDetailMod = require('../src/core/api/parser/parseDetail.js');
 
     // 1. deepWalk unified tree walker
-    const visited = [];
+    const visited: string[] = [];
     const tree = { a: [1, { b: 2, c: [3, 4] }], d: 5 };
-    extractors.deepWalk(tree, (node) => {
+    extractors.deepWalk(tree, (node: any) => {
         if (typeof node === 'object' && !Array.isArray(node)) {
             visited.push(Object.keys(node).join(','));
         }
@@ -276,7 +277,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
 
     // Early termination in deepWalk
     let earlyCount = 0;
-    extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node) => {
+    extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node: any) => {
         earlyCount++;
         if (Array.isArray(node) && node.length === 3) {
             return false; // Stop descending

@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
@@ -15,8 +16,8 @@ test('takeout_engine - getTakeoutOfflineChat empty default', () => {
 });
 
 test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn titles.takeout slot', async () => {
-    global.JSZip = require('../lib/jszip.min.js');
-    const zip = new global.JSZip();
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
 
     // Multi-turn HTML: turn 1 has no prompt, turn 2 has real prompt, ID with mixed case "CaseSensitive_99"
     const htmlContent = `
@@ -76,8 +77,8 @@ test('takeout_engine - extractC2PATimestamp extracts UTC timestamp from binary',
 });
 
 test('takeout_engine - parseTakeoutZip associates watermarked images via C2PA time correlation and monopolistic fallback', async () => {
-    global.JSZip = require('../lib/jszip.min.js');
-    const zip = new global.JSZip();
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
 
     // 2 conversations:
     // Chat A: prompt at 2026-08-27 23:10:04 UTC (1787958604000)
@@ -132,7 +133,7 @@ test('takeout_engine - parseTakeoutZip associates watermarked images via C2PA ti
     // Offline chat model turn must contain ![Generated Image](assets/...)
     const chatAOffline = TakeoutEngine.getTakeoutOfflineChat('chat_A_12345678');
     assert.ok(chatAOffline);
-    const modelTurnA = chatAOffline.messages.find(m => m.role === 'model');
+    const modelTurnA = chatAOffline.messages.find((m: any) => m.role === 'model');
     assert.ok(modelTurnA.content.includes('![Generated Image](assets/watermarked_img_1111-aaaa.png)'));
     assert.strictEqual(modelTurnA.images.length, 1);
     assert.strictEqual(modelTurnA.images[0].fileName, 'watermarked_img_1111-aaaa.png');
@@ -148,7 +149,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     const fixturePath = path.resolve(__dirname, 'fixtures/gemini_takeout_clean.zip');
     if (!fs.existsSync(fixturePath)) return;
 
-    global.JSZip = require('../lib/jszip.min.js');
+    (global as any).JSZip = require('../lib/jszip.min.js');
     const buf = fs.readFileSync(fixturePath);
     TakeoutEngine.clearTakeoutData();
     const res = await TakeoutEngine.parseTakeoutZip(buf);
@@ -157,7 +158,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.strictEqual(res.totalMediaCount, 1, 'Should extract exactly 1 media asset');
 
     // Verify cat image conversation
-    const catChat = res.conversations.find(c => c.id === '1bd028d5c5b0c0e2');
+    const catChat = res.conversations.find((c: any) => c.id === '1bd028d5c5b0c0e2');
     assert.ok(catChat, 'Cat conversation should exist');
     assert.ok(catChat.title.includes('astronaut cat') || catChat.title.includes('Cat'));
 
@@ -166,7 +167,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.ok(catMedia[0].filename.startsWith('watermarked_img_45281370108017511'));
 
     // Verify Python decorator conversation
-    const pyChat = res.conversations.find(c => c.id === '1cea7e48cc166b57');
+    const pyChat = res.conversations.find((c: any) => c.id === '1cea7e48cc166b57');
     assert.ok(pyChat, 'Python decorator conversation should exist');
     assert.ok(pyChat.title.includes('Python') || pyChat.title.includes('装饰器'));
 });

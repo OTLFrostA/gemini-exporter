@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -6,7 +7,7 @@ const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
 const I18n = require('../src/core/utils/i18n.js');
 const DialogView = require('../src/ui/views/dialogView.js');
 
-global.I18n = I18n;
+(global as any).I18n = I18n;
 
 test('takeout_engine - C2PA regex parses years beyond 2029', () => {
     // 2032-11-15 12:30:00 UTC
@@ -20,8 +21,8 @@ test('takeout_engine - C2PA regex parses years beyond 2029', () => {
 });
 
 test('takeout_engine - prevents cross-chat media hijacking for generic image names', async () => {
-    global.JSZip = require('../lib/jszip.min.js');
-    const zip = new global.JSZip();
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
 
     // HTML only mentions chat_B_123456 having image_01.png
     const htmlContent = `
@@ -66,8 +67,8 @@ test('takeout_engine - prevents cross-chat media hijacking for generic image nam
 });
 
 test('takeout_engine - clearTakeoutData thoroughly cleans slot and global caches', async () => {
-    global.JSZip = require('../lib/jszip.min.js');
-    const zip = new global.JSZip();
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
     zip.file('Takeout/Gemini/MyActivity.html', `<html><body><div class="outer-cell"><a href="https://gemini.google.com/app/chat_slot_123">Link</a>Prompted hi<br><div class="content-cell">hello</div></div></body></html>`);
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
@@ -87,7 +88,7 @@ test('geminiClient - normal pagination to completion does not flag hitGoogleLimi
     let pageCount = 0;
 
     // Mock getConversationList to simulate 11 pages of 50 conversations (550 total), last page has no nextPageToken
-    client.getConversationList = async (token) => {
+    (client as any).getConversationList = async (token?: any) => {
         pageCount++;
         const pageConvs = [];
         for (let j = 0; j < 50; j++) {
@@ -112,7 +113,7 @@ test('geminiClient - error with 1096 or BardErrorInfo flags hitGoogleLimit', asy
     const client = new GeminiAPIClient();
     let pageCount = 0;
 
-    client.getConversationList = async () => {
+    (client as any).getConversationList = async () => {
         pageCount++;
         if (pageCount === 3) {
             throw new Error('rpc error: code = 1096, BardErrorInfo: cursor expired');
@@ -133,7 +134,7 @@ test('geminiClient - error with 1096 or BardErrorInfo flags hitGoogleLimit', asy
 });
 
 test('dialogView - showTakeoutLimitPrompt differentiates between server limit and browsing window guidance', async () => {
-    const mockElements = {
+    const mockElements: Record<string, any> = {
         takeoutLimitModal: { style: { display: 'none' } },
         takeoutLimitPromptTitle: { textContent: '' },
         takeoutLimitPromptText: { textContent: '' },
@@ -143,8 +144,8 @@ test('dialogView - showTakeoutLimitPrompt differentiates between server limit an
         btnTakeoutLimitClose: {}
     };
 
-    global.document = {
-        getElementById: (id) => mockElements[id] || null,
+    (global as any).document = {
+        getElementById: (id: string) => mockElements[id] || null,
         querySelectorAll: () => []
     };
 
