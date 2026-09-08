@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install
 
+      - name: Type check (TypeScript)
+        run: npm run type-check
+
       - name: Build dist bundles (verify esbuild pipeline)
         run: node build.js
 

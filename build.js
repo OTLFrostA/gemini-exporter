@@ -23,13 +23,19 @@ const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
 
-function walkJsFiles(dir) {
+function walkSourceFiles(dir) {
     const out = [];
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-            out.push(...walkJsFiles(full));
-        } else if (entry.name.endsWith('.js')) {
+            if (entry.name === 'types') {
+                // src/types is reserved for pure TypeScript type definitions (no runtime emission needed)
+                continue;
+            }
+            out.push(...walkSourceFiles(full));
+        } else if (entry.name.endsWith('.d.ts')) {
+            continue;
+        } else if (entry.name.endsWith('.js') || entry.name.endsWith('.ts')) {
             out.push(full);
         }
     }
@@ -45,9 +51,9 @@ async function build() {
     // Clean dist to avoid stale artifacts from removed sources.
     fs.rmSync(DIST, { recursive: true, force: true });
 
-    const entryPoints = walkJsFiles(SRC);
+    const entryPoints = walkSourceFiles(SRC);
     if (entryPoints.length === 0) {
-        throw new Error('no .js files found under src/');
+        throw new Error('no source (.js/.ts) files found under src/');
     }
 
     const result = await esbuild.build({
@@ -80,11 +86,12 @@ async function build() {
 
     console.log(`[build] ${jsFiles.length} JS modules -> dist/ in ${Date.now() - t0}ms (${warnings} warning(s))`);
 
-    // Sanity: every source module must have a dist counterpart.
+    // Sanity: every source module must have a dist counterpart (.js).
     for (const srcFile of entryPoints) {
         const rel = path.relative(SRC, srcFile);
-        if (!fs.existsSync(path.join(DIST, rel))) {
-            throw new Error(`missing dist artifact for ${rel}`);
+        const relJs = rel.endsWith('.ts') ? rel.slice(0, -3) + '.js' : rel;
+        if (!fs.existsSync(path.join(DIST, relJs))) {
+            throw new Error(`missing dist artifact for ${relJs} (from ${rel})`);
         }
     }
 }
