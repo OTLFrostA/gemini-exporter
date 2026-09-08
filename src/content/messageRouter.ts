@@ -1,8 +1,10 @@
 // src/content/messageRouter.ts - Content script runtime message dispatcher & RPC handlers
-import { SyncEngine } from './syncEngine';
-import { DomScraper } from './domScraper';
-import { AssetFetcher } from './assetFetcher';
-import { contentContext } from './contentContext';
+import { SyncEngine } from './syncEngine.js';
+import { DomScraper } from './domScraper.js';
+import { AssetFetcher } from './assetFetcher.js';
+import { contentContext } from './contentContext.js';
+import { StorageService } from '../core/storage/storageService.js';
+import { GeminiUtils } from '../core/utils/utils.js';
 
 export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
@@ -232,4 +234,14 @@ export const MessageRouter = {
 };
 
 
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = MessageRouter;
+(MessageRouter as any).MessageRouter = MessageRouter;
+(MessageRouter as any).default = MessageRouter;
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).MessageRouter = MessageRouter;
+}
+if (typeof module !== 'undefined' && (module as any).exports) {
+    (module as any).exports = MessageRouter;
+}
+
+export default MessageRouter;

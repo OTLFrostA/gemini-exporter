@@ -1,11 +1,11 @@
 // src/background/background.ts - Manifest V3 Background Service Worker for Gemini Exporter
 
 import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
-import '../core/protocol/protocol.js';
-import '../core/utils/constants.js';
-import '../core/utils/utils.js';
-import '../core/storage/storageService.js';
-import '../core/utils/tabService.js';
+import { GeminiConstants } from '../core/utils/constants.js';
+import { TabService } from '../core/utils/tabService.js';
+import { GeminiUtils } from '../core/utils/utils.js';
+import { StorageService } from '../core/storage/storageService.js';
+import { GeminiProtocol } from '../core/protocol/protocol.js';
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
 try {
@@ -68,9 +68,11 @@ function startKeepAlive(): () => void {
     return () => clearInterval(interval);
 }
 
-const FEEDBACK_URL = (typeof (globalThis as any).GeminiConstants !== 'undefined' && (globalThis as any).GeminiConstants.FEEDBACK_URL)
-    ? (globalThis as any).GeminiConstants.FEEDBACK_URL
-    : 'https://tally.so/r/Y56ZBB';
+const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
+    ? GeminiConstants.FEEDBACK_URL
+    : ((typeof (globalThis as any).GeminiConstants !== 'undefined' && (globalThis as any).GeminiConstants.FEEDBACK_URL)
+        ? (globalThis as any).GeminiConstants.FEEDBACK_URL
+        : 'https://tally.so/r/Y56ZBB');
 
 function initUninstallUrl(): void {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
@@ -403,3 +405,5 @@ try {
 } catch (e) {
     if (typeof console !== 'undefined' && console.debug) console.debug('[background] init tab action state error', e);
 }
+
+export {};

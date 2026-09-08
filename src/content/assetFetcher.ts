@@ -1,5 +1,5 @@
 // src/content/assetFetcher.ts - In-page authenticated blob and asset fetching handler
-import { contentContext } from './contentContext';
+import { contentContext } from './contentContext.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024; // 超过50MB避免 FileReader base64 内存翻倍，交由 Takeout 兜底
 const LARGE_FILE_WARN_SIZE = 30 * 1024 * 1024;
@@ -290,4 +290,14 @@ export const AssetFetcher = {
 };
 
 
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = AssetFetcher;
+(AssetFetcher as any).AssetFetcher = AssetFetcher;
+(AssetFetcher as any).default = AssetFetcher;
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).AssetFetcher = AssetFetcher;
+}
+if (typeof module !== 'undefined' && (module as any).exports) {
+    (module as any).exports = AssetFetcher;
+}
+
+export default AssetFetcher;

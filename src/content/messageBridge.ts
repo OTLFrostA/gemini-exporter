@@ -1,5 +1,8 @@
 // src/content/messageBridge.ts - Inter-world message bridge between MAIN world hooks and content script
-import { contentContext } from './contentContext';
+import { contentContext } from './contentContext.js';
+import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
+import { GeminiProtocol } from '../core/protocol/protocol.js';
+import { StorageService } from '../core/storage/storageService.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
@@ -49,9 +52,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         const { text, slot } = d.payload || {};
         if (!text) return;
         try {
-            const parser = (typeof GeminiResponseParserClass !== 'undefined')
-                ? GeminiResponseParserClass
-                : ((typeof globalThis !== 'undefined' ? (globalThis as any).GeminiResponseParserClass : null) || null);
+            const parser = (typeof GeminiResponseParserClass !== 'undefined' ? GeminiResponseParserClass : null)
+                || ((typeof globalThis !== 'undefined' ? (globalThis as any).GeminiResponseParserClass : null) || null);
             if (!parser) return;
             const Proto = (_deps && _deps.protocol) || (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : ((typeof window !== 'undefined' && (window as any).GeminiProtocol) || null));
             if (!Proto) return;
@@ -178,5 +180,14 @@ export const MessageBridge = {
     handleWindowMessage
 };
 
+(MessageBridge as any).MessageBridge = MessageBridge;
+(MessageBridge as any).default = MessageBridge;
 
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = MessageBridge;
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).MessageBridge = MessageBridge;
+}
+if (typeof module !== 'undefined' && (module as any).exports) {
+    (module as any).exports = MessageBridge;
+}
+
+export default MessageBridge;
