@@ -1,35 +1,91 @@
-// attachments.js - Image, user file, and deep research document attachment extractors
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
+// attachments.ts - Image, user file, and deep research document attachment extractors
+import type { GeminiParserExtractorsModule } from "./extractors.js";
+
+export interface ImageAttachment {
+    sourceUrl: string;
+    width?: number;
+    height?: number;
+    size?: number;
+    token?: string;
+    fileName?: string;
+    mimeType?: string;
+}
+
+export interface UserFileAttachment {
+    sourceUrl: string;
+    fileName: string;
+    id: string;
+}
+
+export interface DeepResearchDocMeta {
+    id: string;
+    title: string;
+    chipUrl?: string;
+    createdAt?: number;
+    contentId?: string;
+}
+
+export interface DocLink {
+    title: string;
+    url: string;
+}
+
+export interface DocSectionsResult {
+    sections: string[];
+    links: DocLink[];
+    contentMarkdown: string;
+}
+
+export interface GeminiParserAttachmentsModule {
+    IMAGE_GEN_RE: RegExp;
+    highResVariant: (url?: string | null) => string;
+    isInternalChipUrl: (u?: string | null) => boolean;
+    extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
+    getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
+    filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
+    extractImages: (obj: any, seqRef?: { value: number }) => ImageAttachment[];
+    extractUserFiles: (turnUserArr: any) => UserFileAttachment[];
+    extractDocumentsMeta: (root: any) => DeepResearchDocMeta[];
+    findDocContentById: (root: any, docId: string) => any;
+    parseDocSections: (docContentArr: any) => DocSectionsResult;
+    findDocMarkdownByClues: (root: any, metaItem?: DeepResearchDocMeta | null) => string;
+}
+
+declare global {
+    var GeminiParserAttachments: GeminiParserAttachmentsModule;
+}
+
+(function(root: any, factory: () => GeminiParserAttachmentsModule) {
+    if (typeof define === "function" && (define as any).amd) {
+        (define as any)([], factory);
+    } else if (typeof module === "object" && module.exports) {
         module.exports = factory();
     } else {
         root.GeminiParserAttachments = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
-    'use strict';
+}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserAttachmentsModule {
+    "use strict";
 
     const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
     const DEFAULT_RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-    function getExtractors() {
-        if (typeof GeminiParserExtractors !== 'undefined' && GeminiParserExtractors) return GeminiParserExtractors;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiParserExtractors) return globalThis.GeminiParserExtractors;
-        if (typeof require !== 'undefined') {
-            try { return require('./extractors.js'); } catch (_) {}
-            try { return require('./parser/extractors.js'); } catch (_) {}
+    function getExtractors(): GeminiParserExtractorsModule | null {
+        if (typeof GeminiParserExtractors !== "undefined" && GeminiParserExtractors) return GeminiParserExtractors;
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserExtractors) return (globalThis as any).GeminiParserExtractors;
+        if (typeof require !== "undefined") {
+            try { return require("./extractors.js"); } catch (_) {}
+            try { return require("./parser/extractors.js"); } catch (_) {}
         }
         return null;
     }
 
-    function deepWalk(root, visitor, maxDepth = 50) {
+    function deepWalk(root: any, visitor: (node: any, depth: number) => boolean | void, maxDepth: number = 50): void {
         const ext = getExtractors();
-        if (ext && typeof ext.deepWalk === 'function') {
+        if (ext && typeof ext.deepWalk === "function") {
             return ext.deepWalk(root, visitor, maxDepth);
         }
-        function walk(node, depth) {
-            if (!node || typeof node !== 'object' || depth > maxDepth) return;
+        function walk(node: any, depth: number) {
+            if (!node || typeof node !== "object" || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
             if (shouldDescend === false) return;
             if (Array.isArray(node)) {
@@ -43,19 +99,19 @@
         walk(root, 0);
     }
 
-    function extractImageSelectionIndex(sourceUrl) {
-        if (!sourceUrl || typeof sourceUrl !== 'string') return;
+    function extractImageSelectionIndex(sourceUrl?: string | null): number | undefined {
+        if (!sourceUrl || typeof sourceUrl !== "string") return undefined;
         let match = sourceUrl.match(IMAGE_GEN_RE);
-        if (!match) return;
+        if (!match) return undefined;
         let index = parseInt(match[1], 10);
         return isNaN(index) ? void 0 : index;
     }
 
-    function getImageDedupKey(imageObj) {
+    function getImageDedupKey(imageObj: Partial<ImageAttachment>): string {
         return imageObj.sourceUrl || imageObj.token || [imageObj.fileName, imageObj.mimeType, imageObj.width, imageObj.height, imageObj.size].filter(x => x != null && x !== "").join(":");
     }
 
-    function filterNewImages(images, seenSet) {
+    function filterNewImages(images: ImageAttachment[], seenSet: Set<string>): ImageAttachment[] {
         return images.filter(img => {
             let key = getImageDedupKey(img);
             if (!key) return true;
@@ -65,33 +121,33 @@
         });
     }
 
-    function highResVariant(url) {
-        if (!url || typeof url !== "string") return url;
-        if (url.includes('googleusercontent.com/p/') || url.includes('/places/v1/media')) {
+    function highResVariant(url?: string | null): string {
+        if (!url || typeof url !== "string") return url || "";
+        if (url.includes("googleusercontent.com/p/") || url.includes("/places/v1/media")) {
             return url;
         }
         return url.replace(/=w\d+(-h\d+)?(-p|-k|-no)?.*$/i, "=s0").replace(/=s\d+(-p|-k|-no)?.*$/i, "=s0");
     }
 
-    function isInternalChipUrl(u) {
-        if (!u || typeof u !== 'string') return false;
+    function isInternalChipUrl(u?: string | null): boolean {
+        if (!u || typeof u !== "string") return false;
         return /googleusercontent\.com\/(immersive_entry_chip|deep_research|map_content|map_location|grounding_content|web_search|youtube_content|flights_content|hotels_content|workspace_content)/i.test(u);
     }
 
-    function inferExt(url) {
+    function inferExt(url: string): string {
         try {
-            let u = String(url).split('?')[0].split('#')[0];
+            let u = String(url).split("?")[0].split("#")[0];
             let m = u.match(/\.([a-z0-9]{3,4})$/i);
-            if (m && /^(jpg|jpeg|png|webp|gif|bmp)$/i.test(m[1])) return '.' + m[1].toLowerCase().replace('jpeg', 'jpg');
-        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.js]", e); }
-        return '.jpg';
+            if (m && /^(jpg|jpeg|png|webp|gif|bmp)$/i.test(m[1])) return "." + m[1].toLowerCase().replace("jpeg", "jpg");
+        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
+        return ".jpg";
     }
 
-    function extractImages(obj, seqRef) {
-        let images = [],
-            seenKeys = new Set();
+    function extractImages(obj: any, seqRef?: { value: number }): ImageAttachment[] {
+        let images: ImageAttachment[] = [];
+        let seenKeys = new Set<string>();
         // seqRef: { value: number } 全局递增，避免跨 turn 同名覆盖（P0）
-        let counter = seqRef && typeof seqRef.value === 'number' ? seqRef : { value: 1 };
+        let counter = seqRef && typeof seqRef.value === "number" ? seqRef : { value: 1 };
 
         deepWalk(obj, (node) => {
             if (Array.isArray(node)) {
@@ -103,14 +159,11 @@
                         let token = typeof node[3] === "string" ? node[3] : void 0;
                         // 使用全局序号 + URL hash 片段保证跨 turn 唯一
                         let ext = inferExt(sourceUrl);
-                        let hashFrag = '';
-                        try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, '').slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.js]", e); }
-                        let fileName = `image-${counter.value++}${hashFrag ? '-' + hashFrag : ''}${ext}`;
-                        let mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg';
-                        let key = getImageDedupKey({
-                            sourceUrl,
-                            token
-                        });
+                        let hashFrag = "";
+                        try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
+                        let fileName = `image-${counter.value++}${hashFrag ? "-" + hashFrag : ""}${ext}`;
+                        let mimeType = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : ext === ".gif" ? "image/gif" : "image/jpeg";
+                        let key = getImageDedupKey({ sourceUrl, token });
                         if (!seenKeys.has(key)) {
                             seenKeys.add(key);
                             images.push({
@@ -135,23 +188,19 @@
                     let ext = inferExt(sourceUrl);
                     let rawFileName = (typeof node[2] === "string" && node[2].trim()) ? node[2].trim() : "";
                     if (rawFileName) {
-                        let dotIdx = rawFileName.lastIndexOf('.');
+                        let dotIdx = rawFileName.lastIndexOf(".");
                         if (dotIdx !== -1) ext = rawFileName.slice(dotIdx).toLowerCase();
                     }
                     let width = Array.isArray(node[15]) && typeof node[15][0] === "number" ? node[15][0] : void 0;
                     let height = Array.isArray(node[15]) && typeof node[15][1] === "number" ? node[15][1] : void 0;
                     let size = Array.isArray(node[15]) && typeof node[15][2] === "number" ? node[15][2] : void 0;
-                    let mimeType = typeof node[11] === "string" ? node[11] : (ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg');
+                    let mimeType = typeof node[11] === "string" ? node[11] : (ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg");
 
-                    let hashFrag = '';
-                    try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, '').slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.js]", e); }
-                    let fileName = rawFileName || `image-${counter.value++}${hashFrag ? '-' + hashFrag : ''}${ext}`;
+                    let hashFrag = "";
+                    try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
+                    let fileName = rawFileName || `image-${counter.value++}${hashFrag ? "-" + hashFrag : ""}${ext}`;
 
-                    let key = getImageDedupKey({
-                        sourceUrl,
-                        token,
-                        fileName
-                    });
+                    let key = getImageDedupKey({ sourceUrl, token, fileName });
                     if (!seenKeys.has(key)) {
                         seenKeys.add(key);
                         images.push({
@@ -170,13 +219,13 @@
         return images;
     }
 
-    function extractUserFiles(turnUserArr) {
-        let files = [];
+    function extractUserFiles(turnUserArr: any): UserFileAttachment[] {
+        let files: UserFileAttachment[] = [];
         if (!Array.isArray(turnUserArr)) return files;
 
         deepWalk(turnUserArr, (node) => {
             if (Array.isArray(node)) {
-                if (node.length >= 3 && typeof node[0] === 'string' && node[0].startsWith('http') && typeof itemMatchesFilename(node[1])) {
+                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && typeof node[1] === "string" && itemMatchesFilename(node[1])) {
                     if (!isInternalChipUrl(node[0])) {
                         files.push({
                             sourceUrl: node[0],
@@ -184,11 +233,11 @@
                             id: node[2] || node[1]
                         });
                     }
-                } else if (node.length >= 2 && typeof node[0] === 'string' && node[0].startsWith('http') && typeof node[1] === 'string' && (node[0].includes('googleusercontent') || node[0].includes('drive.google'))) {
+                } else if (node.length >= 2 && typeof node[0] === "string" && node[0].startsWith("http") && typeof node[1] === "string" && (node[0].includes("googleusercontent") || node[0].includes("drive.google"))) {
                     if (!isInternalChipUrl(node[0])) {
                         files.push({
                             sourceUrl: node[0],
-                            fileName: node[1] || 'attachment',
+                            fileName: node[1] || "attachment",
                             id: node[0]
                         });
                     }
@@ -198,17 +247,17 @@
         return files;
     }
 
-    function itemMatchesFilename(name) {
-        return typeof name === 'string' && name.includes('.');
+    function itemMatchesFilename(name?: string | null): boolean {
+        return typeof name === "string" && name.includes(".");
     }
 
-    function extractDocumentsMeta(root) {
-        let out = [];
+    function extractDocumentsMeta(root: any): DeepResearchDocMeta[] {
+        let out: DeepResearchDocMeta[] = [];
         let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
         const ext = getExtractors();
         const researchPrefixRe = (ext && ext.RESEARCH_PROMPT_PREFIX_RE) || DEFAULT_RESEARCH_PROMPT_PREFIX_RE;
 
-        function pushMeta(metaObj) {
+        function pushMeta(metaObj: DeepResearchDocMeta) {
             if (metaObj.id && metaObj.title) {
                 let cleanTitle = metaObj.title;
                 if (researchPrefixRe.test(cleanTitle)) {
@@ -233,7 +282,7 @@
                             id = item[2],
                             rawTitle = item[3];
                         let title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
-                        let createdAt;
+                        let createdAt: number | undefined;
                         if (Array.isArray(item[5]) && typeof item[5][0] === "number") createdAt = 1000 * item[5][0];
                         let contentId = typeof item[4] === "string" && item[4].length > 10 ? item[4] : void 0;
                         pushMeta({
@@ -256,7 +305,7 @@
                                     chipUrl: chip
                                 });
                             }
-                        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.js]", e); }
+                        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
                     }
                 }
             }
@@ -264,10 +313,10 @@
         return out;
     }
 
-    function findDocContentById(root, docId) {
+    function findDocContentById(root: any, docId: string): any {
         if (!docId) return null;
-        let targetId = String(docId).replace(/^c_/, '');
-        let matched = null;
+        let targetId = String(docId).replace(/^c_/, "");
+        let matched: any = null;
 
         deepWalk(root, (node) => {
             if (matched) return false;
@@ -292,15 +341,11 @@
         return matched;
     }
 
-    function parseDocSections(docContentArr) {
-        let sections = [];
-        let links = [];
+    function parseDocSections(docContentArr: any): DocSectionsResult {
+        let sections: string[] = [];
+        let links: DocLink[] = [];
         let contentMarkdown = "";
-        if (!Array.isArray(docContentArr)) return {
-            sections,
-            links,
-            contentMarkdown
-        };
+        if (!Array.isArray(docContentArr)) return { sections, links, contentMarkdown };
 
         deepWalk(docContentArr, (node) => {
             if (Array.isArray(node)) {
@@ -326,9 +371,9 @@
         };
     }
 
-    function findDocMarkdownByClues(root, metaItem) {
+    function findDocMarkdownByClues(root: any, metaItem?: DeepResearchDocMeta | null): string {
         if (!metaItem) return "";
-        let candidates = [];
+        let candidates: string[] = [];
 
         deepWalk(root, (node) => {
             if (Array.isArray(node)) {

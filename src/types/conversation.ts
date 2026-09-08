@@ -70,6 +70,9 @@ export interface ChatMessage {
     [key: string]: any;
 }
 
+export type Message = ChatMessage;
+
+
 export interface Turn {
     id?: string;
     timestamp?: number; // In milliseconds
