@@ -504,7 +504,8 @@ def test_content_badge_flicker_prevention():
     print("  ✓ Content badge flicker prevention verified")
 
 def test_exported_history_and_slot_fallback():
-    storage_js = os.path.join(BASE_DIR, "src/core/storage/storageService.js")
+    storage_ts = os.path.join(BASE_DIR, "src/core/storage/storageService.ts")
+    storage_js = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
     with open(storage_js, "r", encoding="utf-8") as f:
         code = f.read()
     assert "gemini_exported_u0" in code and "exportedIds" in code, "storageService should merge legacy and global exportedIds"
@@ -627,11 +628,12 @@ def test_takeout_limit_modal_and_wall_detection():
     assert "gemini_pending_takeout_prompt" in content_code, "content.js should persist gemini_pending_takeout_prompt"
 
     # 6. Ensure single-time tutorial prompt behavior (isTakeoutPromptCompleted & has_completed_takeout_prompt)
-    storage_js_path = os.path.join(BASE_DIR, "src/core/storage/storageService.js")
-    with open(storage_js_path, "r", encoding="utf-8") as f:
+    storage_ts = os.path.join(BASE_DIR, "src/core/storage/storageService.ts")
+    storage_path = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
+    with open(storage_path, "r", encoding="utf-8") as f:
         storage_code = f.read()
-    assert "has_completed_takeout_prompt" in storage_code, "storageService.js should track has_completed_takeout_prompt"
-    assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService.js should export takeout prompt completion helpers"
+    assert "has_completed_takeout_prompt" in storage_code, "storageService should track has_completed_takeout_prompt"
+    assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService should export takeout prompt completion helpers"
 
     dialog_js_path = os.path.join(BASE_DIR, "src/ui/views/dialogView.js")
     with open(dialog_js_path, "r", encoding="utf-8") as f:
@@ -651,12 +653,13 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert not re.search(r'let\s+__bgAborted\s*=\s*(?:false|true);', bg_code), "background.js must not contain mutable global __bgAborted"
     assert "isSlotAborted" in bg_code and "setSlotAborted" in bg_code, "background.js must provide slot-aware abort helpers"
 
-    # 2. Verify per-slot Takeout cache in takeoutEngine.js
-    takeout_js_path = os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.js")
-    with open(takeout_js_path, "r", encoding="utf-8") as f:
+    # 2. Verify per-slot Takeout cache in takeoutEngine
+    takeout_ts = os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.ts")
+    takeout_path = takeout_ts if os.path.isfile(takeout_ts) else os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.js")
+    with open(takeout_path, "r", encoding="utf-8") as f:
         takeout_code = f.read()
-    assert "__slotTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine.js must isolate takeout dictionaries per account slot"
-    assert "getStore" in takeout_code, "takeoutEngine.js must route through getStore(slot)"
+    assert "__slotTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
+    assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
 
     # 3. Verify SSoT compareConversations in content.js and options.js
     content_js_path = os.path.join(BASE_DIR, "src/content/content.js")

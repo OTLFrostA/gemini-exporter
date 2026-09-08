@@ -1,27 +1,81 @@
-// storage_service.js - Unified multi-account Chrome storage access and key management
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+// storageService.ts - Unified multi-account Chrome storage access and key management
+import type { Conversation } from "../../types/index.js";
+
+export interface StorageKeys {
+    slot: string;
+    convKey: string;
+    expKey: string;
+    syncKey: string;
+    countKey: string;
+}
+
+export interface SyncStatus {
+    timestamp: number | null;
+    count: number;
+}
+
+export interface ReconcileResult {
+    kept: number;
+    removed: number;
+    removedIds: string[];
+}
+
+export interface StorageServiceModule {
+    normSlot: (slot?: string | null) => string;
+    normId: (id?: string | null) => string;
+    getStorageKeys: (slot?: string | null) => StorageKeys;
+    getConversations: (slot?: string | null) => Promise<Conversation[]>;
+    setConversations: (slot: string | null | undefined, list: Conversation[]) => Promise<void>;
+    removeConversation: (slot: string | null | undefined, conversationId: string) => Promise<boolean>;
+    reconcileConversations: (slot: string | null | undefined, activeCloudList: any[], options?: any) => Promise<ReconcileResult>;
+    getExportedIds: (slot?: string | null) => Promise<Record<string, any>>;
+    setExportedIds: (slot: string | null | undefined, map: Record<string, any>) => Promise<void>;
+    saveExportRecord: (slot: string | null | undefined, id: string, record: any) => Promise<Record<string, any>>;
+    getLastSync: (slot?: string | null) => Promise<SyncStatus>;
+    setLastSync: (slot: string | null | undefined, timestamp?: number | null, count?: number) => Promise<void>;
+    getAccountSlots: () => Promise<Record<string, any>>;
+    setAccountSlots: (map: Record<string, any>) => Promise<void>;
+    updateAccountSlot: (slot: string | null | undefined, info: any) => Promise<Record<string, any>>;
+    getCredentialsMap: () => Promise<Record<string, any>>;
+    setCredentialsMap: (map: Record<string, any>) => Promise<void>;
+    clearCredentials: (sid?: string | null) => Promise<void>;
+    getDevMode: () => Promise<boolean>;
+    setDevMode: (enabled: boolean) => Promise<void>;
+    isTourCompleted: () => Promise<boolean>;
+    setTourCompleted: (completed?: boolean) => Promise<void>;
+    isTakeoutPromptCompleted: () => Promise<boolean>;
+    setTakeoutPromptCompleted: (completed?: boolean) => Promise<void>;
+    hasTakeoutData: (slot?: string | null) => Promise<boolean>;
+    setHasImportedTakeout: (imported?: boolean) => Promise<void>;
+}
+
+declare global {
+    var StorageService: any;
+}
+
+(function(root: any, factory: () => StorageServiceModule) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.StorageService = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof self !== 'undefined' ? self : this, function(): StorageServiceModule {
     'use strict';
 
-    function normSlot(slot) {
+    function normSlot(slot?: string | null): string {
         if (!slot || slot === 'default' || slot === 'u0') return 'u0';
         const m = String(slot).match(/u(\d+)/i);
         return m ? ('u' + m[1]) : 'u0';
     }
 
-    function normId(id) {
+    function normId(id?: string | null): string {
         if (!id) return '';
         return String(id).replace(/^c_/, '').trim();
     }
 
-    function getStorageKeys(slot) {
+    function getStorageKeys(slot?: string | null): StorageKeys {
         const s = normSlot(slot);
         return {
             slot: s,
@@ -32,22 +86,22 @@
         };
     }
 
-    async function getConversations(slot) {
+    async function getConversations(slot?: string | null): Promise<Conversation[]> {
         const { convKey, slot: s } = getStorageKeys(slot);
         const keys = [convKey];
         if (s === 'u0') {
             keys.push('gemini_conversations_u0');
         }
         const data = await chrome.storage.local.get(keys);
-        return data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || [];
+        return ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
     }
 
-    async function setConversations(slot, list) {
+    async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
         const { convKey } = getStorageKeys(slot);
         await chrome.storage.local.set({ [convKey]: list || [] });
     }
 
-    async function removeConversation(slot, conversationId) {
+    async function removeConversation(slot: string | null | undefined, conversationId: string): Promise<boolean> {
         if (!conversationId) return false;
         const targetId = normId(conversationId);
         const list = await getConversations(slot);
@@ -66,31 +120,31 @@
         return false;
     }
 
-    async function reconcileConversations(slot, activeCloudList, options = {}) {
+    async function reconcileConversations(slot: string | null | undefined, activeCloudList: any[], options: any = {}): Promise<ReconcileResult> {
         const keepTakeout = options.keepTakeout !== false;
         const existing = await getConversations(slot);
         if (!Array.isArray(existing) || existing.length === 0) {
             return { kept: 0, removed: 0, removedIds: [] };
         }
 
-        const activeIdSet = new Set();
+        const activeIdSet = new Set<string>();
         (activeCloudList || []).forEach(c => {
             if (c && c.id) {
                 activeIdSet.add(normId(c.id));
             }
         });
 
-        const kept = [];
-        const removedIds = [];
+        const kept: Conversation[] = [];
+        const removedIds: string[] = [];
 
         for (const conv of existing) {
             if (!conv || !conv.id) continue;
             const nid = normId(conv.id);
             const isTakeout = keepTakeout && (
-                conv.source === 'takeout' ||
+                (conv as any).source === 'takeout' ||
                 conv.titleSource === 'takeout' ||
-                conv.isTakeoutOnly ||
-                (conv.titles && conv.titles.takeout && !conv.titles.rpc && !conv.titles.dom)
+                (conv as any).isTakeoutOnly ||
+                (conv.titles && (conv.titles as any).takeout && !(conv.titles as any).rpc && !(conv.titles as any).dom)
             );
 
             if (activeIdSet.has(nid) || isTakeout) {
@@ -114,14 +168,14 @@
         };
     }
 
-    async function getExportedIds(slot) {
+    async function getExportedIds(slot?: string | null): Promise<Record<string, any>> {
         const { expKey, slot: s } = getStorageKeys(slot);
         const keys = [expKey, 'exportedIds', 'gemini_exported_u0'];
         if (s !== 'u0') {
             keys.push(`gemini_exported_${s}`);
         }
         const data = await chrome.storage.local.get(keys);
-        const merged = {};
+        const merged: Record<string, any> = {};
         if (data.exportedIds && typeof data.exportedIds === 'object') {
             Object.assign(merged, data.exportedIds);
         }
@@ -134,18 +188,18 @@
         return merged;
     }
 
-    async function setExportedIds(slot, map) {
+    async function setExportedIds(slot: string | null | undefined, map: Record<string, any>): Promise<void> {
         const { expKey, slot: s } = getStorageKeys(slot);
-        const updates = { [expKey]: map || {} };
+        const updates: Record<string, any> = { [expKey]: map || {} };
         if (s === 'u0') {
             updates['exportedIds'] = map || {};
         }
         await chrome.storage.local.set(updates);
     }
 
-    let _saveRecordChain = Promise.resolve();
+    let _saveRecordChain: Promise<any> = Promise.resolve();
 
-    async function saveExportRecord(slot, id, record) {
+    async function saveExportRecord(slot: string | null | undefined, id: string, record: any): Promise<Record<string, any>> {
         return new Promise((resolve, reject) => {
             _saveRecordChain = _saveRecordChain.then(async () => {
                 const { expKey, slot: s } = getStorageKeys(slot);
@@ -154,7 +208,7 @@
                 cur[id] = record;
                 cur[nid] = record;
                 cur['c_' + nid] = record;
-                const updates = { [expKey]: cur };
+                const updates: Record<string, any> = { [expKey]: cur };
                 if (s !== 'u0') {
                     const globalData = await chrome.storage.local.get(['exportedIds']);
                     const globalExp = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds : {};
@@ -171,16 +225,16 @@
         });
     }
 
-    async function getLastSync(slot) {
+    async function getLastSync(slot?: string | null): Promise<SyncStatus> {
         const { syncKey, countKey } = getStorageKeys(slot);
         const data = await chrome.storage.local.get([syncKey, countKey]);
         return {
-            timestamp: data[syncKey] || null,
-            count: data[countKey] || 0
+            timestamp: (data[syncKey] as number) || null,
+            count: (data[countKey] as number) || 0
         };
     }
 
-    async function setLastSync(slot, timestamp, count) {
+    async function setLastSync(slot: string | null | undefined, timestamp?: number | null, count?: number): Promise<void> {
         const { syncKey, countKey } = getStorageKeys(slot);
         await chrome.storage.local.set({
             [syncKey]: timestamp || Date.now(),
@@ -188,16 +242,16 @@
         });
     }
 
-    async function getAccountSlots() {
+    async function getAccountSlots(): Promise<Record<string, any>> {
         const data = await chrome.storage.local.get(['gemini_account_slots']);
         return data.gemini_account_slots || {};
     }
 
-    async function setAccountSlots(map) {
+    async function setAccountSlots(map: Record<string, any>): Promise<void> {
         await chrome.storage.local.set({ gemini_account_slots: map || {} });
     }
 
-    async function updateAccountSlot(slot, info) {
+    async function updateAccountSlot(slot: string | null | undefined, info: any): Promise<Record<string, any>> {
         const s = normSlot(slot);
         const map = await getAccountSlots();
         map[s] = { ...(map[s] || {}), ...(info || {}) };
@@ -205,7 +259,7 @@
         return map;
     }
 
-    function getCredStorage() {
+    function getCredStorage(): chrome.storage.StorageArea | null {
         if (typeof chrome !== 'undefined' && chrome.storage) {
             if (chrome.storage.session) return chrome.storage.session;
             return chrome.storage.local;
@@ -213,7 +267,7 @@
         return null;
     }
 
-    async function getCredentialsMap() {
+    async function getCredentialsMap(): Promise<Record<string, any>> {
         const storage = getCredStorage();
         if (!storage) return {};
         const data = await storage.get(['gemini_credentials_map']);
@@ -231,7 +285,7 @@
         return map;
     }
 
-    async function setCredentialsMap(map) {
+    async function setCredentialsMap(map: Record<string, any>): Promise<void> {
         const storage = getCredStorage();
         if (!storage) return;
         await storage.set({ gemini_credentials_map: map || {} });
@@ -242,7 +296,7 @@
         }
     }
 
-    async function clearCredentials(sid) {
+    async function clearCredentials(sid?: string | null): Promise<void> {
         const storage = getCredStorage();
         if (!storage) return;
         if (sid) {
@@ -259,16 +313,16 @@
         }
     }
 
-    async function getDevMode() {
+    async function getDevMode(): Promise<boolean> {
         const data = await chrome.storage.local.get(['gemini_dev_mode']);
         return !!data.gemini_dev_mode;
     }
 
-    async function setDevMode(enabled) {
+    async function setDevMode(enabled: boolean): Promise<void> {
         await chrome.storage.local.set({ gemini_dev_mode: !!enabled });
     }
 
-    async function isTourCompleted() {
+    async function isTourCompleted(): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
             const data = await chrome.storage.local.get(['has_completed_tour']);
@@ -278,14 +332,14 @@
         }
     }
 
-    async function setTourCompleted(completed = true) {
+    async function setTourCompleted(completed: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
             await chrome.storage.local.set({ has_completed_tour: !!completed });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
-    async function isTakeoutPromptCompleted() {
+    async function isTakeoutPromptCompleted(): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
             const data = await chrome.storage.local.get(['has_completed_takeout_prompt']);
@@ -295,21 +349,21 @@
         }
     }
 
-    async function setTakeoutPromptCompleted(completed = true) {
+    async function setTakeoutPromptCompleted(completed: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
             await chrome.storage.local.set({ has_completed_takeout_prompt: !!completed });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
-    async function setHasImportedTakeout(imported = true) {
+    async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
             await chrome.storage.local.set({ has_imported_takeout: !!imported });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
-    async function hasTakeoutData(slot = 'u0') {
+    async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
             const data = await chrome.storage.local.get(['has_imported_takeout']);
@@ -317,10 +371,10 @@
             const convs = await getConversations(slot);
             return (convs || []).some(c => (
                 c && (
-                    c.source === 'takeout' ||
+                    (c as any).source === 'takeout' ||
                     c.titleSource === 'takeout' ||
-                    c.isTakeoutOnly ||
-                    (c.titles && c.titles.takeout)
+                    (c as any).isTakeoutOnly ||
+                    (c.titles && (c.titles as any).takeout)
                 )
             ));
         } catch {
