@@ -25,7 +25,15 @@ const DIST = path.join(ROOT, 'dist');
 
 function walkSourceFiles(dir) {
     const out = [];
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const tsBases = new Set();
+    for (const entry of entries) {
+        if (!entry.isDirectory() && entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
+            tsBases.add(entry.name.slice(0, -3));
+        }
+    }
+
+    for (const entry of entries) {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
             if (entry.name === 'types') {
@@ -35,8 +43,13 @@ function walkSourceFiles(dir) {
             out.push(...walkSourceFiles(full));
         } else if (entry.name.endsWith('.d.ts')) {
             continue;
-        } else if (entry.name.endsWith('.js') || entry.name.endsWith('.ts')) {
+        } else if (entry.name.endsWith('.ts')) {
             out.push(full);
+        } else if (entry.name.endsWith('.js')) {
+            const base = entry.name.slice(0, -3);
+            if (!tsBases.has(base)) {
+                out.push(full);
+            }
         }
     }
     return out;

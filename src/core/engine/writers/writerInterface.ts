@@ -1,29 +1,48 @@
-// src/core/engine/writers/writerInterface.js - Unified export writer contract and factory (Phase 2c)
-(function(root, factory) {
+// src/core/engine/writers/writerInterface.ts - Unified export writer contract and factory (Phase 2c)
+
+export interface IExportWriter {
+    writeFile(relativePath: string, content: any, options?: any): Promise<string> | string;
+    generateBlob?(): Promise<Blob>;
+    close?(): Promise<void>;
+    getTotalBytes?(): number;
+    [key: string]: any;
+}
+
+export interface WriterFactoryOptions {
+    folderName?: string;
+    dirHandle?: any;
+    [key: string]: any;
+}
+
+export interface WriterInterfaceModule {
+    isWriter: (obj: any) => boolean;
+    createWriter: (type: 'zip' | 'fs' | string, options?: WriterFactoryOptions) => IExportWriter;
+}
+
+declare global {
+    var WriterInterface: WriterInterfaceModule;
+}
+
+(function(root: any, factory: () => WriterInterfaceModule) {
     if (typeof module === 'object' && module.exports) module.exports = factory();
     else root.WriterInterface = factory();
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): WriterInterfaceModule {
     'use strict';
 
     /**
      * Check whether an object conforms to the Writer interface.
-     * @param {Object} obj
-     * @returns {boolean}
      */
-    function isWriter(obj) {
+    function isWriter(obj: any): boolean {
         return Boolean(obj && typeof obj.writeFile === 'function');
     }
 
     /**
      * Factory function to create a writer instance.
-     * @param {'zip'|'fs'} type
-     * @param {Object} options
-     * @returns {Object} Writer instance
      */
-    function createWriter(type, options = {}) {
+    function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
         if (type === 'zip') {
-            const ZipWriterClass = (typeof ZipWriter !== 'undefined' && ZipWriter.ZipWriter)
-                || (typeof ZipWriter === 'function' ? ZipWriter : null)
+            const ZipWriterClass = (typeof (globalThis as any).ZipWriter !== 'undefined' && (globalThis as any).ZipWriter.ZipWriter)
+                || (typeof (globalThis as any).ZipWriter !== 'undefined' ? (globalThis as any).ZipWriter : null)
                 || (typeof require !== 'undefined' ? (function() { try { return require('./zipWriter.js'); } catch { return null; } })() : null);
             if (ZipWriterClass) {
                 const Cls = ZipWriterClass.ZipWriter || ZipWriterClass;
@@ -32,7 +51,7 @@
             throw new Error('ZipWriter is not available');
         }
         if (type === 'fs') {
-            const FsWriterModule = (typeof FsWriter !== 'undefined' ? FsWriter : null)
+            const FsWriterModule = (typeof (globalThis as any).FsWriter !== 'undefined' ? (globalThis as any).FsWriter : null)
                 || (typeof require !== 'undefined' ? (function() { try { return require('./fsWriter.js'); } catch { return null; } })() : null);
             const FsWriterClass = FsWriterModule ? (FsWriterModule.FsWriter || FsWriterModule) : null;
             if (FsWriterClass) {

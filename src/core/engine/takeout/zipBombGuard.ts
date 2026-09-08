@@ -1,26 +1,37 @@
-// zipBombGuard.js - ZipBomb protection guards and entry size estimators for Takeout ZIP extraction
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
+// zipBombGuard.ts - ZipBomb protection guards and entry size estimators for Takeout ZIP extraction
+
+export interface ZipBombGuardModule {
+    MAX_ZIP_SIZE: number;
+    MAX_ENTRY_COUNT: number;
+    MAX_TOTAL_UNCOMPRESSED: number;
+    validateZipFile: (file?: { size?: number } | null) => void;
+    validateZipEntries: (zip?: any) => void;
+}
+
+declare global {
+    var ZipBombGuard: ZipBombGuardModule;
+}
+
+(function(root: any, factory: () => ZipBombGuardModule) {
+    if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.ZipBombGuard = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): ZipBombGuardModule {
     'use strict';
 
     const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
     const MAX_ENTRY_COUNT = 10000; // 10,000 files
     const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
 
-    function validateZipFile(file) {
+    function validateZipFile(file?: { size?: number } | null): void {
         if (file && typeof file.size === 'number' && file.size > MAX_ZIP_SIZE) {
             throw new Error(`Takeout ZIP 体积过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，超过 ${MAX_ZIP_SIZE / 1024 / 1024}MB 上限，请确认是否为完整 Takeout 归档`);
         }
     }
 
-    function validateZipEntries(zip) {
+    function validateZipEntries(zip?: any): void {
         if (!zip || !zip.files) return;
         const entryCount = Object.keys(zip.files).length;
         if (entryCount > MAX_ENTRY_COUNT) {
@@ -28,7 +39,8 @@
         }
 
         let approxUncompressed = 0;
-        for (const f of Object.values(zip.files)) {
+        const files: any[] = Object.values(zip.files);
+        for (const f of files) {
             if (!f.dir && f._data && typeof f._data.uncompressedSize === 'number') {
                 approxUncompressed += f._data.uncompressedSize;
                 if (approxUncompressed > MAX_TOTAL_UNCOMPRESSED) {
