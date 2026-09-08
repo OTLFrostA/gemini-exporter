@@ -594,11 +594,12 @@ def test_takeout_limit_modal_and_wall_detection():
         assert 'id="btnModalOpenTakeoutWeb"' in content, f"btnModalOpenTakeoutWeb missing in {html_file}"
 
     # 2. Ensure geminiClient.js and syncController.js recognize Google 500+ sliding window limit & 429 errors
-    client_path = os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
+    client_ts = os.path.join(BASE_DIR, "src/core/api/geminiClient.ts")
+    client_path = client_ts if os.path.isfile(client_ts) else os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
     with open(client_path, "r", encoding="utf-8") as f:
         client_code = f.read()
-    assert re.search(r'all\.length\s*>=\s*500', client_code) or "hitGoogleLimit" in client_code, "geminiClient.js should flag hitGoogleLimit for full scans reaching 500+ chats"
-    assert "429" in client_code, "geminiClient.js should detect 429 rate limit wall"
+    assert re.search(r'all\.length\s*>=\s*500', client_code) or "hitGoogleLimit" in client_code, "geminiClient should flag hitGoogleLimit for full scans reaching 500+ chats"
+    assert "429" in client_code, "geminiClient should detect 429 rate limit wall"
 
     sync_path = os.path.join(BASE_DIR, "src/ui/controllers/syncController.js")
     with open(sync_path, "r", encoding="utf-8") as f:
@@ -715,12 +716,13 @@ def test_stage2_architecture_improvements():
     assert "RegExp.$1" not in hook_code, "hookCredentials.js must not use deprecated RegExp.$1"
 
     # 4. Verify geminiClient.js dynamic credential refresh on HTTP 400
-    client_path = os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
+    client_ts = os.path.join(BASE_DIR, "src/core/api/geminiClient.ts")
+    client_path = client_ts if os.path.isfile(client_ts) else os.path.join(BASE_DIR, "src/core/api/geminiClient.js")
     with open(client_path, "r", encoding="utf-8") as f:
         client_code = f.read()
-    assert "cachedCredentials" not in client_code, "geminiClient.js must not reference undefined cachedCredentials"
-    assert "_retried" in client_code, "geminiClient.js must support automatic retry on 400 with fresh credentials"
-    assert re.search(r'async\s+function\s+resolveCred\s*\(', client_code) or "resolveCred" in client_code, "geminiClient.js resolveCred must accept credential overrides"
+    assert "cachedCredentials" not in client_code, "geminiClient must not reference undefined cachedCredentials"
+    assert "_retried" in client_code, "geminiClient must support automatic retry on 400 with fresh credentials"
+    assert re.search(r'async\s+function\s+resolveCred\s*\(', client_code) or "resolveCred" in client_code, "geminiClient resolveCred must accept credential overrides"
 
     # 5. Verify background.js MV3 keepalive
     bg_path = os.path.join(BASE_DIR, "src/background/background.js")

@@ -49,7 +49,7 @@ async function ensureSubDir(root: any, subPath: string): Promise<any> {
     return cur;
 }
 
-export class FsWriter implements IExportWriter {
+class FsWriter implements IExportWriter {
     rootDirHandle: any;
     folderName: string;
     batchDirHandle: any;

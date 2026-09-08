@@ -18,22 +18,19 @@ declare global {
     var ProgressReporter: ProgressReporterModule;
 }
 
-export function calculateProgress(current: number, total: number, downloadedAssets: number = 0, totalAssets: number = 0): number {
-    const totalChats = Number(total) || 0;
-    const currentChats = Math.min(Number(current) || 0, totalChats);
-    let pct = totalChats ? Math.floor((currentChats / totalChats) * 100) : 0;
-
+function calculateProgress(current: number, total: number, downloadedAssets: number = 0, totalAssets: number = 0): number {
+    const safeTotal = Number(total) || 0;
+    const safeCurrent = Math.min(Number(current) || 0, safeTotal);
+    let pct = safeTotal ? Math.floor((safeCurrent / safeTotal) * 100) : 0;
     if (totalAssets > 0 && downloadedAssets > 0 && pct < 100) {
-        const chatWeight = 0.75;
-        const assetWeight = 0.25;
-        const chatFraction = totalChats ? (currentChats / totalChats) : 0;
-        const assetFraction = Math.min(1, downloadedAssets / totalAssets);
-        pct = Math.min(99, Math.floor((chatFraction * chatWeight + assetFraction * assetWeight) * 100));
+        const chatRatio = safeTotal ? (safeCurrent / safeTotal) : 0;
+        const assetRatio = Math.min(1, downloadedAssets / totalAssets);
+        pct = Math.min(99, Math.floor((chatRatio * 0.75 + assetRatio * 0.25) * 100));
     }
     return pct;
 }
 
-export async function updateStorageSession(sessionData: any): Promise<void> {
+async function updateStorageSession(sessionData: any): Promise<void> {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             await chrome.storage.local.set({
@@ -50,7 +47,7 @@ export async function updateStorageSession(sessionData: any): Promise<void> {
     }
 }
 
-export class ProgressReporter {
+class ProgressReporter {
     totalChats: number;
     currentExportIdx: number;
     currentExportTitle: string;
