@@ -41,27 +41,6 @@
         "src/content/content.css"
       ],
       "js": [
-        "dist/core/protocol/protocol.js",
-        "dist/core/utils/utils.js",
-        "dist/core/storage/storageService.js",
-        "dist/core/api/parser/extractors.js",
-        "dist/core/api/parser/attachments.js",
-        "dist/core/api/parser/parseList.js",
-        "dist/core/api/parser/parseDetail.js",
-        "dist/core/api/geminiParser.js",
-        "dist/content/bootstrap.js",
-        "dist/core/api/client/credentialManager.js",
-        "dist/core/api/client/retryPolicy.js",
-        "dist/core/api/client/rpcClient.js",
-        "dist/core/api/client/pagination.js",
-        "dist/core/api/geminiClient.js",
-        "dist/content/domScraper.js",
-        "dist/content/assetFetcher.js",
-        "dist/content/badgeView.js",
-        "dist/content/messageBridge.js",
-        "dist/content/pageObserver.js",
-        "dist/content/syncEngine.js",
-        "dist/content/messageRouter.js",
         "dist/content/content.js"
       ],
       "run_at": "document_start",
@@ -72,8 +51,7 @@
         "https://gemini.google.com/*"
       ],
       "js": [
-        "dist/core/protocol/protocol.js",
-        "dist/content/hookCredentials.js"
+        "dist/content/hook.js"
       ],
       "world": "MAIN",
       "run_at": "document_start",
@@ -83,7 +61,7 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "dist/content/hookCredentials.js",
+        "dist/content/hook.js",
         "icons/*",
         "lib/*"
       ],

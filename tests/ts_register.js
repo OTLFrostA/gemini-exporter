@@ -41,11 +41,14 @@ fs.readFileSync = function(pathArg, options) {
             const tsPath = pathArg.slice(0, -3) + '.ts';
             if (origExistsSync.call(fs, tsPath)) {
                 const source = origReadFileSync.call(fs, tsPath, 'utf8');
-                // If it's protocol.js (which tests execute inside vm.runInContext), transpile it
-                if (pathArg.endsWith('protocol.js')) {
-                    const result = esbuild.transformSync(source, {
+                // If it's protocol.js, hookCredentials.js, or bootstrap.js (which tests execute inside vm.runInContext), transpile it
+                if (pathArg.endsWith('protocol.js') || pathArg.endsWith('hookCredentials.js') || pathArg.endsWith('bootstrap.js')) {
+                    const isScript = pathArg.endsWith('bootstrap.js');
+                    const cleanSource = source.replace(/import\s+['"][^'"]+['"];?\s*/g, '');
+                    const result = esbuild.transformSync(cleanSource, {
                         loader: 'ts',
                         target: 'chrome120',
+                        format: isScript ? 'iife' : undefined,
                         charset: 'utf8'
                     });
                     const encoding = typeof options === 'string' ? options : (options && options.encoding);

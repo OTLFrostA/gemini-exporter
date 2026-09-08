@@ -33,3 +33,18 @@ declare var DefaultTabService: any;
 declare var TabService: any;
 declare var I18n: any;
 
+interface Window {
+    __gemExporterAborted?: boolean;
+    __gemExporterActiveClient?: any;
+    __gemExporterContentContext?: any;
+    __gemExporterDeepScanPromise?: any;
+    __gemExporterInjected?: boolean;
+    __gemExporterDevMode?: boolean;
+    __gemExporterScrollAll?: any;
+    __gemExporterExtractAt?: any;
+    __gemExporterExtractBl?: any;
+    __gemExporterEnsureCreds?: any;
+    __gemExporterContentCoord?: any;
+}
+
+
