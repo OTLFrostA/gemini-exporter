@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('Workbench UI & Selection Controls', () => {
   test('should render workbench list, handle selection controls, search, and language switch', async ({ context, extensionId }) => {

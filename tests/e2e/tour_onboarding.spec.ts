@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('Onboarding Tour Guide & Welcome Flow', () => {
   test('should trigger tour on welcome param, navigate 5 steps, and complete', async ({ context, extensionId }) => {

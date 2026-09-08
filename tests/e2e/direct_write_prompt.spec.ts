@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () => {
   test('should show suggestion modal only once when exporting >= 50 conversations and never prompt again', async ({ context, extensionId }) => {

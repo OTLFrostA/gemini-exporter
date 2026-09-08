@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('In-Page Active Chat & Real Title Synchronization', () => {
   test('should detect active Gemini conversation and update real title in place', async ({ context, extensionId }) => {
@@ -141,8 +141,9 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     // 3. Verify in storage and options page that title NEVER contains "- Google Gemini"
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
-    });
-    const chat = storageData.gemini_conversations.find(c => c.id === 'takeout_chat_888');
+    }) as Record<string, any>;
+    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'takeout_chat_888');
+
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('微服务与分布式事务设计');
     expect(chat.title).not.toContain('Google Gemini');
@@ -200,8 +201,8 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     // 3. Verify that storage and options page RETAINED the real title and NEVER became "Google Gemini"
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
-    });
-    const chat = storageData.gemini_conversations.find(c => c.id === 'loading_chat_777');
+    }) as Record<string, any>;
+    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'loading_chat_777');
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何用Rust实现异步Actor模型');
     expect(chat.title).not.toBe('Google Gemini');
@@ -236,17 +237,18 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     // 1. Verify default positioning (clears top bar: top is around 68px)
     const initialBox = await badge.boundingBox();
     expect(initialBox).toBeTruthy();
-    expect(initialBox.y).toBeGreaterThanOrEqual(60);
+    expect(initialBox!.y).toBeGreaterThanOrEqual(60);
 
     // 2. Drag badge via pointer down, move, up
-    await geminiPage.mouse.move(initialBox.x + initialBox.width / 2, initialBox.y + initialBox.height / 2);
+    await geminiPage.mouse.move(initialBox!.x + initialBox!.width / 2, initialBox!.y + initialBox!.height / 2);
     await geminiPage.mouse.down();
-    await geminiPage.mouse.move(initialBox.x - 100, initialBox.y + 150, { steps: 5 });
+    await geminiPage.mouse.move(initialBox!.x - 100, initialBox!.y + 150, { steps: 5 });
     await geminiPage.mouse.up();
 
     // 3. Verify badge moved
     const movedBox = await badge.boundingBox();
-    expect(movedBox.y).toBeGreaterThan(initialBox.y + 100);
+    expect(movedBox).toBeTruthy();
+    expect(movedBox!.y).toBeGreaterThan(initialBox!.y + 100);
 
     // 4. Verify position was stored in localStorage
     const storedPos = await geminiPage.evaluate(() => {
@@ -262,7 +264,9 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     const reloadedBadge = geminiPage.locator('#geminiExportBadge');
     await expect(reloadedBadge).toBeVisible();
     const reloadedBox = await reloadedBadge.boundingBox();
-    expect(Math.abs(reloadedBox.x - movedBox.x)).toBeLessThanOrEqual(5);
-    expect(Math.abs(reloadedBox.y - movedBox.y)).toBeLessThanOrEqual(5);
+    expect(reloadedBox).toBeTruthy();
+    expect(Math.abs(reloadedBox!.x - movedBox!.x)).toBeLessThanOrEqual(5);
+    expect(Math.abs(reloadedBox!.y - movedBox!.y)).toBeLessThanOrEqual(5);
   });
 });
+

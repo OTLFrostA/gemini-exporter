@@ -1,8 +1,9 @@
-const { test, expect } = require('./fixtures');
-const fs = require('fs');
-const path = require('path');
+import { test, expect } from './fixtures';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+
 
 test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', () => {
   test('should execute full ExportEngine, trigger browser ZIP download, and verify unzipped markdown content', async ({ context, extensionId }) => {
@@ -104,7 +105,7 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
     const mdFileName = zipFiles.find(f => f.endsWith('.md'));
     expect(mdFileName).toBeTruthy();
 
-    const mdContent = await zip.files[mdFileName].async('text');
+    const mdContent = await zip.files[mdFileName!].async('text');
     // Verify real markdown structure, title, user query, and model response
     expect(mdContent).toContain('深度学习反向传播算法详解');
     expect(mdContent).toContain('请解释一下深度学习中的反向传播算法');
@@ -115,8 +116,9 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
 
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['exportedIds']);
-    });
+    }) as Record<string, any>;
     expect(storageData.exportedIds['real_exp_001']).toBeTruthy();
     expect(storageData.exportedIds['real_exp_001'].title).toBe('深度学习反向传播算法详解');
   });
 });
+

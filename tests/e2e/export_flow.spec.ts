@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('Export Workflow & State Update', () => {
   test('should trigger batch export, update progress, and mark conversations as exported', async ({ context, extensionId }) => {
@@ -56,8 +56,9 @@ test.describe('Export Workflow & State Update', () => {
     // 5. Verify Storage contains valid export record
     const storageData = await page.evaluate(async () => {
       return await chrome.storage.local.get(['exportedIds']);
-    });
+    }) as Record<string, any>;
     expect(storageData.exportedIds['exp_chat_001']).toBeTruthy();
     expect(storageData.exportedIds['exp_chat_001'].title).toBe('深度学习神经网络实践');
   });
 });
+

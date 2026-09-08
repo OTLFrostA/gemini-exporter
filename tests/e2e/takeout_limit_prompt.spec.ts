@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
   test('should display takeout suggestion modal with accurate count and close on dismiss', async ({ context, extensionId }) => {
@@ -85,7 +85,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     // Mock chrome.runtime.sendMessage to simulate deepScan returning hitGoogleLimit = true
     await page.evaluate(() => {
       const origSendMessage = chrome.runtime.sendMessage.bind(chrome.runtime);
-      chrome.runtime.sendMessage = function(msg, callback) {
+      (chrome.runtime as any).sendMessage = function(msg: any, callback: any) {
         if (msg && msg.action === 'deepScan') {
           setTimeout(() => {
             if (callback) {
@@ -105,6 +105,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
         return origSendMessage(msg, callback);
       };
     });
+
 
     // Click full deep scan button
     await page.click('#btnDeepScan');
@@ -139,18 +140,19 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await page.evaluate(async () => {
       await chrome.storage.local.set({
         gemini_conversations_u0: [
-          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout' }
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout', timestamp: 1700000000000 }
         ]
       });
       if (window.ConversationsStore) {
         window.ConversationsStore.setConversations([
-          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout' }
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout', timestamp: 1700000000000 }
         ]);
       }
       if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
         await window.DialogView.showTakeoutLimitPrompt({ count: 620 });
       }
     });
+
 
     // Modal should NOT be shown because Takeout data is already present
     await expect(modal).toBeHidden();

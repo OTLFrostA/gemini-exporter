@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('E2E: Export Title Update & Session Interruption Recovery', () => {
   test('should update chat title in storage & workbench during export, and restore session banner on reload', async ({ context, extensionId }) => {

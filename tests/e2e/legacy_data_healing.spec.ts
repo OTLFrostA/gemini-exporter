@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('E2E: Legacy Dirty Data Self-Healing & Migration', () => {
   test('should automatically detect and heal dirty historical titles stored from older versions', async ({ context, extensionId }) => {
@@ -48,16 +48,17 @@ test.describe('E2E: Legacy Dirty Data Self-Healing & Migration', () => {
     // 3. Assert that storage in chrome.storage.local is self-healed and scrubbed
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
-    });
-    const healedList = storageData.gemini_conversations;
+    }) as Record<string, any>;
+    const healedList = (storageData.gemini_conversations || []) as any[];
     expect(healedList.length).toBe(4);
 
-    const healed1 = healedList.find(c => c.id === 'legacy_001');
-    const healed2 = healedList.find(c => c.id === 'legacy_002');
-    const healed3 = healedList.find(c => c.id === 'legacy_003');
+    const healed1 = healedList.find((c: any) => c.id === 'legacy_001');
+    const healed2 = healedList.find((c: any) => c.id === 'legacy_002');
+    const healed3 = healedList.find((c: any) => c.id === 'legacy_003');
 
     expect(healed1.title).toBe('量子计算与超导量子比特');
     expect(healed2.title).toBe('深度学习反向传播算法');
+
     expect(healed3.title).toBe('微服务架构设计');
   });
 });

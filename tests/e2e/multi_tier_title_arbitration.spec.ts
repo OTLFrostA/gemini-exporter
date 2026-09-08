@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitration', () => {
   test('should arbitrate titles strictly by source tier and never allow low tier to corrupt high tier', async ({ context, extensionId }) => {
@@ -94,8 +94,9 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
     // 5. Verify final resolved state in storage and options page
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
-    });
-    const chat = storageData.gemini_conversations.find(c => c.id === 'arbitration_chat_999');
+    }) as Record<string, any>;
+    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'arbitration_chat_999');
+
     expect(chat).toBeTruthy();
     expect(chat.titles.takeout).toBe('Takeout Prompt 原始提问');
     expect(chat.titles.rpc).toBe('官方服务端RPC最终权威标题');
@@ -196,8 +197,9 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
 
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
-    });
-    const chat = storageData.gemini_conversations.find(c => c.id === 'sniff_test_chat_888');
+    }) as Record<string, any>;
+    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'sniff_test_chat_888');
+
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何构建高性能分布式缓存系统');
     expect(chat.titleSource).toBe('sniff');

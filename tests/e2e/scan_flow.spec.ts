@@ -1,4 +1,4 @@
-const { test, expect } = require('./fixtures');
+import { test, expect } from './fixtures';
 
 test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
   test('should execute full GeminiClient scan, parse batchexecute list RPC, update progress, and populate workbench', async ({ context, extensionId }) => {
@@ -78,8 +78,10 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     // 5. Verify conversations are stored in storage
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
-    });
-    expect(storageData.gemini_conversations.length).toBe(3);
-    expect(storageData.gemini_conversations.find(c => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
+    }) as Record<string, any>;
+    const convs = (storageData.gemini_conversations || []) as any[];
+    expect(convs.length).toBe(3);
+    expect(convs.find((c: any) => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
   });
 });
+

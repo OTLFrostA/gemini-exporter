@@ -1,11 +1,14 @@
-const { test: base, chromium, expect } = require('@playwright/test');
-const path = require('path');
+import { test as base, chromium, expect, type BrowserContext } from '@playwright/test';
+import * as path from 'path';
 
 const pathToExtension = path.resolve(__dirname, '../../');
 
 const isHeaded = process.argv.includes('--headed');
 
-const test = base.extend({
+export const test = base.extend<{
+  context: BrowserContext;
+  extensionId: string;
+}>({
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
       headless: false, // Don't use legacy headless
@@ -25,9 +28,10 @@ const test = base.extend({
     if (!background) {
       background = await context.waitForEvent('serviceworker', { timeout: 10000 });
     }
-    const extensionId = background.url().split('/')[2];
+    const extensionId = background.url().split('/')[2]!;
     await use(extensionId);
   },
 });
 
-module.exports = { test, expect };
+export { expect };
+
