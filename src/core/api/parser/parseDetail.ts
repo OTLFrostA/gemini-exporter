@@ -22,15 +22,15 @@ export interface DetailParseResult {
 }
 
 export interface GeminiParserParseDetailModule {
-    isTurn: (turn: any) => boolean;
-    isTurnsArray: (arr: any) => boolean;
-    findTurnsDeep: (root: any, depth?: number) => any[] | null;
+    isTurn: (turn: unknown) => boolean;
+    isTurnsArray: (arr: unknown) => boolean;
+    findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
     parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
 }
 
 declare global {
     var GeminiParserParseDetail: GeminiParserParseDetailModule;
-    var findTurnsDeep: (root: any, depth?: number) => any[] | null;
+    var findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
     var parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
 }
 
@@ -111,7 +111,7 @@ declare global {
 
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-    function isTurn(turn: any): boolean {
+    function isTurn(turn: unknown): boolean {
         if (!Array.isArray(turn) || turn.length < 3) return false;
         const head = turn[0];
         let idStr = "";
@@ -129,24 +129,24 @@ declare global {
         }
     }
 
-    function isTurnsArray(arr: any): boolean {
+    function isTurnsArray(arr: unknown): boolean {
         if (!Array.isArray(arr) || arr.length === 0) return false;
         let cnt = 0;
         for (const t of arr) if (isTurn(t)) cnt++;
         return cnt >= 1 && cnt / arr.length >= 0.5;
     }
 
-    function findTurnsDeep(root: any, depth: number = 0): any[] | null {
+    function findTurnsDeep(root: unknown, depth: number = 0): unknown[] | null {
         if (!root || depth > 6) return null;
-        if (isTurnsArray(root)) return root;
+        if (isTurnsArray(root)) return root as unknown[];
         if (Array.isArray(root)) {
             for (const el of root) {
                 const found = findTurnsDeep(el, depth + 1);
                 if (found) return found;
             }
         } else if (root && typeof root === "object") {
-            for (const k in root) {
-                const found = findTurnsDeep(root[k], depth + 1);
+            for (const k in (root as Record<string, unknown>)) {
+                const found = findTurnsDeep((root as Record<string, unknown>)[k], depth + 1);
                 if (found) return found;
             }
         }

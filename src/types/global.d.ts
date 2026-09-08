@@ -5,16 +5,16 @@ declare function importScripts(...urls: string[]): void;
 declare var JSZip: any;
 
 // UI workbench globals (mixed UMD / ESM transition, used via typeof checks)
-declare var ConversationsStore: any;
-declare var ListView: any;
-declare var LogView: any;
-declare var DialogView: any;
-declare var AccountView: any;
-declare var ExportController: any;
-declare var SyncController: any;
-declare var TakeoutController: any;
-declare var DirHandleController: any;
-declare var TourGuide: any;
+declare var ConversationsStore: import('./ui.js').IConversationsStore;
+declare var ListView: import('./ui.js').IListView;
+declare var LogView: import('./ui.js').ILogView;
+declare var DialogView: import('./ui.js').IDialogView;
+declare var AccountView: import('./ui.js').IAccountView;
+declare var ExportController: import('./ui.js').ExportControllerContract;
+declare var SyncController: import('./ui.js').SyncControllerContract;
+declare var TakeoutController: import('./ui.js').TakeoutControllerContract;
+declare var DirHandleController: import('./ui.js').DirHandleControllerContract;
+declare var TourGuide: import('./ui.js').TourGuideContract;
 declare var BadgeView: any;
 declare var PageObserver: any;
 declare var MessageRouter: any;
@@ -30,7 +30,7 @@ declare var OptionsSettings: any;
 declare var DefaultApiClient: any;
 declare var GeminiAPIClient: any;
 declare var DefaultTabService: any;
-declare var TabService: any;
+declare var TabService: import('./utils.js').TabServiceModule;
 declare var I18n: any;
 
 interface Window {
