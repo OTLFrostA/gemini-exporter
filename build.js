@@ -1,19 +1,9 @@
-// build.js — esbuild build pipeline (Phase 0 of the modularization plan).
+// build.js — esbuild build pipeline.
 //
-// Strategy: per-file transform of every JS module under src/ into dist/
-// (mirroring the src/ tree), NOT whole-graph bundling. The 23 UMD/IIFE
-// modules still talk through window/globalThis, so bundling them into one
-// file today would flip their UMD detection to the module.exports branch
-// and silently break global wiring. Per-file transform is behavior-
-// preserving by construction: same files, same load order (manifest/html
-// decide order), minified, with sourcemaps.
-//
-// When modules migrate to ES imports (Phase 2+), the entryPoints switch in
-// build.js is the only change needed to get single-file per-context bundles.
-//
-// Outputs:  dist/**  (mirrors src/**, JS only)
-// Manifest/HTML reference dist/ for JS; lib/, icons/, _locales/, HTML and
-// CSS are shipped from their source locations unchanged.
+// Strategy:
+// 1. Per-file transform of every source module under src/ into dist/ (mirroring src/).
+// 2. Bundled entrypoint for Options Page (Phase 2):
+//    src/ui/options/options.ts -> dist/ui/options.js (bundle: true, format: "iife")
 
 const esbuild = require('esbuild');
 const fs = require('fs');
@@ -69,6 +59,7 @@ async function build() {
         throw new Error('no source (.js/.ts) files found under src/');
     }
 
+    // 1. Per-file transform for individual modules
     const result = await esbuild.build({
         entryPoints,
         outdir: DIST,
@@ -86,6 +77,28 @@ async function build() {
     const errors = (result.errors || []).length;
     if (errors > 0) {
         throw new Error(`esbuild reported ${errors} error(s)`);
+    }
+
+    // 2. Options Workbench single-file bundle (PR 5)
+    const optionsEntry = path.join(SRC, 'ui', 'options', 'options.ts');
+    if (fs.existsSync(optionsEntry)) {
+        const optionsBundleResult = await esbuild.build({
+            entryPoints: {
+                'ui/options': optionsEntry
+            },
+            outdir: DIST,
+            bundle: true,
+            format: 'iife',
+            minify: true,
+            sourcemap: true,
+            target: ['chrome120'],
+            legalComments: 'none',
+            logLevel: 'silent',
+            write: true,
+        });
+        if ((optionsBundleResult.errors || []).length > 0) {
+            throw new Error(`Options bundle failed with ${optionsBundleResult.errors.length} error(s)`);
+        }
     }
 
     const jsFiles = [];
@@ -106,6 +119,11 @@ async function build() {
         if (!fs.existsSync(path.join(DIST, relJs))) {
             throw new Error(`missing dist artifact for ${relJs} (from ${rel})`);
         }
+    }
+
+    // Sanity: Options single bundle must exist
+    if (!fs.existsSync(path.join(DIST, 'ui', 'options.js'))) {
+        throw new Error('missing dist artifact for ui/options.js');
     }
 }
 

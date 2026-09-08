@@ -3,12 +3,13 @@
 import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
 
 (function(root: any, factory: () => I18nModule) {
+    const mod = factory();
+    if (typeof root !== 'undefined') root.I18n = mod;
+    if (typeof globalThis !== 'undefined') (globalThis as any).I18n = mod;
     if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
+        module.exports = mod;
     } else if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else {
-        root.I18n = factory();
+        define([], () => mod);
     }
 }(typeof self !== 'undefined' ? self : this, function(): I18nModule {
     'use strict';

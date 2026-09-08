@@ -4,11 +4,7 @@
 
 import type { LocaleDictionary } from '../../../types/utils.js';
 
-(function(root: any, factory: () => LocaleDictionary) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else { root.GeminiLocales = root.GeminiLocales || {}; root.GeminiLocales.en = factory(); }
-}(typeof self !== 'undefined' ? self : this, function(): LocaleDictionary {
-    'use strict';
+const __enFactory = (): LocaleDictionary => {
     return {
 
             extName: "Gemini Exporter",
@@ -214,4 +210,10 @@ import type { LocaleDictionary } from '../../../types/utils.js';
             btnModalOpenTakeoutWeb: "🌐 Open Google Takeout (Gemini Pre-selected)",
             btnModalDismissTakeout: "Got it, don't show again"
     };
-}));
+};
+const __enDict: LocaleDictionary = __enFactory();
+if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.en = __enDict; }
+if (typeof self !== 'undefined') { (self as any).GeminiLocales = (self as any).GeminiLocales || {}; (self as any).GeminiLocales.en = __enDict; }
+if (typeof window !== 'undefined') { (window as any).GeminiLocales = (window as any).GeminiLocales || {}; (window as any).GeminiLocales.en = __enDict; }
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = __enDict;
+

@@ -45,6 +45,7 @@ export interface GeminiProtocolModule {
     createReqidGenerator: () => () => string;
 }
 
+// @ts-ignore: suppress duplicate global var conflict
 declare global {
     var GeminiProtocol: GeminiProtocolModule;
 }
