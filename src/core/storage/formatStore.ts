@@ -31,21 +31,16 @@ export interface FormatStoreModule {
 
 declare global {
     var FormatStore: FormatStoreModule;
-    var GeminiConstants: GeminiConstantsModule;
 }
 
-(function(root: any, factory: (Constants?: any) => FormatStoreModule) {
-    if (typeof module === 'object' && module.exports) {
-        let constants: any = null;
-        try { constants = require('../utils/constants.js'); } catch { /* intentional */ }
-        module.exports = factory(constants);
-    } else {
-        root.FormatStore = factory(root.GeminiConstants);
-    }
-}(typeof self !== 'undefined' ? self : this, function(Constants?: any): FormatStoreModule {
-    'use strict';
-    const ALLOWED: string[] = (Constants && Constants.ALLOWED_FORMATS) || ['markdown', 'json_openai', 'json', 'json_raw'];
-    const DEFAULT: string = (Constants && Constants.DEFAULT_FORMAT) || 'markdown';
+import { ALLOWED_FORMATS as CONST_ALLOWED_FORMATS, DEFAULT_FORMAT as CONST_DEFAULT_FORMAT } from "../utils/constants.js";
+
+export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'json_openai', 'json', 'json_raw'];
+export const DEFAULT_FORMAT: string = CONST_DEFAULT_FORMAT || 'markdown';
+const ALLOWED = ALLOWED_FORMATS;
+const DEFAULT = DEFAULT_FORMAT;
+
+
 
     function isAllowed(val: string): boolean {
         return ALLOWED.includes(val);
@@ -127,17 +122,34 @@ declare global {
         return { format: currentFormatOrSelect, changed: false };
     }
 
-    return {
-        ALLOWED_FORMATS: ALLOWED,
-        DEFAULT_FORMAT: DEFAULT,
-        isAllowed,
-        normalizeFormat,
-        validateAgainstSelect,
-        loadFormat,
-        saveFormat,
-        getCurrentFormat,
-        getFormatFromSelect,
-        bindFormatSelect,
-        handleDevToggle
-    };
-}));
+export {
+    isAllowed,
+    normalizeFormat,
+    validateAgainstSelect,
+    loadFormat,
+    saveFormat,
+    getCurrentFormat,
+    getFormatFromSelect,
+    bindFormatSelect,
+    handleDevToggle
+};
+
+export const FormatStore: FormatStoreModule = {
+    ALLOWED_FORMATS,
+    DEFAULT_FORMAT,
+    isAllowed,
+    normalizeFormat,
+    validateAgainstSelect,
+    loadFormat,
+    saveFormat,
+    getCurrentFormat,
+    getFormatFromSelect,
+    bindFormatSelect,
+    handleDevToggle
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).FormatStore = FormatStore;
+if (typeof module === 'object' && module.exports) module.exports = FormatStore;
+
+export default FormatStore;
+

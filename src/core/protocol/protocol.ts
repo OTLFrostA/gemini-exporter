@@ -50,87 +50,87 @@ declare global {
     var GeminiProtocol: GeminiProtocolModule;
 }
 
-(function(root: any, factory: () => GeminiProtocolModule) {
-    if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.GeminiProtocol = factory();
-    }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): GeminiProtocolModule {
-    'use strict';
+export const PROTOCOL_VERSION = '2026-09-07';
 
-    const PROTOCOL_VERSION = '2026-09-07';
+// batchexecute wrapper: every payload row is ["wrb.fr", "<rpc>", "<json string>", ...]
+export const WRB = 'wrb.fr';
 
-    // batchexecute wrapper: every payload row is ["wrb.fr", "<rpc>", "<json string>", ...]
-    const WRB = 'wrb.fr';
+// RPC endpoint names (compiled Google-side identifiers — rotate together
+// with WRB consumers when Google redeploys).
+export const RPCS: ProtocolRPCS = {
+    LIST: 'MaZiqc',        // conversation list (sidebar pagination)
+    DETAIL: 'hNvQHb',      // conversation detail (turns payload)
+    LEGACY_LIST: 'b7Lged', // legacy list payload shape still returned by detail calls
+    GEMS: 'CNgdBe',        // gems/custom instructions list (currently unused, kept for reference)
+    DELETE: 'GzXR5e'       // conversation delete (deletion sniffing anchor)
+};
 
-    // RPC endpoint names (compiled Google-side identifiers — rotate together
-    // with WRB consumers when Google redeploys).
-    const RPCS: ProtocolRPCS = {
-        LIST: 'MaZiqc',        // conversation list (sidebar pagination)
-        DETAIL: 'hNvQHb',      // conversation detail (turns payload)
-        LEGACY_LIST: 'b7Lged', // legacy list payload shape still returned by detail calls
-        GEMS: 'CNgdBe',        // gems/custom instructions list (currently unused, kept for reference)
-        DELETE: 'GzXR5e'       // conversation delete (deletion sniffing anchor)
+// WIZ_global_data token key names.
+export const TOKENS: ProtocolTokens = {
+    AT: 'SNlM0e', // XSRF/at token
+    BL: 'cfb2h'   // frontend build label key (the "bl" request param)
+};
+
+// Extraction patterns for tokens from page HTML/scripts.
+export const TOKEN_PATTERNS: ProtocolTokenPatterns = {
+    atFromScript: /"SNlM0e"\s*:\s*"([^"]+)"/,
+    atGenericFromScript: /"at"\s*:\s*"([^"]{20,})"/,
+    blKeyFromScript: /"bl"\s*:\s*"([^"]+)"/,
+    blValueFromHtml: /"bl":"(boq_[^"]+)"/,
+    blCfb2hFromHtml: /"cfb2h"\s*:\s*"([^"]+)"/,
+    blAssistantFromHtml: /"bl"\s*:\s*"(boq_assistant[^"]+)"/,
+    boqBuildFromScript: /boq_assistant-bard-web-server_[^"']+/
+};
+
+// Deletion sniffing: the deleted conversation id must be anchored to the
+// GzXR5e payload context (#194) — never take the first hex token in the
+// response text.
+export const DELETION_ANCHORS: RegExp[] = [
+    /GzXR5e[^\w]{1,60}["'](?:c_)?([a-f0-9]{8,64})["']/i,
+    /["']GzXR5e["'][\s\S]{1,120}?["'](?:c_)?([a-f0-9]{8,64})["']/i
+];
+
+// Fallback frontend build label. WARNING: dated build numbers expire and
+// then trigger HTTP 400 — TOKEN_PATTERNS.bl* extraction normally supplies
+// a fresh one; this is last-resort only. Keep in sync with the live
+// frontend when rotating protocol profiles.
+export const BL_FALLBACK = 'boq_assistant-bard-web-server_20260802.09_p1';
+
+// Conversation count limits. 500 is Google's sliding-window size: counts
+// reaching it trigger the Takeout guidance flow. SERVER_LIMIT_TEXT is the
+// (localized-ish) marker inside the server-side error message.
+export const LIMITS: ProtocolLimits = {
+    SLIDING_WINDOW: 500,
+    SERVER_LIMIT_TEXT: '600条'
+};
+
+// Real frontends use an incrementing _reqid starting from a random base;
+// a pure Math.random() per request is a fingerprintable deviation.
+export function createReqidGenerator(): () => string {
+    let n = 100000 + Math.floor(Math.random() * 900000);
+    return function nextReqid(): string {
+        return String(n++);
     };
+}
 
-    // WIZ_global_data token key names.
-    const TOKENS: ProtocolTokens = {
-        AT: 'SNlM0e', // XSRF/at token
-        BL: 'cfb2h'   // frontend build label key (the "bl" request param)
-    };
+export const GeminiProtocol: GeminiProtocolModule = {
+    PROTOCOL_VERSION,
+    WRB,
+    RPCS,
+    TOKENS,
+    TOKEN_PATTERNS,
+    DELETION_ANCHORS,
+    BL_FALLBACK,
+    LIMITS,
+    createReqidGenerator
+};
 
-    // Extraction patterns for tokens from page HTML/scripts.
-    const TOKEN_PATTERNS: ProtocolTokenPatterns = {
-        atFromScript: /"SNlM0e"\s*:\s*"([^"]+)"/,
-        atGenericFromScript: /"at"\s*:\s*"([^"]{20,})"/,
-        blKeyFromScript: /"bl"\s*:\s*"([^"]+)"/,
-        blValueFromHtml: /"bl":"(boq_[^"]+)"/,
-        blCfb2hFromHtml: /"cfb2h"\s*:\s*"([^"]+)"/,
-        blAssistantFromHtml: /"bl"\s*:\s*"(boq_assistant[^"]+)"/,
-        boqBuildFromScript: /boq_assistant-bard-web-server_[^"']+/
-    };
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).GeminiProtocol = GeminiProtocol;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = GeminiProtocol;
+}
 
-    // Deletion sniffing: the deleted conversation id must be anchored to the
-    // GzXR5e payload context (#194) — never take the first hex token in the
-    // response text.
-    const DELETION_ANCHORS: RegExp[] = [
-        /GzXR5e[^\w]{1,60}["'](?:c_)?([a-f0-9]{8,64})["']/i,
-        /["']GzXR5e["'][\s\S]{1,120}?["'](?:c_)?([a-f0-9]{8,64})["']/i
-    ];
+export default GeminiProtocol;
 
-    // Fallback frontend build label. WARNING: dated build numbers expire and
-    // then trigger HTTP 400 — TOKEN_PATTERNS.bl* extraction normally supplies
-    // a fresh one; this is last-resort only. Keep in sync with the live
-    // frontend when rotating protocol profiles.
-    const BL_FALLBACK = 'boq_assistant-bard-web-server_20260802.09_p1';
-
-    // Conversation count limits. 500 is Google's sliding-window size: counts
-    // reaching it trigger the Takeout guidance flow. SERVER_LIMIT_TEXT is the
-    // (localized-ish) marker inside the server-side error message.
-    const LIMITS: ProtocolLimits = {
-        SLIDING_WINDOW: 500,
-        SERVER_LIMIT_TEXT: '600条'
-    };
-
-    // Real frontends use an incrementing _reqid starting from a random base;
-    // a pure Math.random() per request is a fingerprintable deviation.
-    function createReqidGenerator(): () => string {
-        let n = 100000 + Math.floor(Math.random() * 900000);
-        return function nextReqid(): string {
-            return String(n++);
-        };
-    }
-
-    return {
-        PROTOCOL_VERSION,
-        WRB,
-        RPCS,
-        TOKENS,
-        TOKEN_PATTERNS,
-        DELETION_ANCHORS,
-        BL_FALLBACK,
-        LIMITS,
-        createReqidGenerator
-    };
-}));

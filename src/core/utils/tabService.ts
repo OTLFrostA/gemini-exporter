@@ -2,13 +2,7 @@
 
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 
-(function(root: any, factory: () => TabServiceModule) {
-    const mod = factory();
-    if (typeof root !== 'undefined') root.TabService = mod;
-    if (typeof globalThis !== 'undefined') (globalThis as any).TabService = mod;
-    if (typeof module === 'object' && module.exports) module.exports = mod;
-}(typeof self !== 'undefined' ? self : this, function(): TabServiceModule {
-    'use strict';
+
 
     async function getGeminiTab(slot?: string): Promise<chrome.tabs.Tab | null> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
@@ -156,11 +150,24 @@ import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
         }
     }
 
-    return {
-        getGeminiTab,
-        sendToGeminiTab,
-        checkGeminiStatus,
-        openGeminiPage,
-        reloadGeminiTab
-    };
-}));
+export {
+    getGeminiTab,
+    sendToGeminiTab,
+    checkGeminiStatus,
+    openGeminiPage,
+    reloadGeminiTab
+};
+
+export const TabService: TabServiceModule = {
+    getGeminiTab,
+    sendToGeminiTab,
+    checkGeminiStatus,
+    openGeminiPage,
+    reloadGeminiTab
+};
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).TabService) (globalThis as any).TabService = TabService;
+if (typeof module === 'object' && module.exports) module.exports = TabService;
+
+export default TabService;
+

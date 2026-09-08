@@ -1,6 +1,7 @@
 // src/core/engine/writers/zipWriter.ts - JSZip Packaging Writer
 
 import type { IExportWriter } from './writerInterface.js';
+import { sanitizeRelativePath } from '../../utils/utils.js';
 
 export interface ZipWriterClass {
     new (folderName?: string): ZipWriter;
@@ -34,19 +35,7 @@ class ZipWriter implements IExportWriter {
 
     sanitizePath(p?: string | null): string {
         if (!p) return '';
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeRelativePath) {
-            return GeminiUtils.sanitizeRelativePath(p, 'file');
-        }
-        if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.sanitizeRelativePath) {
-            return (globalThis as any).GeminiUtils.sanitizeRelativePath(p, 'file');
-        }
-        if (typeof require !== 'undefined') {
-            try {
-                const u = require('../../utils/utils.js');
-                if (u && u.sanitizeRelativePath) return u.sanitizeRelativePath(p, 'file');
-            } catch { /* intentional: require fallback in browser context */ }
-        }
-        throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
+        return sanitizeRelativePath(p, 'file');
     }
 
     writeFile(relativePath: string, content: any, options: any = {}): string {
@@ -84,10 +73,9 @@ class ZipWriter implements IExportWriter {
     }
 }
 
-(function(root: any, factory: () => typeof ZipWriter) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else root.ZipWriter = factory();
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): typeof ZipWriter {
-    'use strict';
-    return ZipWriter;
-}));
+if (typeof globalThis !== 'undefined') (globalThis as any).ZipWriter = ZipWriter;
+if (typeof module === 'object' && module.exports) module.exports = ZipWriter;
+
+export { ZipWriter };
+export default ZipWriter;
+

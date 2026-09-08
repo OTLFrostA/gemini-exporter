@@ -53,16 +53,7 @@ declare global {
     var StorageService: any;
 }
 
-(function(root: any, factory: () => StorageServiceModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.StorageService = factory();
-    }
-}(typeof self !== 'undefined' ? self : this, function(): StorageServiceModule {
-    'use strict';
+
 
     function normSlot(slot?: string | null): string {
         if (!slot || slot === 'default' || slot === 'u0') return 'u0';
@@ -382,32 +373,69 @@ declare global {
         }
     }
 
-    return {
-        normSlot,
-        normId,
-        getStorageKeys,
-        getConversations,
-        setConversations,
-        removeConversation,
-        reconcileConversations,
-        getExportedIds,
-        setExportedIds,
-        saveExportRecord,
-        getLastSync,
-        setLastSync,
-        getAccountSlots,
-        setAccountSlots,
-        updateAccountSlot,
-        getCredentialsMap,
-        setCredentialsMap,
-        clearCredentials,
-        getDevMode,
-        setDevMode,
-        isTourCompleted,
-        setTourCompleted,
-        isTakeoutPromptCompleted,
-        setTakeoutPromptCompleted,
-        hasTakeoutData,
-        setHasImportedTakeout
-    };
-}));
+export {
+    normSlot,
+    normId,
+    getStorageKeys,
+    getConversations,
+    setConversations,
+    removeConversation,
+    reconcileConversations,
+    getExportedIds,
+    setExportedIds,
+    saveExportRecord,
+    getLastSync,
+    setLastSync,
+    getAccountSlots,
+    setAccountSlots,
+    updateAccountSlot,
+    getCredentialsMap,
+    setCredentialsMap,
+    clearCredentials,
+    getDevMode,
+    setDevMode,
+    isTourCompleted,
+    setTourCompleted,
+    isTakeoutPromptCompleted,
+    setTakeoutPromptCompleted,
+    hasTakeoutData,
+    setHasImportedTakeout
+};
+
+export const StorageService: StorageServiceModule = {
+    normSlot,
+    normId,
+    getStorageKeys,
+    getConversations,
+    setConversations,
+    removeConversation,
+    reconcileConversations,
+    getExportedIds,
+    setExportedIds,
+    saveExportRecord,
+    getLastSync,
+    setLastSync,
+    getAccountSlots,
+    setAccountSlots,
+    updateAccountSlot,
+    getCredentialsMap,
+    setCredentialsMap,
+    clearCredentials,
+    getDevMode,
+    setDevMode,
+    isTourCompleted,
+    setTourCompleted,
+    isTakeoutPromptCompleted,
+    setTakeoutPromptCompleted,
+    hasTakeoutData,
+    setHasImportedTakeout
+};
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).StorageService) {
+    (globalThis as any).StorageService = StorageService;
+}
+if (typeof module === 'object' && module.exports) module.exports = StorageService;
+
+export default StorageService;
+
+
