@@ -47,6 +47,31 @@ test('Popup - isGeminiUrl validation logic', () => {
     assert.strictEqual(isGeminiUrl('not a url'), false);
 });
 
+test('Popup - openOptions removal and disabled styling', () => {
+    const popPath = path.join(__dirname, '../src/ui/popup/popup.html');
+    const popHtml = fs.readFileSync(popPath, 'utf8');
+
+    assert.ok(!popHtml.includes('id="openOptions"'), 'popup.html must not contain redundant openOptions button');
+    assert.ok(popHtml.includes('button:disabled'), 'popup.html must have button:disabled styles');
+    assert.ok(popHtml.includes('select:disabled'), 'popup.html must have select:disabled styles');
+
+    // Verify grayscale icon files exist
+    assert.ok(fs.existsSync(path.join(__dirname, '../icons/icon16_gray.png')), 'icon16_gray.png must exist');
+    assert.ok(fs.existsSync(path.join(__dirname, '../icons/icon48_gray.png')), 'icon48_gray.png must exist');
+    assert.ok(fs.existsSync(path.join(__dirname, '../icons/icon128_gray.png')), 'icon128_gray.png must exist');
+});
+
+test('Background - tab action icon contextual state management', () => {
+    const bgTsPath = path.join(__dirname, '../src/background/background.ts');
+    const bgCode = fs.readFileSync(bgTsPath, 'utf8');
+
+    assert.ok(bgCode.includes('updateTabActionState'), 'background must define updateTabActionState');
+    assert.ok(bgCode.includes('ACTION_GRAY_ICONS'), 'background must configure gray action icons');
+    assert.ok(bgCode.includes('ACTION_COLOR_ICONS'), 'background must configure color action icons');
+    assert.ok(bgCode.includes('onActivated'), 'background must listen to tabs.onActivated');
+    assert.ok(bgCode.includes('onUpdated'), 'background must listen to tabs.onUpdated');
+});
+
 test('Background - slot abort isolation and session storage persistence', async () => {
     const sessionStorageData = {};
     const mockStorageSession = {

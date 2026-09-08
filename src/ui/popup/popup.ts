@@ -50,15 +50,61 @@ import '../../core/storage/storageService.js';
         }
     }
 
-    // Update synced count badge
+    function updateUiForTabState(isGemini: boolean): void {
+        const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
+        const formatSelect = $('format') as HTMLSelectElement | null;
+        const quickExportLabel = document.querySelector('.card:nth-of-type(2) .label');
+        const countBadge = $('countBadge');
+        const i18n = getI18n();
+
+        if (!isGemini) {
+            if (btnCurrent) {
+                btnCurrent.disabled = true;
+                btnCurrent.title = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
+            }
+            if (formatSelect) {
+                formatSelect.disabled = true;
+            }
+            if (quickExportLabel) {
+                quickExportLabel.classList.add('disabled');
+            }
+            if (countBadge) {
+                countBadge.classList.add('inactive');
+            }
+            const hint = typeof i18n !== 'undefined'
+                ? (i18n.getLang?.() === 'zh' ? '当前不在 Gemini 对话页，可点击“去工作台”管理历史会话' : 'Not on Gemini page. Click Workbench to manage chats.')
+                : '当前不在 Gemini 对话页，可点击“去工作台”管理历史会话';
+            log(hint);
+        } else {
+            if (btnCurrent) {
+                btnCurrent.disabled = false;
+                btnCurrent.title = '';
+            }
+            if (formatSelect) {
+                formatSelect.disabled = false;
+            }
+            if (quickExportLabel) {
+                quickExportLabel.classList.remove('disabled');
+            }
+            if (countBadge) {
+                countBadge.classList.remove('inactive');
+            }
+        }
+    }
+
+    // Update synced count badge and tab UI state
     async function updateCount(): Promise<void> {
         try {
             let slot = 'u0';
+            let isGemini = false;
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (tab?.url && isGeminiUrl(tab.url)) {
+                isGemini = true;
                 const m = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
                 if (m) slot = 'u' + m[1];
             }
+            updateUiForTabState(isGemini);
+
             let count = 0;
             if (Storage) {
                 const convs = await Storage.getConversations(slot);
@@ -77,7 +123,8 @@ import '../../core/storage/storageService.js';
             if (badge) {
                 const i18n = getI18n();
                 const text = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', count) : `${count} synced`;
-                badge.textContent = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
+                const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
+                badge.textContent = isGemini ? label : `${label} (${typeof i18n !== 'undefined' && i18n.getLang?.() === 'zh' ? '离线' : 'offline'})`;
             }
         } catch (e) {
             console.warn('[popup] updateCount err', e);
@@ -113,12 +160,6 @@ import '../../core/storage/storageService.js';
         const toggle = $('langToggle') as HTMLInputElement | null;
         if (toggle) toggle.checked = true;
         handleLangChange('en');
-    });
-
-    // Open options/workbench page
-    $('openOptions')?.addEventListener('click', (e: Event) => {
-        e.preventDefault();
-        chrome.runtime.openOptionsPage();
     });
 
     const formatStore = (typeof FormatStore !== 'undefined')
