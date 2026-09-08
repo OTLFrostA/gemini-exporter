@@ -1,8 +1,43 @@
-// parseDetail.js - hNvQHb conversation detail RPC response parser
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
+// parseDetail.ts - hNvQHb conversation detail RPC response parser
+import type { Message, Conversation, TitleSources } from "../../../types/index.js";
+import type { GeminiParserExtractorsModule, GeminiJspbSchema, TurnDriftReport } from "./extractors.js";
+import type { GeminiParserAttachmentsModule, ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
+
+export interface DetailParseResult {
+    id: string;
+    title: string;
+    titleSource: string;
+    titles: TitleSources;
+    messages: Message[];
+    createdAt: number | null;
+    chatTime: number | null;
+    timestamp: number | null;
+    updatedAt: number | null;
+    url: string;
+    nextPageToken: string | null;
+    attachmentCount: number;
+    schemaDrift?: string[];
+    _raw?: any;
+    _debug?: any;
+}
+
+export interface GeminiParserParseDetailModule {
+    isTurn: (turn: any) => boolean;
+    isTurnsArray: (arr: any) => boolean;
+    findTurnsDeep: (root: any, depth?: number) => any[] | null;
+    parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
+}
+
+declare global {
+    var GeminiParserParseDetail: GeminiParserParseDetailModule;
+    var findTurnsDeep: (root: any, depth?: number) => any[] | null;
+    var parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
+}
+
+(function(root: any, factory: () => GeminiParserParseDetailModule) {
+    if (typeof define === "function" && (define as any).amd) {
+        (define as any)([], factory);
+    } else if (typeof module === "object" && module.exports) {
         module.exports = factory();
     } else {
         const exports = factory();
@@ -10,56 +45,56 @@
         root.findTurnsDeep = exports.findTurnsDeep;
         root.parseDetail = exports.parseDetail;
     }
-}(typeof self !== 'undefined' ? self : this, function() {
-    'use strict';
+}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserParseDetailModule {
+    "use strict";
 
-    function getExtractors() {
-        if (typeof GeminiParserExtractors !== 'undefined' && GeminiParserExtractors) return GeminiParserExtractors;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiParserExtractors) return globalThis.GeminiParserExtractors;
-        if (typeof require !== 'undefined') {
-            try { return require('./extractors.js'); } catch (_) {}
-            try { return require('./parser/extractors.js'); } catch (_) {}
+    function getExtractors(): GeminiParserExtractorsModule | null {
+        if (typeof GeminiParserExtractors !== "undefined" && GeminiParserExtractors) return GeminiParserExtractors;
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserExtractors) return (globalThis as any).GeminiParserExtractors;
+        if (typeof require !== "undefined") {
+            try { return require("./extractors.js"); } catch (_) {}
+            try { return require("./parser/extractors.js"); } catch (_) {}
         }
         return null;
     }
 
-    function getAttachments() {
-        if (typeof GeminiParserAttachments !== 'undefined' && GeminiParserAttachments) return GeminiParserAttachments;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiParserAttachments) return globalThis.GeminiParserAttachments;
-        if (typeof require !== 'undefined') {
-            try { return require('./attachments.js'); } catch (_) {}
-            try { return require('./parser/attachments.js'); } catch (_) {}
+    function getAttachments(): GeminiParserAttachmentsModule | null {
+        if (typeof GeminiParserAttachments !== "undefined" && GeminiParserAttachments) return GeminiParserAttachments;
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiParserAttachments) return (globalThis as any).GeminiParserAttachments;
+        if (typeof require !== "undefined") {
+            try { return require("./attachments.js"); } catch (_) {}
+            try { return require("./parser/attachments.js"); } catch (_) {}
         }
         return null;
     }
 
-    function getUtils() {
+    function getUtils(): any {
         const ext = getExtractors();
-        if (ext && typeof ext.getUtils === 'function') {
+        if (ext && typeof ext.getUtils === "function") {
             const u = ext.getUtils();
             if (u) return u;
         }
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch (_) {}
-            try { return require('../utils/utils.js'); } catch (_) {}
+        if (typeof GeminiUtils !== "undefined" && GeminiUtils) return GeminiUtils;
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+        if (typeof require !== "undefined") {
+            try { return require("../../utils/utils.js"); } catch (_) {}
+            try { return require("../utils/utils.js"); } catch (_) {}
         }
         return null;
     }
 
-    function getProtocol() {
+    function getProtocol(): any {
         const ext = getExtractors();
-        if (ext && typeof ext.getProtocol === 'function') {
+        if (ext && typeof ext.getProtocol === "function") {
             const p = ext.getProtocol();
             if (p) return p;
         }
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiProtocol) return globalThis.GeminiProtocol;
-        if (typeof require !== 'undefined') {
-            try { return require('../../protocol/protocol.js'); } catch (_) {}
-            try { return require('../protocol/protocol.js'); } catch (_) {}
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
+        if (typeof require !== "undefined") {
+            try { return require("../../protocol/protocol.js"); } catch (_) {}
+            try { return require("../protocol/protocol.js"); } catch (_) {}
         }
-        return { WRB: 'wrb.fr', RPCS: { DETAIL: 'hNvQHb', LIST: 'MaZiqc', LEGACY_LIST: 'hXcbkd' } };
+        return { WRB: "wrb.fr", RPCS: { DETAIL: "hNvQHb", LIST: "MaZiqc", LEGACY_LIST: "hXcbkd" } };
     }
 
     const FALLBACK_SCHEMA = {
@@ -69,39 +104,39 @@
         CANDIDATE_BODY: { PARTS: 0 }
     };
 
-    function getSchema() {
+    function getSchema(): any {
         const ext = getExtractors();
         return (ext && ext.GEMINI_JSPB_SCHEMA) || FALLBACK_SCHEMA;
     }
 
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-    function isTurn(turn) {
+    function isTurn(turn: any): boolean {
         if (!Array.isArray(turn) || turn.length < 3) return false;
         const head = turn[0];
-        let idStr = '';
-        if (typeof head === 'string') idStr = head;
+        let idStr = "";
+        if (typeof head === "string") idStr = head;
         else if (Array.isArray(head) && head.length) {
-            idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+            idStr = typeof head[0] === "string" ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === "string" ? head[0][0] : "");
         }
-        if (!idStr || !idStr.startsWith('c_')) return false;
+        if (!idStr || (!idStr.startsWith("c_") && !idStr.startsWith("r_"))) return false;
         // 需含 user 文本或 candidate rc_
         try {
             const s = JSON.stringify(turn);
-            return s.includes('rc_') || s.includes('c_d') || s.includes('r_') || Array.isArray(turn[2]);
+            return s.includes("rc_") || s.includes("c_d") || s.includes("r_") || Array.isArray(turn[2]);
         } catch {
             return false;
         }
     }
 
-    function isTurnsArray(arr) {
+    function isTurnsArray(arr: any): boolean {
         if (!Array.isArray(arr) || arr.length === 0) return false;
         let cnt = 0;
         for (const t of arr) if (isTurn(t)) cnt++;
         return cnt >= 1 && cnt / arr.length >= 0.5;
     }
 
-    function findTurnsDeep(root, depth = 0) {
+    function findTurnsDeep(root: any, depth: number = 0): any[] | null {
         if (!root || depth > 6) return null;
         if (isTurnsArray(root)) return root;
         if (Array.isArray(root)) {
@@ -109,7 +144,7 @@
                 const found = findTurnsDeep(el, depth + 1);
                 if (found) return found;
             }
-        } else if (root && typeof root === 'object') {
+        } else if (root && typeof root === "object") {
             for (const k in root) {
                 const found = findTurnsDeep(root[k], depth + 1);
                 if (found) return found;
@@ -118,26 +153,26 @@
         return null;
     }
 
-    function parseDetail(text, targetConvId, overrides = {}) {
+    function parseDetail(text: string, targetConvId?: string, overrides: any = {}): DetailParseResult {
         const ext = Object.assign({}, getExtractors(), overrides.extractors);
         const att = Object.assign({}, getAttachments(), overrides.attachments);
 
         const schema = ext.GEMINI_JSPB_SCHEMA || getSchema();
-        const robustFirstPayload = ext.robustFirstPayload || ((t) => { try { return JSON.parse(t); } catch (_) { return null; } });
+        const robustFirstPayload = ext.robustFirstPayload || ((t: string) => { try { return JSON.parse(t); } catch (_) { return null; } });
         const detectTurnSchemaDrift = ext.detectTurnSchemaDrift || (() => ({ isDrifted: false, warnings: [] }));
-        const extractConversationId = ext.extractConversationId || ((inner) => inner?.[0] || 'c_unknown');
+        const extractConversationId = ext.extractConversationId || ((inner: any) => inner?.[0] || "c_unknown");
         const extractTurnTimestamp = ext.extractTurnTimestamp || (() => null);
         const extractModelCandidates = ext.extractModelCandidates || (() => []);
-        const extractCandidateText = ext.extractCandidateText || (() => '');
+        const extractCandidateText = ext.extractCandidateText || (() => "");
         const extractThoughts = ext.extractThoughts || (() => null);
         const extractCitations = ext.extractCitations || (() => []);
         const extractMetaTitleFromTop = ext.extractMetaTitleFromTop || (() => null);
-        const extractConversationTitle = ext.extractConversationTitle || (() => ({ title: '未命名对话', source: 'default' }));
-        const cleanTitle = ext.cleanTitle || ((t) => String(t || '').trim());
-        const isRealTitle = ext.isRealTitle || ((t) => !!(t && String(t).trim().length >= 2));
-        const deepWalk = ext.deepWalk || ((root, visitor) => {
-            function walk(node) {
-                if (!node || typeof node !== 'object') return;
+        const extractConversationTitle = ext.extractConversationTitle || (() => ({ title: "未命名对话", source: "default" }));
+        const cleanTitle = ext.cleanTitle || ((t: any) => String(t || "").trim());
+        const isRealTitle = ext.isRealTitle || ((t: any) => !!(t && String(t).trim().length >= 2));
+        const deepWalk = ext.deepWalk || ((root: any, visitor: any) => {
+            function walk(node: any) {
+                if (!node || typeof node !== "object") return;
                 visitor(node);
                 if (Array.isArray(node)) for (let el of node) walk(el);
                 else for (let k in node) if (Object.prototype.hasOwnProperty.call(node, k)) walk(node[k]);
@@ -145,42 +180,42 @@
             walk(root);
         });
 
-        const filterNewImages = att.filterNewImages || ((imgs) => imgs);
+        const filterNewImages = att.filterNewImages || ((imgs: any) => imgs);
         const extractImages = att.extractImages || (() => []);
         const extractUserFiles = att.extractUserFiles || (() => []);
         const extractDocumentsMeta = att.extractDocumentsMeta || (() => []);
         const findDocContentById = att.findDocContentById || (() => null);
         const parseDocSections = att.parseDocSections || (() => ({ sections: [], links: [], contentMarkdown: void 0 }));
         const findDocMarkdownByClues = att.findDocMarkdownByClues || (() => "");
-        const highResVariant = att.highResVariant || ((u) => u);
+        const highResVariant = att.highResVariant || ((u: any) => u);
         const isInternalChipUrl = att.isInternalChipUrl || (() => false);
 
         try {
             let top = robustFirstPayload(text);
             const utils = getUtils();
-            const isDevMode = (utils && typeof utils.isDevMode === 'function') ? utils.isDevMode() : false;
+            const isDevMode = (utils && typeof utils.isDevMode === "function") ? utils.isDevMode() : false;
             const shouldVerbose = !!isDevMode;
 
             const protocol = getProtocol();
-            const wrb = protocol.WRB || 'wrb.fr';
-            const detailRpc = protocol.RPCS ? protocol.RPCS.DETAIL : 'hNvQHb';
+            const wrb = protocol.WRB || "wrb.fr";
+            const detailRpc = protocol.RPCS ? protocol.RPCS.DETAIL : "hNvQHb";
 
             if (shouldVerbose) {
                 try {
                     const summary = Array.isArray(top) ? top.map((it, i) => {
                         const rpc = Array.isArray(it) ? it[1] : String(it).slice(0, 20);
-                        const innerLen = Array.isArray(it) && typeof it[2] === 'string' ? it[2].length : (typeof it === 'string' ? it.length : 0);
-                        const preview = Array.isArray(it) && typeof it[2] === 'string' ? it[2].slice(0, 300).replace(/\n/g, ' ') : '';
+                        const innerLen = Array.isArray(it) && typeof it[2] === "string" ? it[2].length : (typeof it === "string" ? it.length : 0);
+                        const preview = Array.isArray(it) && typeof it[2] === "string" ? it[2].slice(0, 300).replace(/\n/g, " ") : "";
                         return { idx: i, rpc, innerLen, preview };
                     }) : { topType: typeof top, len: text?.length };
-                    if (!top || !Array.isArray(top)) console.log('[Parser Verbose] top candidates', summary);
-                    if (!top || (Array.isArray(top) && !top.some(it => Array.isArray(it) && it[1] === detailRpc && typeof it[2] === 'string' && it[2].includes('rc_')))) {
-                        console.warn('[Parser Verbose] no hNvQHb with rc_ found, top summary', summary);
+                    if (!top || !Array.isArray(top)) console.log("[Parser Verbose] top candidates", summary);
+                    if (!top || (Array.isArray(top) && !top.some(it => Array.isArray(it) && it[1] === detailRpc && typeof it[2] === "string" && it[2].includes("rc_")))) {
+                        console.warn("[Parser Verbose] no hNvQHb with rc_ found, top summary", summary);
                     }
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:parseDetail.js]", e); }
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:parseDetail.ts]", e); }
             }
 
-            let innerStr = null;
+            let innerStr: string | null = null;
             if (Array.isArray(top)) {
                 for (let item of top) {
                     if (Array.isArray(item) && item[0] === wrb && item[1] === detailRpc && typeof item[2] === "string") {
@@ -198,7 +233,7 @@
                 }
             }
 
-            let inner = null;
+            let inner: any = null;
             if (innerStr) {
                 try {
                     inner = JSON.parse(innerStr);
@@ -216,7 +251,7 @@
             }
             if (!inner) throw new Error("invalid");
 
-            let turns = null;
+            let turns: any[] | null = null;
             // 优先按原协议 inner[0] 快速路径
             if (isTurnsArray(inner?.[0])) turns = inner[0];
             // 全量深搜 inner
@@ -224,7 +259,7 @@
             // 再搜 top 的其他条目（hNvQHb 为 list 形态时，turns 在 MaZiqc 的 inner 中）
             if (!turns && Array.isArray(top)) {
                 for (const item of top) {
-                    if (!Array.isArray(item) || typeof item[2] !== 'string') continue;
+                    if (!Array.isArray(item) || typeof item[2] !== "string") continue;
                     if (item[2] === innerStr) continue;
                     try {
                         const altInner = JSON.parse(item[2]);
@@ -243,33 +278,33 @@
             const isMetadataOnly = !turns.length
                 && inner[0] === null && inner[1] === null
                 && Array.isArray(inner[2]) && inner[2].length > 0
-                && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
+                && typeof inner[2][0]?.[0] === "string" && inner[2][0][0].startsWith("c_");
             if (isMetadataOnly && isDevMode) {
-                console.warn('[Parser] hNvQHb returned metadata-only payload (no turns). ' +
-                    'inner[2][0] looks like a list-format row, not a turns array. ' +
-                    'conv:', inner[2][0]?.[0], 'title:', inner[2][0]?.[1],
-                    'rc_count:', inner[2][0]?.filter(x => typeof x === 'string' && x.startsWith('rc_')).length);
+                console.warn("[Parser] hNvQHb returned metadata-only payload (no turns). " +
+                    "inner[2][0] looks like a list-format row, not a turns array. " +
+                    "conv:", inner[2][0]?.[0], "title:", inner[2][0]?.[1],
+                    "rc_count:", inner[2][0]?.filter((x: any) => typeof x === "string" && x.startsWith("rc_")).length);
             }
 
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
-            let shortScope = convId ? String(convId).replace(/^c_/, '').slice(-6) + '_' : '';
-            let msgs = [];
-            let dedupSet = new Set();
-            let docDedupSet = new Set();
+            let shortScope = convId ? String(convId).replace(/^c_/, "").slice(-6) + "_" : "";
+            let msgs: any[] = [];
+            let dedupSet = new Set<string>();
+            let docDedupSet = new Set<string>();
             let imageSeq = { value: 1 };
-            let schemaDriftWarnings = [];
+            let schemaDriftWarnings: string[] = [];
             let rev = [...turns].reverse();
 
             for (let turn of rev) {
-                let drift = detectTurnSchemaDrift(turn, convId);
+                let drift: TurnDriftReport = detectTurnSchemaDrift(turn, convId);
                 if (drift.isDrifted) {
                     schemaDriftWarnings.push(...drift.warnings);
                 }
                 let ts = extractTurnTimestamp(turn) || Date.now();
                 let uText = turn?.[schema.TURN.USER_PAYLOAD]?.[0]?.[0] || "";
                 let uImgs = filterNewImages(extractImages(turn?.[schema.TURN.USER_PAYLOAD], imageSeq), dedupSet);
-                let uFiles = extractUserFiles(turn?.[schema.TURN.USER_PAYLOAD]).filter(f => {
+                let uFiles = extractUserFiles(turn?.[schema.TURN.USER_PAYLOAD]).filter((f: UserFileAttachment) => {
                     let key = f.id || f.sourceUrl || f.fileName;
                     if (!key || docDedupSet.has(key)) return false;
                     docDedupSet.add(key);
@@ -281,14 +316,14 @@
                         role: "user",
                         content: uText,
                         timestamp: ts,
-                        images: uImgs.length ? uImgs.map(i => ({
+                        images: uImgs.length ? uImgs.map((i: ImageAttachment) => ({
                             ...i,
                             resolvedUrl: highResVariant(i.sourceUrl),
-                            localName: `assets/${shortScope}${(i.fileName || 'img.jpg').replace(/[\\/:*?"<>|]/g, '_')}`,
+                            localName: `assets/${shortScope}${(i.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`,
                             type: "image",
                             isImage: true
                         })) : void 0,
-                        documents: uFiles.length ? uFiles.map(f => ({
+                        documents: uFiles.length ? uFiles.map((f: UserFileAttachment) => ({
                             id: f.id,
                             title: f.fileName,
                             createdAt: ts,
@@ -297,7 +332,7 @@
                             links: [],
                             contentMarkdown: void 0,
                             url: f.sourceUrl,
-                            localName: `files/${shortScope}${(f.fileName || 'doc.md').replace(/[\\/:*?"<>|]/g, '_')}`,
+                            localName: `files/${shortScope}${(f.fileName || "doc.md").replace(/[\\/:*?"<>|]/g, "_")}`,
                             type: "file"
                         })) : void 0
                     });
@@ -310,8 +345,8 @@
                         let candidateBlock = cand?.[schema.CANDIDATE.BODY] || cand;
                         let responseText = extractCandidateText(cand);
                         if (!responseText) {
-                            let textArr = [];
-                            deepWalk(cand, (node) => {
+                            let textArr: string[] = [];
+                            deepWalk(cand, (node: any) => {
                                 if (Array.isArray(node)) {
                                     if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0 && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
                                         if (node[0].trim().length > 2 && !textArr.includes(node[0])) {
@@ -324,11 +359,11 @@
                         }
                         let candImages = extractImages(cand, imageSeq);
                         let filteredImages = filterNewImages(candImages, dedupSet);
-                        let docsMeta = extractDocumentsMeta(candidateBlock);
+                        let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
                         if (!docsMeta.length && !docDedupSet.size) {
                             docsMeta = extractDocumentsMeta(inner);
                         }
-                        let docs = docsMeta.filter(docItem => {
+                        let docs = docsMeta.filter((docItem: DeepResearchDocMeta) => {
                             let key = docItem.id || docItem.chipUrl;
                             if (!key || docDedupSet.has(key)) return false;
                             let isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
@@ -337,10 +372,10 @@
                             docDedupSet.add(key);
                             return true;
                         });
-                        let docDetails = [];
+                        let docDetails: any[] = [];
                         if (docs.length) {
                             try {
-                                docDetails = docs.map(metaItem => {
+                                docDetails = docs.map((metaItem: DeepResearchDocMeta) => {
                                     let primary = findDocContentById(inner, metaItem.id);
                                     let alt = metaItem.contentId ? findDocContentById(inner, metaItem.contentId) : null;
                                     let parsedPrimary = parseDocSections(primary);
@@ -354,14 +389,14 @@
                                     let docTitle = metaItem.title || "";
                                     if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
                                         if (md) {
-                                            let hMatch = md.match(/^#\s+(.+)$/m);
+                                            let hMatch = md.match(/^#\\s+(.+)$/m);
                                             if (hMatch && hMatch[1].trim()) {
                                                 docTitle = hMatch[1].trim();
                                             }
                                         }
                                     }
                                     if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle)) {
-                                        docTitle = `深度研究报告_${String(metaItem.id || 'doc').replace(/[^a-zA-Z0-9_-]/g, '').slice(-6)}`;
+                                        docTitle = `深度研究报告_${String(metaItem.id || "doc").replace(/[^a-zA-Z0-9_-]/g, "").slice(-6)}`;
                                     }
 
                                     if (!md) return null;
@@ -375,7 +410,7 @@
                                         links: [...parsedPrimary.links, ...parsedAlt.links],
                                         contentMarkdown: md,
                                         url: "",
-                                        localName: `files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.md`,
+                                        localName: `files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60)}.md`,
                                         type: "file"
                                     };
                                 }).filter(Boolean);
@@ -386,14 +421,14 @@
                         let thoughts = extractThoughts(candidateBlock);
                         let citations = extractCitations(candidateBlock);
                         if (responseText) {
-                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, '');
-                            responseText = responseText.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
-                            responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, '$1');
-                            responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, '').trim();
+                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\\s*/i, "");
+                            responseText = responseText.replace(/(?:^|\n)\\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\]]*)?(?:\])?\\s*(?=\n|$)/gi, "\n");
+                            responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, "$1");
+                            responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, "").trim();
                             if (filteredImages.length > 0) {
-                                responseText = responseText.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\s*(?=\n|$)/gi, '\n');
-                                responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, '$1');
-                                responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\)]*)?/gi, '').trim();
+                                responseText = responseText.replace(/(?:^|\n)\\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\\s*(?=\n|$)/gi, "\n");
+                                responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, "$1");
+                                responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\)]*)?/gi, "").trim();
                             }
                         }
                         if (responseText || thoughts || filteredImages.length || docDetails.length) {
@@ -407,7 +442,7 @@
                                 images: filteredImages.length ? filteredImages.map(img => ({
                                     ...img,
                                     resolvedUrl: highResVariant(img.sourceUrl),
-                                    localName: `assets/${shortScope}${(img.fileName || 'img.jpg').replace(/[\\/:*?"<>|]/g, '_')}`,
+                                    localName: `assets/${shortScope}${(img.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`,
                                     type: "image"
                                 })) : void 0,
                                 documents: docDetails.length ? docDetails : void 0
@@ -421,15 +456,15 @@
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
             let metaTitle = extractMetaTitleFromTop(top, convId || targetConvId);
             let titleObj = extractConversationTitle(inner, turns);
-            let nextToken = null;
+            let nextToken: string | null = null;
             if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
-            let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, '')}`;
-            let times = turns.map(t => extractTurnTimestamp(t)).filter(x => Number.isFinite(x));
+            let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, "")}`;
+            let times = turns.map(t => extractTurnTimestamp(t)).filter((x: any): x is number => Number.isFinite(x));
             let minTs = times.length ? Math.min(...times) : null;
             let maxTs = times.length ? Math.max(...times) : null;
 
-            let allMsgs = msgs.map(m => {
-                let atts = [];
+            let allMsgs: Message[] = msgs.map(m => {
+                let atts: any[] = [];
                 if (m.images) {
                     for (let im of m.images) {
                         if (im.resolvedUrl || im.sourceUrl) {
@@ -469,30 +504,30 @@
 
             let cleanT = metaTitle || cleanTitle(titleObj.title || convId);
             let isReal = isRealTitle(cleanT, convId);
-            let finalSource = metaTitle ? 'rpc' : (isReal ? titleObj.source : 'default');
+            let finalSource = metaTitle ? "rpc" : (isReal ? titleObj.source : "default");
             if (!isReal && !metaTitle) {
-                let firstUser = allMsgs.find(m => m.role === 'user' && m.content && m.content.trim());
+                let firstUser = allMsgs.find(m => m.role === "user" && m.content && m.content.trim());
                 if (firstUser) {
-                    let candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
+                    let candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, " "));
                     if (isRealTitle(candidate, convId)) {
                         cleanT = candidate;
-                        finalSource = 'sniff';
+                        finalSource = "sniff";
                     }
                 }
             }
-            const titlesMap = {};
-            if (finalSource !== 'default' && cleanT) {
-                titlesMap[finalSource] = cleanT;
+            const titlesMap: TitleSources = {};
+            if (finalSource !== "default" && cleanT) {
+                titlesMap[finalSource as keyof TitleSources] = cleanT;
             }
             if (metaTitle) {
                 titlesMap.rpc = metaTitle;
             }
 
-            let _debug = null;
+            let _debug: any = null;
             if (!allMsgs.length) {
                 try {
                     _debug = { turnsLen: turns?.length || 0, innerKeys: inner ? Object.keys(inner) : null, innerPreview: JSON.stringify(inner).slice(0, 1500), topPreview: top ? JSON.stringify(top).slice(0, 800) : null };
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:parseDetail.js]", e); }
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:parseDetail.ts]", e); }
             }
             if (schemaDriftWarnings.length) {
                 if (!_debug) _debug = {};
@@ -516,7 +551,7 @@
                 _raw: inner,
                 _debug
             };
-        } catch (e) {
+        } catch (e: any) {
             throw new Error("detail parse fail: " + e.message);
         }
     }

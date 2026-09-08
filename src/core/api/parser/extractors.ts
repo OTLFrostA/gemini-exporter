@@ -1,8 +1,96 @@
-// extractors.js - JSPB Schema, unified tree walker, candidate, title, and timestamp extractors
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
-    } else if (typeof module === 'object' && module.exports) {
+// extractors.ts - JSPB Schema, unified tree walker, candidate, title, and timestamp extractors
+import type { Conversation } from "../../../types/index.js";
+
+export interface JspbTurnSchema {
+    ID_META: number;
+    TIMESTAMP: number;
+    USER_PAYLOAD: number;
+    MODEL_PAYLOAD: number;
+}
+
+export interface JspbModelPayloadSchema {
+    CANDIDATES: number;
+    SEARCH_QUERIES: number;
+    PROVIDER: number;
+    TELEMETRY_START: number;
+}
+
+export interface JspbCandidateSchema {
+    ID: number;
+    BODY: number;
+    LANGUAGE_CODE: number;
+}
+
+export interface JspbCandidateBodySchema {
+    PARTS: number;
+}
+
+export interface JspbListItemSchema {
+    ID: number;
+    TITLE: number;
+    TIMESTAMP: number;
+    UPDATE_TIME_ALT: number;
+    CREATE_TIME_ALT: number;
+    COUNT_ALT1: number;
+    COUNT_ALT2: number;
+}
+
+export interface GeminiJspbSchema {
+    TURN: JspbTurnSchema;
+    MODEL_PAYLOAD: JspbModelPayloadSchema;
+    CANDIDATE: JspbCandidateSchema;
+    CANDIDATE_BODY: JspbCandidateBodySchema;
+    LIST_ITEM: JspbListItemSchema;
+}
+
+export interface TurnDriftReport {
+    isDrifted: boolean;
+    warnings: string[];
+}
+
+export interface Citation {
+    url: string;
+    title: string;
+}
+
+export interface TitleResult {
+    title: string;
+    source: "rpc" | "sniff" | "default";
+}
+
+export interface GeminiParserExtractorsModule {
+    GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
+    RESEARCH_PROMPT_PREFIX_RE: RegExp;
+    detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
+    extractModelCandidates: (turn: any) => any[];
+    extractCandidateText: (cand: any) => string;
+    safeStructureClean: (str?: string | null) => string;
+    robustFirstPayload: (text?: string | null) => any[] | null;
+    deepWalk: (root: any, visitor: (node: any, depth: number) => boolean | void, maxDepth?: number) => void;
+    extractThoughts: (candidateBlock: any) => string | null;
+    extractCitations: (candidateBlock: any) => Citation[];
+    extractConversationId: (inner: any, turns?: any[]) => string;
+    smartSummarizePrompt: (rawText?: string | null) => string;
+    extractConversationTitle: (inner: any, turns?: any[]) => TitleResult;
+    extractMetaTitleFromTop: (top: any[], targetConvId?: string) => string | null;
+    extractTurnTimestamp: (turnData: any) => number | null;
+    normId: (id?: string | number | null) => string;
+    cleanTitle: (rawTitle?: string | null) => string;
+    isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
+    getUtils: () => any;
+    getProtocol: () => any;
+}
+
+declare global {
+    var GeminiParserExtractors: GeminiParserExtractorsModule;
+    var GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
+    var detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
+}
+
+(function(root: any, factory: () => GeminiParserExtractorsModule) {
+    if (typeof define === "function" && (define as any).amd) {
+        (define as any)([], factory);
+    } else if (typeof module === "object" && module.exports) {
         module.exports = factory();
     } else {
         const exports = factory();
@@ -10,14 +98,14 @@
         root.GEMINI_JSPB_SCHEMA = exports.GEMINI_JSPB_SCHEMA;
         root.detectTurnSchemaDrift = exports.detectTurnSchemaDrift;
     }
-}(typeof self !== 'undefined' ? self : this, function() {
-    'use strict';
+}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserExtractorsModule {
+    "use strict";
 
     /**
      * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
      * Maps conceptual protobuf message fields directly to array index offsets.
      */
-    const GEMINI_JSPB_SCHEMA = Object.freeze({
+    const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
         TURN: {
             ID_META: 0,        // ["c_xxx", "r_xxx"]
             TIMESTAMP: 1,      // [seconds, nanos]
@@ -51,62 +139,59 @@
 
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-    function getUtils() {
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch (e) {
-                try { return require('../utils/utils.js'); } catch (e2) {
-                    try { return require('./utils.js'); } catch (e3) { return null; }
+    function getUtils(): any {
+        if (typeof GeminiUtils !== "undefined" && GeminiUtils) return GeminiUtils;
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+        if (typeof require !== "undefined") {
+            try { return require("../../utils/utils.js"); } catch (e) {
+                try { return require("../utils/utils.js"); } catch (e2) {
+                    try { return require("./utils.js"); } catch (e3) { return null; }
                 }
             }
         }
         return null;
     }
 
-    // Protocol anti-corruption layer (see core/protocol/protocol.js).
-    let __protocol = null;
-    function getProtocol() {
+    // Protocol anti-corruption layer (see core/protocol/protocol.ts).
+    let __protocol: any = null;
+    function getProtocol(): any {
         if (__protocol) return __protocol;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiProtocol) {
-            __protocol = globalThis.GeminiProtocol;
-        } else if (typeof require !== 'undefined') {
-            try { __protocol = require('../../protocol/protocol.js'); } catch (e) {
-                try { __protocol = require('../protocol/protocol.js'); } catch (e2) { /* intentional: require fallback in browser context */ }
+        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
+            __protocol = (globalThis as any).GeminiProtocol;
+        } else if (typeof require !== "undefined") {
+            try { __protocol = require("../../protocol/protocol.js"); } catch (e) {
+                try { __protocol = require("../protocol/protocol.js"); } catch (e2) { /* intentional: fallback */ }
             }
         }
         return __protocol;
     }
 
-    function normId(id) {
+    function normId(id?: string | number | null): string {
         const u = getUtils();
-        if (u && typeof u.normId === 'function') return u.normId(id);
-        return String(id || '').replace(/^c_/, '').trim();
+        if (u && typeof u.normId === "function") return u.normId(id);
+        return String(id || "").replace(/^c_/, "").trim();
     }
 
-    function isRealTitle(t, fallbackId) {
+    function isRealTitle(t?: string | null, fallbackId?: string | number): boolean {
         const u = getUtils();
-        if (u && typeof u.isRealTitle === 'function') return u.isRealTitle(t, fallbackId);
-        const s = String(t || '').trim();
+        if (u && typeof u.isRealTitle === "function") return u.isRealTitle(t, fallbackId);
+        const s = String(t || "").trim();
         return s.length >= 2 && !/^(c_)?[a-f0-9_-]{8,64}$/i.test(s);
     }
 
-    function cleanTitle(rawTitle) {
+    function cleanTitle(rawTitle?: string | null): string {
         const u = getUtils();
-        if (u && typeof u.cleanTitle === 'function') return u.cleanTitle(rawTitle);
-        return String(rawTitle || '').trim();
+        if (u && typeof u.cleanTitle === "function") return u.cleanTitle(rawTitle);
+        return String(rawTitle || "").trim();
     }
 
     /**
      * Generic depth-bounded recursive walker over nested arrays and objects.
      * Replaces 8+ duplicate ad-hoc walk() functions across the parsing pipeline.
-     * @param {any} root
-     * @param {(node: any, depth: number) => boolean|void} visitor - Return false to stop descending into children.
-     * @param {number} [maxDepth=50]
      */
-    function deepWalk(root, visitor, maxDepth = 50) {
-        function walk(node, depth) {
-            if (!node || typeof node !== 'object' || depth > maxDepth) return;
+    function deepWalk(root: any, visitor: (node: any, depth: number) => boolean | void, maxDepth: number = 50): void {
+        function walk(node: any, depth: number) {
+            if (!node || typeof node !== "object" || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
             if (shouldDescend === false) return;
             if (Array.isArray(node)) {
@@ -126,12 +211,9 @@
 
     /**
      * Validates turn structure against GEMINI_JSPB_SCHEMA and flags protocol drifts
-     * @param {Array} turn - Raw turn array from batchexecute response
-     * @param {string} [convId] - Optional conversation id for diagnostic logging
-     * @returns {{ isDrifted: boolean, warnings: string[] }}
      */
-    function detectTurnSchemaDrift(turn, convId) {
-        const warnings = [];
+    function detectTurnSchemaDrift(turn: any, convId?: string): TurnDriftReport {
+        const warnings: string[] = [];
         if (!Array.isArray(turn)) {
             warnings.push("Turn is not an array");
             return { isDrifted: true, warnings };
@@ -140,13 +222,18 @@
             warnings.push(`Turn array length (${turn.length}) is less than expected minimum 3`);
         }
         const head = turn[GEMINI_JSPB_SCHEMA.TURN.ID_META];
-        let idStr = '';
-        if (typeof head === 'string') idStr = head;
+        let idStr = "";
+        if (typeof head === "string") idStr = head;
         else if (Array.isArray(head) && head.length) {
-            idStr = typeof head[0] === 'string' ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === 'string' ? head[0][0] : '');
+            idStr = typeof head[0] === "string" ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === "string" ? head[0][0] : "");
         }
-        if (!idStr || (!idStr.startsWith('c_') && !idStr.startsWith('r_'))) {
+        if (!idStr || (!idStr.startsWith("c_") && !idStr.startsWith("r_"))) {
             warnings.push(`Turn ID meta at index 0 does not match expected pattern: ${JSON.stringify(head)?.slice(0, 30)}`);
+        }
+
+        const userPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
+        if (userPayload !== undefined && !Array.isArray(userPayload)) {
+            warnings.push(`UserPayload at index 2 is not an array (type: ${typeof userPayload})`);
         }
 
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
@@ -161,7 +248,7 @@
                     const firstCand = candBlock[0];
                     if (Array.isArray(firstCand)) {
                         const candId = firstCand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID];
-                        if (typeof candId !== 'string' || (!candId.startsWith('rc_') && !candId.startsWith('c_'))) {
+                        if (typeof candId !== "string" || (!candId.startsWith("rc_") && !candId.startsWith("c_"))) {
                             warnings.push(`First candidate ID at 3[0][0][0] does not match 'rc_' prefix: ${JSON.stringify(candId)}`);
                         }
                     }
@@ -170,10 +257,10 @@
         }
 
         if (warnings.length > 0) {
-            const isDev = (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog))
-                || (typeof window !== 'undefined' && (window.__gemExporterDevMode || window.__gemExporterVerboseLog));
+            const isDev = (typeof globalThis !== "undefined" && ((globalThis as any).__gemExporterDevMode || (globalThis as any).__gemExporterVerboseLog))
+                || (typeof window !== "undefined" && ((window as any).__gemExporterDevMode || (window as any).__gemExporterVerboseLog));
             if (isDev) {
-                console.warn(`[Gemini Exporter][Schema Drift Warning] Detected ${warnings.length} schema drift(s) in conv ${convId || 'unknown'}:`, warnings);
+                console.warn(`[Gemini Exporter][Schema Drift Warning] Detected ${warnings.length} schema drift(s) in conv ${convId || "unknown"}:`, warnings);
             }
         }
 
@@ -185,10 +272,8 @@
 
     /**
      * Safely extracts candidates array from turn according to schema
-     * @param {Array} turn
-     * @returns {Array} List of candidate arrays
      */
-    function extractModelCandidates(turn) {
+    function extractModelCandidates(turn: any): any[] {
         if (!turn || !Array.isArray(turn)) return [];
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (!modelPayload || !Array.isArray(modelPayload) || modelPayload.length === 0) return [];
@@ -200,12 +285,12 @@
                 return candidateBlock;
             }
             // Case 2 (Single candidate wrapped directly):
-            if (typeof candidateBlock[0] === 'string') {
+            if (typeof candidateBlock[0] === "string") {
                 return [candidateBlock];
             }
         }
         // Fallback: If turn[3] was a flat candidates array directly (legacy test compatibility)
-        if (Array.isArray(modelPayload[0]) && typeof modelPayload[0][0] === 'string' && modelPayload[0][0].startsWith('rc_')) {
+        if (Array.isArray(modelPayload[0]) && typeof modelPayload[0][0] === "string" && modelPayload[0][0].startsWith("rc_")) {
             return modelPayload;
         }
         return [];
@@ -213,10 +298,8 @@
 
     /**
      * Cleanly extracts candidate response text without language tag (e.g. "zh") pollution
-     * @param {Array} cand
-     * @returns {string}
      */
-    function extractCandidateText(cand) {
+    function extractCandidateText(cand: any): string {
         if (!cand) return "";
         const body = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
             ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
@@ -229,7 +312,7 @@
         const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
         if (typeof parts === "string") return parts;
         if (Array.isArray(parts)) {
-            let textChunks = [];
+            let textChunks: string[] = [];
             for (let part of parts) {
                 if (typeof part === "string") {
                     textChunks.push(part);
@@ -248,9 +331,9 @@
         return "";
     }
 
-    function safeStructureClean(str) {
-        if (!str || typeof str !== 'string') return '';
-        let out = '';
+    function safeStructureClean(str?: string | null): string {
+        if (!str || typeof str !== "string") return "";
+        let out = "";
         let inString = false;
         let escape = false;
         for (let k = 0; k < str.length; k++) {
@@ -259,7 +342,7 @@
                 out += ch;
                 if (escape) {
                     escape = false;
-                } else if (ch === '\\') {
+                } else if (ch === "\\") {
                     escape = true;
                 } else if (ch === '"') {
                     inString = false;
@@ -269,7 +352,7 @@
                     inString = true;
                     out += ch;
                 } else {
-                    if (ch.charCodeAt(0) < 32 && ch !== '\t' && ch !== '\r' && ch !== '\n') {
+                    if (ch.charCodeAt(0) < 32 && ch !== "\t" && ch !== "\r" && ch !== "\n") {
                         continue;
                     }
                     out += ch;
@@ -279,7 +362,7 @@
         return out;
     }
 
-    function robustFirstPayload(text) {
+    function robustFirstPayload(text?: string | null): any[] | null {
         if (!text || typeof text !== "string") return null;
 
         // Fast path 1: standard batchexecute response with optional prefix
@@ -301,7 +384,7 @@
         }
 
         // O(N) single-pass bracket-balancing state machine for chunked / multiline payloads
-        let allTop = [];
+        let allTop: any[] = [];
         const len = text.length;
         let inString = false;
         let escape = false;
@@ -313,7 +396,7 @@
             if (inString) {
                 if (escape) {
                     escape = false;
-                } else if (ch === '\\') {
+                } else if (ch === "\\") {
                     escape = true;
                 } else if (ch === '"') {
                     inString = false;
@@ -326,12 +409,12 @@
                 continue;
             }
 
-            if (ch === '[') {
+            if (ch === "[") {
                 if (depth === 0) {
                     startIdx = i;
                 }
                 depth++;
-            } else if (ch === ']') {
+            } else if (ch === "]") {
                 if (depth > 0) {
                     depth--;
                     if (depth === 0 && startIdx !== -1) {
@@ -361,7 +444,7 @@
         // Truncated / unclosed fallback
         if (depth > 0 && startIdx !== -1) {
             try {
-                const tail = text.slice(startIdx) + ']'.repeat(depth);
+                const tail = text.slice(startIdx) + "]".repeat(depth);
                 const cleaned = safeStructureClean(tail).trim();
                 const parsed = JSON.parse(cleaned);
                 if (Array.isArray(parsed)) return parsed;
@@ -371,9 +454,9 @@
         return null;
     }
 
-    function extractThoughts(candidateBlock) {
+    function extractThoughts(candidateBlock: any): string | null {
         if (!Array.isArray(candidateBlock)) return null;
-        let thoughts = [];
+        let thoughts: string[] = [];
         deepWalk(candidateBlock, (node) => {
             if (Array.isArray(node)) {
                 if (node.length >= 2 && typeof node[0] === "string" && node[0] === "THOUGHT" && typeof node[1] === "string") {
@@ -387,10 +470,10 @@
         return thoughts.length ? thoughts.join("\n\n") : null;
     }
 
-    function extractCitations(candidateBlock) {
-        let citations = [];
+    function extractCitations(candidateBlock: any): Citation[] {
+        let citations: Citation[] = [];
         if (!Array.isArray(candidateBlock)) return citations;
-        let seenUrls = new Set();
+        let seenUrls = new Set<string>();
         deepWalk(candidateBlock, (node) => {
             if (Array.isArray(node)) {
                 if (node.length >= 2 && typeof node[0] === "string" && (node[0].startsWith("http://") || node[0].startsWith("https://")) && typeof node[1] === "string") {
@@ -398,10 +481,7 @@
                         title = node[1];
                     if (!seenUrls.has(url) && !url.includes("googleusercontent.com/immersive_entry_chip")) {
                         seenUrls.add(url);
-                        citations.push({
-                            url,
-                            title
-                        });
+                        citations.push({ url, title });
                     }
                 }
             }
@@ -409,9 +489,9 @@
         return citations;
     }
 
-    function extractConversationId(inner, turns) {
-        if (typeof inner[0] === "string" && inner[0].startsWith("c_")) return inner[0];
-        if (typeof inner[1] === "string" && inner[1].startsWith("c_")) return inner[1];
+    function extractConversationId(inner: any, turns?: any[]): string {
+        if (typeof inner?.[0] === "string" && inner[0].startsWith("c_")) return inner[0];
+        if (typeof inner?.[1] === "string" && inner[1].startsWith("c_")) return inner[1];
         if (Array.isArray(turns)) {
             for (let t of turns) {
                 if (Array.isArray(t?.[0]) && typeof t[0][0] === "string" && t[0][0].startsWith("c_")) return t[0][0];
@@ -423,10 +503,10 @@
         return "c_unknown";
     }
 
-    function smartSummarizePrompt(rawText) {
-        if (!rawText) return '';
+    function smartSummarizePrompt(rawText?: string | null): string {
+        if (!rawText) return "";
         let s = cleanTitle(rawText).trim();
-        s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
+        s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\\s*[,，:：]?\\s*/i, "");
         const breakMatch = s.match(/^([^，。？！\n\r\t,?!]{4,35})/);
         if (breakMatch && breakMatch[1]) {
             s = breakMatch[1].trim();
@@ -436,24 +516,24 @@
         return s;
     }
 
-    function extractConversationTitle(inner, turns) {
+    function extractConversationTitle(inner: any, turns?: any[]): TitleResult {
         if (Array.isArray(inner)) {
             if (typeof inner[2] === "string" && inner[2].length > 0 && !inner[2].startsWith("c_") && !inner[2].startsWith("tC") && !inner[2].startsWith("rc_")) {
                 const clean = cleanTitle(inner[2]);
-                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+                if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
             if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC") && !inner[1].startsWith("rc_")) {
                 const clean = cleanTitle(inner[1]);
-                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+                if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
             if (Array.isArray(inner[0]) && typeof inner[0][1] === "string") {
                 const clean = cleanTitle(inner[0][1]);
-                if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+                if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
             for (let i = 0; i < Math.min(inner.length, 6); i++) {
                 if (typeof inner[i] === "string" && inner[i].length >= 2 && !inner[i].startsWith("c_") && !inner[i].startsWith("tC") && !inner[i].startsWith("rc_")) {
                     const clean = cleanTitle(inner[i]);
-                    if (isRealTitle(clean)) return { title: clean, source: 'rpc' };
+                    if (isRealTitle(clean)) return { title: clean, source: "rpc" };
                 }
             }
         }
@@ -462,22 +542,22 @@
                 let uText = t?.[2]?.[0]?.[0];
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
                     const concise = smartSummarizePrompt(uText);
-                    if (isRealTitle(concise)) return { title: concise, source: 'sniff' };
+                    if (isRealTitle(concise)) return { title: concise, source: "sniff" };
                     const rawClean = cleanTitle(uText.slice(0, 40).trim());
-                    if (isRealTitle(rawClean)) return { title: rawClean, source: 'sniff' };
+                    if (isRealTitle(rawClean)) return { title: rawClean, source: "sniff" };
                 }
             }
         }
-        return { title: "未命名对话", source: 'default' };
+        return { title: "未命名对话", source: "default" };
     }
 
-    function extractMetaTitleFromTop(top, targetConvId) {
+    function extractMetaTitleFromTop(top: any[], targetConvId?: string): string | null {
         if (!Array.isArray(top)) return null;
         const targetNid = normId(targetConvId);
         const protocol = getProtocol();
-        const wrb = protocol ? protocol.WRB : 'wrb.fr';
-        const listRpc = protocol ? protocol.RPCS.LIST : 'MaZiqc';
-        const legacyListRpc = protocol ? protocol.RPCS.LEGACY_LIST : 'hXcbkd';
+        const wrb = protocol ? protocol.WRB : "wrb.fr";
+        const listRpc = protocol ? protocol.RPCS.LIST : "MaZiqc";
+        const legacyListRpc = protocol ? protocol.RPCS.LEGACY_LIST : "hXcbkd";
 
         for (let item of top) {
             if (Array.isArray(item) && item[0] === wrb && (item[1] === listRpc || item[1] === legacyListRpc) && typeof item[2] === "string") {
@@ -497,13 +577,13 @@
                             }
                         }
                     }
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:extractors.js]", e); }
+                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:extractors.ts]", e); }
             }
         }
         return null;
     }
 
-    function extractTurnTimestamp(turnData) {
+    function extractTurnTimestamp(turnData: any): number | null {
         if (!turnData) return null;
         let candidates = [turnData?.[4], turnData?.[5], turnData?.[turnData.length - 1]];
         for (let candidate of candidates) {
