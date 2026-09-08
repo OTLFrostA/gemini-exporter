@@ -29,6 +29,7 @@ import '../../core/engine/takeoutEngine.js';
 import '../../core/engine/assetPipeline.js';
 import '../../core/engine/export/progressReporter.js';
 import '../../core/engine/export/sessionRecovery.js';
+import '../../core/engine/export/rateLimiter.js';
 import '../../core/engine/export/batchWorker.js';
 import '../../core/engine/export/exportOrchestrator.js';
 import '../../core/engine/exportEngine.js';
