@@ -1,21 +1,35 @@
+// src/background/background.ts - Manifest V3 Background Service Worker for Gemini Exporter
+
+import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
+
 try {
-    importScripts('/dist/core/protocol/protocol.js', '/dist/core/utils/constants.js', '/dist/core/utils/utils.js', '/dist/core/storage/storageService.js', '/dist/core/utils/tabService.js');
-} catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
+    importScripts(
+        '/dist/core/protocol/protocol.js',
+        '/dist/core/utils/constants.js',
+        '/dist/core/utils/utils.js',
+        '/dist/core/storage/storageService.js',
+        '/dist/core/utils/tabService.js'
+    );
+} catch (e) {
+    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:background.js]', e);
+}
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
 try {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.setAccessLevel) {
-        chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
+    if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session && (chrome.storage as any).session.setAccessLevel) {
+        (chrome.storage as any).session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
     }
-} catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
+} catch (e) {
+    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:background.js]', e);
+}
 
-const __bgAborts = new Map();
+const __bgAborts: Map<string, boolean> = new Map();
 
 // Restore persisted abort flags after MV3 worker restarts (setSlotAborted
 // mirrors every transition into chrome.storage.session).
 try {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.get) {
-        chrome.storage.session.get(null).then((data) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session && (chrome.storage as any).session.get) {
+        (chrome.storage as any).session.get(null).then((data: any) => {
             for (const k of Object.keys(data || {})) {
                 const m = k.match(/^gemini_abort_(.+)$/);
                 if (m && data[k]) __bgAborts.set(m[1], true);
@@ -24,46 +38,48 @@ try {
     }
 } catch { /* intentional: best-effort abort restore */ }
 
-function isSlotAborted(slot = 'u0') {
+function isSlotAborted(slot: string = 'u0'): boolean {
     return !!__bgAborts.get(slot || 'u0');
 }
 
-function setSlotAborted(slot = 'u0', val = true) {
+function setSlotAborted(slot: string = 'u0', val: boolean = true): void {
     const s = slot || 'u0';
     if (val) {
         __bgAborts.set(s, true);
         try {
-            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) {
-                chrome.storage.session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
+            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
+                (chrome.storage as any).session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
             }
         } catch { /* intentional: session storage fallback */ }
     } else {
         __bgAborts.delete(s);
         try {
-            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) {
-                chrome.storage.session.remove([`gemini_abort_${s}`]).catch(() => {});
+            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
+                (chrome.storage as any).session.remove([`gemini_abort_${s}`]).catch(() => {});
             }
         } catch { /* intentional: session storage fallback */ }
     }
 }
 
-function startKeepAlive() {
+function startKeepAlive(): () => void {
     if (typeof chrome === 'undefined' || !chrome.runtime) return () => {};
     const interval = setInterval(() => {
         try {
             if (chrome.runtime.getPlatformInfo) {
                 chrome.runtime.getPlatformInfo(() => {});
             }
-        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:background.js]", e); }
+        } catch (e) {
+            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:background.js]', e);
+        }
     }, 20000);
     return () => clearInterval(interval);
 }
 
-const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
-    ? GeminiConstants.FEEDBACK_URL
+const FEEDBACK_URL = (typeof (globalThis as any).GeminiConstants !== 'undefined' && (globalThis as any).GeminiConstants.FEEDBACK_URL)
+    ? (globalThis as any).GeminiConstants.FEEDBACK_URL
     : 'https://tally.so/r/Y56ZBB';
 
-function initUninstallUrl() {
+function initUninstallUrl(): void {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
         try {
             chrome.runtime.setUninstallURL(FEEDBACK_URL, () => {
@@ -77,11 +93,11 @@ function initUninstallUrl() {
     }
 }
 
-const cleanTitle = (t) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.cleanTitle ? GeminiUtils.cleanTitle(t) : (t || '').trim());
-const isRealTitle = (t, fallbackId) => (typeof GeminiUtils !== 'undefined' && GeminiUtils.isRealTitle ? GeminiUtils.isRealTitle(t, fallbackId) : !!(t && t.trim().length > 1));
+const cleanTitle = (t: any): string => (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.cleanTitle ? (globalThis as any).GeminiUtils.cleanTitle(t) : (t || '').trim());
+const isRealTitle = (t: any, fallbackId?: string): boolean => (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.isRealTitle ? (globalThis as any).GeminiUtils.isRealTitle(t, fallbackId) : !!(t && t.trim().length > 1));
 // Tab communication service helper (handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
-const sendToGeminiTab = (msg, slot, timeoutMs) => (typeof TabService !== 'undefined' ? TabService.sendToGeminiTab(msg, slot, timeoutMs) : Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）')));
-const getGeminiTab = (slot) => (typeof TabService !== 'undefined' && TabService.getGeminiTab ? TabService.getGeminiTab(slot) : (typeof chrome !== 'undefined' && chrome.tabs ? chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(t => t[0] || null) : Promise.resolve(null)));
+const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> => (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService.sendToGeminiTab(msg, slot, timeoutMs) : Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）')));
+const getGeminiTab = (slot?: string): Promise<any> => (typeof (globalThis as any).TabService !== 'undefined' && (globalThis as any).TabService.getGeminiTab ? (globalThis as any).TabService.getGeminiTab(slot) : (typeof chrome !== 'undefined' && chrome.tabs ? chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(t => t[0] || null) : Promise.resolve(null)));
 
 chrome.runtime.onInstalled.addListener((details) => {
     initUninstallUrl();
@@ -94,7 +110,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 initUninstallUrl();
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
         chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
@@ -113,7 +129,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             chrome.tabs.reload(msg.tabId, () => sendResponse({ ok: true }));
         } else {
             chrome.tabs.query({ url: 'https://gemini.google.com/*' }, (tabs) => {
-                if (tabs && tabs.length > 0) {
+                if (tabs && tabs.length > 0 && tabs[0].id != null) {
                     chrome.tabs.reload(tabs[0].id, () => sendResponse({ ok: true }));
                 } else {
                     sendResponse({ ok: false, error: 'no tab' });
@@ -129,7 +145,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             conversationId: msg.id || msg.conversationId
         }, msg.accountSlot)
             .then(r => sendResponse(r))
-            .catch(e => sendResponse({ success: false, error: e.message }));
+            .catch(e => sendResponse({ success: false, error: e?.message }));
         return true;
     }
 
@@ -176,8 +192,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     mode: msg.mode || 'auto'
                 }, msg.accountSlot, timeoutMs);
                 sendResponse(res);
-            } catch (e) {
-                sendResponse({ success: false, error: e.message });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e?.message });
             } finally {
                 stopKeepAlive();
             }
@@ -201,38 +217,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 });
 
-function toMs(v) {
+function toMs(v: any): number {
     if (!v) return 0;
     if (typeof v === 'number') return v;
     const n = Date.parse(v);
     return Number.isFinite(n) ? n : 0;
 }
-async function fetchBatch(list, format, skipExported, portSendResponse, globalOffset = 0, globalTotal = 0, accountSlot = 'u0') {
+
+async function fetchBatch(
+    list: any,
+    format?: string,
+    skipExported?: boolean,
+    portSendResponse?: any,
+    globalOffset: number = 0,
+    globalTotal: number = 0,
+    accountSlot: string = 'u0'
+): Promise<void> {
     const stopKeepAlive = startKeepAlive();
     try {
         const slot = accountSlot || 'u0';
         if (!list || !list.length) {
-            portSendResponse({ success: true, results: [], skipped: 0 });
+            if (portSendResponse) portSendResponse({ success: true, results: [], skipped: 0 });
             return;
         }
         const tab = await getGeminiTab(slot);
         if (!tab) {
-            portSendResponse({
-                success: false,
-                error: '请先打开 gemini.google.com，保持登录状态'
-            });
+            if (portSendResponse) {
+                portSendResponse({
+                    success: false,
+                    error: '请先打开 gemini.google.com，保持登录状态'
+                });
+            }
             return;
         }
 
         const totalCount = globalTotal || list.length;
-        const results = [];
+        const results: any[] = [];
         let done = 0;
 
         for (const item of list) {
             if (isSlotAborted(slot)) break;
             const cid = item.id || item;
             try {
-                let res = null;
+                let res: any = null;
                 let retryCount = 0;
                 const maxRetries = 3;
 
@@ -273,15 +300,15 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
                         _raw: res?._raw || null
                     });
                 }
-            } catch (e) {
+            } catch (e: any) {
                 results.push({
                     id: cid,
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${cid}`,
-                    error: e.message || '抓取异常',
+                    error: e?.message || '抓取异常',
                     messages: [],
                     _empty: true,
-                    _debug: e.stack || null,
+                    _debug: e?.stack || null,
                     _raw: null
                 });
             }
@@ -295,11 +322,13 @@ async function fetchBatch(list, format, skipExported, portSendResponse, globalOf
             }).catch(() => {});
         }
 
-        portSendResponse({
-            success: true,
-            results,
-            skipped: 0
-        });
+        if (portSendResponse) {
+            portSendResponse({
+                success: true,
+                results,
+                skipped: 0
+            });
+        }
     } finally {
         stopKeepAlive();
     }
