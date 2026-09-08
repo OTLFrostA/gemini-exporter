@@ -231,9 +231,3 @@ export const MessageRouter = {
     init
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).MessageRouter = MessageRouter;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = MessageRouter;
-}

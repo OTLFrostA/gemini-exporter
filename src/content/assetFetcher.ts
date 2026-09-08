@@ -281,9 +281,3 @@ export const AssetFetcher = {
     downloadAssetDirect
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).AssetFetcher = AssetFetcher;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = AssetFetcher;
-}

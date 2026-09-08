@@ -217,9 +217,3 @@ export const BadgeView = {
     setLastKnownCount
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).BadgeView = BadgeView;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = BadgeView;
-}

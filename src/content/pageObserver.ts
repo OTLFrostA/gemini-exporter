@@ -133,9 +133,3 @@ export const PageObserver = {
     startPeriodicSync
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).PageObserver = PageObserver;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = PageObserver;
-}

@@ -174,9 +174,3 @@ export const MessageBridge = {
     handleWindowMessage
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).MessageBridge = MessageBridge;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = MessageBridge;
-}

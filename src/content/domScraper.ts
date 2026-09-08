@@ -247,10 +247,4 @@ export const DomScraper = {
     debugCurrentPage
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).DomScraper = DomScraper;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = DomScraper;
-}
 
