@@ -16,11 +16,9 @@ function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
 }
 
-function log(msg: string): void {
-    const l = $('log');
-    if (!l) return;
-    const time = new Date().toLocaleTimeString();
-    l.textContent = `[${time}] ${msg}\n` + l.textContent.slice(0, 2000);
+function log(_msg: string): void {
+    // no-op: popup no longer shows log stream; badge + button disabled state is sufficient
+    // kept as no-op to avoid touching every caller; callers below are also removed
 }
 
 const cleanTitle = (t: any): string =>
@@ -70,10 +68,6 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
             if (countBadge) {
                 countBadge.classList.add('inactive');
             }
-            const hint = typeof i18n !== 'undefined'
-                ? (i18n.getLang?.() === 'zh' ? '当前不在 Gemini 对话页，可点击“去工作台”管理历史会话' : 'Not on Gemini page. Click Workbench to manage chats.')
-                : '当前不在 Gemini 对话页，可点击“去工作台”管理历史会话';
-            log(hint);
         } else {
             if (btnCurrent) {
                 btnCurrent.disabled = false;
@@ -208,7 +202,7 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
             : (currentFormatSelect?.value || 'markdown');
         if (typeof formatStore === 'undefined' && !ALLOWED_FORMATS.includes(format)) format = 'markdown';
 
-        log(typeof i18n !== 'undefined' ? i18n.t('popupExporting') : '正在导出当前页…');
+        void (typeof i18n !== 'undefined' ? i18n.t('popupExporting') : '');
         const progWrap = $('progWrap');
         const bar = $('bar');
         if (progWrap) progWrap.style.display = 'block';
