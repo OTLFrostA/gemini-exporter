@@ -17,16 +17,17 @@ const t = (key: string, ...args: any[]): string => {
     return key;
 };
 
+import StorageService from '../../core/storage/storageService.js';
+import TabService from '../../core/utils/tabService.js';
+
 const getStorage = () => {
-    if (typeof StorageService !== 'undefined') return StorageService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
-    return null;
+    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
+    return StorageService;
 };
 
 const getTabService = () => {
-    if (typeof TabService !== 'undefined') return TabService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).TabService) return (globalThis as any).TabService;
-    return null;
+    if (typeof (globalThis as any).TabService !== 'undefined') return (globalThis as any).TabService;
+    return TabService;
 };
 
 export function clearActionListeners(): void {
@@ -568,12 +569,17 @@ export const TourGuide: TourGuideContract = {
     STEPS
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = TourGuide;
-}
+(TourGuide as any).TourGuide = TourGuide;
+(TourGuide as any).default = TourGuide;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).TourGuide = TourGuide;
 }
 if (typeof window !== 'undefined') {
     (window as any).TourGuide = TourGuide;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = TourGuide;
+}
+
+export default TourGuide;

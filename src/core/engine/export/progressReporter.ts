@@ -105,18 +105,27 @@ class ProgressReporter {
     }
 }
 
-(function(root: any, factory: () => ProgressReporterModule) {
-    if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.ProgressReporter = factory();
-    }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): ProgressReporterModule {
-    'use strict';
+export {
+    ProgressReporter,
+    calculateProgress,
+    updateStorageSession
+};
 
-    return {
-        ProgressReporter,
-        calculateProgress,
-        updateStorageSession
-    };
-}));
+export const progressReporterModule: ProgressReporterModule = {
+    ProgressReporter,
+    calculateProgress,
+    updateStorageSession
+};
+
+(progressReporterModule as any).ProgressReporter = ProgressReporter;
+(progressReporterModule as any).calculateProgress = calculateProgress;
+(progressReporterModule as any).updateStorageSession = updateStorageSession;
+(progressReporterModule as any).default = progressReporterModule;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).ProgressReporter) {
+    (globalThis as any).ProgressReporter = progressReporterModule;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = progressReporterModule;
+}
+export default progressReporterModule;

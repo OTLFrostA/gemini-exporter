@@ -1,5 +1,4 @@
-// credentialManager.ts - Manages Gemini AT/BL/SID tokens, DOM sniffing, and storage
-import type { GeminiProtocolModule } from "../../protocol/protocol.js";
+import GeminiProtocol, { GeminiProtocolModule, TOKEN_PATTERNS, TOKENS, BL_FALLBACK } from "../../protocol/protocol.js";
 
 export interface GeminiCredentials {
     sid: string;
@@ -25,30 +24,12 @@ declare global {
     var GeminiClientCredentialManager: GeminiClientCredentialManagerModule;
 }
 
-(function(root: any, factory: () => GeminiClientCredentialManagerModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        root.GeminiClientCredentialManager = factory();
+function getProtocol(): GeminiProtocolModule {
+    if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
+        return (globalThis as any).GeminiProtocol;
     }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiClientCredentialManagerModule {
-    "use strict";
-
-    let __protocol: GeminiProtocolModule | null = null;
-    function getProtocol(): GeminiProtocolModule {
-        if (__protocol) return __protocol;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
-            __protocol = (globalThis as any).GeminiProtocol;
-        } else if (typeof require !== "undefined") {
-            try { __protocol = require("../../protocol/protocol.js"); } catch (_) {
-                try { __protocol = require("../protocol/protocol.js"); } catch (_) {}
-            }
-        }
-        if (!__protocol) throw new Error("GeminiProtocol not found. Make sure core/protocol/protocol.js is loaded.");
-        return __protocol;
-    }
+    return GeminiProtocol;
+}
 
     const generateFallbackSid = () => String(Math.floor(Math.random() * 1e19));
 
@@ -222,13 +203,30 @@ declare global {
         return result;
     }
 
-    return {
-        getBlFromPage,
-        getAtFromPage,
-        detectSlot,
-        getCredStorage,
-        loadCredMap,
-        resolveCred,
-        generateFallbackSid
-    };
-}));
+export {
+    getBlFromPage,
+    getAtFromPage,
+    detectSlot,
+    getCredStorage,
+    loadCredMap,
+    resolveCred,
+    generateFallbackSid
+};
+
+export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule = {
+    getBlFromPage,
+    getAtFromPage,
+    detectSlot,
+    getCredStorage,
+    loadCredMap,
+    resolveCred,
+    generateFallbackSid
+};
+
+if (typeof globalThis !== "undefined" && !(globalThis as any).GeminiClientCredentialManager) {
+    (globalThis as any).GeminiClientCredentialManager = GeminiClientCredentialManager;
+}
+if (typeof module === "object" && module.exports) {
+    module.exports = GeminiClientCredentialManager;
+}
+export default GeminiClientCredentialManager;

@@ -2,26 +2,33 @@
 import type { Conversation } from '../../types/conversation.js';
 import type { ExportRecord, IConversationsStore } from '../../types/ui.js';
 
+import StorageService, { type StorageServiceModule } from '../../core/storage/storageService.js';
+import GeminiUtils, {
+    type GeminiUtilsModule,
+    normId as utilsNormId,
+    deduplicateConversations as utilsDeduplicateConversations,
+    resolveTitle as utilsResolveTitle,
+    compareConversations as utilsCompareConversations
+} from '../../core/utils/utils.js';
+
 let conversations: Conversation[] = [];
 let exportedIds: Record<string, ExportRecord> = {};
 let currentSlot: string = 'u0';
 let accountSlots: Record<string, any> = {};
 
-const getStorage = () => (typeof StorageService !== 'undefined'
-    ? StorageService
-    : (typeof window !== 'undefined' && (window as any).StorageService)
-        || (typeof globalThis !== 'undefined' && (globalThis as any).StorageService)
-        || (typeof require !== 'undefined' ? require('../../core/storage/storageService.js') : null));
-const getUtils = () => (typeof GeminiUtils !== 'undefined'
-    ? GeminiUtils
-    : (typeof window !== 'undefined' && (window as any).GeminiUtils)
-        || (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils)
-        || (typeof require !== 'undefined' ? require('../../core/utils/utils.js') : null));
+const getStorage = (): any => {
+    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
+    return StorageService;
+};
+const getUtils = (): any => {
+    if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
+    return GeminiUtils;
+};
 
 export const normId = (id?: string | null): string => {
     const utils = getUtils();
     if (utils && typeof utils.normId === 'function') return utils.normId(id);
-    return String(id || '').replace(/^c_/, '');
+    return utilsNormId(id);
 };
 
 export function getConversations(): Conversation[] { return conversations; }
@@ -260,9 +267,14 @@ export const ConversationsStore: IConversationsStore = {
     normId
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = ConversationsStore;
-}
+(ConversationsStore as any).ConversationsStore = ConversationsStore;
+(ConversationsStore as any).default = ConversationsStore;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).ConversationsStore = ConversationsStore;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = ConversationsStore;
+}
+
+export default ConversationsStore;

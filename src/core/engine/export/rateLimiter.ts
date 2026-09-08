@@ -96,10 +96,16 @@ export const rateLimitModule: RateLimitModule = {
     calculateBackoff
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = rateLimitModule;
-}
+(rateLimitModule as any).RateLimitManager = RateLimitManager;
+(rateLimitModule as any).RateLimitModule = rateLimitModule;
+(rateLimitModule as any).default = rateLimitModule;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).RateLimitManager = RateLimitManager;
     (globalThis as any).RateLimitModule = rateLimitModule;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = rateLimitModule;
+}
+
+export default rateLimitModule;

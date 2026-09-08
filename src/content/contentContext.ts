@@ -257,3 +257,4 @@ export class ContentContext {
 }
 
 export const contentContext = new ContentContext();
+export default contentContext;

@@ -1,17 +1,26 @@
 // src/content/syncEngine.ts - In-page active conversation detection & cloud batch sync
-import { DomScraper } from './domScraper';
-import { BadgeView } from './badgeView';
-import { contentContext } from './contentContext';
+import { DomScraper } from './domScraper.js';
+import { BadgeView } from './badgeView.js';
+import { contentContext } from './contentContext.js';
+import { StorageService } from '../core/storage/storageService.js';
+import { GeminiUtils } from '../core/utils/utils.js';
+import { GeminiProtocol } from '../core/protocol/protocol.js';
+import { GeminiAPIClient } from '../core/api/geminiClient.js';
 
-const getStorage = () => (typeof StorageService !== 'undefined' ? StorageService : null) as any;
+const getStorage = () => (typeof StorageService !== 'undefined'
+    ? StorageService
+    : ((typeof globalThis !== 'undefined' && (globalThis as any).StorageService) || null)) as any;
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
 const getUtils = () => (typeof GeminiUtils !== 'undefined'
     ? GeminiUtils
-    : (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils)
-        || (typeof require !== 'undefined' ? require('../core/utils/utils.js') : null)) as any;
-const getProtocol = () => (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : null) as any;
-const getApiClientClass = () => (typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : null) as any;
+    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) || null)) as any;
+const getProtocol = () => (typeof GeminiProtocol !== 'undefined'
+    ? GeminiProtocol
+    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiProtocol) || null)) as any;
+const getApiClientClass = () => (typeof GeminiAPIClient !== 'undefined'
+    ? GeminiAPIClient
+    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiAPIClient) || null)) as any;
 
 export const cleanTitle = (t?: string | null) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(t || '') : (t || '').trim());
 export const isRealTitle = (t?: string | null, id?: string) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
@@ -401,4 +410,14 @@ export const SyncEngine = {
 };
 
 
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = SyncEngine;
+(SyncEngine as any).SyncEngine = SyncEngine;
+(SyncEngine as any).default = SyncEngine;
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).SyncEngine = SyncEngine;
+}
+if (typeof module !== 'undefined' && (module as any).exports) {
+    (module as any).exports = SyncEngine;
+}
+
+export default SyncEngine;

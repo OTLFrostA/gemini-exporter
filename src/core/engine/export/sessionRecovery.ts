@@ -53,40 +53,28 @@ declare global {
     var SessionRecovery: SessionRecoveryModule;
 }
 
-(function(root: any, factory: () => SessionRecoveryModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.SessionRecovery = factory();
+import { normId as utilsNormId } from "../../utils/utils.js";
+
+const normId = (id?: string | number | null): string => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.normId) {
+        return (globalThis as any).GeminiUtils.normId(id);
     }
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): SessionRecoveryModule {
-    'use strict';
+    return utilsNormId(id);
+};
 
-    function getExtensionVersion(customVersion?: string): string {
-        if (customVersion) return customVersion;
-        try {
-            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
-                return chrome.runtime.getManifest().version || '1.3.8';
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.ts]', e);
-            }
+export function getExtensionVersion(customVersion?: string): string {
+    if (customVersion) return customVersion;
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+            return chrome.runtime.getManifest().version || '1.3.8';
         }
-        return '1.3.8';
+    } catch (e) {
+        if (typeof console !== 'undefined' && console.debug) {
+            console.debug('[GemExporter:sessionRecovery.ts]', e);
+        }
     }
-
-    const getUtils = (): GeminiUtilsModule | null => {
-        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-        if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch (_) { /* intentional: require fallback in browser context */ }
-        }
-        return null;
-    };
-
-    const normId = (id?: string | number | null): string => (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
+    return '1.3.8';
+}
 
     async function writeIndexAndMeta(
         metaResults: any[],
@@ -300,12 +288,30 @@ declare global {
         }
     }
 
-    return {
-        writeIndexAndMeta,
-        writeDiagnostics,
-        buildSessionLogText,
-        finalizeChatExport,
-        updateSessionStatus,
-        getExtensionVersion
-    };
-}));
+export {
+    writeIndexAndMeta,
+    writeDiagnostics,
+    buildSessionLogText,
+    finalizeChatExport,
+    updateSessionStatus
+};
+
+export const SessionRecovery: SessionRecoveryModule = {
+    writeIndexAndMeta,
+    writeDiagnostics,
+    buildSessionLogText,
+    finalizeChatExport,
+    updateSessionStatus,
+    getExtensionVersion
+};
+
+(SessionRecovery as any).SessionRecovery = SessionRecovery;
+(SessionRecovery as any).default = SessionRecovery;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).SessionRecovery) {
+    (globalThis as any).SessionRecovery = SessionRecovery;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = SessionRecovery;
+}
+export default SessionRecovery;

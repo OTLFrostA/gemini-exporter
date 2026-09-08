@@ -65,10 +65,8 @@ declare global {
     var __gemExporterLogAll: boolean | undefined;
 }
 
-(function(global: any) {
-    'use strict';
+const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-    const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     /**
      * Determine if a title is a real, meaningful conversation title
@@ -493,7 +491,7 @@ declare global {
         return { processed, changedCount, hasDirtyTitles };
     }
 
-    const utilsModule: GeminiUtilsModule = {
+    export {
         isDevMode,
         isRealTitle,
         cleanTitle,
@@ -510,11 +508,29 @@ declare global {
         TITLE_SOURCE_PRIORITY
     };
 
-    // Export for different module systems
-    if (typeof module === 'object' && module.exports) {
-        module.exports = utilsModule;
-    } else {
-        global.GeminiUtils = global.GeminiUtils || {};
-        Object.assign(global.GeminiUtils, utilsModule);
+    export const GeminiUtils: GeminiUtilsModule = {
+        isDevMode,
+        isRealTitle,
+        cleanTitle,
+        sanitizeFileName,
+        sanitizeRelativePath,
+        normId,
+        resolveTitle,
+        setTitleBySource,
+        getEffectiveTimestamp,
+        compareConversations,
+        formatExportProgress,
+        mergeConversation,
+        deduplicateConversations,
+        TITLE_SOURCE_PRIORITY
+    };
+
+    if (typeof globalThis !== 'undefined') {
+        (globalThis as any).GeminiUtils = GeminiUtils;
     }
-})(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this));
+    if (typeof module === 'object' && module.exports) {
+        module.exports = GeminiUtils;
+    }
+
+    export default GeminiUtils;
+

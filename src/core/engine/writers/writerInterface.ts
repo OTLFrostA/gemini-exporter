@@ -23,47 +23,38 @@ declare global {
     var WriterInterface: WriterInterfaceModule;
 }
 
-(function(root: any, factory: () => WriterInterfaceModule) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else root.WriterInterface = factory();
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): WriterInterfaceModule {
-    'use strict';
+import { ZipWriter } from './zipWriter.js';
+import { FsWriter } from './fsWriter.js';
 
-    /**
-     * Check whether an object conforms to the Writer interface.
-     */
-    function isWriter(obj: any): boolean {
-        return Boolean(obj && typeof obj.writeFile === 'function');
+/**
+ * Check whether an object conforms to the Writer interface.
+ */
+export function isWriter(obj: any): boolean {
+    return Boolean(obj && typeof obj.writeFile === 'function');
+}
+
+/**
+ * Factory function to create a writer instance.
+ */
+export function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
+    if (type === 'zip') {
+        const Cls = (ZipWriter as any)?.ZipWriter || ZipWriter;
+        return new Cls(options.folderName || 'gemini_export');
     }
-
-    /**
-     * Factory function to create a writer instance.
-     */
-    function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
-        if (type === 'zip') {
-            const ZipWriterClass = (typeof (globalThis as any).ZipWriter !== 'undefined' && (globalThis as any).ZipWriter.ZipWriter)
-                || (typeof (globalThis as any).ZipWriter !== 'undefined' ? (globalThis as any).ZipWriter : null)
-                || (typeof require !== 'undefined' ? (function() { try { return require('./zipWriter.js'); } catch { return null; } })() : null);
-            if (ZipWriterClass) {
-                const Cls = ZipWriterClass.ZipWriter || ZipWriterClass;
-                return new Cls(options.folderName || 'gemini_export');
-            }
-            throw new Error('ZipWriter is not available');
-        }
-        if (type === 'fs') {
-            const FsWriterModule = (typeof (globalThis as any).FsWriter !== 'undefined' ? (globalThis as any).FsWriter : null)
-                || (typeof require !== 'undefined' ? (function() { try { return require('./fsWriter.js'); } catch { return null; } })() : null);
-            const FsWriterClass = FsWriterModule ? (FsWriterModule.FsWriter || FsWriterModule) : null;
-            if (FsWriterClass) {
-                return new FsWriterClass(options.dirHandle, options.folderName || 'gemini_export');
-            }
-            throw new Error('FsWriter is not available');
-        }
-        throw new Error(`Unsupported writer type: ${type}`);
+    if (type === 'fs') {
+        const Cls = (FsWriter as any)?.FsWriter || FsWriter;
+        return new Cls(options.dirHandle, options.folderName || 'gemini_export');
     }
+    throw new Error(`Unsupported writer type: ${type}`);
+}
 
-    return {
-        isWriter,
-        createWriter
-    };
-}));
+export const WriterInterface: WriterInterfaceModule = {
+    isWriter,
+    createWriter
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).WriterInterface = WriterInterface;
+if (typeof module === 'object' && module.exports) module.exports = WriterInterface;
+
+export default WriterInterface;
+

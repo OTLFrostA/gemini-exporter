@@ -21,20 +21,27 @@ declare global {
     var GeminiConstants: GeminiConstantsModule;
 }
 
-(function(root: any, factory: () => GeminiConstantsModule) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else root.GeminiConstants = factory();
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): GeminiConstantsModule {
-    'use strict';
-    const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'json_openai', 'json', 'json_raw'];
-    const DEFAULT_FORMAT: AllowedFormat = 'markdown';
-    const DIRECT_WRITE_THRESHOLD = 50;
-    const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
-    const STORAGE_KEYS: StorageKeyMap = {
-        FORMAT: 'gemini_export_format',
-        ZIP: 'gemini_export_zip',
-        DEV_MODE: 'gemini_dev_mode',
-        SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt'
-    };
-    return { ALLOWED_FORMATS, DEFAULT_FORMAT, DIRECT_WRITE_THRESHOLD, STORAGE_KEYS, FEEDBACK_URL };
-}));
+export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'json_openai', 'json', 'json_raw'];
+export const DEFAULT_FORMAT: AllowedFormat = 'markdown';
+export const DIRECT_WRITE_THRESHOLD = 50;
+export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
+export const STORAGE_KEYS: StorageKeyMap = {
+    FORMAT: 'gemini_export_format',
+    ZIP: 'gemini_export_zip',
+    DEV_MODE: 'gemini_dev_mode',
+    SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt'
+};
+
+export const GeminiConstants: GeminiConstantsModule = {
+    ALLOWED_FORMATS,
+    DEFAULT_FORMAT,
+    DIRECT_WRITE_THRESHOLD,
+    STORAGE_KEYS,
+    FEEDBACK_URL
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).GeminiConstants = GeminiConstants;
+if (typeof module === 'object' && module.exports) module.exports = GeminiConstants;
+
+export default GeminiConstants;
+

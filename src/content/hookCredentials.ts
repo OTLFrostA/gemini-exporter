@@ -1,5 +1,5 @@
 // src/content/hookCredentials.ts - MAIN world, captures Gemini credentials safely (no inline)
-import '../core/protocol/protocol.js';
+import { GeminiProtocol } from '../core/protocol/protocol.js';
 
 (() => {
     if (typeof window === 'undefined') return;
@@ -229,3 +229,5 @@ import '../core/protocol/protocol.js';
 
     if (isDev()) console.log('[Gemini Exporter] MAIN world credentials hook initialized');
 })();
+
+export {};

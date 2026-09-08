@@ -1,13 +1,16 @@
 // src/content/domScraper.ts - DOM fallback parser and conversation list scroller
-import { contentContext } from './contentContext';
+import { contentContext } from './contentContext.js';
+import { GeminiUtils } from '../core/utils/utils.js';
 
 function cleanText(t?: string | null): string {
     return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
 }
 
-const Utils = (typeof GeminiUtils !== 'undefined' ? GeminiUtils : null) as any;
-const cleanTitle = (raw?: string | null) => (Utils?.cleanTitle ? Utils.cleanTitle(raw || '') : (raw || '').trim());
-const isRealTitle = (t?: string | null, fallbackId?: string) => (Utils?.isRealTitle ? Utils.isRealTitle(t || '', fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
+const getUtils = () => (typeof GeminiUtils !== 'undefined'
+    ? GeminiUtils
+    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) || null)) as any;
+const cleanTitle = (raw?: string | null) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(raw || '') : (raw || '').trim());
+const isRealTitle = (t?: string | null, fallbackId?: string) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t || '', fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
 
 export function parseDoc(doc: Document, id: string, url?: string): any {
     let title = doc.title ? cleanTitle(doc.title) : '';
@@ -249,4 +252,14 @@ export const DomScraper = {
 
 
 
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = DomScraper;
+(DomScraper as any).DomScraper = DomScraper;
+(DomScraper as any).default = DomScraper;
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).DomScraper = DomScraper;
+}
+if (typeof module !== 'undefined' && (module as any).exports) {
+    (module as any).exports = DomScraper;
+}
+
+export default DomScraper;

@@ -1,9 +1,34 @@
-// geminiClient.ts - Gemini internal batchexecute API network and credentials client
-import type { GeminiProtocolModule } from "../protocol/protocol.js";
-import type { GeminiClientCredentialManagerModule, GeminiCredentials } from "./client/credentialManager.js";
-import type { GeminiClientRetryPolicyModule } from "./client/retryPolicy.js";
-import type { GeminiClientRpcClientModule } from "./client/rpcClient.js";
-import type { GeminiClientPaginationModule, PaginationOptions, PaginationResult } from "./client/pagination.js";
+import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
+import { isDevMode } from "../utils/utils.js";
+import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "./geminiParser.js";
+import GeminiClientCredentialManager, {
+    GeminiClientCredentialManagerModule,
+    GeminiCredentials,
+    getBlFromPage,
+    getAtFromPage,
+    detectSlot,
+    getCredStorage,
+    loadCredMap,
+    resolveCred
+} from "./client/credentialManager.js";
+import GeminiClientRetryPolicy, {
+    GeminiClientRetryPolicyModule,
+    handleHttp400,
+    handleHttp401,
+    handleHttp429
+} from "./client/retryPolicy.js";
+import GeminiClientRpcClient, {
+    GeminiClientRpcClientModule,
+    postBatchexecute,
+    getApiUrl
+} from "./client/rpcClient.js";
+import GeminiClientPagination, {
+    GeminiClientPaginationModule,
+    PaginationOptions,
+    PaginationResult,
+    getAllConversations,
+    getConversationDetail
+} from "./client/pagination.js";
 import type { ListParseResult } from "./parser/parseList.js";
 import type { DetailParseResult } from "./parser/parseDetail.js";
 
@@ -12,85 +37,24 @@ export interface GeminiAPIClientOptions {
     [key: string]: any;
 }
 
-(function(global: any) {
-    "use strict";
-
-    function resolveModule(globalName: string, relPath: string): any {
-        if (typeof globalThis !== "undefined" && (globalThis as any)[globalName]) return (globalThis as any)[globalName];
-        if (typeof global !== "undefined" && global[globalName]) return global[globalName];
-        if (typeof self !== "undefined" && (self as any)[globalName]) return (self as any)[globalName];
-        if (typeof require !== "undefined") {
-            try { return require(relPath); } catch (_) {}
-        }
-        return null;
+function getProtocol(): GeminiProtocolModule {
+    if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
+        return (globalThis as any).GeminiProtocol;
     }
+    return GeminiProtocol;
+}
 
-    const credentialManager: GeminiClientCredentialManagerModule = resolveModule("GeminiClientCredentialManager", "./client/credentialManager.js") || {};
-    const retryPolicy: GeminiClientRetryPolicyModule = resolveModule("GeminiClientRetryPolicy", "./client/retryPolicy.js") || {};
-    const rpcClient: GeminiClientRpcClientModule = resolveModule("GeminiClientRpcClient", "./client/rpcClient.js") || {};
-    const pagination: GeminiClientPaginationModule = resolveModule("GeminiClientPagination", "./client/pagination.js") || {};
-
-    const getProtocol = (): GeminiProtocolModule => {
-        if (rpcClient.getProtocol) return rpcClient.getProtocol();
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
-        if (typeof require !== "undefined") {
-            try { return require("../protocol/protocol.js"); } catch (_) {}
-        }
-        throw new Error("GeminiProtocol not found. Make sure core/protocol/protocol.js is loaded.");
-    };
-
-    const getUtils = (): any => {
-        if (rpcClient.getUtils) return rpcClient.getUtils();
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== "undefined") {
-            try { return require("../utils/utils.js"); } catch (_) {}
-        }
-        return null;
-    };
-
-    const getParser = (): any => {
-        if (rpcClient.getParser) return rpcClient.getParser();
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiResponseParserClass) return (globalThis as any).GeminiResponseParserClass;
-        if (typeof global !== "undefined" && global.GeminiResponseParserClass) return global.GeminiResponseParserClass;
-        if (typeof require !== "undefined") {
-            try { return require("./geminiParser.js").GeminiResponseParserClass; } catch (_) {}
-        }
-        throw new Error("GeminiResponseParserClass not found. Make sure geminiParser.js is loaded.");
-    };
-
-    const postBatchexecute = rpcClient.postBatchexecute || (async () => { throw new Error("rpcClient not found"); });
-
-    function getApiUrl(slot?: string | null): string {
-        if (rpcClient.getApiUrl) return rpcClient.getApiUrl(slot);
-        if (slot && slot !== "default") {
-            let t = slot.startsWith("/") ? slot : (slot.startsWith("u/") ? `/${slot}` : slot.replace(/^u/, "/u/"));
-            return `https://gemini.google.com${t}/_/BardChatUi/data/batchexecute`;
-        }
-        return "https://gemini.google.com/_/BardChatUi/data/batchexecute";
+function getParser(): GeminiResponseParserFacade {
+    if (typeof globalThis !== "undefined" && (globalThis as any).GeminiResponseParserClass) {
+        return (globalThis as any).GeminiResponseParserClass;
     }
+    return GeminiResponseParserClass;
+}
 
-    function getBlFromPage(): string | null {
-        return credentialManager.getBlFromPage ? credentialManager.getBlFromPage() : null;
-    }
-
-    function getAtFromPage(): string {
-        return credentialManager.getAtFromPage ? credentialManager.getAtFromPage() : "";
-    }
-
-    function detectSlot(): string | null {
-        return credentialManager.detectSlot ? credentialManager.detectSlot() : "default";
-    }
-
-    async function loadCredMap(): Promise<any> {
-        return credentialManager.loadCredMap ? credentialManager.loadCredMap() : {};
-    }
-
-    async function resolveCred(targetSid?: string | null, overrides?: any): Promise<GeminiCredentials> {
-        if (credentialManager.resolveCred) {
-            return credentialManager.resolveCred(targetSid, overrides);
-        }
-        return { sid: "default", at: "", bl: "", accountSlot: "default" };
-    }
+const credentialManager = GeminiClientCredentialManager;
+const retryPolicy = GeminiClientRetryPolicy;
+const rpcClient = GeminiClientRpcClient;
+const pagination = GeminiClientPagination;
 
     class GeminiAPIClient {
         public aborted: boolean;
@@ -227,8 +191,8 @@ export interface GeminiAPIClientOptions {
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
-            const isDevMode = !!(getUtils()?.isDevMode ? getUtils().isDevMode() : false);
-            if (isDevMode) {
+            const isDev = isDevMode();
+            if (isDev) {
                 console.log(`[Gemini Exporter Client] fetchConversationPage start: ${id}, api: ${api}, slot: ${cred.accountSlot}, hasAt: ${Boolean(cred.at)}, atLen: ${(cred.at || "").length}`);
             }
             const detailOnly = !!(opts && opts.detailOnly);
@@ -312,14 +276,14 @@ export interface GeminiAPIClientOptions {
             let text = await resp.text();
             try {
                 let parsed = getParser().parseDetail(text, conversationId);
-                if (isDevMode) {
+                if (isDev) {
                     console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
                 }
                 return parsed;
             } catch (err: any) {
                 const isDeletedOrInaccessible = text && (text.includes("BardErrorInfo") || text.includes("1167"));
                 if (isDeletedOrInaccessible) {
-                    if (isDevMode) {
+                    if (isDev) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is inaccessible or deleted on server (BardErrorInfo: 1167). Skipping.`);
                     }
                     throw new Error(`会话已在服务端删除或不可访问 (${id})`);
@@ -340,7 +304,8 @@ export interface GeminiAPIClientOptions {
         getCurrentConversationId(): string | null {
             if (typeof document === "undefined") return null;
             try {
-                let u = new URL(global.location.href);
+                const glob: any = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {});
+                let u = new URL(glob.location.href);
                 let parts = u.pathname.split("/");
                 let idx = parts.indexOf("app");
                 if (idx !== -1 && idx < parts.length - 1) return parts[idx + 1];
@@ -353,23 +318,53 @@ export interface GeminiAPIClientOptions {
         }
     }
 
-    global.GeminiAPIClient = GeminiAPIClient;
-    global.getApiUrl = getApiUrl;
-    global.detectSlot = detectSlot;
-    global.resolveCred = resolveCred;
-    global.loadCredMap = loadCredMap;
+export {
+    GeminiAPIClient,
+    getApiUrl,
+    detectSlot,
+    resolveCred,
+    loadCredMap,
+    credentialManager,
+    retryPolicy,
+    rpcClient,
+    pagination
+};
 
-    if (typeof module !== "undefined" && module.exports) {
-        module.exports = {
-            GeminiAPIClient,
-            getApiUrl,
-            detectSlot,
-            resolveCred,
-            loadCredMap,
-            credentialManager,
-            retryPolicy,
-            rpcClient,
-            pagination
-        };
-    }
-})(typeof window !== "undefined" ? window : (typeof self !== "undefined" ? self : (typeof globalThis !== "undefined" ? globalThis : this)));
+export const GeminiClientExports = {
+    GeminiAPIClient,
+    getApiUrl,
+    detectSlot,
+    resolveCred,
+    loadCredMap,
+    credentialManager,
+    retryPolicy,
+    rpcClient,
+    pagination
+};
+
+type GetApiUrlFn = typeof getApiUrl;
+type DetectSlotFn = typeof detectSlot;
+type ResolveCredFn = typeof resolveCred;
+type LoadCredMapFn = typeof loadCredMap;
+
+declare global {
+    var GeminiAPIClient: typeof GeminiAPIClient;
+    var getApiUrl: GetApiUrlFn;
+    var detectSlot: DetectSlotFn;
+    var resolveCred: ResolveCredFn;
+    var loadCredMap: LoadCredMapFn;
+}
+
+if (typeof globalThis !== "undefined") {
+    if (!(globalThis as any).GeminiAPIClient) (globalThis as any).GeminiAPIClient = GeminiAPIClient;
+    if (!(globalThis as any).getApiUrl) (globalThis as any).getApiUrl = getApiUrl;
+    if (!(globalThis as any).detectSlot) (globalThis as any).detectSlot = detectSlot;
+    if (!(globalThis as any).resolveCred) (globalThis as any).resolveCred = resolveCred;
+    if (!(globalThis as any).loadCredMap) (globalThis as any).loadCredMap = loadCredMap;
+}
+
+if (typeof module === "object" && module.exports) {
+    module.exports = GeminiClientExports;
+}
+
+export default GeminiClientExports;

@@ -2,6 +2,12 @@
 import type { Conversation } from '../../types/conversation.js';
 import type { ExportRecord, IListView } from '../../types/ui.js';
 
+import GeminiUtils, {
+    isRealTitle as utilsIsRealTitle,
+    cleanTitle as utilsCleanTitle,
+    resolveTitle as utilsResolveTitle
+} from '../../core/utils/utils.js';
+
 function $(id: string): HTMLElement | null {
     return document.getElementById(id);
 }
@@ -14,32 +20,24 @@ const t = (key: string, ...args: any[]): string => {
 };
 
 export const isRealTitle = (title?: string | null, id?: string | null): boolean => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(title as unknown as string, id as unknown as string);
-    if (!title || typeof title !== 'string') return false;
-    let tr = title.trim();
-    if (tr.length < 2) return false;
-    if (id) {
-        let cid = String(id).replace(/^c_/, '').trim();
-        let ct = tr.replace(/^c_/, '').trim();
-        if (ct === cid) return false;
+    if (typeof (globalThis as any).GeminiUtils?.isRealTitle === 'function') {
+        return (globalThis as any).GeminiUtils.isRealTitle(title as unknown as string, id as unknown as string);
     }
-    if (/^(未命名对话|Untitled)/i.test(tr)) return false;
-    if (/^[a-f0-9_-]{8,64}$/i.test(tr)) return false;
-    return true;
+    return utilsIsRealTitle(title, id || undefined);
 };
 
 export const cleanTitle = (tStr?: string | null): string => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.cleanTitle === 'function') return GeminiUtils.cleanTitle(tStr);
-    if (!tStr || typeof tStr !== 'string') return '';
-    let s = tStr.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
-    s = s.replace(/\s*[-–—|·•]\s*(Google\s+)?(Gemini|Bard|Google\s+AI).*$/i, '');
-    s = s.replace(/^(Google\s+)?(Gemini|Bard|Google\s+AI)\s*[-–—|·•]\s*/i, '');
-    return s.trim();
+    if (typeof (globalThis as any).GeminiUtils?.cleanTitle === 'function') {
+        return (globalThis as any).GeminiUtils.cleanTitle(tStr);
+    }
+    return utilsCleanTitle(tStr);
 };
 
 export const resolveTitle = (chat: any): { title: string; source: string } => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.resolveTitle === 'function') return GeminiUtils.resolveTitle(chat);
-    return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
+    if (typeof (globalThis as any).GeminiUtils?.resolveTitle === 'function') {
+        return (globalThis as any).GeminiUtils.resolveTitle(chat);
+    }
+    return utilsResolveTitle(chat);
 };
 
 function escapeHtml(str?: string | null): string {
@@ -327,9 +325,14 @@ export const ListView: IListView = {
     updateItemExportStatus
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = ListView;
-}
+(ListView as any).ListView = ListView;
+(ListView as any).default = ListView;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).ListView = ListView;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = ListView;
+}
+
+export default ListView;

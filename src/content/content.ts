@@ -13,15 +13,17 @@ import '../core/api/client/retryPolicy.js';
 import '../core/api/client/rpcClient.js';
 import '../core/api/client/pagination.js';
 import '../core/api/geminiClient.js';
-import { contentContext } from './contentContext';
-import { ensureCreds } from './bootstrap';
-import { SyncEngine } from './syncEngine';
-import { PageObserver } from './pageObserver';
-import { MessageRouter } from './messageRouter';
-import { BadgeView } from './badgeView';
-import { MessageBridge } from './messageBridge';
-import { DomScraper } from './domScraper';
-import { AssetFetcher } from './assetFetcher';
+import { StorageService } from '../core/storage/storageService.js';
+import { GeminiUtils } from '../core/utils/utils.js';
+import { contentContext } from './contentContext.js';
+import { ensureCreds } from './bootstrap.js';
+import { SyncEngine } from './syncEngine.js';
+import { PageObserver } from './pageObserver.js';
+import { MessageRouter } from './messageRouter.js';
+import { BadgeView } from './badgeView.js';
+import { MessageBridge } from './messageBridge.js';
+import { DomScraper } from './domScraper.js';
+import { AssetFetcher } from './assetFetcher.js';
 
 (() => {
     'use strict';

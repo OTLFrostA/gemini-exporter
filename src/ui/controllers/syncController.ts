@@ -1,5 +1,6 @@
 // src/ui/controllers/syncController.ts - Synchronization & Background Scanning Controller
 import type { SyncControllerContract } from '../../types/ui.js';
+import GeminiProtocol, { LIMITS } from '../../core/protocol/protocol.js';
 
 const t = (key: string, ...args: any[]): string => {
     if (typeof I18n !== 'undefined' && I18n.t) {
@@ -121,9 +122,14 @@ export const SyncController: SyncControllerContract = {
     stopScan
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = SyncController;
-}
+(SyncController as any).SyncController = SyncController;
+(SyncController as any).default = SyncController;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).SyncController = SyncController;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = SyncController;
+}
+
+export default SyncController;

@@ -5,21 +5,35 @@ import { ListView as DefaultListView } from '../../views/listView.js';
 import { ExportController as DefaultExportController } from '../../controllers/exportController.js';
 import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
 import { DirHandleController as DefaultDirHandle } from '../../controllers/dirHandleController.js';
+import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
+import { TakeoutEngine as DefaultTakeoutEngine } from '../../../core/engine/takeoutEngine.js';
+import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
+import { GeminiConstants as DefaultGeminiConstants } from '../../../core/utils/constants.js';
+import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
 }
 
+const getI18n = () => {
+    if (typeof I18n !== 'undefined' && I18n) return I18n;
+    if (typeof DefaultI18n !== 'undefined' && DefaultI18n) return DefaultI18n;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).I18n) return (globalThis as any).I18n;
+    return null;
+};
+
 const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
+    const i18n = getI18n();
+    if (i18n && typeof i18n.t === 'function') {
+        return i18n.t(key, ...args);
     }
     return key;
 };
 
 const getLang = (): string => {
-    if (typeof I18n !== 'undefined' && I18n.getLang) {
-        return I18n.getLang();
+    const i18n = getI18n();
+    if (i18n && typeof i18n.getLang === 'function') {
+        return i18n.getLang();
     }
     return 'en';
 };
@@ -43,8 +57,23 @@ const getController = () => {
 };
 
 const getFormats = () => {
-    if (typeof FormatStore !== 'undefined') return FormatStore;
+    if (typeof FormatStore !== 'undefined' && FormatStore) return FormatStore;
+    if (typeof DefaultFormatStore !== 'undefined' && DefaultFormatStore) return DefaultFormatStore;
     if (typeof globalThis !== 'undefined' && (globalThis as any).FormatStore) return (globalThis as any).FormatStore;
+    return null;
+};
+
+const getTakeoutEngine = () => {
+    if (typeof TakeoutEngine !== 'undefined' && TakeoutEngine) return TakeoutEngine;
+    if (typeof DefaultTakeoutEngine !== 'undefined' && DefaultTakeoutEngine) return DefaultTakeoutEngine;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutEngine) return (globalThis as any).TakeoutEngine;
+    return null;
+};
+
+const getConstants = () => {
+    if (typeof GeminiConstants !== 'undefined' && GeminiConstants) return GeminiConstants;
+    if (typeof DefaultGeminiConstants !== 'undefined' && DefaultGeminiConstants) return DefaultGeminiConstants;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiConstants) return (globalThis as any).GeminiConstants;
     return null;
 };
 
@@ -60,13 +89,22 @@ const getDirHandle = () => {
     return null;
 };
 
+const getUtils = () => {
+    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
+    if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+    return null;
+};
+
 export const normId = (id?: string | null): string => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.normId === 'function') return GeminiUtils.normId(id);
+    const utils = getUtils();
+    if (utils && typeof utils.normId === 'function') return utils.normId(id);
     return String(id || '').replace(/^c_/, '');
 };
 
 export const isRealTitle = (tStr?: string | null, id?: string | null): boolean => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(tStr as string, id as string);
+    const utils = getUtils();
+    if (utils && typeof utils.isRealTitle === 'function') return utils.isRealTitle(tStr as string, id as string);
     return !!(tStr && String(tStr).trim().length > 1);
 };
 
@@ -144,8 +182,7 @@ export async function startExportPipeline(
     try {
         const currentSlot = Store ? Store.getCurrentSlot() : 'u0';
         const exportedIds = Store ? Store.getExportedIds() : {};
-        const takeoutEngine = (typeof TakeoutEngine !== 'undefined' ? TakeoutEngine : null)
-            || (typeof globalThis !== 'undefined' ? (globalThis as any).TakeoutEngine : null);
+        const takeoutEngine = getTakeoutEngine();
 
         const result = await Controller.runExport({
             selected,
@@ -162,8 +199,9 @@ export async function startExportPipeline(
         }, {
             onProgress: (progress: any, txt: string) => {
                 const isEn = typeof getLang === 'function' && getLang() === 'en';
-                const formatted = (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.formatExportProgress === 'function')
-                    ? GeminiUtils.formatExportProgress(progress, txt, isEn)
+                const utils = getUtils();
+                const formatted = (utils && typeof utils.formatExportProgress === 'function')
+                    ? utils.formatExportProgress(progress, txt, isEn)
                     : { text: txt || '', pct: typeof progress === 'number' ? progress : (progress?.pct || 0) };
 
                 if (bar && typeof formatted.pct !== 'undefined') {
@@ -178,8 +216,9 @@ export async function startExportPipeline(
                 const currentConvs = Store ? Store.getConversations() : [];
                 const item = currentConvs.find((c: any) => normId(c.id) === normId(chatId));
                 if (item && isRealTitle(newTitle, chatId)) {
-                    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.setTitleBySource === 'function') {
-                        GeminiUtils.setTitleBySource(item, source || 'rpc', newTitle);
+                    const utils = getUtils();
+                    if (utils && typeof utils.setTitleBySource === 'function') {
+                        utils.setTitleBySource(item, source || 'rpc', newTitle);
                     } else {
                         item.title = newTitle;
                         (item as any).titleSource = source || 'rpc';
@@ -275,9 +314,10 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     const includeZip = zipCheck ? zipCheck.checked : true;
     const dirHandle = DirHandle ? DirHandle.getDirHandle() : null;
 
-    const threshold = (typeof GeminiConstants !== 'undefined' && GeminiConstants.DIRECT_WRITE_THRESHOLD) ? GeminiConstants.DIRECT_WRITE_THRESHOLD : 50;
+    const constants = getConstants();
+    const threshold = (constants && constants.DIRECT_WRITE_THRESHOLD) ? constants.DIRECT_WRITE_THRESHOLD : 50;
     if (includeZip && !dirHandle && selected.length >= threshold && Dialogs && Dialogs.showDirectWritePrompt) {
-        const suppressKey = (typeof GeminiConstants !== 'undefined' && GeminiConstants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
+        const suppressKey = (constants && constants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
         let isSuppressed = false;
         try {
             const d = await chrome.storage.local.get([suppressKey]);
@@ -418,9 +458,14 @@ export const OptionsExport = {
     updateZipUi
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsExport;
-}
+(OptionsExport as any).OptionsExport = OptionsExport;
+(OptionsExport as any).default = OptionsExport;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsExport = OptionsExport;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = OptionsExport;
+}
+
+export default OptionsExport;

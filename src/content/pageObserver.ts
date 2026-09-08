@@ -1,5 +1,5 @@
 // src/content/pageObserver.ts - Page lifecycle, URL mutation watcher, and timer cleanup
-import { contentContext } from './contentContext';
+import { contentContext } from './contentContext.js';
 
 let __syncDebounceTimer: any = null;
 let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
@@ -134,4 +134,14 @@ export const PageObserver = {
 };
 
 
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = PageObserver;
+(PageObserver as any).PageObserver = PageObserver;
+(PageObserver as any).default = PageObserver;
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).PageObserver = PageObserver;
+}
+if (typeof module !== 'undefined' && (module as any).exports) {
+    (module as any).exports = PageObserver;
+}
+
+export default PageObserver;

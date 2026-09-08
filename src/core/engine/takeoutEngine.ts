@@ -1,7 +1,6 @@
-// takeoutEngine.ts - Google Takeout ZIP extraction and offline media fallback engine facade
-import type { MediaIndexModule, TakeoutStore } from "./takeout/mediaIndex.js";
-import type { TakeoutParserModule, TakeoutParseResult } from "./takeout/takeoutParser.js";
-import type { ZipBombGuardModule } from "./takeout/zipBombGuard.js";
+import MediaIndex, { type MediaIndexModule, type TakeoutStore } from "./takeout/mediaIndex.js";
+import TakeoutParser, { type TakeoutParserModule, type TakeoutParseResult } from "./takeout/takeoutParser.js";
+import ZipBombGuard, { type ZipBombGuardModule } from "./takeout/zipBombGuard.js";
 
 export interface TakeoutEngineModule {
     getTakeoutOfflineChat: (chatId: string, slot?: string | null) => any;
@@ -18,43 +17,20 @@ declare global {
     var TakeoutEngine: TakeoutEngineModule;
 }
 
-(function(root: any, factory: () => TakeoutEngineModule) {
-    if (typeof define === 'function' && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === 'object' && module.exports) {
-        module.exports = factory();
-    } else {
-        root.TakeoutEngine = factory();
-    }
-}(typeof self !== 'undefined' ? self : this, function(): TakeoutEngineModule {
-    'use strict';
+const getMediaIndex = (): MediaIndexModule => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).MediaIndex) return (globalThis as any).MediaIndex;
+    return MediaIndex;
+};
 
-    const getMediaIndex = (): MediaIndexModule | null => {
-        if (typeof MediaIndex !== 'undefined') return MediaIndex;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).MediaIndex) return (globalThis as any).MediaIndex;
-        if (typeof require !== 'undefined') {
-            try { return require('./takeout/mediaIndex.js'); } catch { /* intentional */ }
-        }
-        return null;
-    };
+const getTakeoutParser = (): TakeoutParserModule => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutParser) return (globalThis as any).TakeoutParser;
+    return TakeoutParser;
+};
 
-    const getTakeoutParser = (): TakeoutParserModule | null => {
-        if (typeof TakeoutParser !== 'undefined') return TakeoutParser;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutParser) return (globalThis as any).TakeoutParser;
-        if (typeof require !== 'undefined') {
-            try { return require('./takeout/takeoutParser.js'); } catch { /* intentional */ }
-        }
-        return null;
-    };
-
-    const getZipBombGuard = (): ZipBombGuardModule | null => {
-        if (typeof ZipBombGuard !== 'undefined') return ZipBombGuard;
-        if (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) return (globalThis as any).ZipBombGuard;
-        if (typeof require !== 'undefined') {
-            try { return require('./takeout/zipBombGuard.js'); } catch { /* intentional */ }
-        }
-        return null;
-    };
+const getZipBombGuard = (): ZipBombGuardModule => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) return (globalThis as any).ZipBombGuard;
+    return ZipBombGuard;
+};
 
     // Per-slot Takeout isolation SSoT routing
     const __slotTakeouts = new Map<string, TakeoutStore>();
@@ -104,14 +80,35 @@ declare global {
         throw new Error('TakeoutParser sub-module not found');
     }
 
-    return {
-        getTakeoutOfflineChat,
-        getTakeoutFallbackMedia,
-        getTakeoutMediaForChat,
-        extractC2PATimestamp,
-        parseTakeoutZip,
-        clearTakeoutData,
-        getStore,
-        __slotTakeouts
-    };
-}));
+export {
+    getTakeoutOfflineChat,
+    getTakeoutFallbackMedia,
+    getTakeoutMediaForChat,
+    extractC2PATimestamp,
+    parseTakeoutZip,
+    clearTakeoutData,
+    getStore,
+    __slotTakeouts
+};
+
+export const TakeoutEngine: TakeoutEngineModule = {
+    getTakeoutOfflineChat,
+    getTakeoutFallbackMedia,
+    getTakeoutMediaForChat,
+    extractC2PATimestamp,
+    parseTakeoutZip,
+    clearTakeoutData,
+    getStore,
+    __slotTakeouts
+};
+
+(TakeoutEngine as any).TakeoutEngine = TakeoutEngine;
+(TakeoutEngine as any).default = TakeoutEngine;
+
+if (typeof globalThis !== 'undefined' && !(globalThis as any).TakeoutEngine) {
+    (globalThis as any).TakeoutEngine = TakeoutEngine;
+}
+if (typeof module === 'object' && module.exports) {
+    module.exports = TakeoutEngine;
+}
+export default TakeoutEngine;

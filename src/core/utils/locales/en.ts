@@ -211,9 +211,9 @@ const __enFactory = (): LocaleDictionary => {
             btnModalDismissTakeout: "Got it, don't show again"
     };
 };
-const __enDict: LocaleDictionary = __enFactory();
-if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.en = __enDict; }
-if (typeof self !== 'undefined') { (self as any).GeminiLocales = (self as any).GeminiLocales || {}; (self as any).GeminiLocales.en = __enDict; }
-if (typeof window !== 'undefined') { (window as any).GeminiLocales = (window as any).GeminiLocales || {}; (window as any).GeminiLocales.en = __enDict; }
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = __enDict;
+export const en: LocaleDictionary = __enFactory();
+if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.en = en; }
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = en;
+export default en;
+
 

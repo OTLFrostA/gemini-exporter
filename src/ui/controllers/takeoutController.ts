@@ -1,10 +1,16 @@
 // src/ui/controllers/takeoutController.ts - Takeout Import Controller
 import type { TakeoutControllerContract } from '../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../state/conversationsStore.js';
+import GeminiUtils, { normId as utilsNormId } from '../../core/utils/utils.js';
+import TakeoutEngine from '../../core/engine/takeoutEngine.js';
+import ConversationsStore from '../state/conversationsStore.js';
+import StorageService from '../../core/storage/storageService.js';
 
-const normId = (id?: string | null) => (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.normId === 'function')
-    ? GeminiUtils.normId(id)
-    : String(id || '').replace(/^c_/, '');
+const normId = (id?: string | null) => {
+    if (typeof (globalThis as any).GeminiUtils?.normId === 'function') {
+        return (globalThis as any).GeminiUtils.normId(id);
+    }
+    return utilsNormId(id);
+};
 
 const t = (key: string, ...args: any[]): string => {
     if (typeof I18n !== 'undefined' && I18n.t) {
@@ -14,21 +20,18 @@ const t = (key: string, ...args: any[]): string => {
 };
 
 const getTakeoutEngine = () => {
-    if (typeof TakeoutEngine !== 'undefined') return TakeoutEngine;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutEngine) return (globalThis as any).TakeoutEngine;
-    return null;
+    if (typeof (globalThis as any).TakeoutEngine !== 'undefined') return (globalThis as any).TakeoutEngine;
+    return TakeoutEngine;
 };
 
 const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
+    if (typeof (globalThis as any).ConversationsStore !== 'undefined') return (globalThis as any).ConversationsStore;
+    return ConversationsStore;
 };
 
 const getStorage = () => {
-    if (typeof StorageService !== 'undefined') return StorageService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
-    return null;
+    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
+    return StorageService;
 };
 
 export async function handleTakeoutImport(
@@ -101,9 +104,14 @@ export const TakeoutController: TakeoutControllerContract = {
     handleTakeoutImport
 };
 
-if (typeof module === 'object' && module.exports) {
-    module.exports = TakeoutController;
-}
+(TakeoutController as any).TakeoutController = TakeoutController;
+(TakeoutController as any).default = TakeoutController;
+
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).TakeoutController = TakeoutController;
 }
+if (typeof module === 'object' && module.exports) {
+    module.exports = TakeoutController;
+}
+
+export default TakeoutController;

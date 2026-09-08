@@ -2,42 +2,22 @@
 
 import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
 
-(function(root: any, factory: () => I18nModule) {
-    const mod = factory();
-    if (typeof root !== 'undefined') root.I18n = mod;
-    if (typeof globalThis !== 'undefined') (globalThis as any).I18n = mod;
-    if (typeof module === 'object' && module.exports) {
-        module.exports = mod;
-    } else if (typeof define === 'function' && define.amd) {
-        define([], () => mod);
-    }
-}(typeof self !== 'undefined' ? self : this, function(): I18nModule {
-    'use strict';
+import zhDict from './locales/zh.js';
+import enDict from './locales/en.js';
 
-    // Dictionaries live in ./locales/{zh,en}.ts (externalized in Phase 2b) and are
-    // loaded as globals before this engine (options.html / popup.html script order).
-    // Node falls back to require so unit tests work unchanged.
-    function loadLocaleDict(name: string): LocaleDictionary | null {
-        const g = (typeof self !== 'undefined' && (self as any).GeminiLocales) ||
-                  (typeof globalThis !== 'undefined' && (globalThis as any).GeminiLocales) || null;
-        if (g && g[name]) return g[name];
-        if (typeof require !== 'undefined') {
-            try { return require('./locales/' + name + '.js'); } catch { /* intentional: require fallback in browser context */ }
-        }
-        return null;
-    }
-    const LOCALES: Record<string, LocaleDictionary | null> = {
-        zh: loadLocaleDict('zh'),
-        en: loadLocaleDict('en')
-    };
+export const LOCALES: Record<string, LocaleDictionary> = {
+    zh: zhDict,
+    en: enDict
+};
 
-    function ensureLocales(): void {
-        if (!LOCALES.zh) LOCALES.zh = loadLocaleDict('zh');
-        if (!LOCALES.en) LOCALES.en = loadLocaleDict('en');
-    }
+function ensureLocales(): void {
+    if (!LOCALES.zh) LOCALES.zh = zhDict;
+    if (!LOCALES.en) LOCALES.en = enDict;
+}
 
-    let currentLang: string = 'en';
-    const langChangeListeners: Set<(lang: string) => void> = new Set();
+let currentLang: string = 'en';
+const langChangeListeners: Set<(lang: string) => void> = new Set();
+
 
     async function initLanguage(): Promise<string> {
         ensureLocales();
@@ -189,14 +169,29 @@ import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
         }
     }
 
-    return {
-        applyLangToggleUI: _applyLangToggleUI,
-        LOCALES,
-        initLanguage,
-        getLang,
-        setLang,
-        onLanguageChange,
-        t,
-        applyI18n
-    };
-}));
+export {
+    _applyLangToggleUI as applyLangToggleUI,
+    initLanguage,
+    getLang,
+    setLang,
+    onLanguageChange,
+    t,
+    applyI18n
+};
+
+export const I18n: I18nModule = {
+    applyLangToggleUI: _applyLangToggleUI,
+    LOCALES,
+    initLanguage,
+    getLang,
+    setLang,
+    onLanguageChange,
+    t,
+    applyI18n
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).I18n = I18n;
+if (typeof module === 'object' && module.exports) module.exports = I18n;
+
+export default I18n;
+

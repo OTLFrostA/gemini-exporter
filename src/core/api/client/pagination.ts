@@ -1,4 +1,4 @@
-// pagination.ts - Conversation list and detail multi-page pagination controller
+import { isDevMode } from "../../utils/utils.js";
 import type { ConversationListItem } from "../parser/parseList.js";
 import type { DetailParseResult } from "../parser/parseDetail.js";
 
@@ -40,27 +40,6 @@ export interface GeminiClientPaginationModule {
 declare global {
     var GeminiClientPagination: GeminiClientPaginationModule;
 }
-
-(function(root: any, factory: () => GeminiClientPaginationModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        root.GeminiClientPagination = factory();
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiClientPaginationModule {
-    "use strict";
-
-    function getUtils(): any {
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== "undefined") {
-            try { return require("../../utils/utils.js"); } catch (_) {
-                try { return require("../utils/utils.js"); } catch (_) {}
-            }
-        }
-        return null;
-    }
 
     /**
      * Traverses all conversation list pages with incremental detection and Google limit tracking
@@ -269,8 +248,7 @@ declare global {
                         }
                     }
                 } catch (retryErr: any) {
-                    const isDevMode = !!(getUtils()?.isDevMode ? getUtils().isDevMode() : false);
-                    if (isDevMode) {
+                    if (isDevMode()) {
                         console.warn("[Gemini Exporter Client] metadata-only retry also failed:", retryErr.message);
                     }
                 }
@@ -295,8 +273,20 @@ declare global {
         };
     }
 
-    return {
-        getAllConversations,
-        getConversationDetail
-    };
-}));
+export {
+    getAllConversations,
+    getConversationDetail
+};
+
+export const GeminiClientPagination: GeminiClientPaginationModule = {
+    getAllConversations,
+    getConversationDetail
+};
+
+if (typeof globalThis !== "undefined" && !(globalThis as any).GeminiClientPagination) {
+    (globalThis as any).GeminiClientPagination = GeminiClientPagination;
+}
+if (typeof module === "object" && module.exports) {
+    module.exports = GeminiClientPagination;
+}
+export default GeminiClientPagination;

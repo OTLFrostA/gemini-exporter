@@ -57,46 +57,13 @@ declare global {
     var GeminiResponseParserClass: GeminiResponseParserFacade;
 }
 
-(function(root: any, factory: (rootContext?: any) => GeminiParserModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory(root);
-    } else {
-        const exports = factory(root);
-        root.GeminiResponseParserClass = exports.GeminiResponseParserClass;
-        root.isRealTitle = exports.isRealTitle;
-        root.cleanTitle = exports.cleanTitle;
-        root.normId = exports.normId;
-        root.GEMINI_JSPB_SCHEMA = exports.GEMINI_JSPB_SCHEMA;
-        root.detectTurnSchemaDrift = exports.detectTurnSchemaDrift;
-        root.extractListItemTimestamp = exports.extractListItemTimestamp;
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(rootContext?: any): GeminiParserModule {
-    "use strict";
+import * as ext from "./parser/extractors.js";
+import * as att from "./parser/attachments.js";
+import * as listMod from "./parser/parseList.js";
+import * as detailMod from "./parser/parseDetail.js";
 
-    function resolveModule(globalName: string, relPath: string): any {
-        if (typeof globalThis !== "undefined" && (globalThis as any)[globalName]) return (globalThis as any)[globalName];
-        if (typeof self !== "undefined" && (self as any)[globalName]) return (self as any)[globalName];
-        if (rootContext && rootContext[globalName]) return rootContext[globalName];
-        if (typeof require !== "undefined") {
-            try { return require(relPath); } catch (_) {}
-        }
-        return null;
-    }
+const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = ext.GEMINI_JSPB_SCHEMA;
 
-    const ext = resolveModule("GeminiParserExtractors", "./parser/extractors.js") || {};
-    const att = resolveModule("GeminiParserAttachments", "./parser/attachments.js") || {};
-    const listMod = resolveModule("GeminiParserParseList", "./parser/parseList.js") || {};
-    const detailMod = resolveModule("GeminiParserParseDetail", "./parser/parseDetail.js") || {};
-
-    const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = ext.GEMINI_JSPB_SCHEMA || Object.freeze({
-        TURN: { ID_META: 0, TIMESTAMP: 1, USER_PAYLOAD: 2, MODEL_PAYLOAD: 3 },
-        MODEL_PAYLOAD: { CANDIDATES: 0, SEARCH_QUERIES: 1, PROVIDER: 2, TELEMETRY_START: 3 },
-        CANDIDATE: { ID: 0, BODY: 1, LANGUAGE_CODE: 2 },
-        CANDIDATE_BODY: { PARTS: 0 },
-        LIST_ITEM: { ID: 0, TITLE: 1, TIMESTAMP: 5, UPDATE_TIME_ALT: 2, CREATE_TIME_ALT: 3, COUNT_ALT1: 4, COUNT_ALT2: 9 }
-    });
 
     const detectTurnSchemaDrift = ext.detectTurnSchemaDrift || function() { return { isDrifted: false, warnings: [] }; };
     const extractModelCandidates = ext.extractModelCandidates || function() { return []; };
@@ -172,17 +139,43 @@ declare global {
         findTurnsDeep
     };
 
-    return {
-        GeminiResponseParserClass,
-        isRealTitle,
-        cleanTitle,
-        normId,
-        GEMINI_JSPB_SCHEMA,
-        detectTurnSchemaDrift,
-        extractListItemTimestamp,
-        extractors: ext,
-        attachments: att,
-        parseList: listMod,
-        parseDetail: detailMod
-    };
-}));
+export {
+    GeminiResponseParserClass,
+    isRealTitle,
+    cleanTitle,
+    normId,
+    GEMINI_JSPB_SCHEMA,
+    detectTurnSchemaDrift,
+    extractListItemTimestamp,
+    parseList,
+    parseDetail,
+    extractDocumentsMeta
+};
+
+export const GeminiParser: GeminiParserModule = {
+    GeminiResponseParserClass,
+    isRealTitle,
+    cleanTitle,
+    normId,
+    GEMINI_JSPB_SCHEMA,
+    detectTurnSchemaDrift,
+    extractListItemTimestamp,
+    extractors: ext,
+    attachments: att,
+    parseList: listMod,
+    parseDetail: detailMod
+};
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).GeminiResponseParserClass = GeminiResponseParserClass;
+    (globalThis as any).isRealTitle = isRealTitle;
+    (globalThis as any).cleanTitle = cleanTitle;
+    (globalThis as any).normId = normId;
+    (globalThis as any).GEMINI_JSPB_SCHEMA = GEMINI_JSPB_SCHEMA;
+    (globalThis as any).detectTurnSchemaDrift = detectTurnSchemaDrift;
+    (globalThis as any).extractListItemTimestamp = extractListItemTimestamp;
+}
+if (typeof module === 'object' && module.exports) module.exports = GeminiParser;
+
+export default GeminiParser;
+

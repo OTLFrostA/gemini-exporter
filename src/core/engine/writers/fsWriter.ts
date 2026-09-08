@@ -1,6 +1,7 @@
 // src/core/engine/writers/fsWriter.ts - FileSystem Access API Writer
 
 import type { IExportWriter } from './writerInterface.js';
+import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';
 
 export interface FsWriterModule {
     FsWriter: typeof FsWriter;
@@ -13,30 +14,14 @@ declare global {
     var FsWriter: FsWriterModule;
 }
 
-function getUtils(): any {
-    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-    if (typeof require !== 'undefined') {
-        try { return require('../../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
-    }
-    return null;
-}
-
 function sanitizeFileName(name?: string | null, fallback: string = 'untitled'): string {
-    const u = getUtils();
-    if (u && u.sanitizeFileName) {
-        return u.sanitizeFileName(name, fallback);
-    }
-    return (name || fallback).trim() || fallback;
+    return utilsSanitizeFileName(name, fallback);
 }
 
 function sanitizeRelativePath(p?: string | null, defaultName: string = 'file'): string {
-    const u = getUtils();
-    if (u && u.sanitizeRelativePath) {
-        return u.sanitizeRelativePath(p, defaultName);
-    }
-    throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
+    return utilsSanitizeRelativePath(p, defaultName);
 }
+
 
 async function ensureSubDir(root: any, subPath: string): Promise<any> {
     let cur = root;
@@ -112,16 +97,22 @@ class FsWriter implements IExportWriter {
     }
 }
 
-(function(root: any, factory: () => FsWriterModule) {
-    if (typeof module === 'object' && module.exports) module.exports = factory();
-    else root.FsWriter = factory();
-}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): FsWriterModule {
-    'use strict';
+export {
+    FsWriter,
+    ensureSubDir,
+    sanitizeFileName,
+    sanitizeRelativePath
+};
 
-    return {
-        FsWriter,
-        ensureSubDir,
-        sanitizeFileName,
-        sanitizeRelativePath
-    };
-}));
+export const FsWriterModule: FsWriterModule = {
+    FsWriter,
+    ensureSubDir,
+    sanitizeFileName,
+    sanitizeRelativePath
+};
+
+if (typeof globalThis !== 'undefined') (globalThis as any).FsWriter = FsWriterModule;
+if (typeof module === 'object' && module.exports) module.exports = FsWriterModule;
+
+export default FsWriterModule;
+

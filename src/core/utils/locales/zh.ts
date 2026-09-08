@@ -211,9 +211,9 @@ const __zhFactory = (): LocaleDictionary => {
             btnModalDismissTakeout: "我知道了，不再提示"
     };
 };
-const __zhDict: LocaleDictionary = __zhFactory();
-if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.zh = __zhDict; }
-if (typeof self !== 'undefined') { (self as any).GeminiLocales = (self as any).GeminiLocales || {}; (self as any).GeminiLocales.zh = __zhDict; }
-if (typeof window !== 'undefined') { (window as any).GeminiLocales = (window as any).GeminiLocales || {}; (window as any).GeminiLocales.zh = __zhDict; }
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = __zhDict;
+export const zh: LocaleDictionary = __zhFactory();
+if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.zh = zh; }
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = zh;
+export default zh;
+
 

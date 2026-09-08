@@ -87,24 +87,14 @@ declare global {
     var detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
 }
 
-(function(root: any, factory: () => GeminiParserExtractorsModule) {
-    if (typeof define === "function" && (define as any).amd) {
-        (define as any)([], factory);
-    } else if (typeof module === "object" && module.exports) {
-        module.exports = factory();
-    } else {
-        const exports = factory();
-        root.GeminiParserExtractors = exports;
-        root.GEMINI_JSPB_SCHEMA = exports.GEMINI_JSPB_SCHEMA;
-        root.detectTurnSchemaDrift = exports.detectTurnSchemaDrift;
-    }
-}(typeof globalThis !== "undefined" ? globalThis : (typeof self !== "undefined" ? self : this), function(): GeminiParserExtractorsModule {
-    "use strict";
+import { GeminiUtils, normId as utilsNormId, isRealTitle as utilsIsRealTitle, cleanTitle as utilsCleanTitle } from "../../utils/utils.js";
+import { GeminiProtocol } from "../../protocol/protocol.js";
 
-    /**
-     * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
-     * Maps conceptual protobuf message fields directly to array index offsets.
-     */
+/**
+ * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
+ * Maps conceptual protobuf message fields directly to array index offsets.
+ */
+
     const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = Object.freeze({
         TURN: {
             ID_META: 0,        // ["c_xxx", "r_xxx"]
@@ -140,50 +130,26 @@ declare global {
     const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     function getUtils(): any {
-        if (typeof GeminiUtils !== "undefined" && GeminiUtils) return GeminiUtils;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-        if (typeof require !== "undefined") {
-            try { return require("../../utils/utils.js"); } catch (e) {
-                try { return require("../utils/utils.js"); } catch (e2) {
-                    try { return require("./utils.js"); } catch (e3) { return null; }
-                }
-            }
-        }
-        return null;
+        return GeminiUtils;
     }
 
     // Protocol anti-corruption layer (see core/protocol/protocol.ts).
-    let __protocol: any = null;
     function getProtocol(): any {
-        if (__protocol) return __protocol;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
-            __protocol = (globalThis as any).GeminiProtocol;
-        } else if (typeof require !== "undefined") {
-            try { __protocol = require("../../protocol/protocol.js"); } catch (e) {
-                try { __protocol = require("../protocol/protocol.js"); } catch (e2) { /* intentional: fallback */ }
-            }
-        }
-        return __protocol;
+        return GeminiProtocol;
     }
 
     function normId(id?: string | number | null): string {
-        const u = getUtils();
-        if (u && typeof u.normId === "function") return u.normId(id);
-        return String(id || "").replace(/^c_/, "").trim();
+        return utilsNormId(id);
     }
 
     function isRealTitle(t?: string | null, fallbackId?: string | number): boolean {
-        const u = getUtils();
-        if (u && typeof u.isRealTitle === "function") return u.isRealTitle(t, fallbackId);
-        const s = String(t || "").trim();
-        return s.length >= 2 && !/^(c_)?[a-f0-9_-]{8,64}$/i.test(s);
+        return utilsIsRealTitle(t, fallbackId);
     }
 
     function cleanTitle(rawTitle?: string | null): string {
-        const u = getUtils();
-        if (u && typeof u.cleanTitle === "function") return u.cleanTitle(rawTitle);
-        return String(rawTitle || "").trim();
+        return utilsCleanTitle(rawTitle);
     }
+
 
     /**
      * Generic depth-bounded recursive walker over nested arrays and objects.
@@ -600,26 +566,58 @@ declare global {
         return null;
     }
 
-    return {
-        GEMINI_JSPB_SCHEMA,
-        RESEARCH_PROMPT_PREFIX_RE,
-        detectTurnSchemaDrift,
-        extractModelCandidates,
-        extractCandidateText,
-        safeStructureClean,
-        robustFirstPayload,
-        deepWalk,
-        extractThoughts,
-        extractCitations,
-        extractConversationId,
-        smartSummarizePrompt,
-        extractConversationTitle,
-        extractMetaTitleFromTop,
-        extractTurnTimestamp,
-        normId,
-        cleanTitle,
-        isRealTitle,
-        getUtils,
-        getProtocol
-    };
-}));
+export {
+    GEMINI_JSPB_SCHEMA,
+    RESEARCH_PROMPT_PREFIX_RE,
+    detectTurnSchemaDrift,
+    extractModelCandidates,
+    extractCandidateText,
+    safeStructureClean,
+    robustFirstPayload,
+    deepWalk,
+    extractThoughts,
+    extractCitations,
+    extractConversationId,
+    smartSummarizePrompt,
+    extractConversationTitle,
+    extractMetaTitleFromTop,
+    extractTurnTimestamp,
+    normId,
+    cleanTitle,
+    isRealTitle,
+    getUtils,
+    getProtocol
+};
+
+export const GeminiParserExtractors: GeminiParserExtractorsModule = {
+    GEMINI_JSPB_SCHEMA,
+    RESEARCH_PROMPT_PREFIX_RE,
+    detectTurnSchemaDrift,
+    extractModelCandidates,
+    extractCandidateText,
+    safeStructureClean,
+    robustFirstPayload,
+    deepWalk,
+    extractThoughts,
+    extractCitations,
+    extractConversationId,
+    smartSummarizePrompt,
+    extractConversationTitle,
+    extractMetaTitleFromTop,
+    extractTurnTimestamp,
+    normId,
+    cleanTitle,
+    isRealTitle,
+    getUtils,
+    getProtocol
+};
+
+if (typeof globalThis !== 'undefined') {
+    (globalThis as any).GeminiParserExtractors = GeminiParserExtractors;
+    (globalThis as any).GEMINI_JSPB_SCHEMA = GEMINI_JSPB_SCHEMA;
+    (globalThis as any).detectTurnSchemaDrift = detectTurnSchemaDrift;
+}
+if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
+
+export default GeminiParserExtractors;
+
