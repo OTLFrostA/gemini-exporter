@@ -182,14 +182,14 @@ declare global {
     /**
      * Set a title into a specific source tier slot without destroying other tiers.
      */
-    function setTitleBySource(chat: any, source: string, rawTitle?: string): TitleResolution {
+    function setTitleBySource(chat: any, source?: string, rawTitle?: string): TitleResolution {
         if (!chat) return { title: '未命名对话', source: 'default' };
         chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
         const cleaned = cleanTitle(rawTitle);
         if (cleaned && isRealTitle(cleaned, chat.id)) {
-            chat.titles[source] = cleaned;
+            if (source) chat.titles[source as string] = cleaned;
         } else if (source === 'takeout' && cleaned) {
-            chat.titles[source] = cleaned;
+            if (source) chat.titles[source as string] = cleaned;
         }
         const resolved = resolveTitle(chat);
         chat.title = resolved.title;

@@ -178,33 +178,26 @@ def test_i18n_keys():
 def test_javascript_syntax():
     import subprocess
     import shutil
-    js_files = []
-    for root, dirs, files in os.walk(BASE_DIR):
-        if any(x in root for x in ["node_modules", ".git", "lib", "dist"]):
-            continue
-        for file in files:
-            if file.endswith(".js"):
-                js_files.append(os.path.join(root, file))
-
-    jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
+    # PR7: delegate syntax validation to TypeScript compiler (strict mode covers JS + TS)
     node_bin = None
     for cand in [shutil.which("node"), os.path.expanduser("~/.local/node/bin/node"), os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"), r"C:\Program Files\nodejs\node.exe"]:
         if cand and os.path.exists(cand):
             node_bin = cand
             break
 
-    for js_path in sorted(js_files):
-        rel_path = os.path.relpath(js_path, BASE_DIR)
-        with open(js_path, "r", encoding="utf-8") as f:
-            code = f.read()
-        if node_bin:
-            res = subprocess.run([node_bin, "-c", js_path], capture_output=True, text=True, encoding="utf-8", errors="replace")
-            assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr}"
-        elif os.path.exists(jsc_bin):
-            script = f"new Function({json.dumps(code)});"
-            res = subprocess.run([jsc_bin, "-e", script], capture_output=True, text=True)
-            assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr or res.stdout}"
-    print(f"  ✓ Syntax validated across {len(js_files)} JavaScript files")
+    tsc_script = os.path.join(BASE_DIR, "node_modules", "typescript", "bin", "tsc")
+    if node_bin and os.path.exists(tsc_script):
+        res = subprocess.run([node_bin, tsc_script, "--noEmit"], cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    else:
+        env = os.environ.copy()
+        for p in [r"C:\Program Files\nodejs", r"C:\Program Files\nodejs\npx.cmd"]:
+            if p not in env.get("PATH", ""):
+                env["PATH"] = p + os.pathsep + env.get("PATH", "")
+        npx_bin = shutil.which("npx", path=env["PATH"]) or r"C:\Program Files\nodejs\npx.cmd" or "npx"
+        res = subprocess.run(f'"{npx_bin}" tsc --noEmit', cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace", shell=True, env=env)
+
+    assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
+    print(f"  ✓ TypeScript strict syntax validated (tsc --noEmit)")
 
 def test_javascript_unit_tests():
     import subprocess

@@ -49,13 +49,13 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
         const originalReplaceState = history.replaceState;
 
         history.pushState = function(...args: any[]) {
-            const res = originalPushState.apply(this, args);
+            const res = originalPushState.apply(this, args as unknown as [any, string, string | undefined]);
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };
 
         history.replaceState = function(...args: any[]) {
-            const res = originalReplaceState.apply(this, args);
+            const res = originalReplaceState.apply(this, args as unknown as [any, string, string | undefined]);
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };
@@ -133,9 +133,5 @@ export const PageObserver = {
     startPeriodicSync
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).PageObserver = PageObserver;
-}
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = PageObserver;
-}
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = PageObserver;

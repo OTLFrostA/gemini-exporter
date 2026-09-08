@@ -211,7 +211,7 @@ declare global {
                 const updates: Record<string, any> = { [expKey]: cur };
                 if (s !== 'u0') {
                     const globalData = await chrome.storage.local.get(['exportedIds']);
-                    const globalExp = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds : {};
+                    const globalExp: Record<string, any> = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds as Record<string, any> : {};
                     globalExp[id] = record;
                     globalExp[nid] = record;
                     globalExp['c_' + nid] = record;

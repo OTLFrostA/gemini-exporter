@@ -14,7 +14,7 @@ const t = (key: string, ...args: any[]): string => {
 };
 
 export const isRealTitle = (title?: string | null, id?: string | null): boolean => {
-    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(title, id);
+    if (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.isRealTitle === 'function') return GeminiUtils.isRealTitle(title as unknown as string, id as unknown as string);
     if (!title || typeof title !== 'string') return false;
     let tr = title.trim();
     if (tr.length < 2) return false;
