@@ -101,6 +101,51 @@ async function build() {
         }
     }
 
+    // 3. Dual-World Content Script bundles (PR 6)
+    // 3a. ISOLATED world: src/content/content.ts -> dist/content/content.js
+    const contentEntry = path.join(SRC, 'content', 'content.ts');
+    if (fs.existsSync(contentEntry)) {
+        const contentBundleResult = await esbuild.build({
+            entryPoints: {
+                'content/content': contentEntry
+            },
+            outdir: DIST,
+            bundle: true,
+            format: 'iife',
+            minify: true,
+            sourcemap: true,
+            target: ['chrome120'],
+            legalComments: 'none',
+            logLevel: 'silent',
+            write: true,
+        });
+        if ((contentBundleResult.errors || []).length > 0) {
+            throw new Error(`Content bundle failed with ${contentBundleResult.errors.length} error(s)`);
+        }
+    }
+
+    // 3b. MAIN world: src/content/hookCredentials.ts -> dist/content/hook.js
+    const hookEntry = path.join(SRC, 'content', 'hookCredentials.ts');
+    if (fs.existsSync(hookEntry)) {
+        const hookBundleResult = await esbuild.build({
+            entryPoints: {
+                'content/hook': hookEntry
+            },
+            outdir: DIST,
+            bundle: true,
+            format: 'iife',
+            minify: true,
+            sourcemap: true,
+            target: ['chrome120'],
+            legalComments: 'none',
+            logLevel: 'silent',
+            write: true,
+        });
+        if ((hookBundleResult.errors || []).length > 0) {
+            throw new Error(`Hook bundle failed with ${hookBundleResult.errors.length} error(s)`);
+        }
+    }
+
     const jsFiles = [];
     (function collect(dir) {
         for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -124,6 +169,14 @@ async function build() {
     // Sanity: Options single bundle must exist
     if (!fs.existsSync(path.join(DIST, 'ui', 'options.js'))) {
         throw new Error('missing dist artifact for ui/options.js');
+    }
+
+    // Sanity: Content and Hook single bundles must exist (PR 6)
+    if (!fs.existsSync(path.join(DIST, 'content', 'content.js'))) {
+        throw new Error('missing dist artifact for content/content.js');
+    }
+    if (!fs.existsSync(path.join(DIST, 'content', 'hook.js'))) {
+        throw new Error('missing dist artifact for content/hook.js');
     }
 }
 

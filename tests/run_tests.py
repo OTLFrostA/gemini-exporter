@@ -29,23 +29,11 @@ def test_manifest_structure():
         assert "storage" in m["permissions"]
         assert m["background"]["service_worker"] == "dist/background/background.js", "background service_worker must point to the esbuild dist output"
         cs = m["content_scripts"]
-        for required in [
-            "dist/core/protocol/protocol.js",
-            "dist/core/utils/utils.js",
-            "dist/core/storage/storageService.js",
-            "dist/core/api/geminiParser.js",
-            "dist/core/api/geminiClient.js",
-            "dist/content/pageObserver.js",
-            "dist/content/syncEngine.js",
-            "dist/content/messageRouter.js",
-            "dist/content/content.js"
-        ]:
-            assert required in cs[0]["js"], f"Missing {required} in manifest content_scripts"
-        assert cs[0]["js"].index("dist/core/protocol/protocol.js") == 0, "protocol.js must load first in the ISOLATED content script"
+        assert cs[0]["js"] == ["dist/content/content.js"], "ISOLATED content script must load single bundled dist/content/content.js"
         main_world = [c for c in cs if c.get("world") == "MAIN"]
-        assert len(main_world) == 1 and main_world[0]["js"] == ["dist/core/protocol/protocol.js", "dist/content/hookCredentials.js"], "MAIN world must load protocol.js before hookCredentials.js"
+        assert len(main_world) == 1 and main_world[0]["js"] == ["dist/content/hook.js"], "MAIN world must load single bundled dist/content/hook.js"
         war = m["web_accessible_resources"][0]["resources"]
-        assert "dist/content/hookCredentials.js" in war, "web_accessible_resources must expose dist/content/hookCredentials.js"
+        assert "dist/content/hook.js" in war, "web_accessible_resources must expose dist/content/hook.js"
         print("  ✓ manifest.json scripts and permissions verified")
 
 def test_build_pipeline():
@@ -104,6 +92,8 @@ def test_module_exports():
         "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName", "sanitizeZipPath", "AsyncQueue"],
         "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "isTakeoutPromptCompleted", "setTakeoutPromptCompleted", "hasTakeoutData", "removeConversation", "reconcileConversations"],
         "src/content/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
+        "src/content/contentContext.js": ["ContentContext", "contentContext", "isAborted", "abort", "reset", "registerTimer", "clearTimer"],
+        "src/content/hookCredentials.js": ["origFetch", "origOpen", "origSend"],
         "src/content/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
         "src/content/pageObserver.js": ["PageObserver", "cleanup", "debouncedSync", "hookHistoryEvents"],
         "src/content/syncEngine.js": ["SyncEngine", "syncOnce", "upsertConversations", "tryBatchExecuteFull", "compareConversations"],
@@ -449,10 +439,12 @@ def test_content_badge_flicker_prevention():
     assert ".syncing .pulse" in css, "content.css should only pulse when syncing"
     assert re.search(r'#geminiExportBadge\s+\.pulse\s*\{[^}]*background:\s*#06b6d4', css), "content.css idle pulse should define static background #06b6d4"
 
-    js_path = os.path.join(BASE_DIR, "src/content/content.js")
+    content_ts = os.path.join(BASE_DIR, "src/content/content.ts")
+    js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/content/content.js")
     with open(js_path, "r", encoding="utf-8") as f:
         js = f.read()
-    badge_js_path = os.path.join(BASE_DIR, "src/content/badgeView.js")
+    badge_ts = os.path.join(BASE_DIR, "src/content/badgeView.ts")
+    badge_js_path = badge_ts if os.path.isfile(badge_ts) else os.path.join(BASE_DIR, "src/content/badgeView.js")
     badge_js = ""
     if os.path.exists(badge_js_path):
         with open(badge_js_path, "r", encoding="utf-8") as f:
@@ -588,7 +580,8 @@ def test_takeout_limit_modal_and_wall_detection():
     assert "checkPendingTakeoutPrompt" in options_code, "options.js should have checkPendingTakeoutPrompt"
 
     # 5. Ensure content.js records gemini_pending_takeout_prompt when limit hit
-    content_js_path = os.path.join(BASE_DIR, "src/content/content.js")
+    content_ts = os.path.join(BASE_DIR, "src/content/content.ts")
+    content_js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/content/content.js")
     with open(content_js_path, "r", encoding="utf-8") as f:
         content_code = f.read()
     assert "gemini_pending_takeout_prompt" in content_code, "content.js should persist gemini_pending_takeout_prompt"
@@ -630,7 +623,8 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
 
     # 3. Verify SSoT compareConversations in content.js and options.js
-    content_js_path = os.path.join(BASE_DIR, "src/content/content.js")
+    content_ts = os.path.join(BASE_DIR, "src/content/content.ts")
+    content_js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/content/content.js")
     with open(content_js_path, "r", encoding="utf-8") as f:
         content_code = f.read()
     assert "compareConversations" in content_code, "content.js upsertConversations must use compareConversations SSoT"
@@ -682,7 +676,8 @@ def test_stage2_architecture_improvements():
     assert "writeFileDirect" in export_code, "exportEngine must have writeFileDirect"
 
     # 3. Verify hookCredentials.js error sandboxing
-    hook_path = os.path.join(BASE_DIR, "src/content/hookCredentials.js")
+    hook_ts = os.path.join(BASE_DIR, "src/content/hookCredentials.ts")
+    hook_path = hook_ts if os.path.isfile(hook_ts) else os.path.join(BASE_DIR, "src/content/hookCredentials.js")
     with open(hook_path, "r", encoding="utf-8") as f:
         hook_code = f.read()
     assert "origFetch" in hook_code, "hookCredentials.js must guard origFetch"
