@@ -1,36 +1,75 @@
-// src/core/storage/formatStore.js - Pure format validation + storage sync, zero DOM requirement
+// formatStore.ts - Pure format validation + storage sync, zero DOM requirement
 // Depends on GeminiConstants (ALLOWED_FORMATS) if available, otherwise fallback
-(function(root, factory) {
-    if (typeof module === 'object' && module.exports) module.exports = factory(require('../utils/constants.js'));
-    else root.FormatStore = factory(root.GeminiConstants);
-}(typeof self !== 'undefined' ? self : this, function(Constants) {
-    'use strict';
-    const ALLOWED = (Constants && Constants.ALLOWED_FORMATS) || ['markdown','json_openai','json','json_raw'];
-    const DEFAULT = (Constants && Constants.DEFAULT_FORMAT) || 'markdown';
+import type { GeminiConstantsModule } from "../utils/constants.js";
 
-    function isAllowed(val) {
+export type ExportFormat = 'markdown' | 'json_openai' | 'json' | 'json_raw' | string;
+
+export interface FormatStoreLoadResult {
+    format: string;
+    isDev: boolean;
+    stored: string | null;
+}
+
+export interface DevToggleResult {
+    format: string;
+    changed: boolean;
+}
+
+export interface FormatStoreModule {
+    ALLOWED_FORMATS: string[];
+    DEFAULT_FORMAT: string;
+    isAllowed: (val: string) => boolean;
+    normalizeFormat: (val: string, isDev?: boolean) => string;
+    validateAgainstSelect: (val: string, selectEl: any) => boolean;
+    loadFormat: (selectEl?: any) => Promise<FormatStoreLoadResult>;
+    saveFormat: (val: string) => Promise<string>;
+    getCurrentFormat: (isDev?: boolean, currentVal?: string) => string;
+    getFormatFromSelect: (selectEl: any, isDev?: boolean) => string;
+    bindFormatSelect: (selectEl: any) => void;
+    handleDevToggle: (devOn: boolean, currentFormatOrSelect: any) => DevToggleResult;
+}
+
+declare global {
+    var FormatStore: FormatStoreModule;
+    var GeminiConstants: GeminiConstantsModule;
+}
+
+(function(root: any, factory: (Constants?: any) => FormatStoreModule) {
+    if (typeof module === 'object' && module.exports) {
+        let constants: any = null;
+        try { constants = require('../utils/constants.js'); } catch { /* intentional */ }
+        module.exports = factory(constants);
+    } else {
+        root.FormatStore = factory(root.GeminiConstants);
+    }
+}(typeof self !== 'undefined' ? self : this, function(Constants?: any): FormatStoreModule {
+    'use strict';
+    const ALLOWED: string[] = (Constants && Constants.ALLOWED_FORMATS) || ['markdown', 'json_openai', 'json', 'json_raw'];
+    const DEFAULT: string = (Constants && Constants.DEFAULT_FORMAT) || 'markdown';
+
+    function isAllowed(val: string): boolean {
         return ALLOWED.includes(val);
     }
 
-    function normalizeFormat(val, isDev) {
+    function normalizeFormat(val: string, isDev?: boolean): string {
         if (!isAllowed(val)) return DEFAULT;
         if (val === 'json_raw' && !isDev) return DEFAULT;
         return val;
     }
 
     // Validate against option list (duck-typed options array, zero DOM required)
-    function validateAgainstSelect(val, selectEl) {
+    function validateAgainstSelect(val: string, selectEl: any): boolean {
         if (!selectEl || !selectEl.options) return isAllowed(val);
-        return Array.from(selectEl.options).some(o => o.value === val);
+        return Array.from<any>(selectEl.options).some((o: any) => o.value === val);
     }
 
-    async function loadFormat(selectEl) {
+    async function loadFormat(selectEl?: any): Promise<FormatStoreLoadResult> {
         try {
             const data = (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local)
                 ? await chrome.storage.local.get(['gemini_export_format', 'gemini_dev_mode'])
                 : {};
             const isDev = !!data.gemini_dev_mode;
-            const stored = data.gemini_export_format;
+            const stored = (data.gemini_export_format as string) || null;
             if (!stored) return { format: DEFAULT, isDev, stored: null };
             const normalized = normalizeFormat(stored, isDev);
             const finalVal = (selectEl && !validateAgainstSelect(normalized, selectEl)) ? DEFAULT : normalized;
@@ -45,7 +84,7 @@
         }
     }
 
-    async function saveFormat(val) {
+    async function saveFormat(val: string): Promise<string> {
         const toSave = isAllowed(val) ? val : DEFAULT;
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             await chrome.storage.local.set({ gemini_export_format: toSave });
@@ -53,14 +92,14 @@
         return toSave;
     }
 
-    function getCurrentFormat(isDev, currentVal) {
+    function getCurrentFormat(isDev?: boolean, currentVal?: string): string {
         let v = currentVal !== undefined ? currentVal : DEFAULT;
         if (!isAllowed(v)) v = DEFAULT;
         if (v === 'json_raw' && !isDev) v = DEFAULT;
         return v;
     }
 
-    function getFormatFromSelect(selectEl, isDev) {
+    function getFormatFromSelect(selectEl: any, isDev?: boolean): string {
         let v = selectEl ? selectEl.value : DEFAULT;
         if (!isAllowed(v)) v = DEFAULT;
         const devMode = isDev !== undefined ? isDev : (typeof document !== 'undefined' && document.body && document.body.classList.contains('dev-mode'));
@@ -68,12 +107,12 @@
         return v;
     }
 
-    function bindFormatSelect(selectEl) {
+    function bindFormatSelect(selectEl: any): void {
         if (!selectEl) return;
-        selectEl.addEventListener('change', e => saveFormat(e.target.value));
+        selectEl.addEventListener('change', (e: any) => saveFormat(e.target.value));
     }
 
-    function handleDevToggle(devOn, currentFormatOrSelect) {
+    function handleDevToggle(devOn: boolean, currentFormatOrSelect: any): DevToggleResult {
         if (currentFormatOrSelect && typeof currentFormatOrSelect === 'object' && 'value' in currentFormatOrSelect) {
             if (!devOn && currentFormatOrSelect.value === 'json_raw') {
                 currentFormatOrSelect.value = DEFAULT;

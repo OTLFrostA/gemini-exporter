@@ -1,43 +1,67 @@
-// takeoutParser.js - Google Takeout HTML parsing, conversation extraction, and multi-turn reconciliation
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+// takeoutParser.ts - Google Takeout HTML parsing, conversation extraction, and multi-turn reconciliation
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+import type { ZipBombGuardModule } from "./zipBombGuard.js";
+import type { MediaIndexModule } from "./mediaIndex.js";
+import type { Conversation } from "../../../types/index.js";
+
+export interface TakeoutParseResult {
+    conversations: Conversation[];
+    totalMediaCount: number;
+    convCache: Record<string, any>;
+    mediaMap: Record<string, any>;
+    globalMedia: Record<string, any>;
+}
+
+export interface TakeoutParserModule {
+    stripHtmlTags: (html?: string | null | any) => string;
+    parseTakeoutZip: (file: any, onProgress?: ((pct: number, msg: string) => void) | null, slot?: string | null) => Promise<TakeoutParseResult>;
+}
+
+declare global {
+    var TakeoutParser: TakeoutParserModule;
+    var JSZip: any;
+    var I18n: any;
+}
+
+(function(root: any, factory: () => TakeoutParserModule) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.TakeoutParser = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof self !== 'undefined' ? self : this, function(): TakeoutParserModule {
     'use strict';
 
-    function getUtils() {
+    function getUtils(): GeminiUtilsModule | null {
         if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+        if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
         if (typeof require !== 'undefined') {
             try { return require('../../utils/utils.js'); } catch { /* intentional */ }
         }
         return null;
     }
 
-    function getZipBombGuard() {
+    function getZipBombGuard(): ZipBombGuardModule | null {
         if (typeof ZipBombGuard !== 'undefined') return ZipBombGuard;
-        if (typeof globalThis !== 'undefined' && globalThis.ZipBombGuard) return globalThis.ZipBombGuard;
+        if (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) return (globalThis as any).ZipBombGuard;
         if (typeof require !== 'undefined') {
             try { return require('./zipBombGuard.js'); } catch { /* intentional */ }
         }
         return null;
     }
 
-    function getMediaIndex() {
+    function getMediaIndex(): MediaIndexModule | null {
         if (typeof MediaIndex !== 'undefined') return MediaIndex;
-        if (typeof globalThis !== 'undefined' && globalThis.MediaIndex) return globalThis.MediaIndex;
+        if (typeof globalThis !== 'undefined' && (globalThis as any).MediaIndex) return (globalThis as any).MediaIndex;
         if (typeof require !== 'undefined') {
             try { return require('./mediaIndex.js'); } catch { /* intentional */ }
         }
         return null;
     }
 
-    function normId(id) {
+    function normId(id?: string | null): string {
         try {
             const u = getUtils();
             if (u && u.normId) return u.normId(id);
@@ -48,9 +72,9 @@
         return String(id).replace(/^c_/, '').trim();
     }
 
-    function stripHtmlTags(html) {
+    function stripHtmlTags(html?: string | null | any): string {
         if (!html || typeof html !== 'string') return '';
-        let prev;
+        let prev: string;
         do {
             prev = html;
             html = html.replace(/<[^>]+>/g, '');
@@ -58,7 +82,7 @@
         return html;
     }
 
-    async function parseTakeoutZip(file, onProgress, slot = null) {
+    async function parseTakeoutZip(file: any, onProgress?: ((pct: number, msg: string) => void) | null, slot: string | null = null): Promise<TakeoutParseResult> {
         if (typeof JSZip === 'undefined') {
             throw new Error('JSZip 库未加载，无法解析 ZIP');
         }
@@ -75,7 +99,7 @@
 
         if (onProgress) onProgress(15, '正在解压 Takeout 压缩包...');
 
-        const zip = await JSZip.loadAsync(file);
+        const zip = await (JSZip as any).loadAsync(file);
         if (guard && guard.validateZipEntries) {
             guard.validateZipEntries(zip);
         } else {
@@ -88,8 +112,8 @@
 
         if (onProgress) onProgress(40, typeof I18n !== 'undefined' ? I18n.t('takeoutParsingStructure') : '正在扫描 Takeout 目录结构...');
 
-        let activityFile = null;
-        for (const [path, fObj] of Object.entries(zip.files)) {
+        let activityFile: any = null;
+        for (const [path, fObj] of Object.entries<any>(zip.files)) {
             if (fObj.dir) continue;
             if (path.includes('Takeout/Gemini/我的活动') ||
                 path.includes('Takeout/Bard/我的活动') ||
@@ -121,13 +145,13 @@
         const mediaIdx = getMediaIndex();
         const extractC2PATime = mediaIdx?.extractC2PATimestamp || (() => null);
 
-        const localMediaMap = {};
-        const localGlobalMedia = {};
-        const localConvCache = {};
+        const localMediaMap: Record<string, any[]> = {};
+        const localGlobalMedia: Record<string, any> = {};
+        const localConvCache: Record<string, any> = {};
         let totalMediaCount = 0;
 
-        const watermarkedImages = [];
-        for (const [path, fObj] of Object.entries(zip.files)) {
+        const watermarkedImages: any[] = [];
+        for (const [path, fObj] of Object.entries<any>(zip.files)) {
             if (fObj.dir || path.endsWith('.html') || path.endsWith('.json')) continue;
             let filename = path.replace(/^.*[\\\/]/, '').trim();
             let stem = filename.replace(/\.[^/.]+$/, '').toLowerCase();
@@ -161,8 +185,8 @@
         }
 
         const rawBlocks = htmlText.split('<div class="outer-cell');
-        const extractedMap = {};
-        const genBlocks = [];
+        const extractedMap: Record<string, any> = {};
+        const genBlocks: any[] = [];
 
         for (let i = 1; i < rawBlocks.length; i++) {
             if (i % 50 === 0) {
@@ -179,7 +203,7 @@
             const linkMatches = Array.from(block.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g));
             if (!linkMatches.length) continue;
 
-            const foundIds = [];
+            const foundIds: string[] = [];
             for (const lm of linkMatches) {
                 const cleanId = normId(lm[1]);
                 if (cleanId.length >= 8 && !foundIds.includes(cleanId)) {
@@ -201,14 +225,14 @@
                 }
             }
 
-            let ts = null;
+            let ts: number | null = null;
             const timeMatchEn = block.match(/([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}(?::\d{2})?\s*[\u202f\s]*(?:AM|PM)\s*[A-Z]*)/);
             const timeMatchZh = block.match(/(\d{4}年\d{1,2}月\d{1,2}日[\s\u202f\xa0]*(?:上午|下午)?\s*\d{1,2}:\d{2}(?::\d{2})?)/);
             const timeMatchIso = block.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2}[\sT]\d{1,2}:\d{2}(?::\d{2})?)/);
 
             if (timeMatchEn) {
                 let rawT = timeMatchEn[1].replace(/[\u202f\xa0]/g, ' ').trim();
-                const tzMap = {
+                const tzMap: Record<string, string> = {
                     'UTC': '+0000', 'GMT': '+0000',
                     'EDT': '-0400', 'EST': '-0500',
                     'CDT': '-0500', 'CST': '-0600',
@@ -263,7 +287,7 @@
             if (contentCellMatch) {
                 const rawCc = contentCellMatch[1];
                 const parts = rawCc.split(/<br\s*\/?>|\n/);
-                const respParts = [];
+                const respParts: string[] = [];
                 let started = false;
                 for (const p of parts) {
                     if (started) {
@@ -277,7 +301,7 @@
             }
 
             const rawMediaMatches = block.match(/(?:src|href)=["']([^#"'>]+?)["']/gi) || [];
-            const localMediaNames = [];
+            const localMediaNames: string[] = [];
             for (const raw of rawMediaMatches) {
                 const val = raw.replace(/^(?:src|href)=["']/, '').replace(/["']$/, '').trim();
                 if (/^(?:https?:|\/\/|javascript:|mailto:|data:)/i.test(val) || /\.html?$/i.test(val)) continue;
@@ -294,9 +318,9 @@
                 }
             }
 
-            const turnMsgs = [];
+            const turnMsgs: any[] = [];
             if (promptText) {
-                const userMsg = {
+                const userMsg: any = {
                     role: 'user',
                     content: promptText,
                     timestamp: ts || Date.now()
@@ -332,7 +356,7 @@
                 if (!localMediaMap[cleanId]) localMediaMap[cleanId] = [];
                 for (const refName of localMediaNames) {
                     const refStem = refName.replace(/\.[^/.]+$/, '').toLowerCase();
-                    for (const [path, fObj] of Object.entries(zip.files)) {
+                    for (const [path, fObj] of Object.entries<any>(zip.files)) {
                         if (fObj.dir) continue;
                         const zipFilename = path.replace(/^.*[\\\/]/, '').trim();
                         const zipStem = zipFilename.replace(/\.[^/.]+$/, '').toLowerCase();
@@ -416,7 +440,7 @@
 
         // Correlate watermarked generated images with conversations
         if (watermarkedImages.length > 0 && genBlocks.length > 0) {
-            function linkTakeoutGeneratedImage(chatId, img) {
+            function linkTakeoutGeneratedImage(chatId: string, img: any): void {
                 if (!localMediaMap[chatId]) localMediaMap[chatId] = [];
                 if (!localMediaMap[chatId].some(x => x.filename === img.filename)) {
                     localMediaMap[chatId].push({
@@ -435,7 +459,7 @@
                 };
                 const cached = localConvCache[chatId];
                 if (cached && Array.isArray(cached.messages)) {
-                    let modelTurn = cached.messages.find(m => m.role === 'model');
+                    let modelTurn = cached.messages.find((m: any) => m.role === 'model');
                     if (!modelTurn) {
                         modelTurn = {
                             role: 'model',
@@ -448,10 +472,10 @@
                     } else {
                         modelTurn.images = modelTurn.images || [];
                         modelTurn.attachments = modelTurn.attachments || [];
-                        if (!modelTurn.images.some(im => im.fileName === img.filename)) {
+                        if (!modelTurn.images.some((im: any) => im.fileName === img.filename)) {
                             modelTurn.images.push(imgObj);
                         }
-                        if (!modelTurn.attachments.some(at => at.fileName === img.filename)) {
+                        if (!modelTurn.attachments.some((at: any) => at.fileName === img.filename)) {
                             modelTurn.attachments.push(imgObj);
                         }
                         if (!modelTurn.content.includes(img.filename)) {
@@ -469,7 +493,7 @@
                 linkTakeoutGeneratedImage(genBlocks[0].chatId, watermarkedImages[0]);
             } else {
                 for (const img of watermarkedImages) {
-                    let bestBlock = null;
+                    let bestBlock: any = null;
                     let minDiff = Infinity;
                     for (const gb of genBlocks) {
                         if (!gb.time || !img.time) continue;
@@ -486,7 +510,7 @@
             }
         }
 
-        const conversations = Object.values(extractedMap);
+        const conversations: Conversation[] = Object.values(extractedMap);
         if (onProgress) onProgress(100, `Takeout 解析完成，共发现 ${conversations.length} 条对话与 ${totalMediaCount} 个离线资源`);
 
         if (mediaIdx && mediaIdx.commitTakeoutData) {
