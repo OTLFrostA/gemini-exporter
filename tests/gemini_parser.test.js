@@ -256,3 +256,69 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
     assert.strictEqual(driftCheck.isDrifted, true);
     assert.ok(driftCheck.warnings.length >= 1);
 });
+
+test('gemini_parser - sub-modules and unified deepWalk verification', () => {
+    const extractors = require('../src/core/api/parser/extractors.js');
+    const attachments = require('../src/core/api/parser/attachments.js');
+    const parseListMod = require('../src/core/api/parser/parseList.js');
+    const parseDetailMod = require('../src/core/api/parser/parseDetail.js');
+
+    // 1. deepWalk unified tree walker
+    const visited = [];
+    const tree = { a: [1, { b: 2, c: [3, 4] }], d: 5 };
+    extractors.deepWalk(tree, (node) => {
+        if (typeof node === 'object' && !Array.isArray(node)) {
+            visited.push(Object.keys(node).join(','));
+        }
+    });
+    assert.ok(visited.includes('a,d'));
+    assert.ok(visited.includes('b,c'));
+
+    // Early termination in deepWalk
+    let earlyCount = 0;
+    extractors.deepWalk([1, 2, [3, 4, [5, 6]]], (node) => {
+        earlyCount++;
+        if (Array.isArray(node) && node.length === 3) {
+            return false; // Stop descending
+        }
+    });
+    assert.ok(earlyCount < 5, 'deepWalk should stop descending when visitor returns false');
+
+    // 2. extractors: thoughts & citations
+    const candBlock = [
+        ["THOUGHT", "Thinking deeply about quantum physics..."],
+        ["https://arxiv.org/abs/1234.5678", "Quantum Supremacy Paper"],
+        ["https://googleusercontent.com/immersive_entry_chip/ignored", "Chip"]
+    ];
+    const thoughts = extractors.extractThoughts(candBlock);
+    assert.strictEqual(thoughts, "Thinking deeply about quantum physics...");
+
+    const citations = extractors.extractCitations(candBlock);
+    assert.strictEqual(citations.length, 1);
+    assert.strictEqual(citations[0].url, "https://arxiv.org/abs/1234.5678");
+    assert.strictEqual(citations[0].title, "Quantum Supremacy Paper");
+
+    // 3. attachments: highResVariant & isInternalChipUrl
+    assert.strictEqual(attachments.highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"), "https://lh3.googleusercontent.com/pic=s0");
+    assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
+    assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
+
+    // 4. parseList: timestamp extraction
+    const mockItem = ["c_test", "Title", null, null, null, [1720000000, 500000000]];
+    const ts = parseListMod.extractListItemTimestamp(mockItem);
+    assert.strictEqual(ts, 1720000000500);
+
+    // 5. Facade 26 methods presence
+    const expectedMethods = [
+        'GEMINI_JSPB_SCHEMA', 'detectTurnSchemaDrift', 'extractModelCandidates', 'extractCandidateText',
+        'robustFirstPayload', 'extractTurnTimestamp', 'extractImageSelectionIndex', 'getImageDedupKey',
+        'filterNewImages', 'highResVariant', 'extractImages', 'extractUserFiles', 'extractDocumentsMeta',
+        'findDocContentById', 'parseDocSections', 'findDocMarkdownByClues', 'extractThoughts',
+        'extractCitations', 'extractConversationId', 'extractConversationTitle', 'isRealTitle',
+        'cleanTitle', 'normId', 'extractListItemTimestamp', 'parseList', 'parseDetail'
+    ];
+    for (const m of expectedMethods) {
+        assert.ok(GeminiResponseParserClass[m] !== undefined, `Missing method on GeminiResponseParserClass: ${m}`);
+    }
+});
+
