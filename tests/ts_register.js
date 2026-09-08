@@ -12,6 +12,23 @@ if (!require.extensions['.ts']) {
             format: 'cjs'
         });
         module._compile(result.code, filename);
+
+        // Smart CJS Interop: bridge ESM default/named for require()
+        // 纯 named 无 default 保留原 m；有 default 则将 named 挂到 default 并让 require 直接得到 default
+        const m = module.exports;
+        if (m && m.__esModule && m.default) {
+            const def = m.default;
+            if (def && (typeof def === 'function' || typeof def === 'object')) {
+                for (const k of Object.keys(m)) {
+                    if (k !== 'default' && k !== '__esModule' && !(k in def)) {
+                        try { def[k] = m[k]; } catch (_) {}
+                    }
+                }
+                if (!('default' in def)) { try { def.default = def; } catch (_) {} }
+                try { def.__esModule = true; } catch (_) {}
+                module.exports = def;
+            }
+        }
     };
 }
 
@@ -51,17 +68,24 @@ fs.readFileSync = function(pathArg, options) {
                             .replace(/export\s*\{[^}]*\};?\s*/g, '')
                             .replace(/export\s+default\s+[^;]+;?\s*/g, '')
                         : source;
+                    const format = isScript ? 'iife' : undefined;
+                    const globalName = pathArg.endsWith('protocol.js') ? 'GeminiProtocol' : undefined;
                     const result = esbuild.transformSync(cleanSource, {
                         loader: 'ts',
                         target: 'chrome120',
-                        format: isScript ? 'iife' : undefined,
+                        format,
+                        globalName,
                         charset: 'utf8'
                     });
+                    let code = result.code;
+                    if (pathArg.endsWith('protocol.js')) {
+                        code += "\nif (typeof GeminiProtocol !== 'undefined') { if (typeof globalThis !== 'undefined') globalThis.GeminiProtocol = GeminiProtocol; if (typeof window !== 'undefined') window.GeminiProtocol = GeminiProtocol; }";
+                    }
                     const encoding = typeof options === 'string' ? options : (options && options.encoding);
                     if (encoding) {
-                        return result.code;
+                        return code;
                     }
-                    return Buffer.from(result.code, 'utf8');
+                    return Buffer.from(code, 'utf8');
                 }
                 // For other files where tests perform source-level code assertions, return raw source
                 const encoding = typeof options === 'string' ? options : (options && options.encoding);
