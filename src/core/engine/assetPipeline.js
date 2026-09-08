@@ -37,18 +37,19 @@
             this.takeoutEngine = options.takeoutEngine || null;
             this.getGeminiTab = options.getGeminiTab || null;
             this.onLog = options.onLog || (() => {});
+            this.downloadTimeoutMs = options.downloadTimeoutMs || 15000;
         }
 
         /**
          * Download and persist an asset (image or attachment file)
          * @param {Object} item - The asset item (att or img)
          * @param {Object} chat - The conversation object
-         * @param {Object} opts - Additional options { isImage, listTitle }
+         * @param {Object} opts - Additional options { isImage, listTitle, timeoutMs }
          * @returns {Promise<{ saved: boolean, failReason: string, recoveredFromTakeout: boolean, localName: string }>}
          */
         async processAsset(item, chat, opts = {}) {
             const isImage = !!opts.isImage;
-            const targetUrl = isImage ? (item.resolvedUrl || item.sourceUrl) : ([item.url, item.sourceUrl, item.src].filter(Boolean)[0]);
+            const targetUrl = isImage ? (item.resolvedUrl || item.sourceUrl || item.url) : ([item.url, item.sourceUrl, item.src].filter(Boolean)[0]);
             const localName = item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
             let saved = false;
             let failReason = '';
@@ -57,17 +58,34 @@
             try {
                 const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                 if (tab && targetUrl) {
+                    const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
                     const r = await new Promise(resolve => {
+                        let timer = null;
+                        let settled = false;
+
+                        if (timeoutMs > 0) {
+                            timer = setTimeout(() => {
+                                if (!settled) {
+                                    settled = true;
+                                    resolve({ success: false, error: `tabs.sendMessage timed out after ${timeoutMs}ms` });
+                                }
+                            }, timeoutMs);
+                        }
+
                         chrome.tabs.sendMessage(tab.id, {
                             action: 'downloadAssetDirect',
                             url: targetUrl,
                             referer: `https://gemini.google.com/app/${chat.id}`,
                             preferBuffer: false
                         }, (resp) => {
-                            if (chrome.runtime.lastError) {
-                                resolve({ success: false, error: chrome.runtime.lastError.message });
-                            } else {
-                                resolve(resp);
+                            if (timer) clearTimeout(timer);
+                            if (!settled) {
+                                settled = true;
+                                if (chrome.runtime.lastError) {
+                                    resolve({ success: false, error: chrome.runtime.lastError.message });
+                                } else {
+                                    resolve(resp);
+                                }
                             }
                         });
                     });
