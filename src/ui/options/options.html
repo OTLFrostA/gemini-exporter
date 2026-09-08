@@ -318,58 +318,8 @@
   </div>
 </div>
 
-<!-- Module loading order matters: build.js transforms src/ -> dist/ preserving this order (see build.js header).
-     Keep in sync with build.js and tests/run_tests.py::test_html_includes. -->
+<!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
 <script src="/lib/jszip.min.js"></script>
-<script src="/dist/core/protocol/protocol.js"></script>
-<script src="/dist/core/utils/constants.js"></script>
-<script src="/dist/core/utils/utils.js"></script>
-<script src="/dist/core/utils/tabService.js"></script>
-<script src="/dist/core/utils/locales/zh.js"></script>
-<script src="/dist/core/utils/locales/en.js"></script>
-<script src="/dist/core/utils/i18n.js"></script>
-<script src="/dist/core/storage/storageService.js"></script>
-<script src="/dist/core/storage/formatStore.js"></script>
-<script src="/dist/core/engine/writers/zipWriter.js"></script>
-<script src="/dist/core/engine/writers/fsWriter.js"></script>
-<script src="/dist/core/engine/writers/writerInterface.js"></script>
-<script src="/dist/core/engine/chatFormatter.js"></script>
-<script src="/dist/core/api/parser/extractors.js"></script>
-<script src="/dist/core/api/parser/attachments.js"></script>
-<script src="/dist/core/api/parser/parseList.js"></script>
-<script src="/dist/core/api/parser/parseDetail.js"></script>
-<script src="/dist/core/api/geminiParser.js"></script>
-<script src="/dist/core/api/client/credentialManager.js"></script>
-<script src="/dist/core/api/client/retryPolicy.js"></script>
-<script src="/dist/core/api/client/rpcClient.js"></script>
-<script src="/dist/core/api/client/pagination.js"></script>
-<script src="/dist/core/api/geminiClient.js"></script>
-<script src="/dist/core/engine/takeout/zipBombGuard.js"></script>
-<script src="/dist/core/engine/takeout/mediaIndex.js"></script>
-<script src="/dist/core/engine/takeout/takeoutParser.js"></script>
-<script src="/dist/core/engine/takeoutEngine.js"></script>
-<script src="/dist/core/engine/assetPipeline.js"></script>
-<script src="/dist/core/engine/export/progressReporter.js"></script>
-<script src="/dist/core/engine/export/sessionRecovery.js"></script>
-<script src="/dist/core/engine/export/batchWorker.js"></script>
-<script src="/dist/core/engine/export/exportOrchestrator.js"></script>
-<script src="/dist/core/engine/exportEngine.js"></script>
-<!-- UI layer -->
-<script src="/dist/ui/state/conversationsStore.js"></script>
-<script src="/dist/ui/tour/tourGuide.js"></script>
-<script src="/dist/ui/views/logView.js"></script>
-<script src="/dist/ui/views/listView.js"></script>
-<script src="/dist/ui/views/accountView.js"></script>
-<script src="/dist/ui/views/dialogView.js"></script>
-<script src="/dist/ui/controllers/dirHandleController.js"></script>
-<script src="/dist/ui/controllers/takeoutController.js"></script>
-<script src="/dist/ui/controllers/syncController.js"></script>
-<script src="/dist/ui/controllers/exportController.js"></script>
-<script src="/dist/ui/options/modules/optionsInit.js"></script>
-<script src="/dist/ui/options/modules/optionsExport.js"></script>
-<script src="/dist/ui/options/modules/optionsSync.js"></script>
-<script src="/dist/ui/options/modules/optionsTakeout.js"></script>
-<script src="/dist/ui/options/modules/optionsSettings.js"></script>
-<script src="/dist/ui/options/options.js"></script>
+<script src="/dist/ui/options.js"></script>
 </body>
 </html>

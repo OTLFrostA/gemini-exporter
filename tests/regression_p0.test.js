@@ -6,6 +6,14 @@ const path = require('node:path');
 const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
 const ExportEngineMod = require('../src/core/engine/exportEngine.js');
 
+function readSrc(relPath) {
+    const fullJs = path.join(__dirname, relPath);
+    if (fs.existsSync(fullJs)) return fs.readFileSync(fullJs, 'utf8');
+    const fullTs = fullJs.replace(/\.js$/, '.ts');
+    if (fs.existsSync(fullTs)) return fs.readFileSync(fullTs, 'utf8');
+    return fs.readFileSync(fullJs, 'utf8');
+}
+
 // P0-1: 图片 localName 跨 turn 同名覆盖
 test('regression: gemini_parser image naming must be globally unique across turns', () => {
     const seq = { value: 1 };
@@ -87,8 +95,8 @@ test('regression: export_engine getExtensionVersion should be exported and read 
 
 // P0-4: 标题品牌词防护
 test('regression: export_engine and options must scrub Google Gemini brand', () => {
-    const expContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
-    const optContent = fs.readFileSync(path.join(__dirname, '../src/ui/options/options.js'), 'utf8');
+    const expContent = readSrc('../src/core/engine/exportEngine.js');
+    const optContent = readSrc('../src/ui/options/options.js');
     assert.ok(expContent.includes('isBadBrand'), 'export_engine should have isBadBrand scrub');
     assert.ok(expContent.includes('Google\\s+)?(Gemini|Bard'), 'export_engine should filter brand regex');
     assert.ok(optContent.includes('isBad'), 'options.js should scrub bad titles on load');
@@ -100,10 +108,10 @@ test('regression: export_engine and options must scrub Google Gemini brand', () 
 
 // P0-5: 空详情应为 error 级别且携带 debug
 test('regression: empty cloud response must be logged as error with debug', () => {
-    const expContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
+    const expContent = readSrc('../src/core/engine/exportEngine.js');
     assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
     assert.ok(expContent.includes('_debug') && expContent.includes('_raw'), 'failedChats should carry debug/raw');
-    const bgContent = fs.readFileSync(path.join(__dirname, '../src/background/background.js'), 'utf8');
+    const bgContent = readSrc('../src/background/background.js');
     assert.ok(bgContent.includes('_debug'), 'background should preserve _raw debug');
 });
 
@@ -162,10 +170,10 @@ test('regression: parseDetail across 3 turns with single deep research doc shoul
 
 // P0-11: 导出终止必须广播 cancelExport 且 fetchBatch 具备 abort 监听
 test('regression: export abort must broadcast cancelExport and listen to abortSignal', () => {
-    const expContent = fs.readFileSync(path.join(__dirname, '../src/core/engine/exportEngine.js'), 'utf8');
+    const expContent = readSrc('../src/core/engine/exportEngine.js');
     assert.ok(expContent.includes("action: 'cancelExport'"), 'export_engine abort must broadcast cancelExport');
     assert.ok(expContent.includes('abortSignal.addEventListener'), 'export_engine fetchBatch must listen to abortSignal');
-    const ctrlContent = fs.readFileSync(path.join(__dirname, '../src/ui/controllers/exportController.js'), 'utf8');
+    const ctrlContent = readSrc('../src/ui/controllers/exportController.js');
     assert.ok(ctrlContent.includes("action: 'cancelExport'"), 'exportController abort must broadcast cancelExport');
 });
 

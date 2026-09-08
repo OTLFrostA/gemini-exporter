@@ -63,59 +63,11 @@ def test_html_includes():
     for opt_path in ["src/ui/options/options.html"]:
         with open(os.path.join(BASE_DIR, opt_path), "r", encoding="utf-8") as f:
             opt_html = f.read()
-            for script in [
-                "/lib/jszip.min.js",
-                "/dist/core/protocol/protocol.js",
-                "/dist/core/utils/constants.js",
-                "/dist/core/utils/utils.js",
-                "/dist/core/utils/tabService.js",
-                "/dist/core/utils/locales/zh.js",
-                "/dist/core/utils/locales/en.js",
-                "/dist/core/utils/i18n.js",
-                "/dist/core/storage/storageService.js",
-                "/dist/core/storage/formatStore.js",
-                "/dist/core/engine/writers/zipWriter.js",
-                "/dist/core/engine/writers/fsWriter.js",
-                "/dist/core/engine/writers/writerInterface.js",
-                "/dist/core/engine/chatFormatter.js",
-                "/dist/core/api/parser/extractors.js",
-                "/dist/core/api/parser/attachments.js",
-                "/dist/core/api/parser/parseList.js",
-                "/dist/core/api/parser/parseDetail.js",
-                "/dist/core/api/geminiParser.js",
-                "/dist/core/api/client/credentialManager.js",
-                "/dist/core/api/client/retryPolicy.js",
-                "/dist/core/api/client/rpcClient.js",
-                "/dist/core/api/client/pagination.js",
-                "/dist/core/api/geminiClient.js",
-                "/dist/core/engine/takeout/zipBombGuard.js",
-                "/dist/core/engine/takeout/mediaIndex.js",
-                "/dist/core/engine/takeout/takeoutParser.js",
-                "/dist/core/engine/takeoutEngine.js",
-                "/dist/core/engine/assetPipeline.js",
-                "/dist/core/engine/export/progressReporter.js",
-                "/dist/core/engine/export/sessionRecovery.js",
-                "/dist/core/engine/export/batchWorker.js",
-                "/dist/core/engine/export/exportOrchestrator.js",
-                "/dist/core/engine/exportEngine.js",
-                "/dist/ui/state/conversationsStore.js",
-                "/dist/ui/tour/tourGuide.js",
-                "/dist/ui/views/logView.js",
-                "/dist/ui/views/listView.js",
-                "/dist/ui/views/accountView.js",
-                "/dist/ui/views/dialogView.js",
-                "/dist/ui/controllers/dirHandleController.js",
-                "/dist/ui/controllers/takeoutController.js",
-                "/dist/ui/controllers/syncController.js",
-                "/dist/ui/controllers/exportController.js",
-                "/dist/ui/options/modules/optionsInit.js",
-                "/dist/ui/options/modules/optionsExport.js",
-                "/dist/ui/options/modules/optionsSync.js",
-                "/dist/ui/options/modules/optionsTakeout.js",
-                "/dist/ui/options/modules/optionsSettings.js",
-                "/dist/ui/options/options.js"
-            ]:
-                assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in {opt_path}"
+            # PR 5: options.html uses JSZip (UMD global) + single bundled dist/ui/options.js
+            assert '<script src="/lib/jszip.min.js"></script>' in opt_html, f"Missing /lib/jszip.min.js in {opt_path}"
+            assert '<script src="/dist/ui/options.js"></script>' in opt_html, f"Missing /dist/ui/options.js in {opt_path}"
+            # Ensure legacy 50-script scatter is removed (spot-check 2 legacy entries must NOT be present)
+            assert '/dist/core/protocol/protocol.js' not in opt_html or opt_html.count('<script') == 2, f"Legacy per-file scripts must be removed in {opt_path}"
 
     for pop_path in ["src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, pop_path), "r", encoding="utf-8") as f:
@@ -462,6 +414,15 @@ def test_javascript_unit_tests():
                 ("i18n.js", "../i18n.js")
             ]:
                 full_p = os.path.join(BASE_DIR, mod_path)
+                if not os.path.exists(full_p):
+                    if mod_path.startswith("src/"):
+                        dp = os.path.join(BASE_DIR, "dist", mod_path[4:])
+                        if os.path.exists(dp):
+                            full_p = dp
+                if not os.path.exists(full_p) and mod_path.endswith('.js'):
+                    tsp = full_p[:-3] + '.ts'
+                    if os.path.exists(tsp):
+                        full_p = tsp
                 if os.path.exists(full_p):
                     with open(full_p, "r", encoding="utf-8") as mf:
                         content = mf.read()
@@ -512,7 +473,8 @@ def test_exported_history_and_slot_fallback():
     assert re.search(r"updates(\['exportedIds'\]|\.exportedIds)\s*=", code), "saveExportRecord should maintain global exportedIds"
     assert "gemini_conversations_u0" in code, "storageService should check gemini_conversations_u0"
 
-    store_js = os.path.join(BASE_DIR, "src/ui/state/conversationsStore.js")
+    store_ts = os.path.join(BASE_DIR, "src/ui/state/conversationsStore.ts")
+    store_js = store_ts if os.path.isfile(store_ts) else os.path.join(BASE_DIR, "src/ui/state/conversationsStore.js")
     with open(store_js, "r", encoding="utf-8") as f:
         store_code = f.read()
     assert re.search(r"for\s*\(\s*(?:const|let|var)?\s*\w+\s+of\s+candidates\s*\)", store_code) or "candidates" in store_code, "conversationsStore should smartly fall back to slot with conversations"
@@ -577,7 +539,8 @@ def test_tour_status_indicator_styling():
     assert "#34d399" in tour_css, "tourGuide.css should use crisp high-contrast emerald color (#34d399) for status ok"
 
     # 3. Ensure tourGuide.js uses tour-status-ok and tour-status-warn
-    tour_js_path = os.path.join(BASE_DIR, "src/ui/tour/tourGuide.js")
+    tour_ts = os.path.join(BASE_DIR, "src/ui/tour/tourGuide.ts")
+    tour_js_path = tour_ts if os.path.isfile(tour_ts) else os.path.join(BASE_DIR, "src/ui/tour/tourGuide.js")
     with open(tour_js_path, "r", encoding="utf-8") as f:
         tour_js = f.read()
     assert "tour-status-indicator tour-status-ok" in tour_js, "tourGuide.js missing tour-status-ok class"
@@ -602,7 +565,8 @@ def test_takeout_limit_modal_and_wall_detection():
     assert re.search(r'all\.length\s*>=\s*500', client_code) or "hitGoogleLimit" in client_code, "geminiClient should flag hitGoogleLimit for full scans reaching 500+ chats"
     assert "429" in client_code, "geminiClient should detect 429 rate limit wall"
 
-    sync_path = os.path.join(BASE_DIR, "src/ui/controllers/syncController.js")
+    sync_ts = os.path.join(BASE_DIR, "src/ui/controllers/syncController.ts")
+    sync_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/ui/controllers/syncController.js")
     with open(sync_path, "r", encoding="utf-8") as f:
         sync_code = f.read()
     assert re.search(r'count\s*>=\s*500', sync_code) or "hitGoogleLimit" in sync_code, "syncController.js should treat full scan >= 500 as hitGoogleLimit"
@@ -616,7 +580,8 @@ def test_takeout_limit_modal_and_wall_detection():
     assert re.search(r'(300000|5\s*\*\s*60\s*\*\s*1000)', tab_code) and "deepScan" in tab_code, "tabService.js should allow at least 300000ms timeout for deepScan"
 
     # 4. Ensure options.js checks gemini_pending_takeout_prompt on store load
-    options_js_path = os.path.join(BASE_DIR, "src/ui/options/options.js")
+    options_ts = os.path.join(BASE_DIR, "src/ui/options/options.ts")
+    options_js_path = options_ts if os.path.isfile(options_ts) else os.path.join(BASE_DIR, "src/ui/options/options.js")
     with open(options_js_path, "r", encoding="utf-8") as f:
         options_code = f.read()
     assert "gemini_pending_takeout_prompt" in options_code, "options.js should check gemini_pending_takeout_prompt"
@@ -636,7 +601,8 @@ def test_takeout_limit_modal_and_wall_detection():
     assert "has_completed_takeout_prompt" in storage_code, "storageService should track has_completed_takeout_prompt"
     assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService should export takeout prompt completion helpers"
 
-    dialog_js_path = os.path.join(BASE_DIR, "src/ui/views/dialogView.js")
+    dialog_ts = os.path.join(BASE_DIR, "src/ui/views/dialogView.ts")
+    dialog_js_path = dialog_ts if os.path.isfile(dialog_ts) else os.path.join(BASE_DIR, "src/ui/views/dialogView.js")
     with open(dialog_js_path, "r", encoding="utf-8") as f:
         dialog_code = f.read()
     assert "isTakeoutPromptCompleted" in dialog_code and "setTakeoutPromptCompleted" in dialog_code, "dialogView.js should guard and mark takeout prompt completed"
@@ -669,7 +635,8 @@ def test_stage1_architecture_ssot_and_state_isolation():
         content_code = f.read()
     assert "compareConversations" in content_code, "content.js upsertConversations must use compareConversations SSoT"
 
-    options_js_path = os.path.join(BASE_DIR, "src/ui/options/options.js")
+    options_ts = os.path.join(BASE_DIR, "src/ui/options/options.ts")
+    options_js_path = options_ts if os.path.isfile(options_ts) else os.path.join(BASE_DIR, "src/ui/options/options.js")
     with open(options_js_path, "r", encoding="utf-8") as f:
         options_code = f.read()
     assert "compareConversations" in options_code, "options.js loadStore must use compareConversations SSoT"
