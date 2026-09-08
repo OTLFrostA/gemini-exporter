@@ -111,9 +111,8 @@ import '../core/protocol/protocol.js';
             // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
             // not take part in this test — including it makes the filter always pass
             // and relays every response body (up to 3MB) across worlds. Only the
-            // payloads the ISOLATED side actually parses (list / detail / delete
-            // anchors) are relayed.
-            if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL) && !text.includes(Proto.RPCS.DELETE))) return;
+            // payloads the ISOLATED side actually parses (list / detail) are relayed.
+            if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
             let slot = 'default';
             const uStr = (url || '').toString();
             const m = uStr.match(/\/u\/(\d+)\//);
