@@ -1,11 +1,21 @@
 // src/ui/popup/popup.ts - Popup UI controller for Gemini Exporter
 
+import '../../core/protocol/protocol.js';
+import '../../core/utils/constants.js';
+import '../../core/utils/utils.js';
+import '../../core/utils/locales/zh.js';
+import '../../core/utils/locales/en.js';
+import '../../core/utils/i18n.js';
+import '../../core/storage/storageService.js';
+
 (function() {
     'use strict';
 
-    const Storage = (typeof (globalThis as any).StorageService !== 'undefined')
-        ? (globalThis as any).StorageService
-        : ((typeof window !== 'undefined' && (window as any).StorageService) || null);
+    const Storage = (typeof StorageService !== 'undefined')
+        ? StorageService
+        : ((typeof (globalThis as any).StorageService !== 'undefined')
+            ? (globalThis as any).StorageService
+            : ((typeof window !== 'undefined' && (window as any).StorageService) || null));
 
     function $(id: string): HTMLElement | null {
         return document.getElementById(id);
@@ -27,6 +37,8 @@
         (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.sanitizeFileName
             ? (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback)
             : (name || fallback).trim() || fallback);
+
+    const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n);
 
     function isGeminiUrl(urlStr?: string | null): boolean {
         if (!urlStr || typeof urlStr !== 'string') return false;
@@ -63,7 +75,7 @@
             }
             const badge = $('countBadge');
             if (badge) {
-                const i18n = (globalThis as any).I18n;
+                const i18n = getI18n();
                 const text = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', count) : `${count} synced`;
                 badge.textContent = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
             }
@@ -74,7 +86,7 @@
 
     // Language switch toggle
     const handleLangChange = async (targetLang: string): Promise<void> => {
-        const i18n = (globalThis as any).I18n;
+        const i18n = getI18n();
         if (typeof i18n !== 'undefined') {
             await i18n.setLang(targetLang);
             updateCount();
@@ -109,7 +121,9 @@
         chrome.runtime.openOptionsPage();
     });
 
-    const formatStore = (globalThis as any).FormatStore;
+    const formatStore = (typeof FormatStore !== 'undefined')
+        ? FormatStore
+        : (globalThis as any).FormatStore;
     const ALLOWED_FORMATS: string[] = (typeof formatStore !== 'undefined' ? formatStore.ALLOWED_FORMATS : ['markdown', 'json_openai', 'json', 'json_raw']);
     const formatSelect = $('format') as HTMLSelectElement | null;
 
@@ -147,7 +161,7 @@
 
     // "只导当前页" button
     $('btnCurrent')?.addEventListener('click', async () => {
-        const i18n = (globalThis as any).I18n;
+        const i18n = getI18n();
         const currentFormatSelect = $('format') as HTMLSelectElement | null;
         let format: string = (typeof formatStore !== 'undefined' && formatStore.getCurrentFormat)
             ? formatStore.getCurrentFormat(false, currentFormatSelect?.value)
@@ -202,7 +216,9 @@
                     }
                 }
 
-                const chatFormatter = (globalThis as any).ChatFormatter;
+                const chatFormatter = (typeof ChatFormatter !== 'undefined')
+                    ? ChatFormatter
+                    : (globalThis as any).ChatFormatter;
                 const formatted = (typeof chatFormatter !== 'undefined')
                     ? chatFormatter.formatContent(chat, format)
                     : { content: JSON.stringify(chat, null, 2), ext: 'json', mime: 'application/json' };
@@ -260,7 +276,7 @@
 
     // Listen for sync updates
     chrome.runtime.onMessage.addListener((msg: any) => {
-        const i18n = (globalThis as any).I18n;
+        const i18n = getI18n();
         if (msg.action === 'syncUpdate') {
             const badge = $('countBadge');
             if (badge) badge.textContent = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
@@ -276,7 +292,7 @@
     });
 
     // Init i18n and count
-    const i18n = (globalThis as any).I18n;
+    const i18n = getI18n();
     if (typeof i18n !== 'undefined') {
         i18n.initLanguage().then(() => {
             i18n.applyI18n();

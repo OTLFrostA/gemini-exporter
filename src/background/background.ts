@@ -1,18 +1,11 @@
 // src/background/background.ts - Manifest V3 Background Service Worker for Gemini Exporter
 
 import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
-
-try {
-    importScripts(
-        '/dist/core/protocol/protocol.js',
-        '/dist/core/utils/constants.js',
-        '/dist/core/utils/utils.js',
-        '/dist/core/storage/storageService.js',
-        '/dist/core/utils/tabService.js'
-    );
-} catch (e) {
-    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:background.js]', e);
-}
+import '../core/protocol/protocol.js';
+import '../core/utils/constants.js';
+import '../core/utils/utils.js';
+import '../core/storage/storageService.js';
+import '../core/utils/tabService.js';
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
 try {
@@ -93,11 +86,23 @@ function initUninstallUrl(): void {
     }
 }
 
-const cleanTitle = (t: any): string => (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.cleanTitle ? (globalThis as any).GeminiUtils.cleanTitle(t) : (t || '').trim());
-const isRealTitle = (t: any, fallbackId?: string): boolean => (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.isRealTitle ? (globalThis as any).GeminiUtils.isRealTitle(t, fallbackId) : !!(t && t.trim().length > 1));
 // Tab communication service helper (handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
-const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> => (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService.sendToGeminiTab(msg, slot, timeoutMs) : Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）')));
-const getGeminiTab = (slot?: string): Promise<any> => (typeof (globalThis as any).TabService !== 'undefined' && (globalThis as any).TabService.getGeminiTab ? (globalThis as any).TabService.getGeminiTab(slot) : (typeof chrome !== 'undefined' && chrome.tabs ? chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then(t => t[0] || null) : Promise.resolve(null)));
+const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> => {
+    if (typeof TabService !== 'undefined' && TabService.sendToGeminiTab) {
+        return TabService.sendToGeminiTab(msg, slot, timeoutMs);
+    }
+    return Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）: Receiving end does not exist'));
+};
+
+const getGeminiTab = (slot?: string): Promise<any> => {
+    if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
+        return TabService.getGeminiTab(slot);
+    }
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
+        return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then((t: any[]) => t?.[0] || null);
+    }
+    return Promise.resolve(null);
+};
 
 chrome.runtime.onInstalled.addListener((details) => {
     initUninstallUrl();
