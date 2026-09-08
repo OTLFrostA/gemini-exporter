@@ -449,3 +449,5 @@ export const SyncEngine = {
     compareConversations
 };
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = SyncEngine;

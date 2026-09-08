@@ -281,3 +281,5 @@ export const AssetFetcher = {
     downloadAssetDirect
 };
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = AssetFetcher;

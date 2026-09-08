@@ -231,3 +231,5 @@ export const MessageRouter = {
     init
 };
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = MessageRouter;

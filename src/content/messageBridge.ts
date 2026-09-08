@@ -174,3 +174,5 @@ export const MessageBridge = {
     handleWindowMessage
 };
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = MessageBridge;

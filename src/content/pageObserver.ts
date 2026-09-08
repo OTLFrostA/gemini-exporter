@@ -133,3 +133,5 @@ export const PageObserver = {
     startPeriodicSync
 };
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = PageObserver;

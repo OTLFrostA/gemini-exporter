@@ -178,33 +178,33 @@ def test_i18n_keys():
 def test_javascript_syntax():
     import subprocess
     import shutil
-    js_files = []
-    for root, dirs, files in os.walk(BASE_DIR):
-        if any(x in root for x in ["node_modules", ".git", "lib", "dist"]):
-            continue
-        for file in files:
-            if file.endswith(".js"):
-                js_files.append(os.path.join(root, file))
-
-    jsc_bin = "/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc"
-    node_bin = None
-    for cand in [shutil.which("node"), os.path.expanduser("~/.local/node/bin/node"), os.path.expanduser("~/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"), r"C:\Program Files\nodejs\node.exe"]:
+    # PR7: delegate syntax validation to TypeScript compiler (strict mode covers JS + TS)
+    tsc_bin = None
+    for cand in [shutil.which("npx"), os.path.join(BASE_DIR, "node_modules", ".bin", "tsc"), os.path.join(BASE_DIR, "node_modules", ".bin", "tsc.cmd"), r"C:\Program Files\nodejs\npx.cmd"]:
         if cand and os.path.exists(cand):
-            node_bin = cand
+            # Prefer project-local tsc
+            local_tsc = os.path.join(BASE_DIR, "node_modules", ".bin", "tsc")
+            local_tsc_cmd = local_tsc + ".cmd"
+            if os.path.exists(local_tsc):
+                tsc_bin = local_tsc
+                break
+            if os.path.exists(local_tsc_cmd):
+                tsc_bin = local_tsc_cmd
+                break
+            tsc_bin = cand
             break
-
-    for js_path in sorted(js_files):
-        rel_path = os.path.relpath(js_path, BASE_DIR)
-        with open(js_path, "r", encoding="utf-8") as f:
-            code = f.read()
-        if node_bin:
-            res = subprocess.run([node_bin, "-c", js_path], capture_output=True, text=True, encoding="utf-8", errors="replace")
-            assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr}"
-        elif os.path.exists(jsc_bin):
-            script = f"new Function({json.dumps(code)});"
-            res = subprocess.run([jsc_bin, "-e", script], capture_output=True, text=True)
-            assert res.returncode == 0, f"JS Syntax error in {rel_path}:\n{res.stderr or res.stdout}"
-    print(f"  ✓ Syntax validated across {len(js_files)} JavaScript files")
+    env = os.environ.copy()
+    # Ensure Node.js is in PATH for npx (Windows default install)
+    for p in [r"C:\Program Files\nodejs", r"C:\Program Files\nodejs\npx.cmd"]:
+        if p not in env.get("PATH", ""):
+            env["PATH"] = p + os.pathsep + env.get("PATH", "")
+    npx_bin = shutil.which("npx", path=env["PATH"]) or r"C:\Program Files\nodejs\npx.cmd"
+    if not os.path.exists(npx_bin):
+        npx_bin = "npx"
+    # Use shell on Windows to handle .cmd
+    res = subprocess.run(f'"{npx_bin}" tsc --noEmit', cwd=BASE_DIR, capture_output=True, text=True, encoding="utf-8", errors="replace", shell=True, env=env)
+    assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
+    print(f"  ✓ TypeScript strict syntax validated (tsc --noEmit)")
 
 def test_javascript_unit_tests():
     import subprocess

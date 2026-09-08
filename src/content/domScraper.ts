@@ -248,3 +248,5 @@ export const DomScraper = {
 };
 
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = DomScraper;

@@ -217,3 +217,5 @@ export const BadgeView = {
     setLastKnownCount
 };
 
+
+if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = BadgeView;
