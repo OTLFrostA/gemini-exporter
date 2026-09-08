@@ -1,3 +1,5 @@
+export {};
+
 const test = require('node:test');
 const assert = require('node:assert');
 const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');

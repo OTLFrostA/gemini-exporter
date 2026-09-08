@@ -1,9 +1,11 @@
+export {};
+
 const test = require('node:test');
 const assert = require('node:assert');
 
 // Ensure parser is available in global for geminiClient in Node environment
 const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
-global.GeminiResponseParserClass = GeminiResponseParserClass;
+(global as any).GeminiResponseParserClass = GeminiResponseParserClass;
 
 // 1. Test 429 rate limit backoff in GeminiAPIClient
 test('perf - geminiClient 429 backoff retries and recovers on transient rate limit', async () => {
@@ -11,19 +13,19 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
     const client = new GeminiAPIClient();
 
     // Mock global fetch
-    const originalFetch = global.fetch;
+    const originalFetch = (global as any).fetch;
     let callCount = 0;
-    const recordedDelays = [];
+    const recordedDelays: number[] = [];
 
     // Save and mock setTimeout to avoid real delays in test
-    const originalSetTimeout = global.setTimeout;
-    global.setTimeout = (fn, delay) => {
+    const originalSetTimeout = (global as any).setTimeout;
+    (global as any).setTimeout = (fn: any, delay: any) => {
         recordedDelays.push(delay);
         return originalSetTimeout(fn, 1);
     };
 
     try {
-        global.fetch = async (url, opts) => {
+        (global as any).fetch = async (_url: any, _opts: any) => {
             callCount++;
             if (callCount < 3) {
                 return {
@@ -53,8 +55,8 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
         assert.ok(recordedDelays[0] >= 2000, 'first delay should be >= 2000ms');
         assert.ok(recordedDelays[1] >= 4000, 'second delay should be >= 4000ms');
     } finally {
-        global.fetch = originalFetch;
-        global.setTimeout = originalSetTimeout;
+        (global as any).fetch = originalFetch;
+        (global as any).setTimeout = originalSetTimeout;
     }
 });
 
@@ -62,13 +64,13 @@ test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
     const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
     const client = new GeminiAPIClient();
 
-    const originalFetch = global.fetch;
-    const originalSetTimeout = global.setTimeout;
-    global.setTimeout = (fn, delay) => originalSetTimeout(fn, 1);
+    const originalFetch = (global as any).fetch;
+    const originalSetTimeout = (global as any).setTimeout;
+    (global as any).setTimeout = (fn: any, _delay: any) => originalSetTimeout(fn, 1);
 
     let callCount = 0;
     try {
-        global.fetch = async () => {
+        (global as any).fetch = async () => {
             callCount++;
             return {
                 ok: false,
@@ -84,16 +86,16 @@ test('perf - geminiClient 429 throws after exceeding maxRetries', async () => {
         }, /HTTP 429/);
         assert.strictEqual(callCount, 3, 'initial attempt + 2 retries = 3 calls total');
     } finally {
-        global.fetch = originalFetch;
-        global.setTimeout = originalSetTimeout;
+        (global as any).fetch = originalFetch;
+        (global as any).setTimeout = originalSetTimeout;
     }
 });
 
 // 2. Test Takeout HTML parsing time-slicing and progress
 test('perf - takeoutEngine yields to event loop and reports incremental progress on large archives', async () => {
     const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-    global.JSZip = require('../lib/jszip.min.js');
-    const zip = new global.JSZip();
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
 
     // Construct 120 blocks to trigger both 50-block time slicing and 100-block progress report
     let html = '<html><body>';
@@ -109,9 +111,9 @@ test('perf - takeoutEngine yields to event loop and reports incremental progress
     zip.file('Takeout/Gemini/MyActivity.html', html);
     const buf = await zip.generateAsync({ type: 'nodebuffer' });
 
-    const progressReports = [];
+    const progressReports: any[] = [];
     TakeoutEngine.clearTakeoutData();
-    const res = await TakeoutEngine.parseTakeoutZip(buf, (pct, msg) => {
+    const res = await TakeoutEngine.parseTakeoutZip(buf, (pct: any, msg: any) => {
         progressReports.push({ pct, msg });
     });
 
@@ -126,10 +128,10 @@ test('perf - takeoutEngine yields to event loop and reports incremental progress
 test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true', async () => {
     const AssetFetcher = require('../src/content/assetFetcher.js');
 
-    const originalFetch = global.fetch;
+    const originalFetch = (global as any).fetch;
     const testData = Buffer.from('fake image binary content 1234567890');
     try {
-        global.fetch = async () => ({
+        (global as any).fetch = async () => ({
             ok: true,
             headers: new Map([['content-type', 'image/png']]),
             blob: async () => ({
@@ -139,11 +141,11 @@ test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true
             })
         });
 
-        let responsePayload = null;
+        let responsePayload: any = null;
         await AssetFetcher.downloadAssetDirect({
             url: 'https://lh3.googleusercontent.com/test_img.png',
             preferBuffer: true
-        }, (res) => {
+        }, (res: any) => {
             responsePayload = res;
         });
 
@@ -153,17 +155,17 @@ test('perf - assetFetcher returns ArrayBuffer directly when preferBuffer is true
         assert.strictEqual(responsePayload.dataBuffer.byteLength, testData.length);
         assert.strictEqual(responsePayload.dataBase64, undefined, 'dataBase64 should not be generated when preferBuffer is fulfilled');
     } finally {
-        global.fetch = originalFetch;
+        (global as any).fetch = originalFetch;
     }
 });
 
 test('perf - assetFetcher returns base64 when preferBuffer is false', async () => {
     const AssetFetcher = require('../src/content/assetFetcher.js');
 
-    const originalFetch = global.fetch;
+    const originalFetch = (global as any).fetch;
     const testData = Buffer.from('fake image binary content 1234567890');
     try {
-        global.fetch = async () => ({
+        (global as any).fetch = async () => ({
             ok: true,
             headers: new Map([['content-type', 'image/png']]),
             blob: async () => ({
@@ -173,11 +175,11 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
             })
         });
 
-        let responsePayload = null;
+        let responsePayload: any = null;
         await AssetFetcher.downloadAssetDirect({
             url: 'https://lh3.googleusercontent.com/test_img.png',
             preferBuffer: false
-        }, (res) => {
+        }, (res: any) => {
             responsePayload = res;
         });
 
@@ -186,7 +188,7 @@ test('perf - assetFetcher returns base64 when preferBuffer is false', async () =
         assert.ok(responsePayload.dataBase64, 'dataBase64 should be generated when preferBuffer is false');
         assert.strictEqual(responsePayload.dataBuffer, undefined, 'dataBuffer should not be generated when preferBuffer is false');
     } finally {
-        global.fetch = originalFetch;
+        (global as any).fetch = originalFetch;
     }
 });
 
@@ -200,14 +202,14 @@ test('perf - ExportEngine initializes and tracks rateLimitCooldownUntil', () => 
 // 5. Test AssetPipeline downloadTimeoutMs protection against hanging tabs.sendMessage (Issue A2)
 test('perf - AssetPipeline times out and recovers gracefully when tabs.sendMessage hangs', async () => {
     const AssetPipeline = require('../src/core/engine/assetPipeline.js');
-    const originalChrome = global.chrome;
+    const originalChrome = (global as any).chrome;
 
     try {
         // Mock chrome.tabs.sendMessage that never responds
-        global.chrome = {
+        (global as any).chrome = {
             runtime: {},
             tabs: {
-                sendMessage: (tabId, message, callback) => {
+                sendMessage: (_tabId: any, _message: any, _callback: any) => {
                     // Intentionally never call callback to simulate hanging tab/content script
                 }
             }
@@ -230,7 +232,7 @@ test('perf - AssetPipeline times out and recovers gracefully when tabs.sendMessa
         assert.ok(res.failReason.includes('timed out'), `failReason should indicate timeout, got "${res.failReason}"`);
         assert.ok(duration >= 45, `should have waited for timeout, duration: ${duration}ms`);
     } finally {
-        global.chrome = originalChrome;
+        (global as any).chrome = originalChrome;
     }
 });
 

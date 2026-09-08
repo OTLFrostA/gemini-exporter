@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const DomScraper = require('../src/content/domScraper.js');

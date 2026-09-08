@@ -1,14 +1,16 @@
+export {};
+
 const test = require('node:test');
 const assert = require('node:assert');
 const AssetPipeline = require('../src/core/engine/assetPipeline.js');
 const Extractors = require('../src/core/api/parser/extractors.js');
 
 test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: true) to prevent Base64 OOM', async () => {
-    let capturedMessage = null;
-    const origChrome = global.chrome;
-    global.chrome = {
+    let capturedMessage: any = null;
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
         tabs: {
-            sendMessage: (tabId, message, callback) => {
+            sendMessage: (_tabId: any, message: any, callback: any) => {
                 capturedMessage = message;
                 callback({ success: true, dataBuffer: new ArrayBuffer(16) });
             }
@@ -37,7 +39,7 @@ test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: tr
             'P1 fix: AssetPipeline must send preferBuffer: true so that assetFetcher transmits ArrayBuffer instead of Base64'
         );
     } finally {
-        global.chrome = origChrome;
+        (global as any).chrome = origChrome;
     }
 });
 

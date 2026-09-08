@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -21,19 +22,19 @@ test('audit fix: robustFirstPayload preserves , null , and control characters in
 });
 
 test('audit fix: saveExportRecord serializes concurrent writes without losing records', async () => {
-    const memoryStorage = {};
-    global.chrome = {
+    const memoryStorage: Record<string, any> = {};
+    (global as any).chrome = {
         storage: {
             local: {
-                get: async (keys) => {
-                    const res = {};
+                get: async (keys: any) => {
+                    const res: Record<string, any> = {};
                     const keyList = Array.isArray(keys) ? keys : [keys];
                     for (const k of keyList) {
                         if (memoryStorage[k]) res[k] = JSON.parse(JSON.stringify(memoryStorage[k]));
                     }
                     return res;
                 },
-                set: async (items) => {
+                set: async (items: any) => {
                     // Introduce slight async jitter to simulate real storage I/O
                     await new Promise(r => setTimeout(r, Math.random() * 5));
                     for (const [k, v] of Object.entries(items)) {
@@ -45,7 +46,7 @@ test('audit fix: saveExportRecord serializes concurrent writes without losing re
     };
 
     // Perform 10 concurrent writes
-    const promises = [];
+    const promises: Promise<any>[] = [];
     for (let i = 1; i <= 10; i++) {
         promises.push(StorageService.saveExportRecord('u0', `chat_${i}`, { title: `Chat ${i}`, exportedAt: new Date().toISOString() }));
     }
@@ -65,7 +66,7 @@ test('audit fix: isRealTitle fallback filters invalid titles properly', () => {
 });
 
 test('audit fix: tabService strictly isolates non-u0 slots without silent cross-slot fallback', async () => {
-    global.chrome = {
+    (global as any).chrome = {
         tabs: {
             query: async () => [
                 { id: 1, url: 'https://gemini.google.com/app/1', active: false },
@@ -89,8 +90,8 @@ test('audit fix: tabService strictly isolates non-u0 slots without silent cross-
 
 test('audit fix: listView escapes URL properly to prevent attribute injection', () => {
     const mockList = { innerHTML: '', addEventListener: () => {} };
-    global.document = {
-        getElementById: (id) => id === 'list' ? mockList : null
+    (global as any).document = {
+        getElementById: (id: string) => id === 'list' ? mockList : null
     };
     ListView.render([
         {
@@ -98,7 +99,7 @@ test('audit fix: listView escapes URL properly to prevent attribute injection', 
             title: 'Test XSS Chat',
             url: 'https://gemini.google.com/app/test" onclick="alert(1)'
         }
-    ], {}, new Set());
+    ] as any, {}, new Set());
 
     assert.ok(mockList.innerHTML.includes('&quot; onclick=&quot;alert(1)'), 'Double quotes in URL must be escaped');
     assert.ok(!mockList.innerHTML.includes('href="https://gemini.google.com/app/test" onclick="alert(1)"'), 'Raw double quote breakout must be prevented');

@@ -1,3 +1,4 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -17,8 +18,8 @@ const assert = require('node:assert');
 // ------------------------------------------------------------
 test('Bug repro - takeout title stale when second block is non-explicit prompt', async () => {
     const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-    global.JSZip = require('../lib/jszip.min.js');
-    const zip = new global.JSZip();
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
 
     // Block1: 无Prompted标记 -> hasExplicitPrompt=false, title=Takeout conversation
     // Block2: 同ID, 也无Prompted标记但 content-cell含 "Corrected Title"

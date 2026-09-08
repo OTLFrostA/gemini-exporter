@@ -1,3 +1,5 @@
+export {};
+
 const assert = require('assert');
 const MessageBridge = require('../src/content/messageBridge.js');
 
@@ -18,11 +20,11 @@ async function runTests() {
     assert.strictEqual(upsertCalled, false, 'should ignore invalid event data');
 
     // Test 3: handles GEMINI_CONVERSATION_DELETED
-    let removedId = null;
+    let removedId: any = null;
     let badgeUpdated = false;
     MessageBridge.init({
         Storage: {
-            removeConversation: async (slot, id) => {
+            removeConversation: async (_slot: any, id: any) => {
                 removedId = id;
                 return true;
             },
@@ -44,9 +46,9 @@ async function runTests() {
     assert.strictEqual(badgeUpdated, true, 'should update badge after deletion');
 
     // Test 4: handles __gemExporterNetworkIds
-    let networkItems = null;
+    let networkItems: any = null;
     MessageBridge.init({
-        upsertConversations: async (items, source) => {
+        upsertConversations: async (items: any, _source: any) => {
             networkItems = items;
             return items.length;
         }
@@ -65,14 +67,14 @@ async function runTests() {
     assert.strictEqual(networkItems[0].id, 'c_net1');
 
     // Test 5: rejects forged postMessage from foreign source (e.g. iframe)
-    let forgedRemovedId = null;
+    let forgedRemovedId: any = null;
     const fakeWindow = { name: 'top-window' };
-    const oldWindow = global.window;
+    const oldWindow = (global as any).window;
     try {
-        global.window = fakeWindow;
+        (global as any).window = fakeWindow;
         MessageBridge.init({
             Storage: {
-                removeConversation: async (slot, id) => {
+                removeConversation: async (_slot: any, id: any) => {
                     forgedRemovedId = id;
                     return true;
                 }
@@ -100,7 +102,7 @@ async function runTests() {
         });
         assert.strictEqual(forgedRemovedId, 'c_valid_del', 'should accept postMessage when source is window');
     } finally {
-        global.window = oldWindow;
+        (global as any).window = oldWindow;
     }
 
     console.log('  ✓ MessageBridge tests passed successfully');

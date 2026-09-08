@@ -1,3 +1,5 @@
+export {};
+
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -6,7 +8,7 @@ const path = require('node:path');
 const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
 const ExportEngineMod = require('../src/core/engine/exportEngine.js');
 
-function readSrc(relPath) {
+function readSrc(relPath: string) {
     const fullJs = path.join(__dirname, relPath);
     if (fs.existsSync(fullJs)) return fs.readFileSync(fullJs, 'utf8');
     const fullTs = fullJs.replace(/\.js$/, '.ts');
@@ -46,9 +48,9 @@ test('regression: parseDetail across 2 turns with different images should have d
     const top = [["wrb.fr","hNvQHb", JSON.stringify(inner)]];
     const text = `)]}'\n\n${JSON.stringify(top)}`;
     const parsed = GeminiResponseParserClass.parseDetail(text, "testid1234567890ab");
-    const allImgs = parsed.messages.flatMap(m => m.images || []);
+    const allImgs = parsed.messages.flatMap((m: any) => m.images || []);
     // 旧代码会产生两个同为 assets/...image-1.jpg，这里应唯一
-    const localNames = allImgs.map(i => i.localName);
+    const localNames = allImgs.map((i: any) => i.localName);
     const uniq = new Set(localNames);
     assert.strictEqual(localNames.length, uniq.size, `localNames must be unique, got ${JSON.stringify(localNames)}`);
 });
@@ -64,7 +66,7 @@ test('regression: export_engine sanitizeZipPath must sanitize .. and preserve se
     // 更严格：含 .. 的段应被替换为 _
     const sanitized = ExportEngineMod.sanitizeZipPath('files/../../etc/passwd');
     assert.ok(!sanitized.includes('..'), `sanitized should not contain .., got ${sanitized}`);
-    assert.ok(sanitized.split('/').every(seg => seg !== '..' && seg !== '.'), 'no dot segments');
+    assert.ok(sanitized.split('/').every((seg: string) => seg !== '..' && seg !== '.'), 'no dot segments');
     // 正常路径保持
     assert.strictEqual(ExportEngineMod.sanitizeZipPath('assets/ab1234_image-1.jpg'), 'assets/ab1234_image-1.jpg');
 });
@@ -164,7 +166,7 @@ test('regression: parseDetail across 3 turns with single deep research doc shoul
     const parsed = GeminiResponseParserClass.parseDetail(text, "doc_test_123");
     
     assert.strictEqual(parsed.attachmentCount, 1, `attachmentCount should be 1, got ${parsed.attachmentCount}`);
-    const msgsWithDocs = parsed.messages.filter(m => m.documents && m.documents.length);
+    const msgsWithDocs = parsed.messages.filter((m: any) => m.documents && m.documents.length);
     assert.strictEqual(msgsWithDocs.length, 1, `only 1 message should hold the document, got ${msgsWithDocs.length}`);
 });
 

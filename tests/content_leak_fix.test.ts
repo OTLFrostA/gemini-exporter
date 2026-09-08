@@ -1,24 +1,25 @@
-// tests/content_leak_fix.test.js - Verify timer cleanup on repeated injection (Issue A1 fix)
+export {};
+// tests/content_leak_fix.test.ts - Verify timer cleanup on repeated injection (Issue A1 fix)
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 
 test('Issue A1 fix: PageObserver cleans up dangling intervals and watchers on re-initialization', () => {
     // Setup simulated browser environment
-    global.window = {
+    (global as any).window = {
         addEventListener: () => {},
         removeEventListener: () => {},
         dispatchEvent: () => {}
     };
-    global.document = {
+    (global as any).document = {
         querySelector: () => null,
         getElementById: () => null
     };
-    global.history = {
+    (global as any).history = {
         pushState: () => {},
         replaceState: () => {}
     };
-    global.location = {
+    (global as any).location = {
         href: 'https://gemini.google.com/app',
         pathname: '/app'
     };
@@ -32,8 +33,8 @@ test('Issue A1 fix: PageObserver cleans up dangling intervals and watchers on re
     let syncCount = 0;
     PageObserver.init({ onSync: () => syncCount++ });
 
-    const firstUrlWatcher = global.window.__gemExporterUrlWatcher;
-    const firstSyncInterval = global.window.__gemExporterSyncInterval;
+    const firstUrlWatcher = (global as any).window.__gemExporterUrlWatcher;
+    const firstSyncInterval = (global as any).window.__gemExporterSyncInterval;
 
     assert.ok(firstUrlWatcher, '__gemExporterUrlWatcher should be assigned');
     assert.ok(firstSyncInterval, '__gemExporterSyncInterval should be assigned');
@@ -41,8 +42,8 @@ test('Issue A1 fix: PageObserver cleans up dangling intervals and watchers on re
     // Second init (simulating re-injection)
     PageObserver.init({ onSync: () => syncCount++ });
 
-    const secondUrlWatcher = global.window.__gemExporterUrlWatcher;
-    const secondSyncInterval = global.window.__gemExporterSyncInterval;
+    const secondUrlWatcher = (global as any).window.__gemExporterUrlWatcher;
+    const secondSyncInterval = (global as any).window.__gemExporterSyncInterval;
 
     assert.ok(secondUrlWatcher, 'New __gemExporterUrlWatcher should be assigned');
     assert.ok(secondSyncInterval, 'New __gemExporterSyncInterval should be assigned');
@@ -51,6 +52,6 @@ test('Issue A1 fix: PageObserver cleans up dangling intervals and watchers on re
 
     // Explicit cleanup
     PageObserver.cleanup();
-    assert.strictEqual(global.window.__gemExporterUrlWatcher, null, 'Watcher handle should be nulled out after cleanup');
-    assert.strictEqual(global.window.__gemExporterSyncInterval, null, 'Interval handle should be nulled out after cleanup');
+    assert.strictEqual((global as any).window.__gemExporterUrlWatcher, null, 'Watcher handle should be nulled out after cleanup');
+    assert.strictEqual((global as any).window.__gemExporterSyncInterval, null, 'Interval handle should be nulled out after cleanup');
 });

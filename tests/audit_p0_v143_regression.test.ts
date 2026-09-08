@@ -1,4 +1,5 @@
-// tests/audit_p0_v143_regression.test.js
+export {};
+// tests/audit_p0_v143_regression.test.ts
 // Regression locks for the 6 P0 issues remediated in PR #233.
 
 const test = require("node:test");
@@ -10,7 +11,7 @@ const Proto = require("../src/core/protocol/protocol.js");
 const AssetFetcherModule = require("../src/content/assetFetcher.js");
 
 test("hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL payloads", () => {
-    const filterFn = (text) => {
+    const filterFn = (text: any) => {
         if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) {
             return false;
         }
@@ -32,17 +33,17 @@ test("hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
 });
 
 test("bootstrap - runSerializedCredOp serializes concurrent read-modify-write cycles", async () => {
-    let credOpChain = Promise.resolve();
-    function runSerializedCredOp(op) {
+    let credOpChain: Promise<any> = Promise.resolve();
+    function runSerializedCredOp(op: any) {
         const run = credOpChain.then(op, op);
         credOpChain = run.then(() => undefined, () => undefined);
         return run;
     }
 
-    let storageMap = {};
-    const executionOrder = [];
+    let storageMap: Record<string, any> = {};
+    const executionOrder: string[] = [];
 
-    async function updateCred(sid, atValue, delayMs) {
+    async function updateCred(sid: string, atValue: string, delayMs: number) {
         return runSerializedCredOp(async () => {
             executionOrder.push("start:" + sid);
             await new Promise(r => setTimeout(r, delayMs));
@@ -81,11 +82,11 @@ test("assetFetcher - downloadAssetDirect hard caps > 50MB blob and rejects immed
 
     assert.ok(typeof downloadAssetDirect === "function", "downloadAssetDirect function must exist");
 
-    const oldFetch = global.fetch;
+    const oldFetch = (global as any).fetch;
     let fallbackCalled = false;
     try {
         const oversizedBytes = 51 * 1024 * 1024;
-        global.fetch = async () => ({
+        (global as any).fetch = async () => ({
             ok: true,
             status: 200,
             headers: new Map([["content-type", "application/octet-stream"]]),
@@ -96,8 +97,8 @@ test("assetFetcher - downloadAssetDirect hard caps > 50MB blob and rejects immed
             })
         });
 
-        let response = null;
-        await downloadAssetDirect({ url: "https://example.com/oversized_file.bin" }, (resp) => {
+        let response: any = null;
+        await downloadAssetDirect({ url: "https://example.com/oversized_file.bin" }, (resp: any) => {
             response = resp;
         });
 
@@ -107,7 +108,7 @@ test("assetFetcher - downloadAssetDirect hard caps > 50MB blob and rejects immed
         assert.ok(response.error.includes("Google Takeout"), "Error message must guide user to Google Takeout");
         assert.strictEqual(fallbackCalled, false, "Must not attempt to read arrayBuffer/toDataUrl on oversized blob");
     } finally {
-        global.fetch = oldFetch;
+        (global as any).fetch = oldFetch;
     }
 });
 

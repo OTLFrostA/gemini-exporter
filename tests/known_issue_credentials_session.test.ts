@@ -1,3 +1,5 @@
+export {};
+
 // known_issue_credentials_session.test.js — INTENTIONALLY RED.
 //
 // KNOWN ISSUE (audit report P1-2.6, still open after #194):
@@ -27,16 +29,16 @@ const code = fs.readFileSync(path.join(__dirname, '..', 'src', 'content', 'boots
 const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', 'protocol', 'protocol.js'), 'utf8');
 
 function makeContext() {
-    const ctx = {
+    const ctx: Record<string, any> = {
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         URL,
         chrome: {
             runtime: { id: 'test-extension' },
             storage: {
                 local: {
-                    get: async (keys) => {
+                    get: async (keys: any) => {
                         const keyList = Array.isArray(keys) ? keys : [keys];
-                        const out = {};
+                        const out: Record<string, any> = {};
                         for (const k of keyList) {
                             if (ctx.__localData && Object.prototype.hasOwnProperty.call(ctx.__localData, k)) {
                                 out[k] = ctx.__localData[k];
@@ -44,7 +46,7 @@ function makeContext() {
                         }
                         return out;
                     },
-                    set: async (items) => {
+                    set: async (items: any) => {
                         ctx.__localWrites.push(items);
                         ctx.__localData = ctx.__localData || {};
                         Object.assign(ctx.__localData, JSON.parse(JSON.stringify(items)));
@@ -52,9 +54,9 @@ function makeContext() {
                     remove: async () => {}
                 },
                 session: {
-                    get: async (keys) => {
+                    get: async (keys: any) => {
                         const keyList = Array.isArray(keys) ? keys : [keys];
-                        const out = {};
+                        const out: Record<string, any> = {};
                         for (const k of keyList) {
                             if (ctx.__sessionData && Object.prototype.hasOwnProperty.call(ctx.__sessionData, k)) {
                                 out[k] = ctx.__sessionData[k];
@@ -62,12 +64,12 @@ function makeContext() {
                         }
                         return out;
                     },
-                    set: async (items) => {
+                    set: async (items: any) => {
                         ctx.__sessionWrites.push(items);
                         ctx.__sessionData = ctx.__sessionData || {};
                         Object.assign(ctx.__sessionData, JSON.parse(JSON.stringify(items)));
                     },
-                    remove: async (keys) => {
+                    remove: async (keys: any) => {
                         const keyList = Array.isArray(keys) ? keys : [keys];
                         for (const k of keyList) {
                             if (ctx.__sessionData) delete ctx.__sessionData[k];
@@ -107,7 +109,7 @@ test('p1-lock: session tokens live in chrome.storage.session, never in chrome.st
     await new Promise(r => setImmediate(r));
     await new Promise(r => setImmediate(r));
 
-    const credKeys = w => 'gemini_credentials' in w || 'gemini_credentials_map' in w;
+    const credKeys = (w: any) => 'gemini_credentials' in w || 'gemini_credentials_map' in w;
     const wroteLocal = ctx.__localWrites.some(credKeys);
     const wroteSession = ctx.__sessionWrites.some(credKeys);
 
@@ -121,37 +123,37 @@ test('p1-lock: session tokens live in chrome.storage.session, never in chrome.st
 
 test('StorageService credentials storage uses chrome.storage.session and cleans local', async () => {
     const StorageService = require('../src/core/storage/storageService.js');
-    const localStore = { gemini_credentials_map: { old_sid: { at: 'old_at', sid: 'old_sid' } } };
-    const sessionStore = {};
-    global.chrome = {
+    const localStore: Record<string, any> = { gemini_credentials_map: { old_sid: { at: 'old_at', sid: 'old_sid' } } };
+    const sessionStore: Record<string, any> = {};
+    (global as any).chrome = {
         storage: {
             local: {
-                get: async (keys) => {
-                    const out = {};
+                get: async (keys: any) => {
+                    const out: Record<string, any> = {};
                     for (const k of (Array.isArray(keys) ? keys : [keys])) {
                         if (localStore[k]) out[k] = JSON.parse(JSON.stringify(localStore[k]));
                     }
                     return out;
                 },
-                set: async (items) => {
+                set: async (items: any) => {
                     Object.assign(localStore, JSON.parse(JSON.stringify(items)));
                 },
-                remove: async (keys) => {
+                remove: async (keys: any) => {
                     for (const k of (Array.isArray(keys) ? keys : [keys])) delete localStore[k];
                 }
             },
             session: {
-                get: async (keys) => {
-                    const out = {};
+                get: async (keys: any) => {
+                    const out: Record<string, any> = {};
                     for (const k of (Array.isArray(keys) ? keys : [keys])) {
                         if (sessionStore[k]) out[k] = JSON.parse(JSON.stringify(sessionStore[k]));
                     }
                     return out;
                 },
-                set: async (items) => {
+                set: async (items: any) => {
                     Object.assign(sessionStore, JSON.parse(JSON.stringify(items)));
                 },
-                remove: async (keys) => {
+                remove: async (keys: any) => {
                     for (const k of (Array.isArray(keys) ? keys : [keys])) delete sessionStore[k];
                 }
             }
@@ -178,36 +180,36 @@ test('StorageService credentials storage uses chrome.storage.session and cleans 
 
 test('GeminiAPIClient 401 response purges expired sid from session storage', async () => {
     const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-    const sessionStore = {
+    const sessionStore: Record<string, any> = {
         gemini_credentials_map: {
             bad_sid: { at: 'bad_token', sid: 'bad_sid', accountSlot: 'default' }
         }
     };
-    const localStore = {};
-    global.chrome = {
+    const localStore: Record<string, any> = {};
+    (global as any).chrome = {
         storage: {
             local: {
                 get: async () => ({ ...localStore }),
-                set: async (items) => Object.assign(localStore, items),
-                remove: async (keys) => { for (const k of [keys].flat()) delete localStore[k]; }
+                set: async (items: any) => Object.assign(localStore, items),
+                remove: async (keys: any) => { for (const k of [keys].flat()) delete localStore[k]; }
             },
             session: {
-                get: async (keys) => {
-                    const out = {};
+                get: async (keys: any) => {
+                    const out: Record<string, any> = {};
                     for (const k of [keys].flat()) {
                         if (sessionStore[k]) out[k] = JSON.parse(JSON.stringify(sessionStore[k]));
                     }
                     return out;
                 },
-                set: async (items) => Object.assign(sessionStore, JSON.parse(JSON.stringify(items))),
-                remove: async (keys) => { for (const k of [keys].flat()) delete sessionStore[k]; }
+                set: async (items: any) => Object.assign(sessionStore, JSON.parse(JSON.stringify(items))),
+                remove: async (keys: any) => { for (const k of [keys].flat()) delete sessionStore[k]; }
             }
         }
     };
 
     const client = new GeminiAPIClient();
-    const originalFetch = global.fetch;
-    global.fetch = async () => ({
+    const originalFetch = (global as any).fetch;
+    (global as any).fetch = async () => ({
         ok: false,
         status: 401,
         statusText: 'Unauthorized',
@@ -217,10 +219,10 @@ test('GeminiAPIClient 401 response purges expired sid from session storage', asy
     try {
         await client.getConversationList(null, 'bad_sid');
         assert.fail('should have thrown 401');
-    } catch (err) {
+    } catch (err: any) {
         assert.ok(err.message.includes('401'));
     } finally {
-        global.fetch = originalFetch;
+        (global as any).fetch = originalFetch;
     }
 
     assert.strictEqual(sessionStore.gemini_credentials_map.bad_sid, undefined, '401 must evict bad_sid from session storage');

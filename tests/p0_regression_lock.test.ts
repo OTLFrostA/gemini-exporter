@@ -1,3 +1,5 @@
+export {};
+
 // p0_regression_lock.test.js — behavioral regression locks for the P0 fixes
 // landed in #194 ("resolve export race conditions, storage overwrites, ...").
 //
@@ -27,15 +29,15 @@ const { ExportEngine } = require('../src/core/engine/exportEngine.js');
 // ---------------------------------------------------------------- mocks
 
 function makeChromeStorage() {
-    const data = {};
+    const data: Record<string, any> = {};
     return {
         data,
         storage: {
             local: {
-                get: async (keys) => {
+                get: async (keys: any) => {
                     await Promise.resolve(); // yield, like real storage IPC
                     const keyList = Array.isArray(keys) ? keys : [keys];
-                    const out = {};
+                    const out: Record<string, any> = {};
                     for (const k of keyList) {
                         if (Object.prototype.hasOwnProperty.call(data, k)) {
                             out[k] = JSON.parse(JSON.stringify(data[k]));
@@ -43,13 +45,13 @@ function makeChromeStorage() {
                     }
                     return out;
                 },
-                set: async (items) => {
+                set: async (items: any) => {
                     await Promise.resolve();
                     for (const [k, v] of Object.entries(items)) {
                         data[k] = JSON.parse(JSON.stringify(v));
                     }
                 },
-                remove: async (keys) => {
+                remove: async (keys: any) => {
                     const keyList = Array.isArray(keys) ? keys : [keys];
                     for (const k of keyList) delete data[k];
                 }
@@ -63,15 +65,15 @@ function makeChromeStorage() {
     };
 }
 
-const zipCaptures = [];
+const zipCaptures: [any, any][] = [];
 
 class FakeJSZip {
     folder() {
         return {
-            file: (name, content) => zipCaptures.push([name, content])
+            file: (name: any, content: any) => zipCaptures.push([name, content])
         };
     }
-    async generateAsync(_opts, onMeta) {
+    async generateAsync(_opts?: any, onMeta?: any) {
         if (onMeta) onMeta({ percent: 100 });
         return { type: 'blob', size: 1 };
     }
@@ -79,30 +81,30 @@ class FakeJSZip {
 
 class FakeAssetPipeline {
     // eslint-disable-next-line no-unused-vars
-    constructor(opts) {}
-    async processAsset(item, _chat, _meta) {
+    constructor(_opts?: any) {}
+    async processAsset(item: any, _chat?: any, _meta?: any) {
         return { saved: true, localName: item.localName || item.fileName || 'asset.bin' };
     }
 }
 
-async function runExport(chatDetail, { useFakePipeline = false } = {}) {
+async function runExport(chatDetail: any, { useFakePipeline = false }: { useFakePipeline?: boolean } = {}) {
     zipCaptures.length = 0;
     const chromeMock = makeChromeStorage();
-    global.chrome = chromeMock;
-    global.StorageService = StorageService;
-    global.GeminiUtils = GeminiUtils;
-    global.JSZip = FakeJSZip;
-    if (useFakePipeline) global.AssetPipeline = FakeAssetPipeline;
-    else delete global.AssetPipeline;
+    (global as any).chrome = chromeMock;
+    (global as any).StorageService = StorageService;
+    (global as any).GeminiUtils = GeminiUtils;
+    (global as any).JSZip = FakeJSZip;
+    if (useFakePipeline) (global as any).AssetPipeline = FakeAssetPipeline;
+    else delete (global as any).AssetPipeline;
 
-    global.TabService = {
-        sendToGeminiTab: async (msg) => {
+    (global as any).TabService = {
+        sendToGeminiTab: async (msg: any) => {
             assert.strictEqual(msg.action, 'getConversationDetail');
             return { success: true, data: chatDetail };
         }
     };
 
-    const onItemExportedCalls = [];
+    const onItemExportedCalls: any[] = [];
     const engine = new ExportEngine();
     const result = await engine.run(
         {
@@ -115,7 +117,7 @@ async function runExport(chatDetail, { useFakePipeline = false } = {}) {
             downloadHandler: async () => {}
         },
         {
-            onItemExported: (id, rec) => onItemExportedCalls.push({ id, rec }),
+            onItemExported: (id: any, rec: any) => onItemExportedCalls.push({ id, rec }),
             onLog: () => {},
             onProgress: () => {},
             onTitleUpdated: () => {}
@@ -214,9 +216,9 @@ const hookCode = fs.readFileSync(path.join(SRC, 'content', 'hookCredentials.js')
 const protocolCode = fs.readFileSync(path.join(SRC, 'core', 'protocol', 'protocol.js'), 'utf8');
 
 function createHookSandbox() {
-    const posted = [];
-    const win = {};
-    win.postMessage = (msg, origin) => posted.push({ msg, origin });
+    const posted: any[] = [];
+    const win: any = {};
+    win.postMessage = (msg: any, origin: any) => posted.push({ msg, origin });
     win.addEventListener = () => {};
     win.__nextResponseText = '';
     win.fetch = async () => ({
@@ -225,7 +227,7 @@ function createHookSandbox() {
             return { text: async () => win.__nextResponseText };
         }
     });
-    const sandbox = {
+    const sandbox: any = {
         window: win,
         location: { origin: 'https://gemini.google.com', href: 'https://gemini.google.com/app', pathname: '/app' },
         document: { querySelectorAll: () => [] },
