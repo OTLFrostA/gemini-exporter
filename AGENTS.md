@@ -26,9 +26,9 @@
 本项目严格区分并建立了双层测试体系，任何 AI 在提交代码或宣称功能完成前，必须严格依照下述标准执行验证：
 
 ### 第一层：CI 自动化门禁测试 (Tier 1: Fast & Headless)
-* **执行命令**：`npm test`（或 `python3 tests/run_tests.py && npx playwright test`）。
+* **执行命令**：`npm test`（对应 `npm run type-check && python3 tests/run_tests.py && node build.js && playwright test`）。
 * **适用场景**：每次提交 PR 前在本地 worktree 中必须全绿通过，GitHub Actions 门禁对此强制校验。
-* **特性**：轻量极速（~18 秒完成），包含 22 个单元测试套件与 14 个无头 Playwright 端到端用例，完全自包含，不依赖外网与真实 Google 账号。
+* **特性**：轻量极速（~50 秒完成），包含 TypeScript 严格类型检查、22 个单元测试套件、esbuild 双轨打包构建校验与 22 个无头 Playwright 端到端用例（11 个 spec 文件），完全自包含，不依赖外网与真实 Google 账号。
 
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。

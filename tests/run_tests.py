@@ -45,6 +45,30 @@ def test_build_pipeline():
     with open(os.path.join(BASE_DIR, ".gitignore"), "r", encoding="utf-8") as f:
         gi = f.read()
     assert re.search(r'^dist/?$', gi, re.MULTILINE), "dist/ build output must be gitignored"
+
+    # Phase 5: verify all 5 bundle entrypoints configured in build.js
+    with open(os.path.join(BASE_DIR, "build.js"), "r", encoding="utf-8") as f:
+        build_content = f.read()
+    assert "content/content" in build_content, "build.js must configure content/content bundle"
+    assert "content/hook" in build_content, "build.js must configure content/hook bundle"
+    assert "background/background" in build_content, "build.js must configure background/background bundle"
+    assert "ui/popup" in build_content, "build.js must configure ui/popup bundle"
+    assert "ui/options" in build_content, "build.js must configure ui/options bundle"
+
+    # Phase 5: verify bundle artifacts if dist/ has been built
+    dist_dir = os.path.join(BASE_DIR, "dist")
+    if os.path.isdir(dist_dir):
+        expected_bundles = [
+            "dist/content/content.js",
+            "dist/content/hook.js",
+            "dist/background/background.js",
+            "dist/ui/popup.js",
+            "dist/ui/options.js",
+        ]
+        for bundle in expected_bundles:
+            assert os.path.isfile(os.path.join(BASE_DIR, bundle)), f"Bundle artifact missing: {bundle}"
+        print("  ✓ all 5 bundle artifacts verified in dist/")
+
     print("  ✓ esbuild build pipeline verified (build.js + npm script + devDependency)")
 
 def test_html_includes():

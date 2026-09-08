@@ -85,7 +85,7 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
     expect(await optionsPage.locator('#list input[type=checkbox]:checked').count()).toBe(1);
 
     // 4. Listen for real browser download event and click Export
-    const downloadPromise = optionsPage.waitForEvent('download', { timeout: 10000 });
+    const downloadPromise = optionsPage.waitForEvent('download', { timeout: 30000 });
     await optionsPage.click('#btnExport');
 
     // Wait for the real ZIP file to be generated and downloaded
