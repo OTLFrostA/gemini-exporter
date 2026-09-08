@@ -98,6 +98,11 @@ def test_html_includes():
                 "/dist/ui/controllers/takeoutController.js",
                 "/dist/ui/controllers/syncController.js",
                 "/dist/ui/controllers/exportController.js",
+                "/dist/ui/options/modules/optionsInit.js",
+                "/dist/ui/options/modules/optionsExport.js",
+                "/dist/ui/options/modules/optionsSync.js",
+                "/dist/ui/options/modules/optionsTakeout.js",
+                "/dist/ui/options/modules/optionsSettings.js",
                 "/dist/ui/options/options.js"
             ]:
                 assert f'<script src="{script}"></script>' in opt_html, f"Missing {script} in {opt_path}"
@@ -155,6 +160,11 @@ def test_module_exports():
         "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
+        "src/ui/options/modules/optionsInit.js": ["OptionsInit", "loadStore", "compareConversations", "isBad"],
+        "src/ui/options/modules/optionsExport.js": ["OptionsExport", "exportSelected", "startExportPipeline", "updateZipUi"],
+        "src/ui/options/modules/optionsSync.js": ["OptionsSync", "bindBroadcastListeners", "autoDetectActiveSlot"],
+        "src/ui/options/modules/optionsTakeout.js": ["OptionsTakeout", "maybePromptTakeout", "checkPendingTakeoutPrompt", "isTakeoutPromptCompleted"],
+        "src/ui/options/modules/optionsSettings.js": ["OptionsSettings", "handleLangChange", "handleDevChange", "exportDiagnostics"],
         "src/core/protocol/protocol.js": ["PROTOCOL_VERSION", "RPCS", "BL_FALLBACK", "LIMITS", "createReqidGenerator", "DELETION_ANCHORS"],
         "src/core/utils/locales/zh.js": ["extName", "takeoutLimitPromptTitle"],
         "src/core/utils/locales/en.js": ["extName", "tourBtnNext"],
