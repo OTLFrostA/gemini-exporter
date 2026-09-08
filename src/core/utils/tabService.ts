@@ -1,11 +1,14 @@
-// src/core/tabService.js - Unified Gemini Tab Discovery & Communication Service
-(function(root, factory) {
+// src/core/utils/tabService.ts - Unified Gemini Tab Discovery & Communication Service
+
+import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
+
+(function(root: any, factory: () => TabServiceModule) {
     if (typeof module === 'object' && module.exports) module.exports = factory();
     else root.TabService = factory();
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof self !== 'undefined' ? self : this, function(): TabServiceModule {
     'use strict';
 
-    async function getGeminiTab(slot) {
+    async function getGeminiTab(slot?: string): Promise<chrome.tabs.Tab | null> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) return null;
@@ -20,7 +23,7 @@
         return tabs.find(t => t.active) || tabs[0];
     }
 
-    async function sendToGeminiTab(msg, slot, timeoutMs) {
+    async function sendToGeminiTab(msg: any, slot?: string, timeoutMs?: number): Promise<any> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
             throw new Error('chrome.tabs API 不可用');
         }
@@ -30,7 +33,7 @@
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
 
-        let candidates = [];
+        let candidates: chrome.tabs.Tab[] = [];
         if (slot && slot !== 'u0') {
             const slotNum = slot.replace('u', '');
             candidates = tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
@@ -45,8 +48,9 @@
         }
         candidates.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
 
-        let lastError = null;
+        let lastError: any = null;
         for (const tab of candidates) {
+            if (tab.id == null) continue;
             try {
                 const res = await new Promise((resolve, reject) => {
                     let settled = false;
@@ -56,7 +60,7 @@
                             reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
                         }
                     }, timeoutMs);
-                    chrome.tabs.sendMessage(tab.id, msg, (r) => {
+                    chrome.tabs.sendMessage(tab.id!, msg, (r) => {
                         if (!settled) {
                             settled = true;
                             clearTimeout(timer);
@@ -69,9 +73,9 @@
                     });
                 });
                 return res;
-            } catch (e) {
+            } catch (e: any) {
                 lastError = e;
-                const errStr = String(e.message || '');
+                const errStr = String(e?.message || '');
                 if (errStr.includes('Receiving end does not exist') || errStr.includes('Could not establish connection')) {
                     continue;
                 }
@@ -81,7 +85,7 @@
         throw (lastError || new Error('未能与任何 Gemini 标签页成功建立通信'));
     }
 
-    async function checkGeminiStatus(slot) {
+    async function checkGeminiStatus(slot?: string): Promise<TabStatusResult> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
             return { status: 'NO_TABS_API', tab: null };
         }
@@ -90,12 +94,12 @@
             if (!tabs || !tabs.length) {
                 return { status: 'NO_TAB', tab: null };
             }
-            let targetTab = null;
+            let targetTab: chrome.tabs.Tab | null = null;
             if (slot && slot !== 'u0') {
                 const slotNum = slot.replace('u', '');
-                targetTab = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
+                targetTab = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`)) || null;
             } else if (slot === 'u0') {
-                targetTab = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+                targetTab = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/'))) || null;
             }
             if (!targetTab) targetTab = tabs.find(t => t.active) || tabs[0];
 
@@ -107,6 +111,13 @@
                         resolve({ status: 'NEED_REFRESH', tab: targetTab, reason: 'timeout' });
                     }
                 }, 1500);
+
+                if (!targetTab || targetTab.id == null) {
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve({ status: 'NO_TAB', tab: null });
+                    return;
+                }
 
                 chrome.tabs.sendMessage(targetTab.id, { action: 'ping' }, (response) => {
                     if (!settled) {
@@ -120,12 +131,12 @@
                     }
                 });
             });
-        } catch (e) {
-            return { status: 'ERROR', error: e.message, tab: null };
+        } catch (e: any) {
+            return { status: 'ERROR', error: e?.message, tab: null };
         }
     }
 
-    async function openGeminiPage() {
+    async function openGeminiPage(): Promise<any> {
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
             return chrome.tabs.create({ url: 'https://gemini.google.com/app' });
         } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -135,7 +146,7 @@
         }
     }
 
-    async function reloadGeminiTab(tabId) {
+    async function reloadGeminiTab(tabId?: number): Promise<any> {
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.reload && tabId) {
             return chrome.tabs.reload(tabId);
         } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {

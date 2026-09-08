@@ -608,8 +608,9 @@ def test_takeout_limit_modal_and_wall_detection():
     assert re.search(r'count\s*>=\s*500', sync_code) or "hitGoogleLimit" in sync_code, "syncController.js should treat full scan >= 500 as hitGoogleLimit"
     assert "429" in sync_code, "syncController.js should treat 429 as hitGoogleLimit"
 
-    # 3. Ensure tabService.js allocates at least 300000ms (5m) for deepScan
-    tab_service_path = os.path.join(BASE_DIR, "src/core/utils/tabService.js")
+    # 3. Ensure tabService.ts/js allocates at least 300000ms (5m) for deepScan
+    tab_service_ts = os.path.join(BASE_DIR, "src/core/utils/tabService.ts")
+    tab_service_path = tab_service_ts if os.path.isfile(tab_service_ts) else os.path.join(BASE_DIR, "src/core/utils/tabService.js")
     with open(tab_service_path, "r", encoding="utf-8") as f:
         tab_code = f.read()
     assert re.search(r'(300000|5\s*\*\s*60\s*\*\s*1000)', tab_code) and "deepScan" in tab_code, "tabService.js should allow at least 300000ms timeout for deepScan"

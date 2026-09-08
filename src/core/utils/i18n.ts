@@ -1,5 +1,8 @@
-// i18n.js - Complete, centralized internationalization engine for Gemini Exporter
-(function(root, factory) {
+// src/core/utils/i18n.ts - Complete, centralized internationalization engine for Gemini Exporter
+
+import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
+
+(function(root: any, factory: () => I18nModule) {
     if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else if (typeof define === 'function' && define.amd) {
@@ -7,37 +10,42 @@
     } else {
         root.I18n = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof self !== 'undefined' ? self : this, function(): I18nModule {
     'use strict';
 
-    // Dictionaries live in ./locales/{zh,en}.js (externalized in Phase 2b) and are
+    // Dictionaries live in ./locales/{zh,en}.ts (externalized in Phase 2b) and are
     // loaded as globals before this engine (options.html / popup.html script order).
     // Node falls back to require so unit tests work unchanged.
-    function loadLocaleDict(name) {
-        const g = (typeof self !== 'undefined' && self.GeminiLocales) || (typeof globalThis !== 'undefined' && globalThis.GeminiLocales) || null;
+    function loadLocaleDict(name: string): LocaleDictionary | null {
+        const g = (typeof self !== 'undefined' && (self as any).GeminiLocales) ||
+                  (typeof globalThis !== 'undefined' && (globalThis as any).GeminiLocales) || null;
         if (g && g[name]) return g[name];
         if (typeof require !== 'undefined') {
             try { return require('./locales/' + name + '.js'); } catch { /* intentional: require fallback in browser context */ }
         }
         return null;
     }
-    const LOCALES = { zh: loadLocaleDict('zh'), en: loadLocaleDict('en') };
+    const LOCALES: Record<string, LocaleDictionary | null> = {
+        zh: loadLocaleDict('zh'),
+        en: loadLocaleDict('en')
+    };
 
-    function ensureLocales() {
+    function ensureLocales(): void {
         if (!LOCALES.zh) LOCALES.zh = loadLocaleDict('zh');
         if (!LOCALES.en) LOCALES.en = loadLocaleDict('en');
     }
 
-    let currentLang = 'en';
-    const langChangeListeners = new Set();
+    let currentLang: string = 'en';
+    const langChangeListeners: Set<(lang: string) => void> = new Set();
 
-    async function initLanguage() {
+    async function initLanguage(): Promise<string> {
         ensureLocales();
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 const data = await chrome.storage.local.get('gemini_exporter_lang');
-                if (data.gemini_exporter_lang && LOCALES[data.gemini_exporter_lang]) {
-                    currentLang = data.gemini_exporter_lang;
+                const savedLang = typeof data?.gemini_exporter_lang === 'string' ? (data.gemini_exporter_lang as string) : null;
+                if (savedLang && LOCALES[savedLang]) {
+                    currentLang = savedLang;
                 } else {
                     const sys = (typeof navigator !== 'undefined' ? navigator.language || '' : '').toLowerCase();
                     currentLang = sys.startsWith('zh') ? 'zh' : 'en';
@@ -52,11 +60,11 @@
         return currentLang;
     }
 
-    function getLang() {
+    function getLang(): string {
         return currentLang;
     }
 
-    async function setLang(lang) {
+    async function setLang(lang: string): Promise<void> {
         ensureLocales();
         if (!LOCALES[lang]) return;
         currentLang = lang;
@@ -71,13 +79,13 @@
         }
     }
 
-    function onLanguageChange(fn) {
+    function onLanguageChange(fn: (lang: string) => void): void {
         if (typeof fn === 'function') langChangeListeners.add(fn);
     }
 
-    function t(key, ...args) {
+    function t(key: string, ...args: any[]): string {
         ensureLocales();
-        let str = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
+        let str: any = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
         if (typeof str !== 'string') return String(str);
         if (args.length) {
             args.forEach((val, idx) => {
@@ -87,7 +95,7 @@
         return str;
     }
 
-    function _setSafeFormattedContent(el, val) {
+    function _setSafeFormattedContent(el: Element, val: string): void {
         el.textContent = '';
         if (!val || typeof val !== 'string') return;
         const parts = val.split(/(<b>.*?<\/b>|<strong>.*?<\/strong>|<i>.*?<\/i>|<em>.*?<\/em>|<br\s*\/?>)/gi);
@@ -118,11 +126,11 @@
         }
     }
 
-    function applyI18n(container) {
+    function applyI18n(container?: Element | Document): void {
         if (typeof document === 'undefined') return;
-        const root = container || document;
+        const root: any = container || document;
 
-        const applyToElement = (el) => {
+        const applyToElement = (el: any) => {
             if (!el || !el.getAttribute) return;
             const textKey = el.getAttribute('data-i18n');
             if (textKey) {
@@ -157,10 +165,14 @@
 
     // Update language toggle UI if elements are present (or passed in options).
     // Pure utility: accepts explicit element references or falls back to standard IDs.
-    function _applyLangToggleUI(opts = {}) {
+    function _applyLangToggleUI(opts: {
+        toggle?: HTMLInputElement | null;
+        labelZh?: HTMLElement | null;
+        labelEn?: HTMLElement | null;
+    } = {}): void {
         const hasDoc = typeof document !== 'undefined';
         if (!hasDoc && !opts.toggle && !opts.labelZh && !opts.labelEn) return;
-        const langToggle = opts.toggle || (hasDoc ? document.getElementById('langToggle') : null);
+        const langToggle = opts.toggle || (hasDoc ? (document.getElementById('langToggle') as HTMLInputElement | null) : null);
         if (langToggle) {
             langToggle.checked = (currentLang === 'en');
         }
