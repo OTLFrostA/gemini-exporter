@@ -281,54 +281,94 @@
 
     function robustFirstPayload(text) {
         if (!text || typeof text !== "string") return null;
-        let lines = text.split("\n");
-        let allTop = [];
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i];
-            if (!line.includes("[")) continue;
-            let startIdx = line.indexOf("[");
-            let candidate = line.slice(startIdx);
+
+        // Fast path 1: standard batchexecute response with optional prefix
+        let trimmed = text.trim();
+        if (trimmed.startsWith(")]}'")) {
+            trimmed = trimmed.slice(4).trim();
+        }
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
             try {
-                let parsed = JSON.parse(candidate);
-                if (Array.isArray(parsed)) {
-                    allTop.push(...parsed);
-                    continue;
-                }
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) return parsed;
             } catch {
                 try {
-                    let cleaned = safeStructureClean(candidate).trim();
-                    let parsed = JSON.parse(cleaned);
-                    if (Array.isArray(parsed)) {
-                        allTop.push(...parsed);
-                        continue;
-                    }
-                } catch { /* intentional: proceed to multiline accumulation */ }
+                    const cleaned = safeStructureClean(trimmed).trim();
+                    const parsed = JSON.parse(cleaned);
+                    if (Array.isArray(parsed)) return parsed;
+                } catch { /* proceed to chunk scanner */ }
+            }
+        }
+
+        // O(N) single-pass bracket-balancing state machine for chunked / multiline payloads
+        let allTop = [];
+        const len = text.length;
+        let inString = false;
+        let escape = false;
+        let depth = 0;
+        let startIdx = -1;
+
+        for (let i = 0; i < len; i++) {
+            const ch = text[i];
+            if (inString) {
+                if (escape) {
+                    escape = false;
+                } else if (ch === '\\') {
+                    escape = true;
+                } else if (ch === '"') {
+                    inString = false;
+                }
+                continue;
             }
 
-            let acc = candidate;
-            for (let j = i + 1; j < lines.length; j++) {
-                acc += "\n" + lines[j];
-                try {
-                    let p2 = JSON.parse(acc);
-                    if (Array.isArray(p2)) {
-                        allTop.push(...p2);
-                        i = j;
-                        break;
-                    }
-                } catch {
-                    try {
-                        let c2 = safeStructureClean(acc).trim();
-                        let p2 = JSON.parse(c2);
-                        if (Array.isArray(p2)) {
-                            allTop.push(...p2);
-                            i = j;
-                            break;
+            if (ch === '"') {
+                inString = true;
+                continue;
+            }
+
+            if (ch === '[') {
+                if (depth === 0) {
+                    startIdx = i;
+                }
+                depth++;
+            } else if (ch === ']') {
+                if (depth > 0) {
+                    depth--;
+                    if (depth === 0 && startIdx !== -1) {
+                        const chunk = text.slice(startIdx, i + 1);
+                        try {
+                            const parsed = JSON.parse(chunk);
+                            if (Array.isArray(parsed)) {
+                                allTop.push(...parsed);
+                            }
+                        } catch {
+                            try {
+                                const cleaned = safeStructureClean(chunk).trim();
+                                const parsed = JSON.parse(cleaned);
+                                if (Array.isArray(parsed)) {
+                                    allTop.push(...parsed);
+                                }
+                            } catch { /* intentional: skip malformed chunk */ }
                         }
-                    } catch { /* intentional: parse chunk candidate fallback */ }
+                        startIdx = -1;
+                    }
                 }
             }
         }
-        return allTop.length ? allTop : null;
+
+        if (allTop.length > 0) return allTop;
+
+        // Truncated / unclosed fallback
+        if (depth > 0 && startIdx !== -1) {
+            try {
+                const tail = text.slice(startIdx) + ']'.repeat(depth);
+                const cleaned = safeStructureClean(tail).trim();
+                const parsed = JSON.parse(cleaned);
+                if (Array.isArray(parsed)) return parsed;
+            } catch { /* intentional fallback failure */ }
+        }
+
+        return null;
     }
 
     function extractThoughts(candidateBlock) {

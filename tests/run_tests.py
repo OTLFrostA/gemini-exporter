@@ -185,18 +185,23 @@ def test_module_exports():
         "src/core/utils/utils.js": ["isDevMode", "isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
     }
     for filename, symbols in files.items():
-        with open(os.path.join(BASE_DIR, filename), "r", encoding="utf-8") as f:
+        ts_variant = os.path.splitext(filename)[0] + ".ts"
+        target = ts_variant if os.path.isfile(os.path.join(BASE_DIR, ts_variant)) else filename
+        actual_path = os.path.join(BASE_DIR, target)
+        with open(actual_path, "r", encoding="utf-8") as f:
             content = f.read()
             for sym in symbols:
-                assert sym in content, f"Missing symbol '{sym}' in {filename}"
-        print(f"  ✓ {filename} exports and signatures verified")
+                assert sym in content, f"Missing symbol '{sym}' in {target}"
+        print(f"  ✓ {target} exports and signatures verified")
 
 def test_i18n_keys():
     # Dictionaries live in locales/{zh,en}.js since Phase 2b (classic-script
     # modules whose bodies are flat `key: "value"` object literals).
     dicts = {"zh": {}, "en": {}}
     for lang in ("zh", "en"):
-        with open(os.path.join(BASE_DIR, "src/core/utils/locales", f"{lang}.js"), "r", encoding="utf-8") as f:
+        loc_ts = os.path.join(BASE_DIR, "src/core/utils/locales", f"{lang}.ts")
+        loc_file = loc_ts if os.path.isfile(loc_ts) else os.path.join(BASE_DIR, "src/core/utils/locales", f"{lang}.js")
+        with open(loc_file, "r", encoding="utf-8") as f:
             text = f.read()
         in_dict = False
         for line in text.splitlines():
