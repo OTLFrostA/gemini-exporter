@@ -196,3 +196,41 @@ test('perf - ExportEngine initializes and tracks rateLimitCooldownUntil', () => 
     const engine = new ExportEngine();
     assert.strictEqual(engine.rateLimitCooldownUntil, 0, 'rateLimitCooldownUntil should be initialized to 0');
 });
+
+// 5. Test AssetPipeline downloadTimeoutMs protection against hanging tabs.sendMessage (Issue A2)
+test('perf - AssetPipeline times out and recovers gracefully when tabs.sendMessage hangs', async () => {
+    const AssetPipeline = require('../src/core/engine/assetPipeline.js');
+    const originalChrome = global.chrome;
+
+    try {
+        // Mock chrome.tabs.sendMessage that never responds
+        global.chrome = {
+            runtime: {},
+            tabs: {
+                sendMessage: (tabId, message, callback) => {
+                    // Intentionally never call callback to simulate hanging tab/content script
+                }
+            }
+        };
+
+        const pipeline = new AssetPipeline({
+            downloadTimeoutMs: 50, // fast timeout for unit test
+            getGeminiTab: async () => ({ id: 12345 })
+        });
+
+        const start = Date.now();
+        const res = await pipeline.processAsset(
+            { url: 'https://example.com/hanging-asset.jpg', fileName: 'test.jpg' },
+            { id: 'chat_123' },
+            { isImage: true }
+        );
+        const duration = Date.now() - start;
+
+        assert.strictEqual(res.saved, false, 'should not be marked as saved');
+        assert.ok(res.failReason.includes('timed out'), `failReason should indicate timeout, got "${res.failReason}"`);
+        assert.ok(duration >= 45, `should have waited for timeout, duration: ${duration}ms`);
+    } finally {
+        global.chrome = originalChrome;
+    }
+});
+
