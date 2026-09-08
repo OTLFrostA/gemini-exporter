@@ -120,7 +120,8 @@ export interface GeminiAPIClientOptions {
             if (callSignal && callSignal.aborted) return true;
             if (this.signal && this.signal.aborted) return true;
             return !!(
-                (typeof window !== "undefined" && (window as any).__gemExporterAborted) ||
+                (typeof window !== "undefined" && ((window as any).__gemExporterAborted || (window as any).window?.__gemExporterAborted)) ||
+                (typeof window !== "undefined" && (window as any)['__gemExporterAborted']) || // window.__gemExporterAborted fallback check
                 (typeof globalThis !== "undefined" && (globalThis as any).__gemExporterAborted)
             );
         }

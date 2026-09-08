@@ -1,35 +1,99 @@
-// src/core/engine/assetPipeline.js - Dedicated Asset Download & Persistence Pipeline
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+// src/core/engine/assetPipeline.ts - Dedicated Asset Download & Persistence Pipeline
+import type { GeminiUtilsModule } from "../utils/utils.js";
+
+export interface ProcessAssetOptions {
+    isImage?: boolean;
+    listTitle?: string;
+    timeoutMs?: number;
+}
+
+export interface ProcessAssetResult {
+    saved: boolean;
+    failReason: string;
+    recoveredFromTakeout: boolean;
+    localName: string;
+}
+
+export interface AssetPipelineOptions {
+    currentSlot?: string;
+    useZip?: boolean;
+    folder?: any;
+    writeFileDirect?: (path: string, content: any) => Promise<boolean>;
+    takeoutEngine?: any;
+    getGeminiTab?: (slot?: string) => Promise<any>;
+    fetchAssetDelegate?: (params: any) => Promise<any>;
+    fetchAsset?: (params: any) => Promise<any>;
+    onLog?: (msg: string, level?: string) => void;
+    downloadTimeoutMs?: number;
+}
+
+export interface AssetPipelineClass {
+    new (options?: AssetPipelineOptions): AssetPipelineInstance;
+    sanitizeZipPath?: (p?: string | null) => string;
+}
+
+export interface AssetPipelineInstance {
+    currentSlot: string;
+    useZip: boolean;
+    folder: any;
+    writeFileDirect: ((path: string, content: any) => Promise<boolean>) | null;
+    takeoutEngine: any;
+    getGeminiTab: ((slot?: string) => Promise<any>) | null;
+    fetchAssetDelegate: ((params: any) => Promise<any>) | null;
+    onLog: (msg: string, level?: string) => void;
+    downloadTimeoutMs: number;
+    processAsset: (item: any, chat: any, opts?: ProcessAssetOptions) => Promise<ProcessAssetResult>;
+}
+
+declare global {
+    var AssetPipeline: AssetPipelineClass;
+}
+
+(function(root: any, factory: () => AssetPipelineClass) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.AssetPipeline = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): AssetPipelineClass {
     'use strict';
 
-    function sanitizeZipPath(p) {
-        // Single source: GeminiUtils.sanitizeRelativePath (load order guarantees utils first).
-        if (!p) return p;
-        if (typeof GeminiUtils !== 'undefined' && GeminiUtils.sanitizeRelativePath) {
-            return GeminiUtils.sanitizeRelativePath(p, 'file');
-        }
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils?.sanitizeRelativePath) {
-            return globalThis.GeminiUtils.sanitizeRelativePath(p, 'file');
-        }
+    function getUtils(): GeminiUtilsModule | null {
+        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
         if (typeof require !== 'undefined') {
             try {
-                const u = require('../utils/utils.js');
-                if (u && u.sanitizeRelativePath) return u.sanitizeRelativePath(p, 'file');
-            } catch { /* intentional: require fallback in browser context */ }
+                return require('../utils/utils.js');
+            } catch (_) { /* intentional: require fallback in browser context */ }
+        }
+        return null;
+    }
+
+    function sanitizeZipPath(p?: string | null): string {
+        // Single source: GeminiUtils.sanitizeRelativePath (load order guarantees utils first).
+        if (!p) return '';
+        const u = getUtils();
+        if (u && typeof u.sanitizeRelativePath === 'function') {
+            return u.sanitizeRelativePath(p, 'file');
         }
         throw new Error('GeminiUtils.sanitizeRelativePath unavailable — check module load order');
     }
 
-    class AssetPipeline {
-        constructor(options = {}) {
+    class AssetPipeline implements AssetPipelineInstance {
+        currentSlot: string;
+        useZip: boolean;
+        folder: any;
+        writeFileDirect: ((path: string, content: any) => Promise<boolean>) | null;
+        takeoutEngine: any;
+        getGeminiTab: ((slot?: string) => Promise<any>) | null;
+        fetchAssetDelegate: ((params: any) => Promise<any>) | null;
+        onLog: (msg: string, level?: string) => void;
+        downloadTimeoutMs: number;
+
+        static sanitizeZipPath = sanitizeZipPath;
+
+        constructor(options: AssetPipelineOptions = {}) {
             this.currentSlot = options.currentSlot || 'u0';
             this.useZip = options.useZip !== false;
             this.folder = options.folder || null;
@@ -43,12 +107,8 @@
 
         /**
          * Download and persist an asset (image or attachment file)
-         * @param {Object} item - The asset item (att or img)
-         * @param {Object} chat - The conversation object
-         * @param {Object} opts - Additional options { isImage, listTitle, timeoutMs }
-         * @returns {Promise<{ saved: boolean, failReason: string, recoveredFromTakeout: boolean, localName: string }>}
          */
-        async processAsset(item, chat, opts = {}) {
+        async processAsset(item: any, chat: any, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
             const isImage = !!opts.isImage;
             const targetUrl = isImage ? (item.resolvedUrl || item.sourceUrl || item.url) : ([item.url, item.sourceUrl, item.src].filter(Boolean)[0]);
             const localName = item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
@@ -57,7 +117,7 @@
             let recoveredFromTakeout = false;
 
             try {
-                let r = null;
+                let r: any = null;
                 const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
 
                 if (this.fetchAssetDelegate && targetUrl) {
@@ -74,7 +134,7 @@
                     const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                     if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.sendMessage) {
                         r = await new Promise(resolve => {
-                            let timer = null;
+                            let timer: any = null;
                             let settled = false;
 
                             if (timeoutMs > 0) {
@@ -91,7 +151,7 @@
                                 url: targetUrl,
                                 referer: `https://gemini.google.com/app/${chat.id}`,
                                 preferBuffer: true
-                            }, (resp) => {
+                            }, (resp: any) => {
                                 if (timer) clearTimeout(timer);
                                 if (!settled) {
                                     settled = true;
@@ -106,39 +166,39 @@
                     }
                 }
 
-                    if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
-                        const isValidBuffer = r.dataBuffer && (
-                            (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
-                            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && r.dataBuffer.byteLength > 0)
-                        );
-                        const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
-                        const b64 = r.dataBase64 || r.blobBase64;
+                if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
+                    const isValidBuffer = r.dataBuffer && (
+                        (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
+                        (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
+                    );
+                    const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
+                    const b64 = r.dataBase64 || r.blobBase64;
 
-                        if (this.useZip) {
-                            if (this.folder) {
-                                if (bytes && bytes.length > 0) {
-                                    this.folder.file(sanitizeZipPath(localName), bytes);
-                                    saved = true;
-                                } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                    this.folder.file(sanitizeZipPath(localName), b64, { base64: true });
-                                    saved = true;
-                                }
-                            }
-                        } else if (this.writeFileDirect) {
+                    if (this.useZip) {
+                        if (this.folder) {
                             if (bytes && bytes.length > 0) {
-                                saved = await this.writeFileDirect(localName, bytes);
+                                this.folder.file(sanitizeZipPath(localName), bytes);
+                                saved = true;
                             } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                const binStr = atob(b64);
-                                const len = binStr.length;
-                                const b = new Uint8Array(len);
-                                for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
-                                saved = await this.writeFileDirect(localName, b);
+                                this.folder.file(sanitizeZipPath(localName), b64, { base64: true });
+                                saved = true;
                             }
                         }
-                    } else {
-                        failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
+                    } else if (this.writeFileDirect) {
+                        if (bytes && bytes.length > 0) {
+                            saved = await this.writeFileDirect(localName, bytes);
+                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                            const binStr = atob(b64);
+                            const len = binStr.length;
+                            const b = new Uint8Array(len);
+                            for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
+                            saved = await this.writeFileDirect(localName, b);
+                        }
                     }
-            } catch (e) {
+                } else {
+                    failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
+                }
+            } catch (e: any) {
                 failReason = e.message;
             }
 
@@ -159,10 +219,13 @@
                             const defaultMsg = isImage
                                 ? `[${chat.title || chat.id}] ⚡ 图片从 Takeout 离线池补全成功: ${localName}`
                                 : `[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${localName}`;
+                            const I18n = (globalThis as any).I18n;
                             this.onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, localName) : defaultMsg, 'info');
                         }
                     }
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetPipeline.js]", e); }
+                } catch (e) {
+                    if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetPipeline.ts]", e);
+                }
             }
 
             return { saved, failReason, recoveredFromTakeout, localName };

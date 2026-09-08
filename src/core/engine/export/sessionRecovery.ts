@@ -1,16 +1,69 @@
-// sessionRecovery.js - Export indexing, developer diagnostics, and export record finalization
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+// sessionRecovery.ts - Export indexing, developer diagnostics, and export record finalization
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+
+export interface SessionLogOptions {
+    landedChats?: number;
+    totalChats?: number;
+    downloadedAssets?: number;
+    totalAssets?: number;
+    skipped?: number;
+    failedChats?: any[];
+    failedAttachments?: any[];
+    isDevMode?: boolean;
+}
+
+export interface FinalizeChatExportContext {
+    finalizedChatsSet?: Set<string>;
+    chatRecordsMap?: Map<string, any>;
+    chatFailedAssetsSet?: Set<string>;
+    curIds?: Record<string, any>;
+    exportedIds?: Record<string, any>;
+    Storage?: any;
+    storageAdapter?: any;
+    slot?: string;
+    onItemExported?: (id: string, record: any) => void;
+}
+
+export interface SessionRecoveryModule {
+    writeIndexAndMeta: (
+        metaResults: any[],
+        landedChats: number,
+        downloadedAssets: number,
+        totalAssets: number,
+        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        folder?: any,
+        useZip?: boolean
+    ) => Promise<void>;
+    writeDiagnostics: (
+        isDevMode: boolean,
+        sessionJson: any,
+        fullLogText: string,
+        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        folder?: any,
+        useZip?: boolean,
+        onLog?: (msg: string, level?: string) => void
+    ) => Promise<void>;
+    buildSessionLogText: (options?: SessionLogOptions) => string;
+    finalizeChatExport: (targetId: string, context?: FinalizeChatExportContext) => Promise<boolean>;
+    getExtensionVersion: (customVersion?: string) => string;
+}
+
+declare global {
+    var SessionRecovery: SessionRecoveryModule;
+}
+
+(function(root: any, factory: () => SessionRecoveryModule) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.SessionRecovery = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): SessionRecoveryModule {
     'use strict';
 
-    function getExtensionVersion(customVersion) {
+    function getExtensionVersion(customVersion?: string): string {
         if (customVersion) return customVersion;
         try {
             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
@@ -18,25 +71,33 @@
             }
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.js]', e);
+                console.debug('[GemExporter:sessionRecovery.ts]', e);
             }
         }
         return '1.3.8';
     }
 
-    const getUtils = () => {
-        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+    const getUtils = (): GeminiUtilsModule | null => {
+        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
         if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
+            try { return require('../../utils/utils.js'); } catch (_) { /* intentional: require fallback in browser context */ }
         }
         return null;
     };
 
-    const normId = (id) => (getUtils()?.normId ? getUtils().normId(id) : String(id || '').replace(/^c_/, '').trim());
+    const normId = (id?: string | number | null): string => (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
 
-    async function writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip) {
+    async function writeIndexAndMeta(
+        metaResults: any[],
+        landedChats: number,
+        downloadedAssets: number,
+        totalAssets: number,
+        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        folder?: any,
+        useZip?: boolean
+    ): Promise<void> {
         if (!metaResults || !metaResults.length) return;
+        const I18n = (globalThis as any).I18n;
         const isZh = typeof I18n !== 'undefined' && I18n.getLang && I18n.getLang() === 'zh';
         let indexContent = isZh
             ? `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`
@@ -78,7 +139,7 @@
         failedChats = [],
         failedAttachments = [],
         isDevMode = false
-    } = {}) {
+    }: SessionLogOptions = {}): string {
         let fullLogText = `=======================================================\n`;
         fullLogText += ` Gemini Exporter Session Log${isDevMode ? ' (Dev Mode)' : ' (Error Report)'}\n`;
         fullLogText += ` Time: ${new Date().toISOString()}\n`;
@@ -100,13 +161,13 @@
                         try {
                             fullLogText += `    [debug] ${JSON.stringify(fc.debug).slice(0, 800)}\n`;
                         } catch (e) {
-                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.js]', e);
+                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.ts]', e);
                         }
                     } else if (fc.raw && typeof fc.raw === 'object') {
                         try {
                             fullLogText += `    [raw_preview] ${JSON.stringify(fc.raw).slice(0, 400)}\n`;
                         } catch (e) {
-                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.js]', e);
+                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.ts]', e);
                         }
                     }
                 }
@@ -125,11 +186,19 @@
         return fullLogText;
     }
 
-    async function writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog = (() => {})) {
+    async function writeDiagnostics(
+        isDevMode: boolean,
+        sessionJson: any,
+        fullLogText: string,
+        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        folder?: any,
+        useZip?: boolean,
+        onLog: (msg: string, level?: string) => void = (() => {})
+    ): Promise<void> {
         try {
             if (useZip && folder) {
                 folder.file('_export_dev.log', fullLogText);
-                if (sessionJson.failedAttachments.length || sessionJson.failedChats.length) {
+                if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length) {
                     folder.file('_export_errors.json', JSON.stringify(sessionJson, null, 2));
                 }
                 if (isDevMode) {
@@ -137,13 +206,14 @@
                 }
             } else if (typeof writeFileDirect === 'function') {
                 await writeFileDirect('_export_dev.log', fullLogText);
-                if (sessionJson.failedAttachments.length || sessionJson.failedChats.length) {
+                if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length) {
                     await writeFileDirect('_export_errors.json', JSON.stringify(sessionJson, null, 2));
                 }
                 if (isDevMode) {
                     await writeFileDirect('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
                 }
             }
+            const I18n = (globalThis as any).I18n;
             onLog(typeof I18n !== 'undefined' ? I18n.t('logDevLogWritten') : '🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
         } catch (logWriteErr) {
             if (typeof console !== 'undefined' && console.error) {
@@ -152,7 +222,7 @@
         }
     }
 
-    async function finalizeChatExport(targetId, context = {}) {
+    async function finalizeChatExport(targetId: string, context: FinalizeChatExportContext = {}): Promise<boolean> {
         const {
             finalizedChatsSet,
             chatRecordsMap,
@@ -195,7 +265,7 @@
             }
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.js] saveExportRecord error', e);
+                console.debug('[GemExporter:sessionRecovery.ts] saveExportRecord error', e);
             }
         }
 
@@ -203,7 +273,7 @@
             onItemExported(targetId, rec);
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.js] onItemExported callback error', e);
+                console.debug('[GemExporter:sessionRecovery.ts] onItemExported callback error', e);
             }
         }
         return true;

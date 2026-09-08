@@ -1,35 +1,97 @@
-// batchWorker.js - Single-chat remote fetching, exponential rate-limit backoff, and title/media resolution
-(function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-        define([], factory);
+// batchWorker.ts - Single-chat remote fetching, exponential rate-limit backoff, and title/media resolution
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+
+export interface FetchChatDetailOptions {
+    messageSender?: any;
+    tabService?: any;
+}
+
+export interface FetchChatDetailResult {
+    success: boolean;
+    results?: any[];
+    chat?: any;
+    data?: any;
+    skipped?: number;
+    error?: string;
+    status?: number;
+}
+
+export interface ResolveChatResult {
+    chat: any;
+    listTitle?: string;
+    displayTitle?: string;
+    isConfirmedDeleted: boolean;
+    isError: boolean;
+    errMsg: string | null;
+    convsNeedSave: boolean;
+}
+
+export interface BatchWorkerModule {
+    fetchChatDetail: (
+        requestedItem: any,
+        currentIndex: number,
+        totalChats: number,
+        currentSlot: string,
+        skip: boolean,
+        format: string,
+        abortSignal?: AbortSignal | null,
+        options?: FetchChatDetailOptions
+    ) => Promise<FetchChatDetailResult>;
+    resolveChat: (
+        chat: any,
+        requestedItem: any,
+        listConversation?: any,
+        takeoutEngine?: any,
+        currentSlot?: string,
+        onTitleUpdated?: (id: string, title: string, source: string) => void,
+        onLog?: (msg: string, level?: string) => void,
+        options?: any
+    ) => Promise<ResolveChatResult>;
+}
+
+declare global {
+    var BatchWorker: BatchWorkerModule;
+}
+
+(function(root: any, factory: () => BatchWorkerModule) {
+    if (typeof define === 'function' && (define as any).amd) {
+        (define as any)([], factory);
     } else if (typeof module === 'object' && module.exports) {
         module.exports = factory();
     } else {
         root.BatchWorker = factory();
     }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof globalThis !== 'undefined' ? globalThis : (typeof self !== 'undefined' ? self : this), function(): BatchWorkerModule {
     'use strict';
 
-    const getUtils = () => {
-        if (typeof GeminiUtils !== 'undefined') return GeminiUtils;
-        if (typeof globalThis !== 'undefined' && globalThis.GeminiUtils) return globalThis.GeminiUtils;
+    const getUtils = (): GeminiUtilsModule | null => {
+        if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
         if (typeof require !== 'undefined') {
-            try { return require('../../utils/utils.js'); } catch { /* intentional: require fallback in browser context */ }
+            try { return require('../../utils/utils.js'); } catch (_) { /* intentional: require fallback in browser context */ }
         }
         return null;
     };
 
-    const normId = (id) => (getUtils()?.normId ? getUtils().normId(id) : String(id || '').replace(/^c_/, '').trim());
-    const cleanTitle = (t) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(t) : (t || '').trim());
-    const isRealTitle = (t, fallbackId) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
-    const resolveTitle = (chat) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
+    const normId = (id?: string | number | null): string => (getUtils()?.normId ? getUtils()!.normId(id) : String(id || '').replace(/^c_/, '').trim());
+    const cleanTitle = (t?: string | null): string => (getUtils()?.cleanTitle ? getUtils()!.cleanTitle(t) : (t || '').trim());
+    const isRealTitle = (t?: string | null, fallbackId?: string | number): boolean => (getUtils()?.isRealTitle ? getUtils()!.isRealTitle(t, fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
+    const resolveTitle = (chat?: any) => (getUtils()?.resolveTitle ? getUtils()!.resolveTitle(chat) : { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' });
 
-    async function fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal, options = {}) {
+    async function fetchChatDetail(
+        requestedItem: any,
+        currentIndex: number,
+        totalChats: number,
+        currentSlot: string,
+        skip: boolean,
+        format: string,
+        abortSignal?: AbortSignal | null,
+        options: FetchChatDetailOptions = {}
+    ): Promise<FetchChatDetailResult> {
         const nid = normId(requestedItem.id);
         const messageSender = options.messageSender || null;
-        const tabService = options.tabService || (typeof TabService !== 'undefined' ? TabService : (typeof globalThis !== 'undefined' && globalThis.TabService ? globalThis.TabService : null));
+        const tabService = options.tabService || (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService : null);
 
-        return new Promise(async (resolve) => {
+        return new Promise<FetchChatDetailResult>(async (resolve) => {
             let settled = false;
             const onAbort = () => {
                 if (!settled) {
@@ -62,7 +124,7 @@
                         }
                     }
                 }
-            } catch (directErr) {
+            } catch (directErr: any) {
                 if (String(directErr?.message || '').includes('aborted')) {
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) { settled = true; resolve({ success: false, error: 'aborted' }); }
@@ -81,7 +143,7 @@
                     globalOffset: currentIndex,
                     globalTotal: totalChats,
                     accountSlot: currentSlot
-                }, (response) => {
+                }, (response: any) => {
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) {
                         settled = true;
@@ -102,7 +164,16 @@
         });
     }
 
-    async function resolveChat(chat, requestedItem, listConversation, takeoutEngine, currentSlot, onTitleUpdated = (() => {}), onLog = (() => {}), options = {}) {
+    async function resolveChat(
+        chat: any,
+        requestedItem: any,
+        listConversation?: any,
+        takeoutEngine?: any,
+        currentSlot?: string,
+        onTitleUpdated: (id: string, title: string, source: string) => void = (() => {}),
+        onLog: (msg: string, level?: string) => void = (() => {}),
+        options: any = {}
+    ): Promise<ResolveChatResult> {
         const nid = normId(requestedItem.id);
         const slot = currentSlot || 'u0';
         let convsNeedSave = false;
@@ -119,6 +190,7 @@
                 };
                 delete chat.error;
                 delete chat._empty;
+                const I18n = (globalThis as any).I18n;
                 onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutChatRecovered', chat.title || nid) : `[${chat.title || nid}] ⚡ 已自动从 Takeout 离线记录恢复问答并导出`, 'info');
             }
         }
@@ -128,9 +200,9 @@
             const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
             if (takeoutMedia && takeoutMedia.length > 0) {
                 for (const tm of takeoutMedia) {
-                    const alreadyHas = chat.messages.some(m =>
-                        (m.images && m.images.some(im => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
-                        (m.attachments && m.attachments.some(at => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||
+                    const alreadyHas = chat.messages.some((m: any) =>
+                        (m.images && m.images.some((im: any) => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
+                        (m.attachments && m.attachments.some((at: any) => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||
                         (m.content && m.content.includes(tm.filename))
                     );
                     if (!alreadyHas) {
@@ -142,7 +214,7 @@
                             source: 'takeout',
                             isGenerated: true
                         };
-                        let targetModelMsg = chat.messages.slice().reverse().find(m => m.role === 'model');
+                        let targetModelMsg = chat.messages.slice().reverse().find((m: any) => m.role === 'model');
                         if (targetModelMsg) {
                             targetModelMsg.images = targetModelMsg.images || [];
                             targetModelMsg.attachments = targetModelMsg.attachments || [];
@@ -168,15 +240,16 @@
         // 3. Error or empty handling
         if (chat.error || chat._empty) {
             const isConfirmedDeleted = !!chat.isDeleted || !!chat._debug?.isNotFound || !!chat._debug?.domDebug?.isNotFound;
-            const cleanForLog = t => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
+            const cleanForLog = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
             const rawTitle = chat.title || nid;
             const displayTitle = cleanForLog(rawTitle) && !/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForLog(rawTitle)) ? cleanForLog(rawTitle) : nid;
             const debugInfo = chat._debug ? ` _debug=${String(chat._debug).slice(0, 200)}` : (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
             const errMsg = (isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）')) + debugInfo;
 
+            const I18n = (globalThis as any).I18n;
             if (isConfirmedDeleted) {
                 try {
-                    const storage = typeof StorageService !== 'undefined' ? StorageService : (typeof window !== 'undefined' && window.StorageService);
+                    const storage = typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : (typeof window !== 'undefined' && (window as any).StorageService);
                     if (storage && typeof storage.removeConversation === 'function') {
                         await storage.removeConversation(currentSlot || 'u0', nid);
                         const sender = options.messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);
@@ -186,7 +259,7 @@
                         }
                     }
                 } catch (e) {
-                    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:batchWorker.js]', e);
+                    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:batchWorker.ts]', e);
                 }
                 onLog(typeof I18n !== 'undefined' ? I18n.t('logChatDeletedAndPruned', displayTitle) : `[${displayTitle}] ⚡ 云端已确认该会话不存在或已被删除，已自动从本地列表中移除`, 'warn');
             } else {
@@ -205,7 +278,7 @@
 
         // 4. Sniff title from first user query if needed
         if (!isRealTitle(chat.title, chat.id) && Array.isArray(chat.messages)) {
-            const firstUser = chat.messages.find(m => m.role === 'user' && m.content && m.content.trim());
+            const firstUser = chat.messages.find((m: any) => m.role === 'user' && m.content && m.content.trim());
             if (firstUser) {
                 let candidate = firstUser.content.trim();
                 candidate = candidate.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, '');
@@ -228,8 +301,8 @@
         let finalTitle = chat.title || listConversation?.title || chat.id;
 
         if (listConversation) {
-            const cleanForBad = t => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
-            const isBadBrand = t => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
+            const cleanForBad = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
+            const isBadBrand = (t: any) => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
             listConversation.titles = listConversation.titles || {};
             for (const [k, v] of Object.entries(listConversation.titles)) {
                 if (isBadBrand(v)) delete listConversation.titles[k];
