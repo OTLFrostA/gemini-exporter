@@ -33,8 +33,8 @@ test('TDD: ChatFormatter protects code fences and converts headings properly', (
 test('TDD: ChatFormatter cleans Google internal tool URLs and unwraps links', () => {
     const raw = 'Check this out: [Research Report](https://googleusercontent.com/deep_research_confirmation_content/12345) and an image chip: https://googleusercontent.com/image_generation_content/abc';
     const cleaned = ChatFormatter.cleanMessageBody(raw);
-    assert.ok(!cleaned.includes('https://googleusercontent.com/deep_research_confirmation_content'));
-    assert.ok(!cleaned.includes('https://googleusercontent.com/image_generation_content'));
+    assert.ok(!cleaned.includes('deep_research_confirmation_content'));
+    assert.ok(!cleaned.includes('image_generation_content'));
     assert.ok(cleaned.includes('Research Report'));
 });
 
