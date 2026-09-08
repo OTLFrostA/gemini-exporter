@@ -59,6 +59,8 @@ def test_html_includes():
                 "/dist/core/utils/constants.js",
                 "/dist/core/utils/utils.js",
                 "/dist/core/utils/tabService.js",
+                "/dist/core/utils/locales/zh.js",
+                "/dist/core/utils/locales/en.js",
                 "/dist/core/utils/i18n.js",
                 "/dist/core/storage/storageService.js",
                 "/dist/core/storage/formatStore.js",
@@ -118,6 +120,8 @@ def test_module_exports():
         "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
         "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
         "src/core/protocol/protocol.js": ["PROTOCOL_VERSION", "RPCS", "BL_FALLBACK", "LIMITS", "createReqidGenerator", "DELETION_ANCHORS"],
+        "src/core/utils/locales/zh.js": ["extName", "takeoutLimitPromptTitle"],
+        "src/core/utils/locales/en.js": ["extName", "tourBtnNext"],
         "src/core/utils/utils.js": ["isDevMode", "isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
     }
     for filename, symbols in files.items():
@@ -128,23 +132,31 @@ def test_module_exports():
         print(f"  ✓ {filename} exports and signatures verified")
 
 def test_i18n_keys():
-    with open(os.path.join(BASE_DIR, "src/core/utils/i18n.js"), "r", encoding="utf-8") as f:
-        text = f.read()
+    # Dictionaries live in locales/{zh,en}.js since Phase 2b (classic-script
+    # modules whose bodies are flat `key: "value"` object literals).
+    dicts = {"zh": {}, "en": {}}
+    for lang in ("zh", "en"):
+        with open(os.path.join(BASE_DIR, "src/core/utils/locales", f"{lang}.js"), "r", encoding="utf-8") as f:
+            text = f.read()
+        in_dict = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped == "return {":
+                in_dict = True
+                continue
+            if in_dict:
+                if stripped.startswith("};"):
+                    break
+                if ":" in stripped:
+                    parts = stripped.split(":", 1)
+                    k = parts[0].strip().strip('"').strip("'")
+                    v = parts[1].strip().rstrip(",").strip().strip('"').strip("'")
+                    dicts[lang][k] = v
 
-    zh_dict = {}
-    en_dict = {}
-    cur = None
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("zh: {"):
-            cur = zh_dict
-        elif line.startswith("en: {"):
-            cur = en_dict
-        elif ":" in line and cur is not None:
-            parts = line.split(":", 1)
-            k = parts[0].strip().strip('"').strip("'")
-            v = parts[1].strip().rstrip(",").strip('"').strip("'")
-            cur[k] = v
+    zh_dict = dicts["zh"]
+    en_dict = dicts["en"]
+    assert len(zh_dict) >= 100, f"zh locale should have 100+ keys, got {len(zh_dict)}"
+    assert len(en_dict) >= 100, f"en locale should have 100+ keys, got {len(en_dict)}"
 
     for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:

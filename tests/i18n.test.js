@@ -57,16 +57,13 @@ test('i18n - language change event listener', async () => {
     assert.strictEqual(triggeredLang, 'en');
 });
 
-test('i18n - ensure no duplicate object literal keys in i18n.js source', () => {
-    const i18nPath = path.join(__dirname, '..', 'src', 'core', 'utils', 'i18n.js');
-    const content = fs.readFileSync(i18nPath, 'utf8');
-    const zhBlock = content.match(/zh:\s*\{([\s\S]*?)\n\s*\},/);
-    const enBlock = content.match(/en:\s*\{([\s\S]*?)\n\s*\}\s*\n\s*\};/);
-
-    assert.ok(zhBlock, 'zh block should exist');
-    assert.ok(enBlock, 'en block should exist');
-
-    for (const [lang, block] of [['zh', zhBlock[1]], ['en', enBlock[1]]]) {
+test('i18n - ensure no duplicate object literal keys in locale sources', () => {
+    for (const lang of ['zh', 'en']) {
+        const localePath = path.join(__dirname, '..', 'src', 'core', 'utils', 'locales', lang + '.js');
+        const content = fs.readFileSync(localePath, 'utf8');
+        const bodyMatch = content.match(/return \{([\s\S]*)\n\s*\};/);
+        assert.ok(bodyMatch, lang + ' dictionary body should exist');
+        const block = bodyMatch[1];
         const keyMatches = [...block.matchAll(/^\s*([a-zA-Z0-9_]+):/gm)].map(m => m[1]);
         const counts = {};
         for (const k of keyMatches) {
