@@ -77,6 +77,9 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await page.waitForLoadState('domcontentloaded');
 
     const modal = page.locator('#takeoutLimitModal');
+    await page.evaluate(async () => {
+      await chrome.storage.local.remove(['has_completed_takeout_prompt']);
+    });
     await expect(modal).toBeHidden();
 
     // Mock chrome.runtime.sendMessage to simulate deepScan returning hitGoogleLimit = true
