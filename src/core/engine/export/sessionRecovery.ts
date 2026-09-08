@@ -45,6 +45,7 @@ export interface SessionRecoveryModule {
     ) => Promise<void>;
     buildSessionLogText: (options?: SessionLogOptions) => string;
     finalizeChatExport: (targetId: string, context?: FinalizeChatExportContext) => Promise<boolean>;
+    updateSessionStatus: (patch: any) => Promise<void>;
     getExtensionVersion: (customVersion?: string) => string;
 }
 
@@ -279,11 +280,32 @@ declare global {
         return true;
     }
 
+    async function updateSessionStatus(patch: any): Promise<void> {
+        try {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const data: any = await chrome.storage.local.get(['gemini_last_export_session']);
+                const current = data?.gemini_last_export_session || {};
+                await chrome.storage.local.set({
+                    gemini_last_export_session: {
+                        ...current,
+                        ...patch,
+                        updatedAt: Date.now()
+                    }
+                });
+            }
+        } catch (e) {
+            if (typeof console !== 'undefined' && console.debug) {
+                console.debug('[GemExporter:sessionRecovery.ts] updateSessionStatus error', e);
+            }
+        }
+    }
+
     return {
         writeIndexAndMeta,
         writeDiagnostics,
         buildSessionLogText,
         finalizeChatExport,
+        updateSessionStatus,
         getExtensionVersion
     };
 }));

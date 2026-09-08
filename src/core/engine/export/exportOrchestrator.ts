@@ -1,7 +1,7 @@
-// exportOrchestrator.ts - Top-level orchestrator for Gemini export workflows
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import type { BatchWorkerModule } from "./batchWorker.js";
 import type { SessionRecoveryModule } from "./sessionRecovery.js";
+import type { RateLimitModule } from "./rateLimiter.js";
 
 export interface ExportOptions {
     selected: any[];
@@ -98,6 +98,21 @@ declare global {
         if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
         if (typeof require !== 'undefined') {
             try { return require('./sessionRecovery.js'); } catch (_) { /* intentional */ }
+        }
+        return null;
+    };
+
+    const getRateLimiter = (): RateLimitModule | null => {
+        if (typeof (globalThis as any).RateLimitModule !== 'undefined') return (globalThis as any).RateLimitModule;
+        if (typeof (globalThis as any).RateLimitManager !== 'undefined') {
+            return {
+                RateLimitManager: (globalThis as any).RateLimitManager,
+                isRateLimited: (globalThis as any).RateLimitManager.isRateLimited || ((res: any) => res?.status === 429),
+                calculateBackoff: (globalThis as any).RateLimitManager.calculateBackoff || ((rc: number) => 2000 * Math.pow(2, rc))
+            };
+        }
+        if (typeof require !== 'undefined') {
+            try { return require('./rateLimiter.js'); } catch (_) { /* intentional */ }
         }
         return null;
     };
@@ -210,12 +225,40 @@ declare global {
     class ExportOrchestrator {
         aborted: boolean;
         _abortController: AbortController | null;
-        rateLimitCooldownUntil: number;
+        rateLimiter: any;
+
+        get rateLimitCooldownUntil(): number {
+            return this.rateLimiter ? this.rateLimiter.rateLimitCooldownUntil : 0;
+        }
+        set rateLimitCooldownUntil(v: number) {
+            if (this.rateLimiter) this.rateLimiter.rateLimitCooldownUntil = v;
+        }
 
         constructor() {
             this.aborted = false;
             this._abortController = null;
-            this.rateLimitCooldownUntil = 0;
+            const rlModule = getRateLimiter();
+            if (rlModule && rlModule.RateLimitManager) {
+                this.rateLimiter = new rlModule.RateLimitManager();
+            } else {
+                this.rateLimiter = {
+                    rateLimitCooldownUntil: 0,
+                    isRateLimited: (res: any) => !!(res && !res.success && (res.status === 429 || /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res?.error || ''))),
+                    calculateBackoff: (retryCount: number) => Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000)),
+                    recordRateLimit: function(delayMs: number) { this.rateLimitCooldownUntil = Date.now() + delayMs; },
+                    waitForCooldown: async function(sig?: AbortSignal | null) {
+                        if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
+                            const waitMs = Math.max(0, this.rateLimitCooldownUntil - Date.now());
+                            if (waitMs > 0) {
+                                await new Promise(r => setTimeout(r, waitMs));
+                                if (sig && sig.aborted) return false;
+                            }
+                        }
+                        return true;
+                    },
+                    reset: function() { this.rateLimitCooldownUntil = 0; }
+                };
+            }
         }
 
         abort(): void {
@@ -228,21 +271,26 @@ declare global {
                     });
                 }
             } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
-            try {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.get(['gemini_last_export_session'], (data: any) => {
-                        if (data?.gemini_last_export_session) {
-                            chrome.storage.local.set({
-                                gemini_last_export_session: {
-                                    ...data.gemini_last_export_session,
-                                    status: 'aborted',
-                                    updatedAt: Date.now()
-                                }
-                            });
-                        }
-                    });
-                }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+            const recovery = getSessionRecovery();
+            if (recovery && recovery.updateSessionStatus) {
+                recovery.updateSessionStatus({ status: 'aborted' });
+            } else {
+                try {
+                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                        chrome.storage.local.get(['gemini_last_export_session'], (data: any) => {
+                            if (data?.gemini_last_export_session) {
+                                chrome.storage.local.set({
+                                    gemini_last_export_session: {
+                                        ...data.gemini_last_export_session,
+                                        status: 'aborted',
+                                        updatedAt: Date.now()
+                                    }
+                                });
+                            }
+                        });
+                    }
+                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+            }
         }
 
         async _initSession(options: ExportOptions, _callbacks: ExportCallbacks = {}): Promise<any> {
@@ -258,7 +306,9 @@ declare global {
             }
 
             this.aborted = false;
-            this.rateLimitCooldownUntil = 0;
+            if (this.rateLimiter && typeof this.rateLimiter.reset === 'function') {
+                this.rateLimiter.reset();
+            }
             this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
@@ -279,22 +329,35 @@ declare global {
                 curIds = store[expKey] || {};
             }
 
-            try {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    await chrome.storage.local.set({
-                        gemini_last_export_session: {
-                            status: 'running',
-                            slot,
-                            total: payloadIds.length,
-                            current: 0,
-                            format,
-                            useZip,
-                            startTime: Date.now(),
-                            updatedAt: Date.now()
-                        }
-                    });
-                }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+            const recovery = getSessionRecovery();
+            if (recovery && recovery.updateSessionStatus) {
+                await recovery.updateSessionStatus({
+                    status: 'running',
+                    slot,
+                    total: payloadIds.length,
+                    current: 0,
+                    format,
+                    useZip,
+                    startTime: Date.now()
+                });
+            } else {
+                try {
+                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                        await chrome.storage.local.set({
+                            gemini_last_export_session: {
+                                status: 'running',
+                                slot,
+                                total: payloadIds.length,
+                                current: 0,
+                                format,
+                                useZip,
+                                startTime: Date.now(),
+                                updatedAt: Date.now()
+                            }
+                        });
+                    }
+                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+            }
 
             return {
                 payloadIds,
@@ -536,6 +599,19 @@ declare global {
             const worker = getBatchWorker();
 
             async function finalizeChatExport(targetId: string) {
+                if (recovery && recovery.finalizeChatExport) {
+                    await recovery.finalizeChatExport(targetId, {
+                        finalizedChatsSet,
+                        chatRecordsMap,
+                        chatFailedAssetsSet,
+                        curIds,
+                        exportedIds,
+                        Storage,
+                        slot,
+                        onItemExported
+                    });
+                    return;
+                }
                 const targetNid = normId(targetId);
                 if (finalizedChatsSet.has(targetNid)) return;
                 const rec = chatRecordsMap.get(targetNid);
@@ -563,7 +639,10 @@ declare global {
 
             const exportWorker = async () => {
                 while (nextIndex < payloadIds.length && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                    if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
+                    if (this.rateLimiter && typeof this.rateLimiter.waitForCooldown === 'function') {
+                        const canProceed = await this.rateLimiter.waitForCooldown(abortSignal);
+                        if (!canProceed || this.aborted || (abortSignal && abortSignal.aborted)) break;
+                    } else if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
                         const waitMs = Math.max(0, this.rateLimitCooldownUntil - Date.now());
                         if (waitMs > 0) {
                             await new Promise(r => setTimeout(r, waitMs));
@@ -589,14 +668,19 @@ declare global {
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
-                        const isRateLimited = res && !res.success && (
-                            res.status === 429 ||
-                            /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res.error || '')
-                        );
+                        const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
+                            ? this.rateLimiter.isRateLimited(res)
+                            : (res && !res.success && (res.status === 429 || /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res?.error || '')));
 
-                        if (isRateLimited && retryCount < maxRateLimitRetries) {
-                            const delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
-                            this.rateLimitCooldownUntil = Date.now() + delayMs;
+                        if (isLimited && retryCount < maxRateLimitRetries) {
+                            const delayMs = (this.rateLimiter && typeof this.rateLimiter.calculateBackoff === 'function')
+                                ? this.rateLimiter.calculateBackoff(retryCount)
+                                : Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                            if (this.rateLimiter && typeof this.rateLimiter.recordRateLimit === 'function') {
+                                this.rateLimiter.recordRateLimit(delayMs);
+                            } else {
+                                this.rateLimitCooldownUntil = Date.now() + delayMs;
+                            }
                             onLog(typeof I18n !== 'undefined'
                                 ? I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1))
                                 : `[${requestedItem.title || nid}] ⚠️ 触发 Google 限频 (429)，退避等待 ${(delayMs / 1000).toFixed(1)} 秒后重试...`, 'warn');
@@ -785,23 +869,36 @@ declare global {
                     completedCount++;
                     updateProgress(completedCount, listTitle);
 
-                    try {
-                        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                            await chrome.storage.local.set({
-                                gemini_last_export_session: {
-                                    status: 'running',
-                                    slot,
-                                    total: payloadIds.length,
-                                    current: completedCount,
-                                    lastChatId: chat.id,
-                                    lastChatTitle: listTitle,
-                                    format,
-                                    useZip,
-                                    updatedAt: Date.now()
-                                }
-                            });
-                        }
-                    } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+                    if (recovery && recovery.updateSessionStatus) {
+                        await recovery.updateSessionStatus({
+                            status: 'running',
+                            slot,
+                            total: payloadIds.length,
+                            current: completedCount,
+                            lastChatId: chat.id,
+                            lastChatTitle: listTitle,
+                            format,
+                            useZip
+                        });
+                    } else {
+                        try {
+                            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                                await chrome.storage.local.set({
+                                    gemini_last_export_session: {
+                                        status: 'running',
+                                        slot,
+                                        total: payloadIds.length,
+                                        current: completedCount,
+                                        lastChatId: chat.id,
+                                        lastChatTitle: listTitle,
+                                        format,
+                                        useZip,
+                                        updatedAt: Date.now()
+                                    }
+                                });
+                            }
+                        } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+                    }
                 }
             };
 
@@ -885,21 +982,32 @@ declare global {
                 await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
             }
 
-            try {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    await chrome.storage.local.set({
-                        gemini_last_export_session: {
-                            status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
-                            slot,
-                            total: payloadIds.length,
-                            current: landedChats,
-                            failedCount: failedChats.length,
-                            skipped,
-                            updatedAt: Date.now()
-                        }
-                    });
-                }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+            if (recovery && recovery.updateSessionStatus) {
+                await recovery.updateSessionStatus({
+                    status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
+                    slot,
+                    total: payloadIds.length,
+                    current: landedChats,
+                    failedCount: failedChats.length,
+                    skipped
+                });
+            } else {
+                try {
+                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                        await chrome.storage.local.set({
+                            gemini_last_export_session: {
+                                status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
+                                slot,
+                                total: payloadIds.length,
+                                current: landedChats,
+                                failedCount: failedChats.length,
+                                skipped,
+                                updatedAt: Date.now()
+                            }
+                        });
+                    }
+                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+            }
 
             return {
                 landedChats,

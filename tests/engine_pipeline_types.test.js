@@ -109,3 +109,54 @@ test('TDD: AssetPipeline rejects path traversal in sanitizeZipPath', () => {
         : require('../src/core/utils/utils.js').sanitizeRelativePath;
     assert.equal(sanitize('../../../etc/passwd', 'file'), '_/_/_/etc/passwd');
 });
+
+test('TDD: RateLimiter detects 429 status and error messages, calculates backoff with jitter', () => {
+    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+
+    assert.equal(isRateLimited({ status: 429 }), true);
+    assert.equal(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), true);
+    assert.equal(isRateLimited({ error: 'Too many requests, quota exceeded' }), true);
+    assert.equal(isRateLimited({ success: true }), false);
+    assert.equal(isRateLimited({ status: 200 }), false);
+    assert.equal(isRateLimited(null), false);
+
+    const b0 = calculateBackoff(0, { initialDelayMs: 1000, jitterMs: 200, maxDelayMs: 5000 });
+    assert.ok(b0 >= 1000 && b0 <= 1200, `Expected b0 between 1000 and 1200, got ${b0}`);
+
+    const manager = new RateLimitManager({ initialDelayMs: 500, maxDelayMs: 2000, jitterMs: 100 });
+    assert.equal(manager.rateLimitCooldownUntil, 0);
+    manager.recordRateLimit(1500);
+    assert.ok(manager.rateLimitCooldownUntil > Date.now());
+    manager.reset();
+    assert.equal(manager.rateLimitCooldownUntil, 0);
+});
+
+test('TDD: SessionRecovery.updateSessionStatus updates chrome.storage.local safely', async () => {
+    const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
+    assert.equal(typeof SessionRecovery.updateSessionStatus, 'function');
+
+    const origChrome = global.chrome;
+    let storedSession = { status: 'running', slot: 'u0', current: 1 };
+    global.chrome = {
+        storage: {
+            local: {
+                get: async (keys) => ({ gemini_last_export_session: storedSession }),
+                set: async (obj) => {
+                    if (obj.gemini_last_export_session) {
+                        storedSession = obj.gemini_last_export_session;
+                    }
+                }
+            }
+        }
+    };
+
+    try {
+        await SessionRecovery.updateSessionStatus({ current: 2, status: 'completed' });
+        assert.equal(storedSession.current, 2);
+        assert.equal(storedSession.status, 'completed');
+        assert.ok(typeof storedSession.updatedAt === 'number');
+    } finally {
+        global.chrome = origChrome;
+    }
+});
+
