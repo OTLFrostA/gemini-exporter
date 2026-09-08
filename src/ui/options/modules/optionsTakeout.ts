@@ -110,7 +110,7 @@ export function init({ loadStore, log: logFn }: OptionsTakeoutOptions = {}): voi
                     if (bar) bar.style.width = `${pct}%`;
                     if (progText) progText.textContent = txt;
                 },
-                onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
+                onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl || 'info'),
                 onFinished: ({ message }: any) => {
                     if (progText) progText.textContent = message;
                     if (progWrap) progWrap.style.display = 'none';

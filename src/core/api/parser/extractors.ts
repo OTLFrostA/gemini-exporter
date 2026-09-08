@@ -61,19 +61,19 @@ export interface TitleResult {
 export interface GeminiParserExtractorsModule {
     GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
     RESEARCH_PROMPT_PREFIX_RE: RegExp;
-    detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
-    extractModelCandidates: (turn: any) => any[];
-    extractCandidateText: (cand: any) => string;
+    detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
+    extractModelCandidates: (turn: unknown) => unknown[];
+    extractCandidateText: (cand: unknown) => string;
     safeStructureClean: (str?: string | null) => string;
-    robustFirstPayload: (text?: string | null) => any[] | null;
-    deepWalk: (root: any, visitor: (node: any, depth: number) => boolean | void, maxDepth?: number) => void;
-    extractThoughts: (candidateBlock: any) => string | null;
-    extractCitations: (candidateBlock: any) => Citation[];
-    extractConversationId: (inner: any, turns?: any[]) => string;
+    robustFirstPayload: (text?: string | null) => unknown[] | null;
+    deepWalk: (root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth?: number) => void;
+    extractThoughts: (candidateBlock: unknown) => string | null;
+    extractCitations: (candidateBlock: unknown) => Citation[];
+    extractConversationId: (inner: unknown, turns?: unknown[]) => string;
     smartSummarizePrompt: (rawText?: string | null) => string;
-    extractConversationTitle: (inner: any, turns?: any[]) => TitleResult;
-    extractMetaTitleFromTop: (top: any[], targetConvId?: string) => string | null;
-    extractTurnTimestamp: (turnData: any) => number | null;
+    extractConversationTitle: (inner: unknown, turns?: unknown[]) => TitleResult;
+    extractMetaTitleFromTop: (top: unknown[], targetConvId?: string) => string | null;
+    extractTurnTimestamp: (turnData: unknown) => number | null;
     normId: (id?: string | number | null) => string;
     cleanTitle: (rawTitle?: string | null) => string;
     isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
@@ -189,8 +189,8 @@ declare global {
      * Generic depth-bounded recursive walker over nested arrays and objects.
      * Replaces 8+ duplicate ad-hoc walk() functions across the parsing pipeline.
      */
-    function deepWalk(root: any, visitor: (node: any, depth: number) => boolean | void, maxDepth: number = 50): void {
-        function walk(node: any, depth: number) {
+    function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
+        function walk(node: unknown, depth: number) {
             if (!node || typeof node !== "object" || depth > maxDepth) return;
             const shouldDescend = visitor(node, depth);
             if (shouldDescend === false) return;
@@ -199,9 +199,9 @@ declare global {
                     walk(node[i], depth + 1);
                 }
             } else {
-                for (const k in node) {
+                for (const k in (node as Record<string, unknown>)) {
                     if (Object.prototype.hasOwnProperty.call(node, k)) {
-                        walk(node[k], depth + 1);
+                        walk((node as Record<string, unknown>)[k], depth + 1);
                     }
                 }
             }
@@ -212,7 +212,7 @@ declare global {
     /**
      * Validates turn structure against GEMINI_JSPB_SCHEMA and flags protocol drifts
      */
-    function detectTurnSchemaDrift(turn: any, convId?: string): TurnDriftReport {
+    function detectTurnSchemaDrift(turn: unknown, convId?: string): TurnDriftReport {
         const warnings: string[] = [];
         if (!Array.isArray(turn)) {
             warnings.push("Turn is not an array");
@@ -273,7 +273,7 @@ declare global {
     /**
      * Safely extracts candidates array from turn according to schema
      */
-    function extractModelCandidates(turn: any): any[] {
+    function extractModelCandidates(turn: unknown): unknown[] {
         if (!turn || !Array.isArray(turn)) return [];
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (!modelPayload || !Array.isArray(modelPayload) || modelPayload.length === 0) return [];
@@ -299,10 +299,10 @@ declare global {
     /**
      * Cleanly extracts candidate response text without language tag (e.g. "zh") pollution
      */
-    function extractCandidateText(cand: any): string {
+    function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
-        const body = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
-            ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
+        const body = (cand as any)?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
+            ? (cand as any)[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
             : (Array.isArray(cand) && cand.length === 1 ? cand[0] : cand);
 
         if (typeof body === "string") return body;
@@ -362,7 +362,7 @@ declare global {
         return out;
     }
 
-    function robustFirstPayload(text?: string | null): any[] | null {
+    function robustFirstPayload(text?: string | null): unknown[] | null {
         if (!text || typeof text !== "string") return null;
 
         // Fast path 1: standard batchexecute response with optional prefix
@@ -384,7 +384,7 @@ declare global {
         }
 
         // O(N) single-pass bracket-balancing state machine for chunked / multiline payloads
-        let allTop: any[] = [];
+        let allTop: unknown[] = [];
         const len = text.length;
         let inString = false;
         let escape = false;
@@ -454,7 +454,7 @@ declare global {
         return null;
     }
 
-    function extractThoughts(candidateBlock: any): string | null {
+    function extractThoughts(candidateBlock: unknown): string | null {
         if (!Array.isArray(candidateBlock)) return null;
         let thoughts: string[] = [];
         deepWalk(candidateBlock, (node) => {
@@ -470,7 +470,7 @@ declare global {
         return thoughts.length ? thoughts.join("\n\n") : null;
     }
 
-    function extractCitations(candidateBlock: any): Citation[] {
+    function extractCitations(candidateBlock: unknown): Citation[] {
         let citations: Citation[] = [];
         if (!Array.isArray(candidateBlock)) return citations;
         let seenUrls = new Set<string>();
@@ -489,13 +489,15 @@ declare global {
         return citations;
     }
 
-    function extractConversationId(inner: any, turns?: any[]): string {
-        if (typeof inner?.[0] === "string" && inner[0].startsWith("c_")) return inner[0];
-        if (typeof inner?.[1] === "string" && inner[1].startsWith("c_")) return inner[1];
+    function extractConversationId(inner: unknown, turns?: unknown[]): string {
+        if (Array.isArray(inner)) {
+            if (typeof inner[0] === "string" && inner[0].startsWith("c_")) return inner[0];
+            if (typeof inner[1] === "string" && inner[1].startsWith("c_")) return inner[1];
+        }
         if (Array.isArray(turns)) {
             for (let t of turns) {
-                if (Array.isArray(t?.[0]) && typeof t[0][0] === "string" && t[0][0].startsWith("c_")) return t[0][0];
-                if (typeof t?.[0] === "string" && t[0].startsWith("c_")) return t[0];
+                if (Array.isArray(t) && Array.isArray(t[0]) && typeof t[0][0] === "string" && t[0][0].startsWith("c_")) return t[0][0];
+                if (Array.isArray(t) && typeof t[0] === "string" && t[0].startsWith("c_")) return t[0];
             }
         }
         let flat = JSON.stringify(inner).match(/"c_[a-zA-Z0-9_-]{8,64}"/);
@@ -506,7 +508,7 @@ declare global {
     function smartSummarizePrompt(rawText?: string | null): string {
         if (!rawText) return "";
         let s = cleanTitle(rawText).trim();
-        s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\\s*[,，:：]?\\s*/i, "");
+        s = s.replace(/^(请问一下|请问|我想问一下|我想问|你能帮我|帮我|你能|请教一下|请教|都说|那么|那个|如果说|如果|我发现|为什么)\s*[,，:：]?\s*/i, "");
         const breakMatch = s.match(/^([^，。？！\n\r\t,?!]{4,35})/);
         if (breakMatch && breakMatch[1]) {
             s = breakMatch[1].trim();
@@ -516,7 +518,7 @@ declare global {
         return s;
     }
 
-    function extractConversationTitle(inner: any, turns?: any[]): TitleResult {
+    function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
         if (Array.isArray(inner)) {
             if (typeof inner[2] === "string" && inner[2].length > 0 && !inner[2].startsWith("c_") && !inner[2].startsWith("tC") && !inner[2].startsWith("rc_")) {
                 const clean = cleanTitle(inner[2]);
@@ -531,15 +533,15 @@ declare global {
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
             for (let i = 0; i < Math.min(inner.length, 6); i++) {
-                if (typeof inner[i] === "string" && inner[i].length >= 2 && !inner[i].startsWith("c_") && !inner[i].startsWith("tC") && !inner[i].startsWith("rc_")) {
-                    const clean = cleanTitle(inner[i]);
+                if (typeof inner[i] === "string" && (inner[i] as string).length >= 2 && !(inner[i] as string).startsWith("c_") && !(inner[i] as string).startsWith("tC") && !(inner[i] as string).startsWith("rc_")) {
+                    const clean = cleanTitle(inner[i] as string);
                     if (isRealTitle(clean)) return { title: clean, source: "rpc" };
                 }
             }
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
-                let uText = t?.[2]?.[0]?.[0];
+                let uText = (t as any)?.[2]?.[0]?.[0];
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
                     const concise = smartSummarizePrompt(uText);
                     if (isRealTitle(concise)) return { title: concise, source: "sniff" };
@@ -551,7 +553,7 @@ declare global {
         return { title: "未命名对话", source: "default" };
     }
 
-    function extractMetaTitleFromTop(top: any[], targetConvId?: string): string | null {
+    function extractMetaTitleFromTop(top: unknown[], targetConvId?: string): string | null {
         if (!Array.isArray(top)) return null;
         const targetNid = normId(targetConvId);
         const protocol = getProtocol();
@@ -563,7 +565,7 @@ declare global {
             if (Array.isArray(item) && item[0] === wrb && (item[1] === listRpc || item[1] === legacyListRpc) && typeof item[2] === "string") {
                 try {
                     let metaInner = JSON.parse(item[2]);
-                    let list = Array.isArray(metaInner[1]) ? metaInner[1] : (Array.isArray(metaInner[2]) ? metaInner[2] : []);
+                    let list = Array.isArray(metaInner?.[1]) ? metaInner[1] : (Array.isArray(metaInner?.[2]) ? metaInner[2] : (Array.isArray(metaInner?.[0]) ? metaInner[0] : []));
                     for (let entry of list) {
                         if (Array.isArray(entry)) {
                             let id = entry[0];
@@ -583,9 +585,9 @@ declare global {
         return null;
     }
 
-    function extractTurnTimestamp(turnData: any): number | null {
-        if (!turnData) return null;
-        let candidates = [turnData?.[4], turnData?.[5], turnData?.[turnData.length - 1]];
+    function extractTurnTimestamp(turnData: unknown): number | null {
+        if (!Array.isArray(turnData)) return null;
+        let candidates = [turnData[4], turnData[5], turnData[turnData.length - 1]];
         for (let candidate of candidates) {
             if (Array.isArray(candidate) && typeof candidate[0] === "number" && candidate[0] > 1e9) {
                 let val = candidate[0];

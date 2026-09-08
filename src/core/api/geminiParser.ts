@@ -6,37 +6,37 @@ import type { GeminiParserParseDetailModule, DetailParseResult } from "./parser/
 
 export interface GeminiResponseParserFacade {
     GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
-    detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
-    extractModelCandidates: (turn: any) => any[];
-    extractCandidateText: (cand: any) => string;
-    robustFirstPayload: (t?: string | null) => any[] | null;
-    extractTurnTimestamp: (turnData: any) => number | null;
+    detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
+    extractModelCandidates: (turn: unknown) => unknown[];
+    extractCandidateText: (cand: unknown) => string;
+    robustFirstPayload: (t?: string | null) => unknown[] | null;
+    extractTurnTimestamp: (turnData: unknown) => number | null;
     extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
     getImageDedupKey: (img: any) => string;
     filterNewImages: (imgs: any[], seenSet: Set<string>) => any[];
     highResVariant: (u?: string | null) => string;
-    extractImages: (obj: any, seqRef?: { value: number }) => any[];
-    extractUserFiles: (turnUserArr: any) => any[];
-    extractDocumentsMeta: (root: any) => DeepResearchDocMeta[];
-    findDocContentById: (root: any, docId: string) => any;
-    parseDocSections: (docContentArr: any) => any;
-    findDocMarkdownByClues: (root: any, metaItem?: any) => string;
-    extractThoughts: (candidateBlock: any) => string | null;
-    extractCitations: (candidateBlock: any) => any[];
-    extractConversationId: (inner: any, turns?: any[]) => string;
-    extractConversationTitle: (inner: any, turns?: any[]) => any;
+    extractImages: (obj: unknown, seqRef?: { value: number }) => any[];
+    extractUserFiles: (turnUserArr: unknown) => any[];
+    extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
+    findDocContentById: (root: unknown, docId: string) => unknown;
+    parseDocSections: (docContentArr: unknown) => any;
+    findDocMarkdownByClues: (root: unknown, metaItem?: any) => string;
+    extractThoughts: (candidateBlock: unknown) => string | null;
+    extractCitations: (candidateBlock: unknown) => any[];
+    extractConversationId: (inner: unknown, turns?: unknown[]) => string;
+    extractConversationTitle: (inner: unknown, turns?: unknown[]) => any;
     isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
     cleanTitle: (t?: string | null) => string;
     normId: (id?: string | number | null) => string;
-    extractListItemTimestamp: (item: any) => number | null;
+    extractListItemTimestamp: (item: unknown) => number | null;
     parseList: (text: string) => ListParseResult;
     parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
     safeStructureClean: (s?: string | null) => string;
-    deepWalk: (r: any, v: any, m?: number) => void;
+    deepWalk: (r: unknown, v: any, m?: number) => void;
     smartSummarizePrompt: (t?: string | null) => string;
-    extractMetaTitleFromTop: (top: any[], targetConvId?: string) => string | null;
+    extractMetaTitleFromTop: (top: unknown[], targetConvId?: string) => string | null;
     isInternalChipUrl: (u?: string | null) => boolean;
-    findTurnsDeep: (root: any, depth?: number) => any[] | null;
+    findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
 }
 
 export interface GeminiParserModule {
@@ -45,8 +45,8 @@ export interface GeminiParserModule {
     cleanTitle: (t?: string | null) => string;
     normId: (id?: string | number | null) => string;
     GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
-    detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
-    extractListItemTimestamp: (item: any) => number | null;
+    detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
+    extractListItemTimestamp: (item: unknown) => number | null;
     extractors: GeminiParserExtractorsModule;
     attachments: GeminiParserAttachmentsModule;
     parseList: GeminiParserParseListModule;

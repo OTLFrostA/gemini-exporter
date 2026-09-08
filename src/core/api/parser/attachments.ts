@@ -43,12 +43,12 @@ export interface GeminiParserAttachmentsModule {
     extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
     getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
-    extractImages: (obj: any, seqRef?: { value: number }) => ImageAttachment[];
-    extractUserFiles: (turnUserArr: any) => UserFileAttachment[];
-    extractDocumentsMeta: (root: any) => DeepResearchDocMeta[];
-    findDocContentById: (root: any, docId: string) => any;
-    parseDocSections: (docContentArr: any) => DocSectionsResult;
-    findDocMarkdownByClues: (root: any, metaItem?: DeepResearchDocMeta | null) => string;
+    extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
+    extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
+    extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
+    findDocContentById: (root: unknown, docId: string) => unknown;
+    parseDocSections: (docContentArr: unknown) => DocSectionsResult;
+    findDocMarkdownByClues: (root: unknown, metaItem?: DeepResearchDocMeta | null) => string;
 }
 
 declare global {
@@ -143,7 +143,7 @@ declare global {
         return ".jpg";
     }
 
-    function extractImages(obj: any, seqRef?: { value: number }): ImageAttachment[] {
+    function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
         let images: ImageAttachment[] = [];
         let seenKeys = new Set<string>();
         // seqRef: { value: number } 全局递增，避免跨 turn 同名覆盖（P0）
@@ -219,7 +219,7 @@ declare global {
         return images;
     }
 
-    function extractUserFiles(turnUserArr: any): UserFileAttachment[] {
+    function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
         let files: UserFileAttachment[] = [];
         if (!Array.isArray(turnUserArr)) return files;
 
@@ -251,7 +251,7 @@ declare global {
         return typeof name === "string" && name.includes(".");
     }
 
-    function extractDocumentsMeta(root: any): DeepResearchDocMeta[] {
+    function extractDocumentsMeta(root: unknown): DeepResearchDocMeta[] {
         let out: DeepResearchDocMeta[] = [];
         let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
         const ext = getExtractors();
@@ -313,7 +313,7 @@ declare global {
         return out;
     }
 
-    function findDocContentById(root: any, docId: string): any {
+    function findDocContentById(root: unknown, docId: string): unknown {
         if (!docId) return null;
         let targetId = String(docId).replace(/^c_/, "");
         let matched: any = null;
@@ -341,7 +341,7 @@ declare global {
         return matched;
     }
 
-    function parseDocSections(docContentArr: any): DocSectionsResult {
+    function parseDocSections(docContentArr: unknown): DocSectionsResult {
         let sections: string[] = [];
         let links: DocLink[] = [];
         let contentMarkdown = "";
@@ -371,7 +371,7 @@ declare global {
         };
     }
 
-    function findDocMarkdownByClues(root: any, metaItem?: DeepResearchDocMeta | null): string {
+    function findDocMarkdownByClues(root: unknown, metaItem?: DeepResearchDocMeta | null): string {
         if (!metaItem) return "";
         let candidates: string[] = [];
 

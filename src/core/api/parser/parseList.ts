@@ -22,13 +22,13 @@ export interface ListParseResult {
 }
 
 export interface GeminiParserParseListModule {
-    extractListItemTimestamp: (item: any) => number | null;
+    extractListItemTimestamp: (item: unknown) => number | null;
     parseList: (text: string) => ListParseResult;
 }
 
 declare global {
     var GeminiParserParseList: GeminiParserParseListModule;
-    var extractListItemTimestamp: (item: any) => number | null;
+    var extractListItemTimestamp: (item: unknown) => number | null;
     var parseList: (text: string) => ListParseResult;
 }
 
@@ -100,7 +100,7 @@ declare global {
         return s.length >= 2 && !/^(c_)?[a-f0-9_-]{8,64}$/i.test(s);
     }
 
-    function robustFirstPayload(text?: string | null): any[] | null {
+    function robustFirstPayload(text?: string | null): unknown[] | null {
         const ext = getExtractors();
         if (ext && typeof ext.robustFirstPayload === "function") return ext.robustFirstPayload(text);
         if (!text || typeof text !== "string") return null;
@@ -112,7 +112,7 @@ declare global {
      * Google Gemini encodes timestamp as [seconds, nanos] at index 5.
      * Falls back to legacy indices 2, 3 or any valid [seconds, nanos] pair.
      */
-    function extractListItemTimestamp(item: any): number | null {
+    function extractListItemTimestamp(item: unknown): number | null {
         if (!Array.isArray(item)) return null;
         const schema = getSchema();
         const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
