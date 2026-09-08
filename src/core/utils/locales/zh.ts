@@ -1,10 +1,13 @@
-// locales/zh.js - Simplified Chinese dictionary (externalized from i18n.js in Phase 2b).
-// Loaded as a classic script BEFORE i18n.js (options.html / popup.html order);
+// locales/zh.ts - Simplified Chinese dictionary.
+// Loaded as a classic script BEFORE i18n.ts (options.html / popup.html order);
 // attaches to self.GeminiLocales for the i18n engine, module.exports for Node tests.
-(function(root, factory) {
+
+import type { LocaleDictionary } from '../../../types/utils.js';
+
+(function(root: any, factory: () => LocaleDictionary) {
     if (typeof module === 'object' && module.exports) module.exports = factory();
     else { root.GeminiLocales = root.GeminiLocales || {}; root.GeminiLocales.zh = factory(); }
-}(typeof self !== 'undefined' ? self : this, function() {
+}(typeof self !== 'undefined' ? self : this, function(): LocaleDictionary {
     'use strict';
     return {
 
