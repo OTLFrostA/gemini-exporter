@@ -223,7 +223,15 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                 const ct = (r.headers.get('content-type') || '').toLowerCase();
                 const blob = await r.blob();
                 if (blob.size > MAX_BASE64_BLOB_SIZE) {
-                    console.warn('[AssetFetcher] direct download too large, fallback', (blob.size / 1024 / 1024).toFixed(1) + 'MB');
+                    // Hard cap: base64-encoding a >50MB blob (~66MB string) and cloning
+                    // it through sendResponse spikes MV3 memory. Refuse instead of
+                    // falling through to the image/file refetch paths; Takeout import
+                    // is the supported route for oversized assets.
+                    sendResponse({
+                        success: false,
+                        error: `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`
+                    });
+                    return;
                 } else if (blob.size > 0 && (!ct.startsWith('text/html') || blob.size > 2000)) {
                     if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
                         try {

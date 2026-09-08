@@ -55,12 +55,17 @@ export function renderExportBanner(session: any, currentSlot: string, isRunning:
         let msg = typeof t === 'function'
             ? t('exportSessionInterrupted', session.total, session.current || 0, remaining)
             : `⚠️ <b>发现未完成的导出任务</b>：共 ${session.total} 条，已处理 ${session.current || 0} 条，剩余 ${remaining} 条未导出。`;
-        if (session.lastChatTitle) {
-            msg += typeof t === 'function'
-                ? t('exportSessionLastChat', session.lastChatTitle.slice(0, 20))
-                : ` (上次停在: 「${session.lastChatTitle.slice(0, 20)}」)`;
-        }
         bannerText.innerHTML = msg;
+        // lastChatTitle is remote-controlled conversation metadata persisted from a
+        // Gemini response — append it as a text node so a crafted title such as
+        // "<svg onload=...>" can never execute inside the options page.
+        const lastChatTitle = typeof session.lastChatTitle === 'string' ? session.lastChatTitle.slice(0, 20) : '';
+        if (lastChatTitle) {
+            const suffix = typeof t === 'function'
+                ? t('exportSessionLastChat', lastChatTitle)
+                : ` (上次停在: 「${lastChatTitle}」)`;
+            bannerText.appendChild(document.createTextNode(suffix));
+        }
         if (btnResume) btnResume.style.display = remaining > 0 ? '' : 'none';
     } else if (session.status === 'completed' || session.status === 'completed_with_errors') {
         const timeDiff = Date.now() - (session.updatedAt || 0);

@@ -27,6 +27,10 @@ export function init(dependencies: MessageBridgeDeps = {}): { handleWindowMessag
 export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     if (!event || !_deps) return;
     if (typeof location !== 'undefined' && event.origin !== location.origin) return;
+    // Same-origin iframes can postMessage forged payloads (e.g. conversation
+    // deletion) into this window; only accept events raised by this window
+    // itself. Synthetic dispatches (unit tests) carry no source and still pass.
+    if (event.source && (typeof window === 'undefined' || event.source !== window)) return;
     const d = event.data;
     if (!d || typeof d !== 'object') return;
 
