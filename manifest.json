@@ -59,6 +59,9 @@
         "dist/content/assetFetcher.js",
         "dist/content/badgeView.js",
         "dist/content/messageBridge.js",
+        "dist/content/pageObserver.js",
+        "dist/content/syncEngine.js",
+        "dist/content/messageRouter.js",
         "dist/content/content.js"
       ],
       "run_at": "document_start",
