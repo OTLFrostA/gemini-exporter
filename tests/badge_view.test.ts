@@ -1,11 +1,8 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
-};
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
 
-const BadgeView = (typeof require !== 'undefined') ? require('../src/content/badgeView.js') : (typeof globalThis.BadgeView !== 'undefined' ? globalThis.BadgeView : null);
+const BadgeView = require('../src/content/badgeView.js');
 
 test('badgeView - module exports and interface', () => {
     assert.ok(BadgeView);
@@ -17,7 +14,7 @@ test('badgeView - module exports and interface', () => {
 });
 
 test('badgeView - DOM creation and text update', () => {
-    let attachedElement = null;
+    let attachedElement: any = null;
     const mockBadge = {
         id: 'geminiExportBadge',
         innerHTML: '',
@@ -29,25 +26,25 @@ test('badgeView - DOM creation and text update', () => {
     const mockTxt = { textContent: '' };
 
     const fakeDoc = {
-        getElementById: (id) => {
+        getElementById: (id: string) => {
             if (id === 'geminiExportBadge') return attachedElement;
             if (id === 'geminiExportBadgeText') return mockTxt;
             return null;
         },
-        createElement: (tag) => {
+        createElement: (tag: string) => {
             if (tag === 'div') return mockBadge;
             return {};
         },
         body: {
-            appendChild: (el) => { attachedElement = el; }
+            appendChild: (el: any) => { attachedElement = el; }
         }
     };
 
-    const origDoc = globalThis.document;
-    const origWindow = globalThis.window;
+    const origDoc = (globalThis as any).document;
+    const origWindow = (globalThis as any).window;
     try {
-        globalThis.document = fakeDoc;
-        globalThis.window = {
+        (globalThis as any).document = fakeDoc;
+        (globalThis as any).window = {
             innerWidth: 1920,
             innerHeight: 1080,
             addEventListener: () => {}
@@ -61,7 +58,7 @@ test('badgeView - DOM creation and text update', () => {
         assert.strictEqual(mockTxt.textContent, '已同步 15 条');
         assert.strictEqual(BadgeView.getLastKnownCount(), 15);
     } finally {
-        globalThis.document = origDoc;
-        globalThis.window = origWindow;
+        (globalThis as any).document = origDoc;
+        (globalThis as any).window = origWindow;
     }
 });

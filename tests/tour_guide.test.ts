@@ -1,8 +1,9 @@
+export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
 // Mock browser environment for unit testing TourGuide
-global.window = {
+(global as any).window = {
     innerWidth: 1200,
     innerHeight: 800,
     addEventListener: () => {},
@@ -10,24 +11,24 @@ global.window = {
     open: () => {}
 };
 
-const mockElements = new Map();
-global.document = {
-    createElement: (tag) => {
-        const el = {
+const mockElements = new Map<string, any>();
+(global as any).document = {
+    createElement: (tag: string) => {
+        const el: any = {
             tagName: tag.toUpperCase(),
             className: '',
             style: {},
             classList: {
-                add: (c) => { el.className += ' ' + c; },
-                remove: (c) => { el.className = el.className.replace(c, '').trim(); }
+                add: (c: string) => { el.className += ' ' + c; },
+                remove: (c: string) => { el.className = el.className.replace(c, '').trim(); }
             },
             children: [],
-            appendChild: (child) => {
+            appendChild: (child: any) => {
                 el.children.push(child);
                 return child;
             },
-            removeChild: (child) => {
-                el.children = el.children.filter(c => c !== child);
+            removeChild: (child: any) => {
+                el.children = el.children.filter((c: any) => c !== child);
             },
             setAttribute: () => {},
             addEventListener: () => {},
@@ -45,28 +46,28 @@ global.document = {
     },
     addEventListener: () => {},
     removeEventListener: () => {},
-    getElementById: (id) => mockElements.get(id) || null,
+    getElementById: (id: string) => mockElements.get(id) || null,
     querySelector: () => null,
     querySelectorAll: () => []
 };
 
 // Mock StorageService
 let tourStatusMock = false;
-global.StorageService = {
+(global as any).StorageService = {
     isTourCompleted: async () => tourStatusMock,
-    setTourCompleted: async (v) => { tourStatusMock = !!v; }
+    setTourCompleted: async (v: any) => { tourStatusMock = !!v; }
 };
 
 // Mock TabService
-global.TabService = {
+(global as any).TabService = {
     checkGeminiStatus: async () => ({ status: 'CONNECTED' }),
     openGeminiPage: async () => {},
     reloadGeminiTab: async () => {}
 };
 
 // Mock I18n
-global.I18n = {
-    t: (k) => k
+(global as any).I18n = {
+    t: (k: any) => k
 };
 
 const TourGuide = require('../src/ui/tour/tourGuide.js');
@@ -112,7 +113,7 @@ test('tourGuide - step navigation and completion', async () => {
 
 test('tabService - checkGeminiStatus handles NO_TAB, NEED_REFRESH and CONNECTED', async () => {
     // 1. NO_TAB case
-    global.chrome = {
+    (global as any).chrome = {
         tabs: {
             query: async () => []
         }
@@ -121,11 +122,11 @@ test('tabService - checkGeminiStatus handles NO_TAB, NEED_REFRESH and CONNECTED'
     assert.strictEqual(resNoTab.status, 'NO_TAB');
 
     // 2. NEED_REFRESH case (sendMessage fails)
-    global.chrome = {
+    (global as any).chrome = {
         tabs: {
             query: async () => [{ id: 101, url: 'https://gemini.google.com/app' }],
-            sendMessage: (tabId, msg, cb) => {
-                global.chrome.runtime = { lastError: { message: 'Receiving end does not exist' } };
+            sendMessage: (tabId: any, msg: any, cb: any) => {
+                (global as any).chrome.runtime = { lastError: { message: 'Receiving end does not exist' } };
                 cb(null);
             }
         },
@@ -135,11 +136,11 @@ test('tabService - checkGeminiStatus handles NO_TAB, NEED_REFRESH and CONNECTED'
     assert.strictEqual(resRefresh.status, 'NEED_REFRESH');
 
     // 3. CONNECTED case
-    global.chrome = {
+    (global as any).chrome = {
         tabs: {
             query: async () => [{ id: 102, url: 'https://gemini.google.com/app' }],
-            sendMessage: (tabId, msg, cb) => {
-                global.chrome.runtime = { lastError: null };
+            sendMessage: (tabId: any, msg: any, cb: any) => {
+                (global as any).chrome.runtime = { lastError: null };
                 cb({ ok: true, version: '1.4.1' });
             }
         },
@@ -150,16 +151,16 @@ test('tabService - checkGeminiStatus handles NO_TAB, NEED_REFRESH and CONNECTED'
 });
 
 test('storageService - isTourCompleted and setTourCompleted', async () => {
-    let storageMap = {};
-    global.chrome = {
+    let storageMap: Record<string, any> = {};
+    (global as any).chrome = {
         storage: {
             local: {
-                get: async (keys) => {
-                    const res = {};
+                get: async (keys: any) => {
+                    const res: Record<string, any> = {};
                     for (const k of keys) res[k] = storageMap[k];
                     return res;
                 },
-                set: async (obj) => {
+                set: async (obj: any) => {
                     Object.assign(storageMap, obj);
                 }
             }
@@ -172,16 +173,16 @@ test('storageService - isTourCompleted and setTourCompleted', async () => {
 });
 
 test('storageService - isTakeoutPromptCompleted and setTakeoutPromptCompleted', async () => {
-    let storageMap = {};
-    global.chrome = {
+    let storageMap: Record<string, any> = {};
+    (global as any).chrome = {
         storage: {
             local: {
-                get: async (keys) => {
-                    const res = {};
+                get: async (keys: any) => {
+                    const res: Record<string, any> = {};
                     for (const k of keys) res[k] = storageMap[k];
                     return res;
                 },
-                set: async (obj) => {
+                set: async (obj: any) => {
                     Object.assign(storageMap, obj);
                 }
             }
@@ -193,23 +194,23 @@ test('storageService - isTakeoutPromptCompleted and setTakeoutPromptCompleted', 
     assert.strictEqual(await StorageService.isTakeoutPromptCompleted(), true);
 });
 
-function createMockElement(id) {
-    const listeners = {};
+function createMockElement(id: string) {
+    const listeners: Record<string, ((...args: any[]) => void)[]> = {};
     return {
         id,
         listeners,
-        addEventListener: (ev, fn) => {
+        addEventListener: (ev: string, fn: any) => {
             if (!listeners[ev]) listeners[ev] = [];
             listeners[ev].push(fn);
         },
-        removeEventListener: (ev, fn) => {
+        removeEventListener: (ev: string, fn: any) => {
             if (!listeners[ev]) return;
             listeners[ev] = listeners[ev].filter(f => f !== fn);
         },
         click: () => {
             (listeners['click'] || []).forEach(f => f({ type: 'click' }));
         },
-        dispatchEvent: (e) => {
+        dispatchEvent: (e: any) => {
             (listeners[e.type] || []).forEach(f => f(e));
         },
         getBoundingClientRect: () => ({ top: 100, left: 100, width: 200, height: 50, bottom: 150, right: 300 }),

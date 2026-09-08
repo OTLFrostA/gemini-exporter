@@ -1,11 +1,8 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
-};
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
 
-const DirHandleController = (typeof require !== 'undefined') ? require('../src/ui/controllers/dirHandleController.js') : (typeof globalThis.DirHandleController !== 'undefined' ? globalThis.DirHandleController : null);
+const DirHandleController = require('../src/ui/controllers/dirHandleController.js');
 
 test('dirHandleController - exports', () => {
     assert.ok(DirHandleController);

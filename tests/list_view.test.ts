@@ -1,11 +1,8 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
-};
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
 
-const ListView = (typeof require !== 'undefined') ? require('../src/ui/views/listView.js') : (typeof globalThis.ListView !== 'undefined' ? globalThis.ListView : null);
+const ListView = require('../src/ui/views/listView.js');
 
 test('listView - isRealTitle recognition', () => {
     assert.strictEqual(ListView.isRealTitle('Valid Title', '123'), true);
@@ -29,18 +26,18 @@ test('listView - export interface exists', () => {
 test('listView - selectAll & deselectAll DOM simulation', () => {
     const mockCheckboxes = [{ checked: false, dataset: { idx: '0' } }, { checked: false, dataset: { idx: '1' } }];
     const fakeDoc = {
-        querySelectorAll: (selector) => {
-            if (selector.includes('input[type=checkbox]:checked')) return mockCheckboxes.filter(c => c.checked);
+        querySelectorAll: (selector: string) => {
+            if (selector.includes('input[type=checkbox]:checked')) return mockCheckboxes.filter((c: any) => c.checked);
             if (selector.includes('input[type=checkbox]')) return mockCheckboxes;
             return [];
         },
         getElementById: () => null
     };
 
-    const origDoc = globalThis.document;
+    const origDoc = (globalThis as any).document;
     try {
-        globalThis.document = fakeDoc;
-        const convs = [{ id: '1', title: 'A' }, { id: '2', title: 'B' }];
+        (globalThis as any).document = fakeDoc;
+        const convs: any[] = [{ id: '1', title: 'A' }, { id: '2', title: 'B' }];
         
         ListView.selectAll(convs);
         assert.strictEqual(mockCheckboxes[0].checked, true);
@@ -52,21 +49,21 @@ test('listView - selectAll & deselectAll DOM simulation', () => {
         assert.strictEqual(mockCheckboxes[1].checked, false);
         assert.strictEqual(ListView.getSelected(convs).length, 0);
     } finally {
-        globalThis.document = origDoc;
+        (globalThis as any).document = origDoc;
     }
 });
 
 test('listView - updateItemExportStatus in-place DOM update', () => {
-    let queriedSelector = null;
+    let queriedSelector: any = null;
     const fakeBadge = { textContent: 'New', style: {} };
     const fakeItem = {
-        querySelector: (sel) => {
+        querySelector: (sel: string) => {
             if (sel === '.badge') return fakeBadge;
             return null;
         }
     };
     const fakeDoc = {
-        querySelector: (sel) => {
+        querySelector: (sel: string) => {
             queriedSelector = sel;
             if (sel.includes('test_chat_123')) return fakeItem;
             return null;
@@ -75,15 +72,15 @@ test('listView - updateItemExportStatus in-place DOM update', () => {
         getElementById: () => null
     };
 
-    const origDoc = globalThis.document;
+    const origDoc = (globalThis as any).document;
     try {
-        globalThis.document = fakeDoc;
+        (globalThis as any).document = fakeDoc;
         assert.strictEqual(typeof ListView.updateItemExportStatus, 'function');
         ListView.updateItemExportStatus('c_test_chat_123', { exportedAt: '2026-09-07' });
         assert.ok(queriedSelector && queriedSelector.includes('test_chat_123'));
         assert.ok(fakeBadge.textContent === '已导出' || fakeBadge.textContent === 'Exported');
     } finally {
-        globalThis.document = origDoc;
+        (globalThis as any).document = origDoc;
     }
 });
 

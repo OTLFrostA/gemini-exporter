@@ -1,11 +1,8 @@
-const test = (typeof require !== 'undefined' && require('node:test')) ? require('node:test') : (name, fn) => { try { fn(); } catch (e) { throw new Error(`FAIL: ${name} - ${e.message}`); } };
-const assert = (typeof require !== 'undefined' && require('node:assert')) ? require('node:assert') : {
-    strictEqual: (a, b) => { if (a !== b) throw new Error(`${a} !== ${b}`); },
-    deepStrictEqual: (a, b) => { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`${JSON.stringify(a)} !== ${JSON.stringify(b)}`); },
-    ok: (a) => { if (!a) throw new Error(`Expected truthy, got ${a}`); }
-};
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
 
-const ConversationsStore = (typeof require !== 'undefined') ? require('../src/ui/state/conversationsStore.js') : (typeof globalThis.ConversationsStore !== 'undefined' ? globalThis.ConversationsStore : null);
+const ConversationsStore = require('../src/ui/state/conversationsStore.js');
 
 test('conversationsStore - normId', () => {
     assert.strictEqual(ConversationsStore.normId('c_12345678'), '12345678');
@@ -15,7 +12,7 @@ test('conversationsStore - normId', () => {
 });
 
 test('conversationsStore - in-memory get and set', () => {
-    const list = [{ id: '1', title: 'Chat 1' }, { id: '2', title: 'Chat 2' }];
+    const list: any[] = [{ id: '1', title: 'Chat 1' }, { id: '2', title: 'Chat 2' }];
     ConversationsStore.setConversations(list);
     assert.deepStrictEqual(ConversationsStore.getConversations(), list);
 
@@ -64,23 +61,23 @@ test('conversationsStore - hasTakeoutData detection', () => {
     ConversationsStore.setConversations([
         { id: '1', title: 'Normal Chat 1' },
         { id: '2', title: 'Normal Chat 2' }
-    ]);
+    ] as any);
     assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
 
     ConversationsStore.setConversations([
         { id: '1', title: 'Normal Chat 1' },
         { id: '2', title: 'Takeout Chat 2', source: 'takeout' }
-    ]);
+    ] as any);
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 
     ConversationsStore.setConversations([
         { id: '3', title: 'Takeout Chat 3', titleSource: 'takeout' }
-    ]);
+    ] as any);
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 
     ConversationsStore.setConversations([
         { id: '4', title: 'Takeout Chat 4', titles: { takeout: 'Takeout Title' } }
-    ]);
+    ] as any);
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 });
 
@@ -140,7 +137,7 @@ test('utils - mergeConversation SSoT title priority and timestamp arbitration', 
     assert.strictEqual(res.merged.titles.sniff, '如何构建高性能分布式缓存系统');
 
     // 3. DeduplicateConversations filtering bad URLs and sorting
-    const rawList = [
+    const rawList: any[] = [
         { id: '1', title: 'Earlier Chat', timestamp: 1000 },
         { id: '2', title: 'Sign In', url: 'https://accounts.google.com/SignOutOptions' },
         { id: '3', title: 'Later Chat', timestamp: 2000 }
