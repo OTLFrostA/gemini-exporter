@@ -58,6 +58,7 @@ Write-Host "==================================================" -ForegroundColor
 # 5. Launch Chrome with isolated profile, loaded extension, and remote debugging enabled
 $ChromeArgs = @(
     "--user-data-dir=$ProfileDir",
+    "--disable-extensions-except=$RepoDir",
     "--load-extension=$RepoDir",
     "--remote-debugging-port=9222",
     "--no-first-run",

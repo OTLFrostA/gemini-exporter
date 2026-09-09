@@ -165,14 +165,16 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
     for t in tabs:
         u = t.get("url", "")
         if u.startswith("chrome-extension://"):
-            if "src/background/background.js" in u or "options.html" in u:
+            if "background/background.js" in u or "options.html" in u or "popup.html" in u:
                 return u.split("/")[2]
 
-    # Fallback to any chrome-extension
+    # Fallback: check chrome-extension tabs excluding internal google components
     for t in tabs:
         u = t.get("url", "")
         if u.startswith("chrome-extension://"):
-            return u.split("/")[2]
+            ext = u.split("/")[2]
+            if ext not in ["admccjkmockfdflocgggjfgdacdodkdf", "fignfifoniblkonapihmkfakmlgkbkcf", "nkeimhogjdpnpccoofpliimaahmaaome"]:
+                return ext
 
     for t in tabs:
         if t.get("url") == "chrome://extensions/":

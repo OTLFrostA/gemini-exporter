@@ -48,7 +48,7 @@
     1. **必须生成真实对话（严禁滥用 `--skip-chat`）**：必须真实驱动 Gemini 并等待全部流式回复物理落地；
     2. **必须实际检验导出 Markdown 文件内容（严禁仅凭内存判断）**：测试脚本会自动将导出的 ZIP 下载到磁盘并解压，必须逐字核对会话 1 全部 5 轮与会话 2 全部 8 轮提问与回答在 Markdown 中 100% 物理存在；
     3. **必须校验 Google Takeout 离线导入与合流**：测试流会自动读取预置的 `tests/fixtures/gemini_takeout_clean.zip`，检验离线图片附件池索引与线上活跃会话的合流去重；
-    4. **必须通过全量导出规范断言**：解压目录必须通过 `tests/helpers/export_spec_asserter.py` 的 6 大维度检验（索引文件、YAML Frontmatter 7 键闭合、角色交替与时间戳、0 遥测噪点、图片附件实体非空、黄金特征命中）。
+    4. **必须通过全量导出规范断言**：解压目录必须通过 `tests/helpers/export_spec_asserter.py` 的严格检验（索引文件、YAML Frontmatter 7 键闭合、角色交替与时间戳、0 遥测噪点、图片附件实体非空、多轮用户上传图片 MD5 唯一性去重断言、AI Imagen 生成图模型归属断言、AI Deep Research 独立 Markdown 报告实体与引用断言、黄金特征命中）。
 
 ---
 

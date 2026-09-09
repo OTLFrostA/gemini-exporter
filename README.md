@@ -8,212 +8,123 @@
   <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Web Store">
   </a>
+  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT">
 </p>
 
-> **A powerful, privacy-first, fully open-source Chrome extension to batch export and archive your Google Gemini conversations.**  
-> Export all your chat history with one click into Markdown, JSON (including OpenAI-compatible format), or a ZIP bundle with images and attachments. Seamlessly migrate your conversations into Obsidian, Notion, Logseq, and other local personal knowledge bases.
+> **The easiest, privacy-first way to export and archive your Google Gemini conversations.**  
+> Batch export your chat history into clean Markdown, JSON, or a complete ZIP archive with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
 
 ---
 
-## 🌟 Key Features
+## ✨ Why Gemini Exporter?
 
-- 🔒 **100% Client-Side & Zero Privacy Leakage**:
-  - All processing runs completely inside your browser's local sandbox. **Never sends credentials, cookies, or chat messages to any third-party server.**
-- 📊 **Dedicated Batch Workbench (Options Page)**:
-  - An intuitive dark-themed dashboard to view, filter, and manage all your synced conversations.
-  - Filter chats by status: *All*, *Exported*, *Needs Re-export*, *Unexported*, or *Failed*.
-  - Full **Bilingual Support (English / 简体中文)** with a 1-click language switcher in the header.
-- 🧭 **Interactive Guided Onboarding Tour**:
-  - A friendly, 4-step visual walkthrough for first-time users. Highlights synchronization, conversation selection, export configuration, and final export with high-contrast indicator badges and auto-completion persistence.
-- 📦 **Multiple Export Formats**:
-  - **Markdown (`.md`)**: Beautiful formatting, syntax-highlighted code blocks, math equations, collapsible thinking details (`<details>`), and web citations.
-  - **JSON (OpenAI Format)**: Ready-to-use format for LLM fine-tuning pipelines and third-party tools.
-  - **JSON (Raw / Complete Metadata)**: Complete structured payload containing raw timestamps and conversation metadata.
-- 🖼️ **Full Support for Attachments, Deep Research Reports & High-Res Imagen Assets**:
-  - Automatically detects and downloads user-uploaded files (PDFs, DOCX, ZIPs, etc.) and AI-generated high-resolution Imagen pictures with globally unique asset filenames.
-  - **Deep Research Deduplication**: Smartly parses and mounts multi-turn Gemini 2.0 Deep Research report documents without duplicating attachments across turns.
-  - Assets are neatly organized into an `assets/` subfolder with relative references preserved in Markdown.
-- ⚡ **Event-Driven Async Pipeline (`AsyncQueue`) & Keepalive Resilience**:
-  - Replaces busy polling with an event-driven `AsyncQueue` worker pool for ultra-fast, CPU-efficient concurrent attachment downloading.
-  - **MV3 Service Worker Keepalive Heartbeat**: Dispatches lightweight keepalive pings during long batch exports and deep scans, preventing Chrome from suspending the background worker mid-session.
-  - **Crash & Interruption Recovery Banner**: Automatically detects unfinished export sessions and offers 1-click resumption.
-- 👥 **Multi-Account Switching & Complete State Isolation**:
-  - Seamlessly switch between multiple logged-in Google accounts (`u0`, `u1`, `u2`, etc.) with independent local storage, conversation lists, Takeout media caches, and per-slot abort controllers (`__bgAborts`).
-- 📥 **Google Takeout Integration & Legacy Chat Recovery (Takeout ZIP Import)**:
-  - Directly load your Google Takeout archive (`takeout-*.zip`) to recover legacy conversations truncated by Gemini's cloud UI pagination limits.
-  - **Offline Media Fallback Pool**: Automatically indexes offline media from the ZIP, seamlessly replacing any failed online asset downloads (e.g., due to expired tokens or 403 errors).
-- 🚨 **Google Sliding Window Wall Detection & Takeout Limit Modal**:
-  - Automatically detects when a full scan hits Google's server-side ~500–650 cursor pagination wall (`BardErrorInfo 1096` or HTTP 429), popping up a helpful guidance modal to direct users to Google Takeout import with single-time tutorial dismissal protection.
-- 🏷️ **Single Source of Truth (SSoT) Architecture**:
-  - **Path Traversal Defense (`sanitizeRelativePath`)**: Authoritative path sanitizer preventing directory traversal (`..`) and Windows reserved device names (`CON`, `PRN`, `AUX`, `NUL`, etc.) across ZIP and FileSystem writers.
-  - **Unified Title Arbitration (`TITLE_SOURCE_PRIORITY`)**: Strict multi-tier hierarchy (RPC > DOM > Takeout > Sniff > Legacy) preventing brand name pollution ("Google Gemini") and preserving genuine conversation titles.
-  - **Deterministic Sorting (`compareConversations`)**: Completely unified conversation sorting algorithm between content scripts and UI workbench, eliminating list jitter and sorting drift.
-- 🔄 **Smart Incremental Sync & Change Detection**:
-  - Locally records conversation IDs, update timestamps, and message counts.
-  - Supports "Skip already exported" mode. When an existing conversation receives new replies, it is automatically flagged as "Needs Re-export" for ultra-fast incremental backups.
-- ⚡ **Zero-Configuration Ready**:
-  - No official Gemini API key required. No account passwords exposed. Simply browse Google Gemini as usual, and session credentials (`at`, `bl`) are automatically intercepted in a sandboxed MAIN-world hook with automatic HTTP 400 self-healing refresh.
+- 🔒 **100% Private & Local**: Runs completely inside your browser sandbox. Your conversations, credentials, and cookies are **never sent to any external server**.
+- ⚡ **Zero Setup Required**: No API keys, no complicated tokens, no passwords. Just use Google Gemini as you normally do.
+- 📝 **Beautiful Markdown Output**:
+  - Full syntax highlighting for programming code blocks.
+  - Formatted LaTeX mathematical formulas and equations.
+  - Collapsible thinking / reasoning processes (`<details>`).
+  - Web source citations and reference links preserved.
+- 🖼️ **Complete Media & Attachment Backups**:
+  - Automatically saves user-uploaded files (PDFs, docs, images).
+  - Downloads AI-generated high-resolution images (Imagen).
+  - Preserves Deep Research reports and documents.
+  - Images and attachments are neatly placed in an `assets/` folder with relative Markdown links.
+- 📊 **Visual Batch Workbench**:
+  - Intuitive dark-mode dashboard to search, filter, and manage all your conversations.
+  - Filter chats by status: *All*, *Unexported*, *Needs Re-export*, or *Exported*.
+  - Full **Bilingual UI (English / 简体中文)** with a 1-click switcher.
+- 🔄 **Smart Incremental Backup**:
+  - Only export what is new! When an older chat receives new replies, it is automatically flagged so you can back it up in seconds without re-exporting everything.
+- 📥 **Google Takeout Support**:
+  - Easily import your official Google Takeout ZIP archive to recover older historical chats that Google's web sidebar no longer displays.
+- 👥 **Multi-Account Friendly**:
+  - Seamlessly switch between different Google accounts in the Workbench with isolated storage for each.
 
 ---
 
 ## 📥 Installation
 
-Compatible with all modern Chromium-based browsers (**Google Chrome**, **Microsoft Edge**, **Brave**, **Arc**, **Vivaldi**, etc.).
-
-### Method 1: Install from Chrome Web Store (Recommended)
+### Method 1: Chrome Web Store (Recommended)
 
 Install directly from the official Chrome Web Store with one click:
 
 👉 **[Get Gemini Exporter on Chrome Web Store](https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo)**
 
-### Method 2: Load Unpacked Extension (Developer / Source Code)
+*(Compatible with Google Chrome, Microsoft Edge, Brave, Arc, Vivaldi, and other Chromium browsers.)*
 
-1. Clone this repository to your local machine:
+### Method 2: Install from Source Code (Developer / Manual)
+
+1. Download or clone this repository:
    ```bash
    git clone https://github.com/OTLFrostA/gemini-exporter.git
    ```
-2. Open your browser's extension management page:
-   - **Chrome**: Navigate to `chrome://extensions/`
-   - **Edge**: Navigate to `edge://extensions/`
-3. Enable **Developer mode** (toggle in the top-right corner).
-4. Click **Load unpacked** in the top-left corner.
-5. Select the cloned repository folder to finish installation.
+2. In your browser, navigate to the Extensions page:
+   - **Chrome**: `chrome://extensions/`
+   - **Edge**: `edge://extensions/`
+3. Turn on **Developer mode** (toggle in the top-right corner).
+4. Click **Load unpacked** (top-left) and select the project folder.
 
 ---
 
-## 🚀 Usage Guide
+## 🚀 How to Use
 
-### 1. Quick Single-Chat Export (Popup)
-1. Open and sign in to [Google Gemini](https://gemini.google.com).
-2. Click the **Gemini Exporter** icon in your browser toolbar to open the popup.
-3. Choose your desired format (Markdown / JSON), and click **"Export Current Page"** to download the active conversation instantly.
+### 1. Quick Single-Chat Export
+1. Open any chat on [Google Gemini](https://gemini.google.com).
+2. Click the **Gemini Exporter** icon in your browser toolbar.
+3. Choose your desired format (Markdown / JSON) and click **"Export Current Page"**.
 
-### 2. Batch Export & Incremental Sync (Workbench)
-1. Click **"Go to Workbench"** in the popup (or right-click the extension icon and select "Options").
-2. For first-time visitors, follow the **Interactive Onboarding Tour** to explore the main controls.
-3. In the Workbench:
-   - Click **"Sync Latest"** for fast incremental sync, or **"Deep Scan"** to gather your entire chat history.
-   - Select the conversations you want to export (supports *Select All*, *Unexported Only*, *Updated Only*, and real-time search).
-   - Configure options: download assets, package as ZIP, direct write to local folder via FileSystem API, etc.
-   - Click **"Export Selected → ZIP"** (or Folder) to archive your chats.
+### 2. Batch Export All Chats
+1. Click the extension icon and select **"Go to Workbench"** (or right-click the icon and choose "Options").
+2. Follow the friendly 4-step **Onboarding Tour** on your first visit.
+3. Click **"Sync Latest"** (for quick sync) or **"Deep Scan"** (to load full history).
+4. Select the conversations you want to export (or click *Select All* / *Unexported Only*).
+5. Choose your export format and click **"Export Selected → ZIP"** (or export directly into a local folder).
 
-### 3. Google Takeout Import & Legacy Chat Recovery
-For heavy users with thousands of conversations, Google's web interface enforces a sliding window ceiling (~600–650 chats). You can recover and archive your complete legacy history using official Google Takeout:
-1. Visit **[Google Takeout (Gemini Pre-selected)](https://takeout.google.com/settings/takeout/custom/gemini)**. This direct link automatically deselects all other products and checks **ONLY Gemini**. Simply click "Next step" -> "Create export", and download the exported `takeout-*.zip` archive.
-2. Open the Gemini Exporter **Workbench (Options)**, navigate to the **"Google Takeout Import"** section, and select or drag-and-drop the ZIP file (or click "Import Takeout" directly from the Takeout Limit guidance modal).
-3. The extension instantly parses all prompt histories and conversation indexes completely inside your browser's local sandbox.
-4. **Offline Media Fallback Pool**: If cloud assets encounter 403 or expired token errors during export, the extension automatically retrieves original images and attachments from the Takeout archive, ensuring 100% complete backups.
+### 3. Archive Years of History via Google Takeout (Optional)
+If you have thousands of chats dating back years, Google's web interface limits sidebar scrolling to around ~600 chats. You can archive your complete history using Google Takeout:
+1. Open **[Google Takeout (Gemini Pre-selected)](https://takeout.google.com/settings/takeout/custom/gemini)**, click "Next step", and download your archive ZIP.
+2. In the Gemini Exporter Workbench, drag and drop the Takeout ZIP into the **Google Takeout Import** box.
+3. The extension will automatically index and merge your historical chats and media offline!
 
 ---
 
-## 🛡️ Architecture & Layered Design
+## 💡 Using with Obsidian, Notion & Knowledge Bases
 
-Gemini Exporter enforces a strict 4-tier modular architecture across Chrome MV3 boundaries and domain responsibilities:
-
-```
-src/
-  background/                  Extension Service Worker Subsystem
-    background.js              MV3 Service Worker, keepalive heartbeat & session routing
-
-  content/                     Injected Gemini Content Script Subsystem
-    content.js                 In-page DOM observation & sync coordinator
-    content.css                Sync status floating UI & badge styles
-    bootstrap.js               Page token & credential bootstrap
-    hookCredentials.js         MAIN world sandboxed network interceptor & credential bridge
-    domScraper.js              Live document fallback DOM scraper
-    assetFetcher.js            Media, images, and blob streaming fetcher
-
-  core/                        Pure Domain Logic & Engine (Decoupled from DOM)
-    api/
-      geminiClient.js          batchexecute RPC client, HTTP 400 auto-retry & token refresh
-      geminiParser.js          Protocol parsing, turns, attachments & title extraction
-    engine/
-      exportEngine.js          Event-driven AsyncQueue export coordinator & streaming
-      takeoutEngine.js         Google Takeout archive parser & isolated offline media pool
-      chatFormatter.js         Markdown, JSON, OpenAI schema formatters
-      writers/
-        zipWriter.js           JSZip in-memory zip packaging writer
-        fsWriter.js            FileSystem Access API directory tree writer
-    storage/
-      storageService.js        Multi-account slot chrome.storage abstraction
-      formatStore.js           Export format validation & persistence
-    utils/
-      utils.js                 Single Source of Truth: path sanitization, title arbitration, sorting
-      constants.js             Enums, format definitions, storage keys
-      tabService.js            Tab query, routing, and message failover
-      i18n.js                  Bilingual dictionary & translation engine
-
-  ui/                          User Interface Subsystem
-    options/                   Workbench markup & options coordinator
-    popup/                     Browser action popup markup & coordinator
-    tour/                      Interactive onboarding tour guide & styling
-    state/
-      conversationsStore.js    Reactive conversation state & slot manager
-    views/
-      listView.js              Virtual conversation list & selection renderer
-      logView.js               Diagnostic console log view
-      accountView.js           Multi-account slot selector dropdown
-      dialogView.js            Session recovery banner & modal dialogs
-    controllers/
-      exportController.js      Export execution & progress orchestration
-      syncController.js        Incremental & deep history scan coordinator
-      takeoutController.js     Takeout ZIP import & conflict resolution
-      dirHandleController.js   FileSystem Access API IndexedDB persistence
-```
-
-### Key Engineering Invariants
-1. **Core Zero DOM Dependencies**: Core parsing, formatting, path sanitization, and sorting logic have zero DOM dependencies, running identically in Node.js unit tests, Web Workers, and extension pages.
-2. **Strict UI Separation**: `state` handles storage sync, `views` handles HTML rendering, `controllers` orchestrates workflows, and `options.js` acts as a thin coordinator.
-3. **Single Source of Truth (SSoT)**: All path sanitization (`sanitizeRelativePath`), filename cleaning, sorting arbitration (`compareConversations`), and title resolution reside exclusively in `src/core/utils/utils.js`.
-4. **Sandboxed Credential Bridge**: `hookCredentials.js` runs in the host page's MAIN world, sandboxing all interceptions so that extension errors never affect native Google Gemini operations.
+- **Obsidian**: Simply unzip the exported archive directly into your Obsidian Vault folder. All Markdown notes and `assets/` images will render instantly with working relative links.
+- **Notion**: Drag and drop the exported Markdown files into Notion to import them as native workspace pages.
+- **Logseq / Local Folders**: Use the **"Export to Local Folder"** option in the Workbench to write directly to your local notes directory via the FileSystem API.
 
 ---
 
-## 🧪 Testing & Quality Architecture
+## ❓ Frequently Asked Questions (FAQ)
 
-The project adopts a rigorous **Two-Tier Testing Architecture**:
+<details>
+<summary><b>Is my data safe? Does this extension upload my chats anywhere?</b></summary>
+Yes, your data is 100% safe. Gemini Exporter is fully open-source and operates strictly client-side inside your browser. It does not possess any backend server, does not include any analytics or tracking scripts, and never collects or transmits your personal conversations or account credentials.
+</details>
 
-### Tier 1: Fast & Headless CI Gate
-- **Execution Command**: `npm test` (or `python tests/run_tests.py && npx playwright test`)
-- **Coverage**: 22 unit test suites and 14 headless Playwright E2E browser tests (~18 seconds total runtime). Fully self-contained with no external network or real Google credentials required. Enforced on all Pull Requests via GitHub Actions.
+<details>
+<summary><b>Do I need a Gemini API key or paid subscription?</b></summary>
+No! You do not need an API key or a paid Gemini Advanced plan. It works directly with your standard browser session across both free and Advanced accounts.
+</details>
 
-### Tier 2: Live Debug Staging Harness
-- **Execution Command**: `npm run test:live` (or `python scripts/test_live_chat_and_export.py`)
-- **Environment**: Connects to an active Chrome instance with remote debugging port 9222 (`./scripts/open_test_chrome.sh` / `open_test_chrome.ps1`).
-- **Dynamic Dataset Freshness Gate**: Enforces a strict 2-minute dataset freshness gate during automated collaborative development to prevent stale test data reuse.
-
----
-
-## 🔒 Privacy Policy
-
-Gemini Exporter is built with privacy as a foundational principle:
-- **100% Client-Side**: Operates entirely in your browser sandbox with zero remote telemetry, tracking, or data collection.
-- **Zero Credential Transmission**: Never collects, stores, or transmits your Google account credentials, cookies, or conversation contents.
-
-For our full policy, see [PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md).
+<details>
+<summary><b>Why does the web sidebar stop scrolling around 600 chats?</b></summary>
+Google Gemini's web interface enforces a server-side limitation on how far back the sidebar can paginate. This affects the official Gemini web page itself. If you need conversations beyond this threshold, use our built-in <b>Google Takeout Import</b> feature to restore and export your entire history.
+</details>
 
 ---
 
-## 📄 Open Source License
+## 🔒 Privacy & Open Source
 
-This project is licensed under the **[MIT License](./LICENSE)**.
-
-Third-party open-source components used in this project:
-- **[JSZip](https://stuk.github.io/jszip/)** (v3.10.1) - Dual-licensed under MIT / GPLv3. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for details.
-
----
-
-## 📌 Known Issues & Limitations
-
-- **Google Gemini API Sliding Window Ceiling (~600–650 Conversations)**:
-  - **Symptom**: For accounts with a large number of conversations, full sync typically stops after retrieving approximately 600–650 conversations, unable to paginate further into older history;
-  - **Root Cause (Google API Defect)**: In-depth reverse engineering shows that Google Gemini's web conversation listing RPC (`MaZiqc`) uses an accumulative stateless cursor. The continuation token accumulates ~14 bytes of traversal state per conversation. Upon reaching ~650 conversations, the token size hits Google's ~9KB server-side API gateway parameter limit, causing Google to abort with `BardErrorInfo 1096` (**Note: even on the official `gemini.google.com` interface, manually scrolling down the sidebar will crash the page at the same threshold**);
-  - **Recommendation**: The extension features **real-time streaming persistence**, an **automated Takeout Limit guidance modal**, and a **Stop Sync** button to ensure all retrieved conversations are safely saved. We recommend using **"Sync Latest"** for regular incremental backups, and using Google Takeout for comprehensive archiving of older history.
+- **Privacy Policy**: Read our detailed [Privacy Policy](./docs/PRIVACY_POLICY.md).
+- **License**: Released under the **[MIT License](./LICENSE)**.
+- **Developers & Contributors**: For internal architecture, subsystem design, and automated testing guides, please see the [Architecture Guide](./docs/architecture.md).
 
 ---
 
 ## ⚠️ Disclaimer
 
-- **Gemini Exporter** is an independent, open-source personal data archiving tool maintained by individual developers. It is **not affiliated with, sponsored by, or endorsed by Google LLC or Google Gemini**.
+- **Gemini Exporter** is an independent, open-source personal backup tool. It is **not affiliated with, sponsored by, or endorsed by Google LLC or Google Gemini**.
 - "Google" and "Gemini" are registered trademarks of Google LLC.
-- This project is intended for personal data backup, study, and research purposes only. Users are solely responsible for ensuring compliance with applicable terms of service.

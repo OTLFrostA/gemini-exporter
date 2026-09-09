@@ -414,7 +414,7 @@ class VisualTestingAgent:
             const items = Array.from(document.querySelectorAll('#list .item'));
             const targets = [];
             const priorityKeywords = ['cat', 'astronaut', '猫咪', '图片', 'image', 'decorator', '装饰器', 'python'];
-            const goldenIds = ['1cea7e48cc166b57', '1bd028d5c5b0c0e2'];
+            const goldenIds = ['0135c12ca9983ec8', '3b7b7457916825bb', '1bd028d5c5b0c0e2', '1cea7e48cc166b57'];
 
             items.forEach((item, idx) => {
                 const cid = item.dataset.chatId || '';
@@ -612,16 +612,30 @@ class VisualTestingAgent:
         # 10. 执行全量导出规范断言器 (ExportSpecificationAsserter)
         golden_chats = [
             {
-                "id": "1cea7e48cc166b57",
-                "name": "Python 装饰器函数",
-                "expected_snippets": ["Python", "def ", "functools"],
-                "syntax_checks": ["codeblock"]
+                "id": "0135c12ca9983ec8",
+                "name": "多轮图片分析（用户连续上传对比几何图）",
+                "expected_snippets": ["图形", "颜色"],
+                "expected_upload_images": 3,
+                "syntax_checks": ["image"]
+            },
+            {
+                "id": "3b7b7457916825bb",
+                "name": "量子纠错编码技术（官方原生 Deep Research 独立研报）",
+                "expected_snippets": ["量子", "纠错", "Surface"],
+                "expected_research_docs": 1
             },
             {
                 "id": "1bd028d5c5b0c0e2",
-                "name": "火星宇航员猫咪",
+                "name": "火星宇航员猫咪（AI 生成图片 Imagen）",
                 "expected_snippets": ["astronaut cat"],
+                "expected_generated_images": 1,
                 "syntax_checks": ["image"]
+            },
+            {
+                "id": "1cea7e48cc166b57",
+                "name": "Python日志与耗时装饰器设计（高质量技术代码块）",
+                "expected_snippets": ["Python", "def ", "functools"],
+                "syntax_checks": ["codeblock"]
             }
         ]
         asserter = ExportSpecificationAsserter(extract_dir)

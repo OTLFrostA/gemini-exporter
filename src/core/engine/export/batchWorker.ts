@@ -249,6 +249,65 @@ const resolveTitle = (chat?: any) => {
             }
         }
 
+        // 2b. Extract or synthesize Deep Research document entities
+        if (Array.isArray(chat.messages) && chat.messages.length > 0) {
+            const shortScope = nid ? `${nid.slice(-6)}_` : '';
+            for (let mi = 0; mi < chat.messages.length; mi++) {
+                const m = chat.messages[mi];
+                if (m.role !== 'model' || !m.content || typeof m.content !== 'string') continue;
+
+                const hasExistingDoc = (m.attachments && m.attachments.some((a: any) => a.type === 'file' && a.contentMarkdown)) ||
+                                       (m.documents && m.documents.some((d: any) => d.contentMarkdown));
+                if (hasExistingDoc) continue;
+
+                const isHtmlReport = /<h1[^>]*>/i.test(m.content) && m.content.length > 3000;
+                const isMdReport = /(?:^|\n)#\s+[^\n]+/m.test(m.content) && m.content.length > 3000;
+
+                if (isHtmlReport || isMdReport) {
+                    let docTitle = '';
+                    let docMarkdown = '';
+
+                    if (isHtmlReport) {
+                        const h1Match = m.content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                        if (h1Match) {
+                            docTitle = cleanTitle(h1Match[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+                        }
+                        const convHtml = (globalThis as any).ChatFormatter?.convertHtmlToMarkdown;
+                        docMarkdown = convHtml ? convHtml(m.content) : m.content.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_match: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
+                    } else {
+                        const h1Match = m.content.match(/(?:^|\n)#\s+([^\n]+)/);
+                        if (h1Match) {
+                            docTitle = cleanTitle(h1Match[1]);
+                        }
+                        docMarkdown = m.content;
+                    }
+
+                    if (!docTitle) docTitle = 'Deep Research Report';
+                    const safeDocTitle = docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+                    const localName = `files/${shortScope}${safeDocTitle}.md`;
+
+                    if (!docMarkdown.trim().startsWith('#')) {
+                        docMarkdown = `# ${docTitle}\n\n${docMarkdown.trim()}`;
+                    }
+
+                    const docObj = {
+                        type: 'file',
+                        id: `${nid}_doc_${mi + 1}`,
+                        title: docTitle,
+                        name: `${safeDocTitle}.md`,
+                        localName,
+                        contentMarkdown: docMarkdown,
+                        source: 'extracted-report'
+                    };
+
+                    m.documents = m.documents || [];
+                    m.attachments = m.attachments || [];
+                    m.documents.push(docObj);
+                    m.attachments.push(docObj);
+                }
+            }
+        }
+
         // 3. Error or empty handling
         if (chat.error || chat._empty) {
             const isConfirmedDeleted = !!chat.isDeleted || !!chat._debug?.isNotFound || !!chat._debug?.domDebug?.isNotFound;

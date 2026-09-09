@@ -16,6 +16,7 @@ tests/helpers/export_spec_asserter.py
 import os
 import re
 import json
+import hashlib
 
 
 class ExportSpecificationAsserter:
@@ -179,6 +180,14 @@ class ExportSpecificationAsserter:
         if '["wrb.fr"' in content or '"hNvQHb"' in content or '"MaZiqc"' in content:
             self.log_error(file_name, "检测到泄露的原始 batchexecute RPC 包装数组")
 
+    def _find_physical_file(self, clean_ref):
+        target_name = os.path.basename(clean_ref)
+        for root, _, files in os.walk(self.export_root_dir):
+            for f in files:
+                if f == target_name:
+                    return os.path.join(root, f)
+        return None
+
     def assert_multimedia_assets(self, content, file_name):
         """检查 Markdown 引用的图片物理文件是否存在且非空"""
         img_refs = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
@@ -187,21 +196,140 @@ class ExportSpecificationAsserter:
                 continue  # 外部网络图链接
             # 本地图片相对路径
             clean_ref = ref.split("?")[0].split("#")[0]
-            # 支持 images/xxx.png 或 assets/xxx.png
-            # 搜索整个解压目录下是否存在此文件
-            found = False
-            for root, _, files in os.walk(self.export_root_dir):
-                for f in files:
-                    if f == os.path.basename(clean_ref):
-                        full_img_p = os.path.join(root, f)
-                        if os.path.getsize(full_img_p) > 100:
-                            found = True
-                            break
-                if found:
-                    break
-
-            if not found:
+            full_img_p = self._find_physical_file(clean_ref)
+            if not full_img_p or os.path.getsize(full_img_p) < 100:
                 self.log_error(file_name, f"Markdown 中引用的本地图片资源物理缺失或体积过小: {clean_ref}")
+
+    def assert_multi_turn_uploads(self, matched_file, content, expected_count):
+        """断言多轮用户上传：独立图片存在、MD5 互不相同（无覆盖）、角色归属正确（非 AI 生图）"""
+        print(f"   [{matched_file}] 📸 深度断言：多轮用户上传与物理去重 (预期至少 {expected_count} 张)...")
+        parts = re.split(r'^(## 👤 你|## 🤖 Gemini)', content, flags=re.MULTILINE)
+        user_blocks = []
+        model_blocks = []
+        for i in range(1, len(parts), 2):
+            role = parts[i]
+            body = parts[i+1] if i+1 < len(parts) else ""
+            if "👤" in role:
+                user_blocks.append(body)
+            elif "🤖" in role:
+                model_blocks.append(body)
+
+        # 1. 提取用户轮次中的图片引用
+        user_img_refs = []
+        for ub in user_blocks:
+            refs = re.findall(r'!\[[^\]]*\]\(([^)]+)\)', ub)
+            for r in refs:
+                if not r.startswith("http://") and not r.startswith("https://"):
+                    clean = r.split("?")[0].split("#")[0]
+                    user_img_refs.append(clean)
+
+        if len(user_img_refs) < expected_count:
+            self.log_error(matched_file, f"多轮用户上传图片引用数不足: 找到 {len(user_img_refs)} 张，预期至少 {expected_count} 张")
+            return
+
+        # 2. 检查每张图片的物理存在并计算 MD5
+        md5_map = {}
+        for ref in user_img_refs:
+            fpath = self._find_physical_file(ref)
+            if not fpath or not os.path.isfile(fpath):
+                self.log_error(matched_file, f"用户上传图片物理文件缺失: {ref}")
+                continue
+            try:
+                with open(fpath, "rb") as f:
+                    bin_data = f.read()
+                f_md5 = hashlib.md5(bin_data).hexdigest()
+                md5_map[fpath] = (f_md5, len(bin_data))
+            except Exception as e:
+                self.log_error(matched_file, f"读取图片文件失败: {fpath} ({e})")
+
+        # 3. MD5 唯一性断言：绝对不能存在相同 MD5（杜绝同名覆盖或 Takeout 检索首图覆盖 Bug）
+        all_md5s = [info[0] for info in md5_map.values()]
+        unique_md5s = set(all_md5s)
+        if len(unique_md5s) < len(all_md5s):
+            dup_md5s = [m for m in all_md5s if all_md5s.count(m) > 1]
+            self.log_error(matched_file, f"多轮用户上传图片出现严重 MD5 重复碰撞，资源被同一张图覆盖！重复 MD5: {set(dup_md5s)}")
+        else:
+            self.log_pass(matched_file, f"多轮用户上传图片物理 MD5 100% 互不相同，零碰撞覆盖 (共 {len(unique_md5s)} 张不同原图: {list(unique_md5s)[:3]}...)")
+
+        # 4. 角色归属断言：模型回复中绝对不能包含 ![Generated Image] 指向用户图片
+        for mb in model_blocks:
+            gen_img_refs = re.findall(r'!\[(?:Generated Image|生成图片)\]\(([^)]+)\)', mb, flags=re.IGNORECASE)
+            for gr in gen_img_refs:
+                clean_gr = os.path.basename(gr.split("?")[0].split("#")[0])
+                for ur in user_img_refs:
+                    if os.path.basename(ur) == clean_gr:
+                        self.log_error(matched_file, f"用户上传图片 {clean_gr} 被错误注入为模型生成的 ![Generated Image]！")
+
+    def assert_deep_research_documents(self, matched_file, content, cid, min_docs=1):
+        """断言 Deep Research 深度研究报告：files/ 目录存在、文档存在且非空、正文引用"""
+        print(f"   [{matched_file}] 📑 深度断言：AI Deep Research 深度研究生成文档 (预期至少 {min_docs} 篇)...")
+        short_scope = cid[-6:] if cid and len(cid) >= 6 else (cid or "")
+
+        # 检查 files/ 目录
+        all_doc_files = []
+        for root, _, files in os.walk(self.export_root_dir):
+            if os.path.basename(root) == "files" or "/files" in root or "\\files" in root:
+                for f in files:
+                    if f.endswith(".md"):
+                        all_doc_files.append(os.path.join(root, f))
+
+        matching_docs = []
+        for df in all_doc_files:
+            fname = os.path.basename(df)
+            if (short_scope and short_scope in fname) or (cid and cid in fname):
+                matching_docs.append(df)
+
+        if len(matching_docs) < min_docs:
+            self.log_error(matched_file, f"Deep Research 生成文档数不足: 找到 {len(matching_docs)} 篇 (全包共 {len(all_doc_files)} 篇)，预期至少 {min_docs} 篇 (shortScope: {short_scope})")
+            return
+
+        for df in matching_docs:
+            fsize = os.path.getsize(df)
+            fname = os.path.basename(df)
+            if fsize < 100:
+                self.log_error(fname, f"Deep Research 生成文档体积过小 ({fsize} bytes)，疑似空文件或损坏")
+            else:
+                with open(df, "r", encoding="utf-8", errors="ignore") as f:
+                    doc_text = f.read()
+                if "# " not in doc_text:
+                    self.log_error(fname, "Deep Research 生成文档缺少顶级一级标题 ('# ')")
+                else:
+                    self.log_pass(fname, f"Deep Research 独立报告完整有效 ({fsize} bytes)")
+
+        self.log_pass(matched_file, f"Deep Research 文档归档通过，已生成 {len(matching_docs)} 篇完整研究报告")
+
+    def assert_ai_generated_images(self, matched_file, content, min_images=1):
+        """断言 AI 生成图片 (Imagen)：模型回复中引用、本地图片物理存在且合法"""
+        print(f"   [{matched_file}] 🎨 深度断言：AI 生成图片 (Imagen)...")
+        parts = re.split(r'^(## 👤 你|## 🤖 Gemini)', content, flags=re.MULTILINE)
+        model_blocks = []
+        for i in range(1, len(parts), 2):
+            role = parts[i]
+            body = parts[i+1] if i+1 < len(parts) else ""
+            if "🤖" in role:
+                model_blocks.append(body)
+
+        model_img_refs = []
+        for mb in model_blocks:
+            refs = re.findall(r'!\[[^\]]*\]\(([^)]+)\)', mb)
+            for r in refs:
+                if not r.startswith("http://") and not r.startswith("https://"):
+                    model_img_refs.append(r.split("?")[0].split("#")[0])
+
+        if len(model_img_refs) < min_images:
+            self.log_error(matched_file, f"模型回复中未找到 AI 生成图片引用 (找到 {len(model_img_refs)}，预期至少 {min_images})")
+            return
+
+        for ref in model_img_refs:
+            fpath = self._find_physical_file(ref)
+            if not fpath or not os.path.isfile(fpath):
+                self.log_error(matched_file, f"AI 生成图片物理文件缺失: {ref}")
+            else:
+                fsize = os.path.getsize(fpath)
+                if fsize < 1000:
+                    self.log_error(matched_file, f"AI 生成图片文件过小 ({fsize} bytes): {ref}")
+                else:
+                    self.log_pass(matched_file, f"AI 生成图片物理落地完整 ({os.path.basename(fpath)}, {fsize} bytes)")
 
     def assert_golden_conversations(self, expected_golden_chats):
         """断言测试账号中已知特征对话的内容和结构"""
@@ -256,6 +384,21 @@ class ExportSpecificationAsserter:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含 Markdown 表格，但未找到")
                 elif syn == "image" and "![" not in matched_content:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含图片附件引用 ('![]')，但未找到")
+
+            # 校验多轮用户上传与 MD5 去重
+            exp_upload_imgs = gold.get("expected_upload_images")
+            if exp_upload_imgs:
+                self.assert_multi_turn_uploads(matched_file, matched_content, exp_upload_imgs)
+
+            # 校验 Deep Research 生成文档
+            exp_research_docs = gold.get("expected_research_docs")
+            if exp_research_docs:
+                self.assert_deep_research_documents(matched_file, matched_content, cid, exp_research_docs)
+
+            # 校验 AI 生成图片 (Imagen)
+            exp_gen_imgs = gold.get("expected_generated_images")
+            if exp_gen_imgs:
+                self.assert_ai_generated_images(matched_file, matched_content, exp_gen_imgs)
 
 
 if __name__ == "__main__":
