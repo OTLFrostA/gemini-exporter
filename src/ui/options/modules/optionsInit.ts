@@ -224,7 +224,7 @@ export async function loadStore(force: boolean = false): Promise<any> {
             ? Store.normalizeAndDeduplicate(incoming)
             : { processed: (incoming || []).slice().sort(compareConversations), hasDirtyTitles: false };
 
-        if (hasDirtyTitles && Storage) {
+        if ((hasDirtyTitles || processed.length !== (incoming || []).length) && Storage) {
             Storage.setConversations(slot, processed).catch(() => {});
         }
 
