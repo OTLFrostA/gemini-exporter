@@ -216,6 +216,10 @@ export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: 
         if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
 
         const nid = normId(c.id);
+        if (utils && typeof utils.isReservedRoute === 'function' && (utils.isReservedRoute(nid) || utils.isReservedRoute(c.id))) {
+            hasDirtyTitles = true;
+            return;
+        }
         const resolved = uResolveTitle(c);
         dedupMap.set(nid, {
             ...c,

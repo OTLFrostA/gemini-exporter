@@ -48,6 +48,8 @@ export interface GeminiUtilsModule {
     sanitizeFileName: (name?: string | null, fallback?: string) => string;
     sanitizeRelativePath: (p?: string | null, defaultName?: string) => string;
     normId: (id?: string | number | null) => string;
+    isReservedRoute: (id?: string | number | null) => boolean;
+    RESERVED_ROUTES: Set<string>;
     resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
@@ -136,6 +138,17 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
     function normId(id?: string | number | null): string {
         if (!id) return '';
         return String(id).replace(/^c_/, '').trim();
+    }
+
+    const RESERVED_ROUTES = new Set([
+        'download', 'settings', 'prompts', 'archive', 'trash', 'share',
+        'activity', 'help', 'feedback', 'gems', 'explore', 'privacy', 'terms', 'updates', 'faq'
+    ]);
+
+    function isReservedRoute(id?: string | number | null): boolean {
+        if (!id) return false;
+        const clean = normId(id).toLowerCase();
+        return RESERVED_ROUTES.has(clean);
     }
 
     /**
@@ -479,6 +492,12 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
             if (/accounts\.google\.com|SignOutOptions/i.test(u)) continue;
 
             const nid = normId(item.id);
+            if (isReservedRoute(nid) || isReservedRoute(item.id) || /\/app\/(download|settings|prompts|archive|trash|share|activity|help|feedback|gems|explore|privacy|terms|updates|faq)($|\/|\?)/i.test(u)) {
+                changedCount++;
+                hasDirtyTitles = true;
+                continue;
+            }
+
             const existing = dedupMap.get(nid);
             const res = mergeConversation(existing, item, options);
             if (res.isChanged) changedCount++;
@@ -498,6 +517,8 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
         sanitizeFileName,
         sanitizeRelativePath,
         normId,
+        isReservedRoute,
+        RESERVED_ROUTES,
         resolveTitle,
         setTitleBySource,
         getEffectiveTimestamp,
@@ -515,6 +536,8 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
         sanitizeFileName,
         sanitizeRelativePath,
         normId,
+        isReservedRoute,
+        RESERVED_ROUTES,
         resolveTitle,
         setTitleBySource,
         getEffectiveTimestamp,
