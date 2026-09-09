@@ -73,4 +73,8 @@ python3 scripts/test_live_chat_and_export.py --skip-chat
 
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
+
+# 运行纯视觉 AI 盲测与 UI 质检自动化套件 (气泡遮挡与物理 Hit-Testing 检测)
+npm run test:visual
+# 或带多模态审查: python3 scripts/test_visual_agent.py --ai-review
 ```
