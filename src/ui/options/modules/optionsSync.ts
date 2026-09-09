@@ -136,7 +136,7 @@ function bindSyncButtons(): void {
                         if (progText) progText.textContent = '';
                     }, 2500);
                     if (__loadStore) __loadStore();
-                    const currentCount = count || res?.count || (Store && (Store as any).getAllConversations ? (Store as any).getAllConversations().length : 0);
+                    const currentCount = count || res?.count || (Store && typeof (Store as any).getConversations === 'function' ? (Store as any).getConversations().length : 0);
                     const protocol = getProtocol();
                     const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
                     const isLimit = hitGoogleLimit || (currentCount >= slidingLimit);
@@ -148,7 +148,7 @@ function bindSyncButtons(): void {
                     if (progText) progText.textContent = errMsg;
                     const protocol = getProtocol();
                     const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
-                    const currentCount = (Store && (Store as any).getAllConversations) ? (Store as any).getAllConversations().length : 0;
+                    const currentCount = (Store && typeof (Store as any).getConversations === 'function') ? (Store as any).getConversations().length : 0;
                     const isLimit = details?.hitGoogleLimit || (currentCount >= slidingLimit) || (details?.count >= slidingLimit);
                     if (isLimit && __maybePromptTakeout) {
                         await __maybePromptTakeout(currentCount || details?.count || slidingLimit, !!details?.hitGoogleLimit);

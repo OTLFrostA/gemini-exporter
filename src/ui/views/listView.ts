@@ -116,9 +116,10 @@ export function render(
 
     const expMap = exportedIds || {};
     const htmlArr: string[] = [];
+    const idxMap = new Map(conversations.map((c, idx) => [c as object, idx] as const));
 
     filtered.forEach((c) => {
-        const origIdx = conversations.indexOf(c);
+        const origIdx = idxMap.get(c as object) ?? -1;
         const nid = String(c.id || '').replace(/^c_/, '');
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
         let isChecked = false;

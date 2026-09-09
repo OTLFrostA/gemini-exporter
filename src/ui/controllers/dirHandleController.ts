@@ -73,6 +73,12 @@ export async function restoreSavedDirHandle(): Promise<any> {
     try {
         const handle = await getStoredDirHandle();
         if (handle) {
+            const ok = await verifyDirPermission(handle);
+            if (!ok) {
+                currentDirHandle = null;
+                console.warn('[DirHandle] restored handle lost permission, need re-select');
+                return null;
+            }
             currentDirHandle = handle;
             return handle;
         }
