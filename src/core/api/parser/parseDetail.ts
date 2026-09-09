@@ -301,6 +301,23 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
             let msgs: any[] = [];
             let dedupSet = new Set<string>();
             let docDedupSet = new Set<string>();
+            let usedLocalNames = new Set<string>();
+            const getUniqueLocalName = (preferredPath: string): string => {
+                if (!usedLocalNames.has(preferredPath)) {
+                    usedLocalNames.add(preferredPath);
+                    return preferredPath;
+                }
+                const dotIdx = preferredPath.lastIndexOf('.');
+                const base = dotIdx !== -1 ? preferredPath.slice(0, dotIdx) : preferredPath;
+                const ext = dotIdx !== -1 ? preferredPath.slice(dotIdx) : '';
+                let idx = 2;
+                while (usedLocalNames.has(`${base}_${idx}${ext}`)) {
+                    idx++;
+                }
+                const unique = `${base}_${idx}${ext}`;
+                usedLocalNames.add(unique);
+                return unique;
+            };
             let imageSeq = { value: 1 };
             let schemaDriftWarnings: string[] = [];
             let rev = [...turns].reverse();
@@ -328,7 +345,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                         images: uImgs.length ? uImgs.map((i: ImageAttachment) => ({
                             ...i,
                             resolvedUrl: highResVariant(i.sourceUrl),
-                            localName: `assets/${shortScope}${(i.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`,
+                            localName: getUniqueLocalName(`assets/${shortScope}${(i.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`),
                             type: "image",
                             isImage: true
                         })) : void 0,
@@ -341,7 +358,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                             links: [],
                             contentMarkdown: void 0,
                             url: f.sourceUrl,
-                            localName: `files/${shortScope}${(f.fileName || "doc.md").replace(/[\\/:*?"<>|]/g, "_")}`,
+                            localName: getUniqueLocalName(`files/${shortScope}${(f.fileName || "doc.md").replace(/[\\/:*?"<>|]/g, "_")}`),
                             type: "file"
                         })) : void 0
                     });
@@ -419,7 +436,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                                         links: [...parsedPrimary.links, ...parsedAlt.links],
                                         contentMarkdown: md,
                                         url: "",
-                                        localName: `files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60)}.md`,
+                                        localName: getUniqueLocalName(`files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60)}.md`),
                                         type: "file"
                                     };
                                 }).filter(Boolean);
@@ -451,7 +468,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                                 images: filteredImages.length ? filteredImages.map((img: any) => ({
                                     ...img,
                                     resolvedUrl: highResVariant(img.sourceUrl),
-                                    localName: `assets/${shortScope}${(img.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`,
+                                    localName: getUniqueLocalName(`assets/${shortScope}${(img.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`),
                                     type: "image"
                                 })) : void 0,
                                 documents: docDetails.length ? docDetails : void 0
