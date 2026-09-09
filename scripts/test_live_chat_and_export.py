@@ -199,14 +199,20 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         # -------------------------------------------------------------
         # Step 2 校验：扫描同步引导 (2 / 5) 并触发 #btnIncrementalScan
         # -------------------------------------------------------------
-        step2_info = cdp.eval("""
-        (() => {
-            const badge = document.querySelector('.tour-step-badge')?.textContent || '';
-            const step = window.TourGuide ? window.TourGuide.getCurrentStep() : -1;
-            return { badge, step };
-        })()
-        """)
-        if "2 / 5" not in step2_info.get("badge", "") and "2 / 4" not in step2_info.get("badge", ""):
+        step2_info = {}
+        for _ in range(20):
+            step2_info = cdp.eval("""
+            (() => {
+                const badge = document.querySelector('.tour-step-badge')?.textContent || '';
+                const step = window.TourGuide ? window.TourGuide.getCurrentStep() : -1;
+                return { badge, step };
+            })()
+            """) or {}
+            if ("2 / 5" in step2_info.get("badge", "") or "2 / 4" in step2_info.get("badge", "")) and step2_info.get("step") == 1:
+                break
+            time.sleep(0.15)
+
+        if step2_info.get("step") != 1:
             print(f"❌ 向导 Step 2 校验失败: {step2_info}")
             return False
         print("   ✓ [向导 2/5] 扫描同步步骤已就绪，触发 #btnIncrementalScan 动作推进...")
