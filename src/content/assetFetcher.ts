@@ -3,6 +3,63 @@ import { contentContext } from './contentContext.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024; // 超过50MB避免 FileReader base64 内存翻倍，交由 Takeout 兜底
 const LARGE_FILE_WARN_SIZE = 30 * 1024 * 1024;
+const GG_CHAIN_MAX_HOPS = 5;
+
+export function ensureAlr(url: string): string {
+    if (!url || typeof url !== 'string') return url;
+    if (url.includes('alr=yes')) return url;
+    return url.includes('?') ? url + '&alr=yes' : url + '?alr=yes';
+}
+
+export function isGgChainUrl(url: string): boolean {
+    if (!url || typeof url !== 'string') return false;
+    return url.includes('/gg/') || url.includes('/rd-gg/');
+}
+
+export async function fetchGgChain(url: string, init?: RequestInit): Promise<Response> {
+    let current = ensureAlr(url);
+    let lastRes: Response | null = null;
+    const baseInit = init || {};
+
+    for (let i = 0; i < GG_CHAIN_MAX_HOPS; i++) {
+        try {
+            const res = await fetch(current, { ...baseInit, signal: AbortSignal.timeout(8000) });
+            lastRes = res;
+            if (!res.ok) return res;
+
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            if (ct.startsWith('image/')) return res;
+
+            // gg/rd-gg chain: text/plain or text/html body contains next redirect URL
+            if (ct.includes('text/plain') || ct.includes('text/html')) {
+                let txt = '';
+                try {
+                    txt = await res.clone().text();
+                } catch {
+                    return res;
+                }
+                const next = extractLh3(txt);
+                if (next && next !== current) {
+                    current = ensureAlr(next);
+                    continue;
+                }
+            }
+            return res;
+        } catch (err) {
+            if (contentContext.isDevMode()) {
+                console.debug('[GemExporter:assetFetcher] fetchGgChain hop error', i, current.slice(0, 80), err);
+            }
+            // If hop threw without alr, retry once with ensureAlr
+            const withAlr = ensureAlr(current);
+            if (withAlr !== current) {
+                current = withAlr;
+                continue;
+            }
+            break;
+        }
+    }
+    return lastRes!;
+}
 
 export function toHighRes(url: string, variant = 's1024-rj'): string {
     try {
@@ -38,8 +95,13 @@ export function toDataUrl(blob: Blob): Promise<string> {
 }
 
 export function extractLh3(text: string): string | null {
-    const m = text.match(/https:\/\/lh3\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
-    return m ? m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
+    if (!text || typeof text !== 'string') return null;
+    const clean = text
+        .replace(/\\\//g, '/')
+        .replace(/\\u003d/gi, '=')
+        .replace(/\\u0026/gi, '&');
+    const m = clean.match(/https:\/\/lh[3-6]\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
+    return m ? m[0] : null;
 }
 
 export function extractGucUrl(text: string): string | null {
@@ -151,10 +213,23 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
         let lastErr = '';
         for (const u of urlsToTry) {
             try {
-                const res = await fetch(u, { credentials: 'include', signal: AbortSignal.timeout(15000) });
-                if (!res.ok) {
-                    lastErr = `HTTP ${res.status}`;
+                const init: RequestInit = { credentials: 'include', signal: AbortSignal.timeout(15000) };
+                if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher] try image', u.slice(0, 120));
+                const res = isGgChainUrl(u) ? await fetchGgChain(u, init) : await fetch(u, init);
+                if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher] res image', u.slice(0, 60), res?.status, res?.headers?.get('content-type'));
+                if (!res || !res.ok) {
+                    lastErr = `HTTP ${res?.status || 'unknown'}`;
                     continue;
+                }
+                const ct0 = (res.headers.get('content-type') || '').toLowerCase();
+                // if chain ended on text/plain without image, treat as failure to try next candidate
+                if (ct0.includes('text/plain') || ct0.includes('text/html')) {
+                    // try to see if it's actually an image mis-labelled - check blob type
+                    const blobProbe = await res.clone().blob().catch(() => null);
+                    if (!blobProbe || !blobProbe.type.startsWith('image/')) {
+                        lastErr = `unexpected ct ${ct0}`;
+                        continue;
+                    }
                 }
                 const blob = await res.blob();
                 if (!blob || blob.size === 0) {
@@ -216,47 +291,48 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
         }
 
         try {
-            const r = await fetch(url, {
+            const init2: RequestInit = {
                 credentials: 'include',
                 headers: { Accept: '*/*' },
                 signal: AbortSignal.timeout(15000)
-            });
-            if (r.ok) {
+            };
+            const isGg = isGgChainUrl(url);
+            const r = isGg ? await fetchGgChain(url, init2) : await fetch(url, init2);
+            if (r && r.ok) {
                 const ct = (r.headers.get('content-type') || '').toLowerCase();
-                const blob = await r.blob();
-                if (blob.size > MAX_BASE64_BLOB_SIZE) {
-                    // Hard cap: base64-encoding a >50MB blob (~66MB string) and cloning
-                    // it through sendResponse spikes MV3 memory. Refuse instead of
-                    // falling through to the image/file refetch paths; Takeout import
-                    // is the supported route for oversized assets.
-                    sendResponse({
-                        success: false,
-                        error: `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`
-                    });
-                    return;
-                } else if (blob.size > 0 && (!ct.startsWith('text/html') || blob.size > 2000)) {
-                    if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
-                        try {
-                            const dataBuffer = await blob.arrayBuffer();
-                            sendResponse({
-                                success: true,
-                                dataBuffer: dataBuffer,
-                                mime: blob.type || ct,
-                                size: blob.size
-                            });
-                            return;
-                        } catch (e) {
-                            if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
+                const isTextResponse = ct.startsWith('text/plain') || ct.startsWith('text/html');
+                if (!isGg || !isTextResponse) {
+                    const blob = await r.blob();
+                    if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                        sendResponse({
+                            success: false,
+                            error: `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`
+                        });
+                        return;
+                    } else if (blob.size > 0 && (!isTextResponse || blob.size > 2000)) {
+                        if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                            try {
+                                const dataBuffer = await blob.arrayBuffer();
+                                sendResponse({
+                                    success: true,
+                                    dataBuffer: dataBuffer,
+                                    mime: blob.type || ct,
+                                    size: blob.size
+                                });
+                                return;
+                            } catch (e) {
+                                if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
+                            }
                         }
+                        const dataUrl = await toDataUrl(blob);
+                        sendResponse({
+                            success: true,
+                            dataBase64: dataUrl.split(',')[1],
+                            mime: blob.type || ct,
+                            size: blob.size
+                        });
+                        return;
                     }
-                    const dataUrl = await toDataUrl(blob);
-                    sendResponse({
-                        success: true,
-                        dataBase64: dataUrl.split(',')[1],
-                        mime: blob.type || ct,
-                        size: blob.size
-                    });
-                    return;
                 }
             }
         } catch (e) {
@@ -282,13 +358,16 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
 }
 
 export const AssetFetcher = {
+    ensureAlr,
     toHighRes,
     toDataUrl,
     extractLh3,
     extractGucUrl,
     handleGetFileBlob,
     handleGetImageBlob,
-    downloadAssetDirect
+    downloadAssetDirect,
+    fetchGgChain,
+    isGgChainUrl
 };
 
 

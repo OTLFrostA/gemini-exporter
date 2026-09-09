@@ -126,3 +126,85 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
     // 不应泄露裸露的 image_generation_content 占位行
     assert.ok(!res.includes('http://googleusercontent.com/image_generation_content/2_557'));
 });
+
+test('assetFetcher - ensureAlr appends or preserves alr=yes parameter', () => {
+    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const ensureAlr = AssetFetcher.ensureAlr || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.ensureAlr);
+
+    assert.strictEqual(ensureAlr('https://lh3.googleusercontent.com/gg/abc'), 'https://lh3.googleusercontent.com/gg/abc?alr=yes');
+    assert.strictEqual(ensureAlr('https://lh3.googleusercontent.com/gg/abc?foo=bar'), 'https://lh3.googleusercontent.com/gg/abc?foo=bar&alr=yes');
+    assert.strictEqual(ensureAlr('https://lh3.googleusercontent.com/gg/abc?alr=yes'), 'https://lh3.googleusercontent.com/gg/abc?alr=yes');
+    assert.strictEqual(ensureAlr('https://lh3.googleusercontent.com/gg/abc?foo=bar&alr=yes'), 'https://lh3.googleusercontent.com/gg/abc?foo=bar&alr=yes');
+});
+
+test('assetFetcher - extractLh3 parses lh3-lh6 and unescapes json characters', () => {
+    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const extractLh3 = AssetFetcher.extractLh3 || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.extractLh3);
+
+    const normal = 'https://lh3.google.com/rd-gg/abc123=s512?alr=yes';
+    assert.strictEqual(extractLh3(normal), normal);
+
+    const escaped = '[\"https:\\/\\/lh4.googleusercontent.com\\/rd-gg\\/xyz\\u003d512\\u0026alr=yes\"]';
+    assert.strictEqual(extractLh3(escaped), 'https://lh4.googleusercontent.com/rd-gg/xyz=512&alr=yes');
+});
+
+test('assetFetcher - fetchGgChain follows multi-hop ALR text redirects to final image', async () => {
+    const AssetFetcher = require('../src/content/assetFetcher.js');
+    const fetchGgChain = AssetFetcher.fetchGgChain || (AssetFetcher.AssetFetcher && AssetFetcher.AssetFetcher.fetchGgChain);
+
+    const oldFetch = (global as any).fetch;
+    const callLog: string[] = [];
+
+    try {
+        (global as any).fetch = async (url: string) => {
+            callLog.push(url);
+            if (url.includes('/gg/start')) {
+                // Hop 0: returns text/plain pointing to rd-gg/hop1 (without alr=yes)
+                return {
+                    ok: true,
+                    status: 200,
+                    headers: new Map([['content-type', 'text/plain; charset=UTF-8']]),
+                    clone: () => ({
+                        text: async () => 'https://lh3.google.com/rd-gg/hop1'
+                    })
+                };
+            } else if (url.includes('/rd-gg/hop1')) {
+                // Hop 1: returns text/plain pointing to rd-gg/final
+                return {
+                    ok: true,
+                    status: 200,
+                    headers: new Map([['content-type', 'text/plain; charset=UTF-8']]),
+                    clone: () => ({
+                        text: async () => 'https://lh3.googleusercontent.com/rd-gg/final'
+                    })
+                };
+            } else if (url.includes('/rd-gg/final')) {
+                // Hop 2: returns binary image/jpeg
+                const fakeBinary = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4]);
+                return {
+                    ok: true,
+                    status: 200,
+                    headers: new Map([['content-type', 'image/jpeg']]),
+                    blob: async () => ({
+                        size: fakeBinary.length,
+                        type: 'image/jpeg',
+                        arrayBuffer: async () => fakeBinary.buffer
+                    })
+                };
+            }
+            return { ok: false, status: 404, headers: new Map() };
+        };
+
+        const res = await fetchGgChain('https://lh3.googleusercontent.com/gg/start');
+        assert.ok(res, 'Must return response');
+        assert.strictEqual(res.ok, true);
+        assert.strictEqual(res.headers.get('content-type'), 'image/jpeg');
+        assert.strictEqual(callLog.length, 3, 'Must follow 3 hops to resolve image');
+        // Ensure every hop was queried with alr=yes
+        assert.ok(callLog[0].includes('alr=yes'), 'Hop 0 must include alr=yes');
+        assert.ok(callLog[1].includes('alr=yes'), 'Hop 1 must enforce alr=yes');
+        assert.ok(callLog[2].includes('alr=yes'), 'Hop 2 must enforce alr=yes');
+    } finally {
+        (global as any).fetch = oldFetch;
+    }
+});
