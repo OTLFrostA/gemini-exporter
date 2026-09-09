@@ -23,7 +23,7 @@ export type MessageAction =
     | 'startExport';
 
 export interface BaseMessage {
-    action: MessageAction | string;
+    action: MessageAction;
     [key: string]: any;
 }
 
