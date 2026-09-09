@@ -91,6 +91,30 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     await expect(popover).toBeHidden();
   });
 
+  test('should launch tour on clicking header button and dismiss cleanly', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForFunction(() => typeof (window as any).__workbenchLoadStore === 'function');
+
+    // Verify #btnTourGuide has exactly one lightbulb emoji
+    const btnText = await page.locator('#btnTourGuide').innerText();
+    expect((btnText.match(/💡/g) || []).length).toBe(1);
+    expect(['💡 新手引导', '💡 Tour Guide']).toContain(btnText.replace(/\s+/g, ' ').trim());
+
+    // Click #btnTourGuide in header
+    await page.click('#btnTourGuide');
+
+    const popover = page.locator('.tour-popover');
+    await expect(popover).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 5');
+
+    // Click close/skip
+    await page.click('#tourSkipBtn');
+    await expect(popover).toBeHidden();
+  });
+
   test('should verify modal backdrop provides complete visual shielding against accidental background clicks', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
