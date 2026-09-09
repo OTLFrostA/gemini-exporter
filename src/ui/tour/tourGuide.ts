@@ -214,7 +214,7 @@ async function updateStepContent(step: any): Promise<void> {
             bodyHtml = `
                 <div class="tour-content">${t('tourStep1NeedRefresh')}</div>
                 <div class="tour-action-box">
-                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NeedRefresh')}</div>
+                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1NeedRefreshStatus') || t('tourStep1NeedRefresh')}</div>
                     <button id="tourBtnReloadGemini" class="tour-action-btn secondary">
                         ${t('tourStep1BtnRefresh')}
                     </button>
