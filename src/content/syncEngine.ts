@@ -187,6 +187,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             if (!forceWrite && changed === 0) {
                 if (__lastKnownCount !== merged.length) {
                     updateBadge(merged.length, incomingItems.length);
+                    __lastKnownCount = merged.length;
                 }
                 return merged.length;
             }
@@ -216,6 +217,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             }
 
             updateBadge(merged.length, incomingItems.length);
+            __lastKnownCount = merged.length;
             return merged.length;
         } catch (e: any) {
             if (e?.message?.includes('Extension context invalidated')) return 0;
