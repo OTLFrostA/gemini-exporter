@@ -142,13 +142,57 @@ export function sanitizeZipPath(p?: string | null): string {
                     }
                 }
 
-                if (r && r.success && (r.dataBuffer || r.dataBase64 || r.blobBase64)) {
-                    const isValidBuffer = r.dataBuffer && (
+                // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
+                // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
+                const hasValidBuffer = !!(r && r.dataBuffer && (
+                    (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
+                    (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
+                ));
+                const hasValidB64 = !!(r && (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(','))));
+
+                if (r && r.success && !hasValidBuffer && !hasValidB64 && typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.sendMessage) {
+                    const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
+                    if (fallbackTab && fallbackTab.id) {
+                        r = await new Promise(resolve => {
+                            let timer: any = null;
+                            let settled = false;
+
+                            if (timeoutMs > 0) {
+                                timer = setTimeout(() => {
+                                    if (!settled) {
+                                        settled = true;
+                                        resolve({ success: false, error: `tabs.sendMessage fallback timed out after ${timeoutMs}ms` });
+                                    }
+                                }, timeoutMs);
+                            }
+
+                            chrome.tabs.sendMessage(fallbackTab.id, {
+                                action: 'downloadAssetDirect',
+                                url: targetUrl,
+                                referer: `https://gemini.google.com/app/${chat.id}`,
+                                preferBuffer: false
+                            }, (resp: any) => {
+                                if (timer) clearTimeout(timer);
+                                if (!settled) {
+                                    settled = true;
+                                    if (chrome.runtime && chrome.runtime.lastError) {
+                                        resolve({ success: false, error: chrome.runtime.lastError.message });
+                                    } else {
+                                        resolve(resp);
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+
+                if (r && r.success) {
+                    const isValidBuffer = !!(r.dataBuffer && (
                         (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
                         (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
-                    );
+                    ));
                     const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
-                    const b64 = r.dataBase64 || r.blobBase64;
+                    const b64 = (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null));
 
                     if (this.useZip) {
                         if (this.folder) {
@@ -170,6 +214,10 @@ export function sanitizeZipPath(p?: string | null): string {
                             for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
                             saved = await this.writeFileDirect(localName, b);
                         }
+                    }
+
+                    if (!saved) {
+                        failReason = r.error || 'Empty or unparseable binary/base64 payload';
                     }
                 } else {
                     failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
