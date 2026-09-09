@@ -83,6 +83,10 @@ class ExportSpecificationAsserter:
         meta_file = None
 
         for root, _, files in os.walk(self.export_root_dir):
+            rel_root = os.path.relpath(root, self.export_root_dir)
+            parts = [p.lower() for p in rel_root.replace("\\", "/").split("/")]
+            if "files" in parts or "assets" in parts:
+                continue
             for f in files:
                 fpath = os.path.join(root, f)
                 if f.endswith(".md"):
@@ -352,22 +356,22 @@ class ExportSpecificationAsserter:
                         matched_content = text
                         matched_file = os.path.basename(fpath)
                         break
+                if not matched_content:
+                    self.log_error("GoldenCheck", f"未在导出包中找到已知会话《{name}》 (ID: {cid})")
+                    continue
 
-            # 2. 若未按 ID 匹配到，按 snippets 相似度加权匹配命中率最高的文件
-            if not matched_content and snippets:
-                best_score = 0
+            # 2. 仅在未指定 cid 时，按 snippets 全量匹配特征
+            elif snippets:
                 for fpath in self.md_files:
                     with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                         text = f.read()
-                    score = sum(1 for snip in snippets if snip.lower() in text.lower())
-                    if score > best_score:
-                        best_score = score
+                    if all(snip.lower() in text.lower() for snip in snippets):
                         matched_content = text
                         matched_file = os.path.basename(fpath)
-
-            if not matched_content:
-                self.log_error("GoldenCheck", f"未在导出包中找到已知会话《{name}》 (ID: {cid})")
-                continue
+                        break
+                if not matched_content:
+                    self.log_error("GoldenCheck", f"未在导出包中找到符合特征内容的会话《{name}》")
+                    continue
 
             # 校验特定文本片段
             for snip in snippets:

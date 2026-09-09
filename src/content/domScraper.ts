@@ -180,6 +180,17 @@ export function getScrollContainer(): HTMLElement | null {
     return null;
 }
 
+const RESERVED_ROUTES = new Set([
+    'download', 'settings', 'prompts', 'archive', 'trash', 'share',
+    'activity', 'help', 'feedback', 'gems', 'explore', 'privacy', 'terms', 'updates', 'faq'
+]);
+
+export function isReservedRoute(id?: string | null): boolean {
+    if (!id || typeof id !== 'string') return false;
+    const clean = id.replace(/^c_/, '').trim().toLowerCase();
+    return RESERVED_ROUTES.has(clean);
+}
+
 export function getConversationLinks(): any[] {
     if (typeof document === 'undefined') return [];
     const items: any[] = [];
@@ -189,6 +200,7 @@ export function getConversationLinks(): any[] {
         const m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
         if (m) {
             const id = m[2].replace(/^c_/, '');
+            if (isReservedRoute(id)) continue;
             const rawTitle = (a.querySelector('.title, [class*="title"]')?.textContent || a.textContent || '').trim();
             const title = cleanTitle(rawTitle);
             const isReal = isRealTitle(title, id);
