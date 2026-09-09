@@ -35,7 +35,7 @@ export function init({
 
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.action === 'ping') {
-            const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.4.3';
+            const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3');
             sendResponse({
                 ok: true,
                 version: ver,

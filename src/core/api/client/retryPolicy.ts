@@ -52,9 +52,6 @@ declare global {
     function getCredentialManager(): GeminiClientCredentialManagerModule | null {
         if (typeof GeminiClientCredentialManager !== "undefined") return GeminiClientCredentialManager;
         if (typeof globalThis !== "undefined" && (globalThis as any).GeminiClientCredentialManager) return (globalThis as any).GeminiClientCredentialManager;
-        if (typeof require !== "undefined") {
-            try { return require("./credentialManager.js"); } catch (_) {}
-        }
         return null;
     }
 

@@ -336,7 +336,7 @@ function initHeaderVersion(): void {
     const verEl = $('ver');
     if (verEl) {
         try {
-            verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || '1.4.1');
+            verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3'));
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:optionsInit]', e);
         }

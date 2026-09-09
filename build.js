@@ -12,6 +12,8 @@ const path = require('path');
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
+const PKG_VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.4.3'; } catch { return '1.4.3'; } })();
+const DEFINE_VERSION = { __EXT_VERSION__: JSON.stringify(PKG_VERSION) };
 
 function walkSourceFiles(dir) {
     const out = [];
@@ -69,6 +71,7 @@ async function build() {
         sourcemap: true,
         target: ['chrome120'],
         legalComments: 'none',
+        define: DEFINE_VERSION,
         logLevel: 'silent',
         write: true,
     });
@@ -93,6 +96,7 @@ async function build() {
             sourcemap: true,
             target: ['chrome120'],
             legalComments: 'none',
+            define: DEFINE_VERSION,
             logLevel: 'silent',
             write: true,
         });
@@ -116,6 +120,7 @@ async function build() {
             sourcemap: true,
             target: ['chrome120'],
             legalComments: 'none',
+            define: DEFINE_VERSION,
             logLevel: 'silent',
             write: true,
         });
@@ -138,6 +143,7 @@ async function build() {
             sourcemap: true,
             target: ['chrome120'],
             legalComments: 'none',
+            define: DEFINE_VERSION,
             logLevel: 'silent',
             write: true,
         });
@@ -160,6 +166,7 @@ async function build() {
             sourcemap: true,
             target: ['chrome120'],
             legalComments: 'none',
+            define: DEFINE_VERSION,
             logLevel: 'silent',
             write: true,
         });
@@ -182,6 +189,7 @@ async function build() {
             sourcemap: true,
             target: ['chrome120'],
             legalComments: 'none',
+            define: DEFINE_VERSION,
             logLevel: 'silent',
             write: true,
         });
