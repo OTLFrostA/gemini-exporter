@@ -71,16 +71,6 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
 
     window.addEventListener('popstate', handleLocationChange);
     window.addEventListener('gemini:locationchange', handleLocationChange);
-
-    // Event-driven guard timer handle stored cleanly in ContentContext (Issue A1 / P4 fix)
-    const urlWatcher = setInterval(() => {
-        if (typeof location === 'undefined') return;
-        if (location.href !== __lastObservedUrl) {
-            __lastObservedUrl = location.href;
-            onUrlChanged();
-        }
-    }, 1000);
-    contentContext.registerTimer('urlWatcher', urlWatcher);
 }
 
 export function observeTitleChanges(onTitleChanged: () => void): void {
