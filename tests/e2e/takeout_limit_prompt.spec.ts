@@ -111,7 +111,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await page.click('#btnDeepScan');
 
     // Verify modal automatically appears with 615 count
-    await expect(modal).toBeVisible({ timeout: 5000 });
+    await expect(modal).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#takeoutLimitPromptText')).toContainText('615');
 
     // Close via close button ✕

@@ -14,6 +14,7 @@
     "test:generate-chats": "python3 scripts/generate_scenario_chats.py",
     "test:live": "python3 scripts/test_live_chat_and_export.py",
     "test:live:local": "python3 scripts/test_live_chat_and_export.py --allow-stale-dataset",
+    "test:visual": "python3 scripts/test_visual_agent.py",
     "release": "gh workflow run release.yml --ref main"
   },
   "keywords": [
