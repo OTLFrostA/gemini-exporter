@@ -37,6 +37,7 @@ export class ContentContext {
 
     private _syncWindowMirrors(): void {
         if (typeof window === 'undefined') return;
+        if (!this._devMode) return;
         const w = window as any;
         w.__gemExporterContentContext = this;
         w.__gemExporterAborted = this._aborted;
@@ -55,14 +56,14 @@ export class ContentContext {
 
     public setAborted(val: boolean): void {
         this._aborted = val;
-        if (typeof window !== 'undefined') {
+        if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterAborted = val;
         }
     }
 
     public abort(): void {
         this._aborted = true;
-        if (typeof window !== 'undefined') {
+        if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterAborted = true;
         }
         if (this._activeClient && typeof this._activeClient.abort === 'function') {
@@ -84,7 +85,7 @@ export class ContentContext {
 
     public setActiveClient(client: ActiveClientContract | null): void {
         this._activeClient = client;
-        if (typeof window !== 'undefined') {
+        if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterActiveClient = client;
         }
     }
@@ -95,7 +96,7 @@ export class ContentContext {
 
     public setDeepScanPromise(p: Promise<any> | null): void {
         this._deepScanPromise = p;
-        if (typeof window !== 'undefined') {
+        if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterDeepScanPromise = p;
         }
     }
@@ -112,11 +113,11 @@ export class ContentContext {
             this._credentials = null;
         } else {
             this._credentials = { ...(this._credentials || {}), ...creds };
-            if (this._credentials.at && typeof window !== 'undefined') {
+            if (this._devMode && this._credentials.at && typeof window !== 'undefined') {
                 (window as any).__gemExporterExtractedAt = this._credentials.at;
                 (window as any).__geminiAt = this._credentials.at;
             }
-            if (this._credentials.bl && typeof window !== 'undefined') {
+            if (this._devMode && this._credentials.bl && typeof window !== 'undefined') {
                 (window as any).__gemExporterExtractedBl = this._credentials.bl;
             }
         }
@@ -130,12 +131,11 @@ export class ContentContext {
         this.clearTimer(key);
         if (handle != null) {
             this._timers.set(key, handle);
-            // Mirror to window for legacy test assertions (e.g. tests/content_leak_fix.test.js)
             if (typeof window !== 'undefined') {
-                if (key === 'urlWatcher') (window as any).__gemExporterUrlWatcher = handle;
-                else if (key === 'syncInterval') (window as any).__gemExporterSyncInterval = handle;
+                if (key === 'syncInterval') (window as any).__gemExporterSyncInterval = handle;
                 else if (key === 'titleObserver') (window as any).__gemExporterTitleObserver = handle;
                 else if (key === 'debounceTimer') (window as any).__gemExporterDebounceTimer = handle;
+                // urlWatcher removed in Phase D.3; no longer mirrored
             }
         }
     }
@@ -160,10 +160,10 @@ export class ContentContext {
             this._timers.delete(key);
         }
         if (typeof window !== 'undefined') {
-            if (key === 'urlWatcher') (window as any).__gemExporterUrlWatcher = null;
-            else if (key === 'syncInterval') (window as any).__gemExporterSyncInterval = null;
+            if (key === 'syncInterval') (window as any).__gemExporterSyncInterval = null;
             else if (key === 'titleObserver') (window as any).__gemExporterTitleObserver = null;
             else if (key === 'debounceTimer') (window as any).__gemExporterDebounceTimer = null;
+            // urlWatcher no longer mirrored
         }
     }
 
@@ -185,6 +185,7 @@ export class ContentContext {
         this._devMode = val;
         if (typeof window !== 'undefined') {
             (window as any).__gemExporterDevMode = val;
+            if (val) this._syncWindowMirrors();
         }
         this.emit('devModeChange', val);
     }
@@ -208,7 +209,7 @@ export class ContentContext {
 
     public setInjected(val: boolean): void {
         this._injected = val;
-        if (typeof window !== 'undefined') {
+        if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterInjected = val;
         }
     }
