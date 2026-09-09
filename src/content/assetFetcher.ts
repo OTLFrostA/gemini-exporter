@@ -236,7 +236,7 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                     lastErr = 'empty blob';
                     continue;
                 }
-                if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
                     try {
                         const dataBuffer = await blob.arrayBuffer();
                         sendResponse({
@@ -310,7 +310,7 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                         });
                         return;
                     } else if (blob.size > 0 && (!isTextResponse || blob.size > 2000)) {
-                        if (msg.preferBuffer !== false && typeof blob.arrayBuffer === 'function') {
+                        if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
                             try {
                                 const dataBuffer = await blob.arrayBuffer();
                                 sendResponse({
@@ -340,12 +340,15 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
         }
 
         handleGetImageBlob(msg, (res) => {
-            if (res && res.success && (res.dataBuffer || res.blobBuffer || res.blobBase64)) {
+            if (res && res.success && (res.dataBuffer || res.blobBuffer || res.dataBase64 || res.blobBase64)) {
                 sendResponse({
                     success: true,
                     dataBuffer: res.dataBuffer || res.blobBuffer,
-                    dataBase64: res.blobBase64,
-                    mime: res.mime,
+                    blobBuffer: res.dataBuffer || res.blobBuffer,
+                    dataUrl: res.dataUrl,
+                    dataBase64: res.dataBase64 || res.blobBase64,
+                    blobBase64: res.dataBase64 || res.blobBase64,
+                    mime: res.mime || res.mimeType,
                     size: res.size
                 });
             } else {
