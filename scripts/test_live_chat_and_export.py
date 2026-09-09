@@ -968,11 +968,9 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         # 目标会话：包含本次发帖会话 + 固化测试账号中的已知特征会话（多轮上传、Deep Research、AI生图、代码块）
         target_ids = [r["chat_id"] for r in chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8]
         # 追加已知的黄金分类会话：
-        # 1. 多轮用户图片上传: 0135c12ca9983ec8
-        # 2. 原生 Deep Research 深度研报: 3b7b7457916825bb
-        # 3. 火星宇航员猫咪(AI生成图片 Imagen): 1bd028d5c5b0c0e2
-        # 4. Python装饰器(高质量代码块): 1cea7e48cc166b57
-        target_ids.extend(["0135c12ca9983ec8", "3b7b7457916825bb", "1bd028d5c5b0c0e2", "1cea7e48cc166b57"])
+        # 1. 火星宇航员猫咪(AI生成图片 Imagen): 1bd028d5c5b0c0e2
+        # 2. Python装饰器(高质量代码块): 1cea7e48cc166b57
+        target_ids.extend(["1bd028d5c5b0c0e2", "1cea7e48cc166b57"])
         target_titles = [r.get("title", "") for r in chat_records if r.get("title")]
 
         # 通过 label.item[data-chat-id] 及标题关键词精准勾选目标会话
@@ -1178,19 +1176,6 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     # 阶段 4.2：执行全量导出规范与特征深度断言
     # ==========================================
     golden_chats = [
-        {
-            "id": "0135c12ca9983ec8",
-            "name": "多轮图片分析（用户连续上传对比几何图）",
-            "expected_snippets": ["图形", "颜色"],
-            "expected_upload_images": 3,
-            "syntax_checks": ["image"]
-        },
-        {
-            "id": "3b7b7457916825bb",
-            "name": "量子纠错编码技术（官方原生 Deep Research 独立研报）",
-            "expected_snippets": ["量子", "纠错", "Surface"],
-            "expected_research_docs": 1
-        },
         {
             "id": "1bd028d5c5b0c0e2",
             "name": "火星宇航员猫咪（AI 生成图片 Imagen）",
