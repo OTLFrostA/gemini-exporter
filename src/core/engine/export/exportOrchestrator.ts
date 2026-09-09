@@ -55,15 +55,16 @@ import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.j
 import rateLimitModule, { RateLimitManager, type RateLimitModule } from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
 
+export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3';
 export function getExtensionVersion(): string {
     try {
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
-            return chrome.runtime.getManifest().version || '1.3.8';
+            return chrome.runtime.getManifest().version || EXT_VERSION;
         }
     } catch (e) {
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e);
     }
-    return '1.3.8';
+    return EXT_VERSION;
 }
 
 const getUtils = (): GeminiUtilsModule | null => {
@@ -207,9 +208,6 @@ export const sanitizeZipPath = (p?: string | null): string => {
 
     const getAssetPipelineClass = (): any => {
         if (typeof (globalThis as any).AssetPipeline !== 'undefined') return (globalThis as any).AssetPipeline;
-        if (typeof require !== 'undefined') {
-            try { return require('../assetPipeline.js'); } catch (_) { /* intentional */ }
-        }
         return null;
     };
 
@@ -229,27 +227,8 @@ export const sanitizeZipPath = (p?: string | null): string => {
             this.aborted = false;
             this._abortController = null;
             const rlModule = getRateLimiter();
-            if (rlModule && rlModule.RateLimitManager) {
-                this.rateLimiter = new rlModule.RateLimitManager();
-            } else {
-                this.rateLimiter = {
-                    rateLimitCooldownUntil: 0,
-                    isRateLimited: (res: any) => !!(res && !res.success && (res.status === 429 || /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res?.error || ''))),
-                    calculateBackoff: (retryCount: number) => Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000)),
-                    recordRateLimit: function(delayMs: number) { this.rateLimitCooldownUntil = Date.now() + delayMs; },
-                    waitForCooldown: async function(sig?: AbortSignal | null) {
-                        if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
-                            const waitMs = Math.max(0, this.rateLimitCooldownUntil - Date.now());
-                            if (waitMs > 0) {
-                                await new Promise(r => setTimeout(r, waitMs));
-                                if (sig && sig.aborted) return false;
-                            }
-                        }
-                        return true;
-                    },
-                    reset: function() { this.rateLimitCooldownUntil = 0; }
-                };
-            }
+            if (!rlModule || !rlModule.RateLimitManager) throw new Error('RateLimitModule missing: ensure rateLimiter.ts is bundled');
+            this.rateLimiter = new rlModule.RateLimitManager();
         }
 
         abort(): void {

@@ -1,6 +1,7 @@
 const Module = require('module');
 const esbuild = require('esbuild');
 const fs = require('fs');
+try { if (typeof globalThis !== 'undefined' && !globalThis.__EXT_VERSION__) globalThis.__EXT_VERSION__ = require('../package.json').version; } catch {}
 
 // Register on-the-fly TypeScript compilation hook for Node.js CommonJS require
 if (!require.extensions['.ts']) {

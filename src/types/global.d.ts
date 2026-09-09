@@ -1,5 +1,6 @@
 declare var define: any;
 declare function importScripts(...urls: string[]): void;
+declare const __EXT_VERSION__: string;
 
 // Core globals are declared via their own module files (declare global) — do not duplicate here to avoid TS2403
 declare var JSZip: any;
