@@ -337,7 +337,16 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
     } else {
         updateCount();
     }
-    // Refresh count periodically
-    setInterval(updateCount, 5000);
+    // Event-driven refresh: storage changes + explicit tab updates replace polling
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area === 'local' && (changes.gemini_conversations || changes.gemini_conversations_u0 || changes.gemini_last_count || changes.gemini_last_sync)) {
+                updateCount();
+            }
+        });
+    }
+    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onUpdated) {
+        chrome.tabs.onUpdated.addListener(() => updateCount());
+    }
 
 export {};
