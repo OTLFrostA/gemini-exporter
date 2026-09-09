@@ -31,6 +31,7 @@ export interface StorageServiceModule {
     getExportedIds: (slot?: string | null) => Promise<Record<string, any>>;
     setExportedIds: (slot: string | null | undefined, map: Record<string, any>) => Promise<void>;
     saveExportRecord: (slot: string | null | undefined, id: string, record: any) => Promise<Record<string, any>>;
+    saveExportRecordsBatch: (slot: string | null | undefined, records: Record<string, any>) => Promise<Record<string, any>>;
     getLastSync: (slot?: string | null) => Promise<SyncStatus>;
     setLastSync: (slot: string | null | undefined, timestamp?: number | null, count?: number) => Promise<void>;
     getAccountSlots: () => Promise<Record<string, any>>;
@@ -191,21 +192,21 @@ declare global {
     let _saveRecordChain: Promise<any> = Promise.resolve();
 
     async function saveExportRecord(slot: string | null | undefined, id: string, record: any): Promise<Record<string, any>> {
+        return saveExportRecordsBatch(slot, { [id]: record, [normId(id)]: record, ['c_' + normId(id)]: record });
+    }
+
+    async function saveExportRecordsBatch(slot: string | null | undefined, records: Record<string, any>): Promise<Record<string, any>> {
         return new Promise((resolve, reject) => {
             _saveRecordChain = _saveRecordChain.then(async () => {
                 const { expKey, slot: s } = getStorageKeys(slot);
                 const cur = await getExportedIds(slot);
-                const nid = normId(id);
-                cur[id] = record;
-                cur[nid] = record;
-                cur['c_' + nid] = record;
+                Object.assign(cur, records);
+                // Ensure nid single-key canonical form; keep aliases for backward compat but write once
                 const updates: Record<string, any> = { [expKey]: cur };
                 if (s !== 'u0') {
                     const globalData = await chrome.storage.local.get(['exportedIds']);
                     const globalExp: Record<string, any> = (globalData.exportedIds && typeof globalData.exportedIds === 'object') ? globalData.exportedIds as Record<string, any> : {};
-                    globalExp[id] = record;
-                    globalExp[nid] = record;
-                    globalExp['c_' + nid] = record;
+                    Object.assign(globalExp, records);
                     updates['exportedIds'] = globalExp;
                 } else {
                     updates['exportedIds'] = cur;
@@ -384,6 +385,7 @@ export {
     getExportedIds,
     setExportedIds,
     saveExportRecord,
+    saveExportRecordsBatch,
     getLastSync,
     setLastSync,
     getAccountSlots,
@@ -413,6 +415,7 @@ export const StorageService: StorageServiceModule = {
     getExportedIds,
     setExportedIds,
     saveExportRecord,
+    saveExportRecordsBatch,
     getLastSync,
     setLastSync,
     getAccountSlots,
