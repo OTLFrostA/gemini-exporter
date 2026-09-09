@@ -19,6 +19,9 @@ const t = (key: string, ...args: any[]): string => {
 
 import StorageService from '../../core/storage/storageService.js';
 import TabService from '../../core/utils/tabService.js';
+import { STEPS } from './tourSteps.js';
+import { positionElements as positionTourElements } from './tourPosition.js';
+export { STEPS } from './tourSteps.js';
 
 const getStorage = () => {
     if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
@@ -64,121 +67,6 @@ export function bindStepAction(step: any): void {
     }
 }
 
-export const STEPS: any[] = [
-    {
-        id: 'connect',
-        getTarget: () => document.getElementById('accountSlotSelect') || document.querySelector('header h1') || null,
-        placement: 'bottom',
-        titleKey: 'tourStep1Title',
-        isDynamicConnect: true,
-        setupAction: (advance: () => void) => {
-            const cleanups: (() => void)[] = [];
-            const slotSelect = document.getElementById('accountSlotSelect');
-            if (slotSelect) {
-                const onSlotChange = () => setTimeout(advance, 300);
-                slotSelect.addEventListener('change', onSlotChange);
-                cleanups.push(() => slotSelect.removeEventListener('change', onSlotChange));
-            }
-            return () => cleanups.forEach(c => c());
-        }
-    },
-    {
-        id: 'sync',
-        getTarget: () => document.getElementById('btnIncrementalScan') || null,
-        placement: 'bottom',
-        titleKey: 'tourStep2Title',
-        descKey: 'tourStep2Desc',
-        hintKey: 'tourHintClickButton',
-        setupAction: (advance: () => void) => {
-            const cleanups: (() => void)[] = [];
-            const btnScan = document.getElementById('btnIncrementalScan');
-            if (btnScan) {
-                const onScanClick = () => setTimeout(advance, 300);
-                btnScan.addEventListener('click', onScanClick);
-                cleanups.push(() => btnScan.removeEventListener('click', onScanClick));
-            }
-            const btnDeep = document.getElementById('btnDeepScan');
-            if (btnDeep) {
-                const onDeepClick = () => setTimeout(advance, 300);
-                btnDeep.addEventListener('click', onDeepClick);
-                cleanups.push(() => btnDeep.removeEventListener('click', onDeepClick));
-            }
-            return () => cleanups.forEach(c => c());
-        }
-    },
-    {
-        id: 'select',
-        getTarget: () => {
-            const firstCheckbox = document.querySelector('#list .item input[type=checkbox]');
-            return firstCheckbox ? (firstCheckbox.closest('.item') as HTMLElement) : (document.getElementById('btnSelectAll') as HTMLElement);
-        },
-        placement: 'left',
-        titleKey: 'tourStep3Title',
-        descKey: 'tourStep3Desc',
-        hintKey: 'tourHintSelectChat',
-        setupAction: (advance: () => void) => {
-            const cleanups: (() => void)[] = [];
-            const listEl = document.getElementById('list');
-            if (listEl) {
-                const onListChange = (e: any) => {
-                    if (e.target && e.target.type === 'checkbox' && e.target.checked) {
-                        setTimeout(advance, 250);
-                    }
-                };
-                listEl.addEventListener('change', onListChange);
-                cleanups.push(() => listEl.removeEventListener('change', onListChange));
-            }
-            const btnSelectAll = document.getElementById('btnSelectAll');
-            if (btnSelectAll) {
-                const onAllClick = () => setTimeout(advance, 250);
-                btnSelectAll.addEventListener('click', onAllClick);
-                cleanups.push(() => btnSelectAll.removeEventListener('click', onAllClick));
-            }
-            const btnSelectUnexported = document.getElementById('btnSelectUnexported') || document.getElementById('btnFilterNew');
-            if (btnSelectUnexported) {
-                const onUnexportedClick = () => setTimeout(advance, 250);
-                btnSelectUnexported.addEventListener('click', onUnexportedClick);
-                cleanups.push(() => btnSelectUnexported.removeEventListener('click', onUnexportedClick));
-            }
-            return () => cleanups.forEach(c => c());
-        }
-    },
-    {
-        id: 'export',
-        getTarget: () => document.getElementById('btnExport') || null,
-        placement: 'right',
-        titleKey: 'tourStep4Title',
-        descKey: 'tourStep4Desc',
-        hintKey: 'tourHintClickExport',
-        setupAction: (advance: () => void) => {
-            const btnExport = document.getElementById('btnExport');
-            if (btnExport) {
-                const onExportClick = () => setTimeout(advance, 200);
-                btnExport.addEventListener('click', onExportClick);
-                return () => btnExport.removeEventListener('click', onExportClick);
-            }
-            return undefined;
-        }
-    },
-    {
-        id: 'feedback',
-        getTarget: () => document.getElementById('feedbackBox') || document.getElementById('btnFeedback') || null,
-        placement: 'right',
-        titleKey: 'tourStep5Title',
-        descKey: 'tourStep5Desc',
-        hintKey: 'tourHintClickFeedback',
-        isFinal: true,
-        setupAction: (advance: () => void) => {
-            const btnFeedback = document.getElementById('btnFeedback');
-            if (btnFeedback) {
-                const onFeedbackClick = () => setTimeout(advance, 200);
-                btnFeedback.addEventListener('click', onFeedbackClick);
-                return () => btnFeedback.removeEventListener('click', onFeedbackClick);
-            }
-            return undefined;
-        }
-    }
-];
 
 function createElements(): void {
     if (typeof document === 'undefined') return;
@@ -249,107 +137,7 @@ function handleResize(): void {
 }
 
 function positionElements(step: any): void {
-    if (!spotlightEl || !popoverEl || typeof window === 'undefined') return;
-
-    const target = step.getTarget ? step.getTarget() : null;
-    if (target && target.isConnected && target.offsetParent !== null) {
-        const rect = target.getBoundingClientRect();
-        const pad = 6;
-
-        spotlightEl.classList.remove('tour-spotlight-hidden');
-        spotlightEl.style.top = Math.max(0, rect.top - pad) + 'px';
-        spotlightEl.style.left = Math.max(0, rect.left - pad) + 'px';
-        spotlightEl.style.width = (rect.width + pad * 2) + 'px';
-        spotlightEl.style.height = (rect.height + pad * 2) + 'px';
-
-        if (typeof target.scrollIntoView === 'function') {
-            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-
-        const popoverWidth = (popoverEl as HTMLElement).offsetWidth || 360;
-        const popoverHeight = (popoverEl as HTMLElement).offsetHeight || 240;
-        const gap = 16;
-        const placement = step.placement || 'bottom';
-
-        let popTop = 0;
-        let popLeft = 0;
-
-        if (placement === 'right') {
-            popLeft = rect.right + gap;
-            popTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - popoverHeight - 16));
-            if (popLeft + popoverWidth > window.innerWidth - 16) {
-                popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
-                if (rect.top > popoverHeight + gap + 16) {
-                    popTop = rect.top - popoverHeight - gap;
-                } else {
-                    popTop = rect.bottom + gap;
-                }
-            }
-        } else if (placement === 'left') {
-            popLeft = rect.left - popoverWidth - gap;
-            popTop = Math.max(16, Math.min(rect.top - 10, window.innerHeight - popoverHeight - 16));
-            if (popLeft < 16) {
-                popLeft = 16;
-                popTop = Math.max(16, Math.min(rect.top, window.innerHeight - popoverHeight - 16));
-            }
-        } else if (placement === 'top') {
-            popTop = rect.top - popoverHeight - gap;
-            popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
-            if (popTop < 16) {
-                popTop = rect.bottom + gap;
-            }
-        } else {
-            popTop = rect.bottom + gap;
-            popLeft = Math.max(16, Math.min(rect.left, window.innerWidth - popoverWidth - 16));
-            if (popTop + popoverHeight > window.innerHeight - 16) {
-                popTop = Math.max(16, rect.top - popoverHeight - gap);
-            }
-        }
-
-        const targetSafe = {
-            left: rect.left - pad,
-            top: rect.top - pad,
-            right: rect.right + pad,
-            bottom: rect.bottom + pad
-        };
-
-        const isOverlapping = !(
-            (popLeft + popoverWidth) <= targetSafe.left ||
-            popLeft >= targetSafe.right ||
-            (popTop + popoverHeight) <= targetSafe.top ||
-            popTop >= targetSafe.bottom
-        );
-
-        if (isOverlapping) {
-            const spaceRight = window.innerWidth - targetSafe.right - 16;
-            const spaceLeft = targetSafe.left - 16;
-            const spaceTop = targetSafe.top - 16;
-            const spaceBottom = window.innerHeight - targetSafe.bottom - 16;
-
-            if (spaceRight >= popoverWidth) {
-                popLeft = targetSafe.right + gap;
-                popTop = Math.max(16, Math.min(targetSafe.top, window.innerHeight - popoverHeight - 16));
-            } else if (spaceLeft >= popoverWidth) {
-                popLeft = Math.max(16, targetSafe.left - popoverWidth - gap);
-                popTop = Math.max(16, Math.min(targetSafe.top, window.innerHeight - popoverHeight - 16));
-            } else if (spaceTop >= popoverHeight) {
-                popTop = Math.max(16, targetSafe.top - popoverHeight - gap);
-                popLeft = Math.max(16, Math.min(targetSafe.left, window.innerWidth - popoverWidth - 16));
-            } else if (spaceBottom >= popoverHeight) {
-                popTop = targetSafe.bottom + gap;
-                popLeft = Math.max(16, Math.min(targetSafe.left, window.innerWidth - popoverWidth - 16));
-            }
-        }
-
-        popoverEl.style.top = `${popTop}px`;
-        popoverEl.style.left = `${popLeft}px`;
-        popoverEl.style.transform = 'none';
-    } else {
-        spotlightEl.classList.add('tour-spotlight-hidden');
-        popoverEl.style.top = '50%';
-        popoverEl.style.left = '50%';
-        popoverEl.style.transform = 'translate(-50%, -50%)';
-    }
+    return positionTourElements(spotlightEl, popoverEl, step);
 }
 
 async function checkCurrentTabStatus(): Promise<{ status: string; error?: string }> {
