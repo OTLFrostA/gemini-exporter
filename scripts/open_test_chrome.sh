@@ -8,12 +8,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 跨平台自动探测 Google Chrome 路径
 CHROME_BIN=""
 if [ "$(uname)" = "Darwin" ]; then
-  CFT_CANDIDATE="$(find "$HOME/Library/Caches/ms-playwright" -name "Google Chrome for Testing" -type f 2>/dev/null | sort -V | tail -n 1)"
-  if [ -n "$CFT_CANDIDATE" ] && [ -x "$CFT_CANDIDATE" ]; then
-    CHROME_BIN="$CFT_CANDIDATE"
-  else
-    CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-  fi
+  CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 elif [ "$(expr substr $(uname -s) 1 5 2>/dev/null)" = "Linux" ]; then
   for candidate in google-chrome google-chrome-stable chromium-browser chromium; do
     if command -v "$candidate" >/dev/null 2>&1; then

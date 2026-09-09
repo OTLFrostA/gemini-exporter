@@ -416,8 +416,11 @@ class VisualTestingAgent:
             const priorityKeywords = ['cat', 'astronaut', '猫咪', '图片', 'image', 'decorator', '装饰器', 'python'];
             const goldenIds = ['0135c12ca9983ec8', '3b7b7457916825bb', '1bd028d5c5b0c0e2', '1cea7e48cc166b57'];
 
+            const reserved = ['download', 'settings', 'prompts', 'archive', 'trash', 'share', 'activity', 'help', 'feedback', 'explore', 'gems'];
+
             items.forEach((item, idx) => {
                 const cid = item.dataset.chatId || '';
+                if (!cid || reserved.includes(cid.toLowerCase())) return;
                 const title = item.querySelector('.chat-title, .title')?.textContent || '';
                 const cb = item.querySelector('input[type=checkbox]');
                 if (!cb) return;
@@ -434,8 +437,10 @@ class VisualTestingAgent:
             });
 
             if (targets.length < 3) {
-                items.slice(0, 4).forEach((item, idx) => {
+                items.forEach((item, idx) => {
+                    if (targets.length >= 4) return;
                     const cid = item.dataset.chatId || '';
+                    if (!cid || reserved.includes(cid.toLowerCase())) return;
                     if (targets.some(t => t.cid === cid)) return;
                     const cb = item.querySelector('input[type=checkbox]');
                     if (!cb) return;
