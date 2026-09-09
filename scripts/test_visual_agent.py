@@ -804,6 +804,20 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
         return False
 
     options_welcome_url = f"chrome-extension://{agent.ext_id}/src/ui/options/options.html?welcome=1"
+
+    # 确保刷新活跃的 Gemini 标签页以注入最新 Content Scripts 并建立有效通信
+    tabs = get_tabs(port)
+    for t in tabs:
+        if "gemini.google.com" in t.get("url", ""):
+            try:
+                agent.log("正在刷新 gemini.google.com 页面以连接最新 Content Script 与悬浮徽标...", "INFO")
+                g_cdp = CDPConnection(t["webSocketDebuggerUrl"])
+                g_cdp.eval("location.reload()")
+                g_cdp.close()
+                time.sleep(2.5)
+            except Exception:
+                pass
+
     tabs = get_tabs(port)
     welcome_tab = next((t for t in tabs if f"chrome-extension://{agent.ext_id}" in t.get("url", "")), None)
 
