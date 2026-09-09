@@ -1,394 +1,60 @@
-// exportEngine.ts - Unified export facade for batch downloading, JSZip packaging, and FileSystem Access API
+// src/core/engine/exportEngine.ts - Re-export facade delegating to ExportOrchestrator
+export type {
+    ExportOptions,
+    ExportCallbacks,
+    ExportResult
+} from "./export/exportOrchestrator.js";
 
-export type { ExportOptions, ExportCallbacks, ExportResult };
-
-export interface ExportEngineModule {
-    ExportEngine: any;
-    sanitizeFileName: (name?: string | null, fallback?: string) => string;
-    sanitizeZipPath: (p?: string | null) => string;
-    getExtensionVersion: () => string;
-    AsyncQueue: any;
-}
-
-declare global {
-    var ExportEngine: any;
-    var StorageService: any;
-    var JSZip: any;
-    var I18n: any;
-}
-
-import GeminiUtils, {
-    type GeminiUtilsModule,
-    sanitizeFileName as utilsSanitizeFileName,
-    normId as utilsNormId,
-    sanitizeRelativePath
-} from "../utils/utils.js";
 import ExportOrchestratorModuleImpl, {
     ExportOrchestrator,
-    sanitizeFileName as orchSanitizeFileName,
-    sanitizeZipPath as orchSanitizeZipPath,
-    getExtensionVersion as orchGetExtensionVersion,
-    type ExportOrchestratorModule,
-    type ExportOptions,
-    type ExportCallbacks,
-    type ExportResult
-} from "./export/exportOrchestrator.js";
-import BatchWorker, { type BatchWorkerModule } from "./export/batchWorker.js";
-import SessionRecovery, { type SessionRecoveryModule } from "./export/sessionRecovery.js";
-
-export function getExtensionVersion(): string {
-    return orchGetExtensionVersion();
-}
-
-const getUtils = (): GeminiUtilsModule | null => {
-    if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-    return GeminiUtils;
-};
-
-const getOrchestratorModule = (): ExportOrchestratorModule => {
-    if (typeof (globalThis as any).ExportOrchestrator !== 'undefined') {
-        return {
-            ExportOrchestrator: (globalThis as any).ExportOrchestrator,
-            AsyncQueue,
-            ensureSubDir: ExportOrchestratorModuleImpl.ensureSubDir,
-            sanitizeFileName: orchSanitizeFileName,
-            sanitizeZipPath: orchSanitizeZipPath,
-            getExtensionVersion: orchGetExtensionVersion
-        };
-    }
-    return ExportOrchestratorModuleImpl;
-};
-
-const getBatchWorkerModule = (): BatchWorkerModule => {
-    if (typeof (globalThis as any).BatchWorker !== 'undefined') return (globalThis as any).BatchWorker;
-    return BatchWorker;
-};
-
-const getSessionRecoveryModule = (): SessionRecoveryModule => {
-    if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
-    return SessionRecovery;
-};
-
-export const sanitizeFileName = (name?: string | null, fallback?: string): string => {
-    if (typeof (globalThis as any).GeminiUtils?.sanitizeFileName === 'function') {
-        return (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback);
-    }
-    return utilsSanitizeFileName(name, fallback);
-};
-
-export const sanitizeZipPath = (p?: string | null): string => {
-    if (typeof (globalThis as any).GeminiUtils?.sanitizeRelativePath === 'function') {
-        return (globalThis as any).GeminiUtils.sanitizeRelativePath(p, 'file');
-    }
-    return sanitizeRelativePath(p, 'file');
-};
-
-export const normId = (id: any): string => {
-    if (typeof (globalThis as any).GeminiUtils?.normId === 'function') {
-        return (globalThis as any).GeminiUtils.normId(id);
-    }
-    return utilsNormId(id);
-};
-
-    // AsyncQueue: Event-driven queue implementation (re-exported for SSoT compatibility)
-    class AsyncQueue<T = any> {
-        private _queue: T[];
-        private _waiters: Array<(item: T | null) => void>;
-        private _closed: boolean;
-
-        constructor() {
-            this._queue = [];
-            this._waiters = [];
-            this._closed = false;
-        }
-
-        push(task: T): void {
-            if (this._closed) return;
-            if (this._waiters.length > 0) {
-                const waiter = this._waiters.shift()!;
-                waiter(task);
-            } else {
-                this._queue.push(task);
-            }
-        }
-
-        async pop(abortSignal?: AbortSignal | null): Promise<T | null> {
-            if (this._queue.length > 0) {
-                return this._queue.shift()!;
-            }
-            if (this._closed) return null;
-            return new Promise((resolve) => {
-                let onAbort: (() => void) | null = null;
-                const waiter = (task: T | null) => {
-                    if (onAbort && abortSignal) {
-                        try { abortSignal.removeEventListener('abort', onAbort); } catch { /* intentional */ }
-                    }
-                    resolve(task);
-                };
-                if (abortSignal) {
-                    onAbort = () => {
-                        const idx = this._waiters.indexOf(waiter);
-                        if (idx !== -1) this._waiters.splice(idx, 1);
-                        resolve(null);
-                    };
-                    if (abortSignal.aborted) return resolve(null);
-                    try { abortSignal.addEventListener('abort', onAbort, { once: true }); } catch (e) {
-                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportEngine.js]', e);
-                    }
-                }
-                this._waiters.push(waiter);
-            });
-        }
-
-        close(): void {
-            this._closed = true;
-            while (this._waiters.length > 0) {
-                const waiter = this._waiters.shift()!;
-                waiter(null);
-            }
-        }
-
-        get length(): number {
-            return this._queue.length;
-        }
-    }
-
-    class ExportEngine {
-        _orchestrator: any;
-        aborted: boolean;
-        _abortController: AbortController | null;
-        rateLimitCooldownUntil: number;
-
-        constructor() {
-            const orchMod = getOrchestratorModule();
-            const OrchestratorClass = orchMod?.ExportOrchestrator || orchMod || null;
-            this._orchestrator = OrchestratorClass ? new (OrchestratorClass as any)() : null;
-            this.aborted = false;
-            this._abortController = null;
-            this.rateLimitCooldownUntil = 0;
-        }
-
-        abort(): void {
-            this.aborted = true;
-            if (this._orchestrator) {
-                this._orchestrator.abort();
-                this._abortController = this._orchestrator._abortController;
-                return;
-            }
-            try { this._abortController && this._abortController.abort(); } catch { /* intentional */ }
-            try {
-                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                    chrome.runtime.sendMessage({ action: 'cancelExport' }, () => {
-                        if (chrome.runtime.lastError) {}
-                    });
-                }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportEngine.js]', e); }
-            try {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.get(['gemini_last_export_session'], (data) => {
-                        if (data?.gemini_last_export_session) {
-                            chrome.storage.local.set({
-                                gemini_last_export_session: {
-                                    ...(data.gemini_last_export_session as Record<string, any>),
-                                    status: 'aborted',
-                                    updatedAt: Date.now()
-                                }
-                            });
-                        }
-                    });
-                }
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportEngine.js]', e); }
-        }
-
-        async _initSession(options: any, callbacks?: any): Promise<any> {
-            if (this._orchestrator && typeof this._orchestrator._initSession === 'function') {
-                const s = await this._orchestrator._initSession(options, callbacks);
-                this._abortController = this._orchestrator._abortController;
-                return s;
-            }
-            const { selected = [], format = 'markdown', useZip = true, currentSlot = 'u0' } = options;
-            if (!selected.length) throw new Error('No items selected');
-            this.aborted = false;
-            this.rateLimitCooldownUntil = 0;
-            this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const abortSignal = this._abortController ? this._abortController.signal : null;
-            const payloadIds = selected.map((s: any) => ({
-                id: s.id,
-                title: s.title,
-                url: s.url || s.href || `https://gemini.google.com/app/${s.id}`,
-                timestamp: s.timestamp,
-                lastSeen: s.lastSeen
-            }));
-            const slot = currentSlot || 'u0';
-            const Storage = (typeof StorageService !== 'undefined') ? StorageService : ((globalThis as any).StorageService || null);
-            let curIds = Storage ? await Storage.getExportedIds(slot) : {};
-            return { payloadIds, slot, Storage, curIds, abortSignal };
-        }
-
-        async _initWriter(options: any, onLog: (msg: string, level?: string) => void): Promise<any> {
-            if (this._orchestrator && typeof this._orchestrator._initWriter === 'function') {
-                return await this._orchestrator._initWriter(options, onLog);
-            }
-            const exportFolderName = 'gemini_export';
-            const { useZip = true, dirHandle = null } = options;
-            let batchDirHandle: any = null;
-            let zip: any = null;
-            let folder: any = null;
-            let zipWriter: any = null;
-            let fsWriter: any = null;
-
-            if (useZip) {
-                const ZipWriterClass = (typeof ZipWriter !== 'undefined' && ZipWriter.ZipWriter)
-                    ? ZipWriter.ZipWriter
-                    : (typeof ZipWriter === 'function' ? ZipWriter : null);
-                if (ZipWriterClass) {
-                    zipWriter = new ZipWriterClass(exportFolderName);
-                    zip = zipWriter.zip;
-                    folder = zipWriter.folder;
-                } else {
-                    if (typeof JSZip === 'undefined') throw new Error('JSZip library not found');
-                    zip = new JSZip();
-                    folder = zip.folder(exportFolderName);
-                }
-            } else {
-                if (!dirHandle) throw new Error('Directory handle not provided');
-                try {
-                    batchDirHandle = await dirHandle.getDirectoryHandle(exportFolderName, { create: true });
-                } catch (e: any) {
-                    onLog(`创建子文件夹失败: ${e.message}`, 'warn');
-                    throw new Error(`无法创建导出子目录 "${exportFolderName}": ${e.message}`);
-                }
-            }
-
-            const writeFileDirect = async (localName: string, data: any): Promise<boolean> => {
-                if (fsWriter) return await fsWriter.writeFile(sanitizeZipPath(localName), data);
-                return true;
-            };
-
-            return { zip, folder, zipWriter, batchDirHandle, fsWriter, writeFileDirect };
-        }
-
-        async _fetchChatDetail(requestedItem: any, currentIndex: number, totalChats: number, currentSlot: string, skip: boolean, format: string, abortSignal: AbortSignal | null): Promise<any> {
-            const worker = getBatchWorkerModule();
-            if (worker && worker.fetchChatDetail) {
-                return await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
-            }
-            return new Promise((resolve) => {
-                let settled = false;
-                const onAbort = () => { if (!settled) { settled = true; resolve({ success: false, error: 'aborted' }); } };
-                if (abortSignal) {
-                    if (abortSignal.aborted) return onAbort();
-                    abortSignal.addEventListener('abort', onAbort, { once: true });
-                }
-                chrome.runtime.sendMessage({
-                    action: 'fetchBatch',
-                    ids: [requestedItem],
-                    format,
-                    skipExported: skip,
-                    globalOffset: currentIndex,
-                    globalTotal: totalChats,
-                    accountSlot: currentSlot
-                }, (res: any) => {
-                    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                    if (!settled) { settled = true; resolve(res || { success: false, error: chrome.runtime.lastError?.message }); }
-                });
-            });
-        }
-
-        async _resolveChat(chat: any, requestedItem: any, listConversation: any, takeoutEngine: any, currentSlot: string, onTitleUpdated: any, onLog: (msg: string, level?: string) => void): Promise<any> {
-            const worker = getBatchWorkerModule();
-            if (worker && worker.resolveChat) {
-                return await worker.resolveChat(chat, requestedItem, listConversation, takeoutEngine, currentSlot, onTitleUpdated, onLog);
-            }
-            const cleanForBad = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
-            const isBadBrand = (t: any) => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
-            if (chat.error || chat._empty) {
-                onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', chat.title || chat.id, chat.error || 'empty') : `[${chat.title || chat.id}] 导出跳过: ${chat.error}`, 'error');
-                return { chat, displayTitle: chat.title || chat.id, isConfirmedDeleted: false, isError: true, errMsg: chat.error || 'empty', debug: chat._debug || null, raw: chat._raw || null };
-            }
-            return { chat, listTitle: chat.title || chat.id, isConfirmedDeleted: false, isError: false, errMsg: null };
-        }
-
-        async _writeIndexAndMeta(metaResults: any, landedChats: number, downloadedAssets: number, totalAssets: number, writeFileDirect: any, folder: any, useZip: boolean): Promise<any> {
-            const recovery = getSessionRecoveryModule();
-            if (recovery && recovery.writeIndexAndMeta) {
-                return await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip);
-            }
-        }
-
-        async _writeDiagnostics(isDevMode: boolean, sessionJson: any, fullLogText: string, writeFileDirect: any, folder: any, useZip: boolean, onLog: (msg: string, level?: string) => void): Promise<any> {
-            const recovery = getSessionRecoveryModule();
-            if (recovery && recovery.writeDiagnostics) {
-                return await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog);
-            }
-            const fc: any = 'test';
-            if (typeof fc === 'string') {} // regression lock
-        }
-
-        async _packageAndDownload(zipWriterOrZip: any, payloadIds: any[], downloadedAssets: number, totalAssets: number, options: any, onLog: any, onProgress: any): Promise<any> {
-            if (this._orchestrator && typeof this._orchestrator._packageAndDownload === 'function') {
-                return await this._orchestrator._packageAndDownload(zipWriterOrZip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
-            }
-        }
-
-        async run(options: any, callbacks: any = {}): Promise<ExportResult> {
-            if (this._orchestrator && typeof this._orchestrator.run === 'function') {
-                const result = await this._orchestrator.run(options, callbacks);
-                this.aborted = this._orchestrator.aborted;
-                this.rateLimitCooldownUntil = this._orchestrator.rateLimitCooldownUntil;
-                return result;
-            }
-
-            // Fallback orchestrator loop preserving static regression checks
-            const attachmentQueue = new AsyncQueue();
-            const pendingAssetsPerChat = new Map();
-            const chatFailedAssetsSet = new Set();
-            const failedChats: any[] = [];
-            const chat = { id: 'fallback', title: 'fallback' };
-            const nid = normId(chat.id);
-            const writeFileDirect = async () => true;
-
-            // Regression lock pattern: chatFailedAssetsSet.add(nid) followed by pendingAssetsPerChat decrement
-            chatFailedAssetsSet.add(nid);
-            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-            pendingAssetsPerChat.set(nid, left);
-            failedChats.push({ id: chat.id, title: chat.title, error: 'fallback' });
-
-            return { landedChats: 0, failedChats, failedAttachments: [], skipped: 0, totalAssets: 0, downloadedAssets: 0 };
-        }
-    }
-
-export {
-    ExportEngine,
-    AsyncQueue
-};
-
-export const ExportEngineModule: ExportEngineModule = {
-    ExportEngine,
+    AsyncQueue,
+    ensureSubDir,
     sanitizeFileName,
     sanitizeZipPath,
     getExtensionVersion,
-    AsyncQueue
+    type ExportOrchestratorModule
+} from "./export/exportOrchestrator.js";
+
+export type ExportEngineModule = ExportOrchestratorModule;
+
+declare global {
+    var ExportEngine: any;
+}
+
+export const ExportEngine = ExportOrchestrator;
+
+export {
+    ExportOrchestrator,
+    AsyncQueue,
+    ensureSubDir,
+    sanitizeFileName,
+    sanitizeZipPath,
+    getExtensionVersion
 };
 
-(ExportEngineModule as any).ExportEngine = ExportEngine;
-(ExportEngineModule as any).sanitizeFileName = sanitizeFileName;
-(ExportEngineModule as any).sanitizeZipPath = sanitizeZipPath;
-(ExportEngineModule as any).getExtensionVersion = getExtensionVersion;
-(ExportEngineModule as any).AsyncQueue = AsyncQueue;
-(ExportEngineModule as any).default = ExportEngine;
+export const ExportEngineModule: ExportEngineModule = {
+    ExportOrchestrator,
+    AsyncQueue,
+    ensureSubDir,
+    sanitizeFileName,
+    sanitizeZipPath,
+    getExtensionVersion
+};
 
-(ExportEngine as any).ExportEngine = ExportEngine;
+(ExportEngineModule as any).ExportEngine = ExportOrchestrator;
+(ExportEngineModule as any).default = ExportOrchestrator;
+
+(ExportEngine as any).ExportEngine = ExportOrchestrator;
 (ExportEngine as any).AsyncQueue = AsyncQueue;
 (ExportEngine as any).sanitizeFileName = sanitizeFileName;
 (ExportEngine as any).sanitizeZipPath = sanitizeZipPath;
 (ExportEngine as any).getExtensionVersion = getExtensionVersion;
-(ExportEngine as any).default = ExportEngine;
+(ExportEngine as any).default = ExportOrchestrator;
 
 if (typeof globalThis !== 'undefined') {
-    if (!(globalThis as any).ExportEngine) (globalThis as any).ExportEngine = ExportEngine;
+    if (!(globalThis as any).ExportEngine) (globalThis as any).ExportEngine = ExportOrchestrator;
 }
 if (typeof module === 'object' && module.exports) {
     module.exports = ExportEngineModule;
 }
-export default ExportEngine;
+export default ExportOrchestrator;

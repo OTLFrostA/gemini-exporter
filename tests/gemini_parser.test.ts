@@ -323,3 +323,42 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     }
 });
 
+test('gemini_parser - isTurn accepts r_ prefixed turn IDs in addition to c_ prefixed turn IDs', () => {
+    const parseDetailMod = require('../src/core/api/parser/parseDetail.js');
+    const turnWithR = [
+        ["r_testturn123", "rc_candidate1"],
+        [1700000000, 0],
+        [["User prompt text"]],
+        [[["rc_response1", [["Model response text"]]]]]
+    ];
+    assert.strictEqual(
+        parseDetailMod.isTurn(turnWithR),
+        true,
+        "isTurn must recognize turns with r_ prefix as valid turns"
+    );
+});
+
+test('gemini_parser - detectTurnSchemaDrift returns structured drift diagnosis', () => {
+    const corruptedTurn = [
+        ["c_corrupt123"],
+        [1700000000, 0],
+        "not an array payload"
+    ];
+    const drift = GeminiResponseParserClass.detectTurnSchemaDrift(corruptedTurn, "test_conv");
+    assert.strictEqual(typeof drift.isDrifted, "boolean");
+    assert.strictEqual(drift.isDrifted, true);
+    assert.ok(Array.isArray(drift.warnings) && drift.warnings.length > 0);
+});
+
+test('gemini_parser - robustFirstPayload parses nested JSON strings with brackets inside quotes', () => {
+    const jsonWithBracketsInString = JSON.stringify([
+        ["wrb.fr", "hNvQHb", JSON.stringify([["c_123", "Title with [brackets] inside", "data"]])]
+    ]);
+    const rpcText = `)]}'\n\n${jsonWithBracketsInString}`;
+    const parsed = GeminiResponseParserClass.robustFirstPayload(rpcText) as any[][];
+    assert.ok(Array.isArray(parsed));
+    assert.strictEqual(parsed.length, 1);
+    assert.strictEqual(parsed[0][0], "wrb.fr");
+    assert.strictEqual(parsed[0][1], "hNvQHb");
+});
+
