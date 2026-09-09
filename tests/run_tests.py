@@ -617,8 +617,10 @@ def test_stage2_architecture_improvements():
     assert "sanitizeRelativePath" in fs_code, "fsWriter must use sanitizeRelativePath"
     assert "ensureSubDir" in fs_code and "writeFile" in fs_code, "fsWriter must support flexible path writing"
 
-    # 2. Verify exportEngine AsyncQueue and elimination of busy-polling
-    export_ts = os.path.join(BASE_DIR, "src/core/engine/exportEngine.ts")
+    # 2. Verify export orchestrator AsyncQueue and elimination of busy-polling
+    export_ts = os.path.join(BASE_DIR, "src/core/engine/export/exportOrchestrator.ts")
+    if not os.path.isfile(export_ts):
+        export_ts = os.path.join(BASE_DIR, "src/core/engine/exportEngine.ts")
     export_path = export_ts if os.path.isfile(export_ts) else os.path.join(BASE_DIR, "src/core/engine/exportEngine.js")
     with open(export_path, "r", encoding="utf-8") as f:
         export_code = f.read()

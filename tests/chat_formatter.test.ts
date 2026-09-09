@@ -79,3 +79,106 @@ test('chat_formatter - renderAttachments renders images and file attachments', (
     assert.ok(rendered.includes('- 📎 [Data File](files/data.csv)'), 'File attachment should be rendered');
 });
 
+test('engine - AsyncQueue supports concurrent queueing, abort signals, and closing', async () => {
+    const { AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
+    const q = new AsyncQueue();
+    assert.strictEqual(q.length, 0);
+
+    const popPromise1 = q.pop();
+    q.push('item1');
+    const res1 = await popPromise1;
+    assert.strictEqual(res1, 'item1');
+
+    const ac = new AbortController();
+    const popPromise2 = q.pop(ac.signal);
+    ac.abort();
+    const res2 = await popPromise2;
+    assert.strictEqual(res2, null, 'Aborted pop must resolve to null');
+
+    const popPromise3 = q.pop();
+    q.close();
+    const res3 = await popPromise3;
+    assert.strictEqual(res3, null, 'Closing queue must resolve waiters to null');
+    assert.strictEqual(await q.pop(), null, 'Pop on closed queue must return null');
+});
+
+test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user sniff', async () => {
+    const BatchWorker = require('../src/core/engine/export/batchWorker.js');
+    const chat = {
+        id: 'test_123',
+        title: 'Google Gemini',
+        titles: { rpc: 'Google Gemini', sniff: '如何设计微服务架构' },
+        titleSource: 'sniff'
+    };
+    const listConv = {
+        id: 'test_123',
+        title: '如何设计微服务架构',
+        titles: { rpc: 'Google Gemini', sniff: '如何设计微服务架构' },
+        titleSource: 'sniff'
+    };
+
+    const resolved = await BatchWorker.resolveChat(
+        chat as any,
+        { id: 'test_123', title: '如何设计微服务架构' },
+        listConv as any,
+        null,
+        'u0',
+        () => {},
+        () => {}
+    );
+
+    assert.strictEqual(resolved.isError, false);
+    assert.notStrictEqual(resolved.listTitle, 'Google Gemini');
+    assert.strictEqual(resolved.listTitle, '如何设计微服务架构');
+});
+
+test('engine - RateLimiter detects 429 status and calculates backoff with jitter', () => {
+    const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+    assert.strictEqual(isRateLimited({ status: 429 }), true);
+    assert.strictEqual(isRateLimited({ error: 'RESOURCE_EXHAUSTED: Rate limit exceeded' }), true);
+    assert.strictEqual(isRateLimited({ error: 'Too many requests, quota exceeded' }), true);
+    assert.strictEqual(isRateLimited({ success: true } as any), false);
+    assert.strictEqual(isRateLimited({ status: 200 }), false);
+    assert.strictEqual(isRateLimited(null), false);
+
+    const b0 = calculateBackoff(0, { initialDelayMs: 1000, jitterMs: 200, maxDelayMs: 5000 });
+    assert.ok(b0 >= 1000 && b0 <= 1200, `Expected b0 between 1000 and 1200, got ${b0}`);
+
+    const manager = new RateLimitManager({ initialDelayMs: 500, maxDelayMs: 2000, jitterMs: 100 });
+    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
+    manager.recordRateLimit(1500);
+    assert.ok(manager.rateLimitCooldownUntil > Date.now());
+    manager.reset();
+    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
+});
+
+test('engine - SessionRecovery.updateSessionStatus updates chrome.storage.local safely', async () => {
+    const SessionRecovery = require('../src/core/engine/export/sessionRecovery.js');
+    assert.strictEqual(typeof SessionRecovery.updateSessionStatus, 'function');
+
+    const origChrome = (global as any).chrome;
+    let storedSession: any = { status: 'running', slot: 'u0', current: 1 };
+    (global as any).chrome = {
+        storage: {
+            local: {
+                get: async (_keys: any) => ({ gemini_last_export_session: storedSession }),
+                set: async (obj: any) => {
+                    if (obj.gemini_last_export_session) {
+                        storedSession = obj.gemini_last_export_session;
+                    }
+                }
+            }
+        }
+    };
+
+    try {
+        await SessionRecovery.updateSessionStatus({ current: 2, status: 'completed' });
+        assert.strictEqual(storedSession.current, 2);
+        assert.strictEqual(storedSession.status, 'completed');
+        assert.ok(typeof storedSession.updatedAt === 'number');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+

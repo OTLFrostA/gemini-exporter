@@ -171,3 +171,61 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.ok(pyChat, 'Python decorator conversation should exist');
     assert.ok(pyChat.title.includes('Python') || pyChat.title.includes('装饰器'));
 });
+
+test('takeout_engine - extractC2PATimestamp extracts ISO timestamp from C2PA binary block', () => {
+    const MediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
+    assert.strictEqual(MediaIndex.extractC2PATimestamp(null), null);
+    assert.strictEqual(MediaIndex.extractC2PATimestamp(Buffer.from('hello world')), null);
+
+    const fakeC2PA = Buffer.from('xpacket start="W5M0MpCehiHzreSzNTczkc9d" c2pa:claim_generator="Google" date="20260322143000Z" end="w"');
+    const ts = MediaIndex.extractC2PATimestamp(fakeC2PA);
+    assert.ok(typeof ts === 'number', 'should return numeric epoch timestamp');
+    assert.strictEqual(new Date(ts).toISOString(), '2026-03-22T14:30:00.000Z');
+});
+
+test('takeout_engine - slot isolation ensures multi-account takeouts do not leak', () => {
+    const MediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
+    MediaIndex.clearTakeoutData();
+
+    MediaIndex.commitTakeoutData('u0', {
+        mediaMap: { 'chat_1': [{ filename: 'img0.jpg' }] },
+        globalMedia: { 'img0.jpg': { path: 'u0/img0.jpg' } },
+        convCache: { 'c_chat_1': { id: 'chat_1', title: 'Slot 0 Chat' } }
+    });
+
+    MediaIndex.commitTakeoutData('u1', {
+        mediaMap: { 'chat_2': [{ filename: 'img1.jpg' }] },
+        globalMedia: { 'img1.jpg': { path: 'u1/img1.jpg' } },
+        convCache: { 'c_chat_2': { id: 'chat_2', title: 'Slot 1 Chat' } }
+    });
+
+    const storeU0 = MediaIndex.getStore('u0');
+    const storeU1 = MediaIndex.getStore('u1');
+
+    assert.ok(storeU0.convCache['c_chat_1'], 'u0 has chat_1');
+    assert.ok(!storeU0.convCache['c_chat_2'], 'u0 must not have chat_2');
+
+    assert.ok(storeU1.convCache['c_chat_2'], 'u1 has chat_2');
+    assert.ok(!storeU1.convCache['c_chat_1'], 'u1 must not have chat_1');
+
+    MediaIndex.clearTakeoutData('u1');
+    assert.strictEqual(Object.keys(MediaIndex.getStore('u1').convCache).length, 0);
+    assert.ok(MediaIndex.getStore('u0').convCache['c_chat_1'], 'u0 cache remains intact after clearing u1');
+
+    MediaIndex.clearTakeoutData();
+});
+
+test('takeout_engine - stripHtmlTags removes nested HTML and script injections safely', () => {
+    const TakeoutParser = require('../src/core/engine/takeout/takeoutParser.js');
+    assert.strictEqual(TakeoutParser.stripHtmlTags(''), '');
+    assert.strictEqual(TakeoutParser.stripHtmlTags(null), '');
+    assert.strictEqual(TakeoutParser.stripHtmlTags(12345), '');
+
+    const dirty = '<div class="outer"><p>Hello <b>World</b>!</p><script>alert(1)</script></div>';
+    const clean = TakeoutParser.stripHtmlTags(dirty);
+    assert.strictEqual(clean, 'Hello World!alert(1)');
+
+    const nested = '<div><span>deep <i>text</i></span></div>';
+    assert.strictEqual(TakeoutParser.stripHtmlTags(nested), 'deep text');
+});
+

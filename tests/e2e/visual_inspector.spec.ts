@@ -81,6 +81,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
         if (stepIdx < 4) {
           await nextBtn.click();
           await expect(page.locator('.tour-step-badge')).toHaveText(`${stepIdx + 2} / 5`);
+          await page.waitForTimeout(300);
         } else {
           await nextBtn.click();
         }

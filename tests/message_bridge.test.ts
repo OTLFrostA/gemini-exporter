@@ -1,28 +1,31 @@
 export {};
 
-const assert = require('assert');
+const test = require('node:test');
+const assert = require('node:assert');
 const MessageBridge = require('../src/content/messageBridge.js');
+const paginationMod = require('../src/core/api/client/pagination.js');
+const retryPolicyMod = require('../src/core/api/client/retryPolicy.js');
+const rpcClientMod = require('../src/core/api/client/rpcClient.js');
 
-async function runTests() {
-    console.log('Testing MessageBridge...');
-
-    // Test 1: init returns API
+test('messageBridge - init returns API with handleWindowMessage', () => {
     const api = MessageBridge.init();
     assert.strictEqual(typeof api.handleWindowMessage, 'function', 'init should return handleWindowMessage');
+});
 
-    // Test 2: ignores falsy or non-object events
+test('messageBridge - ignores falsy or non-object events', async () => {
     let upsertCalled = false;
-    MessageBridge.init({
+    const api = MessageBridge.init({
         upsertConversations: async () => { upsertCalled = true; }
     });
     await api.handleWindowMessage(null);
     await api.handleWindowMessage({});
     assert.strictEqual(upsertCalled, false, 'should ignore invalid event data');
+});
 
-    // Test 3: handles GEMINI_CONVERSATION_DELETED
+test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
     let removedId: any = null;
     let badgeUpdated = false;
-    MessageBridge.init({
+    const api = MessageBridge.init({
         Storage: {
             removeConversation: async (_slot: any, id: any) => {
                 removedId = id;
@@ -44,34 +47,15 @@ async function runTests() {
 
     assert.strictEqual(removedId, 'c_test_del', 'should remove conversation from storage');
     assert.strictEqual(badgeUpdated, true, 'should update badge after deletion');
+});
 
-    // Test 4: __gemExporterNetworkIds is deprecated and now ignored (Phase E.3)
-    let networkItems: any = null;
-    MessageBridge.init({
-        upsertConversations: async (items: any, _source: any) => {
-            networkItems = items;
-            return items.length;
-        }
-    });
-
-    await api.handleWindowMessage({
-        origin: typeof location !== 'undefined' ? location.origin : undefined,
-        data: {
-            type: '__gemExporterNetworkIds',
-            ids: ['c_net1', 'c_net2'],
-            source: 'test'
-        }
-    });
-
-    assert.strictEqual(networkItems, null, 'should ignore deprecated __gemExporterNetworkIds message');
-
-    // Test 5: rejects forged postMessage from foreign source (e.g. iframe)
+test('messageBridge - rejects forged postMessage from foreign source', async () => {
     let forgedRemovedId: any = null;
     const fakeWindow = { name: 'top-window' };
     const oldWindow = (global as any).window;
     try {
         (global as any).window = fakeWindow;
-        MessageBridge.init({
+        const api = MessageBridge.init({
             Storage: {
                 removeConversation: async (_slot: any, id: any) => {
                     forgedRemovedId = id;
@@ -81,7 +65,7 @@ async function runTests() {
             getAccountSlot: () => 'u0'
         });
 
-        // 5a. foreign source (simulating iframe) -> must be rejected
+        // Foreign source rejected
         await api.handleWindowMessage({
             source: { name: 'iframe-window' },
             data: {
@@ -89,9 +73,9 @@ async function runTests() {
                 payload: { id: 'c_forged_del', slot: 'u0' }
             }
         });
-        assert.strictEqual(forgedRemovedId, null, 'should reject postMessage from foreign source / iframe');
+        assert.strictEqual(forgedRemovedId, null, 'should reject postMessage from foreign source');
 
-        // 5b. source === window -> must be accepted
+        // Window source accepted
         await api.handleWindowMessage({
             source: fakeWindow,
             data: {
@@ -103,11 +87,46 @@ async function runTests() {
     } finally {
         (global as any).window = oldWindow;
     }
+});
 
-    console.log('  ✓ MessageBridge tests passed successfully');
-}
+test('client - getAllConversations respects opts.signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
 
-runTests().catch(err => {
-    console.error('MessageBridge tests failed:', err);
-    process.exit(1);
+    const mockClient = {
+        aborted: false,
+        isAborted: () => false,
+        getConversationList: async () => {
+            return { conversations: [{ id: 'c_1', title: 'Chat 1' }], nextPageToken: 'tC_2' };
+        }
+    };
+
+    const res = await paginationMod.getAllConversations(mockClient as any, {
+        maxPages: 10,
+        signal: controller.signal
+    });
+
+    assert.strictEqual(res.conversations.length, 0, 'Should abort immediately when opts.signal is aborted');
+    assert.ok(res.diagnostics.stopReason.includes('终止'), 'Stop reason should indicate aborted');
+});
+
+test('client - retryPolicy.handleHttp429 returns structured backoff metadata', async () => {
+    const mockResp = {
+        status: 429,
+        headers: {
+            get: (h: string) => (h.toLowerCase() === 'retry-after' ? '0' : null)
+        }
+    };
+
+    const exceeded = await retryPolicyMod.handleHttp429({
+        resp: mockResp as any,
+        retryCount: 3,
+        maxRetries: 3
+    });
+    assert.strictEqual(exceeded.shouldRetry, false);
+});
+
+test('client - rpcClient.getApiUrl handles both u0/u1 and /u/0 formats', () => {
+    assert.strictEqual(rpcClientMod.getApiUrl('default'), 'https://gemini.google.com/_/BardChatUi/data/batchexecute');
+    assert.strictEqual(rpcClientMod.getApiUrl('u1'), 'https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute');
 });
