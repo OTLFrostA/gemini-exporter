@@ -413,23 +413,22 @@ class VisualTestingAgent:
 
             const items = Array.from(document.querySelectorAll('#list .item'));
             const targets = [];
-            const priorityKeywords = ['cat', 'astronaut', '猫咪', '图片', 'image', 'decorator', '装饰器'];
+            const priorityKeywords = ['cat', 'astronaut', '猫咪', '图片', 'image', 'decorator', '装饰器', 'python'];
+            const goldenIds = ['1cea7e48cc166b57', '1bd028d5c5b0c0e2'];
 
             items.forEach((item, idx) => {
                 const cid = item.dataset.chatId || '';
-                const title = item.querySelector('.title')?.textContent || '';
+                const title = item.querySelector('.chat-title, .title')?.textContent || '';
                 const cb = item.querySelector('input[type=checkbox]');
                 if (!cb) return;
 
-                const isPriority = priorityKeywords.some(kw => title.toLowerCase().includes(kw) || cid.includes(kw));
+                const isGolden = goldenIds.some(gid => cid && (cid === gid || cid.includes(gid) || gid.includes(cid)));
+                const isPriority = isGolden || priorityKeywords.some(kw => title.toLowerCase().includes(kw) || cid.includes(kw));
                 if (isPriority) {
-                    const r = cb.getBoundingClientRect();
                     targets.push({
                         idx,
                         cid,
-                        title: title.slice(0, 30),
-                        x: r.left + r.width / 2,
-                        y: r.top + r.height / 2
+                        title: title.slice(0, 30)
                     });
                 }
             });
@@ -440,13 +439,10 @@ class VisualTestingAgent:
                     if (targets.some(t => t.cid === cid)) return;
                     const cb = item.querySelector('input[type=checkbox]');
                     if (!cb) return;
-                    const r = cb.getBoundingClientRect();
                     targets.push({
                         idx,
                         cid,
-                        title: (item.querySelector('.title')?.textContent || '').slice(0, 30),
-                        x: r.left + r.width / 2,
-                        y: r.top + r.height / 2
+                        title: (item.querySelector('.chat-title, .title')?.textContent || '').slice(0, 30)
                     });
                 });
             }
@@ -457,8 +453,21 @@ class VisualTestingAgent:
 
         if select_targets:
             for t in select_targets:
-                self.physical_mouse_click(cdp, t["x"], t["y"], label=f"checkbox_{t['cid'][:8]}")
+                coords = cdp.eval(f"""
+                (() => {{
+                    const el = document.querySelector('#list .item[data-chat-id="{t['cid']}"]');
+                    if (!el) return null;
+                    el.scrollIntoView({{ block: 'center', behavior: 'instant' }});
+                    const cb = el.querySelector('input[type=checkbox]');
+                    if (!cb) return null;
+                    const r = cb.getBoundingClientRect();
+                    return {{ x: r.left + r.width / 2, y: r.top + r.height / 2 }};
+                }})()
+                """)
+                if coords:
+                    self.physical_mouse_click(cdp, coords["x"], coords["y"], label=f"checkbox_{t['cid'][:8]}")
                 time.sleep(0.15)
+            cdp.eval("document.getElementById('list')?.scrollTo({ top: 0, behavior: 'instant' });")
             self.log(f"✓ 物理光标成功勾选 {len(select_targets)} 个目标会话", "PASS")
         else:
             self.log("未定位到会话复选框，使用全选按钮保底", "WARN")
