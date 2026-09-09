@@ -36,7 +36,8 @@ test('Issue A1 fix: PageObserver cleans up dangling intervals and watchers on re
     const firstUrlWatcher = (global as any).window.__gemExporterUrlWatcher;
     const firstSyncInterval = (global as any).window.__gemExporterSyncInterval;
 
-    assert.ok(firstUrlWatcher, '__gemExporterUrlWatcher should be assigned');
+    // urlWatcher 1s polling removed in Phase D.3; only syncInterval should be assigned
+    assert.ok(!firstUrlWatcher, '__gemExporterUrlWatcher should not be assigned after 1s polling removal');
     assert.ok(firstSyncInterval, '__gemExporterSyncInterval should be assigned');
 
     // Second init (simulating re-injection)
@@ -45,13 +46,12 @@ test('Issue A1 fix: PageObserver cleans up dangling intervals and watchers on re
     const secondUrlWatcher = (global as any).window.__gemExporterUrlWatcher;
     const secondSyncInterval = (global as any).window.__gemExporterSyncInterval;
 
-    assert.ok(secondUrlWatcher, 'New __gemExporterUrlWatcher should be assigned');
+    assert.ok(!secondUrlWatcher, 'urlWatcher should remain unassigned after re-init');
     assert.ok(secondSyncInterval, 'New __gemExporterSyncInterval should be assigned');
-    assert.notStrictEqual(secondUrlWatcher, firstUrlWatcher, 'Previous url watcher should have been replaced and cleared');
     assert.notStrictEqual(secondSyncInterval, firstSyncInterval, 'Previous sync interval should have been replaced and cleared');
 
     // Explicit cleanup
     PageObserver.cleanup();
-    assert.strictEqual((global as any).window.__gemExporterUrlWatcher, null, 'Watcher handle should be nulled out after cleanup');
+    assert.ok(!(global as any).window.__gemExporterUrlWatcher, 'Watcher handle should remain null after cleanup');
     assert.strictEqual((global as any).window.__gemExporterSyncInterval, null, 'Interval handle should be nulled out after cleanup');
 });

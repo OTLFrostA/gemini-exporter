@@ -33,16 +33,25 @@ function getProtocol(): GeminiProtocolModule {
 
     const generateFallbackSid = () => String(Math.floor(Math.random() * 1e19));
 
+    let _blCache: { v: string | null; ts: number; len: number } | null = null;
+    let _atCache: { v: string; ts: number; len: number } | null = null;
+    const CRED_CACHE_TTL = 30000;
+
     // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
     function getBlFromPage(): string | null {
         if (typeof document === "undefined") return null;
         try {
-            const P = getProtocol();
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
+            const htmlLen = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML || "").length;
+            if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) return _blCache.v;
+            const P = getProtocol();
             let html = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML) || "";
             let m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
-            if (m) return m[1];
-            if (glob.__gemExporterBl) return glob.__gemExporterBl;
+            let res: string | null = null;
+            if (m) res = m[1];
+            else if (glob.__gemExporterBl) res = glob.__gemExporterBl;
+            _blCache = { v: res, ts: Date.now(), len: htmlLen };
+            if (res) return res;
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
         return null;
     }
@@ -56,18 +65,34 @@ function getProtocol(): GeminiProtocolModule {
                 let a = glob.__gemExporterExtractAt();
                 if (a) return a;
             }
+            const htmlLen = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML || "").length;
+            if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) return _atCache.v;
             const P = getProtocol();
-            if (glob._WIZ_global_data && glob._WIZ_global_data[P.TOKENS.AT]) return glob._WIZ_global_data[P.TOKENS.AT];
-            if (glob.WIZ_global_data && glob.WIZ_global_data[P.TOKENS.AT]) return glob.WIZ_global_data[P.TOKENS.AT];
+            if (glob._WIZ_global_data && glob._WIZ_global_data[P.TOKENS.AT]) {
+                const v = glob._WIZ_global_data[P.TOKENS.AT];
+                _atCache = { v, ts: Date.now(), len: htmlLen };
+                return v;
+            }
+            if (glob.WIZ_global_data && glob.WIZ_global_data[P.TOKENS.AT]) {
+                const v = glob.WIZ_global_data[P.TOKENS.AT];
+                _atCache = { v, ts: Date.now(), len: htmlLen };
+                return v;
+            }
             let scripts = glob.document ? glob.document.querySelectorAll("script") : [];
             for (let s of scripts) {
                 let txt = s.textContent || "";
                 let m = txt.match(P.TOKEN_PATTERNS.atFromScript);
-                if (m) return m[1];
+                if (m) {
+                    _atCache = { v: m[1], ts: Date.now(), len: htmlLen };
+                    return m[1];
+                }
             }
             let html = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML) || "";
             let mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
-            if (mHtml) return mHtml[1];
+            if (mHtml) {
+                _atCache = { v: mHtml[1], ts: Date.now(), len: htmlLen };
+                return mHtml[1];
+            }
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
         return "";
     }

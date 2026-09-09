@@ -140,6 +140,7 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
 
 let __storageWriteQueue = Promise.resolve<any>(0);
 let __lastKnownCount = 0;
+let __syncOnceInFlight = false;
 
 export function upsertConversations(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<number> {
     if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
@@ -228,6 +229,8 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 }
 
 export async function syncOnce(): Promise<number> {
+    if (__syncOnceInFlight) return 0;
+    __syncOnceInFlight = true;
     try {
         const items: any[] = [];
         // 1. Check current active page chat
@@ -269,6 +272,8 @@ export async function syncOnce(): Promise<number> {
     } catch (e) {
         if (contentContext.isDevMode()) console.debug('[Gemini Exporter] syncOnce err', e);
         return 0;
+    } finally {
+        __syncOnceInFlight = false;
     }
 }
 
@@ -336,7 +341,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
         }
 
         if (all && all.conversations && all.conversations.length) {
-            let mergedLen = await upsertConversations(all.conversations, 'batchexecute', true);
+            // saveQueue already incrementally upserted each batch; avoid second full O(n log n) pass
+            let mergedLen = all.conversations.length;
             const isFullExhaustive = !useIncremental && !all.stoppedEarly && !contentContext.isAborted();
             if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
                 const recRes = await Storage.reconcileConversations(slot, all.conversations, { keepTakeout: true });
