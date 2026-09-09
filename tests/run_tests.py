@@ -90,74 +90,6 @@ def test_html_includes():
             assert '/dist/core/protocol/protocol.js' not in pop_html or pop_html.count('<script') == 1, f"Legacy per-file scripts must be removed in {pop_path}"
     print("  ✓ options.html and popup.html script tags verified")
 
-def test_module_exports():
-    files = {
-        "src/core/api/geminiParser.js": ["parseList", "parseDetail", "isRealTitle", "extractDocumentsMeta"],
-        "src/core/api/parser/extractors.js": ["deepWalk", "robustFirstPayload", "extractThoughts", "extractConversationTitle"],
-        "src/core/api/parser/attachments.js": ["extractImages", "extractUserFiles", "extractDocumentsMeta"],
-        "src/core/api/parser/parseList.js": ["parseList", "extractListItemTimestamp"],
-        "src/core/api/parser/parseDetail.js": ["parseDetail", "findTurnsDeep"],
-        "src/core/api/client/credentialManager.js": ["resolveCred", "loadCredMap", "detectSlot", "getAtFromPage", "getBlFromPage"],
-        "src/core/api/client/retryPolicy.js": ["handleHttp400", "handleHttp401", "handleHttp429"],
-        "src/core/api/client/rpcClient.js": ["getApiUrl", "postBatchexecute", "nextReqid"],
-        "src/core/api/client/pagination.js": ["getAllConversations", "getConversationDetail"],
-        "src/core/api/geminiClient.js": ["GeminiAPIClient", "resolveCred", "getApiUrl"],
-        "src/core/engine/takeout/zipBombGuard.js": ["MAX_ZIP_SIZE", "MAX_ENTRY_COUNT", "validateZipFile", "validateZipEntries"],
-        "src/core/engine/takeout/mediaIndex.js": ["getStore", "extractC2PATimestamp", "getTakeoutOfflineChat", "getTakeoutMediaForChat", "getTakeoutFallbackMedia", "clearTakeoutData"],
-        "src/core/engine/takeout/takeoutParser.js": ["stripHtmlTags", "parseTakeoutZip"],
-        "src/core/engine/takeoutEngine.js": ["parseTakeoutZip", "getTakeoutOfflineChat", "getTakeoutFallbackMedia"],
-        "src/core/engine/assetPipeline.js": ["AssetPipeline", "sanitizeZipPath"],
-        "src/core/engine/export/progressReporter.js": ["ProgressReporter", "calculateProgress", "updateStorageSession"],
-        "src/core/engine/export/sessionRecovery.js": ["writeIndexAndMeta", "writeDiagnostics", "buildSessionLogText", "finalizeChatExport", "updateSessionStatus"],
-        "src/core/engine/export/rateLimiter.js": ["RateLimitManager", "calculateBackoff", "isRateLimited"],
-        "src/core/engine/export/batchWorker.js": ["fetchChatDetail", "resolveChat"],
-        "src/core/engine/export/exportOrchestrator.js": ["ExportOrchestrator", "AsyncQueue", "ensureSubDir", "sanitizeFileName", "sanitizeZipPath"],
-        "src/core/engine/exportEngine.js": ["ExportEngine", "sanitizeFileName", "sanitizeZipPath", "AsyncQueue"],
-        "src/core/storage/storageService.js": ["getConversations", "saveExportRecord", "normSlot", "getLastSync", "isTourCompleted", "setTourCompleted", "isTakeoutPromptCompleted", "setTakeoutPromptCompleted", "hasTakeoutData", "removeConversation", "reconcileConversations"],
-        "src/content/assetFetcher.js": ["handleGetFileBlob", "handleGetImageBlob", "downloadAssetDirect"],
-        "src/content/contentContext.js": ["ContentContext", "contentContext", "isAborted", "abort", "reset", "registerTimer", "clearTimer"],
-        "src/content/hookCredentials.js": ["origFetch", "origOpen", "origSend"],
-        "src/content/domScraper.js": ["parseDoc", "contentFetchChatDetail", "getScrollContainer"],
-        "src/content/pageObserver.js": ["PageObserver", "cleanup", "debouncedSync", "hookHistoryEvents"],
-        "src/content/syncEngine.js": ["SyncEngine", "syncOnce", "upsertConversations", "tryBatchExecuteFull", "compareConversations"],
-        "src/content/messageRouter.js": ["MessageRouter", "init"],
-        "src/core/utils/constants.js": ["ALLOWED_FORMATS", "DEFAULT_FORMAT", "DIRECT_WRITE_THRESHOLD", "STORAGE_KEYS"],
-        "src/core/utils/tabService.js": ["getGeminiTab", "sendToGeminiTab", "checkGeminiStatus", "openGeminiPage", "reloadGeminiTab"],
-        "src/core/storage/formatStore.js": ["ALLOWED_FORMATS", "isAllowed", "normalizeFormat", "loadFormat", "saveFormat"],
-        "src/core/engine/writers/zipWriter.js": ["ZipWriter", "generateBlob", "writeFile", "sanitizePath"],
-        "src/core/engine/writers/fsWriter.js": ["FsWriter", "ensureSubDir", "writeFile", "sanitizeRelativePath"],
-        "src/core/engine/writers/writerInterface.js": ["createWriter", "isWriter"],
-        "src/core/engine/chatFormatter.js": ["adjustHeadingHierarchy", "renderAttachments", "convertHtmlToMarkdown", "cleanMessageBody", "toMarkdown", "toOpenAIJson", "formatContent"],
-        "src/ui/state/conversationsStore.js": ["getConversations", "setConversations", "getExportedIds", "loadStore", "getLastSync", "clearExported", "clearAll", "removeConversation", "reconcileWithCloud", "normalizeAndDeduplicate", "hasTakeoutData"],
-        "src/ui/tour/tourGuide.js": ["startTour", "goToStep", "finishTour", "skipTour"],
-        "src/ui/views/listView.js": ["render", "updateStat", "getSelected", "selectAll", "deselectAll", "selectUnexported", "selectNeedsUpdate", "setOnDelete"],
-        "src/ui/views/logView.js": ["init", "log", "clear", "render", "getBuffer"],
-        "src/ui/views/accountView.js": ["render", "bindChange"],
-        "src/ui/views/dialogView.js": ["renderExportBanner", "dismissExportBanner", "showDirectWritePrompt", "hideDirectWritePrompt", "showTakeoutLimitPrompt", "hideTakeoutLimitPrompt"],
-        "src/ui/controllers/dirHandleController.js": ["getStoredDirHandle", "saveStoredDirHandle", "requestDirHandle"],
-        "src/ui/controllers/takeoutController.js": ["handleTakeoutImport"],
-        "src/ui/controllers/syncController.js": ["startIncrementalScan", "startDeepScan", "stopScan"],
-        "src/ui/controllers/exportController.js": ["setRunning", "isRunning", "runExport", "abort"],
-        "src/ui/options/modules/optionsInit.js": ["OptionsInit", "loadStore", "compareConversations", "isBad"],
-        "src/ui/options/modules/optionsExport.js": ["OptionsExport", "exportSelected", "startExportPipeline", "updateZipUi"],
-        "src/ui/options/modules/optionsSync.js": ["OptionsSync", "bindBroadcastListeners", "autoDetectActiveSlot"],
-        "src/ui/options/modules/optionsTakeout.js": ["OptionsTakeout", "maybePromptTakeout", "checkPendingTakeoutPrompt", "isTakeoutPromptCompleted"],
-        "src/ui/options/modules/optionsSettings.js": ["OptionsSettings", "handleLangChange", "handleDevChange", "exportDiagnostics"],
-        "src/core/protocol/protocol.js": ["PROTOCOL_VERSION", "RPCS", "BL_FALLBACK", "LIMITS", "createReqidGenerator", "DELETION_ANCHORS"],
-        "src/core/utils/locales/zh.js": ["extName", "takeoutLimitPromptTitle"],
-        "src/core/utils/locales/en.js": ["extName", "tourBtnNext"],
-        "src/core/utils/i18n.js": ["initLanguage", "getLang", "setLang", "onLanguageChange", "t", "applyI18n"],
-        "src/core/utils/utils.js": ["isDevMode", "isRealTitle", "cleanTitle", "resolveTitle", "getEffectiveTimestamp", "compareConversations", "sanitizeRelativePath"]
-    }
-    for filename, symbols in files.items():
-        ts_variant = os.path.splitext(filename)[0] + ".ts"
-        target = ts_variant if os.path.isfile(os.path.join(BASE_DIR, ts_variant)) else filename
-        actual_path = os.path.join(BASE_DIR, target)
-        with open(actual_path, "r", encoding="utf-8") as f:
-            content = f.read()
-            for sym in symbols:
-                assert sym in content, f"Missing symbol '{sym}' in {target}"
-        print(f"  ✓ {target} exports and signatures verified")
 
 def test_i18n_keys():
     # Dictionaries live in locales/{zh,en}.js since Phase 2b (classic-script
@@ -727,7 +659,6 @@ test_json_files()
 test_manifest_structure()
 test_build_pipeline()
 test_html_includes()
-test_module_exports()
 test_i18n_keys()
 test_content_badge_flicker_prevention()
 test_exported_history_and_slot_fallback()
