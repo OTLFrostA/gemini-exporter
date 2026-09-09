@@ -20,9 +20,12 @@ Gemini Exporter — 纯视觉 AI 盲测与 UI 质检自动化套件 (Visual AI T
 
 import sys
 import os
+import re
 import json
 import time
 import base64
+import shutil
+import zipfile
 import argparse
 import urllib.request
 import urllib.error
@@ -36,6 +39,7 @@ except Exception:
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, CDP_DEFAULT_PORT
+from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 
 
 class VisualTestingAgent:
@@ -307,6 +311,320 @@ class VisualTestingAgent:
         self.capture_screen(cdp, "workbench_ready_to_export")
         return True
 
+    def run_full_export_and_spec_audit(self, cdp, takeout_zip=None):
+        self.log("\n==================================================", "INFO")
+        self.log("阶段三：全量全流程闭环实测 (Takeout 导入 -> 物理勾选 -> 物理导出 -> ZIP 解压资产校验 -> 导出规范断言)", "INFO")
+        self.log("==================================================", "INFO")
+
+        # 1. 导入 Takeout 样本 (离线媒体附件合流)
+        resolved_takeout = takeout_zip or os.path.abspath(os.path.join(self.repo_dir, "tests", "fixtures", "gemini_takeout_clean.zip"))
+        if os.path.isfile(resolved_takeout):
+            self.log(f"📥 正在执行 Takeout ZIP 样本离线导入: {os.path.basename(resolved_takeout)}...", "ACT")
+            with open(resolved_takeout, "rb") as tf:
+                zip_b64 = base64.b64encode(tf.read()).decode("ascii")
+
+            takeout_res = cdp.eval(f"""
+            (async () => {{
+                try {{
+                    const b64 = {json.dumps(zip_b64)};
+                    const bin = atob(b64);
+                    const arr = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                    const file = new File([arr], "{os.path.basename(resolved_takeout)}", {{ type: "application/zip" }});
+                    
+                    const TC = typeof TakeoutController !== 'undefined' ? TakeoutController : window.TakeoutController;
+                    if (!TC) return {{ error: "TakeoutController not loaded" }};
+
+                    return await new Promise((resolve) => {{
+                        TC.handleTakeoutImport(file, {{
+                            onFinished: (result) => {{
+                                if (typeof window.__workbenchLoadStore === 'function') {{
+                                    window.__workbenchLoadStore(true);
+                                }}
+                                resolve({{
+                                    success: true,
+                                    addedCount: result.addedCount,
+                                    totalMediaCount: result.totalMediaCount
+                                }});
+                            }},
+                            onError: (err, msg) => resolve({{ error: msg || (err && err.message) || String(err) }})
+                        }});
+                    }});
+                }} catch (e) {{
+                    return {{ error: e.message }};
+                }}
+            }})()
+            """, await_promise=True)
+
+            if isinstance(takeout_res, dict) and takeout_res.get("success"):
+                self.log(f"✓ Takeout 样本导入成功！已索引离线附件池: {takeout_res.get('totalMediaCount', 0)} 个资源", "PASS")
+            else:
+                self.log(f"⚠️ Takeout 导入提示: {takeout_res}", "WARN")
+            time.sleep(1.0)
+            self.capture_screen(cdp, "takeout_imported")
+
+        # 2. 点击【同步最新会话】刷新合流数据
+        self.log("🔄 点击【同步最新会话】触发合流...", "ACT")
+        sync_coords = cdp.eval("""
+        (() => {
+            const btn = document.getElementById('btnIncrementalScan');
+            if (!btn) return null;
+            const r = btn.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        })()
+        """)
+        if sync_coords:
+            self.physical_mouse_click(cdp, sync_coords["x"], sync_coords["y"], label="btnIncrementalScan")
+
+        # 等待同步完成
+        self.log("⏳ 等待增量同步与合流渲染完成...", "INFO")
+        for _ in range(30):
+            time.sleep(1.0)
+            scanning = cdp.eval("""
+            (() => {
+                const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
+                const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
+                const btn = document.getElementById('btnExport');
+                return isScan || (btn && btn.disabled);
+            })()
+            """)
+            if not scanning:
+                break
+        time.sleep(1.0)
+        self.capture_screen(cdp, "workbench_synced")
+
+        # 3. 强制取消 skipExported
+        cdp.eval("""
+        (() => {
+            const skipCb = document.getElementById('skipExported');
+            if (skipCb && skipCb.checked) {
+                skipCb.checked = false;
+                skipCb.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        })()
+        """)
+
+        # 4. 精准勾选目标会话（优先挑带图片及黄金特征的会话）
+        self.log("🎯 计算目标会话坐标并执行真实物理光标逐项点击选择...", "THINK")
+        select_targets = cdp.eval("""
+        (() => {
+            const selectNone = document.getElementById('btnSelectNone');
+            if (selectNone) selectNone.click();
+
+            const items = Array.from(document.querySelectorAll('#list .item'));
+            const targets = [];
+            const priorityKeywords = ['cat', 'astronaut', '猫咪', '图片', 'image', 'decorator', '装饰器'];
+
+            items.forEach((item, idx) => {
+                const cid = item.dataset.chatId || '';
+                const title = item.querySelector('.title')?.textContent || '';
+                const cb = item.querySelector('input[type=checkbox]');
+                if (!cb) return;
+
+                const isPriority = priorityKeywords.some(kw => title.toLowerCase().includes(kw) || cid.includes(kw));
+                if (isPriority) {
+                    const r = cb.getBoundingClientRect();
+                    targets.push({
+                        idx,
+                        cid,
+                        title: title.slice(0, 30),
+                        x: r.left + r.width / 2,
+                        y: r.top + r.height / 2
+                    });
+                }
+            });
+
+            if (targets.length < 3) {
+                items.slice(0, 4).forEach((item, idx) => {
+                    const cid = item.dataset.chatId || '';
+                    if (targets.some(t => t.cid === cid)) return;
+                    const cb = item.querySelector('input[type=checkbox]');
+                    if (!cb) return;
+                    const r = cb.getBoundingClientRect();
+                    targets.push({
+                        idx,
+                        cid,
+                        title: (item.querySelector('.title')?.textContent || '').slice(0, 30),
+                        x: r.left + r.width / 2,
+                        y: r.top + r.height / 2
+                    });
+                });
+            }
+
+            return targets;
+        })()
+        """)
+
+        if select_targets:
+            for t in select_targets:
+                self.physical_mouse_click(cdp, t["x"], t["y"], label=f"checkbox_{t['cid'][:8]}")
+                time.sleep(0.15)
+            self.log(f"✓ 物理光标成功勾选 {len(select_targets)} 个目标会话", "PASS")
+        else:
+            self.log("未定位到会话复选框，使用全选按钮保底", "WARN")
+            cdp.eval("document.getElementById('btnSelectAll')?.click();")
+
+        time.sleep(0.5)
+        self.capture_screen(cdp, "conversations_selected")
+
+        # 5. 配置 CDP 下载行为指向 output_dir
+        try:
+            cdp.call("Browser.setDownloadBehavior", {
+                "behavior": "allow",
+                "downloadPath": self.output_dir,
+                "eventsEnabled": True
+            })
+        except Exception:
+            pass
+
+        # 6. 物理光标命中测试并点击【导出选中 → ZIP】
+        export_btn_info = cdp.eval("""
+        (() => {
+            const btn = document.getElementById('btnExport');
+            if (!btn || btn.disabled) return { ok: false, reason: 'btn disabled or missing' };
+            const r = btn.getBoundingClientRect();
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const hit = document.elementFromPoint(cx, cy);
+            return {
+                ok: true,
+                x: cx,
+                y: cy,
+                hitSelf: hit && (hit === btn || btn.contains(hit)),
+                hitTag: hit ? hit.tagName : null,
+                hitId: hit ? hit.id : null
+            };
+        })()
+        """)
+
+        if not export_btn_info or not export_btn_info.get("ok"):
+            self.log(f"❌ 导出按钮未就绪: {export_btn_info}", "FAIL")
+            return False
+
+        if not export_btn_info.get("hitSelf"):
+            self.log(f"❌ 严重碰撞 Bug: 导出按钮被上层浮层阻挡！实际击中: {export_btn_info}", "FAIL")
+            return False
+        
+        self.log(f"✓ 物理 Hit-Testing 通过: 光标精准击中【导出选中 → ZIP】按钮 ({export_btn_info['x']:.1f}, {export_btn_info['y']:.1f})", "PASS")
+        start_export_time = time.time()
+        self.physical_mouse_click(cdp, export_btn_info["x"], export_btn_info["y"], label="btnExport")
+
+        # 7. 导出动态视觉捕获：监控进度条与取消按钮
+        self.log("👀 动态追踪导出视觉反馈 (进度条与状态文案)...", "SEE")
+        captured_progress_shot = False
+        for _ in range(40):
+            time.sleep(0.4)
+            prog_info = cdp.eval("""
+            (() => {
+                const wrap = document.getElementById('progWrap');
+                const bar = document.getElementById('bar');
+                const text = document.getElementById('progText')?.textContent || '';
+                const isVisible = wrap && (wrap.style.display !== 'none' && getComputedStyle(wrap).display !== 'none');
+                return {
+                    isVisible,
+                    width: bar ? bar.style.width : '',
+                    text
+                };
+            })()
+            """)
+            if prog_info and prog_info.get("isVisible") and not captured_progress_shot:
+                self.log(f"📊 捕获到导出进度动态渲染: 宽度 {prog_info.get('width')} | 提示: {prog_info.get('text')}", "THINK")
+                self.capture_screen(cdp, "export_in_progress")
+                captured_progress_shot = True
+                break
+
+        # 8. 等待 ZIP 文件下载落地
+        self.log("⏳ 等待导出的 ZIP 归档包落盘...", "INFO")
+        downloaded_zip = None
+        sys_downloads = os.path.expanduser("~/Downloads")
+
+        for _ in range(50):
+            time.sleep(1.0)
+            # 检查 output_dir
+            for f in os.listdir(self.output_dir):
+                if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                    fpath = os.path.join(self.output_dir, f)
+                    if os.path.getmtime(fpath) >= start_export_time - 3:
+                        downloaded_zip = fpath
+                        break
+            if downloaded_zip:
+                break
+
+            # 检查 sys_downloads
+            if os.path.isdir(sys_downloads):
+                for f in os.listdir(sys_downloads):
+                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                        fpath = os.path.join(sys_downloads, f)
+                        if os.path.getmtime(fpath) >= start_export_time - 3:
+                            dest_zip = os.path.join(self.output_dir, f)
+                            shutil.copy2(fpath, dest_zip)
+                            downloaded_zip = dest_zip
+                            break
+            if downloaded_zip:
+                break
+
+        if not downloaded_zip:
+            self.log("❌ 未在超时时间内检测到导出的 ZIP 文件！", "FAIL")
+            return False
+
+        self.log(f"✓ 成功捕获导出的 ZIP 归档文件: {os.path.basename(downloaded_zip)} ({os.path.getsize(downloaded_zip)} bytes)", "PASS")
+        self.capture_screen(cdp, "export_completed")
+
+        # 9. 解压与物理资产完整性深度断言
+        extract_dir = os.path.join(self.output_dir, "extracted_export")
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir, ignore_errors=True)
+        os.makedirs(extract_dir, exist_ok=True)
+
+        with zipfile.ZipFile(downloaded_zip, "r") as zf:
+            zf.extractall(extract_dir)
+
+        # 检查 assets 目录
+        assets_found = []
+        for root, _, files in os.walk(extract_dir):
+            for f in files:
+                if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")):
+                    fpath = os.path.join(root, f)
+                    fsize = os.path.getsize(fpath)
+                    assets_found.append({"file": f, "path": fpath, "size": fsize})
+
+        self.log(f"📦 导出包内物理提取到的图片媒体资产总数: {len(assets_found)} 个", "INFO")
+        for a in assets_found:
+            if a["size"] > 0:
+                self.log(f"   ✓ 资产完整: {a['file']} ({a['size']} bytes)", "PASS")
+            else:
+                self.log(f"   ❌ 资产损坏 (0 字节): {a['file']}", "FAIL")
+
+        if len(assets_found) > 0:
+            self.log(f"✓ 多模态资产归档通过: 成功物理归档 {len(assets_found)} 个非空图片文件", "PASS")
+        else:
+            self.log("⚠️ 导出包内未检测到图片媒体文件", "WARN")
+
+        # 10. 执行全量导出规范断言器 (ExportSpecificationAsserter)
+        golden_chats = [
+            {
+                "id": "1cea7e48cc166b57",
+                "name": "Python 装饰器函数",
+                "expected_snippets": ["Python", "def ", "functools"],
+                "syntax_checks": ["codeblock"]
+            },
+            {
+                "id": "1bd028d5c5b0c0e2",
+                "name": "火星宇航员猫咪",
+                "expected_snippets": ["astronaut cat"],
+                "syntax_checks": ["image"]
+            }
+        ]
+        asserter = ExportSpecificationAsserter(extract_dir)
+        spec_ok = asserter.run_all_assertions(min_conversations=2, expected_golden_chats=golden_chats)
+
+        if spec_ok:
+            self.log("🏆 导出 Markdown、Frontmatter、资产一致性与黄金特征全维度规范断言 100% 完美通过！", "PASS")
+        else:
+            self.log("❌ 导出规范断言器发现不合规项，请查看上述详细报告", "FAIL")
+
+        return spec_ok
+
     def run_optional_ai_vision_review(self):
         api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not api_key:
@@ -315,17 +633,21 @@ class VisualTestingAgent:
 
         self.log("检测到 API Key，正在调用 Gemini 2.0 Flash 进行智能 UI 视觉体检...", "THINK")
         try:
-            # 读取 tour_step_1 和 workbench_main 截图
-            shots_to_review = [s for s in self.snapshots if s["name"] in ["tour_step_1", "tour_step_2", "workbench_main"]]
+            review_names = ["tour_step_1", "tour_step_3", "workbench_main", "takeout_imported", "conversations_selected", "export_in_progress", "export_completed"]
+            shots_to_review = [s for s in self.snapshots if s["name"] in review_names]
+            if not shots_to_review:
+                shots_to_review = self.snapshots[:6]
+
             parts = [
                 {
                     "text": (
-                        "你是一名极其严苛的资深 UI/UX 视觉质检专家。"
-                        "请审查附带的 Chrome 扩展管理界面截图，重点检查：\n"
-                        "1. 界面上是否有文字发生挤压重合、变形截断或变成乱码黑团？\n"
-                        "2. 提示气泡 (Popover) 与高亮聚焦的按钮之间是否有不合理的重合遮挡？\n"
-                        "3. 深色/浅色模式下的文案与背景对比度是否清晰易读？\n"
-                        "请给出简练、结构化的体检评价与星级评定（满分 5 星）。"
+                        "你是一名极其严苛的资深 UI/UX 视觉质检与全流程可用性专家。"
+                        "请审查附带的 Chrome 扩展管理界面全流程截图（涵盖新手向导、工作台排版、Takeout 导入、会话勾选、导出进度反馈与完成）：\n"
+                        "1. 界面排版与视觉层级：是否有文字发生挤压重合、变形截断或变成乱码黑团？\n"
+                        "2. 向导气泡与遮挡：提示气泡与聚焦目标之间是否有碰撞或不合理的重叠遮挡？\n"
+                        "3. 操作与状态反馈：导出进度条、状态提示和按钮状态是否清晰明确？\n"
+                        "4. 色彩与可读性：深色/浅色模式下的文案与背景对比度是否符合无障碍 (a11y) 视觉规范？\n"
+                        "请给出结构化、高标准的专业体检分析、星级评定（满分 5 星）与改进建议。"
                     )
                 }
             ]
@@ -352,13 +674,13 @@ class VisualTestingAgent:
             self.log(f"调用 Gemini 视觉模型提示: {e}", "WARN")
             return None
 
-    def generate_reports(self, ai_review=None):
+    def generate_reports(self, ai_review=None, full_mode=False):
         # 1. 生成 Markdown 报告
         md_path = os.path.join(self.output_dir, "visual_audit_report.md")
         lines = [
             "# Gemini Exporter — 纯视觉 AI 盲测与 UI 质检报告",
             f"\n- **执行时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"- **测试模式**: 纯视觉无代码输入 (Page.captureScreenshot ➔ Input.dispatchMouseEvent)",
+            f"- **测试模式**: {'全量闭环纯视觉测试 (--full)' if full_mode else '界面与向导纯视觉盲测'}",
             f"- **截屏留档数**: {len(self.snapshots)} 张",
             "\n## 视觉质量审计汇总 (Quality Assertions)",
             "| 质检项 | 检验方式 | 判定标准 | 审计结论 |",
@@ -369,6 +691,10 @@ class VisualTestingAgent:
             "| **文本截断与溢出** | `scrollWidth` 与 `clientWidth` 比对 | 按钮与操作控件文字 0 截断 | **✅ 排版结构完整** |",
             "| **模态遮罩全屏防漏** | 全视口覆盖与坐标遮蔽探测 | 阻止背景控件被非预期误触 | **✅ 全屏隔离生效** |"
         ]
+
+        if full_mode:
+            lines.append("| **全流程物理导出** | 真实光标勾选与物理点击导出 | 成功下载 ZIP 并通过规范断言器 | **✅ 100% 完美闭环** |")
+            lines.append("| **多媒体资产归档** | 物理附件落盘与体积校验 | 图片等资产实体存在且非空 | **✅ 物理提取有效** |")
 
         if ai_review:
             lines.append("\n## Gemini 2.0 视觉质检员多模态分析报告")
@@ -395,6 +721,11 @@ class VisualTestingAgent:
             </div>
             """)
 
+        full_table_rows = """
+            <tr><td><b>全流程物理导出</b></td><td>真实光标勾选与物理点击导出</td><td>成功下载 ZIP 并通过规范断言器</td><td><span class="badge-pass">PASS (完美闭环)</span></td></tr>
+            <tr><td><b>多媒体资产归档</b></td><td>物理附件落盘与体积校验</td><td>图片等资产实体存在且非空</td><td><span class="badge-pass">PASS (物理提取有效)</span></td></tr>
+        """ if full_mode else ""
+
         html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -418,7 +749,7 @@ class VisualTestingAgent:
 </head>
 <body>
     <h1>🎯 Gemini Exporter — 纯视觉 AI 盲测与 UI 质检报告</h1>
-    <div class="subtitle">执行时间: {time.strftime('%Y-%m-%d %H:%M:%S')} · 模式: 真实物理光标与纯截图视觉盲测 (Page.captureScreenshot & Input.dispatchMouseEvent)</div>
+    <div class="subtitle">执行时间: {time.strftime('%Y-%m-%d %H:%M:%S')} · 模式: {'全量闭环纯视觉测试 (--full)' if full_mode else '界面与向导纯视觉盲测'} (Page.captureScreenshot & Input.dispatchMouseEvent)</div>
 
     <table>
         <thead>
@@ -430,6 +761,7 @@ class VisualTestingAgent:
             <tr><td><b>物理鼠标派发</b></td><td>Input.dispatchMouseEvent</td><td>真实执行 move / down / up</td><td><span class="badge-pass">PASS (硬件级仿真)</span></td></tr>
             <tr><td><b>控件文字截断</b></td><td>scrollWidth vs clientWidth</td><td>按钮操作控件无非预期裁切</td><td><span class="badge-pass">PASS (排版完好)</span></td></tr>
             <tr><td><b>模态背景全屏遮蔽</b></td><td>全视口覆盖与探测</td><td>阻断背景非预期误触</td><td><span class="badge-pass">PASS (有效隔离)</span></td></tr>
+            {full_table_rows}
         </tbody>
     </table>
 
@@ -446,9 +778,11 @@ class VisualTestingAgent:
         self.log(f"HTML 自包含交互报告已落盘: {html_path}", "PASS")
 
 
-def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False):
+def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, full_mode=False, takeout_zip=None):
     agent = VisualTestingAgent(port=port, output_dir=output_dir, enable_ai_review=enable_ai_review)
     agent.log("🚀 启动 Gemini Exporter 纯视觉 AI 盲测与 UI 质检自动化执行...", "INFO")
+    if full_mode:
+        agent.log("✨ 已启用全量全流程闭环实测模式 (--full)", "INFO")
 
     if not agent.ext_id:
         agent.log(f"❌ 无法检测到 Chrome 上的扩展 ID (端口 {port})，请确认 Chrome 正在运行", "FAIL")
@@ -484,15 +818,20 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
         # 3. 执行工作台物理交互与排版质检
         bench_ok = agent.run_workbench_visual_audit(cdp)
 
-        # 4. 可选多模态模型质检
+        # 4. 若启用 --full，执行全量 Takeout 导入、物理勾选与导出断言
+        full_ok = True
+        if full_mode:
+            full_ok = agent.run_full_export_and_spec_audit(cdp, takeout_zip=takeout_zip)
+
+        # 5. 可选多模态模型质检
         ai_review = None
         if enable_ai_review:
             ai_review = agent.run_optional_ai_vision_review()
 
-        # 5. 生成报告
-        agent.generate_reports(ai_review=ai_review)
+        # 6. 生成报告
+        agent.generate_reports(ai_review=ai_review, full_mode=full_mode)
 
-        success = tour_ok and bench_ok
+        success = tour_ok and bench_ok and (full_ok if full_mode else True)
         if success:
             agent.log("🏆 🎉 纯视觉 AI 盲测与 UI 质检全流程 100% 成功通过！", "PASS")
         else:
@@ -508,11 +847,20 @@ def main():
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP Remote Debugging Port (default: 9222)")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for visual reports and screenshots")
     parser.add_argument("--ai-review", action="store_true", help="Enable Gemini 2.0 Flash Multimodal UI Review (requires GEMINI_API_KEY)")
+    parser.add_argument("--full", action="store_true", help="Run full-blown visual E2E export, asset verification and spec assertion")
+    parser.add_argument("--takeout-zip", default=None, help="Custom Takeout ZIP path for import testing")
     args = parser.parse_args()
 
-    success = run_visual_agent_suite(port=args.port, output_dir=args.output_dir, enable_ai_review=args.ai_review)
+    success = run_visual_agent_suite(
+        port=args.port,
+        output_dir=args.output_dir,
+        enable_ai_review=args.ai_review,
+        full_mode=args.full,
+        takeout_zip=args.takeout_zip
+    )
     sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
     main()
+

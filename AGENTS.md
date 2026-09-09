@@ -76,5 +76,8 @@ python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
 # 运行纯视觉 AI 盲测与 UI 质检自动化套件 (气泡遮挡与物理 Hit-Testing 检测)
 npm run test:visual
-# 或带多模态审查: python3 scripts/test_visual_agent.py --ai-review
+
+# 运行纯视觉全量全流程闭环测试 (向导 -> Takeout 导入 -> 真实物理点击导出 -> ZIP 解压规范断言 -> 视觉质检)
+npm run test:visual:full
+# 或带多模态审查: python3 scripts/test_visual_agent.py --full --ai-review
 ```
