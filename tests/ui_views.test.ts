@@ -224,6 +224,60 @@ test('listView - updateItemExportStatus in-place DOM update', () => {
     }
 });
 
+test('listView - row click toggles checkbox and fires change', () => {
+    let changeFired = false;
+    const mockCheckbox = {
+        checked: false,
+        dispatchEvent: (event: any) => {
+            if (event.type === 'change') changeFired = true;
+        }
+    };
+    const mockItem = {
+        querySelector: (sel: string) => sel === 'input[type=checkbox]' ? mockCheckbox : null
+    };
+
+    let clickHandler: any = null;
+    const mockList = {
+        _delegated: false,
+        innerHTML: '',
+        addEventListener: (type: string, fn: any) => {
+            if (type === 'click') clickHandler = fn;
+        }
+    };
+
+    const origDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = {
+            getElementById: (id: string) => id === 'list' ? mockList : null
+        };
+
+        ListView.render([{ id: 'c_test_click', title: 'Test Chat' } as any]);
+        assert.ok(clickHandler, 'Click delegation handler must be attached to list');
+
+        // Click inside the row (e.g. on title)
+        const mockTitleTarget = {
+            closest: (sel: string) => {
+                if (sel === 'a.open-link' || sel === '.btn-remove-chat') return null;
+                if (sel === '.item') return mockItem;
+                return null;
+            },
+            matches: () => false
+        };
+
+        clickHandler({ target: mockTitleTarget } as any);
+        assert.strictEqual(mockCheckbox.checked, true, 'Row click must toggle checkbox from false to true');
+        assert.strictEqual(changeFired, true, 'Row click must dispatch change event');
+
+        // Second click toggles it back
+        changeFired = false;
+        clickHandler({ target: mockTitleTarget } as any);
+        assert.strictEqual(mockCheckbox.checked, false, 'Second row click must toggle checkbox back to false');
+        assert.strictEqual(changeFired, true, 'Second click must dispatch change event');
+    } finally {
+        (globalThis as any).document = origDoc;
+    }
+});
+
 // ---------------------------------------------------------------------------
 // LogView
 // ---------------------------------------------------------------------------

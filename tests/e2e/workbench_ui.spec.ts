@@ -43,6 +43,23 @@ test.describe('Workbench UI & Selection Controls', () => {
     expect(checkedAfterSelectNone).toBe(0);
     await expect(page.locator('#selectedStat')).toContainText('0');
 
+    // 4b. Test Row Click Toggle (clicking anywhere on the row toggles selection)
+    const firstRow = page.locator('#list .item').first();
+    const firstCheckbox = firstRow.locator('input[type=checkbox]');
+    const firstTitle = firstRow.locator('.chat-title');
+
+    // Click on title -> should select first item
+    await firstTitle.click();
+    expect(await firstCheckbox.isChecked()).toBe(true);
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
+    await expect(page.locator('#selectedStat')).toContainText('1');
+
+    // Click on row again -> should deselect first item
+    await firstRow.click();
+    expect(await firstCheckbox.isChecked()).toBe(false);
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(0);
+    await expect(page.locator('#selectedStat')).toContainText('0');
+
     // 5. Test Only Unexported
     await page.click('#btnSelectUnexported');
     const checkedAfterUnexported = await page.locator('#list input[type=checkbox]:checked').count();
