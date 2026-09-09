@@ -159,6 +159,14 @@ def get_tabs(port=CDP_DEFAULT_PORT):
     return []
 
 
+GOOGLE_INTERNAL_EXTS = {
+    "admccjkmockfdflocgggjfgdacdodkdf",
+    "fignfifoniblkonapihmkfakmlgkbkcf",
+    "nkeimhogjdpnpccoofpliimaahmaaome",
+    "nmmhkkegccagdldgiimedpiccmgmieda",
+}
+
+
 def get_extension_id(port=CDP_DEFAULT_PORT):
     tabs = get_tabs(port)
     # First look for service workers or pages belonging to Gemini Exporter
@@ -173,63 +181,48 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
         u = t.get("url", "")
         if u.startswith("chrome-extension://"):
             ext = u.split("/")[2]
-            if ext not in ["admccjkmockfdflocgggjfgdacdodkdf", "fignfifoniblkonapihmkfakmlgkbkcf", "nkeimhogjdpnpccoofpliimaahmaaome"]:
+            if ext not in GOOGLE_INTERNAL_EXTS:
                 return ext
-
-    for t in tabs:
-        if t.get("url") == "chrome://extensions/":
-            cdp = CDPConnection(t["webSocketDebuggerUrl"])
-            try:
-                exts = cdp.eval("""
-                    (() => {
-                        const m = document.querySelector("extensions-manager");
-                        const l = m ? m.shadowRoot.querySelector("extensions-item-list") : null;
-                        const items = l ? Array.from(l.shadowRoot.querySelectorAll("extensions-item")) : [];
-                        const target = items.find(i => (i.shadowRoot.querySelector("#name")?.textContent || "").includes("Gemini Exporter"));
-                        return target ? target.id : (items[0] ? items[0].id : null);
-                    })()
-                """)
-                if exts:
-                    return exts
-            finally:
-                cdp.close()
-
-    # Dynamically open chrome://extensions/ to inspect installed extensions if not found
-    try:
-        new_url = f"http://127.0.0.1:{port}/json/new?chrome://extensions/"
-        req = urllib.request.Request(new_url, method="PUT")
-        with urllib.request.urlopen(req, timeout=5) as r:
-            ext_tab = json.loads(r.read().decode("utf-8"))
-        time.sleep(0.8)
-        cdp = CDPConnection(ext_tab["webSocketDebuggerUrl"])
-        try:
-            exts = cdp.eval("""
-                (() => {
-                    const m = document.querySelector("extensions-manager");
-                    const l = m ? m.shadowRoot.querySelector("extensions-item-list") : null;
-                    const items = l ? Array.from(l.shadowRoot.querySelectorAll("extensions-item")) : [];
-                    const target = items.find(i => (i.shadowRoot.querySelector("#name")?.textContent || "").includes("Gemini Exporter"));
-                    return target ? target.id : (items[0] ? items[0].id : null);
-                })()
-            """)
-            if exts:
-                return exts
-        finally:
-            cdp.close()
-    except Exception:
-        pass
 
     for t in tabs:
         if "gemini.google.com" in t.get("url", ""):
             cdp = CDPConnection(t["webSocketDebuggerUrl"])
             try:
                 eid = cdp.eval("typeof chrome !== 'undefined' && chrome.runtime ? chrome.runtime.id : null")
-                if eid:
+                if eid and eid not in GOOGLE_INTERNAL_EXTS:
                     return eid
             finally:
                 cdp.close()
 
     return None
+
+
+def ensure_extension_loaded(port=CDP_DEFAULT_PORT, repo_path=None):
+    """
+    确保工作区扩展已加载到 Chrome 中。若未加载，直接通过 Chrome Browser WebSocket
+    调用 Extensions.loadUnpacked 原生静默挂载，杜绝一切系统文件弹窗。
+    """
+    eid = get_extension_id(port)
+    if eid:
+        return eid
+
+    repo_path = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), ".."))
+    browser_ws = get_browser_ws_url(port)
+    if browser_ws:
+        cdp = None
+        try:
+            cdp = CDPConnection(browser_ws)
+            res = cdp.call("Extensions.loadUnpacked", {"path": repo_path})
+            loaded_id = res.get("result", {}).get("id")
+            if loaded_id:
+                return loaded_id
+        except Exception:
+            pass
+        finally:
+            if cdp:
+                cdp.close()
+
+    return get_extension_id(port)
 
 
 def get_browser_ws_url(port=CDP_DEFAULT_PORT):
