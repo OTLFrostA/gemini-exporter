@@ -152,27 +152,6 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
-    // 3. Fallback network ids hook listener
-    if (d.type === '__gemExporterNetworkIds') {
-        const ids = d.ids || [];
-        if (!ids.length || typeof upsertConversations !== 'function') return;
-        try {
-            const mockItems = ids.map((id: string) => ({
-                id,
-                title: '未命名对话(' + id.slice(0, 6) + ')',
-                href: `https://gemini.google.com/app/${id}`,
-                url: `https://gemini.google.com/app/${id}`
-            }));
-            const mergedLen = await upsertConversations(mockItems, 'network:' + (d.source || ''));
-            if (!contentContext.getDeepScanPromise()) {
-                const badgeTxt = (typeof document !== 'undefined') ? document.getElementById('geminiExportBadgeText') : null;
-                if (badgeTxt) badgeTxt.textContent = `已同步 ${mergedLen} 条`;
-                else if (ensureBadge) ensureBadge();
-            }
-        } catch (e) {
-            if (contentContext.isDevMode()) console.debug('[MessageBridge]', e);
-        }
-    }
 }
 
 export const MessageBridge = {

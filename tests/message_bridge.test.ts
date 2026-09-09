@@ -45,7 +45,7 @@ async function runTests() {
     assert.strictEqual(removedId, 'c_test_del', 'should remove conversation from storage');
     assert.strictEqual(badgeUpdated, true, 'should update badge after deletion');
 
-    // Test 4: handles __gemExporterNetworkIds
+    // Test 4: __gemExporterNetworkIds is deprecated and now ignored (Phase E.3)
     let networkItems: any = null;
     MessageBridge.init({
         upsertConversations: async (items: any, _source: any) => {
@@ -63,8 +63,7 @@ async function runTests() {
         }
     });
 
-    assert.strictEqual(networkItems.length, 2, 'should upsert 2 network items');
-    assert.strictEqual(networkItems[0].id, 'c_net1');
+    assert.strictEqual(networkItems, null, 'should ignore deprecated __gemExporterNetworkIds message');
 
     // Test 5: rejects forged postMessage from foreign source (e.g. iframe)
     let forgedRemovedId: any = null;
