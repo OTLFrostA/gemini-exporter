@@ -6,6 +6,7 @@ import { TabService } from '../core/utils/tabService.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
+import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
 try {
@@ -222,6 +223,8 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         // Re-broadcasting here causes duplicate message delivery and duplicate log entries.
         return;
     }
+
+    try { sendResponse({ ok: false, error: `unknown action: ${msg.action}` }); } catch {}
 });
 
 function toMs(v: any): number {
@@ -276,13 +279,10 @@ async function fetchBatch(
                         conversationId: cid
                     }, slot);
 
-                    const isRateLimit = res && !res.success && (
-                        res.status === 429 ||
-                        /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res.error || '')
-                    );
+                    const isRateLimit = isRateLimited(res);
 
                     if (isRateLimit && retryCount < maxRetries) {
-                        const delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                        const delayMs = calculateBackoff(retryCount);
                         console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
                         await new Promise(r => setTimeout(r, delayMs));
                         retryCount++;

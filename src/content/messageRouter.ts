@@ -41,7 +41,7 @@ export function init({
                 version: ver,
                 ver: ver
             });
-            return true;
+            return;
         }
 
         if (msg.action === 'deepScan') {
@@ -226,6 +226,9 @@ export function init({
             else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
+
+        // Unknown action: structured error instead of port closed
+        try { sendResponse({ ok: false, error: `unknown action: ${msg.action}` }); } catch {}
     });
 }
 

@@ -99,7 +99,7 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
             seen.add(u);
 
             try {
-                const res = await fetch(u, { credentials: 'include' });
+                const res = await fetch(u, { credentials: 'include', signal: AbortSignal.timeout(15000) });
                 if (!res.ok) {
                     reasons.push(`${u} -> HTTP ${res.status}`);
                     continue;
@@ -119,7 +119,8 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
                 });
                 return;
             } catch (err: any) {
-                reasons.push(`${u} -> ${err?.message || err}`);
+                const isTimeout = err?.name === 'TimeoutError' || /timeout|aborted/i.test(err?.message || '');
+                reasons.push(`${u} -> ${isTimeout ? 'timeout' : ''}${err?.message || err}`);
             }
         }
 
@@ -150,7 +151,7 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
         let lastErr = '';
         for (const u of urlsToTry) {
             try {
-                const res = await fetch(u, { credentials: 'include' });
+                const res = await fetch(u, { credentials: 'include', signal: AbortSignal.timeout(15000) });
                 if (!res.ok) {
                     lastErr = `HTTP ${res.status}`;
                     continue;
@@ -217,7 +218,8 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
         try {
             const r = await fetch(url, {
                 credentials: 'include',
-                headers: { Accept: '*/*' }
+                headers: { Accept: '*/*' },
+                signal: AbortSignal.timeout(15000)
             });
             if (r.ok) {
                 const ct = (r.headers.get('content-type') || '').toLowerCase();
