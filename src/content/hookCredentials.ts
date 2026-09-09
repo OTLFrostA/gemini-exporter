@@ -209,24 +209,6 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
         };
     }
 
-    // Fallback: Scan DOM for IDs if needed
-    function scanAndPostNetworkIds(text: string, source: string): void {
-        try {
-            if (!text) return;
-            const matches = text.match(/c_[a-f0-9]{16}/g);
-            if (matches && matches.length) {
-                const uniqueIds = Array.from(new Set(matches.map(m => m.replace('c_', ''))));
-                window.postMessage({
-                    type: '__gemExporterNetworkIds',
-                    ids: uniqueIds,
-                    source
-                }, location.origin);
-            }
-        } catch (e) {
-            if (isDev()) console.debug('[GemExporter:hook]', e);
-        }
-    }
-
     if (isDev()) console.log('[Gemini Exporter] MAIN world credentials hook initialized');
 })();
 
