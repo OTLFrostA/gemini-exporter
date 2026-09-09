@@ -211,6 +211,7 @@ const resolveTitle = (chat?: any) => {
             const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
             if (takeoutMedia && takeoutMedia.length > 0) {
                 for (const tm of takeoutMedia) {
+                    if (!tm.isGenerated) continue;
                     const alreadyHas = chat.messages.some((m: any) =>
                         (m.images && m.images.some((im: any) => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
                         (m.attachments && m.attachments.some((at: any) => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||

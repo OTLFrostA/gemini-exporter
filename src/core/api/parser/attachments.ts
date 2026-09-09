@@ -160,7 +160,10 @@ const DEFAULT_RESEARCH_PROMPT_PREFIX_RE = RESEARCH_PROMPT_PREFIX_RE;
 
                     let hashFrag = "";
                     try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
-                    let fileName = rawFileName || `image-${counter.value++}${hashFrag ? "-" + hashFrag : ""}${ext}`;
+                    const isGenericRaw = !rawFileName || /^(?:image|img|screenshot|picture|photo|file)(?:\.[a-z0-9]+)?$/i.test(rawFileName);
+                    let fileName = isGenericRaw
+                        ? `image-${counter.value++}${hashFrag ? "-" + hashFrag : ""}${ext}`
+                        : rawFileName;
 
                     let key = getImageDedupKey({ sourceUrl, token, fileName });
                     if (!seenKeys.has(key)) {

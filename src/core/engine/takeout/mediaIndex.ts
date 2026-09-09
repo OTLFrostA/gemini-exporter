@@ -99,35 +99,73 @@ export function normId(id?: string | null): string {
         const store = getStore(slot);
         const mediaMap = store.mediaMap || __takeoutMediaMap;
         const globalMedia = store.globalMedia || __takeoutGlobalMedia;
+        const isGenericName = (s: string) => /^(?:image(?:[_-]?\d+)?|file(?:[_-]?\d+)?|asset(?:[_-]?\d+)?|media(?:[_-]?\d+)?|thumb(?:nail)?(?:[_-]?\d+)?|photo(?:[_-]?\d+)?|picture(?:[_-]?\d+)?|screenshot(?:[_-]?\d+)?)$/i.test(s);
 
         let target = String(filenameOrId).replace(/^.*[\\\/]/, '').trim();
         try { target = decodeURIComponent(target); } catch { /* intentional */ }
         let targetStem = target.replace(/\.[^/.]+$/, '').toLowerCase();
-        let cleanTargetStem = targetStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
         let cleanTarget = target.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
-
-        const convMedia = mediaMap[nid];
-        if (convMedia && convMedia.length) {
-            for (const item of convMedia) {
-                let itemFilename = item.filename;
-                let itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
-                let cleanItemStem = itemStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
-                if (itemFilename === target || itemFilename === cleanTarget || itemStem === cleanTargetStem || cleanItemStem === cleanTargetStem || cleanItemStem === targetStem || (cleanItemStem.length > 3 && cleanTargetStem.includes(cleanItemStem)) || (cleanTargetStem.length > 3 && cleanItemStem.includes(cleanTargetStem))) {
-                    try {
-                        let bin = await item.fileObj.async('uint8array');
-                        if (bin && bin.length > 0) return bin;
-                    } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e); }
-                }
-            }
-            if (convMedia.length === 1 && (/^image(?:-\d+)?$/i.test(cleanTargetStem) || /^file/i.test(cleanTargetStem) || /^asset/i.test(cleanTargetStem))) {
-                try {
-                    let bin = await convMedia[0].fileObj.async('uint8array');
-                    if (bin && bin.length > 0) return bin;
-                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e); }
+        let cleanTargetStem = targetStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
+        // Do NOT strip hash if the stem would collapse into a generic word like 'image' or 'file'!
+        if (!isGenericName(cleanTargetStem)) {
+            const stripped = cleanTargetStem.replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
+            if (!isGenericName(stripped)) {
+                cleanTargetStem = stripped;
             }
         }
 
-        const isGenericName = (s: string) => /^(?:image(?:[_-]?\d+)?|file(?:[_-]?\d+)?|asset(?:[_-]?\d+)?|media(?:[_-]?\d+)?|thumb(?:nail)?(?:[_-]?\d+)?)$/i.test(s);
+        const convMedia = mediaMap[nid];
+        if (convMedia && convMedia.length) {
+            // Pass 1: Exact match pass across all items in conversation media
+            for (const item of convMedia) {
+                const itemFilename = item.filename;
+                const itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
+                if (itemFilename === target || itemFilename === cleanTarget || itemStem === targetStem || itemStem === cleanTargetStem) {
+                    try {
+                        const bin = await item.fileObj.async('uint8array');
+                        if (bin && bin.length > 0) return bin;
+                    } catch (e) {
+                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
+                    }
+                }
+            }
+
+            // Pass 2: Fuzzy stem matching (ONLY for distinctive non-generic names)
+            for (const item of convMedia) {
+                const itemFilename = item.filename;
+                const itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
+                let cleanItemStem = itemStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
+                if (!isGenericName(cleanItemStem)) {
+                    const stripped = cleanItemStem.replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
+                    if (!isGenericName(stripped)) {
+                        cleanItemStem = stripped;
+                    }
+                }
+
+                if (!isGenericName(cleanItemStem) && !isGenericName(cleanTargetStem) && !isGenericName(itemStem) && !isGenericName(targetStem)) {
+                    if (cleanItemStem === cleanTargetStem || cleanItemStem === targetStem || itemStem === cleanTargetStem ||
+                        (cleanItemStem.length > 3 && cleanTargetStem.includes(cleanItemStem)) ||
+                        (cleanTargetStem.length > 3 && cleanItemStem.includes(cleanTargetStem))) {
+                        try {
+                            const bin = await item.fileObj.async('uint8array');
+                            if (bin && bin.length > 0) return bin;
+                        } catch (e) {
+                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
+                        }
+                    }
+                }
+            }
+
+            // Pass 3: Single-media fallback (if the conversation has EXACTLY ONE media item and target is generic)
+            if (convMedia.length === 1 && (isGenericName(cleanTargetStem) || isGenericName(targetStem))) {
+                try {
+                    const bin = await convMedia[0].fileObj.async('uint8array');
+                    if (bin && bin.length > 0) return bin;
+                } catch (e) {
+                    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
+                }
+            }
+        }
 
         if (!isGenericName(cleanTargetStem) && !isGenericName(targetStem)) {
             if (globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target]) {
@@ -144,8 +182,9 @@ export function normId(id?: string | null): string {
             let cleanStem = stem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
 
             if (hasNid) {
-                if (cleanStem === cleanTargetStem || stem === targetStem ||
-                    (cleanStem.length > 4 && (cleanStem.includes(cleanTargetStem) || cleanTargetStem.includes(cleanStem)))) {
+                if (!isGenericName(cleanStem) && !isGenericName(cleanTargetStem) &&
+                    (cleanStem === cleanTargetStem || stem === targetStem ||
+                    (cleanStem.length > 4 && (cleanStem.includes(cleanTargetStem) || cleanTargetStem.includes(cleanStem))))) {
                     try {
                         let bin = await (fileObj as any).async('uint8array');
                         if (bin && bin.length > 0) return bin;
