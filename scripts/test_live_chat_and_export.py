@@ -965,10 +965,14 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         })()
         """)
 
-        # 目标会话：包含本次发帖会话 + 固化测试账号中的已知特征会话
+        # 目标会话：包含本次发帖会话 + 固化测试账号中的已知特征会话（多轮上传、Deep Research、AI生图、代码块）
         target_ids = [r["chat_id"] for r in chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8]
-        # 追加已知的 Takeout 与在线黄金会话（Python 装饰器、火星猫咪、编译器、Envoy 网关）
-        target_ids.extend(["1cea7e48cc166b57", "1bd028d5c5b0c0e2", "3a07d47ddb6e8708", "9b292113807b3c07"])
+        # 追加已知的黄金分类会话：
+        # 1. 多轮用户图片上传: 0135c12ca9983ec8
+        # 2. 原生 Deep Research 深度研报: 3b7b7457916825bb
+        # 3. 火星宇航员猫咪(AI生成图片 Imagen): 1bd028d5c5b0c0e2
+        # 4. Python装饰器(高质量代码块): 1cea7e48cc166b57
+        target_ids.extend(["0135c12ca9983ec8", "3b7b7457916825bb", "1bd028d5c5b0c0e2", "1cea7e48cc166b57"])
         target_titles = [r.get("title", "") for r in chat_records if r.get("title")]
 
         # 通过 label.item[data-chat-id] 及标题关键词精准勾选目标会话
@@ -985,7 +989,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
 
             items.forEach(item => {{
                 const cid = item.dataset.chatId;
-                const titleText = item.querySelector('.title')?.textContent || '';
+                const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
                 const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
                 const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
                 if (matchId || matchTitle) {{
@@ -1175,16 +1179,30 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     # ==========================================
     golden_chats = [
         {
-            "id": "1cea7e48cc166b57",
-            "name": "Python 装饰器函数",
-            "expected_snippets": ["Python", "def ", "functools"],
-            "syntax_checks": ["codeblock"]
+            "id": "0135c12ca9983ec8",
+            "name": "多轮图片分析（用户连续上传对比几何图）",
+            "expected_snippets": ["图形", "颜色"],
+            "expected_upload_images": 3,
+            "syntax_checks": ["image"]
+        },
+        {
+            "id": "3b7b7457916825bb",
+            "name": "量子纠错编码技术（官方原生 Deep Research 独立研报）",
+            "expected_snippets": ["量子", "纠错", "Surface"],
+            "expected_research_docs": 1
         },
         {
             "id": "1bd028d5c5b0c0e2",
-            "name": "火星宇航员猫咪",
+            "name": "火星宇航员猫咪（AI 生成图片 Imagen）",
             "expected_snippets": ["astronaut cat"],
+            "expected_generated_images": 1,
             "syntax_checks": ["image"]
+        },
+        {
+            "id": "1cea7e48cc166b57",
+            "name": "Python日志与耗时装饰器设计（高质量技术代码块）",
+            "expected_snippets": ["Python", "def ", "functools"],
+            "syntax_checks": ["codeblock"]
         }
     ]
     # 若在线发帖，追加在线场景关键词作为黄金校验

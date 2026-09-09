@@ -306,7 +306,7 @@ function normId(id?: string | null): string {
                         source: 'takeout'
                     }));
                     userMsg.attachments = localMediaNames.map(name => ({
-                        type: 'file',
+                        type: /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name) ? 'image' : 'file',
                         url: name,
                         name: name,
                         fileName: name,
@@ -317,11 +317,43 @@ function normId(id?: string | null): string {
                 turnMsgs.push(userMsg);
             }
             if (responseHtml) {
-                turnMsgs.push({
+                const modelTurn: any = {
                     role: 'model',
                     content: responseHtml,
                     timestamp: (ts ? ts + 2000 : Date.now())
-                });
+                };
+
+                const isHtmlReport = /<h1[^>]*>/i.test(responseHtml) && responseHtml.length > 3000;
+                if (isHtmlReport) {
+                    const h1Match = responseHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                    let docTitle = 'Deep Research Report';
+                    if (h1Match) {
+                        docTitle = stripHtmlTags(h1Match[1]).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim();
+                    }
+                    const convHtml = (globalThis as any).ChatFormatter?.convertHtmlToMarkdown;
+                    let docMd = convHtml ? convHtml(responseHtml) : responseHtml.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
+                    if (!docMd.trim().startsWith('#')) {
+                        docMd = `# ${docTitle}\n\n${docMd.trim()}`;
+                    }
+                    const primaryCleanId = foundIds[0] || 'takeout';
+                    const shortScope = primaryCleanId.length >= 6 ? `${primaryCleanId.slice(-6)}_` : '';
+                    const safeDocTitle = docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+                    const localName = `files/${shortScope}${safeDocTitle}.md`;
+
+                    const docObj = {
+                        type: 'file',
+                        id: `${primaryCleanId}_doc_${Date.now()}`,
+                        title: docTitle,
+                        name: `${safeDocTitle}.md`,
+                        localName,
+                        contentMarkdown: docMd,
+                        source: 'takeout-report'
+                    };
+                    modelTurn.documents = [docObj];
+                    modelTurn.attachments = [docObj];
+                }
+
+                turnMsgs.push(modelTurn);
             }
 
             for (const cleanId of foundIds) {

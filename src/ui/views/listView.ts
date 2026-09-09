@@ -249,6 +249,15 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
     const convs = conversations || currentConversationsRef || [];
     const selected: Conversation[] = [];
     document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
+        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+        const chatId = item?.dataset?.chatId;
+        if (chatId) {
+            const found = convs.find(c => c.id === chatId || String(c.id).replace(/^c_/, '') === String(chatId).replace(/^c_/, ''));
+            if (found) {
+                selected.push(found);
+                return;
+            }
+        }
         const idx = parseInt((cb as HTMLElement).dataset.idx || '-1', 10);
         if (idx >= 0 && convs[idx]) {
             selected.push(convs[idx]);

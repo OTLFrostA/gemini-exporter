@@ -695,6 +695,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                         continue;
                     }
 
+                    chat = resolvedRes.chat || chat;
                     const listTitle = resolvedRes.listTitle;
                     chat.title = listTitle;
 
@@ -751,6 +752,12 @@ export const sanitizeZipPath = (p?: string | null): string => {
                         for (const m of chat.messages) {
                             if (m.attachments && m.attachments.length) {
                                 for (const att of m.attachments) {
+                                    if (att.type === 'image') {
+                                        if (!m.images || !m.images.some((im: any) => im.localName === att.localName || im.url === att.url || im.fileName === att.fileName)) {
+                                            queueAsset(att, true);
+                                        }
+                                        continue;
+                                    }
                                     if (att.type !== 'file') continue;
                                     if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
                                     if (att.contentMarkdown) {
