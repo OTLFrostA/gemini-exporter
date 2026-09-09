@@ -38,7 +38,7 @@ except Exception:
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, CDP_DEFAULT_PORT
+from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, ensure_extension_loaded, get_browser_ws_url, CDP_DEFAULT_PORT
 from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 
 
@@ -48,7 +48,7 @@ class VisualTestingAgent:
         self.repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         self.output_dir = output_dir or os.path.join(self.repo_dir, "tests", "output", "visual_audit")
         os.makedirs(self.output_dir, exist_ok=True)
-        self.ext_id = ext_id or get_extension_id(self.port)
+        self.ext_id = ext_id or ensure_extension_loaded(self.port, repo_path=self.repo_dir)
         self.enable_ai_review = enable_ai_review
         self.snapshots = []
         self.audit_log = []

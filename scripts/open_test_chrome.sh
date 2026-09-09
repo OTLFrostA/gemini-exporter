@@ -46,8 +46,6 @@ echo "=================================================="
 
 exec "$CHROME_BIN" \
   --user-data-dir="$PROFILE_DIR" \
-  --no-sandbox \
-  --disable-extensions-except="$REPO_DIR" \
   --load-extension="$REPO_DIR" \
   --remote-debugging-port=9222 \
   --no-first-run \
