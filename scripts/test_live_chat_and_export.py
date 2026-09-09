@@ -392,6 +392,19 @@ def send_turn(cdp, turn_input, max_wait=240):
     if is_image_gen:
         max_wait = max(max_wait, 240)
 
+    # 0. 发送前先确保 Gemini 处于空闲状态 (若上一轮仍在流式或 Stop 按钮活跃，等待其完全平息)
+    for _ in range(45):
+        busy = cdp.eval("""
+        (() => {
+            const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
+            const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
+            return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
+        })()
+        """)
+        if not busy:
+            break
+        time.sleep(1.0)
+
     # 记录发送前已有的回复条数与用户消息条数，防止多轮时误判旧回复已完成
     prev_model_info = cdp.eval("""
     (() => {
@@ -450,12 +463,12 @@ def send_turn(cdp, turn_input, max_wait=240):
             return {{ sent: true, userCount: currUserCount }};
           }}
 
-          const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="发送"], [aria-label="Send message"], .send-button button, gem-icon-button.send-button');
+          const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="Submit"], button[aria-label*="发送"], button[aria-label*="提交"], [aria-label="Send message"], .send-button button, gem-icon-button.send-button button, gem-icon-button.send-button');
           if (sendBtn) {{
             const isDisabled = sendBtn.disabled || sendBtn.getAttribute('aria-disabled') === 'true';
             if (!isDisabled) {{
               sendBtn.click();
-              if (sendBtn.parentElement && sendBtn.parentElement.tagName === 'GEM-ICON-BUTTON') {{
+              if (sendBtn.parentElement && (sendBtn.parentElement.tagName === 'GEM-ICON-BUTTON' || sendBtn.parentElement.classList.contains('send-button'))) {{
                 sendBtn.parentElement.click();
               }}
             }}
@@ -501,6 +514,8 @@ def send_turn(cdp, turn_input, max_wait=240):
         (() => {{
           const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
           const isStopActive = !!(stopBtn && stopBtn.offsetWidth > 0);
+          const sendBtn = document.querySelector('button[aria-label*="Send"], button[aria-label*="Submit"], button[aria-label*="发送"], gem-icon-button.send-button:not(.stop)');
+          const isSendReady = !!(sendBtn && sendBtn.offsetWidth > 0);
           const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
           const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text'));
           const currCount = allModels.length;
@@ -510,6 +525,7 @@ def send_turn(cdp, turn_input, max_wait=240):
           const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
           return {{
             hasStop: isStopActive,
+            hasSend: isSendReady,
             isStreaming: isStreaming,
             currCount: currCount,
             hasResponse: currCount > {prev_resp_count} || (currCount === {prev_resp_count} && lastLen > {prev_last_len} + 30),
@@ -535,19 +551,26 @@ def send_turn(cdp, turn_input, max_wait=240):
         has_resp = state.get("hasResponse", False)
         is_stream = state.get("isStreaming", False)
         has_stop = state.get("hasStop", False)
+        has_send = state.get("hasSend", False)
         curr_count = state.get("currCount", 0)
 
         # 详细日志输出：每 ~2.4 秒打印一次当前状态
         if loop_idx % 2 == 0:
-            print(f"      ⏳ 等待回复 [t={elapsed:.1f}s]: 回复数={curr_count} (前值={prev_resp_count}), 流式中={is_stream}, Stop按钮={has_stop}, 尾部长={last_len}, 稳定计数={stable_count}/3")
+            print(f"      ⏳ 等待回复 [t={elapsed:.1f}s]: 回复数={curr_count} (前值={prev_resp_count}), 流式中={is_stream}, Stop按钮={has_stop}, Send就绪={has_send}, 尾部长={last_len}, 稳定计数={stable_count}")
 
         if has_resp and not is_stream:
             if not has_stop:
-                time.sleep(1.0)
-                return True, f"生成完毕 (耗时 {elapsed:.1f}s, 尾部长度: {last_len})"
-            if last_len == last_seen_len and last_seen_len > 30:
+                if has_send or last_len == last_seen_len:
+                    stable_count += 1
+                    if stable_count >= 2:
+                        time.sleep(1.0)
+                        return True, f"生成完毕 (耗时 {elapsed:.1f}s, 尾部长度: {last_len})"
+                else:
+                    last_seen_len = last_len
+                    stable_count = 0
+            elif last_len == last_seen_len and last_seen_len > 30:
                 stable_count += 1
-                if stable_count >= 3:
+                if stable_count >= 5:
                     time.sleep(1.0)
                     return True, f"生成完毕 (文本已稳定 {stable_count} 次, 耗时 {elapsed:.1f}s, 尾部长度: {last_len})"
             else:
@@ -561,7 +584,10 @@ def send_turn(cdp, turn_input, max_wait=240):
 
 
 def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=None, delay=2, skip_chat=False, skip_takeout=False, takeout_zip=None, skip_reinstall=False, skip_tour=False):
-    scenarios = dataset or DEFAULT_SCENARIOS
+    if isinstance(dataset, dict) and "scenarios" in dataset:
+        scenarios = dataset["scenarios"]
+    else:
+        scenarios = dataset or DEFAULT_SCENARIOS
     if len(scenarios) < 2:
         print("❌ 场景数不足 2 个，本测试要求执行 2 次独立会话！")
         return False
