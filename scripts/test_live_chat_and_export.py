@@ -470,21 +470,32 @@ def send_turn(cdp, turn_input, max_wait=240):
           }}
 
           const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="Submit"], button[aria-label*="发送"], button[aria-label*="提交"], [aria-label="Send message"], .send-button button, gem-icon-button.send-button button, gem-icon-button.send-button');
+          let coords = null;
           if (sendBtn) {{
             const isDisabled = sendBtn.disabled || sendBtn.getAttribute('aria-disabled') === 'true';
             if (!isDisabled) {{
+              const r = sendBtn.getBoundingClientRect();
+              if (r.width > 0 && r.height > 0) {{
+                coords = {{ x: r.left + r.width / 2, y: r.top + r.height / 2 }};
+              }}
               sendBtn.click();
               if (sendBtn.parentElement && (sendBtn.parentElement.tagName === 'GEM-ICON-BUTTON' || sendBtn.parentElement.classList.contains('send-button'))) {{
                 sendBtn.parentElement.click();
               }}
             }}
           }}
-          return {{ sent: false, userCount: currUserCount }};
+          return {{ sent: false, userCount: currUserCount, coords: coords }};
         }})()
         """)
         if status and status.get("sent"):
             sent = True
             break
+        if status and status.get("coords"):
+            cx = status["coords"]["x"]
+            cy = status["coords"]["y"]
+            cdp.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": cx, "y": cy})
+            cdp.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1})
+            cdp.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1})
         if attempt in [2, 5, 8]:
             cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 13, "unmodifiedText": "\\r", "text": "\\r"})
             cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 13, "unmodifiedText": "\\r", "text": "\\r"})
@@ -741,7 +752,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                         }));
                     })()
                     """) or []
-                    sidebar_match = next((l for l in sidebar_links if (first_p and first_p[:8] in l["text"]) or (sc_title and sc_title[:6] in l["text"]) or any(k in l["text"] for k in [sc_title.split()[0], "WebRTC", "eBPF"] if k)), None)
+                    sidebar_match = next((l for l in sidebar_links if (first_p and first_p[:8] in l["text"]) or (sc_title and sc_title[:6] in l["text"])), None)
                     if sidebar_match and sidebar_match["cid"]:
                         target_cid = sidebar_match["cid"]
                         print(f"   🧭 侧边栏发现已有会话《{sidebar_match['text'][:20]}...》，跳转加载: /app/{target_cid}")
