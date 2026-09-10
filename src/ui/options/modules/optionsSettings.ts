@@ -384,7 +384,6 @@ export async function initLiveSaveSettings(): Promise<void> {
     if (!liveStorage) return;
 
     const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
-    const updateIndexToggle = $('liveSaveUpdateIndexToggle') as HTMLInputElement | null;
     const diskBox = $('liveSaveDiskBox');
     const btnSetLiveDir = $('btnSetLiveDir');
     const liveDirLabel = $('liveDirLabel');
@@ -393,7 +392,6 @@ export async function initLiveSaveSettings(): Promise<void> {
     try {
         const cfg = await liveStorage.getLiveConfig();
         if (diskToggle) diskToggle.checked = !!cfg.enabledDisk;
-        if (updateIndexToggle) updateIndexToggle.checked = !!cfg.updateIndex;
         if (diskBox) {
             diskBox.style.display = cfg.enabledDisk ? 'flex' : 'none';
         }
@@ -418,13 +416,6 @@ export async function initLiveSaveSettings(): Promise<void> {
             if (diskBox) diskBox.style.display = enabled ? 'flex' : 'none';
             await liveStorage.setLiveConfig({ enabledDisk: enabled });
             log(`[LiveSave] Live disk sync ${enabled ? 'enabled' : 'disabled'}`);
-        });
-    }
-
-    if (updateIndexToggle && !updateIndexToggle.dataset.bound) {
-        updateIndexToggle.dataset.bound = 'true';
-        updateIndexToggle.addEventListener('change', async () => {
-            await liveStorage.setLiveConfig({ updateIndex: updateIndexToggle.checked });
         });
     }
 

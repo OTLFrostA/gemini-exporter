@@ -12,7 +12,6 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
             enabledDisk: true,
             format: 'markdown',
             includeAssets: true,
-            updateIndex: true,
             dirName: 'ObsidianVault'
         }),
         getLiveDirHandle: async () => ({
@@ -71,9 +70,8 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
     assert.ok(writtenFiles[expectedFile].includes('What is superposition?'));
     assert.ok(writtenFiles[expectedFile].includes('Superposition is a fundamental principle'));
 
-    // 3. Verify README.md index updated
-    assert.ok('README.md' in writtenFiles);
-    assert.ok(writtenFiles['README.md'].includes('Quantum Computing Intro'));
+    // 2. Verify no index README.md is written (pure conversation export)
+    assert.strictEqual('README.md' in writtenFiles, false);
 
     // 4. Verify Badge feedback called
     assert.strictEqual(feedbackCalledWith, 'Quantum Computing Intro');
