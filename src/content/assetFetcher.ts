@@ -360,6 +360,82 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
     }
 }
 
+export interface FetchedImageAsset {
+    buffer: ArrayBuffer;
+    mimeType: string;
+    ext: string;
+}
+
+export function inferImageExt(mimeType?: string, url?: string): string {
+    const mime = (mimeType || '').toLowerCase();
+    if (mime.includes('png')) return 'png';
+    if (mime.includes('webp')) return 'webp';
+    if (mime.includes('gif')) return 'gif';
+    if (mime.includes('svg')) return 'svg';
+    if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+    if (url) {
+        const clean = url.split('?')[0].split('#')[0];
+        const m = clean.match(/\.(png|jpe?g|webp|gif|svg)$/i);
+        if (m) return m[1].toLowerCase().replace('jpeg', 'jpg');
+    }
+    return 'jpg';
+}
+
+export async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<FetchedImageAsset | null> {
+    if (!url || typeof url !== 'string') return null;
+    return new Promise((resolve) => {
+        let timer: any = null;
+        let settled = false;
+
+        const cleanup = () => {
+            if (timer) clearTimeout(timer);
+        };
+
+        if (timeoutMs > 0) {
+            timer = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    resolve(null);
+                }
+            }, timeoutMs);
+        }
+
+        handleGetImageBlob({ url, preferBuffer: true }, (res: any) => {
+            cleanup();
+            if (settled) return;
+            settled = true;
+            if (res && res.success && res.dataBuffer) {
+                const mimeType = res.mimeType || res.mime || 'image/jpeg';
+                const ext = inferImageExt(mimeType, res.url || url);
+                resolve({
+                    buffer: res.dataBuffer,
+                    mimeType,
+                    ext
+                });
+            } else if (res && res.success && (res.dataBase64 || res.blobBase64)) {
+                try {
+                    const b64 = res.dataBase64 || res.blobBase64;
+                    const binStr = atob(b64);
+                    const len = binStr.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
+                    const mimeType = res.mimeType || res.mime || 'image/jpeg';
+                    const ext = inferImageExt(mimeType, res.url || url);
+                    resolve({
+                        buffer: bytes.buffer,
+                        mimeType,
+                        ext
+                    });
+                } catch {
+                    resolve(null);
+                }
+            } else {
+                resolve(null);
+            }
+        });
+    });
+}
+
 export const AssetFetcher = {
     ensureAlr,
     toHighRes,
@@ -370,7 +446,9 @@ export const AssetFetcher = {
     handleGetImageBlob,
     downloadAssetDirect,
     fetchGgChain,
-    isGgChainUrl
+    isGgChainUrl,
+    fetchImageBuffer,
+    inferImageExt
 };
 
 
@@ -385,3 +463,4 @@ if (typeof module !== 'undefined' && (module as any).exports) {
 }
 
 export default AssetFetcher;
+
