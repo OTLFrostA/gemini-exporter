@@ -1,7 +1,7 @@
 {
   "name": "gemini-exporter",
   "version": "1.5.0",
-  "description": "A privacy-first Chrome extension to batch export and archive your Google Gemini conversations.",
+  "description": "An open-source, privacy-first Chrome extension to batch export and archive your Google Gemini conversations.",
   "main": "background.js",
   "scripts": {
     "type-check": "tsc --noEmit",
@@ -26,7 +26,8 @@
     "google-gemini",
     "exporter",
     "markdown",
-    "chrome-extension"
+    "chrome-extension",
+    "open-source"
   ],
   "author": "Wenbo Cui",
   "license": "MIT",
