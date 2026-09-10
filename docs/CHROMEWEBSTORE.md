@@ -7,7 +7,7 @@ This document tracks and maintains all required metadata, permissions justificat
 ## 📋 General Information
 
 - **Extension Name**: Gemini Exporter
-- **Summary / Short Description**: Export and archive your Google Gemini conversations to Markdown, JSON, and ZIP with images and attachments.
+- **Summary / Short Description**: Open-source & private: bulk export Google Gemini chats & Takeout archives to Markdown, JSON or ZIP with images. 100% client-side.
 - **Category**: Productivity / Tools
 - **Default Language**: English (Supported: English, 简体中文)
 - **Manifest Version**: 3
