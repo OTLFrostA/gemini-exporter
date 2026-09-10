@@ -384,8 +384,10 @@ class ExportSpecificationAsserter:
             for syn in syntax_checks:
                 if syn == "codeblock" and "```" not in matched_content:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含代码块 ('```')，但未找到")
-                elif syn == "table" and ("|---" not in matched_content and "| ---" not in matched_content):
-                    self.log_error(matched_file, f"已知会话《{name}》预期包含 Markdown 表格，但未找到")
+                elif syn == "table":
+                    has_table = bool(re.search(r'\|\s*:?-{3,}:?\s*\|', matched_content) or "|---" in matched_content or "| ---" in matched_content)
+                    if not has_table:
+                        self.log_error(matched_file, f"已知会话《{name}》预期包含 Markdown 表格，但未找到")
                 elif syn == "image" and "![" not in matched_content:
                     self.log_error(matched_file, f"已知会话《{name}》预期包含图片附件引用 ('![]')，但未找到")
 
