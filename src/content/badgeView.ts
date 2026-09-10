@@ -199,6 +199,31 @@ export function updateBadge(
     }
 }
 
+let __liveSaveTimer: any = null;
+
+export function showLiveSaveFeedback(title?: string, isZh = true): void {
+    try {
+        const { txt, badge } = ensureBadgeAndText();
+        if (!txt || !badge) return;
+        if (__liveSaveTimer) {
+            clearTimeout(__liveSaveTimer);
+            __liveSaveTimer = null;
+        }
+        const prevText = txt.textContent || '';
+        badge.classList.add('live-saved');
+        txt.textContent = isZh ? '✓ 已自动保存' : '✓ Auto-saved';
+        __liveSaveTimer = setTimeout(() => {
+            __liveSaveTimer = null;
+            badge.classList.remove('live-saved');
+            if (txt.textContent?.startsWith('✓')) {
+                txt.textContent = prevText || (__lastKnownCount !== null ? (isZh ? `已同步 ${__lastKnownCount} 条` : `${__lastKnownCount} synced`) : (isZh ? '就绪' : 'Ready'));
+            }
+        }, 2200);
+    } catch (e) {
+        console.warn('[BadgeView] showLiveSaveFeedback error:', e);
+    }
+}
+
 export function getLastKnownCount(): number | null {
     return __lastKnownCount;
 }
@@ -213,6 +238,7 @@ export const BadgeView = {
     ensureBadge,
     ensureBadgeAndText,
     updateBadge,
+    showLiveSaveFeedback,
     getLastKnownCount,
     setLastKnownCount
 };

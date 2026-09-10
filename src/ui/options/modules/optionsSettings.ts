@@ -7,6 +7,7 @@ import { StorageService as DefaultStorageService } from '../../../core/storage/s
 import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
 import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
 import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
+import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
@@ -350,10 +351,97 @@ export async function init({
     bindDevControls();
     bindLogControls();
     bindStorageCleanup();
+    await initLiveSaveSettings();
+}
+
+export async function initLiveSaveSettings(): Promise<void> {
+    const liveStorage = (typeof LiveStorageManager !== 'undefined' ? LiveStorageManager : DefaultLiveStorageManager);
+    if (!liveStorage) return;
+
+    const dbToggle = $('liveSaveDbToggle') as HTMLInputElement | null;
+    const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
+    const updateIndexToggle = $('liveSaveUpdateIndexToggle') as HTMLInputElement | null;
+    const diskBox = $('liveSaveDiskBox');
+    const btnSetLiveDir = $('btnSetLiveDir');
+    const liveDirLabel = $('liveDirLabel');
+    const statusTag = $('liveSaveStatusTag');
+
+    try {
+        const cfg = await liveStorage.getLiveConfig();
+        if (dbToggle) dbToggle.checked = !!cfg.enabledDb;
+        if (diskToggle) diskToggle.checked = !!cfg.enabledDisk;
+        if (updateIndexToggle) updateIndexToggle.checked = !!cfg.updateIndex;
+        if (diskBox) {
+            diskBox.style.display = cfg.enabledDisk ? 'flex' : 'none';
+        }
+
+        const savedHandle = await liveStorage.getLiveDirHandle();
+        if (savedHandle && liveDirLabel) {
+            liveDirLabel.textContent = t('dirCurrent', savedHandle.name || cfg.dirName || 'Folder');
+        }
+
+        if (statusTag && cfg.lastSavedAt) {
+            const timeStr = new Date(cfg.lastSavedAt).toLocaleTimeString();
+            statusTag.textContent = `${t('liveSaveActive')} (${timeStr})`;
+        }
+    } catch (e) {
+        if (typeof console !== 'undefined' && console.debug) console.debug('[OptionsSettings] initLiveSaveSettings error:', e);
+    }
+
+    if (dbToggle && !dbToggle.dataset.bound) {
+        dbToggle.dataset.bound = 'true';
+        dbToggle.addEventListener('change', async () => {
+            await liveStorage.setLiveConfig({ enabledDb: dbToggle.checked });
+            log(`[LiveSave] DB snapshot backup ${dbToggle.checked ? 'enabled' : 'disabled'}`);
+        });
+    }
+
+    if (diskToggle && !diskToggle.dataset.bound) {
+        diskToggle.dataset.bound = 'true';
+        diskToggle.addEventListener('change', async () => {
+            const enabled = diskToggle.checked;
+            if (diskBox) diskBox.style.display = enabled ? 'flex' : 'none';
+            await liveStorage.setLiveConfig({ enabledDisk: enabled });
+            log(`[LiveSave] Live disk sync ${enabled ? 'enabled' : 'disabled'}`);
+        });
+    }
+
+    if (updateIndexToggle && !updateIndexToggle.dataset.bound) {
+        updateIndexToggle.dataset.bound = 'true';
+        updateIndexToggle.addEventListener('change', async () => {
+            await liveStorage.setLiveConfig({ updateIndex: updateIndexToggle.checked });
+        });
+    }
+
+    if (btnSetLiveDir && !btnSetLiveDir.dataset.bound) {
+        btnSetLiveDir.dataset.bound = 'true';
+        btnSetLiveDir.addEventListener('click', async () => {
+            if (typeof window === 'undefined' || !(window as any).showDirectoryPicker) {
+                alert(t('browserNoDirPicker') || 'Your browser does not support directory picking');
+                return;
+            }
+            try {
+                const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+                if (handle) {
+                    await liveStorage.saveLiveDirHandle(handle);
+                    await liveStorage.setLiveConfig({ dirName: handle.name });
+                    if (liveDirLabel) {
+                        liveDirLabel.textContent = t('dirCurrent', handle.name);
+                    }
+                    log(`[LiveSave] Configured live save directory: ${handle.name}`);
+                }
+            } catch (err: any) {
+                if (err?.name !== 'AbortError') {
+                    console.warn('[LiveSave] showDirectoryPicker error:', err);
+                }
+            }
+        });
+    }
 }
 
 export const OptionsSettings = {
     init,
+    initLiveSaveSettings,
     handleLangChange,
     handleDevChange,
     exportDiagnostics,
