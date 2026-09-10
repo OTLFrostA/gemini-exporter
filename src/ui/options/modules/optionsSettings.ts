@@ -8,6 +8,7 @@ import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatS
 import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
 import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
+import { DirHandleController as DefaultDirHandleController } from '../../controllers/dirHandleController.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 
 function $(id: string): HTMLElement | null {
@@ -65,6 +66,13 @@ const getUtils = () => {
     if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
     if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
     if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
+    return null;
+};
+
+const getDirHandleController = () => {
+    if (typeof DirHandleController !== 'undefined' && DirHandleController) return DirHandleController;
+    if (typeof DefaultDirHandleController !== 'undefined' && DefaultDirHandleController) return DefaultDirHandleController;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController) return (globalThis as any).DirHandleController;
     return null;
 };
 
@@ -377,6 +385,7 @@ export async function init({
     bindLogControls();
     bindStorageCleanup();
     await initLiveSaveSettings();
+    if (__updateZipUi) __updateZipUi();
 }
 
 export async function initLiveSaveSettings(): Promise<void> {
@@ -384,21 +393,20 @@ export async function initLiveSaveSettings(): Promise<void> {
     if (!liveStorage) return;
 
     const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
-    const diskBox = $('liveSaveDiskBox');
-    const btnSetLiveDir = $('btnSetLiveDir');
-    const liveDirLabel = $('liveDirLabel');
+    const dirLabel = $('dirLabel');
     const statusTag = $('liveSaveStatusTag');
+    const DirHandle = getDirHandleController();
 
     try {
         const cfg = await liveStorage.getLiveConfig();
         if (diskToggle) diskToggle.checked = !!cfg.enabledDisk;
-        if (diskBox) {
-            diskBox.style.display = cfg.enabledDisk ? 'flex' : 'none';
-        }
 
-        const savedHandle = await liveStorage.getLiveDirHandle();
-        if (savedHandle && liveDirLabel) {
-            liveDirLabel.textContent = t('dirCurrent', savedHandle.name || cfg.dirName || 'Folder');
+        let savedHandle = DirHandle ? DirHandle.getDirHandle() : null;
+        if (!savedHandle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
+            savedHandle = await DirHandle.restoreSavedDirHandle();
+        }
+        if (savedHandle && dirLabel) {
+            dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', savedHandle.name || cfg.dirName || 'Folder') : `已选目录: ${savedHandle.name || cfg.dirName || 'Folder'}`;
         }
 
         if (statusTag && cfg.lastSavedAt) {
@@ -412,35 +420,52 @@ export async function initLiveSaveSettings(): Promise<void> {
     if (diskToggle && !diskToggle.dataset.bound) {
         diskToggle.dataset.bound = 'true';
         diskToggle.addEventListener('change', async () => {
-            const enabled = diskToggle.checked;
-            if (diskBox) diskBox.style.display = enabled ? 'flex' : 'none';
-            await liveStorage.setLiveConfig({ enabledDisk: enabled });
-            log(`[LiveSave] Live disk sync ${enabled ? 'enabled' : 'disabled'}`);
-        });
-    }
+            if (diskToggle.checked) {
+                let handle = DirHandle ? DirHandle.getDirHandle() : null;
+                if (!handle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
+                    handle = await DirHandle.restoreSavedDirHandle();
+                }
+                if (!handle && DirHandle && typeof DirHandle.getStoredDirHandle === 'function') {
+                    handle = await DirHandle.getStoredDirHandle();
+                }
 
-    if (btnSetLiveDir && !btnSetLiveDir.dataset.bound) {
-        btnSetLiveDir.dataset.bound = 'true';
-        btnSetLiveDir.addEventListener('click', async () => {
-            if (typeof window === 'undefined' || !(window as any).showDirectoryPicker) {
-                alert(t('browserNoDirPicker') || 'Your browser does not support directory picking');
-                return;
-            }
-            try {
-                const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-                if (handle) {
-                    await liveStorage.saveLiveDirHandle(handle);
-                    await liveStorage.setLiveConfig({ dirName: handle.name });
-                    if (liveDirLabel) {
-                        liveDirLabel.textContent = t('dirCurrent', handle.name);
+                if (!handle) {
+                    try {
+                        if (DirHandle && typeof DirHandle.requestDirHandle === 'function') {
+                            handle = await DirHandle.requestDirHandle();
+                        } else if (typeof window !== 'undefined' && (window as any).showDirectoryPicker) {
+                            handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+                            if (DirHandle && typeof DirHandle.saveStoredDirHandle === 'function') {
+                                await DirHandle.saveStoredDirHandle(handle);
+                            }
+                        }
+                    } catch (err: any) {
+                        diskToggle.checked = false;
+                        if (err?.name === 'AbortError') {
+                            log(typeof t === 'function' ? t('dirCancelled', '用户取消选择') : '未选择导出目录: 用户取消选择', 'warn');
+                        } else {
+                            log(typeof t === 'function' ? t('dirCancelled', err?.message || '') : `选择目录失败: ${err?.message || ''}`, 'warn');
+                        }
+                        if (__updateZipUi) __updateZipUi();
+                        return;
                     }
-                    log(`[LiveSave] Configured live save directory: ${handle.name}`);
                 }
-            } catch (err: any) {
-                if (err?.name !== 'AbortError') {
-                    console.warn('[LiveSave] showDirectoryPicker error:', err);
+
+                if (handle) {
+                    if (dirLabel) {
+                        dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
+                    }
+                    await liveStorage.setLiveConfig({ enabledDisk: true, dirName: handle.name });
+                    log(typeof t === 'function' ? t('logFolderSelected', handle.name) : `已开启实时落盘: ${handle.name}`);
+                } else {
+                    diskToggle.checked = false;
+                    await liveStorage.setLiveConfig({ enabledDisk: false });
                 }
+            } else {
+                await liveStorage.setLiveConfig({ enabledDisk: false });
+                log('[LiveSave] Live disk sync disabled');
             }
+            if (__updateZipUi) __updateZipUi();
         });
     }
 }

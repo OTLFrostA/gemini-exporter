@@ -242,9 +242,9 @@ async function updateStepContent(step: any): Promise<void> {
                 if (diskToggle && !diskToggle.checked) {
                     diskToggle.click();
                 }
-                const diskBox = document.getElementById('liveSaveDiskBox');
-                if (diskBox) {
-                    diskBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                const dirBox = document.getElementById('dirBox');
+                if (dirBox) {
+                    dirBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }
             }
             await dismissFeatureSpotlight();

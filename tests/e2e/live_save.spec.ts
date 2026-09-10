@@ -1,34 +1,58 @@
 import { test, expect } from './fixtures';
 
 test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
-  test('should render live auto-save card in workbench and toggle disk sync box', async ({ context, extensionId }) => {
+  test('should render unified directory card, auto-prompt picker on toggle, and sync dir label', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
-    // 1. Verify card elements exist (and legacy/removed toggles are absent)
+    // 1. Verify card elements exist (and legacy/removed boxes are absent)
     const diskToggle = optionsPage.locator('#liveSaveDiskToggle');
-    const diskBox = optionsPage.locator('#liveSaveDiskBox');
+    const dirBox = optionsPage.locator('#dirBox');
+    const dirLabel = optionsPage.locator('#dirLabel');
     const statusTag = optionsPage.locator('#liveSaveStatusTag');
 
     await expect(optionsPage.locator('#includeIndex')).toHaveCount(0);
     await expect(optionsPage.locator('#liveSaveDbToggle')).toHaveCount(0);
+    await expect(optionsPage.locator('#liveSaveDiskBox')).toHaveCount(0);
     await expect(diskToggle).toBeVisible();
+    await expect(dirBox).toBeVisible();
     await expect(statusTag).toBeVisible();
-
-    // Default: Disk is unchecked and hidden
     await expect(diskToggle).not.toBeChecked();
-    await expect(diskBox).not.toBeVisible();
 
-    // 2. Click diskToggle to enable disk sync UI
+    // 2. Mock showDirectoryPicker to abort first
+    await optionsPage.evaluate(() => {
+      (window as any).showDirectoryPicker = async () => {
+        const err = new Error('User cancelled');
+        err.name = 'AbortError';
+        throw err;
+      };
+    });
+
+    // 3. Click diskToggle without directory set -> picker prompts and user aborts -> rollback to unchecked
+    await diskToggle.click();
+    await expect(diskToggle).not.toBeChecked();
+
+    // 4. Now mock showDirectoryPicker to return a directory
+    await optionsPage.evaluate(() => {
+      (window as any).showDirectoryPicker = async () => ({
+        name: 'E2E_Test_Vault',
+        kind: 'directory'
+      });
+    });
+
+    // 5. Click diskToggle again -> picker prompts and succeeds -> checked and dirLabel updated
     await diskToggle.click();
     await expect(diskToggle).toBeChecked();
-    await expect(diskBox).toBeVisible();
+    await expect(dirLabel).toContainText('E2E_Test_Vault');
 
-    // 3. Click again to disable
+    // 6. Click again to disable
     await diskToggle.click();
     await expect(diskToggle).not.toBeChecked();
-    await expect(diskBox).not.toBeVisible();
+
+    // 7. Click again to re-enable with existing directory -> immediately checked without prompting
+    await diskToggle.click();
+    await expect(diskToggle).toBeChecked();
 
     await optionsPage.close();
   });
