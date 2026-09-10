@@ -24,6 +24,12 @@ import { BadgeView } from './badgeView.js';
 import { MessageBridge } from './messageBridge.js';
 import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
+import { LiveSaveObserver } from './liveSaveObserver.js';
+import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
+import { LiveStorageManager } from '../core/storage/liveStorageManager.js';
+import { ChatFormatter } from '../core/engine/chatFormatter.js';
+import { FsWriter } from '../core/engine/writers/fsWriter.js';
+import { GeminiAPIClient } from '../core/api/geminiClient.js';
 
 (() => {
     'use strict';
@@ -42,6 +48,9 @@ import { AssetFetcher } from './assetFetcher.js';
         }
         if (PageObserver && PageObserver.cleanup) {
             PageObserver.cleanup();
+        }
+        if (LiveSaveObserver && LiveSaveObserver.cleanup) {
+            LiveSaveObserver.cleanup();
         }
         w.__gemExporterInjected = false;
         w.__gemExporterScrollAll = null;
@@ -202,13 +211,36 @@ import { AssetFetcher } from './assetFetcher.js';
         }, { once: true });
     }
 
+    // Initialize Live Auto-Save system
+    if (LiveSaveCoordinator && LiveSaveObserver) {
+        LiveSaveCoordinator.init({
+            storageManager: LiveStorageManager,
+            scraper: Scraper,
+            formatter: typeof ChatFormatter !== 'undefined' ? ChatFormatter : (w.ChatFormatter || null),
+            fsWriterClass: typeof FsWriter !== 'undefined' ? FsWriter : (w.FsWriter || null),
+            utils: Utils,
+            clientClass: typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : (w.GeminiAPIClient || null),
+            badge: Badge
+        });
+
+        LiveSaveObserver.init({
+            debounceMs: 3000,
+            onTurnComplete: (cid, reason) => {
+                LiveSaveCoordinator.executeLiveSave(cid, reason);
+            }
+        });
+    }
+
     // Expose helpers on window for backwards-compatible test inspection
     w.__gemExporterContentCoord = {
         compareConversations,
         handleStopDeepScan,
         validateDetailResponse,
         debouncedSyncOnce,
-        PENDING_TAKEOUT_KEY
+        PENDING_TAKEOUT_KEY,
+        LiveSaveObserver,
+        LiveSaveCoordinator,
+        LiveStorageManager
     };
 
     console.log('[Gemini Exporter Content Coordinator] ready');

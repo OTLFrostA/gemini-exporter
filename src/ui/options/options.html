@@ -170,7 +170,10 @@
 
 <div class="row">
   <div class="card card-left">
-    <div class="label" style="flex:none;" data-i18n="exportSettings">导出设置</div>
+    <div class="label" style="flex:none; display:flex; align-items:center;">
+      <span data-i18n="exportSettings">导出设置</span>
+      <span id="liveSaveStatusTag" class="badge" style="font-size:10px; color:#10b981; border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.08); margin-left:auto;" data-i18n="liveSaveActive">已就绪</span>
+    </div>
     
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
       <label style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px; font-size:13px; height:32px;">
@@ -198,6 +201,23 @@
       <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeZipTip" title="打包为 ZIP 文件下载">
         <input type="checkbox" id="includeZip" class="toggle" checked>
         <span data-i18n="includeZip">打包成 ZIP</span>
+      </label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDbTip" title="每轮对话完成后自动将完整正文增量备份在本地数据库中，无需任何权限，防丢失容灾">
+        <input type="checkbox" id="liveSaveDbToggle" class="toggle" checked>
+        <span data-i18n="liveSaveDb">实时快照备份</span>
+      </label>
+      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
+        <input type="checkbox" id="liveSaveDiskToggle" class="toggle">
+        <span data-i18n="liveSaveDisk">实时落盘本地</span>
+      </label>
+    </div>
+
+    <div id="liveSaveDiskBox" style="display:none; align-items:center; gap:8px; background:var(--card-inner); padding:6px 10px; border-radius:8px; border:1px dashed var(--border); box-sizing:border-box; margin-top:-2px;">
+      <button id="btnSetLiveDir" class="ghost small" style="white-space:nowrap; flex:none; font-size:11px; padding:2px 8px;" data-i18n="btnSetLiveDir">选择落盘目录...</button>
+      <div id="liveDirLabel" class="stat" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-size:11px;" data-i18n="dirNotSet">未设置目录</div>
+      <label style="display:flex; gap:4px; align-items:center; font-size:11px; cursor:pointer; color:var(--muted);" data-i18n-title="liveSaveUpdateIndex" title="自动维护主索引 README.md">
+        <input type="checkbox" id="liveSaveUpdateIndexToggle" class="toggle" checked>
+        <span data-i18n="liveSaveUpdateIndex">维护索引</span>
       </label>
     </div>
 

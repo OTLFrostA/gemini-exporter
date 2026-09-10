@@ -9,6 +9,8 @@ export function cleanup(): void {
     contentContext.clearTimer('syncInterval');
     contentContext.clearTimer('titleObserver');
     contentContext.clearTimer('debounceTimer');
+    contentContext.clearTimer('liveSaveObserver');
+    contentContext.clearTimer('liveSaveDebounce');
 
     if (__syncDebounceTimer) {
         clearTimeout(__syncDebounceTimer);
