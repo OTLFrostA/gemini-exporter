@@ -66,6 +66,39 @@ DEFAULT_SCENARIOS = [
 ]
 
 
+DESIGNATED_HISTORICAL_CHATS = [
+    {
+        "id": "1bd028d5c5b0c0e2",
+        "category": "AI 生成图片 (Imagen)",
+        "name": "火星宇航员猫咪（AI 生成图片 Imagen）",
+        "expected_snippets": ["astronaut cat"],
+        "expected_generated_images": 1,
+        "syntax_checks": ["image"]
+    },
+    {
+        "id": "1cea7e48cc166b57",
+        "category": "高质量技术代码块 (Python)",
+        "name": "Python日志与耗时装饰器设计（高质量技术代码块）",
+        "expected_snippets": ["Python", "def ", "functools"],
+        "syntax_checks": ["codeblock"]
+    },
+    {
+        "id": "7b29852ecae8344a",
+        "category": "Markdown 对比表格与量子理论",
+        "name": "贝尔不等式推导与物理意义（复杂表格与量子理论）",
+        "expected_snippets": ["贝尔不等式"],
+        "syntax_checks": ["table"]
+    },
+    {
+        "id": "f8ba969fe8c7d880",
+        "category": "长文本深度推演 (深空探测)",
+        "name": "韦伯望远镜深空探测重大发现（长文本科学报告）",
+        "expected_snippets": ["韦伯", "深空探测"],
+        "syntax_checks": []
+    }
+]
+
+
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
 except ImportError:
@@ -990,32 +1023,119 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
             time.sleep(1.0)
 
         # ------------------------------------------------------------------
-        # 步骤 3.2：点击【同步最新会话】，触发在线 RPC 与离线 Takeout 历史合流
+        # 步骤 3.1.1：断言 Takeout 导入后的初始离线索引与临时标题状态
         # ------------------------------------------------------------------
-        print("   🔄 点击【同步最新会话】按钮...")
+        print("   🔍 校验 Takeout 导入后的初始状态与临时提问标题...")
+        takeout_initial = cdp_opt.eval("""
+        (() => {
+            return new Promise((resolve) => {
+                chrome.storage.local.get(['gemini_conversations'], (data) => {
+                    const convs = data.gemini_conversations || [];
+                    const checkIds = ['1bd028d5c5b0c0e2', '1cea7e48cc166b57', '7b29852ecae8344a', 'f8ba969fe8c7d880'];
+                    const matched = convs.filter(c => checkIds.includes(c.id));
+                    resolve({
+                        total: convs.length,
+                        matched: matched.map(c => ({
+                            id: c.id,
+                            title: c.title,
+                            source: c.titleSource,
+                            titles: c.titles || {}
+                        }))
+                    });
+                });
+            });
+        })()
+        """, await_promise=True)
+
+        takeout_found = 0
+        if takeout_initial and "matched" in takeout_initial:
+            for m in takeout_initial.get("matched", []):
+                print(f"      • [{m['id']}] 初始标题: 「{m['title'][:36]}...」 (source: {m['source']})")
+                if m.get("source") == "takeout" or "takeout" in m.get("titles", {}):
+                    takeout_found += 1
+            if takeout_found > 0:
+                print(f"   ✓ [Takeout 初始断言通过] 成功检测到 {takeout_found} 条会话具备 Takeout 离线提问前缀！")
+
+        # ------------------------------------------------------------------
+        # 步骤 3.2：点击【全量拉取历史】(btnDeepScan)，加载全部历史并触发在线权威升级
+        # ------------------------------------------------------------------
+        print("   🔄 点击【全量拉取历史】按钮 (btnDeepScan)，地毯式加载该账号下的所有历史会话...")
         cdp_opt.eval("""
         (() => {
-            const btn = document.getElementById('btnIncrementalScan');
+            const btn = document.getElementById('btnDeepScan');
             if (btn) btn.click();
         })()
         """)
 
-        # 等待同步完成 (SyncController.isScanning() 变回 false 且按钮恢复可用)
-        print("   ⏳ 正在等待增量同步完成并渲染会话列表...")
-        for _ in range(30):
+        # 等待全量拉取历史完成 (SyncController.isScanning() 变回 false 且按钮恢复可用)
+        print("   ⏳ 正在等待全量扫描完成并持续输出分页进度...")
+        for loop_idx in range(60):
             time.sleep(1)
-            syncing = cdp_opt.eval("""
+            scan_state = cdp_opt.eval("""
             (() => {
                 const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
                 const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
+                const progEl = document.getElementById('progText');
+                const progText = progEl ? progEl.textContent.trim() : '';
                 const btn = document.getElementById('btnExport');
-                return isScan || (btn && btn.disabled);
+                return {
+                    isScan: isScan || (btn && btn.disabled),
+                    progText: progText
+                };
             })()
             """)
-            if not syncing:
+            if loop_idx % 3 == 0 or not scan_state.get("isScan"):
+                prog_msg = scan_state.get("progText") or "全量同步进行中..."
+                print(f"      ⏳ 全量扫描中: {prog_msg}")
+            if not scan_state.get("isScan"):
                 break
         time.sleep(1.0)
 
+        # ------------------------------------------------------------------
+        # 步骤 3.2.1：断言全量拉取历史后 Takeout 临时标题被在线 RPC 权威晋级覆盖
+        # ------------------------------------------------------------------
+        print("   🔍 验证全量拉取历史后 Takeout 临时标题是否被在线 RPC 权威晋级覆盖...")
+        upgraded_state = cdp_opt.eval("""
+        (() => {
+            return new Promise((resolve) => {
+                chrome.storage.local.get(['gemini_conversations'], (data) => {
+                    const convs = data.gemini_conversations || [];
+                    const checkIds = ['1bd028d5c5b0c0e2', '1cea7e48cc166b57', '7b29852ecae8344a', 'f8ba969fe8c7d880'];
+                    const matched = convs.filter(c => checkIds.includes(c.id));
+                    resolve({
+                        total: convs.length,
+                        matched: matched.map(c => ({
+                            id: c.id,
+                            title: c.title,
+                            source: c.titleSource,
+                            titles: c.titles || {}
+                        }))
+                    });
+                });
+            });
+        })()
+        """, await_promise=True)
+
+        upgraded_count = 0
+        for m in upgraded_state.get("matched", []):
+            cid = m["id"]
+            title = m["title"]
+            source = m["source"]
+            titles = m.get("titles", {})
+            has_takeout = "takeout" in titles
+            is_rpc = source == "rpc" or "rpc" in titles
+            if has_takeout and is_rpc:
+                upgraded_count += 1
+                print(f"   ✓ [标题晋级断言通过] 会话 {cid} 成功由 Takeout 临时标题晋级为 RPC 权威标题: 「{title}」 (titles: {list(titles.keys())})")
+            else:
+                print(f"   ℹ️ 会话 {cid} 当前状态: 「{title}」 (source: {source}, titles: {list(titles.keys())})")
+
+        if upgraded_count > 0:
+            print(f"   🎉 成功核实 {upgraded_count} 条 Takeout 历史会话在全量拉取历史后权威升级为在线 RPC 标题！")
+
+        # ------------------------------------------------------------------
+        # 步骤 3.3：多维度联合导出勾选（本次新生成会话 + 4 种指定核心分类历史会话）
+        # ------------------------------------------------------------------
         # 确保 skipExported 复选框处于未勾选状态，强制全量取回对话内容
         cdp_opt.eval("""
         (() => {
@@ -1027,16 +1147,16 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         })()
         """)
 
-        # 目标会话：包含本次发帖会话 + 固化测试账号中的已知特征会话（多轮上传、Deep Research、AI生图、代码块）
+        # 目标会话：
+        # 1. 本次测试现场生成的 2 个新会话 (来自 scenarios[:2])
+        # 2. 预设固化的 4 种不同核心分类的历史老会话：
         target_ids = [r["chat_id"] for r in chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8]
-        # 追加已知的黄金分类会话：
-        # 1. 火星宇航员猫咪(AI生成图片 Imagen): 1bd028d5c5b0c0e2
-        # 2. Python装饰器(高质量代码块): 1cea7e48cc166b57
-        target_ids.extend(["1bd028d5c5b0c0e2", "1cea7e48cc166b57"])
+        target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
         target_titles = [r.get("title", "") for r in chat_records if r.get("title")]
+        target_titles.extend(["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"])
 
         # 通过 label.item[data-chat-id] 及标题关键词精准勾选目标会话
-        print(f"   ☑️ 勾选目标会话进行精准导出...")
+        print(f"   ☑️ 联合勾选目标会话（现场问答新会话 + 4 大核心分类历史会话）...")
         selected_count = cdp_opt.eval(f"""
         (() => {{
             const selectNone = document.getElementById('btnSelectNone');
@@ -1079,7 +1199,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         }})()
         """)
         time.sleep(0.5)
-        print(f"   ✓ 成功勾选 {selected_count} 条会话")
+        print(f"   ✓ 成功联合勾选 {selected_count} 条会话 (包含现场问答会话与 4 大类别代表性历史)")
 
         # 等待导出按钮非 disabled 状态
         for _ in range(20):
@@ -1237,21 +1357,7 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     # ==========================================
     # 阶段 4.2：执行全量导出规范与特征深度断言
     # ==========================================
-    golden_chats = [
-        {
-            "id": "1bd028d5c5b0c0e2",
-            "name": "火星宇航员猫咪（AI 生成图片 Imagen）",
-            "expected_snippets": ["astronaut cat"],
-            "expected_generated_images": 1,
-            "syntax_checks": ["image"]
-        },
-        {
-            "id": "1cea7e48cc166b57",
-            "name": "Python日志与耗时装饰器设计（高质量技术代码块）",
-            "expected_snippets": ["Python", "def ", "functools"],
-            "syntax_checks": ["codeblock"]
-        }
-    ]
+    golden_chats = [dict(c) for c in DESIGNATED_HISTORICAL_CHATS]
     # 若在线发帖，追加在线场景关键词作为黄金校验
     if should_verify_scenarios:
         for idx, sc in enumerate(scenarios[:2]):
@@ -1282,8 +1388,9 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 "syntax_checks": syntax_checks
             })
 
+    min_expected_convs = 6 if should_verify_scenarios else 4
     asserter = ExportSpecificationAsserter(extract_dir)
-    spec_success = asserter.run_all_assertions(min_conversations=2, expected_golden_chats=golden_chats)
+    spec_success = asserter.run_all_assertions(min_conversations=min_expected_convs, expected_golden_chats=golden_chats)
     if not spec_success:
         verification_success = False
 

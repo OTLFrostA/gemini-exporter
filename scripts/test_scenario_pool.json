@@ -1,23 +1,5 @@
 [
   {
-    "id": "high_freq_orderbook_engine",
-    "title": "高频量化交易订单簿与撮合引擎架构",
-    "domain": "quantitative_finance",
-    "features": [
-      "tables",
-      "code",
-      "benchmarks"
-    ],
-    "description": "测试高密度结构化表格、低延迟算法代码与内存对齐分析",
-    "turns": [
-      "请详细解析高频量化交易中 Level 2 与 Level 3 订单簿 (Order Book) 的底层数据结构设计，为什么通常选用双向环形链表 + 价格跳表 (SkipList) 或 Flat Array？",
-      "请用一个结构化的 Markdown 表格，对比 FIFO 价格时间优先撮合与 Pro-Rata 比例分配撮合在流动性激励与撤单延迟惩罚上的机制异同。",
-      "请使用 C++17 或 Rust 编写一个无锁无堆分配 (Zero-Allocation) 的撮合引擎环形缓冲区 (Disruptor Ring Buffer) 核心框架代码片段。",
-      "如何针对 CPU L1/L2 缓存行 (Cache Line 64B) 对订单结构体进行内存对齐和伪共享 (False Sharing) 消除？给出具体代码注解。",
-      "在高频做市策略 (Market Making) 中，Avellaneda-Stoikov 存货风险模型的报价公式是如何推导的？"
-    ]
-  },
-  {
     "id": "compiler_ast_typechecker",
     "title": "现代编译原理：Mini-Lisp 语法树与双向类型推导",
     "domain": "compiler_architecture",
@@ -51,24 +33,6 @@
       "列出利用 CFD (Cutting Frequency Determination) 矩阵算法计算脱靶评分 (Off-target Score) 的数学公式与计算步骤。",
       "使用 Markdown 表格横向对比 CRISPR-Cas9、Cas12a (Cpf1) 以及新型 Prime Editing (PE) 在编辑精度、插入限制与双链断裂 (DSB) 风险上的核心指标。",
       "为高通量生信实验室设计一个自动化脱靶分析 Python 脚本管线流程描述（含 BWA 比对、samtools 处理与变异注释）。"
-    ]
-  },
-  {
-    "id": "clockwork_greenhouse_art",
-    "title": "维多利亚机械发条温室与黄铜植物插画",
-    "domain": "ai_generative_art",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "description": "测试细腻艺术风格生图 (Imagen)、机械设计与长叙事",
-    "turns": [
-      "请帮我生成一张图片：一座充满 19 世纪维多利亚风格的宏伟全玻璃机械温室内部，无数精致的黄铜齿轮与发条机构正在驱动发光的机械植物花朵缓缓绽放，阳光透过拱形玻璃洒下斑驳光影，超高清写实细节。",
-      "请描写这座温室背后的守护者——一位发明家老植物学家的日常工坊日志，记录他调校‘发条兰花’共振频率的笔记。",
-      "请再帮我生成一张图片：这位白发苍苍的老植物学家戴着黄铜单片放大镜，在布满草稿与铜质零件的实木工作台上用精细镊子组装机械花蕊的特写画面。",
-      "为这座奇迹温室设计 3 种不同功能的机械仿生植物（如吸附晨露的齿轮叶、净化空气的发条仙人掌），详细说明其传动原理。",
-      "如果将这个场景改编为一部独立冒险解谜游戏，请设计第一章的核心谜题机制。"
     ]
   },
   {
@@ -358,6 +322,43 @@
       "请使用 Python (NumPy) 编写一个六自由度末端位姿在李群 SE(3) 上的流形轨迹插值算法（使用李代数 se(3) 的对数与指数映射，避免欧拉角奇异性与万向节死锁），并附带详细注释。",
       "请用一个 Markdown 表格，对比导纳控制（Admittance Control）、阻抗控制（Impedance Control）以及力/位混合控制（Hybrid Position/Force Control）在适用传感器硬件、控制内环类型与接触环境刚度适应性上的核心区别。",
       "针对机械臂末端有效载荷（Payload）未知变化带来的模型失配，如何引入基于李雅普诺夫（Lyapunov）稳定性的自适应控制或扩张状态观测器（ESO）实现扰动补偿？给出收敛性证明思路。"
+    ]
+  },
+  {
+    "id": "underwater_bioluminescent_coral_atoll",
+    "title": "发光深海珊瑚环礁与仿生潜水钟水下探险",
+    "domain": "marine_exploration_art",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "description": "测试生物发光水下概念艺术生图 (Imagen)、深海海洋学与流体静力学长推演",
+    "turns": [
+      "请帮我生成一张图片：一座位于水下 2000 米的宏伟生物发光珊瑚环礁探险基地。中央悬浮着带有弧形发光观察窗的黄铜镀层仿生潜水钟，周围环绕着发出幽蓝与翠绿荧光的深海珊瑚树与半透明水母群，超清 8k 写实水下光影。",
+      "请为这座深海潜水基地设计一套基于浮力调控与海水温差能发电（OTEC）的能量自给自足方案，使用 Markdown 列表条理清晰地列出核心工程模块。",
+      "请再帮我生成一张图片：在潜水钟内部，一位年轻的海洋生物学家正透过巨大弧形玻璃，近距离观察一只身体发出金色脉冲光芒的未知深海巨型章鱼游过的震撼瞬间。",
+      "请设计一个 Markdown 表格，对比该深海基地在耐压壳体材料选择上的优劣（钛合金 TC4 vs 硼硅酸盐高压玻璃 vs 碳纤维缠绕复合材料），包含抗压屈服强度、密度、透光性与制造成本。",
+      "如果基地的外部海水淡化与应急制氧管路因海底热液喷口地震发生震裂，请构思一套基于化学储氧与微生物电解的 72 小时应急闭环维生预案。"
+    ]
+  },
+  {
+    "id": "zk_snark_groth16_elliptic_curves",
+    "title": "零知识证明密码学：Groth16 协议推导与配对群运算",
+    "domain": "cryptography_zkp",
+    "features": [
+      "math",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试椭圆曲线双线性配对 (Bilinear Pairing)、R1CS 约束系统与 Rust arkworks 验证代码",
+    "turns": [
+      "请详细推导零知识证明中基于 QAP (Quadratic Arithmetic Program) 的 Groth16 协议核心数学原理，包括如何将 R1CS 约束矩阵转换为多项式整除问题 A(x)B(x) - C(x) = H(x)t(x)。",
+      "请解释在 BN254 或 BLS12-381 椭圆曲线上的双线性对映射（Bilinear Pairing）性质 e: G1 x G2 -> GT，并证明为什么验证者只需一次多标量配对等式校验即可验证计算正确性。",
+      "请使用 Rust 结合 arkworks 密码学库编写一个简化的 Groth16 证明结构体定义与配对验证函数骨架代码片段，附带详细的类型与数学对应注释。",
+      "请用一个结构化的 Markdown 表格，从可信设置（Trusted Setup）、证明尺寸（Proof Size）、验证延迟（Verification Time）与量子抗性四个维度，横向对比 Groth16、PLONK、Halo2 与 STARK 四大主流 ZKP 方案。",
+      "为什么 Groth16 的通用可信设置（Powers of Tau）必须保证至少有一个参与方诚实销毁随机数（Toxic Waste）？若随机数泄露会导致怎样的伪造证明安全灾难？"
     ]
   }
 ]
