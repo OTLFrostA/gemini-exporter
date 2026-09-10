@@ -112,5 +112,81 @@
       "对比解释基于栈的虚拟机字节码 (如 JVM/Wasm) 与基于寄存器的虚拟机字节码 (如 LuaJIT) 在解释循环吞吐上的根本差异。"
     ],
     "consumed_at": "2026-09-10T12:28:46.956765"
+  },
+  {
+    "id": "gothic_steampunk_library",
+    "title": "哥特蒸汽朋克机械环形图书馆",
+    "domain": "ai_generative_art",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "description": "测试复杂建筑透视、蒸汽机械构件与宏大空间 AI 生图",
+    "turns": [
+      "请帮我生成一张图片：一座拥有千米穹顶的哥特式蒸汽朋克环形大图书馆，书架沿螺旋墙壁直插云霄，黄铜气动轨道胶囊在书架间穿梭运送古籍，柔和的蒸汽与金黄色烛光交织，超逼真建筑空间透视。",
+      "描写一次在午夜突发的‘重力倒转书籍漂移事件’，图书管理员如何操作蒸汽升降索挽救一本上古星图羊皮纸手卷。",
+      "请再帮我生成一张图片：年轻的见习女学者戴着带有精密齿轮目镜的皮质护目镜，正坐在一张悬空黄铜机械吊椅上翻阅一本散发幽微金光的古籍特写镜头。",
+      "为这个藏书机构设计一套由差分机 (Difference Engine) 驱动的图书索书号分类法体系，说明其穿孔卡片编码逻辑。",
+      "针对这种纵向千米级藏书建筑，设计一套符合流体力学的自然通风排湿与防火惰性气体注入系统方案。"
+    ],
+    "consumed_at": "2026-09-10T12:42:28.012103"
+  },
+  {
+    "id": "crispr_bioinformatics_pipeline",
+    "title": "CRISPR-Cas9 靶向切割与脱靶预测生物信息学管道",
+    "domain": "bioinformatics",
+    "features": [
+      "sequence_data",
+      "plain_text",
+      "unbroken_strings"
+    ],
+    "description": "测试超长无空格核酸序列、生物学专有名词与表格排版",
+    "turns": [
+      "请详细阐述化脓性链球菌 Cas9 (SpCas9) 识别 PAM 序列 (5'-NGG-3') 的分子生物学机制及其构象变化过程。",
+      "给出一段 60bp 的人类假想靶基因外显子 DNA 序列，指出所有潜在的 SpCas9 原间隔区邻近基序 (PAM) 位置，并设计 2 条特异性 gRNA (20nt)。",
+      "列出利用 CFD (Cutting Frequency Determination) 矩阵算法计算脱靶评分 (Off-target Score) 的数学公式与计算步骤。",
+      "使用 Markdown 表格横向对比 CRISPR-Cas9、Cas12a (Cpf1) 以及新型 Prime Editing (PE) 在编辑精度、插入限制与双链断裂 (DSB) 风险上的核心指标。",
+      "为高通量生信实验室设计一个自动化脱靶分析 Python 脚本管线流程描述（含 BWA 比对、samtools 处理与变异注释）。"
+    ],
+    "consumed_at": "2026-09-10T12:42:28.012103"
+  },
+  {
+    "id": "solarpunk_cloud_oasis",
+    "title": "太阳朋克空中生态温室与浮空水培绿洲",
+    "domain": "solarpunk_architecture",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "description": "测试太阳朋克概念艺术生图 (Imagen)、闭环生态工程与抗风暴容错长推演",
+    "turns": [
+      "请帮我生成一张图片：一座悬浮在万米高空的太阳朋克（Solarpunk）巨型生态球温室。透明的仿生六边形光伏穹顶下，垂直悬挂着茂密的热带雨林植物与水培瀑布，阳光穿透薄雾形成丁达尔效应，远处云海中有微型仿生飞艇穿梭，8k超高清细节。",
+      "请基于上述空中生态绿洲，详细设计其闭环生命维持系统（CELSS）的物质循环架构，用 Markdown 列表清晰阐述水分循环、氧碳平衡与营养盐再生的工程实现方案。",
+      "请再帮我生成一张图片：在生态温室的核心控制室内，一位年轻的生态工程师正透过曲面全息操作台观察发光浮游生物的生理指标，窗外是落日余晖下的壮丽云霞。",
+      "请设计 3 种专门适应该高空低气压、强紫外线环境的基因工程改良作物，用表格对比它们的耐受性机制、营养产出与光合作用效率。",
+      "如果遭遇百年一遇的极端平流层风暴导致外层光伏穹顶局部受损，请为该生态站构思一套具备自主容错与柔性自愈特性的应急响应协议。"
+    ],
+    "consumed_at": "2026-09-10T12:48:06.591981"
+  },
+  {
+    "id": "raft_distributed_consensus",
+    "title": "分布式系统 Raft 共识算法与网络分区脑裂恢复",
+    "domain": "distributed_systems",
+    "features": [
+      "ascii_diagram",
+      "state_machine",
+      "fault_tolerance"
+    ],
+    "description": "测试 ASCII 状态转换图、分布式共识时序与节点日志对齐",
+    "turns": [
+      "请绘制一个清晰的 ASCII 字符状态机转移图，说明 Raft 共识协议中 Follower、Candidate 与 Leader 之间的三种状态转换触发条件与超时机制。",
+      "在 5 个节点的集群中（Node A, B, C, D, E），假设发生网络分区成为 {A, B} 与 {C, D, E} 两组，详细追踪客户端分别向两边写入数据时的日志复制与任期 (Term) 变化。",
+      "网络分区愈合后，原本位于少数派分区的旧 Leader 如何通过 AppendEntries RPC 发现自身落后并发生日志回退与截断？",
+      "对比 Raft 与 Multi-Paxos 在 Leader 选举开销、日志空洞处理 (Log Hole) 以及实现复杂度上的本质差异。",
+      "针对线性一致性读 (Linearizable Read)，分析 Lease Read 与 Read Index 两种优化机制的优缺点及对物理时钟漂移的容忍度。"
+    ],
+    "consumed_at": "2026-09-10T12:48:06.591981"
   }
 ]

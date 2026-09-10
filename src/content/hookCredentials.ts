@@ -70,7 +70,8 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
     function detectDeletedConversation(url: any, body: any, responseText: any): void {
         try {
             const hasGz = (body && typeof body === 'string' && body.includes(Proto.RPCS.DELETE)) ||
-                          (responseText && typeof responseText === 'string' && responseText.includes(Proto.RPCS.DELETE));
+                          (responseText && typeof responseText === 'string' && responseText.includes(Proto.RPCS.DELETE)) ||
+                          ((url || '').toString().includes(Proto.RPCS.DELETE));
             if (!hasGz) return;
 
             let slot = 'default';
