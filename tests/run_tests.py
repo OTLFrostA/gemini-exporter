@@ -16,7 +16,7 @@ print("=" * 60)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_json_files():
-    for jf in ["manifest.json", "package.json", "_locales/zh_CN/messages.json", "_locales/en/messages.json"]:
+    for jf in ["manifest.json", "package.json", "_locales/zh_CN/messages.json", "_locales/en/messages.json", "scripts/test_scenario_pool.json", "scripts/test_scenario_archive.json"]:
         p = os.path.join(BASE_DIR, jf)
         with open(p, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -467,6 +467,54 @@ def test_dataset_freshness_gate():
 
     print("  ✓ Dataset 2-minute freshness gate & bypass options verified")
 
+def test_scenario_pool_pipeline():
+    import tempfile
+    scripts_dir = os.path.join(BASE_DIR, "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from manage_scenario_pool import validate_pool, get_pool_status, consume_scenarios, topup_scenarios, DEFAULT_POOL_PATH
+
+    # 1. Validate the default 20-scenario pool
+    ok, errs, status = validate_pool(DEFAULT_POOL_PATH, strict_count=True)
+    assert ok, f"Scenario pool validation failed: {errs}"
+    assert status["count"] == 20, f"Expected 20 scenarios, got {status['count']}"
+    assert status["has_imagen"] >= 2, f"Expected >= 2 imagen scenarios, got {status['has_imagen']}"
+    assert len(status["domains"]) >= 10, f"Expected >= 10 domains, got {len(status['domains'])}"
+
+    # 2. Dry-run consume
+    selected, pool_after = consume_scenarios(DEFAULT_POOL_PATH, count=2, dry_run=True, require_imagen=True)
+    assert len(selected) == 2, "Dry-run consume should return 2 scenarios"
+    assert any("imagen" in s.get("features", []) for s in selected), "One of the consumed scenarios must have 'imagen' feature"
+
+    # 3. Temp file consume and topup round-trip
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f_pool:
+        json.dump(status["scenarios"][:], f_pool, ensure_ascii=False)
+        pool_tmp = f_pool.name
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f_arch:
+        json.dump([], f_arch)
+        arch_tmp = f_arch.name
+
+    try:
+        consumed, remaining = consume_scenarios(pool_tmp, count=2, archive_path=arch_tmp, dry_run=False, require_imagen=True)
+        assert len(consumed) == 2
+        assert len(remaining) == 18
+
+        with open(arch_tmp, "r", encoding="utf-8") as f:
+            arch_data = json.load(f)
+        assert len(arch_data) == 2
+        assert "consumed_at" in arch_data[0]
+
+        # Top up with the consumed items back to 20
+        added, restored_pool = topup_scenarios(consumed, pool_path=pool_tmp)
+        assert len(added) == 2
+        assert len(restored_pool) == 20
+    finally:
+        for p in [pool_tmp, arch_tmp]:
+            if os.path.isfile(p):
+                os.remove(p)
+
+    print("  ✓ Scenario pool pipeline, 20-scenario diversity, consume, archive & top-up verified")
+
 def test_tour_status_indicator_styling():
     # 1. Ensure options.html does not define unscoped .ok { ... }
     for html_file in ["src/ui/options/options.html"]:
@@ -665,6 +713,7 @@ test_i18n_keys()
 test_content_badge_flicker_prevention()
 test_exported_history_and_slot_fallback()
 test_dataset_freshness_gate()
+test_scenario_pool_pipeline()
 test_tour_status_indicator_styling()
 test_takeout_limit_modal_and_wall_detection()
 test_stage1_architecture_ssot_and_state_isolation()
