@@ -1,23 +1,5 @@
 [
   {
-    "id": "compiler_ast_typechecker",
-    "title": "现代编译原理：Mini-Lisp 语法树与双向类型推导",
-    "domain": "compiler_architecture",
-    "features": [
-      "code",
-      "recursive_descent",
-      "algorithms"
-    ],
-    "description": "测试多语言编译器前端架构、递归下降语法解析与类型检查代码",
-    "turns": [
-      "请为包含基础算术、Lambda 匿名函数与 let 绑定的 Mini-Lisp 语言定义完整的 BNF 语法文法范式。",
-      "使用 TypeScript 编写一个纯函数式的 AST 节点接口定义，并实现一个手写递归下降词法与语法解析器 (Tokenizer + Parser)。",
-      "在刚才的 AST 之上实现一个双向类型推导 (Bidirectional Type Checking) 检查器，支持推断类型 (Synthesize) 与检查类型 (Check) 的相互转换。",
-      "展示当用户代码出现类型不匹配（例如将函数传递给加法操作）时，编译器如何打印带行号、列号与波浪线高亮的友好诊断信息。",
-      "对比解释基于栈的虚拟机字节码 (如 JVM/Wasm) 与基于寄存器的虚拟机字节码 (如 LuaJIT) 在解释循环吞吐上的根本差异。"
-    ]
-  },
-  {
     "id": "crispr_bioinformatics_pipeline",
     "title": "CRISPR-Cas9 靶向切割与脱靶预测生物信息学管道",
     "domain": "bioinformatics",
@@ -123,24 +105,6 @@
       "分析粟特商人 (Sogdian merchants) 在六胡州与敦煌商贸网络中扮演的金融信用中介角色，其借贷契约文本通常包含哪些法律要件？",
       "结合吐鲁番阿斯塔那古墓出土文书，解读‘高昌度量衡与中原官度’在实物交易折算中的换算博弈。",
       "总结丝路沿线‘硬通货金银’与‘实物绢帛货币’并行的双轨制金融体系兴衰动因。"
-    ]
-  },
-  {
-    "id": "bioluminescent_abyss_expedition",
-    "title": "马里亚纳深渊超深渊带发光生物科考",
-    "domain": "marine_biology",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "description": "测试深海超高压生态描述、深海摄影级 AI 生图与环境适应性分析",
-    "turns": [
-      "请帮我生成一张图片：在马里亚纳海沟 10000 米深渊的黑暗深海中，科考深潜器的探照灯光柱照亮了一只身躯半透明、周身发出璀璨梦幻蓝绿色荧光的超现实深海巨型水母，背景是沉积物海底与深海热泉喷口。",
-      "以深潜科学家的第一人称口吻，撰写一段 300 字的下潜日志，记录在舷窗外目睹这只发光生物时的震撼与实时传感器数据（压强、水温、盐度）。",
-      "请基于刚才的发现，再帮我生成一张图片：深潜器的机械臂小心翼翼地使用无损吸入式采样器，在幽暗海水中提取该发光生物组织样本的高清科研微距特写画面。",
-      "从生物物理学角度，详细解释深海生物如何依靠三甲胺氧化物 (TMAO) 和高比例不饱和脂肪酸抵御超过 1000 个大气压的分子构象崩塌。",
-      "设计一套模拟万米深渊高压超低温环境下维持深海微生物活性的实验室培养舱工程架构。"
     ]
   },
   {
@@ -359,6 +323,41 @@
       "请使用 Rust 结合 arkworks 密码学库编写一个简化的 Groth16 证明结构体定义与配对验证函数骨架代码片段，附带详细的类型与数学对应注释。",
       "请用一个结构化的 Markdown 表格，从可信设置（Trusted Setup）、证明尺寸（Proof Size）、验证延迟（Verification Time）与量子抗性四个维度，横向对比 Groth16、PLONK、Halo2 与 STARK 四大主流 ZKP 方案。",
       "为什么 Groth16 的通用可信设置（Powers of Tau）必须保证至少有一个参与方诚实销毁随机数（Toxic Waste）？若随机数泄露会导致怎样的伪造证明安全灾难？"
+    ]
+  },
+  {
+    "id": "cybernetic_zen_monastery",
+    "domain": "cybernetic_futurism_art",
+    "title": "赛博禅宗枯山水庭院与数字冥想空间",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "turns": [
+      "请帮我生成一张图片：一座悬浮在赛博朋克近未来高空穹顶下的禅宗枯山水庭院。发光的荧光苔藓、流动的全息水纹砂石庭园、钛合金构建的静虑回廊，背景可见微雨朦胧的霓虹都市夜景，电影质感，虚幻引擎5渲染风格。",
+      "请以建筑哲学家的视角，解析赛博朋克高科技冰冷机械感与东方枯山水虚静审美融合的设计语汇与空间叙事。",
+      "请再生成一张图片：在庭院中央，一位身披光导纤维织造袈裟的仿生人禅师正面对全息枯木盘膝冥想，身边漂浮着散发柔和微光的数字香炉，特写镜头，丁达尔光效。",
+      "探讨在意识数字化与脑机接口普及的时代，人类\"冥想\"行为的神经生物学机制与数字信号干预的伦理边界。",
+      "设计一个用于在脑机交互界面呈现的\"数字枯山水\"交互算法状态机，用伪代码或状态图描述脑电波专注度（Alpha/Theta波）与全息砂纹流速的动态反馈模型。"
+    ]
+  },
+  {
+    "id": "vlsi_riscv_pipeline_hazards",
+    "domain": "vlsi_computer_architecture",
+    "title": "超标量微处理器：RISC-V 五级流水线与冒险处理实战",
+    "features": [
+      "code",
+      "tables",
+      "architecture",
+      "hardware"
+    ],
+    "turns": [
+      "请详细拆解标准 RISC-V 32I 五级流水线（IF、ID、EX、MEM、WB）的结构，并解释结构冒险 (Structural Hazard)、数据冒险 (Data Hazard) 与控制冒险 (Control Hazard) 的产生机理。",
+      "请绘制一张详细的 Markdown 状态对比表格，对比针对 RAW (Read-After-Write) 数据冒险的三种解决策略：插入气泡 (Pipeline Stalling/Bubbling)、前向转发 (Operand Forwarding) 与编译器重排指令在性能 CPI、硬件开销与复杂度上的权衡。",
+      "请使用 Verilog HDL 或伪代码编写一个用于 RISC-V 3-way 转发单元 (Forwarding Unit) 的控制逻辑，要求准确处理 EX 阶段与 MEM 阶段对 ID/EX 源操作数的前向旁路匹配。",
+      "在引入动态分支预测器（如 2-bit 饱和计数器与二阶自适应分支预测器）后，当发生预测失误 (Misprediction) 时，流水线冲刷 (Pipeline Flush) 的硬件时钟周期代价与恢复机制是什么？",
+      "分析超标量 (Superscalar) 双发射架构中重排序缓冲区 (ROB, Reorder Buffer) 与寄存器重命名 (Register Renaming) 如何协同解决 WAR (Write-After-Read) 与 WAW (Write-After-Write) 假相关问题。"
     ]
   }
 ]
