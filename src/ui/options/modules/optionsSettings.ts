@@ -323,21 +323,25 @@ export function checkWalkthroughOnOpen(): void {
                 ? await Storage.isTourCompleted()
                 : false;
 
-            // 2. Track A: New user onboarding
-            if (!tourDone || isWelcome) {
-                if (Tour.startTour) Tour.startTour(0);
+            // 2. Track A: New user onboarding (only on install / welcome URL)
+            if (isWelcome) {
+                if (!tourDone || isExplicitTour) {
+                    if (Tour.startTour) Tour.startTour(0);
+                }
                 return;
             }
 
-            // 3. Track B: Returning user major feature spotlight
-            const currentAppVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
-            const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
-                ? await Storage.getLastSeenFeatureVersion()
-                : '';
+            // 3. Track B: Returning user major feature spotlight (on normal workbench open)
+            if (tourDone) {
+                const currentAppVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+                const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
+                    ? await Storage.getLastSeenFeatureVersion()
+                    : '';
 
-            const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
-            if (eligibleFeature && Tour.startFeatureSpotlight) {
-                Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
+                const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
+                if (eligibleFeature && Tour.startFeatureSpotlight) {
+                    Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
+                }
             }
         }, 400);
     } catch (e) {
