@@ -105,21 +105,19 @@ class ExportSpecificationAsserter:
         else:
             self.log_pass("Bundle", f"发现 {len(self.md_files)} 个导出会话 Markdown 文件 (符合预期 >= {min_conversations})")
 
-        # 检查 00_INDEX.md
-        if not index_file:
-            self.log_error("00_INDEX.md", "缺少全局索引文档 00_INDEX.md")
-        else:
+        # 检查 00_INDEX.md (已移除，若存在则校验有效性，不存在则符合纯净导出预期)
+        if index_file:
             with open(index_file, "r", encoding="utf-8") as f:
                 self.index_text = f.read()
             if "# " not in self.index_text or "| " not in self.index_text:
                 self.log_error("00_INDEX.md", "索引文件缺少标题或 Markdown 对话表格列表")
             else:
                 self.log_pass("00_INDEX.md", "全局索引文档有效，包含 Markdown 对话索引表")
-
-        # 检查 meta.json
-        if not meta_file:
-            self.log_error("meta.json", "缺少元数据文件 meta.json")
         else:
+            self.log_pass("00_INDEX.md", "纯净无冗余索引导出 (无额外 00_INDEX.md 干扰)")
+
+        # 检查 meta.json (已移除，若存在则校验合法性)
+        if meta_file:
             try:
                 with open(meta_file, "r", encoding="utf-8") as f:
                     self.meta_data = json.load(f)

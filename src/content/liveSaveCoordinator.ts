@@ -394,26 +394,6 @@ async function writeConversationToDisk(
         : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
 
     await writer.writeFile('', fileName, markdown);
-
-    // 4. Optional: write or update main index README.md
-    if (config.updateIndex) {
-        await updateIndexFile(writer, safeTitle, fileName, nowIsoDate());
-    }
-}
-
-function nowIsoDate(): string {
-    return new Date().toISOString().split('T')[0];
-}
-
-async function updateIndexFile(writer: any, title: string, fileName: string, dateStr: string): Promise<void> {
-    try {
-        const indexHeader = '# Gemini Chat Live Archives\n\n| Date | Conversation | File |\n| :--- | :--- | :--- |\n';
-        const entryLine = `| ${dateStr} | ${title} | [${fileName}](./${encodeURIComponent(fileName)}) |\n`;
-        // In simple appending/writing, if file exists it will keep structure
-        await writer.writeFile('', 'README.md', indexHeader + entryLine);
-    } catch {
-        /* best-effort index maintenance */
-    }
 }
 
 export function isCurrentlySaving(): boolean {

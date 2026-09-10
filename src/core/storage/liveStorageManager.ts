@@ -11,8 +11,7 @@ const KEY_DIR_HANDLE = 'live_save_dir_handle';
 export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
     enabledDisk: false,
     format: 'markdown',
-    includeAssets: true,
-    updateIndex: true
+    includeAssets: true
 };
 
 function openLiveDB(): Promise<IDBDatabase> {

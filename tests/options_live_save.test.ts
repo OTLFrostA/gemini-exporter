@@ -9,7 +9,6 @@ test('optionsSettings - initLiveSaveSettings binds controls and updates config',
 
     const mockElements: Record<string, any> = {
         liveSaveDiskToggle: { checked: false, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
-        liveSaveUpdateIndexToggle: { checked: true, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
         liveSaveDiskBox: { style: { display: 'none' } },
         btnSetLiveDir: { dataset: {}, addEventListener: function(e: string, fn: Function) { this.onClick = fn; } },
         liveDirLabel: { textContent: '' },
@@ -29,7 +28,6 @@ test('optionsSettings - initLiveSaveSettings binds controls and updates config',
         enabledDisk: false,
         format: 'markdown',
         includeAssets: true,
-        updateIndex: true,
         dirName: 'MyVault',
         lastSavedAt: 1710000000000
     });

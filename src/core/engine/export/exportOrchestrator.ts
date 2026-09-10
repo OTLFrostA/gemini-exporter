@@ -475,7 +475,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
             const {
                 format = 'markdown',
                 skip = false,
-                includeIndex = true,
+                includeIndex = false,
                 includeAssets = true,
                 useZip = true,
                 currentSlot = 'u0',

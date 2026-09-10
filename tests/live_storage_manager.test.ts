@@ -9,7 +9,6 @@ test('liveStorageManager - default configuration structure', () => {
     assert.strictEqual(def.enabledDisk, false);
     assert.strictEqual(def.format, 'markdown');
     assert.strictEqual(def.includeAssets, true);
-    assert.strictEqual(def.updateIndex, true);
 });
 
 test('liveStorageManager - IDB mock, config persistence and V2 purge of conversations store', async () => {
