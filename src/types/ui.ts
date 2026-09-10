@@ -116,6 +116,8 @@ export interface ExportControllerContract {
 
 export interface TourGuideContract {
     startTour: (stepIndex?: number) => Promise<void>;
+    startFeatureSpotlight: (stepId: string, version: string, options?: { onAction?: () => void | Promise<void>; actionLabelKey?: string }) => Promise<void>;
+    dismissFeatureSpotlight: () => Promise<void>;
     goToStep: (stepIndex: number) => Promise<void>;
     nextStep: () => Promise<void>;
     prevStep: () => Promise<void>;

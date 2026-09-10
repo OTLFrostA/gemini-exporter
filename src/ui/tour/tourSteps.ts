@@ -96,11 +96,39 @@ export const STEPS: any[] = [
         }
     },
     {
+        id: 'live_save',
+        getTarget: () => {
+            const el = document.getElementById('liveSaveDiskToggle');
+            if (!el) return null;
+            return (typeof el.closest === 'function' ? el.closest('label') : null) || el;
+        },
+        placement: 'right',
+        titleKey: 'tourStepLiveSaveTitle',
+        descKey: 'tourStepLiveSaveDesc',
+        hintKey: 'tourHintLiveSave',
+        setupAction: (advance: () => void) => {
+            const cleanups: (() => void)[] = [];
+            const diskToggle = document.getElementById('liveSaveDiskToggle');
+            if (diskToggle) {
+                const onToggle = () => setTimeout(advance, 300);
+                diskToggle.addEventListener('change', onToggle);
+                cleanups.push(() => diskToggle.removeEventListener('change', onToggle));
+            }
+            const btnSetLiveDir = document.getElementById('btnSetLiveDir');
+            if (btnSetLiveDir) {
+                const onBtn = () => setTimeout(advance, 300);
+                btnSetLiveDir.addEventListener('click', onBtn);
+                cleanups.push(() => btnSetLiveDir.removeEventListener('click', onBtn));
+            }
+            return () => cleanups.forEach(c => c());
+        }
+    },
+    {
         id: 'feedback',
         getTarget: () => document.getElementById('feedbackBox') || document.getElementById('btnFeedback') || null,
         placement: 'right',
-        titleKey: 'tourStep5Title',
-        descKey: 'tourStep5Desc',
+        titleKey: 'tourStep6Title',
+        descKey: 'tourStep6Desc',
         hintKey: 'tourHintClickFeedback',
         isFinal: true,
         setupAction: (advance: () => void) => {

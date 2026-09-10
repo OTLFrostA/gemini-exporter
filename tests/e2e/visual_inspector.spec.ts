@@ -11,7 +11,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     }
   });
 
-  test('should execute 5-step tour with 100% zero-occlusion and physical mouse hit-testing', async ({ context, extensionId }) => {
+  test('should execute 6-step tour with 100% zero-occlusion and physical mouse hit-testing', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -22,9 +22,9 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const popover = page.locator('.tour-popover');
     await expect(popover).toBeVisible({ timeout: 5000 });
 
-    for (let stepIdx = 0; stepIdx < 5; stepIdx++) {
+    for (let stepIdx = 0; stepIdx < 6; stepIdx++) {
       const stepBadge = await page.locator('.tour-step-badge').innerText();
-      expect(stepBadge).toBe(`${stepIdx + 1} / 5`);
+      expect(stepBadge).toBe(`${stepIdx + 1} / 6`);
 
       // 1. Capture visual snapshot
       const screenshotPath = path.join(outputDir, `tour_step_${stepIdx + 1}.png`);
@@ -78,9 +78,9 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
         expect(hitTestTag).toMatch(/^(button#tournextbtn|span|div)/i);
 
         // Advance to next step
-        if (stepIdx < 4) {
+        if (stepIdx < 5) {
           await nextBtn.click();
-          await expect(page.locator('.tour-step-badge')).toHaveText(`${stepIdx + 2} / 5`);
+          await expect(page.locator('.tour-step-badge')).toHaveText(`${stepIdx + 2} / 6`);
           await page.waitForTimeout(300);
         } else {
           await nextBtn.click();
@@ -109,10 +109,62 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
 
     const popover = page.locator('.tour-popover');
     await expect(popover).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 5');
+    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 6');
 
     // Click close/skip
     await page.click('#tourSkipBtn');
+    await expect(popover).toBeHidden();
+  });
+
+  test('should display major feature spotlight overlay for returning users and record seen version', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // 1. Simulate returning user who finished onboarding in v1.4.0
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.evaluate(async () => {
+      await chrome.storage.local.set({
+        has_completed_tour: true,
+        last_seen_feature_version: '1.4.0'
+      });
+    });
+
+    // 2. Reload options page without welcome flag
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+
+    // 3. Feature spotlight popover should appear
+    const popover = page.locator('.tour-popover');
+    await expect(popover).toBeVisible({ timeout: 5000 });
+
+    // 4. Verify feature badge
+    const badge = page.locator('.tour-step-badge');
+    await expect(badge).toBeVisible();
+    const badgeText = await badge.innerText();
+    expect(badgeText).toContain('1.5.0');
+
+    // 5. Verify action buttons exist
+    const dismissBtn = page.locator('#tourSpotlightDismissBtn');
+    const actionBtn = page.locator('#tourSpotlightActionBtn');
+    await expect(dismissBtn).toBeVisible();
+    await expect(actionBtn).toBeVisible();
+
+    // 6. Dismiss spotlight
+    await dismissBtn.click();
+    await expect(popover).toBeHidden();
+
+    // 7. Verify storage updated to 1.5.0
+    const storedVer = await page.evaluate(async () => {
+      const data = await chrome.storage.local.get(['last_seen_feature_version']);
+      return data.last_seen_feature_version;
+    });
+    expect(storedVer).toBe('1.5.0');
+
+    // 8. Reload page - spotlight should NOT appear again
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(600);
     await expect(popover).toBeHidden();
   });
 
