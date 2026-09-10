@@ -74,14 +74,44 @@ export function parseDoc(doc: Document, id: string, url?: string): any {
         if (!isUser && !isModel) continue;
 
         let text = '';
+        const imgNodes = Array.from(node.querySelectorAll('img'));
+        const images: any[] = [];
+        const attachments: any[] = [];
+
+        for (const imgEl of imgNodes) {
+            const src = (imgEl as HTMLImageElement).src || imgEl.getAttribute('src') || '';
+            if (src && !src.startsWith('data:image/svg') && !src.includes('avatar') && !src.includes('icon') && !src.includes('sparkle')) {
+                const alt = imgEl.getAttribute('alt') || (isUser ? 'User Image' : 'Generated Image');
+                const imgObj = {
+                    type: 'image',
+                    src,
+                    url: src,
+                    sourceUrl: src,
+                    name: alt,
+                    alt,
+                    isGenerated: !isUser,
+                    isImage: true
+                };
+                images.push(imgObj);
+                attachments.push(imgObj);
+            }
+        }
+
         if (isUser) {
             const q = node.querySelector('.query-text-line, .query-text, [data-test-id="query-text"], p');
             if (q) text = (q.textContent || '').trim();
             if (!text) text = (node.textContent || '').trim();
-            if (text) messages.push({
-                role: 'user',
-                content: cleanText(text)
-            });
+            if (text || images.length) {
+                const msg: any = {
+                    role: 'user',
+                    content: cleanText(text)
+                };
+                if (images.length) {
+                    msg.images = images;
+                    msg.attachments = attachments;
+                }
+                messages.push(msg);
+            }
         } else {
             const md = node.querySelector('.markdown, message-content, [data-test-id="model-response-content"]') || node;
             let t = '';
@@ -99,10 +129,17 @@ export function parseDoc(doc: Document, id: string, url?: string): any {
                 }
             }
             if (!t) t = (md.textContent || '').trim();
-            if (t) messages.push({
-                role: 'model',
-                content: cleanText(t)
-            });
+            if (t || images.length) {
+                const msg: any = {
+                    role: 'model',
+                    content: cleanText(t)
+                };
+                if (images.length) {
+                    msg.images = images;
+                    msg.attachments = attachments;
+                }
+                messages.push(msg);
+            }
         }
     }
 
