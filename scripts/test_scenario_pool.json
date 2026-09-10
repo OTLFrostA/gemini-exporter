@@ -1,41 +1,5 @@
 [
   {
-    "id": "cyberpunk_astro_shiba",
-    "title": "赛博朋克柴犬宇航员火星探险",
-    "domain": "ai_generative_art",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "description": "测试 Gemini 原生 AI 生图 (Imagen)、微调与离线媒体资产打包",
-    "turns": [
-      "请帮我生成一张图片：一只可爱的柴犬穿着未来高科技宇航服在火星地表漫步，头盔反射出星光，背景是巨大的红色陨石坑与火星基地。",
-      "请为这只火星探险柴犬构思一段 300 字的科幻微小说，描述它在火星土壤中发现一株发光神秘植物的经过。",
-      "请基于刚才的故事，再帮我生成一张图片：这只柴犬宇航员在温暖的火星基地居住舱内，脱下头盔在观测窗边喝着热饮看着火星日落。",
-      "为这本科幻绘本设计 5 个章节目录，并给出每个章节的插画构思与核心冲突。",
-      "请总结在极端深空辐射环境下，生物宇航服需要具备的 3 大被动防护材料与生命维持技术。"
-    ]
-  },
-  {
-    "id": "quantum_bell_inequality",
-    "title": "贝尔不等式与量子纠缠理论推导",
-    "domain": "quantum_physics",
-    "features": [
-      "latex",
-      "tables",
-      "equations"
-    ],
-    "description": "测试复杂 LaTeX 数学公式矩阵、KaTeX 块渲染与多维对比表格",
-    "turns": [
-      "请详细推导 CHSH 形式的贝尔不等式 (Bell's inequality)，使用标准 LaTeX 公式展示纠缠态下的量子力学期望值计算，并解释如何违背局域实在论的界限 (2 vs 2√2)。",
-      "请使用 Markdown 表格，从纠缠自由度、传输介质、误码率阈值、当前世界纪录四个维度对比基于光纤与基于卫星的量子密钥分发 (QKD) 方案。",
-      "请写出利用两比特纠缠态实现量子隐形传态 (Quantum Teleportation) 的完整测量基与态演化矩阵推导。",
-      "阐述退相干时间 (T1 与 T2) 对超导量子比特门保真度的影响，并列出主流表面码 (Surface Code) 的纠错阈值公式。",
-      "为经典物理学家写一段关于‘量子非定域性并不违背狭义相对论因果律’的严谨逻辑辩护。"
-    ]
-  },
-  {
     "id": "high_freq_orderbook_engine",
     "title": "高频量化交易订单簿与撮合引擎架构",
     "domain": "quantitative_finance",
@@ -357,6 +321,43 @@
       "为一套包含 API Gateway、订单服务、支付微服务与库存系统的电商核心链路，设计一份混沌工程 (Chaos Engineering) 故障注入演练剧本，使用 Markdown 表格明确实验假设、稳态指标 (Steady State)、注入手段与回滚预案。",
       "如何防范微服务级联雪崩 (Cascading Failure) 中的‘重试风暴 (Retry Storm)’？详细解析指数退避加抖动 (Exponential Backoff with Full Jitter) 的算法原理。",
       "结合分布式链路追踪 (OpenTelemetry Trace/Span)，说明如何在百万级 RPS 规模下实现基于错误与长延迟的自适应尾部采样 (Tail-based Sampling)。"
+    ]
+  },
+  {
+    "id": "solarpunk_cloud_oasis",
+    "title": "太阳朋克空中生态温室与浮空水培绿洲",
+    "domain": "solarpunk_architecture",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "description": "测试太阳朋克概念艺术生图 (Imagen)、闭环生态工程与抗风暴容错长推演",
+    "turns": [
+      "请帮我生成一张图片：一座悬浮在万米高空的太阳朋克（Solarpunk）巨型生态球温室。透明的仿生六边形光伏穹顶下，垂直悬挂着茂密的热带雨林植物与水培瀑布，阳光穿透薄雾形成丁达尔效应，远处云海中有微型仿生飞艇穿梭，8k超高清细节。",
+      "请基于上述空中生态绿洲，详细设计其闭环生命维持系统（CELSS）的物质循环架构，用 Markdown 列表清晰阐述水分循环、氧碳平衡与营养盐再生的工程实现方案。",
+      "请再帮我生成一张图片：在生态温室的核心控制室内，一位年轻的生态工程师正透过曲面全息操作台观察发光浮游生物的生理指标，窗外是落日余晖下的壮丽云霞。",
+      "请设计 3 种专门适应该高空低气压、强紫外线环境的基因工程改良作物，用表格对比它们的耐受性机制、营养产出与光合作用效率。",
+      "如果遭遇百年一遇的极端平流层风暴导致外层光伏穹顶局部受损，请为该生态站构思一套具备自主容错与柔性自愈特性的应急响应协议。"
+    ]
+  },
+  {
+    "id": "robotics_impedance_control_dynamics",
+    "title": "机器人动力学：六自由度机械臂阻抗控制与李代数姿态插值",
+    "domain": "robotics_and_control",
+    "features": [
+      "math",
+      "code",
+      "differential_equations",
+      "algorithms"
+    ],
+    "description": "测试刚体动力学微分方程、李群 SE(3) 旋量理论与实时阻抗控制代码",
+    "turns": [
+      "请从拉格朗日力学（Lagrangian Mechanics）出发，详细推导含重力项、离心力与科氏力矩阵的标准刚体机械臂动力学方程 M(q)q'' + C(q,q')q' + g(q) = tau，并证明其质量矩阵 M(q) 的对称正定性及 M'(q) - 2C(q,q') 的斜对称性。",
+      "在机械臂与未知刚度环境接触装配任务中，位置控制往往会导致接触力过大甚至失稳。请详细推导基于力矩的笛卡尔空间阻抗控制（Cartesian Impedance Control）律，并写出包含虚拟质量、阻尼与刚度的二阶期望阻抗动态微分方程。",
+      "请使用 Python (NumPy) 编写一个六自由度末端位姿在李群 SE(3) 上的流形轨迹插值算法（使用李代数 se(3) 的对数与指数映射，避免欧拉角奇异性与万向节死锁），并附带详细注释。",
+      "请用一个 Markdown 表格，对比导纳控制（Admittance Control）、阻抗控制（Impedance Control）以及力/位混合控制（Hybrid Position/Force Control）在适用传感器硬件、控制内环类型与接触环境刚度适应性上的核心区别。",
+      "针对机械臂末端有效载荷（Payload）未知变化带来的模型失配，如何引入基于李雅普诺夫（Lyapunov）稳定性的自适应控制或扩张状态观测器（ESO）实现扰动补偿？给出收敛性证明思路。"
     ]
   }
 ]

@@ -177,7 +177,7 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         """)
         current_step_num = step1_info.get("step", 0)
         if current_step_num == 0:
-            if "1 / 5" not in step1_info.get("badge", "") and "1 / 4" not in step1_info.get("badge", ""):
+            if "1 / 6" not in step1_info.get("badge", "") and "1 / 5" not in step1_info.get("badge", "") and "1 / 4" not in step1_info.get("badge", ""):
                 print(f"❌ 向导 Step 1 校验失败: {step1_info}")
                 return False
             print("   ✓ [向导 1/5] 连接就绪步骤校验通过，点击前进...")
@@ -191,13 +191,13 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
             """)
             time.sleep(0.5)
         elif current_step_num == 1:
-            print("   ✓ [向导 1/5 ➔ 2/5] 检测到已连接 Gemini 页面，向导已自适应智能推进至 Step 2！")
+            print("   ✓ [向导 1/N ➔ 2/N] 检测到已连接 Gemini 页面，向导已自适应智能推进至 Step 2！")
         else:
             print(f"❌ 向导步骤异常: {step1_info}")
             return False
 
         # -------------------------------------------------------------
-        # Step 2 校验：扫描同步引导 (2 / 5) 并触发 #btnIncrementalScan
+        # Step 2 校验：扫描同步引导 (2 / N) 并触发 #btnIncrementalScan
         # -------------------------------------------------------------
         step2_info = {}
         for _ in range(20):
@@ -208,7 +208,7 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
                 return { badge, step };
             })()
             """) or {}
-            if ("2 / 5" in step2_info.get("badge", "") or "2 / 4" in step2_info.get("badge", "")) and step2_info.get("step") == 1:
+            if ("2 / 6" in step2_info.get("badge", "") or "2 / 5" in step2_info.get("badge", "") or "2 / 4" in step2_info.get("badge", "")) and step2_info.get("step") == 1:
                 break
             time.sleep(0.15)
 
@@ -265,7 +265,7 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         print("   ✓ [向导 4/5] 行为驱动自动推进至导出步骤！")
 
         # -------------------------------------------------------------
-        # Step 4 校验：导出步骤 -> 点击下一步推进至 Step 5 (反馈引导)
+        # Step 4 校验：导出步骤 -> 点击下一步推进至后续步骤与完成
         # -------------------------------------------------------------
         cdp.eval("""
         (() => {
@@ -275,28 +275,34 @@ def verify_onboarding_tour(port=CDP_DEFAULT_PORT, ext_id=None, timeout=15):
         })()
         """)
 
-        step5_advanced = False
-        for _ in range(25):
-            time.sleep(0.15)
-            cur_step = cdp.eval("window.TourGuide ? window.TourGuide.getCurrentStep() : -1")
-            if cur_step == 4:
-                step5_advanced = True
+        # 动态自适应推进后续步骤 (例如 5/6 实时保存 与 6/6 反馈步骤) 直至完成销毁
+        for _ in range(20):
+            time.sleep(0.25)
+            is_active = cdp.eval("window.TourGuide ? window.TourGuide.isActive() : false")
+            if not is_active:
                 break
-        if not step5_advanced:
-            print("❌ 点击下一步后未能在超时前推进至 Step 5 (反馈引导)")
-            return False
-        print("   ✓ [向导 5/5] 推进至产品反馈与持续迭代步骤！")
-
-        # -------------------------------------------------------------
-        # Step 5 校验：点击完成向导
-        # -------------------------------------------------------------
-        cdp.eval("""
-        (() => {
-            const nextBtn = document.getElementById('tourNextBtn');
-            if (nextBtn) nextBtn.click();
-            else if (window.TourGuide) window.TourGuide.finishTour();
-        })()
-        """)
+            cur_step = cdp.eval("window.TourGuide ? window.TourGuide.getCurrentStep() : -1")
+            total_steps = cdp.eval("window.TourGuide && window.TourGuide.STEPS ? window.TourGuide.STEPS.length : 6")
+            if cur_step >= total_steps - 1:
+                print(f"   ✓ [向导 {cur_step+1}/{total_steps}] 推进至最终反馈与完成步骤，点击完成向导...")
+                cdp.eval("""
+                (() => {
+                    const nextBtn = document.getElementById('tourNextBtn');
+                    if (nextBtn) nextBtn.click();
+                    else if (window.TourGuide) window.TourGuide.finishTour();
+                })()
+                """)
+                time.sleep(0.5)
+                break
+            else:
+                print(f"   ✓ [向导 {cur_step+1}/{total_steps}] 处于中间步骤，推进下一步...")
+                cdp.eval("""
+                (() => {
+                    const nextBtn = document.getElementById('tourNextBtn');
+                    if (nextBtn) nextBtn.click();
+                    else if (window.TourGuide) window.TourGuide.nextStep();
+                })()
+                """)
         time.sleep(0.5)
 
         # 校验 storage 落盘与浮层销毁
@@ -533,19 +539,24 @@ def send_turn(cdp, turn_input, max_wait=240):
           const isStopActive = !!(stopBtn && stopBtn.offsetWidth > 0);
           const sendBtn = document.querySelector('button[aria-label="Send message"], button[aria-label*="Send"], button[aria-label*="Submit"], button[aria-label*="发送"], button[aria-label*="提交"], gem-icon-button.send-button:not(.stop)');
           const isSendReady = !!(sendBtn && sendBtn.offsetWidth > 0 && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true');
+          const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+          const isEditorReady = !!(editor && (editor.getAttribute('contenteditable') === 'true' || editor.offsetWidth > 0));
           const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
-          const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text'));
+          const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text, structured-content-container.model-response-text'));
           const currCount = allModels.length;
           const retryBtn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
           const toastEl = document.querySelector('toast-content, .toast, .error-message, [role="alert"]');
           const lastModel = currCount > 0 ? allModels[currCount - 1] : null;
           const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
+          const hasImages = lastModel ? (lastModel.querySelectorAll('img[src*="blob:"], img[src*="googleusercontent"], .image-container, img').length > 0) : false;
           return {{
             hasStop: isStopActive,
             hasSend: isSendReady,
+            isEditorReady: isEditorReady,
             isStreaming: isStreaming,
             currCount: currCount,
-            hasResponse: currCount > {prev_resp_count} || (currCount === {prev_resp_count} && lastLen > {prev_last_len} + 30),
+            hasImages: hasImages,
+            hasResponse: currCount > {prev_resp_count} || (currCount === {prev_resp_count} && (lastLen > {prev_last_len} + 30 || hasImages)),
             hasRetry: !!retryBtn,
             toast: toastEl ? toastEl.textContent.trim() : null,
             lastLen: lastLen
@@ -566,17 +577,25 @@ def send_turn(cdp, turn_input, max_wait=240):
 
         last_len = state.get("lastLen", 0)
         has_resp = state.get("hasResponse", False)
+        has_images = state.get("hasImages", False)
         is_stream = state.get("isStreaming", False)
         has_stop = state.get("hasStop", False)
         has_send = state.get("hasSend", False)
+        is_editor_ready = state.get("isEditorReady", False)
+        ready_for_next = has_send or is_editor_ready
         curr_count = state.get("currCount", 0)
 
         # 详细日志输出：每 ~2.4 秒打印一次当前状态
         if loop_idx % 2 == 0:
-            print(f"      ⏳ 等待回复 [t={elapsed:.1f}s]: 回复数={curr_count} (前值={prev_resp_count}), 流式中={is_stream}, Stop按钮={has_stop}, Send就绪={has_send}, 尾部长={last_len}, 稳定计数={stable_count}")
+            print(f"      ⏳ 等待回复 [t={elapsed:.1f}s]: 回复数={curr_count} (前值={prev_resp_count}), 流式中={is_stream}, Stop按钮={has_stop}, Send就绪={has_send}, Editor就绪={is_editor_ready}, 包含生图={has_images}, 尾部长={last_len}, 稳定计数={stable_count}")
 
-        if has_resp and not is_stream and not has_stop and has_send:
-            if last_len == last_seen_len:
+        if has_resp and not is_stream and not has_stop and ready_for_next:
+            if has_images and last_len < 20:
+                stable_count += 1
+                if stable_count >= 2:
+                    time.sleep(1.0)
+                    return True, f"生图生成完毕 (耗时 {elapsed:.1f}s, 检测到图片实体)"
+            elif last_len == last_seen_len:
                 stable_count += 1
                 if stable_count >= 2:
                     time.sleep(1.0)
@@ -1239,11 +1258,20 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
             title = sc.get("title", "")
             raw_turns = sc.get("turns", [])
             prompts = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
+            features = sc.get("features", [])
             syntax_checks = []
-            if any(kw in title for kw in ["代码", "编译器", "Rust", "Python"]) or any(kw in p for p in prompts for kw in ["编写", "实现", "代码", "def ", "fn "]):
+            code_features = {"code", "python", "glsl", "shaders", "c++", "rust", "kernel"}
+            if any(f in code_features for f in features):
                 syntax_checks.append("codeblock")
-            if any(kw in p for p in prompts for kw in ["生成一张图片", "生成图片", "画一张", "image"]):
+            elif not features:
+                if any(kw in title for kw in ["代码", "编译器", "Rust", "Python"]) or any(kw in p for p in prompts for kw in ["编写代码", "实现代码", "编写一个", "代码片段", "def ", "fn "]):
+                    syntax_checks.append("codeblock")
+
+            if "imagen" in features or any(kw in p for p in prompts for kw in ["生成一张图片", "生成图片", "画一张", "image"]):
                 syntax_checks.append("image")
+
+            if "tables" in features:
+                syntax_checks.append("table")
 
             rec_cid = chat_records[idx].get("chat_id") if idx < len(chat_records) else None
 
