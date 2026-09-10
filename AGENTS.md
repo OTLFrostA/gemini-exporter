@@ -38,11 +38,12 @@
   * **模式 A（非 AI 参与 / 人工本地调试或离线复现）**：
     * 运行 `npm run test:live -- --allow-stale-dataset`（或 `python3 scripts/test_live_chat_and_export.py --allow-stale-dataset`），显式声明绕过 2 分钟新鲜度门禁，允许使用内置的高价值经典 5 轮数据集或历史静态数据集。
   * **模式 B（有 AI 参与 / 协同开发与验收）**：
-    * **必须由 AI 现场动态构思全新数据集并在 2 分钟（120 秒）内保存落盘**（严禁复用固定旧数据集或直接运行无参数默认指令，否则测试脚本入口将自动拦截报错）：
-      1. **会话 1（5 轮中深度交互）**：设计围绕特定业务或算法的递进对话，且**其中必须包含至少 1 轮让 Gemini 生成图片（Imagen）**的 Prompt，检验插件对 AI 媒体资产的自动嗅探、下载与 ZIP 附件打包能力；
-      2. **会话 2（8 轮长上下文极限测试）**：设计深度技术或架构推演（含代码块、对比表格、数学公式等），全面压测插件长轮次提取与渲染能力；
-      3. （推荐）在会话中探索或附带多模态本地图片上传，检验用户附件归档能力。
-    * 将现场构思的数据集保存为临时 JSON，并通过 `--dataset <path>` 传入执行全流程实跑（必须在文件生成后 2 分钟之内启动运行）。
+    * **首选标准模式：动态 20 题多模态场景池机制 (`--pool`)**：
+      1. 项目在 `scripts/test_scenario_pool.json` 维护了 20 个覆盖 10+ 领域的高价值测试场景（包含 AI 图像生成、LaTeX 公式、Markdown 表格、多语言混排、长代码等全模态特性）；
+      2. 运行 `npm run test:live:pool`（或 `python3 scripts/test_live_chat_and_export.py --pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），并自动归档至 `scripts/test_scenario_archive.json`；
+      3. **AI 补仓铁律（用 2 补 2，常驻 20 题）**：AI 助手在协同开发、跑测试或提交 PR 前，必须运行 `npm run pool:status` 检查水位。若水位低于 20 个，必须针对当前缺口领域构思全新多模态题材补充回 20 题，杜绝同一题材（如深空探测器）反复堆积。
+    * **备选模式：现场临时构思全新数据集 (`--dataset`)**：
+      - 亦可由 AI 现场动态构思全新数据集并在 2 分钟（120 秒）内保存落盘并通过 `--dataset <path>` 传入运行。
 
   * **通用验收铁律（四大不可逾越标准）**：
     1. **必须生成真实对话（严禁滥用 `--skip-chat`）**：必须真实驱动 Gemini 并等待全部流式回复物理落地；
@@ -60,11 +61,18 @@
 .\scripts\open_test_chrome.ps1         # Windows PowerShell
 .\scripts\open_test_chrome.cmd         # Windows CMD
 
-# 运行全量实跑测试 (AI 协同验收模式：传入 2 分钟内动态构思的数据集)
+# 查看场景池当前水位与领域特征分布
+npm run pool:status
+
+# 运行全量实跑测试 (首选标准模式：从 20 题场景池消费 2 个最新多模态场景)
+npm run test:live:pool
+# 或: python3 scripts/test_live_chat_and_export.py --pool
+
+# 运行全量实跑测试 (临时外挂模式：传入 2 分钟内动态构思的数据集)
 python3 scripts/test_live_chat_and_export.py --dataset <path_to_fresh_dataset.json>
 
 # 人工本地调试或离线复现 (绕过 2 分钟时效门禁限制，使用内置经典数据集)
-npm run test:live -- --allow-stale-dataset
+npm run test:live:local
 # 或: python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
 
 

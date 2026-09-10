@@ -249,10 +249,32 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 数据驱动测试对话生成器")
+    parser.add_argument("--pool", action="store_true", help="从动态场景池 (test_scenario_pool.json) 消费场景")
+    parser.add_argument("--count", type=int, default=2, help="场景池消费数量 (默认 2)")
     parser.add_argument("--dataset", default=os.path.join(os.path.dirname(__file__), "test_chats_dataset.json"), help="测试场景数据集 JSON 路径")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
     parser.add_argument("--only", default=None, help="仅运行指定 ID 的场景")
     args = parser.parse_args()
 
-    run_scenarios(dataset_path=args.dataset, port=args.port, delay=args.delay, only_id=args.only)
+    ds_path = args.dataset
+    if args.pool:
+        try:
+            from scripts.manage_scenario_pool import consume_scenarios, DEFAULT_POOL_PATH
+        except ImportError:
+            from manage_scenario_pool import consume_scenarios, DEFAULT_POOL_PATH
+        import tempfile
+        selected, _ = consume_scenarios(pool_path=DEFAULT_POOL_PATH, count=args.count, require_imagen=True)
+        tmp_f = tempfile.NamedTemporaryFile("w", delete=False, suffix=".json", encoding="utf-8")
+        json.dump(selected, tmp_f, ensure_ascii=False, indent=2)
+        tmp_f.close()
+        ds_path = tmp_f.name
+
+    try:
+        run_scenarios(dataset_path=ds_path, port=args.port, delay=args.delay, only_id=args.only)
+    finally:
+        if args.pool and ds_path and os.path.isfile(ds_path):
+            try:
+                os.remove(ds_path)
+            except Exception:
+                pass
