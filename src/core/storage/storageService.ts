@@ -44,6 +44,9 @@ export interface StorageServiceModule {
     setDevMode: (enabled: boolean) => Promise<void>;
     isTourCompleted: () => Promise<boolean>;
     setTourCompleted: (completed?: boolean) => Promise<void>;
+    getLastSeenFeatureVersion: () => Promise<string>;
+    setLastSeenFeatureVersion: (version: string) => Promise<void>;
+    isVersionGreater: (v1: string, v2: string) => boolean;
     isTakeoutPromptCompleted: () => Promise<boolean>;
     setTakeoutPromptCompleted: (completed?: boolean) => Promise<void>;
     hasTakeoutData: (slot?: string | null) => Promise<boolean>;
@@ -331,6 +334,42 @@ declare global {
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
+    /**
+     * Compare two semantic versions: returns true if v1 > v2.
+     * E.g. isVersionGreater('1.5.0', '1.4.3') => true
+     */
+    function isVersionGreater(v1: string, v2: string): boolean {
+        if (!v1) return false;
+        if (!v2) return true;
+        const p1 = String(v1).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+        const p2 = String(v2).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+        const maxLen = Math.max(p1.length, p2.length);
+        for (let i = 0; i < maxLen; i++) {
+            const num1 = p1[i] || 0;
+            const num2 = p2[i] || 0;
+            if (num1 > num2) return true;
+            if (num1 < num2) return false;
+        }
+        return false;
+    }
+
+    async function getLastSeenFeatureVersion(): Promise<string> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return '0.0.0';
+        try {
+            const data = await chrome.storage.local.get(['last_seen_feature_version']);
+            return String(data.last_seen_feature_version || '0.0.0');
+        } catch {
+            return '0.0.0';
+        }
+    }
+
+    async function setLastSeenFeatureVersion(version: string): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ last_seen_feature_version: version });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
     async function isTakeoutPromptCompleted(): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
@@ -398,6 +437,9 @@ export {
     setDevMode,
     isTourCompleted,
     setTourCompleted,
+    getLastSeenFeatureVersion,
+    setLastSeenFeatureVersion,
+    isVersionGreater,
     isTakeoutPromptCompleted,
     setTakeoutPromptCompleted,
     hasTakeoutData,
@@ -428,6 +470,9 @@ export const StorageService: StorageServiceModule = {
     setDevMode,
     isTourCompleted,
     setTourCompleted,
+    getLastSeenFeatureVersion,
+    setLastSeenFeatureVersion,
+    isVersionGreater,
     isTakeoutPromptCompleted,
     setTakeoutPromptCompleted,
     hasTakeoutData,
@@ -440,5 +485,3 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).StorageService) {
 if (typeof module === 'object' && module.exports) module.exports = StorageService;
 
 export default StorageService;
-
-

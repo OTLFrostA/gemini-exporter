@@ -3,6 +3,9 @@ import type { TourGuideContract } from '../../types/ui.js';
 
 let currentStep = 0;
 let isActive = false;
+let spotlightMode = false;
+let activeSpotlightVersion = '';
+let activeSpotlightOptions: any = null;
 let overlayEl: HTMLElement | null = null;
 let spotlightEl: HTMLElement | null = null;
 let popoverEl: HTMLElement | null = null;
@@ -111,6 +114,9 @@ function removeElements(): void {
     spotlightEl = null;
     popoverEl = null;
     isActive = false;
+    spotlightMode = false;
+    activeSpotlightVersion = '';
+    activeSpotlightOptions = null;
 
     if (typeof document !== 'undefined') {
         document.removeEventListener('keydown', handleKeydown as any);
@@ -123,10 +129,14 @@ function removeElements(): void {
 function handleKeydown(e: KeyboardEvent): void {
     if (!isActive) return;
     if (e.key === 'Escape') {
-        skipTour();
-    } else if (e.key === 'ArrowRight' && currentStep < STEPS.length - 1) {
+        if (spotlightMode) {
+            dismissFeatureSpotlight();
+        } else {
+            skipTour();
+        }
+    } else if (!spotlightMode && e.key === 'ArrowRight' && currentStep < STEPS.length - 1) {
         nextStep();
-    } else if (e.key === 'ArrowLeft' && currentStep > 0) {
+    } else if (!spotlightMode && e.key === 'ArrowLeft' && currentStep > 0) {
         prevStep();
     }
 }
@@ -188,6 +198,61 @@ function stopPolling(): void {
 
 async function updateStepContent(step: any): Promise<void> {
     if (!popoverEl) return;
+
+    if (spotlightMode) {
+        const badgeLabel = t('tourFeatureBadge') || 'NEW FEATURE';
+        const rawTitle = t(step.titleKey);
+        const titleHtml = rawTitle.replace(/^(步骤|Step)\s*\d+\/\d+:\s*/i, '');
+        const bodyHtml = `<div class="tour-content">${t(step.descKey)}</div>`;
+        const hintHtml = step.hintKey ? `<div class="tour-action-hint">${t(step.hintKey)}</div>` : '';
+
+        const actionBtnLabel = activeSpotlightOptions?.actionLabelKey
+            ? t(activeSpotlightOptions.actionLabelKey)
+            : t('tourBtnEnableNow');
+
+        popoverEl.innerHTML = `
+            <div class="tour-header">
+                <span class="tour-step-badge tour-feature-badge">✨ ${badgeLabel} v${activeSpotlightVersion}</span>
+                <button class="tour-close-btn" id="tourCloseBtn" title="Close (ESC)">✕</button>
+            </div>
+            <div class="tour-title">${titleHtml}</div>
+            ${bodyHtml}
+            ${hintHtml}
+            <div class="tour-footer">
+                <button class="tour-skip-btn" id="tourSpotlightDismissBtn">${t('tourBtnDismiss')}</button>
+                <div class="tour-nav-btns">
+                    <button class="tour-nav-btn primary" id="tourSpotlightActionBtn">
+                        ${actionBtnLabel}
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('tourCloseBtn')?.addEventListener('click', () => dismissFeatureSpotlight());
+        document.getElementById('tourSpotlightDismissBtn')?.addEventListener('click', () => dismissFeatureSpotlight());
+        document.getElementById('tourSpotlightActionBtn')?.addEventListener('click', async () => {
+            if (activeSpotlightOptions && typeof activeSpotlightOptions.onAction === 'function') {
+                try {
+                    await activeSpotlightOptions.onAction();
+                } catch (e) {
+                    console.warn('[TourGuide] spotlight onAction error:', e);
+                }
+            } else if (step.id === 'live_save') {
+                const diskToggle = document.getElementById('liveSaveDiskToggle') as HTMLInputElement | null;
+                if (diskToggle && !diskToggle.checked) {
+                    diskToggle.click();
+                }
+                const diskBox = document.getElementById('liveSaveDiskBox');
+                if (diskBox) {
+                    diskBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+            await dismissFeatureSpotlight();
+        });
+
+        positionElements(step);
+        return;
+    }
 
     const isFinal = !!step.isFinal;
     const stepNum = currentStep + 1;
@@ -324,26 +389,75 @@ export async function prevStep(): Promise<void> {
 
 export async function finishTour(): Promise<void> {
     const storage = getStorage();
-    if (storage && storage.setTourCompleted) {
-        await storage.setTourCompleted(true);
+    if (storage) {
+        if (storage.setTourCompleted) {
+            await storage.setTourCompleted(true);
+        }
+        if (storage.setLastSeenFeatureVersion) {
+            const currentVer = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+            await storage.setLastSeenFeatureVersion(currentVer);
+        }
     }
+    spotlightMode = false;
     removeElements();
 }
 
 export async function skipTour(): Promise<void> {
     const storage = getStorage();
-    if (storage && storage.setTourCompleted) {
-        await storage.setTourCompleted(true);
+    if (storage) {
+        if (storage.setTourCompleted) {
+            await storage.setTourCompleted(true);
+        }
+        if (storage.setLastSeenFeatureVersion) {
+            const currentVer = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+            await storage.setLastSeenFeatureVersion(currentVer);
+        }
     }
+    spotlightMode = false;
+    removeElements();
+}
+
+export async function startFeatureSpotlight(
+    stepId: string,
+    version: string,
+    options?: { onAction?: () => void | Promise<void>; actionLabelKey?: string }
+): Promise<void> {
+    spotlightMode = true;
+    activeSpotlightVersion = version;
+    activeSpotlightOptions = options || null;
+
+    createElements();
+    isActive = true;
+
+    const stepIndex = STEPS.findIndex((s: any) => s.id === stepId);
+    currentStep = stepIndex >= 0 ? stepIndex : 0;
+    const step = STEPS[currentStep];
+
+    stopPolling();
+    await updateStepContent(step);
+    bindStepAction(step);
+}
+
+export async function dismissFeatureSpotlight(): Promise<void> {
+    const storage = getStorage();
+    if (storage && storage.setLastSeenFeatureVersion && activeSpotlightVersion) {
+        await storage.setLastSeenFeatureVersion(activeSpotlightVersion);
+    }
+    spotlightMode = false;
+    activeSpotlightVersion = '';
+    activeSpotlightOptions = null;
     removeElements();
 }
 
 export async function startTour(stepIndex: number = 0): Promise<void> {
+    spotlightMode = false;
     return await goToStep(stepIndex);
 }
 
 export const TourGuide: TourGuideContract = {
     startTour,
+    startFeatureSpotlight,
+    dismissFeatureSpotlight,
     goToStep,
     nextStep,
     prevStep,

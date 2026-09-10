@@ -36,7 +36,8 @@ const mockElements = new Map<string, any>();
             getBoundingClientRect: () => ({ top: 100, left: 100, width: 200, height: 50, bottom: 150, right: 300 }),
             scrollIntoView: () => {},
             isConnected: true,
-            offsetParent: {}
+            offsetParent: {},
+            closest: () => null
         };
         return el;
     },
@@ -83,13 +84,14 @@ test('tourGuide - module structure and steps', () => {
     assert.strictEqual(typeof TourGuide.finishTour, 'function');
     assert.strictEqual(typeof TourGuide.skipTour, 'function');
 
-    assert.strictEqual(TourGuide.STEPS.length, 5, 'Tour should have exactly 5 streamlined steps');
+    assert.strictEqual(TourGuide.STEPS.length, 6, 'Tour should have exactly 6 streamlined steps');
     assert.strictEqual(TourGuide.STEPS[0].id, 'connect');
     assert.strictEqual(TourGuide.STEPS[1].id, 'sync');
     assert.strictEqual(TourGuide.STEPS[2].id, 'select');
     assert.strictEqual(TourGuide.STEPS[3].id, 'export');
-    assert.strictEqual(TourGuide.STEPS[4].id, 'feedback');
-    assert.ok(TourGuide.STEPS[4].isFinal, 'Last step should be marked as final');
+    assert.strictEqual(TourGuide.STEPS[4].id, 'live_save');
+    assert.strictEqual(TourGuide.STEPS[5].id, 'feedback');
+    assert.ok(TourGuide.STEPS[5].isFinal, 'Last step should be marked as final');
 });
 
 test('tourGuide - step navigation and completion', async () => {
@@ -216,7 +218,8 @@ function createMockElement(id: string) {
         getBoundingClientRect: () => ({ top: 100, left: 100, width: 200, height: 50, bottom: 150, right: 300 }),
         scrollIntoView: () => {},
         isConnected: true,
-        offsetParent: {}
+        offsetParent: {},
+        closest: () => null
     };
 }
 
@@ -224,11 +227,13 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     const mockScanBtn = createMockElement('btnIncrementalScan');
     const mockList = createMockElement('list');
     const mockExportBtn = createMockElement('btnExport');
+    const mockLiveSaveToggle = createMockElement('liveSaveDiskToggle');
     const mockFeedbackBtn = createMockElement('btnFeedback');
 
     mockElements.set('btnIncrementalScan', mockScanBtn);
     mockElements.set('list', mockList);
     mockElements.set('btnExport', mockExportBtn);
+    mockElements.set('liveSaveDiskToggle', mockLiveSaveToggle);
     mockElements.set('btnFeedback', mockFeedbackBtn);
 
     // 1. Start at step 1 (sync)
@@ -249,10 +254,16 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     // 3. In step 3 (export), simulate clicking export
     mockExportBtn.click();
     await new Promise(r => setTimeout(r, 250));
-    assert.strictEqual(TourGuide.getCurrentStep(), 4, 'Should advance to step 4 (feedback) after export click');
+    assert.strictEqual(TourGuide.getCurrentStep(), 4, 'Should advance to step 4 (live_save) after export click');
     assert.strictEqual(TourGuide.isActive(), true);
 
-    // 4. In step 4 (feedback), simulate clicking feedback
+    // 4. In step 4 (live_save), simulate toggle change
+    mockLiveSaveToggle.dispatchEvent({ type: 'change' });
+    await new Promise(r => setTimeout(r, 350));
+    assert.strictEqual(TourGuide.getCurrentStep(), 5, 'Should advance to step 5 (feedback) after live save change');
+    assert.strictEqual(TourGuide.isActive(), true);
+
+    // 5. In step 5 (feedback), simulate clicking feedback
     mockFeedbackBtn.click();
     await new Promise(r => setTimeout(r, 250));
     assert.strictEqual(TourGuide.isActive(), false, 'Tour should be completed and inactive after feedback click');

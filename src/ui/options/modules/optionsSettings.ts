@@ -8,6 +8,7 @@ import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatS
 import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
 import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
+import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
@@ -300,31 +301,51 @@ async function initDevMode(): Promise<void> {
     }
 }
 
-export function checkOnboardingTour(): void {
+export function checkWalkthroughOnOpen(): void {
     try {
         if (typeof window === 'undefined') return;
         const urlParams = new URLSearchParams(window.location.search);
-        const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1' || urlParams.get('tour') === '1';
         const isExplicitTour = urlParams.get('tour') === '1';
+        const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1';
 
-        if (isWelcome) {
-            setTimeout(async () => {
-                const Storage = getStorage();
-                const Tour = getTour();
-                const tourDone = (Storage && Storage.isTourCompleted)
-                    ? await Storage.isTourCompleted()
-                    : false;
-                if (!tourDone || isExplicitTour) {
-                    if (Tour && Tour.startTour) {
-                        Tour.startTour(0);
-                    }
-                }
-            }, 400);
-        }
+        setTimeout(async () => {
+            const Storage = getStorage();
+            const Tour = getTour();
+            if (!Tour) return;
+
+            // 1. Explicit user request to run full tour
+            if (isExplicitTour) {
+                if (Tour.startTour) Tour.startTour(0);
+                return;
+            }
+
+            const tourDone = (Storage && Storage.isTourCompleted)
+                ? await Storage.isTourCompleted()
+                : false;
+
+            // 2. Track A: New user onboarding
+            if (!tourDone || isWelcome) {
+                if (Tour.startTour) Tour.startTour(0);
+                return;
+            }
+
+            // 3. Track B: Returning user major feature spotlight
+            const currentAppVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+            const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
+                ? await Storage.getLastSeenFeatureVersion()
+                : '';
+
+            const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
+            if (eligibleFeature && Tour.startFeatureSpotlight) {
+                Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
+            }
+        }, 400);
     } catch (e) {
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:optionsSettings]', e);
     }
 }
+
+export const checkOnboardingTour = checkWalkthroughOnOpen;
 
 export async function init({
     loadStore,
@@ -445,6 +466,7 @@ export const OptionsSettings = {
     handleLangChange,
     handleDevChange,
     exportDiagnostics,
+    checkWalkthroughOnOpen,
     checkOnboardingTour
 };
 

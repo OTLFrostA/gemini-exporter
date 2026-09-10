@@ -78,6 +78,12 @@
   letter-spacing: 0.02em;
 }
 
+.tour-step-badge.tour-feature-badge {
+  color: #38bdf8;
+  background: rgba(14, 165, 233, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
 .tour-close-btn {
   background: transparent;
   border: none;
