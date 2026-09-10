@@ -383,7 +383,6 @@ export async function initLiveSaveSettings(): Promise<void> {
     const liveStorage = (typeof LiveStorageManager !== 'undefined' ? LiveStorageManager : DefaultLiveStorageManager);
     if (!liveStorage) return;
 
-    const dbToggle = $('liveSaveDbToggle') as HTMLInputElement | null;
     const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
     const updateIndexToggle = $('liveSaveUpdateIndexToggle') as HTMLInputElement | null;
     const diskBox = $('liveSaveDiskBox');
@@ -393,7 +392,6 @@ export async function initLiveSaveSettings(): Promise<void> {
 
     try {
         const cfg = await liveStorage.getLiveConfig();
-        if (dbToggle) dbToggle.checked = !!cfg.enabledDb;
         if (diskToggle) diskToggle.checked = !!cfg.enabledDisk;
         if (updateIndexToggle) updateIndexToggle.checked = !!cfg.updateIndex;
         if (diskBox) {
@@ -411,14 +409,6 @@ export async function initLiveSaveSettings(): Promise<void> {
         }
     } catch (e) {
         if (typeof console !== 'undefined' && console.debug) console.debug('[OptionsSettings] initLiveSaveSettings error:', e);
-    }
-
-    if (dbToggle && !dbToggle.dataset.bound) {
-        dbToggle.dataset.bound = 'true';
-        dbToggle.addEventListener('change', async () => {
-            await liveStorage.setLiveConfig({ enabledDb: dbToggle.checked });
-            log(`[LiveSave] DB snapshot backup ${dbToggle.checked ? 'enabled' : 'disabled'}`);
-        });
     }
 
     if (diskToggle && !diskToggle.dataset.bound) {

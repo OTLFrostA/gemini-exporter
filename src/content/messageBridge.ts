@@ -154,12 +154,12 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
     // 3. In-page live auto-save trigger
     if (d.type === 'GEMINI_LIVE_SAVE_TRIGGER') {
-        const { cid, reason } = d.payload || {};
+        const { cid, reason, ...options } = d.payload || {};
         if (cid) {
             try {
                 const coordinator = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveCoordinator);
                 if (coordinator && typeof coordinator.executeLiveSave === 'function') {
-                    await coordinator.executeLiveSave(cid, reason || 'turn_complete');
+                    await coordinator.executeLiveSave(cid, reason || 'turn_complete', options);
                 }
             } catch (err) {
                 if (contentContext.isDevMode()) console.debug('[MessageBridge] live save trigger err', err);

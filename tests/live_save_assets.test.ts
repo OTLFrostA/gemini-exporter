@@ -5,23 +5,17 @@ const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
 const AssetFetcher = require('../src/content/assetFetcher.js');
 
 test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen generated)', async () => {
-    let savedDbRecord: any = null;
     let writtenFiles: Record<string, any> = {};
-    const fetchedUrls: string[] = [];
+    let fetchedUrls: string[] = [];
 
     const mockStorage = {
         getLiveConfig: async () => ({
-            enabledDb: true,
             enabledDisk: true,
             format: 'markdown',
             includeAssets: true,
             updateIndex: true,
             dirName: 'ObsidianVault'
         }),
-        saveLiveConversation: async (rec: any) => {
-            savedDbRecord = rec;
-            return true;
-        },
         getLiveDirHandle: async () => ({
             name: 'ObsidianVault'
         }),
@@ -116,11 +110,7 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
     const success = await LiveSaveCoordinator.executeLiveSave('c_1122334455667788', 'turn_complete');
     assert.strictEqual(success, true);
 
-    // 1. Verify DB persistence hasImages flag
-    assert.ok(savedDbRecord);
-    assert.strictEqual(savedDbRecord.hasImages, true);
-
-    // 2. Verify all images were fetched
+    // 1. Verify all images were fetched
     assert.strictEqual(fetchedUrls.length, 2);
     assert.ok(fetchedUrls.includes('https://lh3.googleusercontent.com/user_cat_photo_123'));
     assert.ok(fetchedUrls.includes('https://lh3.googleusercontent.com/imagen_cat_artwork_456'));
@@ -152,14 +142,12 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
 
     const mockStorage = {
         getLiveConfig: async () => ({
-            enabledDb: true,
             enabledDisk: true,
             format: 'markdown',
             includeAssets: true,
             updateIndex: false,
             dirName: 'Vault'
         }),
-        saveLiveConversation: async () => true,
         getLiveDirHandle: async () => ({ name: 'Vault' }),
         setLiveConfig: async () => {}
     };

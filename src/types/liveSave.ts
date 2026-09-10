@@ -4,7 +4,6 @@
  */
 
 export interface LiveSaveConfig {
-    enabledDb: boolean;         // Internal IndexedDB snapshot backup (default: true)
     enabledDisk: boolean;       // Direct disk auto-save (default: false)
     format: 'markdown' | 'json'; // Format for disk auto-save (default: 'markdown')
     includeAssets: boolean;     // Download images to attachments/ (default: true)

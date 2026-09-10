@@ -6,18 +6,17 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
-    // 1. Verify card elements exist
-    const dbToggle = optionsPage.locator('#liveSaveDbToggle');
+    // 1. Verify card elements exist (and legacy/removed toggles are absent)
     const diskToggle = optionsPage.locator('#liveSaveDiskToggle');
     const diskBox = optionsPage.locator('#liveSaveDiskBox');
     const statusTag = optionsPage.locator('#liveSaveStatusTag');
 
-    await expect(dbToggle).toBeVisible();
+    await expect(optionsPage.locator('#includeIndex')).toHaveCount(0);
+    await expect(optionsPage.locator('#liveSaveDbToggle')).toHaveCount(0);
     await expect(diskToggle).toBeVisible();
     await expect(statusTag).toBeVisible();
 
-    // Default: DB is checked, Disk is unchecked and hidden
-    await expect(dbToggle).toBeChecked();
+    // Default: Disk is unchecked and hidden
     await expect(diskToggle).not.toBeChecked();
     await expect(diskBox).not.toBeVisible();
 
@@ -81,13 +80,14 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     const badge = geminiPage.locator('#geminiExportBadge');
     await expect(badge).toBeVisible();
 
-    // Trigger live save via window.postMessage
+    // Trigger live save via window.postMessage with mockMode to test in-page visual badge feedback
     await geminiPage.evaluate(() => {
       window.postMessage({
         type: 'GEMINI_LIVE_SAVE_TRIGGER',
         payload: {
           cid: 'live_test_chat_1',
-          reason: 'turn_complete'
+          reason: 'turn_complete',
+          mockMode: true
         }
       }, location.origin);
     });
