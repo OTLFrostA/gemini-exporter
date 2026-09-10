@@ -86,8 +86,8 @@ export const TOKEN_PATTERNS: ProtocolTokenPatterns = {
 // GzXR5e payload context (#194) — never take the first hex token in the
 // response text.
 export const DELETION_ANCHORS: RegExp[] = [
-    /GzXR5e[^\w]{1,60}["'](?:c_)?([a-f0-9]{8,64})["']/i,
-    /["']GzXR5e["'][\s\S]{1,120}?["'](?:c_)?([a-f0-9]{8,64})["']/i
+    /["']GzXR5e["'][\s\S]{1,150}?c_([a-f0-9]{8,64})/i,
+    /GzXR5e[\s\S]{1,150}?(?:c_)?([a-f0-9]{8,64})/i
 ];
 
 // Fallback frontend build label. WARNING: dated build numbers expire and

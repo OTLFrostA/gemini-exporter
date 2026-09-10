@@ -1,41 +1,5 @@
 [
   {
-    "id": "crispr_bioinformatics_pipeline",
-    "title": "CRISPR-Cas9 靶向切割与脱靶预测生物信息学管道",
-    "domain": "bioinformatics",
-    "features": [
-      "sequence_data",
-      "plain_text",
-      "unbroken_strings"
-    ],
-    "description": "测试超长无空格核酸序列、生物学专有名词与表格排版",
-    "turns": [
-      "请详细阐述化脓性链球菌 Cas9 (SpCas9) 识别 PAM 序列 (5'-NGG-3') 的分子生物学机制及其构象变化过程。",
-      "给出一段 60bp 的人类假想靶基因外显子 DNA 序列，指出所有潜在的 SpCas9 原间隔区邻近基序 (PAM) 位置，并设计 2 条特异性 gRNA (20nt)。",
-      "列出利用 CFD (Cutting Frequency Determination) 矩阵算法计算脱靶评分 (Off-target Score) 的数学公式与计算步骤。",
-      "使用 Markdown 表格横向对比 CRISPR-Cas9、Cas12a (Cpf1) 以及新型 Prime Editing (PE) 在编辑精度、插入限制与双链断裂 (DSB) 风险上的核心指标。",
-      "为高通量生信实验室设计一个自动化脱靶分析 Python 脚本管线流程描述（含 BWA 比对、samtools 处理与变异注释）。"
-    ]
-  },
-  {
-    "id": "raft_distributed_consensus",
-    "title": "分布式系统 Raft 共识算法与网络分区脑裂恢复",
-    "domain": "distributed_systems",
-    "features": [
-      "ascii_diagram",
-      "state_machine",
-      "fault_tolerance"
-    ],
-    "description": "测试 ASCII 状态转换图、分布式共识时序与节点日志对齐",
-    "turns": [
-      "请绘制一个清晰的 ASCII 字符状态机转移图，说明 Raft 共识协议中 Follower、Candidate 与 Leader 之间的三种状态转换触发条件与超时机制。",
-      "在 5 个节点的集群中（Node A, B, C, D, E），假设发生网络分区成为 {A, B} 与 {C, D, E} 两组，详细追踪客户端分别向两边写入数据时的日志复制与任期 (Term) 变化。",
-      "网络分区愈合后，原本位于少数派分区的旧 Leader 如何通过 AppendEntries RPC 发现自身落后并发生日志回退与截断？",
-      "对比 Raft 与 Multi-Paxos 在 Leader 选举开销、日志空洞处理 (Log Hole) 以及实现复杂度上的本质差异。",
-      "针对线性一致性读 (Linearizable Read)，分析 Lease Read 与 Read Index 两种优化机制的优缺点及对物理时钟漂移的容忍度。"
-    ]
-  },
-  {
     "id": "ship_of_theseus_philosophy",
     "title": "忒修斯之船与意识上传同一性哲学思辨",
     "domain": "philosophy_and_logic",
@@ -162,24 +126,6 @@
     ]
   },
   {
-    "id": "gothic_steampunk_library",
-    "title": "哥特蒸汽朋克机械环形图书馆",
-    "domain": "ai_generative_art",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "description": "测试复杂建筑透视、蒸汽机械构件与宏大空间 AI 生图",
-    "turns": [
-      "请帮我生成一张图片：一座拥有千米穹顶的哥特式蒸汽朋克环形大图书馆，书架沿螺旋墙壁直插云霄，黄铜气动轨道胶囊在书架间穿梭运送古籍，柔和的蒸汽与金黄色烛光交织，超逼真建筑空间透视。",
-      "描写一次在午夜突发的‘重力倒转书籍漂移事件’，图书管理员如何操作蒸汽升降索挽救一本上古星图羊皮纸手卷。",
-      "请再帮我生成一张图片：年轻的见习女学者戴着带有精密齿轮目镜的皮质护目镜，正坐在一张悬空黄铜机械吊椅上翻阅一本散发幽微金光的古籍特写镜头。",
-      "为这个藏书机构设计一套由差分机 (Difference Engine) 驱动的图书索书号分类法体系，说明其穿孔卡片编码逻辑。",
-      "针对这种纵向千米级藏书建筑，设计一套符合流体力学的自然通风排湿与防火惰性气体注入系统方案。"
-    ]
-  },
-  {
     "id": "gravitational_waves_kerr_blackhole",
     "title": "广义相对论：克尔旋转黑洞引力波啁啾与准正规模",
     "domain": "astrophysics_relativity",
@@ -249,24 +195,6 @@
       "为一套包含 API Gateway、订单服务、支付微服务与库存系统的电商核心链路，设计一份混沌工程 (Chaos Engineering) 故障注入演练剧本，使用 Markdown 表格明确实验假设、稳态指标 (Steady State)、注入手段与回滚预案。",
       "如何防范微服务级联雪崩 (Cascading Failure) 中的‘重试风暴 (Retry Storm)’？详细解析指数退避加抖动 (Exponential Backoff with Full Jitter) 的算法原理。",
       "结合分布式链路追踪 (OpenTelemetry Trace/Span)，说明如何在百万级 RPS 规模下实现基于错误与长延迟的自适应尾部采样 (Tail-based Sampling)。"
-    ]
-  },
-  {
-    "id": "solarpunk_cloud_oasis",
-    "title": "太阳朋克空中生态温室与浮空水培绿洲",
-    "domain": "solarpunk_architecture",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "description": "测试太阳朋克概念艺术生图 (Imagen)、闭环生态工程与抗风暴容错长推演",
-    "turns": [
-      "请帮我生成一张图片：一座悬浮在万米高空的太阳朋克（Solarpunk）巨型生态球温室。透明的仿生六边形光伏穹顶下，垂直悬挂着茂密的热带雨林植物与水培瀑布，阳光穿透薄雾形成丁达尔效应，远处云海中有微型仿生飞艇穿梭，8k超高清细节。",
-      "请基于上述空中生态绿洲，详细设计其闭环生命维持系统（CELSS）的物质循环架构，用 Markdown 列表清晰阐述水分循环、氧碳平衡与营养盐再生的工程实现方案。",
-      "请再帮我生成一张图片：在生态温室的核心控制室内，一位年轻的生态工程师正透过曲面全息操作台观察发光浮游生物的生理指标，窗外是落日余晖下的壮丽云霞。",
-      "请设计 3 种专门适应该高空低气压、强紫外线环境的基因工程改良作物，用表格对比它们的耐受性机制、营养产出与光合作用效率。",
-      "如果遭遇百年一遇的极端平流层风暴导致外层光伏穹顶局部受损，请为该生态站构思一套具备自主容错与柔性自愈特性的应急响应协议。"
     ]
   },
   {
@@ -358,6 +286,76 @@
       "请使用 Verilog HDL 或伪代码编写一个用于 RISC-V 3-way 转发单元 (Forwarding Unit) 的控制逻辑，要求准确处理 EX 阶段与 MEM 阶段对 ID/EX 源操作数的前向旁路匹配。",
       "在引入动态分支预测器（如 2-bit 饱和计数器与二阶自适应分支预测器）后，当发生预测失误 (Misprediction) 时，流水线冲刷 (Pipeline Flush) 的硬件时钟周期代价与恢复机制是什么？",
       "分析超标量 (Superscalar) 双发射架构中重排序缓冲区 (ROB, Reorder Buffer) 与寄存器重命名 (Register Renaming) 如何协同解决 WAR (Write-After-Read) 与 WAW (Write-After-Write) 假相关问题。"
+    ]
+  },
+  {
+    "id": "paleontology_fossil_ct_reconstruction",
+    "domain": "paleontology_digital_reconstruction",
+    "title": "寒武纪澄江生物群古生物化石 3D 重建与演化辐射",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在古生代寒武纪早期透彻的浅海中，奇虾 (Anomalocaris) 伸展扇状桨叶与前附肢捕食三叶虫的特写生态复原图。水下光斑粼粼，微小浮游生物散射丁达尔光，科学复原级写实风格。",
+      "请结合澄江生物群 (Chengjiang Biota) 的化石软躯体保存特异性，解析寒武纪生命大爆发中的节肢动物头部附肢同源演化争议。",
+      "请再帮我生成一张图片：现代高精度同步辐射微计算机断层扫描 (Synchrotron micro-CT) 实验室中，古生物学家屏幕上呈现出透明发光的奇虾脑神经节与复眼三维体渲染模型的全息透视图。",
+      "从流体力学角度，建立一个简化的二元流体阻力模型，估算奇虾身体侧叶波浪状摆动时在低雷诺数/中等雷诺数流场中的推进效率与游动速度范围。",
+      "使用 Markdown 表格横向对比寒武纪奇虾、奥陶纪板足鲎与现代栉水母在捕食机制、感觉系统及生态位级上的演化异同。"
+    ]
+  },
+  {
+    "id": "cavity_qed_jaynes_cummings",
+    "domain": "quantum_optics_cavity_qed",
+    "title": "量子光学：腔量子电动力学 (Cavity QED) 与拉比振荡",
+    "features": [
+      "math",
+      "latex",
+      "differential_equations",
+      "code"
+    ],
+    "turns": [
+      "请写出 Jaynes-Cummings 模型的全量子哈密顿量，详细解释自由原子项、单模辐射场项与偶极相互作用项，并在旋转波近似 (RWA) 下推导其缀饰态 (Dressed States) 的本征能谱。",
+      "在零失谐 (Resonant) 条件下，若原子初始处于激发态且腔场处于真空态，请严格推导光子数在两能级原子与腔场之间周期性交换的真空拉比振荡 (Vacuum Rabi Oscillation) 概率公式。",
+      "使用 Python (NumPy/SciPy) 编写一个求解开放量子系统林德布拉德主方程 (Lindblad Master Equation) 的动力学演化脚本，模拟包含光子腔漏率 kappa 与原子自发辐射自衰减 gamma 时的退相干拉比振荡曲线。",
+      "详细阐述强耦合极限 (Strong Coupling Regime, g >> kappa, gamma) 在超导回路量子电动力学 (Circuit QED) 中的实验实现条件与 Purcell 效应的抑制机制。",
+      "对比解释光子阻塞效应 (Photon Blockade) 的能级非谐性机理，为什么非谐梯度的存在使得单光子透射后阻断了第二个同频率光子的注入？"
+    ]
+  },
+  {
+    "id": "biomimetic_airship_expedition",
+    "domain": "biomimetic_steampunk_aeronautics",
+    "title": "仿生飞艇极地气象科考与平流层浮空观测",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "turns": [
+      "请帮我生成一张图片：一艘受座头鲸流线型启发的巨型仿生半硬式气态飞艇，正在南极极夜极光绚烂的天空下穿行。飞艇两侧带有半透明太阳能薄膜鳍翼，吊舱透出温暖金黄色灯火，背景是壮阔的冰架裂隙与绿色极光幕，电影宽银幕质感。",
+      "结合低雷诺数与平流层低温低压环境，分析这种仿生座头鲸鳍翼结节 (Tubercle) 结构在抑制气流分离与延缓失速方面的气动弹性机制。",
+      "请再帮我生成一张图片：飞艇内部的加压全景科研观测舱，科学家们正围绕着散发微光的球形三维极地极涡全息沙盘记录大气重力波数据，冷色调高科技科考氛围。",
+      "设计一套用于监测极地中层顶大气重力波的激光雷达 (LIDAR) 探测载荷工作时序与多波长反演数据流程。",
+      "使用 Markdown 表格对比平流层长航时飞艇、极轨气象卫星与高空长航时无人机 (HALE UAV) 在极地气象长期连续观测中的空间分辨率、重访周期与运营成本劣势与优势。"
+    ]
+  },
+  {
+    "id": "metamaterials_photonic_crystal_waveguide",
+    "domain": "materials_science_metamaterials",
+    "title": "拓扑光子学：谷霍尔光子晶体波导与拓扑保护传输",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code"
+    ],
+    "turns": [
+      "请详细阐述蜂窝晶格光子晶体中狄拉克点 (Dirac Point) 的形成机制，并解释如何通过打破空间反演对称性 (Inversion Symmetry) 打开带隙，实现谷霍尔拓扑相变 (Valley Hall Topological Phase Transition)。",
+      "给出谷陈数 (Valley Chern Number) 的严格数学积分定义，并从贝里曲率 (Berry Curvature) 局域积聚的角度证明体-边对应关系 (Bulk-Boundary Correspondence)。",
+      "使用 Python (NumPy) 编写一个简化的平面波展开法 (PWE, Plane Wave Expansion) 脚本框架，计算一维周期性布拉格光栅的色散关系并绘制第一布里渊区内的禁带结构图。",
+      "详细推演在 60度 或 120度 尖锐拐角 (Sharp Bend) 传输时，谷拓扑边界态如何凭借赝自旋-谷锁定 (Pseudospin-Valley Locking) 抑制背向散射 (Backscattering) 实现无耗损拐弯传播。",
+      "分析片上拓扑光子集成芯片在面向量子光源单光子路由与超低功耗光互连时的关键制造公差容忍度与挑战。"
     ]
   }
 ]

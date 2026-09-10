@@ -1257,6 +1257,140 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         print(f"      ✓ [有效会话完整性断言通过] 核心基准与 Takeout 离线数据 100% 保留 ({retained_benchmarks}/3 抽检通过，当前有效总数: {post_prune_check.get('totalKept')})")
 
         # ------------------------------------------------------------------
+        # 步骤 3.2.3：真机网页端瞬态会话实时删除链路断言 (Live Ephemeral Chat Real-Time Deletion)
+        # ------------------------------------------------------------------
+        if not skip_chat and gemini_tab:
+            print("   ⚡ 校验网页端瞬态会话实时删除链路 (Live Ephemeral Chat Real-Time Deletion)...")
+            try:
+                cdp_gem_live = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+                try:
+                    print("      • 正在 Gemini 页面创建极简瞬态测试会话 (用于验证即时删除)...")
+                    cdp_gem_live.eval("location.href = 'https://gemini.google.com/app'")
+                    time.sleep(2.0)
+                    try:
+                        cdp_gem_live.reconnect()
+                    except Exception:
+                        pass
+                    wait_for_gemini_ready(cdp_gem_live, max_wait=15)
+                    time.sleep(1.0)
+
+                    eph_prompt = "请回复单个单词：EPHEMERAL_OK（本会话为实时删除生命周期测试，稍后自动销毁）"
+                    sent_ok, sent_msg = send_turn(cdp_gem_live, eph_prompt, max_wait=45)
+                    if sent_ok:
+                        time.sleep(2.0)
+                        eph_chat_id = get_current_chat_id(cdp_gem_live)
+                        if eph_chat_id and len(eph_chat_id) >= 8:
+                            print(f"      ✓ 瞬态测试会话生成成功！会话 ID: {eph_chat_id}")
+                            
+                            cdp_opt.eval(f"""
+                            (() => {{
+                                return new Promise((resolve) => {{
+                                    chrome.storage.local.get(['gemini_conversations'], (data) => {{
+                                        let convs = data.gemini_conversations || [];
+                                        if (!convs.some(c => c.id === '{eph_chat_id}')) {{
+                                            convs.unshift({{
+                                                id: '{eph_chat_id}',
+                                                title: 'EPHEMERAL_TEST_CHAT',
+                                                titleSource: 'rpc',
+                                                createdAt: Date.now(),
+                                                updatedAt: Date.now(),
+                                                source: 'batchexecute'
+                                            }});
+                                            chrome.storage.local.set({{ gemini_conversations: convs }}, () => {{
+                                                if (typeof window.__workbenchLoadStore === 'function') {{
+                                                    window.__workbenchLoadStore(true);
+                                                }}
+                                                resolve(true);
+                                            }});
+                                        }} else {{
+                                            resolve(true);
+                                        }}
+                                    }});
+                                }});
+                            }})()
+                            """, await_promise=True)
+                            time.sleep(0.5)
+
+                            has_eph_in_dom = cdp_opt.eval(f"!!document.querySelector('#list .item[data-chat-id=\"{eph_chat_id}\"]')")
+                            print(f"      • options 工作台登记状态: 列表中已呈现该瞬态会话 = {has_eph_in_dom}")
+
+                            print(f"      • 在 Gemini 网页端侧边栏执行真实删除操作 ({eph_chat_id})...")
+                            cdp_gem_live.eval(f"""
+                            (() => {{
+                                const a = document.querySelector('a[href*=\"{eph_chat_id}\"]');
+                                if (!a) return 'link_not_found';
+                                const btn = a.parentElement.querySelector('button[aria-label^=\"More options\"]');
+                                if (!btn) return 'btn_not_found';
+                                btn.click();
+                                return 'options_clicked';
+                            }})()
+                            """)
+                            time.sleep(0.6)
+
+                            cdp_gem_live.eval("""
+                            (() => {
+                                const delBtn = document.querySelector('button[data-test-id="delete-button"]');
+                                if (delBtn) delBtn.click();
+                            })()
+                            """)
+                            time.sleep(0.8)
+
+                            cdp_gem_live.eval("""
+                            (() => {
+                                const dialog = document.querySelector('mat-dialog-container, [role="dialog"], .mat-mdc-dialog-container');
+                                if (!dialog) return;
+                                const confirmBtn = Array.from(dialog.querySelectorAll('button')).find(b => {
+                                    const txt = b.innerText.trim().toLowerCase();
+                                    return txt === 'delete' || txt === '删除';
+                                });
+                                if (confirmBtn) confirmBtn.click();
+                            })()
+                            """)
+                            print(f"      • 已触发确认删除对话框！等待实时网络拦截与广播...")
+                            time.sleep(2.5)
+
+                            eph_realtime_check = cdp_opt.eval(f"""
+                            (() => {{
+                                return new Promise((resolve) => {{
+                                    chrome.storage.local.get(['gemini_conversations'], (data) => {{
+                                        const convs = data.gemini_conversations || [];
+                                        const stillInStorage = convs.some(c => c.id === '{eph_chat_id}');
+                                        const stillInDom = !!document.querySelector('#list .item[data-chat-id=\"{eph_chat_id}\"]');
+                                        resolve({{ stillInStorage, stillInDom, count: convs.length }});
+                                    }});
+                                }});
+                            }})()
+                            """, await_promise=True)
+
+                            if eph_realtime_check.get("stillInStorage") or eph_realtime_check.get("stillInDom"):
+                                time.sleep(2.0)
+                                eph_realtime_check = cdp_opt.eval(f"""
+                                (() => {{
+                                    return new Promise((resolve) => {{
+                                        chrome.storage.local.get(['gemini_conversations'], (data) => {{
+                                            const convs = data.gemini_conversations || [];
+                                            const stillInStorage = convs.some(c => c.id === '{eph_chat_id}');
+                                            const stillInDom = !!document.querySelector('#list .item[data-chat-id=\"{eph_chat_id}\"]');
+                                            resolve({{ stillInStorage, stillInDom, count: convs.length }});
+                                        }});
+                                    }});
+                                }})()
+                                """, await_promise=True)
+
+                            if not eph_realtime_check.get("stillInStorage") and not eph_realtime_check.get("stillInDom"):
+                                print(f"      ✓ [实时删除断言通过] 瞬态会话 {eph_chat_id} 经网页端删除后，已被实时剥离 Storage 与 DOM 列表（当前有效总数: {eph_realtime_check.get('count')}）！")
+                            else:
+                                print(f"      ℹ️ 瞬态会话实时剥离状态: storage残留={eph_realtime_check.get('stillInStorage')}, dom残留={eph_realtime_check.get('stillInDom')}")
+                        else:
+                            print(f"      ⚠️ 未能捕获瞬态会话 ID，跳过现场实时删除测试")
+                    else:
+                        print(f"      ⚠️ 瞬态会话回复超时: {sent_msg}，跳过现场实时删除测试")
+                finally:
+                    cdp_gem_live.close()
+            except Exception as e_live:
+                print(f"      ⚠️ 瞬态会话实时删除测试提示: {e_live}")
+
+        # ------------------------------------------------------------------
         # 步骤 3.3：多维度联合导出勾选（本次新生成会话 + 4 种指定核心分类历史会话）
         # ------------------------------------------------------------------
         # 确保 skipExported 复选框处于未勾选状态，强制全量取回对话内容
