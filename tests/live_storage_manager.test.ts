@@ -5,31 +5,37 @@ const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
 
 test('liveStorageManager - default configuration structure', () => {
     const def = LiveStorageManager.DEFAULT_LIVE_CONFIG;
-    assert.strictEqual(def.enabledDb, true);
+    assert.strictEqual(def.enabledDb, undefined);
     assert.strictEqual(def.enabledDisk, false);
     assert.strictEqual(def.format, 'markdown');
     assert.strictEqual(def.includeAssets, true);
     assert.strictEqual(def.updateIndex, true);
 });
 
-test('liveStorageManager - IDB mock and live conversation persistence', async () => {
+test('liveStorageManager - IDB mock, config persistence and V2 purge of conversations store', async () => {
     const memoryStores: Record<string, Map<any, any>> = {
-        conversations: new Map(),
+        conversations: new Map([['c_old', { id: 'old', title: 'Old Chat' }]]),
         settings: new Map()
     };
 
+    let deletedStoreNames: string[] = [];
+
     const mockIdb = {
-        open: () => {
+        open: (name: string, version: number) => {
             const req: any = {
                 result: {
                     objectStoreNames: {
-                        contains: (name: string) => name in memoryStores
+                        contains: (n: string) => n in memoryStores && !deletedStoreNames.includes(n)
                     },
-                    createObjectStore: (name: string) => {
-                        memoryStores[name] = new Map();
+                    deleteObjectStore: (n: string) => {
+                        deletedStoreNames.push(n);
+                        delete memoryStores[n];
+                    },
+                    createObjectStore: (n: string) => {
+                        memoryStores[n] = new Map();
                     },
                     transaction: (storeName: string, mode: string) => {
-                        const store = memoryStores[storeName];
+                        const store = memoryStores[storeName] || new Map();
                         return {
                             objectStore: () => ({
                                 put: (val: any, key?: any) => {
@@ -59,12 +65,19 @@ test('liveStorageManager - IDB mock and live conversation persistence', async ()
                     }
                 },
                 onsuccess: null as any,
-                onerror: null as any
+                onerror: null as any,
+                onupgradeneeded: null as any
             };
-            // Trigger transaction auto-complete simulation
+
             setTimeout(() => {
-                req.onsuccess && req.onsuccess();
+                if (version === 2 && typeof req.onupgradeneeded === 'function') {
+                    req.onupgradeneeded();
+                }
+                if (typeof req.onsuccess === 'function') {
+                    req.onsuccess();
+                }
             }, 0);
+
             return req;
         }
     };
@@ -74,8 +87,8 @@ test('liveStorageManager - IDB mock and live conversation persistence', async ()
 
     // Helper to simulate IDB transaction completion
     const origOpen = mockIdb.open;
-    mockIdb.open = () => {
-        const req: any = origOpen();
+    mockIdb.open = (name: string, ver: number) => {
+        const req: any = origOpen(name, ver);
         const origResult = req.result;
         req.result = {
             ...origResult,
@@ -91,40 +104,30 @@ test('liveStorageManager - IDB mock and live conversation persistence', async ()
     };
 
     try {
-        // 1. Test saveLiveConversation
-        const saved = await LiveStorageManager.saveLiveConversation({
-            id: 'c_test_conv_123',
-            title: 'Test Live Conversation',
-            messages: [
-                { role: 'user', content: 'Hello Gemini' },
-                { role: 'model', content: 'Hello! How can I help you today?' }
-            ]
-        });
-        assert.strictEqual(saved, true);
-
-        // 2. Test getLiveConversation
-        const retrieved = await LiveStorageManager.getLiveConversation('test_conv_123');
-        assert.ok(retrieved);
-        assert.strictEqual(retrieved.id, 'test_conv_123');
-        assert.strictEqual(retrieved.title, 'Test Live Conversation');
-        assert.strictEqual(retrieved.turnCount, 2);
-
-        // 3. Test setLiveConfig & getLiveConfig
+        // 1. Verify setLiveConfig & getLiveConfig
         await LiveStorageManager.setLiveConfig({ enabledDisk: true, dirName: 'MyNotes' });
         const cfg = await LiveStorageManager.getLiveConfig();
         assert.strictEqual(cfg.enabledDisk, true);
         assert.strictEqual(cfg.dirName, 'MyNotes');
 
-        // 4. Test listLiveConversations
-        const list = await LiveStorageManager.listLiveConversations();
-        assert.strictEqual(list.length, 1);
-        assert.strictEqual(list[0].id, 'test_conv_123');
+        // 2. Verify saveLiveDirHandle & getLiveDirHandle
+        const mockHandle = { name: 'MyNotes', kind: 'directory' };
+        await LiveStorageManager.saveLiveDirHandle(mockHandle);
+        const retrievedHandle = await LiveStorageManager.getLiveDirHandle();
+        assert.ok(retrievedHandle);
+        assert.strictEqual(retrievedHandle.name, 'MyNotes');
 
-        // 5. Test removeLiveConversation
-        const removed = await LiveStorageManager.removeLiveConversation('test_conv_123');
-        assert.strictEqual(removed, true);
-        const afterRemove = await LiveStorageManager.getLiveConversation('test_conv_123');
-        assert.strictEqual(afterRemove, null);
+        // 3. Verify V2 upgrade purged legacy conversations store
+        assert.ok(deletedStoreNames.includes('conversations'));
+        assert.strictEqual('conversations' in memoryStores, false);
+
+        // 4. Verify conversation persistence stubs safely return empty/no-op without storing anything
+        const saveRes = await LiveStorageManager.saveLiveConversation({ id: 'c_stub', title: 'Stub', messages: [] });
+        assert.strictEqual(saveRes, false);
+        const getRes = await LiveStorageManager.getLiveConversation('c_stub');
+        assert.strictEqual(getRes, null);
+        const listRes = await LiveStorageManager.listLiveConversations();
+        assert.deepStrictEqual(listRes, []);
     } finally {
         (global as any).indexedDB = origIdb;
     }

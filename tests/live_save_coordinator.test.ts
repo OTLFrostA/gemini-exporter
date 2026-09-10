@@ -3,24 +3,18 @@ const test = require('node:test');
 const assert = require('node:assert');
 const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
 
-test('liveSaveCoordinator - executeLiveSave with DB and Disk Dual-Tier persistence', async () => {
-    let savedDbRecord: any = null;
+test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async () => {
     let writtenFiles: Record<string, string> = {};
     let feedbackCalledWith: string | null = null;
 
     const mockStorage = {
         getLiveConfig: async () => ({
-            enabledDb: true,
             enabledDisk: true,
             format: 'markdown',
             includeAssets: true,
             updateIndex: true,
             dirName: 'ObsidianVault'
         }),
-        saveLiveConversation: async (rec: any) => {
-            savedDbRecord = rec;
-            return true;
-        },
         getLiveDirHandle: async () => ({
             name: 'ObsidianVault'
         }),
@@ -71,13 +65,7 @@ test('liveSaveCoordinator - executeLiveSave with DB and Disk Dual-Tier persisten
     const success = await LiveSaveCoordinator.executeLiveSave('c_9876543210abcdef', 'turn_complete');
     assert.strictEqual(success, true);
 
-    // 1. Verify DB persistence
-    assert.ok(savedDbRecord);
-    assert.strictEqual(savedDbRecord.id, '9876543210abcdef');
-    assert.strictEqual(savedDbRecord.title, 'Quantum Computing Intro');
-    assert.strictEqual(savedDbRecord.turnCount, 2);
-
-    // 2. Verify Disk FsWriter persistence
+    // 1. Verify Disk FsWriter persistence
     const expectedFile = 'Quantum Computing Intro_98765432.md';
     assert.ok(expectedFile in writtenFiles);
     assert.ok(writtenFiles[expectedFile].includes('What is superposition?'));

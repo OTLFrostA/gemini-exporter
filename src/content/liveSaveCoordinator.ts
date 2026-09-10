@@ -105,7 +105,7 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
 /**
  * Execute a live auto-save cycle for the specified conversation.
  */
-export async function executeLiveSave(cid: string, reason = 'turn_complete'): Promise<boolean> {
+export async function executeLiveSave(cid: string, reason = 'turn_complete', options: { mockMode?: boolean } = {}): Promise<boolean> {
     if (!cid) return false;
     const nid = String(cid).replace(/^c_/, '').trim();
 
@@ -113,11 +113,33 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete'): Pr
     _saveQueue = _saveQueue.then(async () => {
         try {
             _isSaving = true;
+
+            // In mockMode (e.g. headless/test environments without native filesystem handles), simulate live save feedback
+            if (options.mockMode) {
+                const chat = await resolveConversationDetail(nid);
+                const rawTitle = chat?.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
+                const Utils = getUtils();
+                const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
+                const Badge = getBadge();
+                if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
+                    (Badge as any).showLiveSaveFeedback(safeTitle);
+                }
+                return true;
+            }
+
             const Storage = getStorage();
             const config: LiveSaveConfig = await Storage.getLiveConfig();
 
-            // If neither DB nor Disk is enabled, do nothing
-            if (!config.enabledDb && !config.enabledDisk) {
+            // If Disk save is not enabled, do nothing
+            if (!config.enabledDisk) {
+                return false;
+            }
+
+            const dirHandle = await Storage.getLiveDirHandle();
+            if (!dirHandle) {
+                if (isDev()) {
+                    console.warn('[LiveSaveCoordinator] Disk save enabled but no dirHandle stored');
+                }
                 return false;
             }
 
@@ -132,35 +154,8 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete'): Pr
             const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
             const now = Date.now();
 
-            // 1. Tier 1: Internal IndexedDB Snapshot Persistence
-            if (config.enabledDb) {
-                const record: Partial<LiveConversationRecord> & { id: string } = {
-                    id: nid,
-                    title: safeTitle,
-                    messages: chat.messages,
-                    timestamp: chat.timestamp || chat.updatedAt || now,
-                    updatedAt: chat.updatedAt || now,
-                    turnCount: chat.messages.length,
-                    accountSlot: chat.accountSlot || 'u0',
-                    format: config.format || 'markdown',
-                    hasImages: chat.messages.some((m: any) =>
-                        (Array.isArray(m.attachments) && m.attachments.length > 0) ||
-                        (Array.isArray(m.images) && m.images.length > 0) ||
-                        (typeof m.content === 'string' && /!\[[^\]]*\]\(https?:\/\/[^\s\)]+\)/.test(m.content))
-                    )
-                };
-                await Storage.saveLiveConversation(record);
-            }
-
-            // 2. Tier 2: Direct Disk Write via FileSystem Access API
-            if (config.enabledDisk) {
-                const dirHandle = await Storage.getLiveDirHandle();
-                if (dirHandle) {
-                    await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
-                } else if (isDev()) {
-                    console.warn('[LiveSaveCoordinator] Disk save enabled but no dirHandle stored');
-                }
-            }
+            // Direct Disk Write via FileSystem Access API
+            await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
 
             // 3. Update configuration metadata
             await Storage.setLiveConfig({

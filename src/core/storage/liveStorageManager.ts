@@ -2,14 +2,13 @@
 import type { LiveConversationRecord, LiveSaveConfig } from '../../types/liveSave.js';
 
 const DB_NAME = 'gemini_exporter_live_idb';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_CONVERSATIONS = 'conversations';
 const STORE_SETTINGS = 'settings';
 const KEY_CONFIG = 'live_save_config';
 const KEY_DIR_HANDLE = 'live_save_dir_handle';
 
 export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
-    enabledDb: true,
     enabledDisk: false,
     format: 'markdown',
     includeAssets: true,
@@ -24,8 +23,13 @@ function openLiveDB(): Promise<IDBDatabase> {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = () => {
             const db = req.result;
-            if (!db.objectStoreNames.contains(STORE_CONVERSATIONS)) {
-                db.createObjectStore(STORE_CONVERSATIONS, { keyPath: 'id' });
+            // Purge legacy conversations object store to ensure zero conversation text remains in browser
+            if (db.objectStoreNames.contains(STORE_CONVERSATIONS)) {
+                try {
+                    db.deleteObjectStore(STORE_CONVERSATIONS);
+                } catch {
+                    /* ignore */
+                }
             }
             if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
                 db.createObjectStore(STORE_SETTINGS);
@@ -36,106 +40,27 @@ function openLiveDB(): Promise<IDBDatabase> {
     });
 }
 
-export async function saveLiveConversation(record: Partial<LiveConversationRecord> & { id: string }): Promise<boolean> {
-    if (!record || !record.id) return false;
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_CONVERSATIONS, 'readwrite');
-            const store = tx.objectStore(STORE_CONVERSATIONS);
-            const now = Date.now();
-            const normalized: LiveConversationRecord = {
-                id: String(record.id).replace(/^c_/, '').trim(),
-                title: record.title || 'Untitled',
-                messages: Array.isArray(record.messages) ? record.messages : [],
-                timestamp: record.timestamp || now,
-                updatedAt: record.updatedAt || now,
-                savedAt: now,
-                turnCount: Array.isArray(record.messages) ? record.messages.length : 0,
-                accountSlot: record.accountSlot || 'u0',
-                format: record.format || 'markdown',
-                hasImages: !!record.hasImages
-            };
-            store.put(normalized);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to save conversation snapshot:', e);
-        return false;
-    }
+/**
+ * @deprecated Legacy stub. Conversation text is no longer retained in browser storage.
+ */
+export async function saveLiveConversation(_record: Partial<LiveConversationRecord> & { id: string }): Promise<boolean> {
+    return false;
 }
 
-export async function getLiveConversation(id: string): Promise<LiveConversationRecord | null> {
-    if (!id) return null;
-    const nid = String(id).replace(/^c_/, '').trim();
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_CONVERSATIONS, 'readonly');
-            const store = tx.objectStore(STORE_CONVERSATIONS);
-            const req = store.get(nid);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = () => reject(req.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to get live conversation:', e);
-        return null;
-    }
+export async function getLiveConversation(_id: string): Promise<LiveConversationRecord | null> {
+    return null;
 }
 
 export async function listLiveConversations(): Promise<LiveConversationRecord[]> {
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_CONVERSATIONS, 'readonly');
-            const store = tx.objectStore(STORE_CONVERSATIONS);
-            const req = store.getAll();
-            req.onsuccess = () => {
-                const results: LiveConversationRecord[] = req.result || [];
-                results.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-                resolve(results);
-            };
-            req.onerror = () => reject(req.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to list live conversations:', e);
-        return [];
-    }
+    return [];
 }
 
-export async function removeLiveConversation(id: string): Promise<boolean> {
-    if (!id) return false;
-    const nid = String(id).replace(/^c_/, '').trim();
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_CONVERSATIONS, 'readwrite');
-            const store = tx.objectStore(STORE_CONVERSATIONS);
-            store.delete(nid);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to remove live conversation:', e);
-        return false;
-    }
+export async function removeLiveConversation(_id: string): Promise<boolean> {
+    return true;
 }
 
 export async function clearLiveConversations(): Promise<boolean> {
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_CONVERSATIONS, 'readwrite');
-            const store = tx.objectStore(STORE_CONVERSATIONS);
-            store.clear();
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to clear live conversations:', e);
-        return false;
-    }
+    return true;
 }
 
 export async function getLiveConfig(): Promise<LiveSaveConfig> {

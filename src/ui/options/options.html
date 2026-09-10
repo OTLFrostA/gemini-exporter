@@ -190,10 +190,6 @@
         <span data-i18n="skipExported" style="overflow:hidden; text-overflow:ellipsis;">跳过已导出</span>
         <button id="btnClearExported" class="ghost" style="padding:1px 6px; font-size:10px; height:20px; line-height:18px; margin-left:auto; border-radius:4px; flex:none;" data-i18n="btnClearExported" data-i18n-title="btnClearExportedTip" title="清除历史导出标记，允许重新导出全部">清除</button>
       </label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;">
-        <input type="checkbox" id="includeIndex" class="toggle" checked>
-        <span data-i18n="includeIndex">含 _index.json</span>
-      </label>
       <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeAssetsTip" title="下载对话中的图片与文件附件">
         <input type="checkbox" id="includeAssets" class="toggle" checked>
         <span data-i18n="includeAssets">下载附件</span>
@@ -201,10 +197,6 @@
       <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeZipTip" title="打包为 ZIP 文件下载">
         <input type="checkbox" id="includeZip" class="toggle" checked>
         <span data-i18n="includeZip">打包成 ZIP</span>
-      </label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDbTip" title="每轮对话完成后自动将完整正文增量备份在本地数据库中，无需任何权限，防丢失容灾">
-        <input type="checkbox" id="liveSaveDbToggle" class="toggle" checked>
-        <span data-i18n="liveSaveDb">实时快照备份</span>
       </label>
       <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
         <input type="checkbox" id="liveSaveDiskToggle" class="toggle">

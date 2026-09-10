@@ -8,7 +8,6 @@ test('optionsSettings - initLiveSaveSettings binds controls and updates config',
     let savedConfig: any = null;
 
     const mockElements: Record<string, any> = {
-        liveSaveDbToggle: { checked: true, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
         liveSaveDiskToggle: { checked: false, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
         liveSaveUpdateIndexToggle: { checked: true, dataset: {}, addEventListener: function(e: string, fn: Function) { this.onChange = fn; } },
         liveSaveDiskBox: { style: { display: 'none' } },
@@ -27,7 +26,6 @@ test('optionsSettings - initLiveSaveSettings binds controls and updates config',
     const origGetLiveDirHandle = LiveStorageManager.getLiveDirHandle;
 
     LiveStorageManager.getLiveConfig = async () => ({
-        enabledDb: true,
         enabledDisk: false,
         format: 'markdown',
         includeAssets: true,
@@ -49,7 +47,6 @@ test('optionsSettings - initLiveSaveSettings binds controls and updates config',
         await OptionsSettings.initLiveSaveSettings();
 
         // Check initial restored state
-        assert.strictEqual(mockElements.liveSaveDbToggle.checked, true);
         assert.strictEqual(mockElements.liveSaveDiskToggle.checked, false);
         assert.strictEqual(mockElements.liveSaveDiskBox.style.display, 'none');
         assert.ok(mockElements.liveDirLabel.textContent.includes('MyVault'));
@@ -59,11 +56,6 @@ test('optionsSettings - initLiveSaveSettings binds controls and updates config',
         await mockElements.liveSaveDiskToggle.onChange();
         assert.strictEqual(mockElements.liveSaveDiskBox.style.display, 'flex');
         assert.strictEqual(savedConfig.enabledDisk, true);
-
-        // Toggle DB Save off
-        mockElements.liveSaveDbToggle.checked = false;
-        await mockElements.liveSaveDbToggle.onChange();
-        assert.strictEqual(savedConfig.enabledDb, false);
     } finally {
         (global as any).document = origDoc;
         LiveStorageManager.getLiveConfig = origGetLiveConfig;
