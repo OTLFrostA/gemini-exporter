@@ -34,7 +34,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
 
     // 3. Select all items (55 items >= 50 threshold)
     await page.click('#btnSelectAll');
-    await expect(page.locator('#selectedStat')).toContainText('55');
+    await expect(page.locator('#selectedStat')).toHaveText(/\b55\b/);
 
     // Ensure modal is initially hidden
     const modal = page.locator('#directWriteModal');
@@ -45,7 +45,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
 
     // 5. Verify modal appears with correct conversation count and buttons
     await expect(modal).toBeVisible({ timeout: 3000 });
-    await expect(page.locator('#directWritePromptText')).toContainText('55');
+    await expect(page.locator('#directWritePromptText')).toHaveText(/\b55\b/);
     await expect(page.locator('#btnModalSwitchFolder')).toBeVisible();
     await expect(page.locator('#btnModalContinueZip')).toBeVisible();
 

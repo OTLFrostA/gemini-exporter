@@ -623,7 +623,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                 onItemExported(targetId, rec);
             }
 
-            const CONCURRENCY = 3;
+            const CONCURRENCY = Math.max(1, typeof options.concurrency === 'number' ? options.concurrency : 3);
             let nextIndex = 0;
             let completedCount = 0;
             let convsNeedSave = false;

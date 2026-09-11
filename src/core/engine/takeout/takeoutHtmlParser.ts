@@ -48,6 +48,9 @@ declare global {
  */
 export function stripHtmlTags(html?: string | null | any): string {
     if (!html || typeof html !== 'string') return '';
+    // Strip script and style elements including their nested content safely
+    html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
     let prev: string;
     do {
         prev = html;
