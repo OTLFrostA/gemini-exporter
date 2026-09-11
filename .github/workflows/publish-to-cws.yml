@@ -17,10 +17,11 @@ jobs:
     steps:
       - name: Download release asset
         run: |
-          gh release download ${{ github.event.inputs.tag }} -p "*.zip" -R ${{ github.repository }}
+          gh release download "${TAG}" -p "*.zip" -R ${{ github.repository }}
           ls -lh *.zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag }}
 
       - name: Upload and Publish to Chrome Web Store
         uses: mnao305/chrome-extension-upload@v5.0.0

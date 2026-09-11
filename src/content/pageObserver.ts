@@ -61,18 +61,18 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };
+
+        const handleLocationChange = () => {
+            if (typeof location === 'undefined') return;
+            if (location.href !== __lastObservedUrl) {
+                __lastObservedUrl = location.href;
+                onUrlChanged();
+            }
+        };
+
+        window.addEventListener('popstate', handleLocationChange);
+        window.addEventListener('gemini:locationchange', handleLocationChange);
     }
-
-    const handleLocationChange = () => {
-        if (typeof location === 'undefined') return;
-        if (location.href !== __lastObservedUrl) {
-            __lastObservedUrl = location.href;
-            onUrlChanged();
-        }
-    };
-
-    window.addEventListener('popstate', handleLocationChange);
-    window.addEventListener('gemini:locationchange', handleLocationChange);
 }
 
 export function observeTitleChanges(onTitleChanged: () => void): void {

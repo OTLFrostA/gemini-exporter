@@ -41,6 +41,9 @@ jobs:
 
       - name: Determine version and create tag
         id: version_step
+        env:
+          ACTION: ${{ github.event.inputs.action }}
+          CUSTOM_TAG: ${{ github.event.inputs.custom_tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -50,7 +53,7 @@ jobs:
             VERSION="${TAG#v}"
             echo "Triggered by git tag push: ${TAG}"
           else
-            ACTION="${{ github.event.inputs.action }}"
+            ACTION="${ACTION}"
             echo "Triggered by workflow_dispatch with action: ${ACTION}"
 
             CURRENT_VER=$(jq -r '.version' manifest.json)
@@ -82,8 +85,8 @@ jobs:
               git push origin main
               git tag -a "${TAG}" -m "Release ${TAG}"
               git push origin "${TAG}"
-            elif [ "$ACTION" = "custom_tag" ] && [ -n "${{ github.event.inputs.custom_tag }}" ]; then
-              TAG="${{ github.event.inputs.custom_tag }}"
+            elif [ "$ACTION" = "custom_tag" ] && [ -n "${CUSTOM_TAG}" ]; then
+              TAG="${CUSTOM_TAG}"
               VERSION="${TAG#v}"
               if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
                 git tag -a "${TAG}" -m "Release ${TAG}"

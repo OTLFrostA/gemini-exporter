@@ -21,7 +21,7 @@ export function render(accountSlots: Record<string, any>, currentSlot: string): 
         return;
     }
     sel.style.display = 'inline-block';
-    let html = '';
+    sel.innerHTML = '';
     const sorted = Array.from(new Set(['u0', ...slots])).sort();
     const defLabel = typeof t === 'function' ? t('defaultAccount') : 'Default Account (u0)';
     const accLabel = typeof t === 'function' ? t('accountSlot') : 'Account';
@@ -31,10 +31,12 @@ export function render(accountSlots: Record<string, any>, currentSlot: string): 
         const isDefaultAutoName = !rawName || /^账号\s*u\d+/i.test(rawName) || /^account\s*u\d+/i.test(rawName) || /^默认账号/i.test(rawName) || /^default account/i.test(rawName);
         const label = isDefaultAutoName ? (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`) : rawName;
         const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
-        const selected = (s === currentSlot) ? 'selected' : '';
-        html += `<option value="${s}" ${selected}>${label}${count}</option>`;
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.selected = s === currentSlot;
+        opt.textContent = `${label}${count}`;
+        sel.appendChild(opt);
     }
-    sel.innerHTML = html;
 }
 
 export function bindChange(callback: (slot: string) => void): void {

@@ -93,7 +93,7 @@ async function build() {
         bundle: true,
         format: 'iife',
         minify: true,
-        sourcemap: true,
+        sourcemap: false,
         target: ['chrome120'],
         legalComments: 'none',
         define: DEFINE_VERSION,
