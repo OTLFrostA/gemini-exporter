@@ -272,8 +272,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
             visited.push(Object.keys(node).join(','));
         }
     });
-    assert.ok(visited.includes('a,d'));
-    assert.ok(visited.includes('b,c'));
+    assert.deepStrictEqual(visited, ['a,d', 'b,c']);
 
     // Early termination in deepWalk
     let earlyCount = 0;

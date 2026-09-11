@@ -17,9 +17,22 @@ test('chat_formatter - formatContent markdown', () => {
 
     const res = ChatFormatter.formatContent(mockChat, 'markdown');
     assert.strictEqual(res.ext, 'md');
-    assert.ok(res.content.includes('# Quantum Physics Guide'));
-    assert.ok(res.content.includes('What is superposition?'));
-    assert.ok(res.content.includes('Superposition is a fundamental principle'));
+    // Frontmatter structure assertions
+    assert.ok(res.content.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
+    assert.ok(res.content.includes('\n---\n\n'), 'YAML frontmatter must close with --- delimiter');
+    assert.ok(res.content.includes('title: "Quantum Physics Guide"'), 'Frontmatter must contain title key');
+    assert.ok(res.content.includes('id: "12345678"'), 'Frontmatter must contain id key');
+    assert.ok(res.content.includes('url: "https://gemini.google.com/app/12345678"'), 'Frontmatter must contain url key');
+    assert.ok(res.content.includes('tags:\n  - gemini-export'), 'Frontmatter must contain gemini-export tag');
+    // Heading and content assertions
+    assert.ok(res.content.includes('# Quantum Physics Guide'), 'Must render H1 title');
+    assert.ok(res.content.includes('What is superposition?'), 'Must contain user message');
+    assert.ok(res.content.includes('Superposition is a fundamental principle'), 'Must contain model message');
+    // Role ordering assertion
+    const userIdx = res.content.search(/## 👤/);
+    const modelIdx = res.content.search(/## 🤖/);
+    assert.ok(userIdx !== -1 && modelIdx !== -1, 'Must include both user and model role headings');
+    assert.ok(userIdx < modelIdx, 'User heading must precede model heading');
 });
 
 test('chat_formatter - formatContent json_openai', () => {
@@ -49,6 +62,8 @@ test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () 
     assert.ok(md.includes('console.log("hello");'), 'Entities should be unescaped');
     assert.ok(md.includes('**bold**'), 'Bold should be markdown');
     assert.ok(md.includes('*italic*'), 'Italic should be markdown');
+    const fenceCount = (md.match(/```/g) || []).length;
+    assert.strictEqual(fenceCount % 2, 0, 'Code fence backticks must be properly paired');
 });
 
 test('chat_formatter - adjustHeadingHierarchy shifts headings outside code blocks', () => {

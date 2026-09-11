@@ -87,26 +87,102 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
   });
 
   test('should disable scan during export and never show interruption banner during active run', async ({ context, extensionId }) => {
+    // 1. Open mock Gemini page in background with delayed batchexecute response
+    const geminiPage = await context.newPage();
+
+    await geminiPage.route('https://gemini.google.com/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: `<!DOCTYPE html>
+        <html>
+        <head>
+          <script>
+            window._WIZ_global_data = {
+              SNlM0e: 'mock_at_token_recovery',
+              cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
+            };
+          </script>
+        </head>
+        <body>Gemini Mock Session Active</body>
+        </html>`
+      });
+    });
+
+    let resolveRoute: () => void = () => {};
+    const routeGate = new Promise<void>((resolve) => {
+      resolveRoute = resolve;
+    });
+
+    const turns = [
+      [
+        ["c_chat_delay_001"],
+        "turn_id_1",
+        [["延迟测试提问"]],
+        [
+          [
+            ["rc_cand_1", ["延迟测试回答"]]
+          ]
+        ]
+      ]
+    ];
+    const mockDetailInner = JSON.stringify([
+      turns,
+      "tC_sample_token",
+      "待导出延迟测试会话"
+    ]);
+    const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
+
+    await geminiPage.route('**/batchexecute*', async (route) => {
+      await routeGate;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: mockRpcResponse
+      });
+    });
+
+    await geminiPage.goto('https://gemini.google.com/app');
+    await geminiPage.waitForLoadState('domcontentloaded');
+
+    // 2. Open Workbench Options page
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
-    // Simulate active export in ExportController
-    await optionsPage.evaluate(() => {
-      if (typeof window.ExportController !== 'undefined') {
-        window.ExportController.setRunning(true);
+    // Seed test conversation
+    await optionsPage.evaluate(async () => {
+      const convs = [
+        { id: 'chat_delay_001', title: '待导出延迟测试会话', timestamp: 1700000000000 }
+      ];
+      await chrome.storage.local.set({
+        gemini_conversations: convs,
+        exportedIds: {}
+      });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
       }
     });
+
+    await optionsPage.click('#btnSelectAll');
+    await expect(optionsPage.locator('#list input[type=checkbox]:checked')).toHaveCount(1);
+
+    // 3. Trigger real export via clicking #btnExport to naturally enter running state
+    await optionsPage.click('#btnExport');
 
     const banner = optionsPage.locator('#exportSessionBanner');
     await expect(banner).not.toBeVisible();
 
     const btnScan = optionsPage.locator('#btnIncrementalScan');
     const btnDeepScan = optionsPage.locator('#btnDeepScan');
+    const btnExport = optionsPage.locator('#btnExport');
+
+    // Buttons must be naturally disabled while ExportEngine is active
     await expect(btnScan).toBeDisabled();
     await expect(btnDeepScan).toBeDisabled();
+    await expect(btnExport).toBeDisabled();
 
-    // Trigger loadStore while export is running
+    // 4. Trigger loadStore while export is running
     await optionsPage.evaluate(async () => {
       await chrome.storage.local.set({
         gemini_last_export_session: {
@@ -125,14 +201,14 @@ test.describe('E2E: Export Title Update & Session Interruption Recovery', () => 
     // Banner MUST remain hidden while export is running
     await expect(banner).not.toBeVisible();
 
-    // End active export
-    await optionsPage.evaluate(() => {
-      if (typeof window.ExportController !== 'undefined') {
-        window.ExportController.setRunning(false);
-      }
-    });
+    // 5. Unblock network gate so export completes cleanly without hanging context teardown
+    const downloadPromise = optionsPage.waitForEvent('download', { timeout: 15000 }).catch(() => null);
+    resolveRoute();
+    await downloadPromise;
 
-    await expect(btnScan).toBeEnabled();
+    // Export completes, naturally re-enabling all action buttons
+    await expect(btnScan).toBeEnabled({ timeout: 10000 });
     await expect(btnDeepScan).toBeEnabled();
+    await expect(btnExport).toBeEnabled();
   });
 });

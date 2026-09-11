@@ -283,5 +283,25 @@
     ],
     "consumed_at": "2026-09-11T12:37:35.379597",
     "consumed_by": "test_visual_agent.py"
+  },
+  {
+    "id": "silk_road_numismatics",
+    "title": "丝绸之路钱币学与跨欧亚贸易网络考证",
+    "domain": "historical_archaeology",
+    "features": [
+      "tables",
+      "multilingual",
+      "historical_data"
+    ],
+    "description": "测试古代历史年代谱系表、跨语种历史专有名词与长文论证",
+    "turns": [
+      "请考证公元 5 至 8 世纪在塔里木盆地沿线广泛流通的萨珊波斯银币 (Drachm) 与拜占庭金币 (Solidus) 的成色、铭文特点及流入中原的商贸路线。",
+      "制作一个 Markdown 表格，横向对比贵霜王朝钱币、粟特开元通宝仿铸币以及于阗汉佉二体钱的币文语言、材质、度量衡制与出土遗址。",
+      "分析粟特商人 (Sogdian merchants) 在六胡州与敦煌商贸网络中扮演的金融信用中介角色，其借贷契约文本通常包含哪些法律要件？",
+      "结合吐鲁番阿斯塔那古墓出土文书，解读‘高昌度量衡与中原官度’在实物交易折算中的换算博弈。",
+      "总结丝路沿线‘硬通货金银’与‘实物绢帛货币’并行的双轨制金融体系兴衰动因。"
+    ],
+    "consumed_at": "2026-09-11T13:08:15.951702",
+    "consumed_by": "test_visual_agent.py"
   }
 ]

@@ -11,12 +11,47 @@ const LogView = require('../src/ui/views/logView.js');
 // ---------------------------------------------------------------------------
 // AccountView
 // ---------------------------------------------------------------------------
-test('accountView - exports and safe render', () => {
+test('accountView - exports and safe render with DOM side effect verification', () => {
     assert.ok(AccountView);
     assert.strictEqual(typeof AccountView.render, 'function');
     assert.strictEqual(typeof AccountView.bindChange, 'function');
-    // render without DOM element does not crash
+    // 1. Safe render without DOM element does not crash
     AccountView.render({ 'u0': { name: 'Main' } }, 'u0');
+
+    // 2. Verified DOM render with element creation and selection
+    const mockSelect: any = {
+        id: 'accountSlotSelect',
+        style: {},
+        innerHTML: '',
+        children: [] as any[],
+        appendChild(el: any) { this.children.push(el); }
+    };
+    const oldDoc = (global as any).document;
+    try {
+        (global as any).document = {
+            getElementById: (id: string) => id === 'accountSlotSelect' ? mockSelect : null,
+            createElement: (tag: string) => ({
+                tagName: tag.toUpperCase(),
+                value: '',
+                selected: false,
+                textContent: ''
+            })
+        };
+
+        AccountView.render({
+            u0: { name: '默认账号', count: 12 },
+            u1: { name: '工作账号', count: 5 }
+        }, 'u1');
+
+        assert.strictEqual(mockSelect.style.display, 'inline-block', 'Select should be displayed inline-block when multiple slots exist');
+        assert.strictEqual(mockSelect.children.length, 2, 'Should create 2 option elements');
+        assert.strictEqual(mockSelect.children[0].value, 'u0');
+        assert.strictEqual(mockSelect.children[0].selected, false);
+        assert.strictEqual(mockSelect.children[1].value, 'u1');
+        assert.strictEqual(mockSelect.children[1].selected, true, 'Current slot u1 should be selected');
+    } finally {
+        (global as any).document = oldDoc;
+    }
 });
 
 // ---------------------------------------------------------------------------
@@ -84,7 +119,7 @@ test('badgeView - DOM creation and text update', () => {
 // ---------------------------------------------------------------------------
 // DialogView
 // ---------------------------------------------------------------------------
-test('dialogView - exports and safe no-DOM invocation', () => {
+test('dialogView - exports, safe no-DOM invocation, and verified modal transitions', async () => {
     assert.ok(DialogView);
     assert.strictEqual(typeof DialogView.renderExportBanner, 'function');
     assert.strictEqual(typeof DialogView.dismissExportBanner, 'function');
@@ -93,11 +128,63 @@ test('dialogView - exports and safe no-DOM invocation', () => {
     assert.strictEqual(typeof DialogView.showTakeoutLimitPrompt, 'function');
     assert.strictEqual(typeof DialogView.hideTakeoutLimitPrompt, 'function');
 
+    // 1. Safe no-DOM invocation
     DialogView.renderExportBanner(null, 'u0', false);
     DialogView.showDirectWritePrompt(100, () => {}, () => {});
     DialogView.hideDirectWritePrompt();
-    DialogView.showTakeoutLimitPrompt({ count: 600, onImportTakeout: () => {} });
+    await DialogView.showTakeoutLimitPrompt({ count: 600, onImportTakeout: () => {} });
     DialogView.hideTakeoutLimitPrompt();
+
+    // 2. Verified DOM side effects for Direct Write modal
+    const mockDirectWriteModal: any = { id: 'directWriteModal', style: { display: 'none' } };
+    const mockPromptText: any = { id: 'directWritePromptText', textContent: '' };
+    const mockBtnFolder: any = { id: 'btnModalSwitchFolder', onclick: null };
+    const mockBtnZip: any = { id: 'btnModalContinueZip', onclick: null };
+    const mockBtnClose: any = { id: 'btnDirectWriteClose', onclick: null };
+
+    const mockTakeoutModal: any = { id: 'takeoutLimitModal', style: { display: 'none' } };
+    const mockTakeoutTitle: any = { id: 'takeoutLimitPromptTitle', textContent: '' };
+    const mockTakeoutText: any = { id: 'takeoutLimitPromptText', textContent: '' };
+
+    const domMap: Record<string, any> = {
+        directWriteModal: mockDirectWriteModal,
+        directWritePromptText: mockPromptText,
+        btnModalSwitchFolder: mockBtnFolder,
+        btnModalContinueZip: mockBtnZip,
+        btnDirectWriteClose: mockBtnClose,
+        takeoutLimitModal: mockTakeoutModal,
+        takeoutLimitPromptTitle: mockTakeoutTitle,
+        takeoutLimitPromptText: mockTakeoutText
+    };
+
+    const oldDoc = (global as any).document;
+    const oldI18n = (global as any).I18n;
+    try {
+        (global as any).I18n = require('../src/core/utils/i18n.js');
+        (global as any).document = {
+            getElementById: (id: string) => domMap[id] || null
+        };
+
+        // Test showDirectWritePrompt
+        DialogView.showDirectWritePrompt(55, () => {}, () => {});
+        assert.strictEqual(mockDirectWriteModal.style.display, 'flex', 'Direct write modal should show with display: flex');
+        assert.ok(mockPromptText.textContent.includes('55'), 'Prompt text should include conversation count 55');
+        assert.strictEqual(typeof mockBtnZip.onclick, 'function');
+
+        DialogView.hideDirectWritePrompt();
+        assert.strictEqual(mockDirectWriteModal.style.display, 'none', 'Direct write modal should hide with display: none');
+
+        // Test showTakeoutLimitPrompt
+        await DialogView.showTakeoutLimitPrompt({ count: 615, hitGoogleLimit: true, force: true });
+        assert.strictEqual(mockTakeoutModal.style.display, 'flex', 'Takeout limit modal should show with display: flex');
+        assert.ok(mockTakeoutText.textContent.includes('615'), 'Takeout text should include count 615');
+
+        DialogView.hideTakeoutLimitPrompt();
+        assert.strictEqual(mockTakeoutModal.style.display, 'none', 'Takeout limit modal should hide with display: none');
+    } finally {
+        (global as any).document = oldDoc;
+        (global as any).I18n = oldI18n;
+    }
 });
 
 test('dialogView - renderExportBanner XSS prevention: lastChatTitle is rendered as text node, not HTML', () => {

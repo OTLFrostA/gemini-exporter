@@ -194,7 +194,8 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
         useZip: false,
         includeAssets: false,
         dirHandle: mockDirHandle,
-        worker: mockWorker
+        worker: mockWorker,
+        concurrency: 1
     }, {
         onLog: (msg: string) => logs.push(msg)
     });
@@ -203,7 +204,8 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
     assert.strictEqual(orchestrator.aborted, true, 'Orchestrator should be aborted');
     assert.strictEqual(result.aborted, true, 'Result should flag aborted');
     assert.strictEqual(result.landedChats, 0, 'No chats should have landed');
-    assert.ok(result.failedChats.length >= 1, 'Failed chats should record error');
+    assert.strictEqual(fetchCount, 1, 'Only one chat should have been fetched before abort');
+    assert.strictEqual(result.failedChats.length, 1, 'Pipeline should record exactly one failed chat on immediate abort');
     assert.ok(
         logs.some(l => l.includes('权限') || l.includes('permission')),
         'Logs should contain permission revocation warning'

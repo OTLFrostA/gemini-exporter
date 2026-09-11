@@ -1,23 +1,5 @@
 [
   {
-    "id": "silk_road_numismatics",
-    "title": "丝绸之路钱币学与跨欧亚贸易网络考证",
-    "domain": "historical_archaeology",
-    "features": [
-      "tables",
-      "multilingual",
-      "historical_data"
-    ],
-    "description": "测试古代历史年代谱系表、跨语种历史专有名词与长文论证",
-    "turns": [
-      "请考证公元 5 至 8 世纪在塔里木盆地沿线广泛流通的萨珊波斯银币 (Drachm) 与拜占庭金币 (Solidus) 的成色、铭文特点及流入中原的商贸路线。",
-      "制作一个 Markdown 表格，横向对比贵霜王朝钱币、粟特开元通宝仿铸币以及于阗汉佉二体钱的币文语言、材质、度量衡制与出土遗址。",
-      "分析粟特商人 (Sogdian merchants) 在六胡州与敦煌商贸网络中扮演的金融信用中介角色，其借贷契约文本通常包含哪些法律要件？",
-      "结合吐鲁番阿斯塔那古墓出土文书，解读‘高昌度量衡与中原官度’在实物交易折算中的换算博弈。",
-      "总结丝路沿线‘硬通货金银’与‘实物绢帛货币’并行的双轨制金融体系兴衰动因。"
-    ]
-  },
-  {
     "id": "ebpf_xdp_packet_filter",
     "title": "Linux 内核 eBPF/XDP 高性能网络旁路与包过滤",
     "domain": "systems_networking",
@@ -362,6 +344,27 @@
       "请提供一段符合生产级机密计算规范的高性能 Rust 代码（基于 Linux /dev/sgx_enclave 或 sgx_urts 运行时），展示飞地外部不可信宿主 (Untrusted Host) 与飞地内部可信环境 (Trusted App) 通过 EENTER / EEXIT 指令安全传递入参的边界防护模型。代码需包含对传入指针的严格越界校验（防止 Pointer Poisoning 漏洞）以及内存清零零化 (Zeroize) 处理。",
       "针对 Foreshadow (L1TF)、AEP (Asynchronous Enclave Exit) 劫持以及内存访问模式侧信道攻击，飞地代码如何实现无分支恒定时间 (Constant-Time) 与混淆内存访问 (Oblivious RAM, ORAM)？请用公式与伪代码阐述 Path ORAM 在硬件飞地环境下的读写复杂度与隐藏访问模式的数学证明。",
       "请结合云原生机密容器 (Confidential Containers / Kata Containers) 的落地实践，给出一份机密计算基础设施在金融核心清结算场景中的生产部署安全检查清单，涵盖密钥代理服务 (Key Broker Service, KBS)、度量引导策略 (Measured Boot) 与硬件故障转移降级防范。"
+    ]
+  },
+  {
+    "id": "computational_geophysics_seismic_fwi",
+    "title": "计算地球物理：全波形反演 (FWI) 与地幔柱三维地震层析成像",
+    "domain": "computational_geophysics",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "physics"
+    ],
+    "description": "测试伴随状态法波动方程偏微分推导、吸收边界条件有限差分实现与反演算法对比",
+    "turns": [
+      "请详细阐述地震全波形反演（Full Waveform Inversion, FWI）的基本数学物理框架，写出非均匀声波介质中含震源项的二阶标量波动偏微分方程，并定义基于 L2 范数波场残差的目标泛函 $J(m)$。",
+      "借助伴随状态法（Adjoint-State Method）与拉格朗日乘子，详细推导速度模型参数 $v(x)$ 的目标函数梯度 $\\nabla_m J$，展示正演波场与伴随逆时残差波场在时间上的零延迟互相关卷积核（Sensitivity Kernel）。",
+      "使用 Python 与 NumPy 实现一个二维声波有限差分正演（FD）核心步进函数，包含完美匹配层（PML）边界衰减与震源雷克子波（Ricker Wavelet）注入代码。",
+      "分析全波形反演中由于低频缺失和初始模型偏差导致的周期跳跃（Cycle Skipping）问题，解释多尺度频率延拓（Multiscale Frequency Continuation）与包络反演如何避免陷入局部极小值。",
+      "使用 Markdown 表格横向对比传统射线走时层析成像（Ray-based Traveltime Tomography）、局部全波形反演（Local FWI）与基于贝叶斯推断的马尔可夫链蒙特卡洛（MCMC）全波形反演在深部分辨率、非线性反演度、初始模型依赖性与计算复杂度上的差异。"
     ]
   }
 ]
