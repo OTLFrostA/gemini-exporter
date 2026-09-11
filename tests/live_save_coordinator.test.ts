@@ -192,7 +192,7 @@ test('liveSaveCoordinator - executeLiveSave falls back to direct download when o
     }
 });
 
-test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload when options handle unavailable', async () => {
+test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload only when dirName is not configured', async () => {
     let bgDownloadMsg: any = null;
     let feedbackCalled = false;
 
@@ -201,7 +201,7 @@ test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload whe
             enabledDisk: true,
             format: 'markdown',
             includeAssets: true,
-            dirName: 'MyVault'
+            dirName: '' // No specific folder chosen
         }),
         getLiveDirHandle: async () => null,
         setLiveConfig: async () => {}
@@ -235,7 +235,8 @@ test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload whe
             storageManager: mockStorage,
             scraper: mockScraper,
             badge: {
-                showLiveSaveFeedback: () => { feedbackCalled = true; }
+                showLiveSaveFeedback: () => { feedbackCalled = true; },
+                showLiveSaveWarning: () => {}
             },
             clientClass: null
         });
@@ -244,10 +245,126 @@ test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload whe
         assert.strictEqual(success, true);
         assert.ok(bgDownloadMsg);
         assert.strictEqual(bgDownloadMsg.action, 'liveSaveDownload');
-        assert.strictEqual(bgDownloadMsg.filename, 'MyVault/BG Download Test_bgdl789.md');
+        assert.strictEqual(bgDownloadMsg.filename, 'gemini/BG Download Test_bgdl789.md');
         assert.ok(bgDownloadMsg.url.startsWith('data:text/markdown'));
         assert.strictEqual(feedbackCalled, true);
     } finally {
         (global as any).chrome = origChrome;
     }
 });
+
+test('liveSaveCoordinator - executeLiveSave aborts and warns when configured dir is missing or deleted', async () => {
+    let bgDownloadCalled = false;
+    let warningCalledWith: string | null = null;
+
+    const mockStorage = {
+        getLiveConfig: async () => ({
+            enabledDisk: true,
+            format: 'markdown',
+            includeAssets: true,
+            dirName: 'MySpecialFolder'
+        }),
+        getLiveDirHandle: async () => null,
+        setLiveConfig: async () => {}
+    };
+
+    const mockScraper = {
+        parseDoc: (_doc: any, id: string) => ({
+            id,
+            title: 'Missing Dir Test',
+            messages: [{ role: 'user', content: 'hello' }],
+            timestamp: Date.now()
+        })
+    };
+
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        runtime: {
+            sendMessage: (msg: any, cb: (res: any) => void) => {
+                if (msg.action === 'liveSaveViaHandle') {
+                    // Simulate directory deleted on disk
+                    if (cb) cb({ ok: false, error: 'dir_not_found' });
+                } else if (msg.action === 'liveSaveDownload') {
+                    bgDownloadCalled = true;
+                    if (cb) cb({ ok: true });
+                }
+            }
+        }
+    };
+
+    try {
+        LiveSaveCoordinator.init({
+            storageManager: mockStorage,
+            scraper: mockScraper,
+            badge: {
+                showLiveSaveWarning: (msg: string) => { warningCalledWith = msg; }
+            },
+            clientClass: null
+        });
+
+        const success = await LiveSaveCoordinator.executeLiveSave('c_missing_dir_123', 'turn_complete');
+        // Live save must abort without downloading to ~/Downloads
+        assert.strictEqual(success, false);
+        assert.strictEqual(bgDownloadCalled, false, 'Must not pollute downloads when configured dir is missing');
+        assert.ok(warningCalledWith !== null, 'Must warn user on badge');
+        assert.ok(warningCalledWith!.includes('目录已删除') || warningCalledWith!.includes('Folder deleted'));
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+test('liveSaveCoordinator - executeLiveSave catches native NotFoundError and resets config and warns', async () => {
+    let resetConfig: any = null;
+    let clearedHandle: any = 'not_called';
+    let warningCalledWith: string | null = null;
+
+    const mockStorage = {
+        getLiveConfig: async () => ({
+            enabledDisk: true,
+            format: 'markdown',
+            includeAssets: true,
+            dirName: 'DeletedFolder'
+        }),
+        getLiveDirHandle: async () => ({ name: 'DeletedFolder' }),
+        saveLiveDirHandle: async (h: any) => { clearedHandle = h; },
+        setLiveConfig: async (cfg: any) => { resetConfig = cfg; }
+    };
+
+    const mockScraper = {
+        parseDoc: (_doc: any, id: string) => ({
+            id,
+            title: 'Native Delete Test',
+            messages: [{ role: 'user', content: 'test' }],
+            timestamp: Date.now()
+        })
+    };
+
+    class DeadFsWriter {
+        constructor() {}
+        async init() {}
+        async writeFile() {
+            const err = new Error('A requested file or directory could not be found at the time an operation was processed.');
+            err.name = 'NotFoundError';
+            throw err;
+        }
+    }
+
+    LiveSaveCoordinator.init({
+        storageManager: mockStorage,
+        scraper: mockScraper,
+        fsWriterClass: DeadFsWriter,
+        badge: {
+            showLiveSaveWarning: (msg: string) => { warningCalledWith = msg; }
+        },
+        clientClass: null
+    });
+
+    const success = await LiveSaveCoordinator.executeLiveSave('c_dead_native_456', 'turn_complete');
+    assert.strictEqual(success, false);
+    assert.strictEqual(clearedHandle, null, 'Must clear dead handle from IDB');
+    assert.strictEqual(resetConfig?.enabledDisk, false);
+    assert.strictEqual(resetConfig?.dirError, 'not_found');
+    assert.ok(warningCalledWith !== null);
+    assert.ok(warningCalledWith!.includes('目标目录已删除') || warningCalledWith!.includes('Folder deleted'));
+});
+

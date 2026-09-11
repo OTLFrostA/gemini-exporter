@@ -32,7 +32,11 @@ export async function saveStoredDirHandle(handle: any): Promise<boolean> {
         const db = await openHandleDB();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(IDB_STORE, 'readwrite');
-            tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
+            if (handle === null || handle === undefined) {
+                tx.objectStore(IDB_STORE).delete(IDB_KEY);
+            } else {
+                tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
+            }
             tx.oncomplete = () => resolve(true);
             tx.onerror = () => reject(tx.error);
         });
@@ -61,10 +65,22 @@ export async function verifyDirPermission(handle: any): Promise<boolean> {
     if (!handle) return false;
     try {
         const opts = { mode: 'readwrite' };
-        if ((await handle.queryPermission(opts)) === 'granted') return true;
-        if ((await handle.requestPermission(opts)) === 'granted') return true;
-        return false;
-    } catch {
+        if ((await handle.queryPermission(opts)) !== 'granted') {
+            if ((await handle.requestPermission(opts)) !== 'granted') {
+                return false;
+            }
+        }
+        // Physical existence check:
+        // Even if permission was granted, if the directory was deleted from the disk,
+        // querying keys() will immediately throw a NotFoundError!
+        for await (const _ of handle.keys()) {
+            break;
+        }
+        return true;
+    } catch (e: any) {
+        if (e?.name === 'NotFoundError' || e?.message?.includes('not be found')) {
+            console.warn('[DirHandleController] Target directory was deleted from disk:', e);
+        }
         return false;
     }
 }
@@ -76,7 +92,9 @@ export async function restoreSavedDirHandle(): Promise<any> {
             const ok = await verifyDirPermission(handle);
             if (!ok) {
                 currentDirHandle = null;
-                console.warn('[DirHandle] restored handle lost permission, need re-select');
+                // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
+                await saveStoredDirHandle(null);
+                console.warn('[DirHandle] Restored handle invalid or deleted on disk, cleared from storage');
                 return null;
             }
             currentDirHandle = handle;

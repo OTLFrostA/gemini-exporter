@@ -406,6 +406,13 @@ export async function initLiveSaveSettings(): Promise<void> {
         }
         if (savedHandle && dirLabel) {
             dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', savedHandle.name || cfg.dirName || 'Folder') : `已选目录: ${savedHandle.name || cfg.dirName || 'Folder'}`;
+            if (dirLabel.style) dirLabel.style.color = '';
+        } else if (cfg.dirError === 'not_found' || (!savedHandle && cfg.dirName)) {
+            if (diskToggle) diskToggle.checked = false;
+            if (dirLabel) {
+                dirLabel.textContent = typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，请重新选择';
+                if (dirLabel.style) dirLabel.style.color = '#f59e0b';
+            }
         }
 
         if (statusTag && cfg.lastSavedAt) {
@@ -453,8 +460,9 @@ export async function initLiveSaveSettings(): Promise<void> {
                 if (handle) {
                     if (dirLabel) {
                         dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
+                        if (dirLabel.style) dirLabel.style.color = '';
                     }
-                    await liveStorage.setLiveConfig({ enabledDisk: true, dirName: handle.name });
+                    await liveStorage.setLiveConfig({ enabledDisk: true, dirName: handle.name, dirError: null });
                     log(typeof t === 'function' ? t('logFolderSelected', handle.name) : `已开启实时落盘: ${handle.name}`);
                 } else {
                     diskToggle.checked = false;
@@ -473,7 +481,14 @@ export async function initLiveSaveSettings(): Promise<void> {
         chrome.storage.onChanged.addListener((changes: any, area: string) => {
             if (area === 'local' && changes.live_save_config?.newValue) {
                 const val = changes.live_save_config.newValue;
-                if (val.lastSavedAt && val.lastSavedTitle) {
+                if (val.dirError === 'not_found') {
+                    if (diskToggle) diskToggle.checked = false;
+                    if (dirLabel) {
+                        dirLabel.textContent = typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，请重新选择';
+                        if (dirLabel.style) dirLabel.style.color = '#f59e0b';
+                    }
+                    log(typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，实时落盘已暂停', 'warn');
+                } else if (val.lastSavedAt && val.lastSavedTitle) {
                     const statusTagEl = $('liveSaveStatusTag');
                     if (statusTagEl) {
                         const timeStr = new Date(val.lastSavedAt).toLocaleTimeString();

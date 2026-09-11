@@ -146,6 +146,45 @@ async function getStoredExportDirHandle(): Promise<any> {
     }
 }
 
+async function clearStoredExportDirHandle(): Promise<void> {
+    if (typeof indexedDB === 'undefined') return;
+    try {
+        const req = indexedDB.open('gemini_exporter_idb', 1);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction('handles', 'readwrite');
+            const store = tx.objectStore('handles');
+            const delReq = store.delete('export_dir_handle');
+            delReq.onsuccess = () => resolve();
+            delReq.onerror = () => reject(delReq.error);
+        });
+    } catch (e) {
+        console.warn('[Background] Failed to clear stored export dir handle:', e);
+    }
+}
+
+async function markDirDeletedInConfig(): Promise<void> {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        try {
+            const data = await chrome.storage.local.get('live_save_config');
+            const cur = data?.live_save_config || {};
+            await chrome.storage.local.set({
+                live_save_config: {
+                    ...cur,
+                    enabledDisk: false,
+                    dirName: '',
+                    dirError: 'not_found'
+                }
+            });
+        } catch {
+            /* ignore */
+        }
+    }
+}
+
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
         chrome.runtime.openOptionsPage();
@@ -292,6 +331,19 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                     }
                 }
 
+                // Verify the directory physically exists on disk before proceeding
+                try {
+                    for await (const _ of handle.keys()) break;
+                } catch (probeErr: any) {
+                    if (probeErr?.name === 'NotFoundError' || probeErr?.message?.includes('not be found') || probeErr?.message?.includes('NotFoundError')) {
+                        console.warn('[Background] Target directory was deleted on disk:', probeErr);
+                        await clearStoredExportDirHandle();
+                        await markDirDeletedInConfig();
+                        sendResponse({ ok: false, error: 'dir_not_found', details: probeErr?.message });
+                        return;
+                    }
+                }
+
                 const FsWriterCls = (typeof FsWriter !== 'undefined' && FsWriter)
                     ? ((FsWriter as any).FsWriter || FsWriter)
                     : null;
@@ -327,7 +379,8 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                             live_save_config: {
                                 ...cur,
                                 lastSavedAt: now,
-                                lastSavedTitle: safeTitle
+                                lastSavedTitle: safeTitle,
+                                dirError: null
                             }
                         });
                     } catch {
@@ -352,6 +405,13 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                 sendResponse({ ok: true, handleName: handle.name, targetFile });
             } catch (err: any) {
                 console.warn('[Background] liveSaveViaHandle error:', err);
+                const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('could not be found') || err?.message?.includes('NotFoundError');
+                if (isNotFound) {
+                    await clearStoredExportDirHandle();
+                    await markDirDeletedInConfig();
+                    sendResponse({ ok: false, error: 'dir_not_found', details: err?.message });
+                    return;
+                }
                 sendResponse({ ok: false, error: err?.message || String(err) });
             }
         })();

@@ -156,8 +156,30 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
 
             if (dirHandle) {
                 // 1. Direct Disk Write via local FileSystem Access API
-                await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
-                writeSucceeded = true;
+                try {
+                    await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
+                    writeSucceeded = true;
+                } catch (err: any) {
+                    const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('not found') || err?.message?.includes('could not be found');
+                    if (isNotFound) {
+                        console.warn('[LiveSaveCoordinator] Native directory handle is dead (NotFoundError). Clearing handle.');
+                        try {
+                            const Storage = getStorage();
+                            await Storage.saveLiveDirHandle(null);
+                            await Storage.setLiveConfig({ enabledDisk: false, dirName: '', dirError: 'not_found' });
+                        } catch { /* best effort */ }
+                        const isZh = contentContext.isZh();
+                        const Badge = getBadge();
+                        const warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
+                        if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
+                            (Badge as any).showLiveSaveWarning(warnMsg, isZh);
+                        } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
+                            (Badge as any).showLiveSaveFeedback(warnMsg);
+                        }
+                        return false;
+                    }
+                    throw err;
+                }
             } else {
                 // 2. Delegate to extension options page holding the directory handle
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
@@ -184,14 +206,43 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             if (isDev()) {
                                 console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName})`);
                             }
+                        } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || (resp.error === 'no_dir_handle' && config.dirName))) {
+                            console.warn(`[LiveSaveCoordinator] Directory handle unavailable (${resp.error}). Aborting live save to avoid polluting Downloads.`);
+                            const isZh = contentContext.isZh();
+                            const Badge = getBadge();
+                            let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
+                            if (resp.error === 'permission_not_granted') {
+                                warnMsg = isZh ? '⚠ 目录未授权，实时同步已暂停' : '⚠ Folder permission denied, sync paused';
+                            } else if (resp.error === 'no_dir_handle') {
+                                warnMsg = isZh ? '⚠ 目录未就绪，实时同步已暂停' : '⚠ Folder not ready, sync paused';
+                            }
+                            if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
+                                (Badge as any).showLiveSaveWarning(warnMsg, isZh);
+                            } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
+                                (Badge as any).showLiveSaveFeedback(warnMsg);
+                            }
+                            return false;
                         }
                     } catch (e) {
                         if (isDev()) console.warn('[LiveSaveCoordinator] liveSaveViaHandle error:', e);
                     }
                 }
 
-                // 3. Fallback: If no handle was accessible (e.g. Options page closed), download markdown file
+                // 3. Fallback: Only for test environments where no specific folder was configured (config.dirName is empty)
                 if (!writeSucceeded) {
+                    if (config.dirName) {
+                        console.warn(`[LiveSaveCoordinator] Configured directory '${config.dirName}' is missing or inaccessible. Aborting live save to avoid polluting Downloads.`);
+                        const isZh = contentContext.isZh();
+                        const Badge = getBadge();
+                        const warnMsg = isZh ? '⚠ 目标目录无法访问，实时同步已暂停' : '⚠ Folder inaccessible, sync paused';
+                        if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
+                            (Badge as any).showLiveSaveWarning(warnMsg, isZh);
+                        } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
+                            (Badge as any).showLiveSaveFeedback(warnMsg);
+                        }
+                        return false;
+                    }
+
                     const Formatter = getFormatter();
                     const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
                     const cid8 = nid.slice(0, 8);
