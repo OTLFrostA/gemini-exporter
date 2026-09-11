@@ -50,8 +50,10 @@ import GeminiUtils, {
     type GeminiUtilsModule,
     sanitizeFileName as utilsSanitizeFileName,
     normId as utilsNormId,
-    sanitizeRelativePath
+    sanitizeRelativePath,
+    getErrorMessage
 } from "../../utils/utils.js";
+import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, { RateLimitManager, type RateLimitModule } from "./rateLimiter.js";
@@ -388,12 +390,15 @@ export const sanitizeZipPath = (p?: string | null): string => {
                             batchDirHandle = await dirHandle.getDirectoryHandle(exportFolderName, { create: true });
                         }
                     }
-                } catch (e: any) {
-                    onLog(`创建子文件夹失败: ${e.message}`, 'warn');
-                    if (e.name === 'NotAllowedError' || String(e.message).includes('permission')) {
+                } catch (e: unknown) {
+                    const errMsg = getErrorMessage(e);
+                    onLog(`创建子文件夹失败: ${errMsg}`, 'warn');
+                    const errObj = e as any;
+                    const isPermissionRevoked = errObj?.name === 'NotAllowedError' || /permission|not\s*allowed/i.test(errMsg);
+                    if (isPermissionRevoked) {
                         onLog('目录句柄权限失效，请重新授权文件夹', 'warn');
                     }
-                    throw new Error(`无法创建导出子目录 "${exportFolderName}": ${e.message}`);
+                    throw new ExportPipelineError(`无法创建导出子目录 "${exportFolderName}": ${errMsg}`, undefined, 'write', isPermissionRevoked);
                 }
             }
 
@@ -417,9 +422,11 @@ export const sanitizeZipPath = (p?: string | null): string => {
                     await wr.write(data);
                     await wr.close();
                     return true;
-                } catch (e: any) {
-                    const isPermissionRevoked = e?.name === 'NotAllowedError'
-                        || /permission|not\s*allowed/i.test(String(e?.message || ''));
+                } catch (e: unknown) {
+                    const errMsg = getErrorMessage(e);
+                    const errObj = e as any;
+                    const isPermissionRevoked = errObj?.name === 'NotAllowedError'
+                        || /permission|not\s*allowed/i.test(errMsg);
                     if (isPermissionRevoked) {
                         const I18n = (globalThis as any).I18n;
                         const permMsg = typeof I18n !== 'undefined'
@@ -429,7 +436,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                         this.abort();
                         return false;
                     }
-                    onLog(`保存文件失败 (${localName}): ${e.message}`, 'error');
+                    onLog(`保存文件失败 (${localName}): ${errMsg}`, 'error');
                     return false;
                 }
             };

@@ -10,3 +10,4 @@ export * from './entrypoints.js';
 export * from './ui.js';
 export * from './wire.js';
 export * from './liveSave.js';
+export * from './errors.js';
