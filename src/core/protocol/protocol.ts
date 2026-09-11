@@ -33,10 +33,23 @@ export interface ProtocolLimits {
     SERVER_LIMIT_TEXT: string;
 }
 
+export const CrossWorldEvents = {
+    CREDENTIALS: 'GEMINI_CREDENTIALS',
+    CONVERSATION_DELETED: 'GEMINI_CONVERSATION_DELETED',
+    NETWORK_BATCHEXECUTE: 'GEMINI_NETWORK_BATCHEXECUTE',
+    STREAM_START: 'GEMINI_STREAM_GENERATE_START',
+    STREAM_COMPLETE: 'GEMINI_STREAM_GENERATE_COMPLETE',
+    LIVE_SAVE_TRIGGER: 'GEMINI_LIVE_SAVE_TRIGGER'
+} as const;
+
+export const EVENTS = CrossWorldEvents;
+export type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
+
 export interface GeminiProtocolModule {
     PROTOCOL_VERSION: string;
     WRB: string;
     RPCS: ProtocolRPCS;
+    EVENTS: typeof CrossWorldEvents;
     TOKENS: ProtocolTokens;
     TOKEN_PATTERNS: ProtocolTokenPatterns;
     DELETION_ANCHORS: RegExp[];
@@ -117,6 +130,7 @@ export const GeminiProtocol: GeminiProtocolModule = {
     PROTOCOL_VERSION,
     WRB,
     RPCS,
+    EVENTS: CrossWorldEvents,
     TOKENS,
     TOKEN_PATTERNS,
     DELETION_ANCHORS,
@@ -126,6 +140,7 @@ export const GeminiProtocol: GeminiProtocolModule = {
 };
 
 (GeminiProtocol as any).GeminiProtocol = GeminiProtocol;
+(GeminiProtocol as any).CrossWorldEvents = CrossWorldEvents;
 (GeminiProtocol as any).default = GeminiProtocol;
 
 if (typeof globalThis !== 'undefined') {

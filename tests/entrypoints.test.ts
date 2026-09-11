@@ -171,7 +171,7 @@ test('Background - liveSaveViaHandle native handle persistence and non-intercept
     const bgCode = fs.readFileSync(bgTsPath, 'utf8');
 
     assert.ok(bgCode.includes("msg.action === 'liveSaveViaHandle'"), 'background must handle liveSaveViaHandle action');
-    assert.ok(bgCode.includes('getStoredExportDirHandle'), 'background must read export directory handle from IndexedDB');
+    assert.ok(bgCode.includes('getStoredDirHandle') || bgCode.includes('getStoredExportDirHandle'), 'background must read export directory handle from IndexedDB');
     assert.ok(bgCode.includes('FsWriter'), 'background must persist files via FsWriter');
     assert.ok(!bgCode.includes('unknown action: ${msg.action}'), 'background must not reject unknown actions synchronously');
 });

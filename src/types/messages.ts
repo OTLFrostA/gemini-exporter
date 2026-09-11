@@ -20,7 +20,8 @@ export type MessageAction =
     | 'ping'
     | 'openGeminiPage'
     | 'reloadGeminiTab'
-    | 'startExport';
+    | 'startExport'
+    | 'liveSaveViaHandle';
 
 export interface BaseMessage {
     action: MessageAction;
@@ -84,3 +85,18 @@ export interface ExportProgressMessage extends BaseMessage {
     assetsDownloaded?: number;
     assetsTotal?: number;
 }
+
+export interface LiveSaveViaHandlePayload {
+    chat: any;
+    safeTitle: string;
+    nid: string;
+    config?: any;
+    fileName?: string;
+}
+
+export interface LiveSaveViaHandleMessage extends BaseMessage {
+    action: 'liveSaveViaHandle';
+    payload: LiveSaveViaHandlePayload;
+    accountSlot?: string;
+}
+

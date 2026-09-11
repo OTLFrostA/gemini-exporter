@@ -3,8 +3,10 @@
  * Type definitions for extension entry points (Background Service Worker & Popup Controller).
  */
 
+import type { MessageAction } from './messages.js';
+
 export interface BackgroundMessage {
-    action: string;
+    action: MessageAction | string;
     id?: string;
     conversationId?: string;
     accountSlot?: string;
