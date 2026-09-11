@@ -335,6 +335,20 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                     }
                 }
 
+                // Mark conversation as exported in exportedIds SSoT
+                try {
+                    const slot = (msg.accountSlot || 'u0');
+                    if (typeof StorageService !== 'undefined' && StorageService?.saveExportRecord) {
+                        await StorageService.saveExportRecord(slot, nid, {
+                            exportedAt: new Date(now).toISOString(),
+                            title: safeTitle,
+                            format: 'markdown'
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[Background] Failed to mark conversation as exported:', e);
+                }
+
                 sendResponse({ ok: true, handleName: handle.name, targetFile });
             } catch (err: any) {
                 console.warn('[Background] liveSaveViaHandle error:', err);

@@ -106,7 +106,7 @@ function scheduleDebouncedTurnComplete(cid: string, delayMs: number): void {
         contentContext.clearTimer('liveSaveDebounce');
         // Final sanity check: if still generating, postpone
         if (checkIsGeneratingDOM()) {
-            scheduleDebouncedTurnComplete(cid, 2000);
+            scheduleDebouncedTurnComplete(cid, 500);
             return;
         }
         __isGenerating = false;
@@ -133,7 +133,7 @@ function handleDOMChange(): void {
         }
     } else if (__isGenerating) {
         // Transition: GENERATING -> IDLE
-        const delay = __options.debounceMs || 3000;
+        const delay = __options.debounceMs || 300;
         scheduleDebouncedTurnComplete(cid, delay);
     }
 }
