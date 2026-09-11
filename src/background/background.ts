@@ -7,6 +7,8 @@ import { GeminiUtils } from '../core/utils/utils.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
+import { FsWriter } from '../core/engine/writers/fsWriter.js';
+import { ChatFormatter } from '../core/engine/chatFormatter.js';
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
 try {
@@ -117,6 +119,32 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 initUninstallUrl();
+
+async function getStoredExportDirHandle(): Promise<any> {
+    if (typeof indexedDB === 'undefined') return null;
+    try {
+        const req = indexedDB.open('gemini_exporter_idb', 1);
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+            req.onupgradeneeded = () => {
+                const d = req.result;
+                if (!d.objectStoreNames.contains('handles')) {
+                    d.createObjectStore('handles');
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('handles', 'readonly');
+            const store = tx.objectStore('handles');
+            const getReq = store.get('export_dir_handle');
+            getReq.onsuccess = () => resolve(getReq.result || null);
+            getReq.onerror = () => reject(getReq.error);
+        });
+    } catch {
+        return null;
+    }
+}
 
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
@@ -246,7 +274,77 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         }
     }
 
-    try { sendResponse({ ok: false, error: `unknown action: ${msg.action}` }); } catch {}
+    if (msg.action === 'liveSaveViaHandle' && msg.payload) {
+        (async () => {
+            try {
+                const { chat, safeTitle, nid, config, fileName } = msg.payload;
+                const handle = await getStoredExportDirHandle();
+                if (!handle) {
+                    sendResponse({ ok: false, error: 'no_dir_handle' });
+                    return;
+                }
+
+                if (handle.queryPermission) {
+                    const perm = await handle.queryPermission({ mode: 'readwrite' });
+                    if (perm !== 'granted') {
+                        sendResponse({ ok: false, error: 'permission_not_granted' });
+                        return;
+                    }
+                }
+
+                const FsWriterCls = (typeof FsWriter !== 'undefined' && FsWriter)
+                    ? ((FsWriter as any).FsWriter || FsWriter)
+                    : null;
+                if (!FsWriterCls) {
+                    sendResponse({ ok: false, error: 'no_fswriter' });
+                    return;
+                }
+
+                const writer = new FsWriterCls(handle, handle.name || 'gemini_export');
+                await writer.init();
+
+                const sanitizedTitle = GeminiUtils?.sanitizeFileName
+                    ? GeminiUtils.sanitizeFileName(safeTitle)
+                    : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
+                const cid8 = String(nid || '').replace(/^c_/, '').slice(0, 8);
+                const targetFile = fileName || `${sanitizedTitle}_${cid8}.md`;
+
+                const FormatterCls = (typeof ChatFormatter !== 'undefined' && ChatFormatter)
+                    ? ChatFormatter
+                    : null;
+                const markdown = FormatterCls?.toMarkdown
+                    ? FormatterCls.toMarkdown({ ...chat, title: safeTitle, id: nid })
+                    : `# ${safeTitle}\n\n${JSON.stringify(chat?.messages || [], null, 2)}`;
+
+                await writer.writeFile('', targetFile, markdown);
+
+                const now = Date.now();
+                if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                    try {
+                        const data = await chrome.storage.local.get('live_save_config');
+                        const cur = data?.live_save_config || {};
+                        await chrome.storage.local.set({
+                            live_save_config: {
+                                ...cur,
+                                lastSavedAt: now,
+                                lastSavedTitle: safeTitle
+                            }
+                        });
+                    } catch {
+                        /* best-effort storage update */
+                    }
+                }
+
+                sendResponse({ ok: true, handleName: handle.name, targetFile });
+            } catch (err: any) {
+                console.warn('[Background] liveSaveViaHandle error:', err);
+                sendResponse({ ok: false, error: err?.message || String(err) });
+            }
+        })();
+        return true;
+    }
+
+    return false;
 });
 
 function toMs(v: any): number {

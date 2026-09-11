@@ -468,67 +468,19 @@ export async function initLiveSaveSettings(): Promise<void> {
         });
     }
 
-    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage && !(globalThis as any).__liveSaveViaHandleBound) {
-        (globalThis as any).__liveSaveViaHandleBound = true;
-        chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: (resp: any) => void) => {
-            if (msg.action === 'liveSaveViaHandle' && msg.payload) {
-                (async () => {
-                    try {
-                        const { chat, safeTitle, nid, fileName } = msg.payload;
-                        let handle = DirHandle ? DirHandle.getDirHandle() : null;
-                        if (!handle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
-                            handle = await DirHandle.restoreSavedDirHandle();
-                        }
-                        if (!handle && DirHandle && typeof DirHandle.getStoredDirHandle === 'function') {
-                            handle = await DirHandle.getStoredDirHandle();
-                        }
-                        if (!handle) {
-                            sendResponse({ ok: false, error: 'no_dir_handle' });
-                            return;
-                        }
-
-                        const FsWriterCls = getFsWriter();
-                        const FormatterCls = getChatFormatter();
-                        const Utils = getUtils();
-
-                        if (!FsWriterCls) {
-                            sendResponse({ ok: false, error: 'no_fswriter' });
-                            return;
-                        }
-
-                        const writer = new FsWriterCls(handle, handle.name || 'gemini_export');
-                        await writer.init();
-
-                        const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-                        const cid8 = String(nid || '').replace(/^c_/, '').slice(0, 8);
-                        const targetFile = fileName || `${sanitizedTitle}_${cid8}.md`;
-
-                        const markdown = FormatterCls?.toMarkdown
-                            ? FormatterCls.toMarkdown({ ...chat, title: safeTitle, id: nid })
-                            : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
-
-                        await writer.writeFile('', targetFile, markdown);
-
-                        const now = Date.now();
-                        await liveStorage.setLiveConfig({
-                            lastSavedAt: now,
-                            lastSavedTitle: safeTitle
-                        });
-
-                        const statusTagEl = $('liveSaveStatusTag');
-                        if (statusTagEl) {
-                            const timeStr = new Date(now).toLocaleTimeString();
-                            statusTagEl.textContent = `${t('liveSaveActive')} (${timeStr})`;
-                        }
-
-                        log(`[实时落盘] 自动保存成功: ${safeTitle} -> ${handle.name}`);
-                        sendResponse({ ok: true, handleName: handle.name });
-                    } catch (e: any) {
-                        console.warn('[OptionsSettings] liveSaveViaHandle error:', e);
-                        sendResponse({ ok: false, error: e?.message });
+    if (typeof chrome !== 'undefined' && chrome.storage?.onChanged && !(globalThis as any).__liveSaveStorageWatcherBound) {
+        (globalThis as any).__liveSaveStorageWatcherBound = true;
+        chrome.storage.onChanged.addListener((changes: any, area: string) => {
+            if (area === 'local' && changes.live_save_config?.newValue) {
+                const val = changes.live_save_config.newValue;
+                if (val.lastSavedAt && val.lastSavedTitle) {
+                    const statusTagEl = $('liveSaveStatusTag');
+                    if (statusTagEl) {
+                        const timeStr = new Date(val.lastSavedAt).toLocaleTimeString();
+                        statusTagEl.textContent = `${t('liveSaveActive')} (${timeStr})`;
                     }
-                })();
-                return true;
+                    log(`[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
+                }
             }
         });
     }
