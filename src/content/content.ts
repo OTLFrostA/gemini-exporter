@@ -224,7 +224,7 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
         });
 
         LiveSaveObserver.init({
-            debounceMs: 3000,
+            debounceMs: 300,
             onTurnComplete: (cid, reason) => {
                 LiveSaveCoordinator.executeLiveSave(cid, reason);
             }

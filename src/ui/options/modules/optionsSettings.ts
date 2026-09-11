@@ -482,6 +482,11 @@ export async function initLiveSaveSettings(): Promise<void> {
                     log(`[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
                 }
             }
+            if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {
+                if (typeof (window as any).__workbenchLoadStore === 'function') {
+                    (window as any).__workbenchLoadStore();
+                }
+            }
         });
     }
 }
