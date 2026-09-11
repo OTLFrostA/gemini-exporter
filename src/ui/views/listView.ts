@@ -164,10 +164,12 @@ export function render(
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
         const isUpdated = checkIsUpdated(c, rec);
         let isChecked = false;
-        if (prevSelectedSet instanceof Set) {
+        if (isUpdated) {
+            isChecked = true;
+        } else if (prevSelectedSet instanceof Set) {
             isChecked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         } else {
-            isChecked = !rec || isUpdated;
+            isChecked = !rec;
         }
 
         const resolved = resolveTitle(c);

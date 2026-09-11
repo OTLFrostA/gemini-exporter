@@ -303,5 +303,184 @@
     ],
     "consumed_at": "2026-09-11T13:08:15.951702",
     "consumed_by": "test_visual_agent.py"
+  },
+  {
+    "id": "paleontology_fossil_ct_reconstruction",
+    "domain": "paleontology_digital_reconstruction",
+    "title": "寒武纪澄江生物群古生物化石 3D 重建与演化辐射",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在古生代寒武纪早期透彻的浅海中，奇虾 (Anomalocaris) 伸展扇状桨叶与前附肢捕食三叶虫的特写生态复原图。水下光斑粼粼，微小浮游生物散射丁达尔光，科学复原级写实风格。",
+      "请结合澄江生物群 (Chengjiang Biota) 的化石软躯体保存特异性，解析寒武纪生命大爆发中的节肢动物头部附肢同源演化争议。",
+      "请再帮我生成一张图片：现代高精度同步辐射微计算机断层扫描 (Synchrotron micro-CT) 实验室中，古生物学家屏幕上呈现出透明发光的奇虾脑神经节与复眼三维体渲染模型的全息透视图。",
+      "从流体力学角度，建立一个简化的二元流体阻力模型，估算奇虾身体侧叶波浪状摆动时在低雷诺数/中等雷诺数流场中的推进效率与游动速度范围。",
+      "使用 Markdown 表格横向对比寒武纪奇虾、奥陶纪板足鲎与现代栉水母在捕食机制、感觉系统及生态位级上的演化异同。"
+    ],
+    "consumed_at": "2026-09-11T16:21:04.940418",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "ebpf_xdp_packet_filter",
+    "title": "Linux 内核 eBPF/XDP 高性能网络旁路与包过滤",
+    "domain": "systems_networking",
+    "features": [
+      "code",
+      "kernel",
+      "benchmarks"
+    ],
+    "description": "测试 C 语言内核 eBPF 代码、XDP 动作驱动与硬件卸载性能分析",
+    "turns": [
+      "请详细阐述 Linux 网络协议栈中 XDP (eXpress Data Path) 的执行点，以及其与传统 TC (Traffic Control) 和 netfilter 在数据包进入 sk_buff 前后的性能分水岭。",
+      "编写一段完整的 C 语言 eBPF/XDP 程序代码，能够解析 Ethernet/IPv4/UDP 头部，对特定端口的目标流量进行高速丢弃 (XDP_DROP)，其余流量正常放行 (XDP_PASS)。",
+      "展示如何使用 bpf_map_lookup_elem 借助 BPF_MAP_TYPE_HASH 存储黑名单 IP，并说明验证器 (Verifier) 对指针越界检查的要求。",
+      "使用 Markdown 表格对比通用模式 (Generic XDP)、原生驱动模式 (Native XDP) 以及硬件网卡卸载模式 (Offloaded XDP) 在吞吐量与驱动兼容性上的差异。",
+      "分析内核 eBPF 尾调用 (Tail Call) 与 BPF 到 BPF 函数调用的栈空间限制及性能开销。"
+    ],
+    "consumed_at": "2026-09-11T16:21:04.941350",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "multilingual_poetry_translation",
+    "title": "跨语际多语言诗歌意象重构与音律转译",
+    "domain": "linguistics_and_translation",
+    "features": [
+      "multilingual",
+      "poetry",
+      "cjk_western"
+    ],
+    "description": "测试 CJK 汉字、西文音律、阿拉伯语/波斯语排版及特殊标点兼容性",
+    "turns": [
+      "请选取中国唐代李白《静夜思》与杜甫《登高》，分析其平仄律绝在字形声调上的空间对仗美感。",
+      "请将《登高》中的‘无边落木萧萧下，不尽长江滚滚来’转译为三个不同维度的版本：(1) 押韵的抑扬格五音步英文诗；(2) 带有存在主义哲思的现代法语散文诗；(3) 典雅的德语长句。",
+      "请用波斯语 (Farsi) 或阿拉伯语写一段赞美夜空与星辰的短诗，附带国际音标 (IPA) 标注与逐字直译对照。",
+      "使用表格对比机器翻译在处理‘多义双关语 (Pun)’与‘文化负载词 (Culture-bound terms)’时的经典偏误案例与现代大模型上下文对齐解决方案。",
+      "探讨自然语言中‘不可翻译性 (Untranslatability)’在维特根斯坦语言游戏哲学框架下的理论边界。"
+    ],
+    "consumed_at": "2026-09-11T16:24:52.439003",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "biomimetic_airship_expedition",
+    "domain": "biomimetic_steampunk_aeronautics",
+    "title": "仿生飞艇极地气象科考与平流层浮空观测",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "turns": [
+      "请帮我生成一张图片：一艘受座头鲸流线型启发的巨型仿生半硬式气态飞艇，正在南极极夜极光绚烂的天空下穿行。飞艇两侧带有半透明太阳能薄膜鳍翼，吊舱透出温暖金黄色灯火，背景是壮阔的冰架裂隙与绿色极光幕，电影宽银幕质感。",
+      "结合低雷诺数与平流层低温低压环境，分析这种仿生座头鲸鳍翼结节 (Tubercle) 结构在抑制气流分离与延缓失速方面的气动弹性机制。",
+      "请再帮我生成一张图片：飞艇内部的加压全景科研观测舱，科学家们正围绕着散发微光的球形三维极地极涡全息沙盘记录大气重力波数据，冷色调高科技科考氛围。",
+      "设计一套用于监测极地中层顶大气重力波的激光雷达 (LIDAR) 探测载荷工作时序与多波长反演数据流程。",
+      "使用 Markdown 表格对比平流层长航时飞艇、极轨气象卫星与高空长航时无人机 (HALE UAV) 在极地气象长期连续观测中的空间分辨率、重访周期与运营成本劣势与优势。"
+    ],
+    "consumed_at": "2026-09-11T16:28:07.362122",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "spiking_neural_networks_lif",
+    "title": "类脑计算：脉冲神经网络 (SNN) 与 LIF 动力学神经元",
+    "domain": "neuroscience_ai",
+    "features": [
+      "math",
+      "differential_equations",
+      "code"
+    ],
+    "description": "测试微分方程连续时间推导、代理梯度算法与 PyTorch 类脑实现",
+    "turns": [
+      "请给出漏电积分放电 (Leaky Integrate-and-Fire, LIF) 神经元膜电位变化的连续时间常微分方程，并推导在恒定输入电流下的稳态发放频率公式。",
+      "由于生物脉冲阶跃函数 (Heaviside step function) 在阈值处不可导，解释代理梯度 (Surrogate Gradient) 方法如何打破反向传播 (Backpropagation) 训练 SNN 的数学僵局。",
+      "使用 Python + PyTorch 实现一个带有自适应阈值 (Adaptive Threshold) 的单层 LIF 循环神经元模块，包含向前传播与突触电导重置逻辑。",
+      "对比传统人工神经网络 (ANN) 中的乘加累积 (MAC) 操作与类脑 SNN 中仅基于事件驱动的稀疏加法 (AC) 操作在能耗 (Joule/Op) 上的数量级优势。",
+      "综述当前主流类脑神经形态芯片（如 Intel Loihi 2 与清华天机芯）在片上学习与异步路由架构上的设计特色。"
+    ],
+    "consumed_at": "2026-09-11T16:28:07.363196",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "gravitational_waves_kerr_blackhole",
+    "title": "广义相对论：克尔旋转黑洞引力波啁啾与准正规模",
+    "domain": "astrophysics_relativity",
+    "features": [
+      "latex",
+      "tensors",
+      "physics"
+    ],
+    "description": "测试张量微积分符号、四维时空线元与引力波天文学物理推导",
+    "turns": [
+      "请在 Boyer-Lindquist 坐标下写出描述旋转带自旋黑洞的克尔度规 (Kerr Metric) 线元表达式，并明确定义其中的 Δ 与 Σ 参数。",
+      "推导克尔黑洞能层 (Ergosphere) 的外边界表面方程，并详述通过彭罗斯过程 (Penrose Process) 从黑洞自旋能中提取能量的理论上限效率 (29%)。",
+      "写出双黑洞合并旋近 (Inspiral) 阶段引力波频率随时间演化的‘啁啾 (Chirp)’质量公式：\\mathcal{M} = (m_1 m_2)^{3/5} / (m_1 + m_2)^{1/5}，并解释如何通过引力波应变反推光度距离。",
+      "用 Markdown 表格对比 LIGO、Virgo 与未来空间引力波天文台 LISA 在目标探测频段 (Hz)、臂长以及主要波源（恒星级双黑洞 vs 超大质量黑洞并合）上的核心参数。",
+      "阐述黑洞合并后形成的单一扭曲黑洞在铃落 (Ringdown) 阶段发射的准正规模 (Quasi-normal modes, QNMs) 是如何检验‘无毛定理 (No-hair theorem)’的。"
+    ],
+    "consumed_at": "2026-09-11T16:32:13.557647",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "exoplanet_subsurface_ocean_probe",
+    "title": "系外冰卫星冰下海洋生命探测机器人与热液喷口生化推演",
+    "domain": "astrobiology_planetary_science",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "tables"
+    ],
+    "description": "测试木卫二/土卫二冰下深渊核动力熔冰探测生图 (Imagen)、深海化学渗透假说推演与天体生物学对比表格",
+    "turns": [
+      "请帮我生成一张图片：在木卫二（Europa）厚达数十公里的冰层深处，一台圆柱形发光核动力融冰探测器刚刚穿透冰盖，进入黑暗幽深的冰下海洋。探测器头部探照灯打亮前方一座散发着黑色矿物烟雾与红外热辐射的海底热液喷口，超清 8k 写实太空科考光影。",
+      "请为该冰下海洋探测器设计一套自主导航与声学通信浮标阵列方案，使用 Markdown 列表条理清晰地阐述其在强辐射与无 GPS 极端环境下的定位机制。",
+      "请再帮我生成一张图片：在探测器的高倍共聚焦显微成像室内，机械臂采集到的热液喷口沉积物样本中，正清晰显示出一种具有螺旋硅质骨架、散发微弱化学荧光的奇异外星极端微生物菌落显微特写。",
+      "请设计一个 Markdown 表格，对比木卫二（Europa）、土卫二（Enceladus）与土卫六（Titan）在冰下海洋水化学特征（盐度、pH 值、氧化还原电位、主要溶解气体与可能能量来源）上的异同。",
+      "基于化学渗透偶联假说（Chemiosmotic Coupling），详细推导非光合作用生命在富含甲烷与硫化氢的碱性热液喷口微孔道中起源的热力学自由能变化与质子动力势（Proton Motive Force）形成机制。"
+    ],
+    "consumed_at": "2026-09-11T16:34:31.360372",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "bplus_tree_vs_lsm_tree",
+    "title": "数据库底层存储引擎：B+树分裂与 LSM-Tree 空间写放大推导",
+    "domain": "database_internals",
+    "features": [
+      "math",
+      "tables",
+      "storage_engine"
+    ],
+    "description": "测试磁盘 I/O 复杂度推导、内存 Compaction 机制与存储引擎对比",
+    "turns": [
+      "请从磁盘寻道时间、旋转延迟与顺序 I/O 吞吐角度，深刻论证传统关系型数据库（如 InnoDB）采用 B+ 树而非普通平衡二叉树的根本原因。",
+      "详细推导 LSM-Tree (Log-Structured Merge-tree) 在 Leveled Compaction 与 Size-Tiered Compaction 模式下的写放大 (Write Amplification, WA) 与空间放大 (Space Amplification, SA) 理论公式。",
+      "使用结构化 Markdown 表格，从点查延迟 (Point Lookup)、范围扫描 (Range Scan)、高频随机写入吞吐、内存开销四个维度全方位对比 RocksDB (LSM) 与 SQLite/PostgreSQL (B+ Tree)。",
+      "解释布隆过滤器 (Bloom Filter) 在 LSM-Tree 读路径中如何通过位数组与双重哈希避免不必要的 SSTable 磁盘 I/O，并给出最优哈希函数个数与误判率的数学关系式。",
+      "在现代 NVMe SSD 高并发并行通道 (Channel/Die) 硬件架构下，分析 ZNS (Zoned Namespaces) 固态硬盘如何重构 LSM-Tree 的垃圾回收机制。"
+    ],
+    "consumed_at": "2026-09-11T16:34:31.361143",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "audio_chroma_pitch_dsp",
+    "title": "音频信号处理：离散傅里叶变换与色度特征 (Chroma) 提取",
+    "domain": "audio_dsp",
+    "features": [
+      "math",
+      "signal_processing",
+      "python"
+    ],
+    "description": "测试时域频域傅里叶变换公式、音频窗函数与音乐信息检索算法",
+    "turns": [
+      "写出短时傅里叶变换 (STFT) 的数学积分定义，并从海森堡测不准原理角度阐述时间分辨率与频率分辨率之间的不可兼得关系。",
+      "解释音乐信息检索 (MIR) 中 12 半音色度向量 (Chroma Feature / Pitch Class Profile) 的物理与听觉意义，如何消除八度音高 (Octave) 对和弦识别的干扰？",
+      "使用 Python (借助 NumPy) 编写一个从音频功率谱矩阵中映射加权生成 12 维 Chroma 特征矩阵的核心函数代码。",
+      "使用 Markdown 表格横向对比梅尔倒谱系数 (MFCC)、恒定 Q 变换 (CQT) 以及 Chroma 特征在语音识别、和弦识别与旋律检索三种应用场景中的适用性与优劣。",
+      "简述动态时间规整 (Dynamic Time Warping, DTW) 算法如何利用色度距离矩阵实现两首演奏速度不同的同名交响乐乐段的精准时间对齐。"
+    ],
+    "consumed_at": "2026-09-11T16:38:40.787703",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

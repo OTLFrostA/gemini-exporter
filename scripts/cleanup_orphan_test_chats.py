@@ -37,11 +37,6 @@ def cleanup_orphan_chats(port=9222):
 
     cdp = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
     try:
-        try:
-            cdp.call("Page.bringToFront")
-        except Exception:
-            pass
-
         print("🔍 正在扫描 Gemini 侧边栏中的测试残留会话...")
         deleted_count = 0
 

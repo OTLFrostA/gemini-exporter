@@ -102,12 +102,20 @@ class ZipExportDownloadCase(FeatureTestCase):
             name="手动勾选 ZIP 导出与落盘",
             description="点击【导出选中 -> ZIP】主按钮，进度条视觉反馈，下载落盘并校验文件非空",
             critical=True,
-            prerequisites=[]
+            prerequisites=[
+                "feat_chat_generation",
+                "feat_search_clear_restore",
+                "feat_authoritative_title_upgrade"
+            ]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
+            # 确保搜索框已彻底清空并恢复全量工作台项目
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.5)
+
             target_ids = []
             target_titles = []
             target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
@@ -118,6 +126,11 @@ class ZipExportDownloadCase(FeatureTestCase):
 
             check_res = cdp_opt.eval(f"""
             (() => {{
+                const searchInput = document.getElementById('search');
+                if (searchInput && searchInput.value) {{
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
                 const selectNone = document.getElementById('btnSelectNone');
                 if (selectNone) selectNone.click();
                 const targetIds = {json.dumps(target_ids)};

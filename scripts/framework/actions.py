@@ -251,11 +251,6 @@ class CDPActions:
         如果 target_thinking=True，严格检查菜单中是否存在 Extended thinking (深度思考) 选项。
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
-        try:
-            cdp.call("Page.bringToFront")
-        except Exception:
-            pass
-
         for pass_idx in range(3):
             status = cdp.eval("""
             (() => {
@@ -442,12 +437,6 @@ class CDPActions:
         is_image_gen = any(kw in prompt_text for kw in ["生成图片", "生成一张图片", "画一张", "generate an image", "create an image"])
         if is_image_gen:
             max_wait = max(max_wait, 240)
-
-        # 0. 确保标签页处于前台激活状态
-        try:
-            cdp.call("Page.bringToFront")
-        except Exception:
-            pass
 
         # 0.5. 模式硬门禁：强制确保为 3.8 Flash + Extended thinking (不存在则抛致命异常中止测试)
         CDPActions.ensure_model_and_thinking(cdp, target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
