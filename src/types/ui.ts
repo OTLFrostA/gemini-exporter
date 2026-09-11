@@ -56,6 +56,7 @@ export interface IListView {
     setOnDelete: (cb: (chatId: string) => void) => void;
     updateItemExportStatus: (chatId: string, exportRecord?: ExportRecord | null) => void;
     selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
+    checkIsUpdated?: (c: any, rec: ExportRecord | null | undefined) => boolean;
 }
 
 export interface IAccountView {

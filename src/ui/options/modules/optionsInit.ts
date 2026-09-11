@@ -194,7 +194,7 @@ export async function loadStore(force: boolean = false): Promise<any> {
 
         let prevSelected: Set<string> | null = null;
         try {
-            if (List && Store.getConversations().length > 0) {
+            if (!force && List && Store.getConversations().length > 0) {
                 prevSelected = List.getSelectedIds();
             }
         } catch {

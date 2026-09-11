@@ -48,6 +48,33 @@ export const getEffectiveTimestamp = (chat?: any): number => {
     return utilsGetEffectiveTimestamp(chat);
 };
 
+export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
+    if (!c || !rec) return false;
+    try {
+        const cTs = getEffectiveTimestamp(c) || (c.updatedAt ? new Date(c.updatedAt).getTime() : 0) || (c.timestamp ? new Date(c.timestamp).getTime() : 0);
+        const rTs = rec.exportedAt ? (typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : Number(rec.exportedAt)) : 0;
+        const rChatTime = (rec as any).chatTime ? (typeof (rec as any).chatTime === 'string' ? new Date((rec as any).chatTime).getTime() : Number((rec as any).chatTime)) : 0;
+
+        // Check message count increase if both records have message counts
+        const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
+        const recMsgCount = (rec as any).messageCount || 0;
+        if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
+            return true;
+        }
+
+        // Timestamp check with a 2000ms grace buffer for clock skew / write latency
+        if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
+            return true;
+        }
+        if (cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
+            return true;
+        }
+    } catch {
+        /* intentional */
+    }
+    return false;
+}
+
 function escapeHtml(str?: string | null): string {
     if (!str) return '';
     return String(str)
@@ -135,11 +162,12 @@ export function render(
         const origIdx = idxMap.get(c as object) ?? -1;
         const nid = String(c.id || '').replace(/^c_/, '');
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+        const isUpdated = checkIsUpdated(c, rec);
         let isChecked = false;
         if (prevSelectedSet instanceof Set) {
             isChecked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         } else {
-            isChecked = !rec;
+            isChecked = !rec || isUpdated;
         }
 
         const resolved = resolveTitle(c);
@@ -170,8 +198,13 @@ export function render(
                     }
                 } catch { /* intentional */ }
             }
-            const badgeLabel = typeof t === 'function' ? t('badgeExported') : 'Exported';
-            badgeHtml = `<span class="badge" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:8px; border:1px solid rgba(16,185,129,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
+            if (isUpdated) {
+                const badgeLabel = (typeof t === 'function' && (t('badgeUpdated') || t('badgeNeedsReexport'))) || 'Updated';
+                badgeHtml = `<span class="badge badge-updated" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(245,158,11,0.15); color:#f59e0b; margin-left:8px; border:1px solid rgba(245,158,11,0.35);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
+            } else {
+                const badgeLabel = typeof t === 'function' ? t('badgeExported') : 'Exported';
+                badgeHtml = `<span class="badge badge-exported" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:8px; border:1px solid rgba(16,185,129,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
+            }
         }
 
         const url = (c as any).url || `https://gemini.google.com/app/${c.id}`;
@@ -211,18 +244,19 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
 
     let badge = item.querySelector ? item.querySelector('.badge') as HTMLElement | null : null;
     if (badge) {
+        badge.className = 'badge badge-exported';
         badge.textContent = badgeText;
         if ((badge as HTMLElement).style) {
-            (badge as HTMLElement).style.background = '#1d3a2a';
-            (badge as HTMLElement).style.borderColor = '#2a5a3a';
-            (badge as HTMLElement).style.color = '#8ae6b0';
+            (badge as HTMLElement).style.background = 'rgba(16,185,129,0.15)';
+            (badge as HTMLElement).style.borderColor = 'rgba(16,185,129,0.3)';
+            (badge as HTMLElement).style.color = '#10b981';
         }
     } else {
         const titleContainer = item.querySelector ? item.querySelector('div') : null;
         if (titleContainer && document.createElement) {
             const span = document.createElement('span');
-            span.className = 'badge';
-            span.style.cssText = 'font-size:10px; padding:2px 6px; border-radius:4px; background:#1d3a2a; color:#8ae6b0; margin-left:8px; border:1px solid #2a5a3a;';
+            span.className = 'badge badge-exported';
+            span.style.cssText = 'font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:8px; border:1px solid rgba(16,185,129,0.3);';
             span.textContent = badgeText;
             titleContainer.appendChild(span);
         }
@@ -320,15 +354,7 @@ export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: 
         }
         const nid = String(c.id || '').replace(/^c_/, '');
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
-        let needsUpdate = false;
-        if (rec) {
-            try {
-                let cTs: any = typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : c.timestamp;
-                let rTs: any = typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : rec.exportedAt;
-                if (cTs && rTs && cTs > rTs + 60000) needsUpdate = true;
-            } catch { /* intentional */ }
-        }
-        (cb as HTMLInputElement).checked = needsUpdate;
+        (cb as HTMLInputElement).checked = checkIsUpdated(c, rec);
     });
     updateStat(conversations);
 }
@@ -356,9 +382,11 @@ export const ListView: IListView = {
     selectByIds,
     isRealTitle,
     setOnDelete,
-    updateItemExportStatus
+    updateItemExportStatus,
+    checkIsUpdated
 };
 
+(ListView as any).checkIsUpdated = checkIsUpdated;
 (ListView as any).ListView = ListView;
 (ListView as any).default = ListView;
 
