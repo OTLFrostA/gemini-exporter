@@ -25,7 +25,11 @@ class UninstallLifecycleCase(FeatureTestCase):
             name="扩展彻底卸载与隔离清理",
             description="通过 CDP 原生卸载扩展，验证长连接与 Content Script 优雅终止，重新安装时不产生脏状态交叉污染",
             critical=False,
-            prerequisites=[]
+            prerequisites=[
+                "feat_multimodal_spec_assertion",
+                "feat_updated_badge_display",
+                "feat_authoritative_title_upgrade"
+            ]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:

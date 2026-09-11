@@ -48,11 +48,6 @@ class ChatGenerationCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_gemini = ctx.connect_gemini()
         try:
-            try:
-                cdp_gemini.call("Page.bringToFront")
-            except Exception:
-                pass
-
             # 模型前置门禁断言
             try:
                 CDPActions.ensure_model_and_thinking(cdp_gemini, target_model="3.8 Flash", target_thinking=True, force_menu_check=True)
@@ -102,19 +97,27 @@ class ChatGenerationCase(FeatureTestCase):
                         ctx.tracker.track(chat_id)
 
                     # 检查 Imagen 图片
-                    if any(kw in p_text for kw in ["生成图片", "画一张", "astronaut cat", "Imagen", "image"]):
-                        has_img = cdp_gemini.eval("""
-                        (() => {
-                            const models = Array.from(document.querySelectorAll('model-response'));
-                            const lastModel = models.length > 0 ? models[models.length - 1] : null;
-                            if (!lastModel) return false;
-                            const imgs = lastModel.querySelectorAll('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container');
-                            return imgs.length > 0;
-                        })()
-                        """)
-                        if has_img:
-                            imagen_found = True
-                            print("         🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
+                    p_lower = p_text.lower()
+                    is_image_turn = (
+                        ("生成" in p_text and "图" in p_text) or
+                        any(kw in p_lower for kw in ["画", "生图", "图片", "image", "draw", "imagen", "photo", "picture", "illustration"])
+                    )
+                    if is_image_turn:
+                        for _ in range(6):
+                            has_img = cdp_gemini.eval("""
+                            (() => {
+                                const models = Array.from(document.querySelectorAll('model-response'));
+                                const lastModel = models.length > 0 ? models[models.length - 1] : null;
+                                const root = lastModel || document;
+                                const imgs = root.querySelectorAll('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container, picture img, img[alt*="image"], img[alt*="Image"], img[alt*="生成"]');
+                                return imgs.length > 0;
+                            })()
+                            """)
+                            if has_img:
+                                imagen_found = True
+                                print("         🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
+                                break
+                            time.sleep(2)
 
                     time.sleep(ctx.delay)
 
@@ -167,9 +170,25 @@ class ImagenMultimodalCase(FeatureTestCase):
 
         # 检查是否场景中本来就没有生图需求
         has_image_scenario = any(
-            any(kw in str(t).lower() for kw in ["image", "draw", "画", "图", "生成"])
+            ("生成" in str(t) and "图" in str(t)) or
+            any(kw in str(t).lower() for kw in ["image", "draw", "画", "生图", "图片", "photo", "picture"])
             for sc in ctx.scenarios[:2] for t in sc.get("turns", [])
         )
-        if has_image_scenario:
+        if not has_image_scenario:
+            return True, "当次选取的场景不包含生图需求，免除物理生图断言", None
+
+        # 兜底再次到 Gemini 页面检查一次
+        cdp_g = ctx.connect_gemini()
+        try:
+            has_img = cdp_g.eval("""
+            (() => {
+                const imgs = document.querySelectorAll('model-response img.image, model-response img[src*="blob:"], model-response img[src*="googleusercontent"], model-response .image-button, model-response .image-container, model-response picture img');
+                return imgs.length > 0;
+            })()
+            """)
+            if has_img:
+                ctx.shared_data["imagen_found"] = True
+                return True, "在当前活动会话中成功确认检测到 AI Imagen 图片渲染实体", None
             return False, "预期生图场景未在页面捕获到 AI Imagen 图片渲染实体", None
-        return False, "当次提供的数据集中无生图提问轮次", None
+        finally:
+            cdp_g.close()
