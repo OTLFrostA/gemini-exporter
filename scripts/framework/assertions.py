@@ -141,32 +141,39 @@ class CDPAssertions:
             return True, "徽章状态检查通过", badge_info
 
     @staticmethod
-    def assert_dom_pruned(cdp_opt, deleted_chat_id: str) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言已删除的会话在 Storage 与 DOM 列表中均已被彻底剥离"""
-        check = cdp_opt.eval(f"""
-        (() => {{
-            return new Promise((resolve) => {{
-                chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                    const convs = data.gemini_conversations || [];
-                    const inStorage = convs.some(c => c.id === '{deleted_chat_id}' || c.id === 'c_{deleted_chat_id}');
-                    const inDom = !!document.querySelector('#list .item[data-chat-id="{deleted_chat_id}"], #list .item[data-chat-id="c_{deleted_chat_id}"]');
-                    resolve({{
-                        inStorage: inStorage,
-                        inDom: inDom,
-                        totalConvs: convs.length
+    def assert_dom_pruned(cdp_opt, deleted_chat_id: str, timeout: float = 5.0) -> Tuple[bool, str, Dict[str, Any]]:
+        """断言已删除的会话在 Storage 与 DOM 列表中均已被彻底剥离 (动态轮询等待保证异步确定性)"""
+        t_start = time.time()
+        last_check: Dict[str, Any] = {}
+        clean_id = str(deleted_chat_id).replace('c_', '')
+
+        while time.time() - t_start < timeout:
+            check = cdp_opt.eval(f"""
+            (() => {{
+                return new Promise((resolve) => {{
+                    chrome.storage.local.get(['gemini_conversations'], (data) => {{
+                        const convs = data.gemini_conversations || [];
+                        const inStorage = convs.some(c => c.id === '{deleted_chat_id}' || c.id === 'c_{clean_id}' || c.id === '{clean_id}');
+                        const inDom = !!document.querySelector('#list .item[data-chat-id="{deleted_chat_id}"], #list .item[data-chat-id="c_{clean_id}"], #list .item[data-chat-id="{clean_id}"]');
+                        resolve({{
+                            inStorage: inStorage,
+                            inDom: inDom,
+                            totalConvs: convs.length
+                        }});
                     }});
                 }});
-            }});
-        }})()
-        """, await_promise=True) or {}
+            }})()
+            """, await_promise=True) or {}
+            last_check = check
 
-        in_storage = check.get("inStorage", True)
-        in_dom = check.get("inDom", True)
+            if not check.get("inStorage", True) and not check.get("inDom", True):
+                return True, f"会话已成功剥离 DOM 与本地 Storage (剩余有效会话数: {check.get('totalConvs')})", check
 
-        if in_storage or in_dom:
-            return False, f"会话未完全剥离: Storage残留={in_storage}, DOM残留={in_dom}", check
+            time.sleep(0.3)
 
-        return True, f"会话已成功剥离 DOM 与本地 Storage (剩余有效会话数: {check.get('totalConvs')})", check
+        in_storage = last_check.get("inStorage", True)
+        in_dom = last_check.get("inDom", True)
+        return False, f"会话在 {timeout}s 内未完全剥离: Storage残留={in_storage}, DOM残留={in_dom}", last_check
 
     @staticmethod
     def assert_title_upgraded(cdp_opt, check_ids: List[str]) -> Tuple[bool, str, Dict[str, Any]]:
@@ -241,55 +248,42 @@ class CDPAssertions:
         if expected_visible_max is not None and vis > expected_visible_max:
             return False, f"搜索过滤后可见项超出: {vis} > 预期最大 {expected_visible_max} (Query: '{query}')", vis_info
 
-        if total > 0 and vis == total and len(query.strip()) > 3:
-            return False, f"搜索过滤未生效: 总数 {total} 与 可见数 {vis} 完全相同 (Query: '{query}')", vis_info
+        if total > 1 and vis >= total:
+            return False, f"搜索过滤未生效: 总数 {total} 与 可见数 {vis} 相同，未发生过滤收缩 (Query: '{query}')", vis_info
 
         return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 首项: {vis_info.get('firstVisibleTitle')[:20]})", vis_info
 
     @staticmethod
-    def assert_real_disk_live_save(export_root: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
-        """扫描真实磁盘的自动实时导出目录，断言所有 .md 文件及 assets/ 下所有图片严格 > 0 字节"""
-        search_dirs = []
-        if export_root:
-            search_dirs.append(export_root)
-        
-        home = os.path.expanduser("~")
-        search_dirs.extend([
-            os.path.join(home, "Downloads", "gemini", "gemini_export"),
-            os.path.join(home, "Downloads", "gemini_export"),
-            os.path.join(home, "Downloads", "gemini")
-        ])
+    def assert_real_disk_live_save(
+        target_dir: Optional[str] = None,
+        target_chat_ids: Optional[List[str]] = None,
+        min_mtime: Optional[float] = None
+    ) -> Tuple[bool, str, Dict[str, Any]]:
+        """
+        断言真实磁盘的自动实时导出目录。
+        必须指定明确的 target_dir 目录，严禁随意读取未授权的历史静态旧目录。
+        若指定了 target_chat_ids，必须验证当次会话对应的 .md 文件真实存在、体积 > 0 且 mtime >= min_mtime。
+        """
+        if not target_dir or not os.path.isdir(target_dir):
+            return False, f"未指定或未找到有效的实时落盘目录 (target_dir: {target_dir})", {}
 
-        found_dir = None
-        for d in search_dirs:
-            if os.path.isdir(d):
-                # 优先匹配含有 .md 或 assets 的目录
-                mds = [f for f in os.listdir(d) if f.endswith(".md")]
-                if mds or os.path.isdir(os.path.join(d, "assets")):
-                    found_dir = d
-                    break
-        
-        if not found_dir:
-            # 尝试次级查找
-            for d in search_dirs:
-                if os.path.isdir(d):
-                    found_dir = d
-                    break
-
-        if not found_dir:
-            return False, f"未能在本地磁盘找到任何实时落盘目录 (已扫描: {search_dirs[:3]})", {"scanned_dirs": search_dirs}
+        # 检查 target_dir 或其下的 gemini_export 子目录
+        check_dir = target_dir
+        sub_export = os.path.join(target_dir, "gemini_export")
+        if os.path.isdir(sub_export):
+            check_dir = sub_export
 
         zero_byte_files = []
         valid_md_files = []
         valid_img_files = []
-
         img_exts = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg")
 
-        for root, _, files in os.walk(found_dir):
+        for root, _, files in os.walk(check_dir):
             for fname in files:
                 fpath = os.path.join(root, fname)
                 try:
                     fsize = os.path.getsize(fpath)
+                    fmtime = os.path.getmtime(fpath)
                 except OSError:
                     continue
 
@@ -298,13 +292,13 @@ class CDPAssertions:
 
                 if fname.endswith(".md"):
                     if fsize > 0:
-                        valid_md_files.append((fname, fsize))
+                        valid_md_files.append((fname, fsize, fmtime, fpath))
                 elif fname.lower().endswith(img_exts):
                     if fsize > 0:
-                        valid_img_files.append((fname, fsize))
+                        valid_img_files.append((fname, fsize, fmtime, fpath))
 
         summary = {
-            "export_dir": found_dir,
+            "export_dir": check_dir,
             "total_md_valid": len(valid_md_files),
             "total_img_valid": len(valid_img_files),
             "zero_byte_files": [f[0] for f in zero_byte_files],
@@ -315,9 +309,42 @@ class CDPAssertions:
             return False, f"发现 {len(zero_byte_files)} 个 0 字节非法落盘文件！严重违背落盘完备性规范: {[f[0] for f in zero_byte_files]}", summary
 
         if len(valid_md_files) == 0:
-            return False, f"落盘目录 {found_dir} 中未找到任何有效 .md 对话文件", summary
+            return False, f"落盘目录 {check_dir} 中未找到任何有效 .md 对话文件", summary
 
-        return True, f"物理磁盘实时落盘断言通过 (目录: {os.path.basename(found_dir)}, 有效MD: {len(valid_md_files)}, 有效图片: {len(valid_img_files)}, 0字节文件: 0)", summary
+        # 若指定了目标会话 ID，执行严格的 ID 匹配与修改时间门禁核验
+        if target_chat_ids:
+            missing_ids = []
+            stale_files = []
+            matched_targets = []
+            for cid in target_chat_ids:
+                if not cid:
+                    continue
+                clean_cid = str(cid).replace("c_", "")
+                short_cid = clean_cid[-6:]
+                matched = [
+                    f for f in valid_md_files 
+                    if f[0].endswith(f"_{short_cid}.md") or clean_cid in f[0]
+                ]
+                if not matched:
+                    missing_ids.append(cid)
+                else:
+                    for mf in matched:
+                        if min_mtime and mf[2] < (min_mtime - 5.0):
+                            stale_files.append((mf[0], mf[2], min_mtime))
+                        else:
+                            matched_targets.append(mf[0])
+
+            summary["matched_targets"] = matched_targets
+            summary["missing_targets"] = missing_ids
+            summary["stale_targets"] = stale_files
+
+            if missing_ids:
+                return False, f"当次生成的会话未在落盘目录中找到对应的物理文件: {missing_ids}", summary
+
+            if stale_files:
+                return False, f"落盘文件修改时间早于当次测试启动时间 (疑似读取旧缓存文件): {[s[0] for s in stale_files]}", summary
+
+        return True, f"物理磁盘实时落盘断言通过 (目录: {os.path.basename(check_dir)}, 有效MD: {len(valid_md_files)}, 有效图片: {len(valid_img_files)}, 0字节文件: 0)", summary
 
     @staticmethod
     def assert_exported_zip_spec(
