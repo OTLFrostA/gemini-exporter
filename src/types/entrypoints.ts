@@ -21,6 +21,9 @@ export interface BackgroundMessage {
     total?: number;
     title?: string;
     count?: number;
+    filename?: string;
+    url?: string;
+    conflictAction?: string;
 }
 
 export interface BackgroundResponse {
@@ -28,6 +31,7 @@ export interface BackgroundResponse {
     success?: boolean;
     error?: string;
     tabId?: number;
+    downloadId?: number;
     version?: string;
     ver?: string;
     aborted?: boolean;

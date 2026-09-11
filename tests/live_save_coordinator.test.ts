@@ -191,3 +191,63 @@ test('liveSaveCoordinator - executeLiveSave falls back to direct download when o
         (global as any).chrome = origChrome;
     }
 });
+
+test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload when options handle unavailable', async () => {
+    let bgDownloadMsg: any = null;
+    let feedbackCalled = false;
+
+    const mockStorage = {
+        getLiveConfig: async () => ({
+            enabledDisk: true,
+            format: 'markdown',
+            includeAssets: true,
+            dirName: 'MyVault'
+        }),
+        getLiveDirHandle: async () => null,
+        setLiveConfig: async () => {}
+    };
+
+    const mockScraper = {
+        parseDoc: (_doc: any, id: string) => ({
+            id,
+            title: 'BG Download Test',
+            messages: [{ role: 'user', content: 'test bg' }],
+            timestamp: Date.now()
+        })
+    };
+
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        runtime: {
+            sendMessage: (msg: any, cb: (res: any) => void) => {
+                if (msg.action === 'liveSaveViaHandle') {
+                    if (cb) cb({ ok: false, error: 'no_dir_handle' });
+                } else if (msg.action === 'liveSaveDownload') {
+                    bgDownloadMsg = msg;
+                    if (cb) cb({ ok: true, downloadId: 42 });
+                }
+            }
+        }
+    };
+
+    try {
+        LiveSaveCoordinator.init({
+            storageManager: mockStorage,
+            scraper: mockScraper,
+            badge: {
+                showLiveSaveFeedback: () => { feedbackCalled = true; }
+            },
+            clientClass: null
+        });
+
+        const success = await LiveSaveCoordinator.executeLiveSave('c_bgdl789', 'turn_complete');
+        assert.strictEqual(success, true);
+        assert.ok(bgDownloadMsg);
+        assert.strictEqual(bgDownloadMsg.action, 'liveSaveDownload');
+        assert.strictEqual(bgDownloadMsg.filename, 'MyVault/BG Download Test_bgdl789.md');
+        assert.ok(bgDownloadMsg.url.startsWith('data:text/markdown'));
+        assert.strictEqual(feedbackCalled, true);
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
