@@ -35,7 +35,7 @@ export interface LiveSaveResult {
 
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
-        const { chat, safeTitle, nid, fileName } = payload || {};
+        const { chat, safeTitle, nid, fileName, assets } = payload || {};
         const handle = await getStoredDirHandle();
         if (!handle) {
             return { ok: false, error: 'no_dir_handle' };
@@ -67,14 +67,14 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             return { ok: false, error: 'no_fswriter' };
         }
 
-        const writer = new FsWriterCls(handle, handle.name || 'gemini_export');
+        const writer = new FsWriterCls(handle, 'gemini_export');
         await writer.init();
 
         const sanitizedTitle = GeminiUtils?.sanitizeFileName
             ? GeminiUtils.sanitizeFileName(safeTitle)
             : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-        const cid8 = String(nid || '').replace(/^c_/, '').slice(0, 8);
-        const targetFile = fileName || `${sanitizedTitle}_${cid8}.md`;
+        const cid6 = String(nid || '').replace(/^c_/, '').slice(-6);
+        const targetFile = fileName || `${sanitizedTitle}_${cid6}.md`;
 
         const FormatterCls = (typeof ChatFormatter !== 'undefined' && ChatFormatter)
             ? ChatFormatter
@@ -84,6 +84,18 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             : `# ${safeTitle}\n\n${JSON.stringify(chat?.messages || [], null, 2)}`;
 
         await writer.writeFile('', targetFile, markdown);
+
+        if (Array.isArray(assets) && assets.length > 0) {
+            for (const asset of assets) {
+                if (asset && asset.fileName && asset.buffer) {
+                    try {
+                        await writer.writeFile(asset.subDir || 'assets', asset.fileName, asset.buffer);
+                    } catch (assetErr) {
+                        console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);
+                    }
+                }
+            }
+        }
 
         const now = Date.now();
         if (typeof chrome !== 'undefined' && chrome.storage?.local) {

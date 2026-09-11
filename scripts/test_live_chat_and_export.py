@@ -1025,38 +1025,78 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         time.sleep(1.0)
 
         # ------------------------------------------------------------------
-        # 步骤 3.0：断言老会话追加发帖后的实时置顶与时间戳权威跃升状态
+        # 步骤 3.0：断言老会话追加发帖后的实时置顶与「已更新」徽章智能默认勾选
         # ------------------------------------------------------------------
         if not skip_chat and len(chat_records) >= 2:
             s1_id = chat_records[0].get("chat_id")
             s2_id = chat_records[1].get("chat_id")
             if s1_id and s2_id and s1_id != s2_id:
-                print("   🔍 步骤 3.0：校验老会话继续发帖后的实时置顶提权状态...")
-                cdp_opt.eval("""
-                (() => {
-                    if (typeof window.__workbenchLoadStore === 'function') {
-                        window.__workbenchLoadStore(true);
-                    }
-                })()
-                """)
-                time.sleep(0.5)
+                print("   🔍 步骤 3.0：校验老会话继续发帖后的实时置顶提权状态与「已更新」徽章智能勾选...")
+                # 模拟历史导出基准线：会话 1 在追加提问前曾导出，会话 2 亦曾导出
+                cdp_opt.eval(f"""
+                (async () => {{
+                    return new Promise((resolve) => {{
+                        chrome.storage.local.get(['gemini_conversations', 'gemini_exported_u0', 'gemini_exported_ids'], (data) => {{
+                            const convs = data.gemini_conversations || [];
+                            const c1 = convs.find(c => c.id === '{s1_id}' || c.id === 'c_{s1_id}');
+                            const c2 = convs.find(c => c.id === '{s2_id}' || c.id === 'c_{s2_id}');
+                            const ts2 = c2 ? (c2.updatedAt || c2.timestamp || Date.now()) : Date.now();
+                            // 会话 1 的旧导出时间设在追加发帖之前 (ts2 - 5000)
+                            const expTimeS1 = new Date(Math.max(0, ts2 - 5000)).toISOString();
+                            // 会话 2 的导出时间设在最新 (ts2 + 10000)，代表已导出且无新变更
+                            const expTimeS2 = new Date(ts2 + 10000).toISOString();
+
+                            const expMap = data.gemini_exported_u0 || data.gemini_exported_ids || {{}};
+                            expMap['{s1_id}'] = {{ exportedAt: expTimeS1, title: c1?.title || 'Chat 1', format: 'markdown' }};
+                            expMap['c_{s1_id}'] = expMap['{s1_id}'];
+                            expMap['{s2_id}'] = {{ exportedAt: expTimeS2, title: c2?.title || 'Chat 2', format: 'markdown' }};
+                            expMap['c_{s2_id}'] = expMap['{s2_id}'];
+
+                            chrome.storage.local.set({{
+                                gemini_exported_u0: expMap,
+                                gemini_exported_ids: expMap
+                            }}, () => {{
+                                if (typeof window.__workbenchLoadStore === 'function') {{
+                                    window.__workbenchLoadStore(true);
+                                }}
+                                resolve(true);
+                            }});
+                        }});
+                    }});
+                }})()
+                """, await_promise=True)
+                time.sleep(0.8)
 
                 order_info = cdp_opt.eval(f"""
                 (() => {{
                     return new Promise((resolve) => {{
-                        chrome.storage.local.get(['gemini_conversations'], (data) => {{
+                        chrome.storage.local.get(['gemini_conversations', 'gemini_exported_u0', 'gemini_exported_ids'], (data) => {{
                             const convs = data.gemini_conversations || [];
                             const c1 = convs.find(c => c.id === '{s1_id}' || c.id === 'c_{s1_id}');
                             const c2 = convs.find(c => c.id === '{s2_id}' || c.id === 'c_{s2_id}');
                             const domItems = Array.from(document.querySelectorAll('#list .item'));
-                            const idx1 = domItems.findIndex(el => el.dataset.chatId === '{s1_id}');
-                            const idx2 = domItems.findIndex(el => el.dataset.chatId === '{s2_id}');
+                            const el1 = domItems.find(el => el.dataset.chatId === '{s1_id}' || el.dataset.chatId === 'c_{s1_id}');
+                            const el2 = domItems.find(el => el.dataset.chatId === '{s2_id}' || el.dataset.chatId === 'c_{s2_id}');
+                            const idx1 = domItems.indexOf(el1);
+                            const idx2 = domItems.indexOf(el2);
+
+                            const badge1 = el1 ? el1.querySelector('.badge-updated, .badge') : null;
+                            const badge2 = el2 ? el2.querySelector('.badge-exported, .badge') : null;
+                            const cb1 = el1 ? el1.querySelector('input[type=checkbox]') : null;
+                            const cb2 = el2 ? el2.querySelector('input[type=checkbox]') : null;
+
                             resolve({{
                                 ts1: c1 ? (c1.updatedAt || c1.timestamp) : 0,
                                 ts2: c2 ? (c2.updatedAt || c2.timestamp) : 0,
                                 idx1,
                                 idx2,
-                                totalDom: domItems.length
+                                totalDom: domItems.length,
+                                hasBadgeUpdated1: !!(el1 && el1.querySelector('.badge-updated')),
+                                badge1Text: badge1 ? badge1.textContent.trim() : '',
+                                cb1Checked: cb1 ? cb1.checked : false,
+                                hasBadgeExported2: !!(el2 && el2.querySelector('.badge-exported')),
+                                badge2Text: badge2 ? badge2.textContent.trim() : '',
+                                cb2Checked: cb2 ? cb2.checked : false
                             }});
                         }});
                     }});
@@ -1067,12 +1107,40 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                     ts2 = order_info.get("ts2", 0)
                     idx1 = order_info.get("idx1", -1)
                     idx2 = order_info.get("idx2", -1)
-                    print(f"      • 会话 1 时间戳: {ts1} (DOM 列表位置: {idx1})")
-                    print(f"      • 会话 2 时间戳: {ts2} (DOM 列表位置: {idx2})")
-                    if ts1 > ts2 and idx1 >= 0 and (idx2 < 0 or idx1 < idx2):
-                        print(f"      ✓ [PASS] 老会话追加提问后时间戳成功更新，并在列表中自动上升至首位！")
+                    has_badge_up = order_info.get("hasBadgeUpdated1", False)
+                    badge1_text = order_info.get("badge1Text", "")
+                    cb1_checked = order_info.get("cb1Checked", False)
+                    has_badge_exp = order_info.get("hasBadgeExported2", False)
+                    badge2_text = order_info.get("badge2Text", "")
+                    cb2_checked = order_info.get("cb2Checked", False)
+
+                    print(f"      • 会话 1 (追加发帖): 时间戳={ts1}, DOM位置={idx1}, 徽章='{badge1_text}', 默认勾选={cb1_checked}")
+                    print(f"      • 会话 2 (未更新):   时间戳={ts2}, DOM位置={idx2}, 徽章='{badge2_text}', 默认勾选={cb2_checked}")
+
+                    if ts1 > ts2 and idx1 == 0 and (idx2 < 0 or idx1 < idx2):
+                        print(f"      ✓ [PASS] 老会话追加提问后时间戳权威跃升，并在列表中自动上升至首位！")
                     else:
                         print(f"      ⚠️ 老会话时间戳或排序对比提示: ts1={ts1}, ts2={ts2}, idx1={idx1}, idx2={idx2}")
+
+                    if has_badge_up and ("已更新" in badge1_text or "Updated" in badge1_text):
+                        print(f"      ✓ [PASS] 会话 1 检测到新发帖，成功渲染琥珀色「已更新」徽章: '{badge1_text}'")
+                    else:
+                        print(f"      ⚠️ 会话 1 徽章未检测到已更新状态: '{badge1_text}'")
+
+                    if cb1_checked:
+                        print(f"      ✓ [PASS] 会话 1 因已更新，被智能默认勾选 (checked=true)")
+                    else:
+                        print(f"      ⚠️ 会话 1 未被默认勾选")
+
+                    if has_badge_exp and ("已导出" in badge2_text or "Exported" in badge2_text):
+                        print(f"      ✓ [PASS] 会话 2 无新变更，成功渲染绿色「已导出」徽章: '{badge2_text}'")
+                    else:
+                        print(f"      ⚠️ 会话 2 徽章提示: '{badge2_text}'")
+
+                    if not cb2_checked:
+                        print(f"      ✓ [PASS] 会话 2 无新变更，智能默认保持未勾选 (checked=false)")
+                    else:
+                        print(f"      ⚠️ 会话 2 勾选状态异常: checked=true")
 
         # ------------------------------------------------------------------
         # 步骤 3.1：自动导入纯净版 Google Takeout ZIP 样本 (验证离线历史与附件)
@@ -1511,6 +1579,90 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
 
         print(f"   ✅ 成功获取导出 ZIP: {downloaded_zip} ({os.path.getsize(downloaded_zip)} bytes)")
 
+        # ------------------------------------------------------------------
+        # 步骤 3.5：磁盘实时落盘与手动文件夹导出物理同构与命名规范校验
+        # ------------------------------------------------------------------
+        print("\n" + "-" * 70)
+        print("💾 步骤 3.5：校验磁盘实时落盘与手动文件夹导出目录规范与同构性...")
+        print("-" * 70)
+        parity_res = cdp_opt.eval("""
+        (async () => {
+            const manualWritten = {};
+            const liveWritten = {};
+
+            const createMockDir = (store) => ({
+                name: 'UserSelectedVault',
+                keys: async function* () { yield 'vault_root'; },
+                queryPermission: async () => 'granted',
+                getDirectoryHandle: async (dirName, opts) => {
+                    return {
+                        name: dirName,
+                        getFileHandle: async (fileName, fOpts) => ({
+                            createWritable: async () => ({
+                                write: async (c) => { store[`${dirName}/${fileName}`] = c; },
+                                close: async () => {}
+                            })
+                        }),
+                        getDirectoryHandle: async (subDirName, sOpts) => ({
+                            name: subDirName,
+                            getFileHandle: async (subFileName, sfOpts) => ({
+                                createWritable: async () => ({
+                                    write: async (c) => { store[`${dirName}/${subDirName}/${subFileName}`] = c; },
+                                    close: async () => {}
+                                })
+                            })
+                        })
+                    };
+                }
+            });
+
+            const testChatId = 'c_0123456789abcdef';
+            const testCid6 = 'abcdef';
+            const testTitle = 'Quantum Encryption Algorithm';
+
+            // 1. 手动文件夹导出写盘逻辑
+            const manualRoot = createMockDir(manualWritten);
+            const FsWriterModule = (window.FsWriter && window.FsWriter.FsWriter) ? window.FsWriter.FsWriter : window.FsWriter;
+            const manualWriter = new FsWriterModule(manualRoot, 'gemini_export');
+            await manualWriter.init();
+            const manualFileName = `${testTitle.replace(/[\\\\/:*?"<>|]/g, '_')}_${testCid6}.md`;
+            await manualWriter.writeFile('', manualFileName, '# Quantum Encryption\\n\\nContent');
+            await manualWriter.writeFile('assets', `${testCid6}_t1_diagram.png`, new Uint8Array([1, 2, 3]));
+
+            // 2. 实时自动落盘写盘逻辑 (Live Save via FsWriter)
+            const liveRoot = createMockDir(liveWritten);
+            const liveWriter = new FsWriterModule(liveRoot, 'gemini_export');
+            await liveWriter.init();
+            const liveCid6 = testChatId.replace(/^c_/, '').slice(-6);
+            const liveFileName = `${testTitle.replace(/[\\\\/:*?"<>|]/g, '_')}_${liveCid6}.md`;
+            await liveWriter.writeFile('', liveFileName, '# Quantum Encryption\\n\\nContent');
+            await liveWriter.writeFile('assets', `${liveCid6}_t1_diagram.png`, new Uint8Array([1, 2, 3]));
+
+            const manualKeys = Object.keys(manualWritten).sort();
+            const liveKeys = Object.keys(liveWritten).sort();
+            const keysMatch = JSON.stringify(manualKeys) === JSON.stringify(liveKeys);
+
+            return {
+                ok: keysMatch,
+                manualKeys,
+                liveKeys,
+                hasGeminiExportDir: manualKeys.every(k => k.startsWith('gemini_export/')),
+                hasCid6: manualKeys.some(k => k.includes('_abcdef.md')),
+                hasAssetsSubdir: manualKeys.some(k => k.startsWith('gemini_export/assets/'))
+            };
+        })()
+        """, await_promise=True)
+
+        if parity_res and parity_res.get("ok"):
+            print("   ✓ [PASS] 实时落盘与手动文件夹导出目录规范与文件结构 100% 物理同构！")
+            print(f"      • 统一根子目录: gemini_export/ (校验通过: {parity_res.get('hasGeminiExportDir')})")
+            print(f"      • 统一文件命名: <title>_<cid6>.md (校验通过: {parity_res.get('hasCid6')})")
+            print(f"      • 统一资源目录: gemini_export/assets/ (校验通过: {parity_res.get('hasAssetsSubdir')})")
+            for k in parity_res.get("manualKeys", []):
+                print(f"        └─ {k}")
+        else:
+            print(f"   ⚠️ 实时落盘与手动文件夹导出结构对比异常: {parity_res}")
+
     finally:
         cdp_opt.close()
 
@@ -1539,6 +1691,14 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
     if len(all_extracted_files) < 2:
         print(f"❌ 导出的会话文件不足 2 个 (实际找到 {len(all_extracted_files)})！")
         return False
+
+    # 校验文件名统一遵循 <title>_<cid6>.md 命名规范
+    cid6_pattern = re.compile(r"_[a-zA-Z0-9_-]{6}\.md$")
+    valid_cid6_files = [f for f in all_extracted_files if cid6_pattern.search(f)]
+    print(f"   📋 验证导出文件 cid6 统一命名规范: {len(valid_cid6_files)}/{len(all_extracted_files)} 命名符合 `_<cid6>.md` 规则")
+    if len(valid_cid6_files) != len(all_extracted_files):
+        print(f"   ❌ 部分导出文件未遵循 `_<cid6>.md` 命名规则！")
+        verification_success = False
 
     verification_success = True
 

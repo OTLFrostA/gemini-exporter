@@ -6,7 +6,7 @@
 export interface LiveSaveConfig {
     enabledDisk: boolean;       // Direct disk auto-save (default: false)
     format: 'markdown' | 'json'; // Format for disk auto-save (default: 'markdown')
-    includeAssets: boolean;     // Download images to attachments/ (default: true)
+    includeAssets: boolean;     // Download images to assets/ (default: true)
     dirName?: string;           // Display name of saved directory
     lastSavedAt?: number;       // Timestamp of last successful live save
     lastSavedTitle?: string;    // Title of last saved conversation

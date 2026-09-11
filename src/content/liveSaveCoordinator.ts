@@ -179,6 +179,10 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 // 2. Delegate to extension options page holding the directory handle
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
                     try {
+                        let collectedAssets: any[] = [];
+                        if (config.includeAssets !== false) {
+                            collectedAssets = await processAndSaveImages(chat, nid, null);
+                        }
                         const resp = await new Promise<any>((resolve) => {
                             chrome.runtime.sendMessage({
                                 action: 'liveSaveViaHandle',
@@ -186,7 +190,8 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                                     chat,
                                     safeTitle,
                                     nid,
-                                    config
+                                    config,
+                                    assets: collectedAssets
                                 }
                             }, (r) => {
                                 if (chrome.runtime.lastError) {
@@ -273,14 +278,14 @@ function hashString(str: string): number {
 }
 
 /**
- * Sniff, download, and persist all multimodal images to attachments/ subfolder,
+ * Sniff, download, and persist all multimodal images to assets/ subfolder,
  * and rewrite references in chat to local relative paths.
  */
-export async function processAndSaveImages(chat: any, nid: string, writer: any): Promise<void> {
-    if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return;
+export async function processAndSaveImages(chat: any, nid: string, writer?: any): Promise<Array<{ fileName: string; subDir: string; buffer: any }>> {
+    if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return [];
 
     const Utils = getUtils();
-    const cid8 = nid.slice(0, 8);
+    const cid6 = nid.slice(-6);
     const targets = new Map<string, ImageDownloadTarget>();
 
     let imgCounter = 0;
@@ -301,18 +306,18 @@ export async function processAndSaveImages(chat: any, nid: string, writer: any):
             const dotIdx = sanitized.lastIndexOf('.');
             if (dotIdx !== -1) {
                 ext = sanitized.slice(dotIdx + 1).toLowerCase();
-                finalName = `${cid8}_t${turnIndex + 1}_${sanitized}`;
+                finalName = `${cid6}_t${turnIndex + 1}_${sanitized}`;
             } else {
-                finalName = `${cid8}_t${turnIndex + 1}_${sanitized}.${ext}`;
+                finalName = `${cid6}_t${turnIndex + 1}_${sanitized}.${ext}`;
             }
         } else {
-            finalName = `${cid8}_t${turnIndex + 1}_img${imgCounter}_${hash4}.${ext}`;
+            finalName = `${cid6}_t${turnIndex + 1}_img${imgCounter}_${hash4}.${ext}`;
         }
 
         targets.set(rawUrl, {
             url: rawUrl,
             fileName: finalName,
-            localName: `attachments/${finalName}`,
+            localName: `assets/${finalName}`,
             alt: altText || 'Image'
         });
     };
@@ -353,11 +358,12 @@ export async function processAndSaveImages(chat: any, nid: string, writer: any):
         }
     }
 
-    if (targets.size === 0) return;
+    if (targets.size === 0) return [];
 
     // 2. Concurrently fetch and persist images
     const targetList = Array.from(targets.values());
     const fetcher = getAssetFetcher();
+    const collectedAssets: Array<{ fileName: string; subDir: string; buffer: any }> = [];
 
     await Promise.allSettled(targetList.map(async (target) => {
         try {
@@ -368,9 +374,16 @@ export async function processAndSaveImages(chat: any, nid: string, writer: any):
             if (res && res.buffer && res.buffer.byteLength > 0) {
                 if (res.ext && !target.fileName.toLowerCase().endsWith(`.${res.ext}`)) {
                     target.fileName = target.fileName.replace(/\.[a-z0-9]+$/i, `.${res.ext}`);
-                    target.localName = `attachments/${target.fileName}`;
+                    target.localName = `assets/${target.fileName}`;
                 }
-                await writer.writeFile('attachments', target.fileName, res.buffer);
+                if (writer && typeof writer.writeFile === 'function') {
+                    await writer.writeFile('assets', target.fileName, res.buffer);
+                }
+                collectedAssets.push({
+                    fileName: target.fileName,
+                    subDir: 'assets',
+                    buffer: res.buffer
+                });
                 target.saved = true;
                 if (isDev()) {
                     console.log(`[LiveSaveCoordinator] Saved image asset ${target.fileName} (${res.buffer.byteLength} bytes)`);
@@ -393,7 +406,7 @@ export async function processAndSaveImages(chat: any, nid: string, writer: any):
         }
     }
 
-    if (savedMap.size === 0) return;
+    if (savedMap.size === 0) return collectedAssets;
 
     for (const m of chat.messages) {
         if (!m) continue;
@@ -429,6 +442,8 @@ export async function processAndSaveImages(chat: any, nid: string, writer: any):
             }
         }
     }
+
+    return collectedAssets;
 }
 
 /**
@@ -445,19 +460,19 @@ async function writeConversationToDisk(
     const Utils = getUtils();
     const Formatter = getFormatter();
 
-    // Use current folder directly without subfolder nesting
-    const writer = new WriterCls(dirHandle, dirHandle.name || 'gemini_export');
+    // Use gemini_export folder consistently with manual folder export
+    const writer = new WriterCls(dirHandle, 'gemini_export');
     await writer.init();
 
-    // 1. Process and save multimodal image assets to attachments/ if enabled
+    // 1. Process and save multimodal image assets to assets/ if enabled
     if (config.includeAssets !== false) {
         await processAndSaveImages(chat, nid, writer);
     }
 
-    // 2. Target filename format: CleanTitle_Cid8.md (prevents duplicate files on title rename)
+    // 2. Target filename format: CleanTitle_Cid6.md (consistent with manual export)
     const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-    const cid8 = nid.slice(0, 8);
-    const fileName = `${sanitizedTitle}_${cid8}.md`;
+    const cid6 = nid.slice(-6);
+    const fileName = `${sanitizedTitle}_${cid6}.md`;
 
     // 3. Format content with full YAML frontmatter & markdown standards
     const markdown = Formatter?.toMarkdown

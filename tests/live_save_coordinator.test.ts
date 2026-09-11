@@ -32,12 +32,14 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
         })
     };
 
+    let writerFolderUsed = '';
     class MockFsWriter {
         dirHandle: any;
         folderName: string;
         constructor(handle: any, folder: string) {
             this.dirHandle = handle;
             this.folderName = folder;
+            writerFolderUsed = folder;
         }
         async init() {}
         async writeFile(subDir: string, name: string, content: string) {
@@ -64,8 +66,9 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
     const success = await LiveSaveCoordinator.executeLiveSave('c_9876543210abcdef', 'turn_complete');
     assert.strictEqual(success, true);
 
-    // 1. Verify Disk FsWriter persistence
-    const expectedFile = 'Quantum Computing Intro_98765432.md';
+    // 1. Verify Disk FsWriter persistence with gemini_export folder and _cid6.md
+    assert.strictEqual(writerFolderUsed, 'gemini_export');
+    const expectedFile = 'Quantum Computing Intro_abcdef.md';
     assert.ok(expectedFile in writtenFiles);
     assert.ok(writtenFiles[expectedFile].includes('What is superposition?'));
     assert.ok(writtenFiles[expectedFile].includes('Superposition is a fundamental principle'));
@@ -299,4 +302,63 @@ test('liveSaveCoordinator - executeLiveSave catches native NotFoundError and res
     assert.ok(warningCalledWith !== null);
     assert.ok(warningCalledWith!.includes('目标目录已删除') || warningCalledWith!.includes('Folder deleted'));
 });
+
+test('liveSaveCoordinator - processAndSaveImages saves to assets/ with cid6 and rewrites markdown', async () => {
+    let savedAssets: Array<{ subDir: string; fileName: string; buffer: any }> = [];
+    const mockWriter = {
+        writeFile: async (subDir: string, fileName: string, buffer: any) => {
+            savedAssets.push({ subDir, fileName, buffer });
+            return fileName;
+        }
+    };
+
+    const mockFetcher = {
+        fetchImageBuffer: async (url: string) => {
+            return {
+                buffer: Buffer.from('fake-image-bytes'),
+                ext: 'png'
+            };
+        }
+    };
+
+    LiveSaveCoordinator.init({
+        assetFetcher: mockFetcher
+    });
+
+    const chat = {
+        messages: [
+            {
+                role: 'user',
+                content: 'Generate an astronaut cat'
+            },
+            {
+                role: 'model',
+                content: 'Here is your cat: ![Astronaut Cat](https://example.com/images/cat.png)',
+                attachments: [
+                    { type: 'image', src: 'https://example.com/images/cat.png', name: 'cat.png' }
+                ]
+            }
+        ]
+    };
+
+    const cid = 'c_0123456789abcdef';
+    const collected = await LiveSaveCoordinator.processAndSaveImages(chat, cid, mockWriter);
+
+    assert.strictEqual(savedAssets.length, 1);
+    assert.strictEqual(savedAssets[0].subDir, 'assets');
+    // cid6 is abcdef
+    assert.ok(savedAssets[0].fileName.startsWith('abcdef_'));
+    assert.ok(savedAssets[0].fileName.endsWith('.png'));
+
+    // Verify markdown rewritten to assets/...
+    assert.ok(chat.messages[1].content.includes('assets/abcdef_'));
+    assert.strictEqual(chat.messages[1].content.includes('attachments/'), false);
+    assert.strictEqual((chat.messages[1] as any)?.attachments?.[0]?.localName, `assets/${savedAssets[0].fileName}`);
+
+    // Verify collected assets returned
+    assert.strictEqual(collected.length, 1);
+    assert.strictEqual(collected[0].subDir, 'assets');
+    assert.strictEqual(collected[0].fileName, savedAssets[0].fileName);
+});
+
 
