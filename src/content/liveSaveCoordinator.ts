@@ -19,7 +19,6 @@ export interface LiveSaveCoordinatorDeps {
     clientClass?: typeof GeminiAPIClient;
     badge?: typeof BadgeView;
     assetFetcher?: typeof AssetFetcher;
-    downloadFn?: (fileName: string, content: string | Blob, mimeType?: string) => void;
 }
 
 let _deps: LiveSaveCoordinatorDeps = {};
@@ -56,10 +55,6 @@ function getBadge() {
 
 function getAssetFetcher() {
     return _deps.assetFetcher || AssetFetcher;
-}
-
-function getDownloadFn() {
-    return _deps.downloadFn || triggerDirectDownload;
 }
 
 function isDev(): boolean {
@@ -225,37 +220,6 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         }
                     } catch (e) {
                         if (isDev()) console.warn('[LiveSaveCoordinator] liveSaveViaHandle error:', e);
-                    }
-                }
-
-                // 3. Fallback: Only for test environments where no specific folder was configured (config.dirName is empty)
-                if (!writeSucceeded) {
-                    if (config.dirName) {
-                        console.warn(`[LiveSaveCoordinator] Configured directory '${config.dirName}' is missing or inaccessible. Aborting live save to avoid polluting Downloads.`);
-                        const isZh = contentContext.isZh();
-                        const Badge = getBadge();
-                        const warnMsg = isZh ? '⚠ 目标目录无法访问，实时同步已暂停' : '⚠ Folder inaccessible, sync paused';
-                        if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
-                            (Badge as any).showLiveSaveWarning(warnMsg, isZh);
-                        } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
-                            (Badge as any).showLiveSaveFeedback(warnMsg);
-                        }
-                        return false;
-                    }
-
-                    const Formatter = getFormatter();
-                    const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-                    const cid8 = nid.slice(0, 8);
-                    const fileName = `${sanitizedTitle}_${cid8}.md`;
-                    const markdown = Formatter?.toMarkdown
-                        ? Formatter.toMarkdown({ ...chat, title: safeTitle, id: nid })
-                        : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
-
-                    const downloadFn = getDownloadFn();
-                    downloadFn(fileName, markdown);
-                    writeSucceeded = true;
-                    if (isDev()) {
-                        console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via direct download fallback (${fileName})`);
                     }
                 }
             }
@@ -503,30 +467,6 @@ async function writeConversationToDisk(
     await writer.writeFile('', fileName, markdown);
 }
 
-export function triggerDirectDownload(fileName: string, content: string | Blob, mimeType = 'text/markdown;charset=utf-8'): void {
-    if (typeof document === 'undefined') return;
-    try {
-        const blob = (content instanceof Blob) ? content : new Blob([content], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        a.style.display = 'none';
-        (document.body || document.documentElement).appendChild(a);
-        a.click();
-        setTimeout(() => {
-            try {
-                URL.revokeObjectURL(url);
-                a.remove();
-            } catch {
-                /* ignore */
-            }
-        }, 1500);
-    } catch (e) {
-        console.warn('[LiveSaveCoordinator] triggerDirectDownload failed:', e);
-    }
-}
-
 export function isCurrentlySaving(): boolean {
     return _isSaving;
 }
@@ -536,8 +476,7 @@ export const LiveSaveCoordinator = {
     resolveConversationDetail,
     executeLiveSave,
     processAndSaveImages,
-    isCurrentlySaving,
-    triggerDirectDownload
+    isCurrentlySaving
 };
 
 declare global {
