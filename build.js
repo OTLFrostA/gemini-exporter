@@ -1,9 +1,15 @@
-// build.js — esbuild build pipeline.
+// build.js — esbuild pure bundle build pipeline for Gemini Exporter.
 //
-// Strategy:
-// 1. Per-file transform of every source module under src/ into dist/ (mirroring src/).
-// 2. Bundled entrypoint for Options Page (Phase 2):
-//    src/ui/options/options.ts -> dist/ui/options.js (bundle: true, format: "iife")
+// Modern Architecture (Pure Bundle Pipeline):
+// Directly builds the 5 self-contained production IIFE bundles loaded by Chrome MV3:
+//   1. content/content    -> dist/content/content.js   (ISOLATED world content script)
+//   2. content/hook       -> dist/content/hook.js      (MAIN world network interceptor)
+//   3. background/background -> dist/background/background.js (Service Worker bundle)
+//   4. ui/popup          -> dist/ui/popup.js          (Popup modal coordinator)
+//   5. ui/options        -> dist/ui/options.js        (Options workbench coordinator)
+//
+// Optional:
+// Pass `--per-file` to additionally generate individual unbundled modules for offline inspection.
 
 const esbuild = require('esbuild');
 const fs = require('fs');
@@ -12,8 +18,30 @@ const path = require('path');
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
-const PKG_VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.4.3'; } catch { return '1.4.3'; } })();
+const PKG_VERSION = (() => {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.5.0';
+    } catch {
+        return '1.5.0';
+    }
+})();
 const DEFINE_VERSION = { __EXT_VERSION__: JSON.stringify(PKG_VERSION) };
+
+const BUNDLE_ENTRIES = {
+    'content/content': path.join(SRC, 'content', 'content.ts'),
+    'content/hook': path.join(SRC, 'content', 'hookCredentials.ts'),
+    'background/background': path.join(SRC, 'background', 'background.ts'),
+    'ui/popup': path.join(SRC, 'ui', 'popup', 'popup.ts'),
+    'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),
+};
+
+const EXPECTED_BUNDLES = [
+    'dist/content/content.js',
+    'dist/content/hook.js',
+    'dist/background/background.js',
+    'dist/ui/popup.js',
+    'dist/ui/options.js',
+];
 
 function walkSourceFiles(dir) {
     const out = [];
@@ -28,10 +56,7 @@ function walkSourceFiles(dir) {
     for (const entry of entries) {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-            if (entry.name === 'types') {
-                // src/types is reserved for pure TypeScript type definitions (no runtime emission needed)
-                continue;
-            }
+            if (entry.name === 'types') continue;
             out.push(...walkSourceFiles(full));
         } else if (entry.name.endsWith('.d.ts')) {
             continue;
@@ -39,9 +64,7 @@ function walkSourceFiles(dir) {
             out.push(full);
         } else if (entry.name.endsWith('.js')) {
             const base = entry.name.slice(0, -3);
-            if (!tsBases.has(base)) {
-                out.push(full);
-            }
+            if (!tsBases.has(base)) out.push(full);
         }
     }
     return out;
@@ -53,45 +76,48 @@ async function build() {
         throw new Error('src/ directory not found');
     }
 
-    // Clean dist to avoid stale artifacts from removed sources.
+    // Clean dist to ensure zero stale files
     fs.rmSync(DIST, { recursive: true, force: true });
 
-    const entryPoints = walkSourceFiles(SRC);
-    if (entryPoints.length === 0) {
-        throw new Error('no source (.js/.ts) files found under src/');
+    // Validate that all 5 bundle entrypoint source files exist
+    for (const [entryName, entryFile] of Object.entries(BUNDLE_ENTRIES)) {
+        if (!fs.existsSync(entryFile)) {
+            throw new Error(`Bundle entrypoint source missing for ${entryName}: ${entryFile}`);
+        }
     }
 
-    // 1. Per-file transform for individual modules
-    const result = await esbuild.build({
-        entryPoints,
+    // 1. Build all 5 production IIFE bundles in parallel
+    const bundleResult = await esbuild.build({
+        entryPoints: BUNDLE_ENTRIES,
         outdir: DIST,
-        outbase: SRC,
-        bundle: false,
+        bundle: true,
+        format: 'iife',
         minify: true,
         sourcemap: true,
         target: ['chrome120'],
         legalComments: 'none',
         define: DEFINE_VERSION,
         logLevel: 'silent',
+        logOverride: {
+            'commonjs-variable-in-esm': 'silent'
+        },
         write: true,
     });
 
-    const warnings = (result.warnings || []).length;
-    const errors = (result.errors || []).length;
+    const warnings = (bundleResult.warnings || []).length;
+    const errors = (bundleResult.errors || []).length;
     if (errors > 0) {
-        throw new Error(`esbuild reported ${errors} error(s)`);
+        throw new Error(`esbuild bundle build failed with ${errors} error(s)`);
     }
 
-    // 2. Options Workbench single-file bundle (PR 5)
-    const optionsEntry = path.join(SRC, 'ui', 'options', 'options.ts');
-    if (fs.existsSync(optionsEntry)) {
-        const optionsBundleResult = await esbuild.build({
-            entryPoints: {
-                'ui/options': optionsEntry
-            },
+    // 2. Optional: Per-file transform when explicitly requested via --per-file
+    if (process.argv.includes('--per-file')) {
+        const perFileEntries = walkSourceFiles(SRC);
+        const perFileResult = await esbuild.build({
+            entryPoints: perFileEntries,
             outdir: DIST,
-            bundle: true,
-            format: 'iife',
+            outbase: SRC,
+            bundle: false,
             minify: true,
             sourcemap: true,
             target: ['chrome120'],
@@ -100,106 +126,22 @@ async function build() {
             logLevel: 'silent',
             write: true,
         });
-        if ((optionsBundleResult.errors || []).length > 0) {
-            throw new Error(`Options bundle failed with ${optionsBundleResult.errors.length} error(s)`);
+        if ((perFileResult.errors || []).length > 0) {
+            throw new Error(`esbuild per-file build failed with ${perFileResult.errors.length} error(s)`);
         }
     }
 
-    // 3. Dual-World Content Script bundles (PR 6)
-    // 3a. ISOLATED world: src/content/content.ts -> dist/content/content.js
-    const contentEntry = path.join(SRC, 'content', 'content.ts');
-    if (fs.existsSync(contentEntry)) {
-        const contentBundleResult = await esbuild.build({
-            entryPoints: {
-                'content/content': contentEntry
-            },
-            outdir: DIST,
-            bundle: true,
-            format: 'iife',
-            minify: true,
-            sourcemap: true,
-            target: ['chrome120'],
-            legalComments: 'none',
-            define: DEFINE_VERSION,
-            logLevel: 'silent',
-            write: true,
-        });
-        if ((contentBundleResult.errors || []).length > 0) {
-            throw new Error(`Content bundle failed with ${contentBundleResult.errors.length} error(s)`);
-        }
-    }
-
-    // 3b. MAIN world: src/content/hookCredentials.ts -> dist/content/hook.js
-    const hookEntry = path.join(SRC, 'content', 'hookCredentials.ts');
-    if (fs.existsSync(hookEntry)) {
-        const hookBundleResult = await esbuild.build({
-            entryPoints: {
-                'content/hook': hookEntry
-            },
-            outdir: DIST,
-            bundle: true,
-            format: 'iife',
-            minify: true,
-            sourcemap: true,
-            target: ['chrome120'],
-            legalComments: 'none',
-            define: DEFINE_VERSION,
-            logLevel: 'silent',
-            write: true,
-        });
-        if ((hookBundleResult.errors || []).length > 0) {
-            throw new Error(`Hook bundle failed with ${hookBundleResult.errors.length} error(s)`);
-        }
-    }
-
-    // 4. Background Service Worker bundle (Phase 3)
-    const bgEntry = path.join(SRC, 'background', 'background.ts');
-    if (fs.existsSync(bgEntry)) {
-        const bgBundleResult = await esbuild.build({
-            entryPoints: {
-                'background/background': bgEntry
-            },
-            outdir: DIST,
-            bundle: true,
-            format: 'iife',
-            minify: true,
-            sourcemap: true,
-            target: ['chrome120'],
-            legalComments: 'none',
-            define: DEFINE_VERSION,
-            logLevel: 'silent',
-            write: true,
-        });
-        if ((bgBundleResult.errors || []).length > 0) {
-            throw new Error(`Background bundle failed with ${bgBundleResult.errors.length} error(s)`);
-        }
-    }
-
-    // 5. Popup bundle (Phase 3)
-    const popupEntry = path.join(SRC, 'ui', 'popup', 'popup.ts');
-    if (fs.existsSync(popupEntry)) {
-        const popupBundleResult = await esbuild.build({
-            entryPoints: {
-                'ui/popup': popupEntry
-            },
-            outdir: DIST,
-            bundle: true,
-            format: 'iife',
-            minify: true,
-            sourcemap: true,
-            target: ['chrome120'],
-            legalComments: 'none',
-            define: DEFINE_VERSION,
-            logLevel: 'silent',
-            write: true,
-        });
-        if ((popupBundleResult.errors || []).length > 0) {
-            throw new Error(`Popup bundle failed with ${popupBundleResult.errors.length} error(s)`);
+    // 3. Verify all expected production bundles exist
+    for (const bundle of EXPECTED_BUNDLES) {
+        const fullPath = path.join(ROOT, bundle);
+        if (!fs.existsSync(fullPath)) {
+            throw new Error(`missing dist bundle artifact for ${bundle}`);
         }
     }
 
     const jsFiles = [];
     (function collect(dir) {
+        if (!fs.existsSync(dir)) return;
         for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
             const full = path.join(dir, e.name);
             if (e.isDirectory()) collect(full);
@@ -207,39 +149,7 @@ async function build() {
         }
     })(DIST);
 
-    console.log(`[build] ${jsFiles.length} JS modules -> dist/ in ${Date.now() - t0}ms (${warnings} warning(s))`);
-
-    // Sanity: every source module must have a dist counterpart (.js).
-    for (const srcFile of entryPoints) {
-        const rel = path.relative(SRC, srcFile);
-        const relJs = rel.endsWith('.ts') ? rel.slice(0, -3) + '.js' : rel;
-        if (!fs.existsSync(path.join(DIST, relJs))) {
-            throw new Error(`missing dist artifact for ${relJs} (from ${rel})`);
-        }
-    }
-
-    // Sanity: Options single bundle must exist
-    if (!fs.existsSync(path.join(DIST, 'ui', 'options.js'))) {
-        throw new Error('missing dist artifact for ui/options.js');
-    }
-
-    // Sanity: Content and Hook single bundles must exist (PR 6)
-    if (!fs.existsSync(path.join(DIST, 'content', 'content.js'))) {
-        throw new Error('missing dist artifact for content/content.js');
-    }
-    if (!fs.existsSync(path.join(DIST, 'content', 'hook.js'))) {
-        throw new Error('missing dist artifact for content/hook.js');
-    }
-
-    // Sanity: Background bundle must exist (Phase 3)
-    if (!fs.existsSync(path.join(DIST, 'background', 'background.js'))) {
-        throw new Error('missing dist artifact for background/background.js');
-    }
-
-    // Sanity: Popup bundle must exist (Phase 3)
-    if (!fs.existsSync(path.join(DIST, 'ui', 'popup.js'))) {
-        throw new Error('missing dist artifact for ui/popup.js');
-    }
+    console.log(`[build] ${jsFiles.length} JS bundle(s) -> dist/ in ${Date.now() - t0}ms (${warnings} warning(s))`);
 }
 
 build().catch((err) => {
