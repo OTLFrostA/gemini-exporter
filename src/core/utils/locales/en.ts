@@ -91,6 +91,7 @@ const __enFactory = (): LocaleDictionary => {
             downloadingAsset: "Downloading image ({0}/{1}): {2}",
             syncCompleted: "Sync completed, list updated.",
             syncFailed: "Sync failed: {0}",
+            syncConnectionFailedRefresh: "Could not connect to Gemini. Please refresh gemini.google.com and try again.",
             pillInit: "Initializing...",
             pillSynced: "{0} synced",
             badgeNeedsReexport: "Needs re-export",

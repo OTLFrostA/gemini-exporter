@@ -97,6 +97,16 @@ test('TabService - sendToGeminiTab failover across candidates and timeouts', asy
         assert.deepStrictEqual(res, { success: true, fromTab: 101 }, 'Should fail over to next candidate');
         assert.deepStrictEqual(attempts, [102, 101], 'Should try active tab first then next candidate');
 
+        // Test all candidate tabs failing with connection error
+        (global as any).chrome.tabs.sendMessage = (_tabId: any, _msg: any, cb: any) => {
+            (global as any).chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
+            cb(null);
+        };
+        await assert.rejects(
+            () => TabService.sendToGeminiTab({ action: 'ping' }),
+            /未能与 Gemini 建立连接，请刷新.*页面后重试/
+        );
+
         let timeoutRecorded: any = null;
         const origSetTimeout = global.setTimeout;
         (global as any).setTimeout = (fn: any, ms: any) => {
@@ -104,6 +114,7 @@ test('TabService - sendToGeminiTab failover across candidates and timeouts', asy
             return origSetTimeout(fn, 1000000);
         };
         try {
+            (global as any).chrome.runtime.lastError = null;
             (global as any).chrome.tabs.sendMessage = (tabId: any, msg: any, cb: any) => {
                 cb({ ok: true });
             };

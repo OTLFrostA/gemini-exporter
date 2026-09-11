@@ -126,6 +126,68 @@ test('syncController - exports and isScanning state management', () => {
     assert.strictEqual(SyncController.isScanning(), false);
 });
 
+test('syncController - formats Receiving end does not exist with friendly refresh hint', () => {
+    const fn = (SyncController as any).formatSyncErrorMessage;
+    assert.strictEqual(typeof fn, 'function');
+
+    const rawErr = 'Could not establish connection. Receiving end does not exist.';
+    const formatted = fn(rawErr);
+    assert.ok(
+        formatted.includes('刷新') && formatted.includes('未能与 Gemini 建立连接'),
+        `Formatted error should hint user to refresh gemini, got: ${formatted}`
+    );
+
+    const normalErr = 'HTTP 503 Service Unavailable';
+    const formattedNormal = fn(normalErr);
+    assert.ok(
+        formattedNormal.includes('503'),
+        `Normal error should preserve original error info, got: ${formattedNormal}`
+    );
+});
+
+test('syncController - startIncrementalScan dispatches friendly message on connection error', async () => {
+    const origChrome = (globalThis as any).chrome;
+    try {
+        let loggedMsg = '';
+        let loggedLevel = '';
+        let errorMsg = '';
+
+        (globalThis as any).chrome = {
+            runtime: {
+                lastError: null,
+                sendMessage: (_msg: any, cb: any) => {
+                    cb({
+                        success: false,
+                        error: 'Could not establish connection. Receiving end does not exist.'
+                    });
+                }
+            }
+        };
+
+        await new Promise<void>((resolve) => {
+            SyncController.startIncrementalScan('u0', {
+                onLog: (msg: string, lvl: string) => {
+                    loggedMsg = msg;
+                    loggedLevel = lvl;
+                },
+                onError: (_err: any, errMsg: string) => {
+                    errorMsg = errMsg;
+                    resolve();
+                }
+            });
+        });
+
+        assert.strictEqual(loggedLevel, 'error');
+        assert.ok(
+            loggedMsg.includes('刷新') && loggedMsg.includes('未能与 Gemini 建立连接'),
+            `Log should contain friendly refresh prompt, got: ${loggedMsg}`
+        );
+        assert.strictEqual(errorMsg, loggedMsg);
+    } finally {
+        (globalThis as any).chrome = origChrome;
+    }
+});
+
 // ---------------------------------------------------------------------------
 // TakeoutController
 // ---------------------------------------------------------------------------
