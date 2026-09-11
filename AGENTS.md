@@ -28,7 +28,7 @@
 ### 第一层：CI 自动化门禁测试 (Tier 1: Fast & Headless)
 * **执行命令**：`npm test`（对应 `npm run type-check && python3 tests/run_tests.py && node build.js && playwright test`）。
 * **适用场景**：每次提交 PR 前在本地 worktree 中必须全绿通过，GitHub Actions 门禁对此强制校验。
-* **特性**：轻量极速（~50 秒完成），包含 TypeScript 严格类型检查、22 个单元测试套件、esbuild 双轨打包构建校验与 27 个无头 Playwright 端到端用例（12 个 spec 文件，含会话实时删除 `realtime_delete.spec.ts`），完全自包含，不依赖外网与真实 Google 账号。
+* **特性**：轻量极速（~50 秒完成），包含 TypeScript 严格类型检查、22 个单元测试套件、esbuild 双轨打包构建校验与 30 个无头 Playwright 端到端用例（12 个 spec 文件，含老会话置顶升权、会话实时删除与 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
 
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。
@@ -85,10 +85,49 @@ python3 scripts/test_live_chat_and_export.py --skip-chat
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
-# 运行纯视觉 AI 盲测与 UI 质检自动化套件 (气泡遮挡与物理 Hit-Testing 检测)
+### 第三层：纯视觉 AI 盲测与 UI 质检体系 (Visual Inspection & Feature Parity)
+* **执行命令**：
+  - `npm run test:visual`：新手向导碰撞与 0 遮挡检测、排版截断、弹窗背景遮罩全屏防穿透、老会话置顶升权物理 Hit-Testing、瞬态自毁会话实时剥离布局无损审计。
+  - `npm run test:visual:full`：在上述基础上闭环执行 Google Takeout 导入、全量历史扫描与标题在线权威升级、4 大核心分类黄金会话物理光标逐项勾选、物理导出 ZIP、解压资产校验与 4 大分类多模态规范断言（`ExportSpecificationAsserter`）。
+  - 带多模态 AI 审查：`python3 scripts/test_visual_agent.py --full --ai-review`（可选通过 Gemini 2.0 Flash 视觉模型对全流程截屏出具质检报告）。
+* **功能一致性保证**：纯视觉测试套件已与全流程实跑测试达成 100% 业务生命周期对齐，在视觉质检（0 遮挡、文本截断、背景遮罩、Hit-Testing）的基础上，物理穿透验证老会话置顶、瞬态删除清理、Takeout 合流与 4 大黄金多模态分类（Imagen 生图、Python 装饰器、量子对比表格、深空探测科学报告）物理导出规范落地。
+
+---
+
+## 三、常用辅助命令速查
+
+```bash
+# 启动独立调试环境 Chrome (端口 9222)
+./scripts/open_test_chrome.sh          # macOS / Linux
+.\scripts\open_test_chrome.ps1         # Windows PowerShell
+.\scripts\open_test_chrome.cmd         # Windows CMD
+
+# 查看场景池当前水位与领域特征分布
+npm run pool:status
+
+# 运行全量实跑测试 (首选标准模式：从 20 题场景池消费 2 个最新多模态场景)
+npm run test:live:pool
+# 或: python3 scripts/test_live_chat_and_export.py --pool
+
+# 运行全量实跑测试 (临时外挂模式：传入 2 分钟内动态构思的数据集)
+python3 scripts/test_live_chat_and_export.py --dataset <path_to_fresh_dataset.json>
+
+# 人工本地调试或离线复现 (绕过 2 分钟时效门禁限制，使用内置经典数据集)
+npm run test:live:local
+# 或: python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
+
+
+# 纯导出与断言验证 (跳过发帖，仅检验已有数据与 Takeout)
+python3 scripts/test_live_chat_and_export.py --skip-chat
+
+# 单独对任意导出解压目录运行规范断言器
+python3 tests/helpers/export_spec_asserter.py <解压目录路径>
+
+# 运行纯视觉 AI 盲测与 UI 质检自动化套件 (向导 0 遮挡碰撞、老会话置顶、瞬态删除剥离与物理 Hit-Testing)
 npm run test:visual
 
-# 运行纯视觉全量全流程闭环测试 (向导 -> Takeout 导入 -> 真实物理点击导出 -> ZIP 解压规范断言 -> 视觉质检)
+# 运行纯视觉全量全流程闭环测试 (向导 -> Takeout 导入 -> 标题权威升级 -> 4 大分类物理勾选 -> 导出 ZIP -> 规范断言 -> 视觉质检)
 npm run test:visual:full
 # 或带多模态审查: python3 scripts/test_visual_agent.py --full --ai-review
 ```
+

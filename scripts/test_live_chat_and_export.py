@@ -1370,13 +1370,18 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
         # ------------------------------------------------------------------
         # 步骤 3.3：多维度联合导出勾选（本次新生成会话 + 4 种指定核心分类历史会话）
         # ------------------------------------------------------------------
-        # 确保 skipExported 复选框处于未勾选状态，强制全量取回对话内容
+        # 确保 skipExported 复选框处于未勾选状态，强制全量取回对话内容，并确保启用 ZIP 导出模式
         cdp_opt.eval("""
         (() => {
             const skipCb = document.getElementById('skipExported');
             if (skipCb && skipCb.checked) {
                 skipCb.checked = false;
                 skipCb.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            const zipCb = document.getElementById('includeZip');
+            if (zipCb && !zipCb.checked) {
+                zipCb.checked = true;
+                zipCb.dispatchEvent(new Event('change', { bubbles: true }));
             }
         })()
         """)
