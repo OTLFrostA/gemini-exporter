@@ -16,6 +16,8 @@ from typing import Optional, Dict, Any, List
 from .features import FeatureDomain, FeatureRegistry, TestStatus
 from .actions import CDPActions
 from .assertions import CDPAssertions
+from scripts.framework.scenario_provider import OnlineScenarioProvider
+from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
 
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
@@ -88,17 +90,28 @@ class FrameworkRunner:
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
         delay: int = 2,
-        takeout_zip: Optional[str] = None
+        takeout_zip: Optional[str] = None,
+        keep_chats: bool = False
     ):
         self.port = port
         self.output_dir = os.path.abspath(output_dir or os.path.join(os.path.dirname(__file__), "..", "..", "tests", "output", "live_export"))
         self.delay = delay
         self.takeout_zip = takeout_zip or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tests", "fixtures", "gemini_takeout_clean.zip"))
+        self.keep_chats = keep_chats
+
+        self.provider = OnlineScenarioProvider()
+        self.tracker = SessionLifecycleTracker()
 
         if isinstance(dataset, dict) and "scenarios" in dataset:
             self.scenarios = dataset["scenarios"]
+        elif isinstance(dataset, list) and dataset:
+            self.scenarios = dataset
         else:
-            self.scenarios = dataset or DEFAULT_SCENARIOS
+            # 架构强制保证：任何未指定外挂数据集的实跑测试，唯一事实来源为统一在线对话池 (OnlineScenarioProvider)
+            print("🏊 [场景池调度] 从在线对话池中提取 2 个最新多模态场景 (1个Imagen生图 + 1个深度推演)...")
+            sc_img = self.provider.pop_scenario(required_features=["imagen"], min_turns=2)
+            sc_text = self.provider.pop_scenario(min_turns=2)
+            self.scenarios = [sc_img, sc_text]
 
         self.registry = FeatureRegistry()
         self.ext_id = None
@@ -106,6 +119,23 @@ class FrameworkRunner:
         os.makedirs(self.output_dir, exist_ok=True)
 
     def run(self) -> bool:
+        """执行完整特性生命周期测试，并在 finally 阶段自动执行生命周期回收 (Teardown Cleanup)"""
+        try:
+            return self._execute_lifecycle()
+        finally:
+            try:
+                tabs = get_tabs(self.port)
+                gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+                if gemini_tab:
+                    cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+                    try:
+                        self.tracker.teardown(cdp_clean, keep_chats=self.keep_chats)
+                    finally:
+                        cdp_clean.close()
+            except Exception as e:
+                print(f"⚠️ [生命周期回收] Teardown 清理阶段异常: {e}")
+
+    def _execute_lifecycle(self) -> bool:
         print("=" * 80)
         print("🚀 启动 Gemini Exporter 特性驱动测试执行器 (Feature-Driven Test Runner)")
         print(f"📁 导出落盘目录: {self.output_dir}")
@@ -183,6 +213,19 @@ class FrameworkRunner:
 
         cdp_gemini = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
         try:
+            try:
+                cdp_gemini.call("Page.bringToFront")
+            except Exception:
+                pass
+
+            # 严格前置门禁断言：校验 3.8 Flash + Extended thinking 是否存在，缺失则立即主动熔断终止测试
+            try:
+                CDPActions.ensure_model_and_thinking(cdp_gemini, target_model="3.8 Flash", target_thinking=True, force_menu_check=True)
+            except RuntimeError as e:
+                self.registry.record_result(feat_chat, TestStatus.FAIL, 0.0, str(e))
+                print(f"\n🛑 {e}\n")
+                return False
+
             # 检查页面端导出悬浮徽标
             t0 = time.time()
             has_badge = cdp_gemini.eval("""!!document.querySelector('#gemini-export-badge, .gemini-export-badge, [data-test-id="gemini-export-badge"]')""")
@@ -201,51 +244,19 @@ class FrameworkRunner:
                 sc_title = sc.get("title", f"会话 {chat_idx + 1}")
                 turns = sc.get("turns", [])
                 prompts_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in turns]
-                first_p = prompts_clean[0][:14] if prompts_clean else ""
 
-                # 检查当前页面是否已匹配
-                curr_ups = cdp_gemini.eval("""
-                (() => {
-                    const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
-                    return ups.map(p => p.textContent);
-                })()
-                """) or []
-
-                is_curr_match = any(first_p in up for up in curr_ups) if (curr_ups and first_p) else False
-
-                missing_turns = []
-                for idx, t in enumerate(turns, 1):
-                    p_text = t.get("prompt", "") if isinstance(t, dict) else str(t)
-                    if not any(p_text[:14] in up for up in curr_ups):
-                        missing_turns.append((idx, t))
-
-                if not missing_turns and is_curr_match:
-                    existing_cid = CDPActions.get_current_chat_id(cdp_gemini)
-                    print(f"   ⚡ 会话 {chat_idx + 1} 在当前页面已完整存在 ({len(prompts_clean)} 轮全部就绪)，直接复用: {existing_cid}")
-                    self.chat_records.append({
-                        "chat_id": existing_cid,
-                        "title": CDPActions.get_current_chat_title(cdp_gemini) or sc_title,
-                        "turns": prompts_clean
-                    })
-                    continue
-
-                chat_id = CDPActions.get_current_chat_id(cdp_gemini)
-                if curr_ups and len(missing_turns) < len(turns):
-                    print(f"   ⚡ 当前会话已包含部分轮次，补充发送剩余 {len(missing_turns)} 轮 (会话 ID: {chat_id})")
-                    turns_to_run = missing_turns
-                else:
-                    # 开启全新会话
-                    cdp_gemini.eval("location.href = 'https://gemini.google.com/app'")
-                    time.sleep(2.0)
-                    try:
-                        cdp_gemini.reconnect()
-                    except Exception:
-                        pass
-                    if not CDPActions.wait_for_gemini_ready(cdp_gemini):
-                        self.registry.record_result(feat_chat, TestStatus.FAIL, time.time() - t_chat_start, "Gemini 页面加载超时未能就绪")
-                        return False
-                    time.sleep(1.0)
-                    turns_to_run = list(enumerate(turns, 1))
+                # 严格开启全新干净会话，物理隔离杜绝任何旧会话串话与交叉重叠
+                CDPActions.click_new_chat(cdp_gemini)
+                time.sleep(1.5)
+                try:
+                    cdp_gemini.reconnect()
+                except Exception:
+                    pass
+                if not CDPActions.wait_for_gemini_ready(cdp_gemini):
+                    self.registry.record_result(feat_chat, TestStatus.FAIL, time.time() - t_chat_start, "Gemini 页面加载超时未能就绪")
+                    return False
+                time.sleep(1.0)
+                turns_to_run = list(enumerate(turns, 1))
 
                 for turn_no, turn_input in turns_to_run:
                     p_text = turn_input.get("prompt", "") if isinstance(turn_input, dict) else str(turn_input)
@@ -264,12 +275,22 @@ class FrameworkRunner:
                         return False
 
                     chat_id = CDPActions.get_current_chat_id(cdp_gemini) or chat_id
+                    if chat_id:
+                        self.tracker.track(chat_id)
                     print(f"      ✅ 轮次完成 (会话 ID: {chat_id})")
 
                     # Imagen 生图断言
-                    if any(kw in p_text for kw in ["生成图片", "画一张", "astronaut cat", "Imagen"]) and not imagen_verified:
-                        stream_ok, stream_msg, state_data = CDPAssertions.assert_stream_completed(cdp_gemini)
-                        if state_data.get("hasImages"):
+                    if any(kw in p_text for kw in ["生成图片", "画一张", "astronaut cat", "Imagen", "image"]) and not imagen_verified:
+                        has_img = cdp_gemini.eval("""
+                        (() => {
+                            const models = Array.from(document.querySelectorAll('model-response'));
+                            const lastModel = models.length > 0 ? models[models.length - 1] : null;
+                            if (!lastModel) return false;
+                            const imgs = lastModel.querySelectorAll('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container');
+                            return imgs.length > 0;
+                        })()
+                        """)
+                        if has_img:
                             imagen_verified = True
                             self.registry.record_result(feat_imagen, TestStatus.PASS, 0.0, "检测到 AI Imagen 图片渲染落地")
                             print("      🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
@@ -436,13 +457,16 @@ class FrameworkRunner:
                     cdp_gem_live.reconnect()
                 except Exception:
                     pass
-                CDPActions.wait_for_gemini_ready(cdp_gem_live, max_wait=15)
-                ok_eph, msg_eph = CDPActions.send_gemini_turn(cdp_gem_live, "什么是计算机系统的瞬态会话？请用一句话回答。", max_wait=90)
+                eph_query = self.provider.pop_ephemeral_query()
+                ok_eph, msg_eph = CDPActions.send_gemini_turn(cdp_gem_live, eph_query, max_wait=90)
                 if ok_eph:
                     eph_chat_id = CDPActions.get_current_chat_id(cdp_gem_live)
                     if eph_chat_id:
+                        self.tracker.track(eph_chat_id)
                         print(f"   🗑️ 成功生成瞬态会话 ({eph_chat_id})，在侧边栏触发删除...")
                         del_ok = CDPActions.delete_conversation_via_web(cdp_gem_live, eph_chat_id)
+                        if del_ok:
+                            self.tracker.mark_deleted(eph_chat_id)
                         pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id, timeout=5.0)
                         dur_e = time.time() - t_eph
                         if pruned_ok:

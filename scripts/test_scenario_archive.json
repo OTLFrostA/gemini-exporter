@@ -188,5 +188,100 @@
       "针对线性一致性读 (Linearizable Read)，分析 Lease Read 与 Read Index 两种优化机制的优缺点及对物理时钟漂移的容忍度。"
     ],
     "consumed_at": "2026-09-10T12:48:06.591981"
+  },
+  {
+    "id": "underwater_bioluminescent_coral_atoll",
+    "title": "发光深海珊瑚环礁与仿生潜水钟水下探险",
+    "domain": "marine_exploration_art",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "description": "测试生物发光水下概念艺术生图 (Imagen)、深海海洋学与流体静力学长推演",
+    "turns": [
+      "请帮我生成一张图片：一座位于水下 2000 米的宏伟生物发光珊瑚环礁探险基地。中央悬浮着带有弧形发光观察窗的黄铜镀层仿生潜水钟，周围环绕着发出幽蓝与翠绿荧光的深海珊瑚树与半透明水母群，超清 8k 写实水下光影。",
+      "请为这座深海潜水基地设计一套基于浮力调控与海水温差能发电（OTEC）的能量自给自足方案，使用 Markdown 列表条理清晰地列出核心工程模块。",
+      "请再帮我生成一张图片：在潜水钟内部，一位年轻的海洋生物学家正透过巨大弧形玻璃，近距离观察一只身体发出金色脉冲光芒的未知深海巨型章鱼游过的震撼瞬间。",
+      "请设计一个 Markdown 表格，对比该深海基地在耐压壳体材料选择上的优劣（钛合金 TC4 vs 硼硅酸盐高压玻璃 vs 碳纤维缠绕复合材料），包含抗压屈服强度、密度、透光性与制造成本。",
+      "如果基地的外部海水淡化与应急制氧管路因海底热液喷口地震发生震裂，请构思一套基于化学储氧与微生物电解的 72 小时应急闭环维生预案。"
+    ],
+    "consumed_at": "2026-09-11T12:00:32.608591"
+  },
+  {
+    "id": "ship_of_theseus_philosophy",
+    "title": "忒修斯之船与意识上传同一性哲学思辨",
+    "domain": "philosophy_and_logic",
+    "features": [
+      "blockquotes",
+      "dialectic",
+      "deep_argumentation"
+    ],
+    "description": "测试多层嵌套引用块、递进逻辑推演与哲学反驳",
+    "turns": [
+      "请详细阐述‘忒修斯之船 (Ship of Theseus)’悖论的起源与核心哲学命题，以及托马斯·霍布斯在此基础上增加的‘收集旧木板重建之船’对质料同一性与形式同一性的冲击。",
+      "将忒修斯之船引入现代神经科学思想实验：假设人类大脑神经元被功能完全相同的纳电子仿生芯片以每天 0.01% 的速度逐步替换，主观意识同一性在何时何地发生转移或维持？",
+      "分别用德里克·帕菲特 (Derek Parfit) 的非还原论人格同一性理论 (Relation R) 与四维主义 (Four-Dimensionalism / Worm Theory) 对上述神经元替换实验进行评述。",
+      "针对经典科幻‘星际迷航式量子传送机’（原子分解后在异地完美重组），构建一个支持‘传送等于自杀与复印’的严密演绎推理三段论，并给出反方强有力的反驳。",
+      "总结不同形而上学流派对‘灵魂/自我的本质’给出的终极解释范式。"
+    ],
+    "consumed_at": "2026-09-11T12:00:32.608591"
+  },
+  {
+    "id": "cybernetic_zen_monastery",
+    "domain": "cybernetic_futurism_art",
+    "title": "赛博禅宗枯山水庭院与数字冥想空间",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments"
+    ],
+    "turns": [
+      "请帮我生成一张图片：一座悬浮在赛博朋克近未来高空穹顶下的禅宗枯山水庭院。发光的荧光苔藓、流动的全息水纹砂石庭园、钛合金构建的静虑回廊，背景可见微雨朦胧的霓虹都市夜景，电影质感，虚幻引擎5渲染风格。",
+      "请以建筑哲学家的视角，解析赛博朋克高科技冰冷机械感与东方枯山水虚静审美融合的设计语汇与空间叙事。",
+      "请再生成一张图片：在庭院中央，一位身披光导纤维织造袈裟的仿生人禅师正面对全息枯木盘膝冥想，身边漂浮着散发柔和微光的数字香炉，特写镜头，丁达尔光效。",
+      "探讨在意识数字化与脑机接口普及的时代，人类\"冥想\"行为的神经生物学机制与数字信号干预的伦理边界。",
+      "设计一个用于在脑机交互界面呈现的\"数字枯山水\"交互算法状态机，用伪代码或状态图描述脑电波专注度（Alpha/Theta波）与全息砂纹流速的动态反馈模型。"
+    ],
+    "consumed_at": "2026-09-11T12:07:30.622830"
+  },
+  {
+    "id": "raymarching_sdf_graphics",
+    "title": "计算机图形学：实时光线步进 (Ray Marching) 与有向距离场 (SDF)",
+    "domain": "computer_graphics",
+    "features": [
+      "shaders",
+      "math",
+      "glsl"
+    ],
+    "description": "测试 GLSL 着色器语法高亮、向量微积分数学推导与光照模型",
+    "turns": [
+      "请推导球体 (Sphere) 与圆角立方体 (Rounded Box) 的精确有向距离场 (Signed Distance Function, SDF) 数学定义，并解释为什么负值代表物体内部。",
+      "使用标准 GLSL 编写一个包含球体追踪循环 (Sphere Tracing loop)、表面法线估算 (梯度差分) 以及基础漫反射光照的完整片段着色器核心函数。",
+      "展示如何使用光滑极小值函数 (Smooth Minimum / smin) 在 SDF 中实现两个有机几何形体之间的自然融合熔接 (Metaball 效果)。",
+      "分析带有步长放松 (Over-relaxation) 的增强型 Ray Marching 算法如何将平均迭代步数减少 30% 以上，并指出其在拐角处的伪影陷阱。",
+      "给出利用 SDF 计算软阴影 (Soft Shadows) 的经典 Penumbra 估算算法，并用数学公式说明光源尺寸对半影平滑度的影响。"
+    ],
+    "consumed_at": "2026-09-11T12:07:30.622830"
+  },
+  {
+    "id": "smart_contract_reentrancy_audit",
+    "title": "智能合约安全审计：重入攻击漏洞攻防与形式化验证",
+    "domain": "cybersecurity_web3",
+    "features": [
+      "code",
+      "callouts",
+      "security_audit"
+    ],
+    "description": "测试 Solidity 安全漏洞复现代码、审计告警提示块与安全开发规约",
+    "turns": [
+      "请详细剖析臭名昭著的 The DAO 重入攻击 (Reentrancy Attack) 底层 EVM 执行时序，重点解释 fallback/receive 函数与调用栈深度展开的过程。",
+      "请编写一段存在经典单函数重入漏洞的 Solidity 资金库合约示例代码，并附带黑客利用合约的恶意攻击实现。",
+      "给出售后重构代码，严格遵循检查-生效-交互模式 (Checks-Effects-Interactions Pattern)，并展示如何引入 OpenZeppelin 的 ReentrancyGuard 防护修饰器。",
+      "解释只读重入 (Read-Only Reentrancy) 漏洞是如何在跨合约 DeFi 价格预言机 (Oracle) 交互中产生的，传统的防重入锁为何对此失效？",
+      "列出针对智能合约状态不变量 (Invariants) 编写 Certora 或 Foundry 形式化模糊测试 (Fuzz Testing) 规则的最佳实践。"
+    ],
+    "consumed_at": "2026-09-11T12:37:35.379597",
+    "consumed_by": "test_visual_agent.py"
   }
 ]
