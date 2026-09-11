@@ -60,10 +60,15 @@ test.describe('Workbench UI & Selection Controls', () => {
     expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(0);
     await expect(page.locator('#selectedStat')).toContainText('0');
 
-    // 5. Test Only Unexported
-    await page.click('#btnSelectUnexported');
-    const checkedAfterUnexported = await page.locator('#list input[type=checkbox]:checked').count();
-    expect(checkedAfterUnexported).toBe(2);
+    // 5. Test Select All & Select None, and verify removed filter buttons
+    await page.click('#btnSelectAll');
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(3);
+    await page.click('#btnSelectNone');
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(0);
+
+    // Filter buttons must no longer exist
+    expect(await page.locator('#btnSelectUnexported').count()).toBe(0);
+    expect(await page.locator('#btnSelectUpdated').count()).toBe(0);
 
     // 6. Test Real-time Search Filtering
     await page.fill('#chatSearchInput', '量子');
