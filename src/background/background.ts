@@ -9,6 +9,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
+import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 
 // Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
 try {
@@ -120,51 +121,8 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 initUninstallUrl();
 
-async function getStoredExportDirHandle(): Promise<any> {
-    if (typeof indexedDB === 'undefined') return null;
-    try {
-        const req = indexedDB.open('gemini_exporter_idb', 1);
-        const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            req.onupgradeneeded = () => {
-                const d = req.result;
-                if (!d.objectStoreNames.contains('handles')) {
-                    d.createObjectStore('handles');
-                }
-            };
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-        });
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction('handles', 'readonly');
-            const store = tx.objectStore('handles');
-            const getReq = store.get('export_dir_handle');
-            getReq.onsuccess = () => resolve(getReq.result || null);
-            getReq.onerror = () => reject(getReq.error);
-        });
-    } catch {
-        return null;
-    }
-}
-
-async function clearStoredExportDirHandle(): Promise<void> {
-    if (typeof indexedDB === 'undefined') return;
-    try {
-        const req = indexedDB.open('gemini_exporter_idb', 1);
-        const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-        });
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction('handles', 'readwrite');
-            const store = tx.objectStore('handles');
-            const delReq = store.delete('export_dir_handle');
-            delReq.onsuccess = () => resolve();
-            delReq.onerror = () => reject(delReq.error);
-        });
-    } catch (e) {
-        console.warn('[Background] Failed to clear stored export dir handle:', e);
-    }
-}
+const getStoredExportDirHandle = getStoredDirHandle;
+const clearStoredExportDirHandle = clearStoredDirHandle;
 
 async function markDirDeletedInConfig(): Promise<void> {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -296,7 +254,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         (async () => {
             try {
                 const { chat, safeTitle, nid, config, fileName } = msg.payload;
-                const handle = await getStoredExportDirHandle();
+                const handle = await getStoredDirHandle();
                 if (!handle) {
                     sendResponse({ ok: false, error: 'no_dir_handle' });
                     return;
@@ -316,7 +274,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                 } catch (probeErr: any) {
                     if (probeErr?.name === 'NotFoundError' || probeErr?.message?.includes('not be found') || probeErr?.message?.includes('NotFoundError')) {
                         console.warn('[Background] Target directory was deleted on disk:', probeErr);
-                        await clearStoredExportDirHandle();
+                        await clearStoredDirHandle();
                         await markDirDeletedInConfig();
                         sendResponse({ ok: false, error: 'dir_not_found', details: probeErr?.message });
                         return;
@@ -386,7 +344,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                 console.warn('[Background] liveSaveViaHandle error:', err);
                 const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('could not be found') || err?.message?.includes('NotFoundError');
                 if (isNotFound) {
-                    await clearStoredExportDirHandle();
+                    await clearStoredDirHandle();
                     await markDirDeletedInConfig();
                     sendResponse({ ok: false, error: 'dir_not_found', details: err?.message });
                     return;

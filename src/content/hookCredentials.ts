@@ -1,5 +1,5 @@
 // src/content/hookCredentials.ts - MAIN world, captures Gemini credentials safely (no inline)
-import { GeminiProtocol } from '../core/protocol/protocol.js';
+import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 
 (() => {
     if (typeof window === 'undefined') return;
@@ -10,6 +10,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
         console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
         return;
     }
+    const Events = (Proto && (Proto.EVENTS || Proto.CrossWorldEvents)) || (typeof CrossWorldEvents !== 'undefined' ? CrossWorldEvents : ((window as any).CrossWorldEvents || (window as any).GeminiProtocol?.EVENTS));
 
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
@@ -58,7 +59,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
                     url: location.href
                 };
                 window.postMessage({
-                    type: 'GEMINI_CREDENTIALS',
+                    type: Events.CREDENTIALS,
                     payload
                 }, location.origin);
             }
@@ -98,7 +99,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
             if (idMatch && idMatch[1]) {
                 const deletedId = idMatch[1];
                 window.postMessage({
-                    type: 'GEMINI_CONVERSATION_DELETED',
+                    type: Events.CONVERSATION_DELETED,
                     payload: { id: deletedId, slot }
                 }, location.origin);
             }
@@ -154,7 +155,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
             const convId = extractConversationId(url, body);
             const slot = getSlotFromUrl(url);
             window.postMessage({
-                type: 'GEMINI_STREAM_GENERATE_START',
+                type: Events.STREAM_START,
                 payload: { id: convId, slot }
             }, location.origin);
         } catch (e) {
@@ -167,7 +168,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
             const convId = extractConversationId(url, body, responseText);
             const slot = getSlotFromUrl(url);
             window.postMessage({
-                type: 'GEMINI_STREAM_GENERATE_COMPLETE',
+                type: Events.STREAM_COMPLETE,
                 payload: { id: convId, slot, url: (url || '').toString() }
             }, location.origin);
         } catch (e) {
@@ -184,7 +185,7 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
             if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
             const slot = getSlotFromUrl(url);
             window.postMessage({
-                type: 'GEMINI_NETWORK_BATCHEXECUTE',
+                type: Events.NETWORK_BATCHEXECUTE,
                 payload: {
                     text: text.slice(0, 3000000), // Protect against memory spikes
                     slot,

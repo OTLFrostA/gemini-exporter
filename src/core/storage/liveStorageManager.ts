@@ -1,12 +1,10 @@
-// src/core/storage/liveStorageManager.ts - Live Auto-Save IndexedDB persistence and configuration
+// src/core/storage/liveStorageManager.ts - Live Auto-Save configuration and Directory Handle persistence
 import type { LiveConversationRecord, LiveSaveConfig } from '../../types/liveSave.js';
-
-const DB_NAME = 'gemini_exporter_live_idb';
-const DB_VERSION = 2;
-const STORE_CONVERSATIONS = 'conversations';
-const STORE_SETTINGS = 'settings';
-const KEY_CONFIG = 'live_save_config';
-const KEY_DIR_HANDLE = 'live_save_dir_handle';
+import {
+    getStoredDirHandle,
+    saveStoredDirHandle,
+    clearStoredDirHandle
+} from './idbHandleStore.js';
 
 export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
     enabledDisk: false,
@@ -14,30 +12,8 @@ export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
     includeAssets: true
 };
 
-function openLiveDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        if (typeof indexedDB === 'undefined') {
-            return reject(new Error('IndexedDB is not available in current environment'));
-        }
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            // Purge legacy conversations object store to ensure zero conversation text remains in browser
-            if (db.objectStoreNames.contains(STORE_CONVERSATIONS)) {
-                try {
-                    db.deleteObjectStore(STORE_CONVERSATIONS);
-                } catch {
-                    /* ignore */
-                }
-            }
-            if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
-                db.createObjectStore(STORE_SETTINGS);
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
+const KEY_CONFIG = 'live_save_config';
+let _memConfig: LiveSaveConfig = { ...DEFAULT_LIVE_CONFIG };
 
 /**
  * @deprecated Legacy stub. Conversation text is no longer retained in browser storage.
@@ -68,34 +44,20 @@ export async function getLiveConfig(): Promise<LiveSaveConfig> {
         try {
             const d = await chrome.storage.local.get([KEY_CONFIG]);
             if (d && d[KEY_CONFIG]) {
-                return { ...DEFAULT_LIVE_CONFIG, ...d[KEY_CONFIG] };
+                _memConfig = { ...DEFAULT_LIVE_CONFIG, ...d[KEY_CONFIG] };
+                return _memConfig;
             }
         } catch {
-            /* intentional fallback to IDB */
+            /* intentional fallback */
         }
     }
-
-    // 2. Fallback to IndexedDB (e.g. Node tests or non-extension environments)
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_SETTINGS, 'readonly');
-            const store = tx.objectStore(STORE_SETTINGS);
-            const req = store.get(KEY_CONFIG);
-            req.onsuccess = () => {
-                const stored = req.result;
-                resolve({ ...DEFAULT_LIVE_CONFIG, ...(stored || {}) });
-            };
-            req.onerror = () => reject(req.error);
-        });
-    } catch {
-        return { ...DEFAULT_LIVE_CONFIG };
-    }
+    return { ..._memConfig };
 }
 
 export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<LiveSaveConfig> {
     const current = await getLiveConfig();
     const updated: LiveSaveConfig = { ...current, ...patch };
+    _memConfig = updated;
 
     // 1. SSoT: Save to chrome.storage.local first
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -106,60 +68,14 @@ export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<Liv
         }
     }
 
-    // 2. Best-effort mirror to IndexedDB
-    try {
-        const db = await openLiveDB();
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(STORE_SETTINGS, 'readwrite');
-            const store = tx.objectStore(STORE_SETTINGS);
-            store.put(updated, KEY_CONFIG);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        /* intentional: IDB is secondary mirror */
-    }
-
     return updated;
-}
-
-const UNIFIED_IDB_NAME = 'gemini_exporter_idb';
-const UNIFIED_IDB_STORE = 'handles';
-const UNIFIED_IDB_KEY = 'export_dir_handle';
-
-function openUnifiedHandleDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        if (typeof indexedDB === 'undefined') {
-            return reject(new Error('IndexedDB is not available in current environment'));
-        }
-        const req = indexedDB.open(UNIFIED_IDB_NAME, 1);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(UNIFIED_IDB_STORE)) {
-                db.createObjectStore(UNIFIED_IDB_STORE);
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
 }
 
 export async function saveLiveDirHandle(handle: any): Promise<boolean> {
     if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController?.setDirHandle) {
         (globalThis as any).DirHandleController.setDirHandle(handle);
     }
-    try {
-        const db = await openUnifiedHandleDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(UNIFIED_IDB_STORE, 'readwrite');
-            tx.objectStore(UNIFIED_IDB_STORE).put(handle, UNIFIED_IDB_KEY);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to save dir handle:', e);
-        return false;
-    }
+    return saveStoredDirHandle(handle);
 }
 
 export async function getLiveDirHandle(): Promise<any> {
@@ -167,62 +83,14 @@ export async function getLiveDirHandle(): Promise<any> {
         const memHandle = (globalThis as any).DirHandleController.getDirHandle();
         if (memHandle) return memHandle;
     }
-    try {
-        const db = await openUnifiedHandleDB();
-        const handle = await new Promise((resolve, reject) => {
-            const tx = db.transaction(UNIFIED_IDB_STORE, 'readonly');
-            const req = tx.objectStore(UNIFIED_IDB_STORE).get(UNIFIED_IDB_KEY);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = () => reject(req.error);
-        });
-        if (handle) return handle;
-    } catch {
-        /* intentional fallback */
-    }
-
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_SETTINGS, 'readonly');
-            const store = tx.objectStore(STORE_SETTINGS);
-            const req = store.get(KEY_DIR_HANDLE);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = () => reject(req.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to get live dir handle:', e);
-        return null;
-    }
+    return getStoredDirHandle();
 }
 
 export async function clearLiveDirHandle(): Promise<boolean> {
     if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController?.setDirHandle) {
         (globalThis as any).DirHandleController.setDirHandle(null);
     }
-    try {
-        const db = await openUnifiedHandleDB();
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(UNIFIED_IDB_STORE, 'readwrite');
-            tx.objectStore(UNIFIED_IDB_STORE).delete(UNIFIED_IDB_KEY);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch {
-        /* ignore */
-    }
-    try {
-        const db = await openLiveDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_SETTINGS, 'readwrite');
-            const store = tx.objectStore(STORE_SETTINGS);
-            store.delete(KEY_DIR_HANDLE);
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn('[LiveStorageManager] Failed to clear live dir handle:', e);
-        return false;
-    }
+    return clearStoredDirHandle();
 }
 
 export const LiveStorageManager = {

@@ -5,61 +5,10 @@ const t = (key: string, ...args: any[]): string => {
     return g && typeof g.t === 'function' ? g.t(key, ...args) : key;
 };
 
-const IDB_NAME = 'gemini_exporter_idb';
-const IDB_STORE = 'handles';
-const IDB_KEY = 'export_dir_handle';
+import { getStoredDirHandle, saveStoredDirHandle } from '../../core/storage/idbHandleStore.js';
+export { getStoredDirHandle, saveStoredDirHandle };
+
 let currentDirHandle: any = null;
-
-function openHandleDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        if (typeof indexedDB === 'undefined') {
-            return reject(new Error('IndexedDB is not available'));
-        }
-        const req = indexedDB.open(IDB_NAME, 1);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(IDB_STORE)) {
-                db.createObjectStore(IDB_STORE);
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-export async function saveStoredDirHandle(handle: any): Promise<boolean> {
-    try {
-        const db = await openHandleDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(IDB_STORE, 'readwrite');
-            if (handle === null || handle === undefined) {
-                tx.objectStore(IDB_STORE).delete(IDB_KEY);
-            } else {
-                tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
-            }
-            tx.oncomplete = () => resolve(true);
-            tx.onerror = () => reject(tx.error);
-        });
-    } catch (e) {
-        console.warn('Failed to save dir handle to IndexedDB:', e);
-        return false;
-    }
-}
-
-export async function getStoredDirHandle(): Promise<any> {
-    try {
-        const db = await openHandleDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(IDB_STORE, 'readonly');
-            const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
-            req.onsuccess = () => resolve(req.result || null);
-            req.onerror = () => reject(req.error);
-        });
-    } catch (e) {
-        console.warn('Failed to get dir handle from IndexedDB:', e);
-        return null;
-    }
-}
 
 export async function verifyDirPermission(handle: any): Promise<boolean> {
     if (!handle) return false;

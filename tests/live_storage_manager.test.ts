@@ -11,25 +11,17 @@ test('liveStorageManager - default configuration structure', () => {
     assert.strictEqual(def.includeAssets, true);
 });
 
-test('liveStorageManager - IDB mock, config persistence and V2 purge of conversations store', async () => {
+test('liveStorageManager - IDB mock, config persistence and dir handle delegation', async () => {
     const memoryStores: Record<string, Map<any, any>> = {
-        conversations: new Map([['c_old', { id: 'old', title: 'Old Chat' }]]),
-        settings: new Map(),
         handles: new Map()
     };
-
-    let deletedStoreNames: string[] = [];
 
     const mockIdb = {
         open: (name: string, version: number) => {
             const req: any = {
                 result: {
                     objectStoreNames: {
-                        contains: (n: string) => n in memoryStores && !deletedStoreNames.includes(n)
-                    },
-                    deleteObjectStore: (n: string) => {
-                        deletedStoreNames.push(n);
-                        delete memoryStores[n];
+                        contains: (n: string) => n in memoryStores
                     },
                     createObjectStore: (n: string) => {
                         memoryStores[n] = new Map();
@@ -110,18 +102,14 @@ test('liveStorageManager - IDB mock, config persistence and V2 purge of conversa
         assert.strictEqual(cfg.enabledDisk, true);
         assert.strictEqual(cfg.dirName, 'MyNotes');
 
-        // 2. Verify saveLiveDirHandle & getLiveDirHandle
+        // 2. Verify saveLiveDirHandle & getLiveDirHandle delegating to idbHandleStore
         const mockHandle = { name: 'MyNotes', kind: 'directory' };
         await LiveStorageManager.saveLiveDirHandle(mockHandle);
         const retrievedHandle = await LiveStorageManager.getLiveDirHandle();
         assert.ok(retrievedHandle);
         assert.strictEqual(retrievedHandle.name, 'MyNotes');
 
-        // 3. Verify V2 upgrade purged legacy conversations store
-        assert.ok(deletedStoreNames.includes('conversations'));
-        assert.strictEqual('conversations' in memoryStores, false);
-
-        // 4. Verify conversation persistence stubs safely return empty/no-op without storing anything
+        // 3. Verify conversation persistence stubs safely return empty/no-op without storing anything
         const saveRes = await LiveStorageManager.saveLiveConversation({ id: 'c_stub', title: 'Stub', messages: [] });
         assert.strictEqual(saveRes, false);
         const getRes = await LiveStorageManager.getLiveConversation('c_stub');

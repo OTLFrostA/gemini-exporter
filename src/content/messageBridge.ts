@@ -1,7 +1,7 @@
 // src/content/messageBridge.ts - Inter-world message bridge between MAIN world hooks and content script
 import { contentContext } from './contentContext.js';
 import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
-import { GeminiProtocol } from '../core/protocol/protocol.js';
+import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { StorageService } from '../core/storage/storageService.js';
 
 export interface MessageBridgeDeps {
@@ -50,7 +50,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     } = _deps;
 
     // 1. Captured batchexecute response (Sidebar scroll, search, page load, opening any chat)
-    if (d.type === 'GEMINI_NETWORK_BATCHEXECUTE') {
+    if (d.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
         const { text, slot } = d.payload || {};
         if (!text) return;
         try {
@@ -120,7 +120,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     // 2. Real-time conversation deletion hook listener (GzXR5e)
-    if (d.type === 'GEMINI_CONVERSATION_DELETED') {
+    if (d.type === CrossWorldEvents.CONVERSATION_DELETED) {
         const { id, slot } = d.payload || {};
         if (id) {
             try {
@@ -155,7 +155,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     // 3. In-page live auto-save trigger
-    if (d.type === 'GEMINI_LIVE_SAVE_TRIGGER') {
+    if (d.type === CrossWorldEvents.LIVE_SAVE_TRIGGER) {
         const { cid, reason, ...options } = d.payload || {};
         if (cid) {
             try {
@@ -171,7 +171,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     // 4. Streaming generation lifecycle hooks (RPC / StreamGenerate)
-    if (d.type === 'GEMINI_STREAM_GENERATE_START') {
+    if (d.type === CrossWorldEvents.STREAM_START) {
         const { id, slot } = d.payload || {};
         if (typeof (_deps as any)?.onStreamStart === 'function') {
             (_deps as any).onStreamStart(id, slot);
@@ -184,7 +184,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
-    if (d.type === 'GEMINI_STREAM_GENERATE_COMPLETE') {
+    if (d.type === CrossWorldEvents.STREAM_COMPLETE) {
         const { id, slot } = d.payload || {};
         if (typeof (_deps as any)?.onStreamComplete === 'function') {
             (_deps as any).onStreamComplete(id, slot);
