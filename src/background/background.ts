@@ -1,148 +1,74 @@
 // src/background/background.ts - Manifest V3 Background Service Worker for Gemini Exporter
 
 import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
-import { GeminiConstants } from '../core/utils/constants.js';
-import { TabService } from '../core/utils/tabService.js';
-import { GeminiUtils } from '../core/utils/utils.js';
-import { StorageService } from '../core/storage/storageService.js';
-import { GeminiProtocol } from '../core/protocol/protocol.js';
-import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
+import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
+import {
+    __bgAborts,
+    restoreAbortFlags,
+    isSlotAborted,
+    setSlotAborted,
+    clearAllAborts
+} from './abortManager.js';
+import { startKeepAlive } from './keepAlive.js';
+import {
+    initTabActionListeners,
+    updateTabActionState,
+    isGeminiTabUrl,
+    ACTION_COLOR_ICONS,
+    ACTION_GRAY_ICONS
+} from './tabAction.js';
+import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
+import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
+import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
-import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 
-// Allow content scripts to access chrome.storage.session for memory-scoped CSRF credentials
-try {
-    if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session && (chrome.storage as any).session.setAccessLevel) {
-        (chrome.storage as any).session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
-    }
-} catch (e) {
-    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:background.js]', e);
-}
-
-const __bgAborts: Map<string, boolean> = new Map();
-
-// Restore persisted abort flags after MV3 worker restarts (setSlotAborted
-// mirrors every transition into chrome.storage.session).
-try {
-    if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session && (chrome.storage as any).session.get) {
-        (chrome.storage as any).session.get(null).then((data: any) => {
-            for (const k of Object.keys(data || {})) {
-                const m = k.match(/^gemini_abort_(.+)$/);
-                if (m && data[k]) __bgAborts.set(m[1], true);
-            }
-        }).catch(() => { /* intentional: best-effort abort restore */ });
-    }
-} catch { /* intentional: best-effort abort restore */ }
-
-function isSlotAborted(slot: string = 'u0'): boolean {
-    return !!__bgAborts.get(slot || 'u0');
-}
-
-function setSlotAborted(slot: string = 'u0', val: boolean = true): void {
-    const s = slot || 'u0';
-    if (val) {
-        __bgAborts.set(s, true);
-        try {
-            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
-                (chrome.storage as any).session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
-            }
-        } catch { /* intentional: session storage fallback */ }
-    } else {
-        __bgAborts.delete(s);
-        try {
-            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
-                (chrome.storage as any).session.remove([`gemini_abort_${s}`]).catch(() => {});
-            }
-        } catch { /* intentional: session storage fallback */ }
-    }
-}
-
-function startKeepAlive(): () => void {
-    if (typeof chrome === 'undefined' || !chrome.runtime) return () => {};
-    const interval = setInterval(() => {
-        try {
-            if (chrome.runtime.getPlatformInfo) {
-                chrome.runtime.getPlatformInfo(() => {});
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:background.js]', e);
-        }
-    }, 20000);
-    return () => clearInterval(interval);
-}
-
-const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
-    ? GeminiConstants.FEEDBACK_URL
-    : ((typeof (globalThis as any).GeminiConstants !== 'undefined' && (globalThis as any).GeminiConstants.FEEDBACK_URL)
-        ? (globalThis as any).GeminiConstants.FEEDBACK_URL
-        : 'https://tally.so/r/Y56ZBB');
-
-function initUninstallUrl(): void {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
-        try {
-            chrome.runtime.setUninstallURL(FEEDBACK_URL, () => {
-                if (chrome.runtime.lastError) {
-                    console.warn('[Gemini Exporter] Failed to set uninstall URL:', chrome.runtime.lastError.message);
-                }
-            });
-        } catch (err) {
-            console.warn('[Gemini Exporter] Error calling setUninstallURL:', err);
-        }
-    }
-}
-
-// Tab communication service helper (handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
-const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> => {
-    if (typeof TabService !== 'undefined' && TabService.sendToGeminiTab) {
-        return TabService.sendToGeminiTab(msg, slot, timeoutMs);
-    }
-    return Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）: Receiving end does not exist'));
+// Re-export modular components for architectural backward-compatibility and diagnostic inspection
+export {
+    initSessionAccessLevel,
+    initUninstallUrl,
+    initLifecycleListeners,
+    __bgAborts,
+    restoreAbortFlags,
+    isSlotAborted,
+    setSlotAborted,
+    clearAllAborts,
+    startKeepAlive,
+    initTabActionListeners,
+    updateTabActionState,
+    isGeminiTabUrl,
+    ACTION_COLOR_ICONS,
+    ACTION_GRAY_ICONS,
+    handleLiveSaveViaHandle,
+    markDirDeletedInConfig,
+    fetchBatch,
+    sendToGeminiTab,
+    getGeminiTab,
+    FsWriter,
+    ChatFormatter
 };
 
-const getGeminiTab = (slot?: string): Promise<any> => {
-    if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
-        return TabService.getGeminiTab(slot);
-    }
-    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-        return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then((t: any[]) => t?.[0] || null);
-    }
-    return Promise.resolve(null);
-};
+// Backwards-compatible handle store aliases
+export const getStoredExportDirHandle = getStoredDirHandle;
+export const clearStoredExportDirHandle = clearStoredDirHandle;
 
-chrome.runtime.onInstalled.addListener((details) => {
-    initUninstallUrl();
-    if (details.reason === 'install') {
-        chrome.tabs.create({
-            url: chrome.runtime.getURL('src/ui/options/options.html?welcome=1')
-        });
-    }
-});
+// Preserves _debug in failed chats via batchFetcher module
+export const PRESERVE_DEBUG_NOTE = '_debug';
 
+// 1. Initialize session storage access level for content script credentials
+initSessionAccessLevel();
+
+// 2. Initialize lifecycle listeners (install welcome page, uninstall feedback URL)
+initLifecycleListeners();
 initUninstallUrl();
 
-const getStoredExportDirHandle = getStoredDirHandle;
-const clearStoredExportDirHandle = clearStoredDirHandle;
+// 3. Restore persisted slot abort flags from session storage
+restoreAbortFlags().catch(() => {});
 
-async function markDirDeletedInConfig(): Promise<void> {
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        try {
-            const data = await chrome.storage.local.get('live_save_config');
-            const cur = data?.live_save_config || {};
-            await chrome.storage.local.set({
-                live_save_config: {
-                    ...cur,
-                    enabledDisk: false,
-                    dirName: '',
-                    dirError: 'not_found'
-                }
-            });
-        } catch {
-            /* ignore */
-        }
-    }
-}
+// 4. Initialize tab action dynamic icon status listeners
+initTabActionListeners();
 
+// 5. Central Message Router
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
         chrome.runtime.openOptionsPage();
@@ -205,7 +131,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'ping') {
-        const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3');
+        const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.5.0');
         sendResponse({
             ok: true,
             version: ver,
@@ -249,292 +175,12 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         return;
     }
 
-
     if (msg.action === 'liveSaveViaHandle' && msg.payload) {
-        (async () => {
-            try {
-                const { chat, safeTitle, nid, config, fileName } = msg.payload;
-                const handle = await getStoredDirHandle();
-                if (!handle) {
-                    sendResponse({ ok: false, error: 'no_dir_handle' });
-                    return;
-                }
-
-                if (handle.queryPermission) {
-                    const perm = await handle.queryPermission({ mode: 'readwrite' });
-                    if (perm !== 'granted') {
-                        sendResponse({ ok: false, error: 'permission_not_granted' });
-                        return;
-                    }
-                }
-
-                // Verify the directory physically exists on disk before proceeding
-                try {
-                    for await (const _ of handle.keys()) break;
-                } catch (probeErr: any) {
-                    if (probeErr?.name === 'NotFoundError' || probeErr?.message?.includes('not be found') || probeErr?.message?.includes('NotFoundError')) {
-                        console.warn('[Background] Target directory was deleted on disk:', probeErr);
-                        await clearStoredDirHandle();
-                        await markDirDeletedInConfig();
-                        sendResponse({ ok: false, error: 'dir_not_found', details: probeErr?.message });
-                        return;
-                    }
-                }
-
-                const FsWriterCls = (typeof FsWriter !== 'undefined' && FsWriter)
-                    ? ((FsWriter as any).FsWriter || FsWriter)
-                    : null;
-                if (!FsWriterCls) {
-                    sendResponse({ ok: false, error: 'no_fswriter' });
-                    return;
-                }
-
-                const writer = new FsWriterCls(handle, handle.name || 'gemini_export');
-                await writer.init();
-
-                const sanitizedTitle = GeminiUtils?.sanitizeFileName
-                    ? GeminiUtils.sanitizeFileName(safeTitle)
-                    : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-                const cid8 = String(nid || '').replace(/^c_/, '').slice(0, 8);
-                const targetFile = fileName || `${sanitizedTitle}_${cid8}.md`;
-
-                const FormatterCls = (typeof ChatFormatter !== 'undefined' && ChatFormatter)
-                    ? ChatFormatter
-                    : null;
-                const markdown = FormatterCls?.toMarkdown
-                    ? FormatterCls.toMarkdown({ ...chat, title: safeTitle, id: nid })
-                    : `# ${safeTitle}\n\n${JSON.stringify(chat?.messages || [], null, 2)}`;
-
-                await writer.writeFile('', targetFile, markdown);
-
-                const now = Date.now();
-                if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-                    try {
-                        const data = await chrome.storage.local.get('live_save_config');
-                        const cur = data?.live_save_config || {};
-                        await chrome.storage.local.set({
-                            live_save_config: {
-                                ...cur,
-                                lastSavedAt: now,
-                                lastSavedTitle: safeTitle,
-                                dirError: null
-                            }
-                        });
-                    } catch {
-                        /* best-effort storage update */
-                    }
-                }
-
-                // Mark conversation as exported in exportedIds SSoT
-                try {
-                    const slot = (msg.accountSlot || 'u0');
-                    if (typeof StorageService !== 'undefined' && StorageService?.saveExportRecord) {
-                        await StorageService.saveExportRecord(slot, nid, {
-                            exportedAt: new Date(now).toISOString(),
-                            title: safeTitle,
-                            format: 'markdown'
-                        });
-                    }
-                } catch (e) {
-                    console.warn('[Background] Failed to mark conversation as exported:', e);
-                }
-
-                sendResponse({ ok: true, handleName: handle.name, targetFile });
-            } catch (err: any) {
-                console.warn('[Background] liveSaveViaHandle error:', err);
-                const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('could not be found') || err?.message?.includes('NotFoundError');
-                if (isNotFound) {
-                    await clearStoredDirHandle();
-                    await markDirDeletedInConfig();
-                    sendResponse({ ok: false, error: 'dir_not_found', details: err?.message });
-                    return;
-                }
-                sendResponse({ ok: false, error: err?.message || String(err) });
-            }
-        })();
+        handleLiveSaveViaHandle(msg.payload, msg.accountSlot || 'u0')
+            .then(res => sendResponse(res))
+            .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
         return true;
     }
 
     return false;
 });
-
-function toMs(v: any): number {
-    if (!v) return 0;
-    if (typeof v === 'number') return v;
-    const n = Date.parse(v);
-    return Number.isFinite(n) ? n : 0;
-}
-
-async function fetchBatch(
-    list: any,
-    format?: string,
-    skipExported?: boolean,
-    portSendResponse?: any,
-    globalOffset: number = 0,
-    globalTotal: number = 0,
-    accountSlot: string = 'u0'
-): Promise<void> {
-    const stopKeepAlive = startKeepAlive();
-    try {
-        const slot = accountSlot || 'u0';
-        if (!list || !list.length) {
-            if (portSendResponse) portSendResponse({ success: true, results: [], skipped: 0 });
-            return;
-        }
-        const tab = await getGeminiTab(slot);
-        if (!tab) {
-            if (portSendResponse) {
-                portSendResponse({
-                    success: false,
-                    error: '请先打开 gemini.google.com，保持登录状态'
-                });
-            }
-            return;
-        }
-
-        const totalCount = globalTotal || list.length;
-        const results: any[] = [];
-        let done = 0;
-
-        for (const item of list) {
-            if (isSlotAborted(slot)) break;
-            const cid = item.id || item;
-            try {
-                let res: any = null;
-                let retryCount = 0;
-                const maxRetries = 3;
-
-                while (retryCount <= maxRetries && !isSlotAborted(slot)) {
-                    res = await sendToGeminiTab({
-                        action: 'getConversationDetail',
-                        conversationId: cid
-                    }, slot);
-
-                    const isRateLimit = isRateLimited(res);
-
-                    if (isRateLimit && retryCount < maxRetries) {
-                        const delayMs = calculateBackoff(retryCount);
-                        console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                        await new Promise(r => setTimeout(r, delayMs));
-                        retryCount++;
-                        continue;
-                    }
-                    break;
-                }
-
-                if (res && res.success) {
-                    const chat = res.data || res.chat || res;
-                    chat.id = cid;
-                    results.push(chat);
-                } else {
-                    results.push({
-                        id: cid,
-                        title: item.title,
-                        url: item.url || `https://gemini.google.com/app/${cid}`,
-                        error: res?.error || '抓取失败',
-                        messages: [],
-                        _empty: true,
-                        _debug: res?._debug || null,
-                        _raw: res?._raw || null
-                    });
-                }
-            } catch (e: any) {
-                results.push({
-                    id: cid,
-                    title: item.title,
-                    url: item.url || `https://gemini.google.com/app/${cid}`,
-                    error: e?.message || '抓取异常',
-                    messages: [],
-                    _empty: true,
-                    _debug: e?.stack || null,
-                    _raw: null
-                });
-            }
-            done++;
-            chrome.runtime.sendMessage({
-                action: 'exportProgress',
-                done: globalOffset + done,
-                total: totalCount,
-                title: item.title,
-                id: cid
-            }).catch(() => {});
-        }
-
-        if (portSendResponse) {
-            portSendResponse({
-                success: true,
-                results,
-                skipped: 0
-            });
-        }
-    } finally {
-        stopKeepAlive();
-    }
-}
-
-// Tab action icon dynamic state management (color on Gemini, grayscale elsewhere)
-function isGeminiTabUrl(urlStr?: string | null): boolean {
-    if (!urlStr || typeof urlStr !== 'string') return false;
-    try {
-        const u = new URL(urlStr);
-        return u.hostname === 'gemini.google.com';
-    } catch {
-        return false;
-    }
-}
-
-const ACTION_COLOR_ICONS = {
-    16: 'icons/icon16.png',
-    48: 'icons/icon48.png',
-    128: 'icons/icon128.png'
-};
-
-const ACTION_GRAY_ICONS = {
-    16: 'icons/icon16_gray.png',
-    48: 'icons/icon48_gray.png',
-    128: 'icons/icon128_gray.png'
-};
-
-function updateTabActionState(tabId?: number | null, url?: string | null): void {
-    if (typeof chrome === 'undefined' || !chrome.action || !tabId) return;
-    const isGemini = isGeminiTabUrl(url);
-    const icons = isGemini ? ACTION_COLOR_ICONS : ACTION_GRAY_ICONS;
-    const title = isGemini ? 'Gemini Exporter (Active)' : 'Gemini Exporter (未激活 - 当前非 Gemini 页面)';
-    try {
-        chrome.action.setIcon({ tabId, path: icons }).catch(() => {});
-        chrome.action.setTitle({ tabId, title }).catch(() => {});
-    } catch { /* intentional fallback */ }
-}
-
-try {
-    if (typeof chrome !== 'undefined' && chrome.tabs) {
-        if (chrome.tabs.onActivated) {
-            chrome.tabs.onActivated.addListener((activeInfo) => {
-                chrome.tabs.get(activeInfo.tabId, (tab) => {
-                    if (chrome.runtime?.lastError || !tab) return;
-                    updateTabActionState(activeInfo.tabId, tab.url);
-                });
-            });
-        }
-        if (chrome.tabs.onUpdated) {
-            chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-                const url = changeInfo.url || tab?.url;
-                if (url) {
-                    updateTabActionState(tabId, url);
-                }
-            });
-        }
-        // Initial tab check on service worker startup
-        if (chrome.tabs.query) {
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                if (tabs && tabs[0]?.id) {
-                    updateTabActionState(tabs[0].id, tabs[0].url);
-                }
-            });
-        }
-    }
-} catch (e) {
-    if (typeof console !== 'undefined' && console.debug) console.debug('[background] init tab action state error', e);
-}
-
-export {};
