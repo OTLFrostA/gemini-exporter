@@ -247,46 +247,15 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                     const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
                     const cid8 = nid.slice(0, 8);
                     const fileName = `${sanitizedTitle}_${cid8}.md`;
-                    const dirName = config.dirName || 'gemini';
-                    const targetPath = `${dirName}/${fileName}`;
                     const markdown = Formatter?.toMarkdown
                         ? Formatter.toMarkdown({ ...chat, title: safeTitle, id: nid })
                         : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
 
-                    let bgDownloaded = false;
-                    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-                        try {
-                            const dataUrl = `data:text/markdown;charset=utf-8,${encodeURIComponent(markdown)}`;
-                            const dlResp = await new Promise<any>((resolve) => {
-                                chrome.runtime.sendMessage({
-                                    action: 'liveSaveDownload',
-                                    filename: targetPath,
-                                    url: dataUrl,
-                                    conflictAction: 'overwrite'
-                                }, (res) => {
-                                    if (chrome.runtime.lastError) resolve(null);
-                                    else resolve(res);
-                                });
-                            });
-                            if (dlResp && dlResp.ok) {
-                                bgDownloaded = true;
-                                writeSucceeded = true;
-                                if (isDev()) {
-                                    console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via background downloads API (${targetPath})`);
-                                }
-                            }
-                        } catch {
-                            /* fallback to direct DOM download */
-                        }
-                    }
-
-                    if (!bgDownloaded) {
-                        const downloadFn = getDownloadFn();
-                        downloadFn(fileName, markdown);
-                        writeSucceeded = true;
-                        if (isDev()) {
-                            console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via direct download fallback (${fileName})`);
-                        }
+                    const downloadFn = getDownloadFn();
+                    downloadFn(fileName, markdown);
+                    writeSucceeded = true;
+                    if (isDev()) {
+                        console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via direct download fallback (${fileName})`);
                     }
                 }
             }

@@ -192,8 +192,8 @@ test('liveSaveCoordinator - executeLiveSave falls back to direct download when o
     }
 });
 
-test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload only when dirName is not configured', async () => {
-    let bgDownloadMsg: any = null;
+test('liveSaveCoordinator - executeLiveSave falls back to direct downloadFn only when dirName is not configured', async () => {
+    let directDownloadCalledWith: any = null;
     let feedbackCalled = false;
 
     const mockStorage = {
@@ -210,8 +210,8 @@ test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload onl
     const mockScraper = {
         parseDoc: (_doc: any, id: string) => ({
             id,
-            title: 'BG Download Test',
-            messages: [{ role: 'user', content: 'test bg' }],
+            title: 'Direct Fallback Test',
+            messages: [{ role: 'user', content: 'test fallback' }],
             timestamp: Date.now()
         })
     };
@@ -222,9 +222,6 @@ test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload onl
             sendMessage: (msg: any, cb: (res: any) => void) => {
                 if (msg.action === 'liveSaveViaHandle') {
                     if (cb) cb({ ok: false, error: 'no_dir_handle' });
-                } else if (msg.action === 'liveSaveDownload') {
-                    bgDownloadMsg = msg;
-                    if (cb) cb({ ok: true, downloadId: 42 });
                 }
             }
         }
@@ -238,15 +235,17 @@ test('liveSaveCoordinator - executeLiveSave uses background liveSaveDownload onl
                 showLiveSaveFeedback: () => { feedbackCalled = true; },
                 showLiveSaveWarning: () => {}
             },
+            downloadFn: (fileName: string, content: any) => {
+                directDownloadCalledWith = { fileName, content: String(content) };
+            },
             clientClass: null
         });
 
         const success = await LiveSaveCoordinator.executeLiveSave('c_bgdl789', 'turn_complete');
         assert.strictEqual(success, true);
-        assert.ok(bgDownloadMsg);
-        assert.strictEqual(bgDownloadMsg.action, 'liveSaveDownload');
-        assert.strictEqual(bgDownloadMsg.filename, 'gemini/BG Download Test_bgdl789.md');
-        assert.ok(bgDownloadMsg.url.startsWith('data:text/markdown'));
+        assert.ok(directDownloadCalledWith);
+        assert.strictEqual(directDownloadCalledWith.fileName, 'Direct Fallback Test_bgdl789.md');
+        assert.ok(directDownloadCalledWith.content.includes('test fallback'));
         assert.strictEqual(feedbackCalled, true);
     } finally {
         (global as any).chrome = origChrome;
