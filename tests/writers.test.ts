@@ -92,3 +92,39 @@ test('writerInterface - isWriter and createWriter factory', () => {
         WriterInterface.createWriter('invalid_type');
     });
 });
+
+test('fsWriter - rejects invalid or empty plain object content before touching file handle', async () => {
+    let fileHandleCreated = false;
+    const mockDirHandle = {
+        name: 'gemini_export',
+        getFileHandle: async () => {
+            fileHandleCreated = true;
+            return {
+                createWritable: async () => ({
+                    write: async () => {},
+                    close: async () => {}
+                })
+            };
+        }
+    };
+
+    const writer = new FsWriter(mockDirHandle, 'gemini_export');
+    await writer.init();
+
+    // Plain empty object from broken JSON serialization must throw and not create file handle
+    await assert.rejects(async () => {
+        await writer.writeFile('', 'broken_image.jpg', {});
+    }, /Invalid content object passed to writeFile/);
+    assert.strictEqual(fileHandleCreated, false, 'Must not create file handle on disk for invalid object');
+
+    // Null or undefined content must throw
+    await assert.rejects(async () => {
+        await writer.writeFile('', 'null_file.md', null);
+    }, /Cannot write null or undefined content/);
+    assert.strictEqual(fileHandleCreated, false, 'Must not create file handle on disk for null');
+
+    // Valid string or Uint8Array must succeed and call getFileHandle
+    const okName = await writer.writeFile('', 'valid.txt', 'Hello world');
+    assert.strictEqual(okName, 'valid.txt');
+    assert.strictEqual(fileHandleCreated, true);
+});

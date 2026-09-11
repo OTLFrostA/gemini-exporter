@@ -33,6 +33,21 @@ export interface LiveSaveResult {
     details?: string;
 }
 
+export function base64ToUint8Array(base64: string): Uint8Array {
+    if (!base64 || typeof base64 !== 'string') return new Uint8Array(0);
+    if (typeof Buffer !== 'undefined' && typeof (Buffer as any).from === 'function') {
+        const buf = Buffer.from(base64, 'base64');
+        return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    }
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+}
+
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
         const { chat, safeTitle, nid, fileName, assets } = payload || {};
@@ -87,9 +102,29 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
 
         if (Array.isArray(assets) && assets.length > 0) {
             for (const asset of assets) {
-                if (asset && asset.fileName && asset.buffer) {
+                if (asset && asset.fileName) {
+                    let fileData: Uint8Array | null = null;
+                    if (asset.base64 && typeof asset.base64 === 'string') {
+                        try {
+                            fileData = base64ToUint8Array(asset.base64);
+                        } catch (b64Err) {
+                            console.warn('[Background:liveSave] Failed to decode base64 for asset:', asset.fileName, b64Err);
+                        }
+                    } else if (asset.buffer instanceof ArrayBuffer) {
+                        fileData = new Uint8Array(asset.buffer);
+                    } else if (ArrayBuffer.isView(asset.buffer)) {
+                        fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
+                    } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(asset.buffer)) {
+                        fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
+                    }
+
+                    if (!fileData || fileData.byteLength === 0) {
+                        console.warn('[Background:liveSave] Skipping asset with no valid binary data:', asset.fileName);
+                        continue;
+                    }
+
                     try {
-                        await writer.writeFile(asset.subDir || 'assets', asset.fileName, asset.buffer);
+                        await writer.writeFile(asset.subDir || 'assets', asset.fileName, fileData);
                     } catch (assetErr) {
                         console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);
                     }

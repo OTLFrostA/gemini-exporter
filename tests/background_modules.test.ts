@@ -180,7 +180,7 @@ test('liveSaveHandler - directory missing and deletion detection', async () => {
 });
 
 test('liveSaveHandler - persists to gemini_export with cid6 filename and assets', async () => {
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
+    const { handleLiveSaveViaHandle, base64ToUint8Array } = require('../src/background/liveSaveHandler.js');
     const idbStore = require('../src/core/storage/idbHandleStore.js');
 
     let writtenFiles: Record<string, any> = {};
@@ -245,7 +245,12 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
                 {
                     fileName: 'abcdef_t1_img1.png',
                     subDir: 'assets',
-                    buffer: Buffer.from('png-bytes')
+                    base64: Buffer.from('png-bytes').toString('base64')
+                },
+                {
+                    fileName: 'abcdef_t1_empty.jpg',
+                    subDir: 'assets',
+                    buffer: {} // simulated empty object from Chrome IPC serialization
                 }
             ]
         };
@@ -256,10 +261,26 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
         assert.strictEqual(res.targetFile, 'Quantum Teleportation_abcdef.md', 'Must use cid6 filename');
         assert.ok('Quantum Teleportation_abcdef.md' in writtenFiles);
         assert.ok('assets/abcdef_t1_img1.png' in writtenFiles);
-        assert.strictEqual(writtenFiles['assets/abcdef_t1_img1.png'].toString(), 'png-bytes');
+        assert.strictEqual(Buffer.from(writtenFiles['assets/abcdef_t1_img1.png']).toString(), 'png-bytes');
+        // The empty asset with {} should be safely skipped and NOT written
+        assert.strictEqual('assets/abcdef_t1_empty.jpg' in writtenFiles, false);
     } finally {
         idbStore.getStoredDirHandle = origGetHandle;
         (global as any).chrome = origChrome;
     }
+});
+
+test('liveSaveHandler - base64ToUint8Array decodes valid base64 and handles empty inputs', () => {
+    const { base64ToUint8Array } = require('../src/background/liveSaveHandler.js');
+    const original = 'binary-data-test-string';
+    const b64 = Buffer.from(original).toString('base64');
+    const u8 = base64ToUint8Array(b64);
+    assert.strictEqual(Buffer.from(u8).toString(), original);
+
+    const empty = base64ToUint8Array('');
+    assert.strictEqual(empty.byteLength, 0);
+
+    const nil = base64ToUint8Array(null as any);
+    assert.strictEqual(nil.byteLength, 0);
 });
 
