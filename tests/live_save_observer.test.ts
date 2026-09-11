@@ -121,3 +121,54 @@ test('liveSaveObserver - Lifecycle and debounced save trigger', async () => {
         delete (global as any).MutationObserver;
     }
 });
+
+test('liveSaveObserver - RPC stream lifecycle triggers fast save without debounce lag', async () => {
+    const origWin = (global as any).window;
+    const origDoc = (global as any).document;
+
+    (global as any).window = {
+        addEventListener: () => {},
+        removeEventListener: () => {}
+    };
+    (global as any).document = {
+        body: { nodeType: 1 },
+        querySelector: () => null
+    };
+    (global as any).MutationObserver = class {
+        observe() {}
+        disconnect() {}
+    };
+
+    let savedId: string | null = null;
+    let savedReason: string | null = null;
+
+    try {
+        LiveSaveObserver.init({
+            debounceMs: 500, // even with high debounce, RPC stream complete should be near-instant
+            getActiveId: () => 'default_active_id',
+            onTurnComplete: (cid: string, reason: string) => {
+                savedId = cid;
+                savedReason = reason;
+            }
+        });
+
+        // 1. Notify stream start for a new conversation
+        LiveSaveObserver.notifyStreamStart('c_stream_123');
+
+        // 2. Notify stream complete
+        LiveSaveObserver.notifyStreamComplete('c_stream_123');
+
+        // Wait 65ms (well below debounceMs of 500ms)
+        await new Promise(r => setTimeout(r, 65));
+
+        assert.strictEqual(savedId, 'c_stream_123');
+        assert.strictEqual(savedReason, 'turn_complete');
+
+        LiveSaveObserver.cleanup();
+    } finally {
+        (global as any).window = origWin;
+        (global as any).document = origDoc;
+        delete (global as any).MutationObserver;
+    }
+});
+

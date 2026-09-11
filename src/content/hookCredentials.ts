@@ -107,6 +107,74 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
         }
     }
 
+    function getSlotFromUrl(url: any): string {
+        let slot = 'default';
+        const uStr = (url || '').toString();
+        const m = uStr.match(/\/u\/(\d+)\//);
+        if (m) slot = 'u' + m[1];
+        else if (typeof location !== 'undefined') {
+            const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
+            if (m2) slot = 'u' + m2[1];
+        }
+        return slot;
+    }
+
+    function isStreamUrl(url: any): boolean {
+        const u = (url || '').toString();
+        return u.includes('StreamGenerate') || u.includes('BardFrontendService');
+    }
+
+    function extractConversationId(url: any, body: any, responseText?: any): string | null {
+        try {
+            // 1. Check response text first (most authoritative for newly assigned conversation IDs in streaming chunk 1)
+            if (responseText && typeof responseText === 'string') {
+                const m = responseText.match(/["']c_([a-f0-9]{8,64})["']/i) || responseText.match(/c_([a-f0-9]{8,64})/i);
+                if (m && m[1]) return m[1];
+            }
+            // 2. Check request body
+            if (body && typeof body === 'string') {
+                let decoded = body;
+                try { decoded = decodeURIComponent(body); } catch {}
+                const m = decoded.match(/["']c_([a-f0-9]{8,64})["']/i) || decoded.match(/c_([a-f0-9]{8,64})/i);
+                if (m && m[1]) return m[1];
+            }
+            // 3. Check current window location
+            if (typeof location !== 'undefined') {
+                const m = location.pathname.match(/\/app\/([a-f0-9]{8,64})/i);
+                if (m && m[1]) return m[1];
+            }
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+        return null;
+    }
+
+    function broadcastStreamStart(url: any, body: any): void {
+        try {
+            const convId = extractConversationId(url, body);
+            const slot = getSlotFromUrl(url);
+            window.postMessage({
+                type: 'GEMINI_STREAM_GENERATE_START',
+                payload: { id: convId, slot }
+            }, location.origin);
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+    }
+
+    function broadcastStreamComplete(url: any, body: any, responseText?: any): void {
+        try {
+            const convId = extractConversationId(url, body, responseText);
+            const slot = getSlotFromUrl(url);
+            window.postMessage({
+                type: 'GEMINI_STREAM_GENERATE_COMPLETE',
+                payload: { id: convId, slot, url: (url || '').toString() }
+            }, location.origin);
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+    }
+
     function broadcastBatchexecute(url: any, text: any): void {
         try {
             // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
@@ -114,20 +182,13 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
             // and relays every response body (up to 3MB) across worlds. Only the
             // payloads the ISOLATED side actually parses (list / detail) are relayed.
             if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
-            let slot = 'default';
-            const uStr = (url || '').toString();
-            const m = uStr.match(/\/u\/(\d+)\//);
-            if (m) slot = 'u' + m[1];
-            else {
-                const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
-                if (m2) slot = 'u' + m2[1];
-            }
+            const slot = getSlotFromUrl(url);
             window.postMessage({
                 type: 'GEMINI_NETWORK_BATCHEXECUTE',
                 payload: {
                     text: text.slice(0, 3000000), // Protect against memory spikes
                     slot,
-                    url: uStr
+                    url: (url || '').toString()
                 }
             }, location.origin);
         } catch (e) {
@@ -138,11 +199,15 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
     // Hook Fetch
     if (origFetch) {
         window.fetch = async function(...args: any[]) {
+            const url = args[0];
+            const init = args[1] || {};
+            const body = init.body || (args[0] && args[0].body);
+
             try {
-                const url = args[0];
-                const init = args[1] || {};
-                const body = init.body || (args[0] && args[0].body);
                 captureFromUrl(url, body);
+                if (isStreamUrl(url)) {
+                    broadcastStreamStart(url, body);
+                }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
@@ -150,9 +215,6 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
             const response = await origFetch.apply(this, args as any);
 
             try {
-                const url = args[0];
-                const init = args[1] || {};
-                const body = init.body || (args[0] && args[0].body);
                 const u = (url || '').toString();
                 if (u.includes('batchexecute')) {
                     const cloned = response.clone();
@@ -166,6 +228,21 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
                     }).catch((e: any) => {
                         if (isDev()) console.debug('[GemExporter:hook]', e);
                     });
+                } else if (isStreamUrl(url)) {
+                    try {
+                        const cloned = response.clone();
+                        cloned.text().then((txt: string) => {
+                            try {
+                                broadcastStreamComplete(url, body, txt);
+                            } catch (e) {
+                                if (isDev()) console.debug('[GemExporter:hook]', e);
+                            }
+                        }).catch(() => {
+                            broadcastStreamComplete(url, body);
+                        });
+                    } catch {
+                        broadcastStreamComplete(url, body);
+                    }
                 }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -202,6 +279,21 @@ import { GeminiProtocol } from '../core/protocol/protocol.js';
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }
                     });
+                } else if (isStreamUrl(url)) {
+                    broadcastStreamStart(url, body);
+                    let ended = false;
+                    const handleStreamEnd = () => {
+                        if (ended) return;
+                        ended = true;
+                        try {
+                            broadcastStreamComplete(url, body, this.responseText);
+                        } catch (e) {
+                            if (isDev()) console.debug('[GemExporter:hook]', e);
+                        }
+                    };
+                    this.addEventListener('load', handleStreamEnd);
+                    this.addEventListener('loadend', handleStreamEnd);
+                    this.addEventListener('abort', handleStreamEnd);
                 }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
