@@ -256,4 +256,200 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     await page.screenshot({ path: fullPagePic });
     expect(fs.existsSync(fullPagePic)).toBe(true);
   });
+
+  test('should visually audit real-time conversation promotion to list top upon continuation with physical hit-testing', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const now = Date.now();
+    const initialConvs = [
+      { id: 'top_active_999', title: '首位活跃新对话', timestamp: now - 5000, updatedAt: now - 5000, createdAt: now - 50000, sidebarIndex: 0 },
+      { id: 'historical_old_111', title: '待追加对话的老会话', timestamp: now - 80000, updatedAt: now - 80000, createdAt: now - 120000, sidebarIndex: 1 },
+      { id: 'historical_old_222', title: '末尾静止老会话', timestamp: now - 180000, updatedAt: now - 180000, createdAt: now - 220000, sidebarIndex: 2 }
+    ];
+
+    await page.evaluate(async (convs) => {
+      await chrome.storage.local.set({ gemini_conversations: convs });
+      if (typeof (window as any).__workbenchLoadStore === 'function') {
+        await (window as any).__workbenchLoadStore(true);
+      }
+    }, initialConvs);
+
+    await expect(page.locator('#list .item')).toHaveCount(3);
+    await expect(page.locator('#list .item').nth(0)).toContainText('首位活跃新对话');
+    await expect(page.locator('#list .item').nth(1)).toContainText('待追加对话的老会话');
+
+    // 模拟老会话 historical_old_111 发帖并收到 STREAM_COMPLETE，时间戳跃升置顶
+    await page.evaluate(async () => {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
+          const convs = data.gemini_conversations || [];
+          const target = convs.find((c: any) => c.id === 'historical_old_111');
+          if (target) {
+            const bumpedTime = Date.now() + 50000;
+            target.updatedAt = bumpedTime;
+            target.timestamp = bumpedTime;
+            convs.sort((a: any, b: any) => ((b.updatedAt || b.timestamp || 0) - (a.updatedAt || a.timestamp || 0)));
+            await chrome.storage.local.set({ gemini_conversations: convs });
+            chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'stream-complete' });
+            if (typeof (window as any).__workbenchLoadStore === 'function') {
+              await (window as any).__workbenchLoadStore(true);
+            }
+          }
+          resolve(true);
+        });
+      });
+    });
+
+    // 视觉审计：无需页面刷新，historical_old_111 跃升至列表首位 (index 0)
+    await expect(page.locator('#list .item').nth(0)).toContainText('待追加对话的老会话', { timeout: 4000 });
+    await expect(page.locator('#list .item').nth(1)).toContainText('首位活跃新对话');
+
+    // 物理 Hit-Testing：检验新晋首位元素的交互穿透性
+    const topItem = page.locator('#list .item').nth(0);
+    const box = await topItem.boundingBox();
+    expect(box).not.toBeNull();
+    if (box) {
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const hitElementTag = await page.evaluate(({ x, y }) => {
+        const hit = document.elementFromPoint(x, y);
+        return hit ? hit.tagName.toLowerCase() + (hit.className ? '.' + String(hit.className).split(' ')[0] : '') : null;
+      }, { x: cx, y: cy });
+
+      expect(hitElementTag).not.toBeNull();
+      expect(hitElementTag).toMatch(/^(div|label|span|input)/i);
+    }
+
+    const screenshotPath = path.join(outputDir, 'continued_chat_promoted.png');
+    await page.screenshot({ path: screenshotPath });
+    expect(fs.existsSync(screenshotPath)).toBe(true);
+  });
+
+  test('should visually audit real-time ephemeral conversation deletion and DOM pruning without layout breakage', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const now = Date.now();
+    const initialConvs = [
+      { id: 'del_eph_9999', title: '瞬态自毁测试会话 (待删除)', timestamp: now + 5000, updatedAt: now + 5000, createdAt: now - 10000 },
+      { id: 'keep_chat_111', title: '留存会话 1 (有效)', timestamp: now - 10000, updatedAt: now - 10000, createdAt: now - 30000 },
+      { id: 'keep_chat_222', title: '留存会话 2 (有效)', timestamp: now - 20000, updatedAt: now - 20000, createdAt: now - 50000 }
+    ];
+
+    await page.evaluate(async (convs) => {
+      await chrome.storage.local.set({ gemini_conversations: convs });
+      if (typeof (window as any).__workbenchLoadStore === 'function') {
+        await (window as any).__workbenchLoadStore(true);
+      }
+    }, initialConvs);
+
+    // 初始渲染校验
+    await expect(page.locator('#list .item')).toHaveCount(3);
+    await expect(page.locator('#list .item[data-chat-id="del_eph_9999"]')).toBeVisible();
+
+    const renderScreenshot = path.join(outputDir, 'ephemeral_chat_rendered.png');
+    await page.screenshot({ path: renderScreenshot });
+    expect(fs.existsSync(renderScreenshot)).toBe(true);
+
+    // 模拟触发实时删除广播
+    await page.evaluate(async () => {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
+          let convs = data.gemini_conversations || [];
+          convs = convs.filter((c: any) => c.id !== 'del_eph_9999');
+          await chrome.storage.local.set({ gemini_conversations: convs });
+          chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'delete-event' });
+          if (typeof (window as any).__workbenchLoadStore === 'function') {
+            await (window as any).__workbenchLoadStore(true);
+          }
+          resolve(true);
+        });
+      });
+    });
+
+    // 视觉审计：DOM 列表从 3 项平滑剥离为 2 项，目标项 0 残留
+    await expect(page.locator('#list .item')).toHaveCount(2);
+    await expect(page.locator('#list .item[data-chat-id="del_eph_9999"]')).toHaveCount(0);
+    await expect(page.locator('#list .item[data-chat-id="keep_chat_111"]')).toBeVisible();
+
+    // 布局完整性审查：确保相邻卡片垂直间距规整紧凑，无异常空洞与布局撕裂
+    const layoutIntegrity = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll('#list .item'));
+      if (items.length < 2) return { ok: true };
+      const r1 = items[0].getBoundingClientRect();
+      const r2 = items[1].getBoundingClientRect();
+      const gap = r2.top - r1.bottom;
+      return { ok: gap >= 0 && gap <= 16, gap };
+    });
+    expect(layoutIntegrity.ok).toBe(true);
+
+    const pruneScreenshot = path.join(outputDir, 'ephemeral_chat_pruned.png');
+    await page.screenshot({ path: pruneScreenshot });
+    expect(fs.existsSync(pruneScreenshot)).toBe(true);
+  });
+
+  test('should visually audit Takeout import initial prefix and authoritative RPC title upgrade', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const takeoutChat = {
+      id: '1bd028d5c5b0c0e2',
+      title: '火星宇航员猫咪（离线提问前缀）',
+      titleSource: 'takeout',
+      titles: { takeout: '火星宇航员猫咪（离线提问前缀）' },
+      timestamp: 1680000000000,
+      updatedAt: 1680000000000
+    };
+
+    await page.evaluate(async (c) => {
+      await chrome.storage.local.set({ gemini_conversations: [c] });
+      if (typeof (window as any).__workbenchLoadStore === 'function') {
+        await (window as any).__workbenchLoadStore(true);
+      }
+    }, takeoutChat);
+
+    await expect(page.locator('#list .item[data-chat-id="1bd028d5c5b0c0e2"]')).toContainText('火星宇航员猫咪（离线提问前缀）');
+
+    // 模拟在线 RPC 权威晋级升级
+    await page.evaluate(async () => {
+      return new Promise((resolve) => {
+        chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
+          const convs = data.gemini_conversations || [];
+          const chat = convs.find((c: any) => c.id === '1bd028d5c5b0c0e2');
+          if (chat) {
+            chat.title = '火星宇航员猫咪（AI 生成图片 Imagen）';
+            chat.titleSource = 'rpc';
+            chat.titles = {
+              takeout: '火星宇航员猫咪（离线提问前缀）',
+              rpc: '火星宇航员猫咪（AI 生成图片 Imagen）'
+            };
+            await chrome.storage.local.set({ gemini_conversations: convs });
+            chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'rpc-deep-scan' });
+            if (typeof (window as any).__workbenchLoadStore === 'function') {
+              await (window as any).__workbenchLoadStore(true);
+            }
+          }
+          resolve(true);
+        });
+      });
+    });
+
+    // 视觉审计：DOM 列表中标题无缝升级为权威标题
+    await expect(page.locator('#list .item[data-chat-id="1bd028d5c5b0c0e2"]')).toContainText('火星宇航员猫咪（AI 生成图片 Imagen）');
+
+    const upgradedPic = path.join(outputDir, 'takeout_title_upgraded.png');
+    await page.screenshot({ path: upgradedPic });
+    expect(fs.existsSync(upgradedPic)).toBe(true);
+  });
 });
+
