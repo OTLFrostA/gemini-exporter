@@ -63,6 +63,19 @@ export async function clearLiveConversations(): Promise<boolean> {
 }
 
 export async function getLiveConfig(): Promise<LiveSaveConfig> {
+    // 1. SSoT: chrome.storage.local is the canonical source shared across Content Script, Options, and Background
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        try {
+            const d = await chrome.storage.local.get([KEY_CONFIG]);
+            if (d && d[KEY_CONFIG]) {
+                return { ...DEFAULT_LIVE_CONFIG, ...d[KEY_CONFIG] };
+            }
+        } catch {
+            /* intentional fallback to IDB */
+        }
+    }
+
+    // 2. Fallback to IndexedDB (e.g. Node tests or non-extension environments)
     try {
         const db = await openLiveDB();
         return new Promise((resolve, reject) => {
@@ -75,18 +88,7 @@ export async function getLiveConfig(): Promise<LiveSaveConfig> {
             };
             req.onerror = () => reject(req.error);
         });
-    } catch (e) {
-        // Fallback to chrome.storage.local or defaults
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            try {
-                const d = await chrome.storage.local.get([KEY_CONFIG]);
-                if (d && d[KEY_CONFIG]) {
-                    return { ...DEFAULT_LIVE_CONFIG, ...d[KEY_CONFIG] };
-                }
-            } catch {
-                /* intentional */
-            }
-        }
+    } catch {
         return { ...DEFAULT_LIVE_CONFIG };
     }
 }
@@ -94,6 +96,17 @@ export async function getLiveConfig(): Promise<LiveSaveConfig> {
 export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<LiveSaveConfig> {
     const current = await getLiveConfig();
     const updated: LiveSaveConfig = { ...current, ...patch };
+
+    // 1. SSoT: Save to chrome.storage.local first
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        try {
+            await chrome.storage.local.set({ [KEY_CONFIG]: updated });
+        } catch (err) {
+            console.warn('[LiveStorageManager] Failed to set config in chrome.storage.local:', err);
+        }
+    }
+
+    // 2. Best-effort mirror to IndexedDB
     try {
         const db = await openLiveDB();
         await new Promise<void>((resolve, reject) => {
@@ -104,16 +117,9 @@ export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<Liv
             tx.onerror = () => reject(tx.error);
         });
     } catch (e) {
-        console.warn('[LiveStorageManager] Failed to set config in IDB:', e);
+        /* intentional: IDB is secondary mirror */
     }
-    // Also mirror to chrome.storage.local for cross-context visibility (e.g. Content Script & Options)
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        try {
-            await chrome.storage.local.set({ [KEY_CONFIG]: updated });
-        } catch {
-            /* intentional */
-        }
-    }
+
     return updated;
 }
 
