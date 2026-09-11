@@ -132,7 +132,7 @@ export const STEPS: any[] = [
         hintKey: 'tourHintClickFeedback',
         isFinal: true,
         setupAction: (advance: () => void) => {
-            const btnFeedback = document.getElementById('btnFeedback');
+            const btnFeedback = document.getElementById('feedbackBox') || document.getElementById('btnFeedback');
             if (btnFeedback) {
                 const onFeedbackClick = () => setTimeout(advance, 200);
                 btnFeedback.addEventListener('click', onFeedbackClick);

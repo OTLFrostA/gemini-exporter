@@ -235,6 +235,7 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     mockElements.set('btnExport', mockExportBtn);
     mockElements.set('liveSaveDiskToggle', mockLiveSaveToggle);
     mockElements.set('btnFeedback', mockFeedbackBtn);
+    mockElements.set('feedbackBox', mockFeedbackBtn);
 
     // 1. Start at step 1 (sync)
     await TourGuide.goToStep(1);

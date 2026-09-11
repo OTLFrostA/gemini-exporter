@@ -39,7 +39,11 @@
   button.ok{background:var(--ok);color:#062419}
   .small{padding:4px 10px;font-size:12px;height:28px;border-radius:6px;}
   button:disabled{opacity:.45;pointer-events:none}
-  .btn-remove-chat:hover{opacity:1 !important;color:#f87171 !important;}
+  .feedback-card{margin-top:auto;padding:10px 12px;background:var(--card-inner);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none;text-decoration:none;color:var(--muted);cursor:pointer;transition:all 0.15s ease;}
+  .feedback-card:hover{background:#171926;border-color:var(--border-focus);color:var(--text);}
+  .feedback-card:hover .feedback-arrow{opacity:1;transform:translate(1px,-1px);color:var(--accent2);}
+  .feedback-card:active{transform:scale(0.99);}
+  .feedback-arrow{font-size:12px;opacity:0.6;flex:none;transition:opacity 0.15s ease,transform 0.15s ease,color 0.15s ease;}
   input[type=checkbox]{accent-color:var(--accent)}
   input[type=checkbox].toggle {
     appearance: none;
@@ -237,15 +241,13 @@
       <div id="log" class="log" style="flex:1; overflow-y:auto;" data-i18n="logReady">就绪</div>
     </div>
 
-    <div id="feedbackBox" style="margin-top:auto; padding:10px 12px; background:var(--card-inner); border:1px solid var(--border); border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex:none;">
-      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); min-width:0;">
+    <a href="https://tally.so/r/Y56ZBB" target="_blank" rel="noopener noreferrer" id="feedbackBox" class="feedback-card" data-i18n-title="btnFeedbackTip" title="前往表单提交反馈或新功能建议">
+      <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:inherit; min-width:0;">
         <span style="font-size:13px; flex:none;">💬</span>
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" data-i18n="feedbackPrompt">遇到问题或有新建议？</span>
       </div>
-      <a href="https://tally.so/r/Y56ZBB" target="_blank" rel="noopener noreferrer" id="btnFeedback" class="ghost small" style="padding:3px 10px; font-size:11px; height:26px; border-radius:6px; text-decoration:none; display:inline-flex; align-items:center; gap:4px; color:var(--text); flex:none;" data-i18n="btnFeedback" data-i18n-title="btnFeedbackTip" title="前往表单提交反馈或新功能建议">
-        反馈 ↗
-      </a>
-    </div>
+      <span class="feedback-arrow">↗</span>
+    </a>
   </div>
 
   <div class="card card-right">
