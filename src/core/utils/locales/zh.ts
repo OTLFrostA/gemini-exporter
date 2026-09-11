@@ -91,6 +91,7 @@ const __zhFactory = (): LocaleDictionary => {
             downloadingAsset: "下载图片 ({0}/{1}): {2}",
             syncCompleted: "同步完成，已更新列表",
             syncFailed: "同步失败: {0}",
+            syncConnectionFailedRefresh: "未能与 Gemini 建立连接，请刷新 gemini.google.com 页面后重试",
             pillInit: "初始化…",
             pillSynced: "已同步 {0} 条",
             badgeNeedsReexport: "待重新导出",

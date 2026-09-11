@@ -9,6 +9,10 @@ const t = (key: string, ...args: any[]): string => {
     return key;
 };
 
+function hasI18n(): boolean {
+    return typeof I18n !== 'undefined' && typeof I18n.t === 'function';
+}
+
 let scanRunning = false;
 
 function $(id: string): HTMLElement | null {
@@ -40,6 +44,20 @@ export function setScanRunning(running: boolean): void {
     if (btnClearAll) btnClearAll.disabled = !!running;
 }
 
+function isConnectionError(err: string): boolean {
+    const str = String(err || '');
+    return str.includes('Receiving end does not exist') || str.includes('Could not establish connection');
+}
+
+export function formatSyncErrorMessage(err: string): string {
+    const errStr = String(err || '');
+    if (isConnectionError(errStr)) {
+        const refreshHint = hasI18n() ? t('syncConnectionFailedRefresh') : '未能与 Gemini 建立连接，请刷新 gemini.google.com 页面后重试';
+        return hasI18n() ? t('syncFailed', refreshHint) : `同步失败: ${refreshHint}`;
+    }
+    return hasI18n() ? t('syncFailed', errStr) : `同步失败: ${errStr}`;
+}
+
 function _runScan(
     mode: 'incremental' | 'full',
     slot: string,
@@ -55,8 +73,8 @@ function _runScan(
         setScanRunning(false);
 
         if (chrome.runtime.lastError) {
-            const err = chrome.runtime.lastError.message;
-            const errMsg = typeof t === 'function' ? t('syncFailed', err) : `同步失败: ${err}`;
+            const err = chrome.runtime.lastError.message || '';
+            const errMsg = formatSyncErrorMessage(err);
             if (onLog) onLog(errMsg, 'error');
             if (onError) onError(new Error(err), errMsg);
             return;
@@ -90,7 +108,7 @@ function _runScan(
             if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });
         } else {
             const err = (res && res.error) || '未知错误';
-            const errMsg = typeof t === 'function' ? t('syncFailed', err) : `同步失败: ${err}`;
+            const errMsg = formatSyncErrorMessage(err);
             if (onLog) onLog(errMsg, 'error');
             if (onError) onError(new Error(err), errMsg, { hitGoogleLimit, res });
         }
@@ -114,12 +132,13 @@ export function stopScan(slot: string, { onStopped, onLog }: any = {}): void {
     });
 }
 
-export const SyncController: SyncControllerContract = {
+export const SyncController: SyncControllerContract & { formatSyncErrorMessage?: (err: string) => string } = {
     isScanning,
     setScanRunning,
     startIncrementalScan,
     startDeepScan,
-    stopScan
+    stopScan,
+    formatSyncErrorMessage
 };
 
 (SyncController as any).SyncController = SyncController;

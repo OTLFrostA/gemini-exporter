@@ -78,7 +78,14 @@ import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
                 throw e;
             }
         }
-        throw (lastError || new Error('未能与任何 Gemini 标签页成功建立通信'));
+        if (lastError) {
+            const errStr = String(lastError?.message || '');
+            if (errStr.includes('Receiving end does not exist') || errStr.includes('Could not establish connection')) {
+                throw new Error('未能与 Gemini 建立连接，请刷新 gemini.google.com 页面后重试: Receiving end does not exist');
+            }
+            throw lastError;
+        }
+        throw new Error('未能与任何 Gemini 标签页成功建立通信，请先打开或刷新 gemini.google.com 页面');
     }
 
     async function checkGeminiStatus(slot?: string): Promise<TabStatusResult> {
