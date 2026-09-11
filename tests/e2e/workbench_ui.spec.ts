@@ -118,4 +118,63 @@ test.describe('Workbench UI & Selection Controls', () => {
     await page.click('#labelLangZh');
     await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('遇到问题或有新建议？');
   });
+
+  test('should display "已更新" badge for previously exported conversations with new activity and auto-select', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.evaluate(async () => {
+      await chrome.storage.local.clear();
+      const Store = (window as any).Store;
+      if (Store && typeof Store.setConversations === 'function') {
+        Store.setConversations([]);
+      }
+      const now = Date.now();
+      const mockConvs = [
+        { id: 'chat_fresh', title: '未导出新会话', timestamp: now - 3600000 },
+        { id: 'chat_exported', title: '已导出未变动会话', timestamp: now - 7200000, updatedAt: now - 7200000 },
+        { id: 'chat_updated', title: '已导出又有新对话', timestamp: now - 7200000, updatedAt: now }
+      ];
+      const mockExported = {
+        'chat_exported': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出未变动会话' },
+        'chat_updated': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出又有新对话' }
+      };
+      await chrome.storage.local.set({
+        gemini_conversations: mockConvs,
+        exportedIds: mockExported
+      });
+      if (typeof window.__workbenchLoadStore === 'function') {
+        await window.__workbenchLoadStore(true);
+      }
+    });
+
+    const listItems = page.locator('#list .item');
+    await expect(listItems).toHaveCount(3);
+
+    // 1. Verify "Updated" badge on chat_updated (default headless locale is en)
+    const updatedItem = page.locator('#list .item[data-chat-id="chat_updated"]');
+    await expect(updatedItem.locator('.badge-updated')).toBeVisible();
+    await expect(updatedItem.locator('.badge-updated')).toContainText('Updated');
+
+    // 2. Verify "Exported" badge on chat_exported
+    const exportedItem = page.locator('#list .item[data-chat-id="chat_exported"]');
+    await expect(exportedItem.locator('.badge-exported')).toBeVisible();
+    await expect(exportedItem.locator('.badge-exported')).toContainText('Exported');
+
+    // 3. Verify unexported item has no badge
+    const freshItem = page.locator('#list .item[data-chat-id="chat_fresh"]');
+    expect(await freshItem.locator('.badge').count()).toBe(0);
+
+    // 4. Verify default selection: chat_fresh and chat_updated are checked, chat_exported is unchecked
+    expect(await freshItem.locator('input[type=checkbox]').isChecked()).toBe(true);
+    expect(await updatedItem.locator('input[type=checkbox]').isChecked()).toBe(true);
+    expect(await exportedItem.locator('input[type=checkbox]').isChecked()).toBe(false);
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(2);
+
+    // 5. Test Chinese language switch: badge updates to "已更新" and "已导出"
+    await page.click('#labelLangZh');
+    await expect(updatedItem.locator('.badge-updated')).toContainText('已更新');
+    await expect(exportedItem.locator('.badge-exported')).toContainText('已导出');
+  });
 });

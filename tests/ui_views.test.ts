@@ -161,6 +161,82 @@ test('listView - isRealTitle recognition & exports', () => {
     assert.strictEqual(typeof ListView.deselectAll, 'function');
     assert.strictEqual(typeof ListView.selectUnexported, 'function');
     assert.strictEqual(typeof ListView.selectNeedsUpdate, 'function');
+    assert.strictEqual(typeof ListView.checkIsUpdated, 'function');
+});
+
+test('listView - checkIsUpdated correctly detects new dialogue and timestamps', () => {
+    const checkIsUpdated = ListView.checkIsUpdated;
+    assert.strictEqual(typeof checkIsUpdated, 'function');
+
+    // 1. Unexported conversation
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: 1700000000000 }, null), false);
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: 1700000000000 }, undefined), false);
+
+    // 2. Exported conversation with no subsequent updates
+    const exportedTime = 1700000050000;
+    const recSame = { exportedAt: new Date(exportedTime).toISOString(), chatTime: exportedTime, messageCount: 4 };
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 4 }, recSame), false);
+
+    // 3. Exported conversation within 2000ms grace window (e.g. clock drift / write latency)
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime + 1500, messageCount: 4 }, recSame), false);
+
+    // 4. Exported conversation with subsequent activity (> 2000ms)
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime + 10000, messageCount: 4 }, recSame), true);
+
+    // 5. Exported conversation with subsequent messageCount increase
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 6 }, recSame), true);
+});
+
+test('listView - render displays Updated badge and auto-checks updated conversations', () => {
+    const fakeList: any = { innerHTML: '', addEventListener: () => {} };
+    const fakeDoc = {
+        getElementById: (id: string) => id === 'list' ? fakeList : null,
+        querySelectorAll: (sel: string) => []
+    };
+
+    const origDoc = (globalThis as any).document;
+    const origI18n = (globalThis as any).I18n;
+    try {
+        (globalThis as any).document = fakeDoc;
+        (globalThis as any).I18n = {
+            t: (key: string) => {
+                if (key === 'badgeNeedsReexport' || key === 'badgeUpdated') return '已更新';
+                if (key === 'badgeExported') return '已导出';
+                return key;
+            }
+        };
+
+        const t0 = 1700000000000;
+        const convs = [
+            { id: 'c_unexp', title: '未导出对话', timestamp: t0 },
+            { id: 'c_exported', title: '已导出未更新对话', timestamp: t0, updatedAt: t0 },
+            { id: 'c_updated', title: '已导出有新对话', timestamp: t0, updatedAt: t0 + 60000 }
+        ];
+        const expMap = {
+            'c_exported': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出未更新对话' },
+            'c_updated': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出有新对话' }
+        };
+
+        // Render with null prevSelectedSet (default initial load)
+        ListView.render(convs as any, expMap as any, null);
+
+        const html = fakeList.innerHTML;
+        // Verify badge-updated is rendered for c_updated
+        assert.ok(html.includes('badge badge-updated'), 'Must contain badge-updated class');
+        assert.ok(html.includes('已更新'), 'Must render 已更新 text for updated conversation');
+
+        // Verify badge-exported is rendered for c_exported
+        assert.ok(html.includes('badge badge-exported'), 'Must contain badge-exported class');
+        assert.ok(html.includes('已导出'), 'Must render 已导出 text for exported conversation');
+
+        // Verify checkboxes: unexported and updated are checked by default, exported is unchecked
+        assert.ok(html.includes('data-chat-id="c_unexp"'), 'Contains unexported item');
+        assert.ok(html.includes('data-chat-id="c_exported"'), 'Contains exported item');
+        assert.ok(html.includes('data-chat-id="c_updated"'), 'Contains updated item');
+    } finally {
+        (globalThis as any).document = origDoc;
+        (globalThis as any).I18n = origI18n;
+    }
 });
 
 test('listView - selectAll & deselectAll DOM simulation', () => {
