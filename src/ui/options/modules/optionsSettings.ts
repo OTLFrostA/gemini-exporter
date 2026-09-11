@@ -232,23 +232,6 @@ function bindStorageCleanup(): void {
     const List = getList();
     const Store = getStore();
 
-    if (List && typeof List.setOnDelete === 'function') {
-        List.setOnDelete(async (chatId: string) => {
-            if (!chatId) return;
-            const convs = Store ? Store.getConversations() : [];
-            const targetChat = convs.find((c: any) => normId(c.id) === normId(chatId));
-            const chatTitle = targetChat ? (resolveTitle(targetChat).title || chatId) : chatId;
-            const confirmMsg = typeof t === 'function'
-                ? t('confirmDeleteChat', chatTitle)
-                : `确定从本地列表中移除会话 "${chatTitle}" 吗？`;
-            if (confirm(confirmMsg)) {
-                if (Store) await Store.removeConversation(chatId);
-                log(typeof t === 'function' ? t('logChatRemoved', chatTitle) : `[${chatTitle}] 已从本地列表移除`, 'info');
-                if (__loadStore) await __loadStore(true);
-            }
-        });
-    }
-
     $('btnClearExported')?.addEventListener('click', async () => {
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         if (Store) await Store.clearExported(slot);

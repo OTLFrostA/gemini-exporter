@@ -211,7 +211,7 @@
 
     <div style="display:flex; gap:10px; margin-top:4px; height:40px;">
       <button id="btnExport" class="primary" style="flex:1; height:40px; padding:0;" data-i18n="btnExportZip">导出选中 → ZIP</button>
-      <button id="btnExportJson" class="ghost" style="flex:1; height:40px; padding:0;" data-i18n="btnOnlyJson">仅导列表 JSON</button>
+      <button id="btnExportJson" class="ghost dev-only" style="flex:1; height:40px; padding:0;" data-i18n="btnOnlyJson">仅导列表 JSON</button>
     </div>
     
     <div style="text-align:center; min-height:28px;">
@@ -270,7 +270,6 @@
         <input type="file" id="takeoutFileInput" accept=".zip" style="display:none;">
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a;" data-i18n="btnStopScan" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
         <div style="flex:1;"></div>
-        <button id="btnPruneDeleted" class="ghost small" style="color:var(--muted)" data-i18n="btnPruneDeleted" data-i18n-title="btnPruneDeletedTip" title="对比云端存活会话，自动清理本地已在 Google 删除的失效会话">🧹 清理失效会话</button>
         <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
       </div>
     </div>
