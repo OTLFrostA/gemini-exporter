@@ -31,6 +31,7 @@ export interface BackgroundResponse {
     ok?: boolean;
     success?: boolean;
     error?: string;
+    details?: string;
     tabId?: number;
     downloadId?: number;
     handleName?: string;

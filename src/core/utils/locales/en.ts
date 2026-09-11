@@ -33,6 +33,7 @@ const __enFactory = (): LocaleDictionary => {
             btnSetDir: "Set Folder...",
             dirNotSet: "Directory not set",
             dirCurrent: "Selected folder: {0}",
+            dirNotFound: "Selected folder was deleted or missing, please re-select",
             liveSaveTitle: "Live Auto-Save",
             liveSaveActive: "Ready",
             liveSaveDb: "Live Snapshot Backup",

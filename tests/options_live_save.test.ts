@@ -198,3 +198,46 @@ test('optionsSettings - cancelling dir picker rolls back liveSaveDiskToggle to f
         DirHandleController.requestDirHandle = origRequestDirHandle;
     }
 });
+
+test('optionsSettings - initLiveSaveSettings with dirError not_found marks toggle false and warns in dirLabel', async () => {
+    const mockElements: Record<string, any> = {
+        liveSaveDiskToggle: { checked: true, dataset: {}, addEventListener: function() {} },
+        dirLabel: { textContent: '', style: {} },
+        liveSaveStatusTag: { textContent: '' }
+    };
+
+    const origDoc = (global as any).document;
+    (global as any).document = {
+        getElementById: (id: string) => mockElements[id] || null
+    };
+
+    const origGetLiveConfig = LiveStorageManager.getLiveConfig;
+    const origGetDirHandle = DirHandleController.getDirHandle;
+    const origRestoreSavedDirHandle = DirHandleController.restoreSavedDirHandle;
+
+    LiveStorageManager.getLiveConfig = async () => ({
+        enabledDisk: false,
+        format: 'markdown',
+        includeAssets: true,
+        dirName: 'DeletedVault',
+        dirError: 'not_found'
+    });
+
+    DirHandleController.getDirHandle = () => null;
+    DirHandleController.restoreSavedDirHandle = async () => null;
+
+    try {
+        await OptionsSettings.initLiveSaveSettings();
+
+        // Check that toggle is disabled and label warns the user
+        assert.strictEqual(mockElements.liveSaveDiskToggle.checked, false);
+        assert.ok(mockElements.dirLabel.textContent.includes('删除') || mockElements.dirLabel.textContent.includes('re-select'));
+        assert.strictEqual(mockElements.dirLabel.style.color, '#f59e0b');
+    } finally {
+        (global as any).document = origDoc;
+        LiveStorageManager.getLiveConfig = origGetLiveConfig;
+        DirHandleController.getDirHandle = origGetDirHandle;
+        DirHandleController.restoreSavedDirHandle = origRestoreSavedDirHandle;
+    }
+});
+

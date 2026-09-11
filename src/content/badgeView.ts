@@ -200,6 +200,7 @@ export function updateBadge(
 }
 
 let __liveSaveTimer: any = null;
+let __liveSaveWarningTimer: any = null;
 
 export function showLiveSaveFeedback(title?: string, isZh = true): void {
     try {
@@ -209,6 +210,11 @@ export function showLiveSaveFeedback(title?: string, isZh = true): void {
             clearTimeout(__liveSaveTimer);
             __liveSaveTimer = null;
         }
+        if (__liveSaveWarningTimer) {
+            clearTimeout(__liveSaveWarningTimer);
+            __liveSaveWarningTimer = null;
+        }
+        badge.classList.remove('live-save-warning');
         const prevText = txt.textContent || '';
         badge.classList.add('live-saved');
         txt.textContent = isZh ? '✓ 已自动保存' : '✓ Auto-saved';
@@ -221,6 +227,39 @@ export function showLiveSaveFeedback(title?: string, isZh = true): void {
         }, 2200);
     } catch (e) {
         console.warn('[BadgeView] showLiveSaveFeedback error:', e);
+    }
+}
+
+export function showLiveSaveWarning(message?: string, isZh = true): void {
+    try {
+        const { txt, badge } = ensureBadgeAndText();
+        if (!txt || !badge) return;
+        if (__liveSaveTimer) {
+            clearTimeout(__liveSaveTimer);
+            __liveSaveTimer = null;
+        }
+        if (__liveSaveWarningTimer) {
+            clearTimeout(__liveSaveWarningTimer);
+            __liveSaveWarningTimer = null;
+        }
+        const prevText = txt.textContent || '';
+        badge.classList.remove('live-saved');
+        badge.classList.add('live-save-warning');
+
+        const defaultMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder missing, sync paused';
+        const warnText = message || defaultMsg;
+        txt.textContent = warnText;
+        badge.title = isZh ? '所选本地目录已被删除或失效，点击打开设置重新选择' : 'Selected folder was deleted or missing. Click to open options and re-select.';
+
+        __liveSaveWarningTimer = setTimeout(() => {
+            __liveSaveWarningTimer = null;
+            badge.classList.remove('live-save-warning');
+            if (txt.textContent === warnText) {
+                txt.textContent = prevText || (__lastKnownCount !== null ? (isZh ? `已同步 ${__lastKnownCount} 条` : `${__lastKnownCount} synced`) : (isZh ? '就绪' : 'Ready'));
+            }
+        }, 6000);
+    } catch (e) {
+        console.warn('[BadgeView] showLiveSaveWarning error:', e);
     }
 }
 
@@ -239,6 +278,7 @@ export const BadgeView = {
     ensureBadgeAndText,
     updateBadge,
     showLiveSaveFeedback,
+    showLiveSaveWarning,
     getLastKnownCount,
     setLastKnownCount
 };

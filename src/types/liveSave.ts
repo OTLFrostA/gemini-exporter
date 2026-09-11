@@ -10,6 +10,7 @@ export interface LiveSaveConfig {
     dirName?: string;           // Display name of saved directory
     lastSavedAt?: number;       // Timestamp of last successful live save
     lastSavedTitle?: string;    // Title of last saved conversation
+    dirError?: string | null;   // Error status if directory is missing or invalid
 }
 
 export interface LiveConversationRecord {

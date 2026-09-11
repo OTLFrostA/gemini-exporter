@@ -71,3 +71,17 @@
     background: #10b981;
     box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
 }
+
+#geminiExportBadge.live-save-warning {
+    border-color: #f59e0b;
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
+    background: #1c150b;
+    color: #fde68a;
+}
+
+#geminiExportBadge.live-save-warning .pulse {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+    animation: geminiExportPulse 1s infinite ease-in-out alternate;
+}
+
