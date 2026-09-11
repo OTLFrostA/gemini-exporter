@@ -104,6 +104,13 @@ class FeatureRegistry:
             description="在网页端侧边栏删除会话，Options 列表与 Storage 在无需刷新情况下平滑剥离该项",
             critical=True
         ))
+        self.register(Feature(
+            id="feat_uninstall_lifecycle",
+            domain=FeatureDomain.LIFECYCLE,
+            name="扩展彻底卸载与隔离清理",
+            description="通过 CDP 原生卸载扩展，验证长连接与 Content Script 优雅终止，重新安装时不产生脏状态交叉污染",
+            critical=False
+        ))
 
         # -------------------------------------------------------------
         # 领域三：Takeout 离线导入与标题晋级

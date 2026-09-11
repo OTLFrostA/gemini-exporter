@@ -9,12 +9,49 @@ const WriterInterface = require('../src/core/engine/writers/writerInterface.js')
 // ---------------------------------------------------------------------------
 // FsWriter
 // ---------------------------------------------------------------------------
-test('fsWriter - exports and helpers', () => {
-    assert.ok(FsWriter);
-    assert.strictEqual(typeof ensureSubDir, 'function');
-    assert.strictEqual(typeof sanitizeFileName, 'function');
+test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () => {
+    // 1. sanitizeFileName edge cases
     assert.strictEqual(sanitizeFileName('valid_name.md'), 'valid_name.md');
     assert.strictEqual(sanitizeFileName(''), 'untitled');
+    assert.strictEqual(sanitizeFileName(null), 'untitled');
+    assert.strictEqual(sanitizeFileName('invalid:name*with?chars.txt'), 'invalid_name_with_chars.txt');
+
+    // 2. ensureSubDir nested path resolution
+    const createdDirs: string[] = [];
+    const mockRootHandle = {
+        name: 'root',
+        async getDirectoryHandle(name: string, options: any) {
+            createdDirs.push(name);
+            assert.strictEqual(options.create, true);
+            return {
+                name,
+                async getDirectoryHandle(sub: string, subOpts: any) {
+                    createdDirs.push(sub);
+                    assert.strictEqual(subOpts.create, true);
+                    return { name: sub };
+                }
+            };
+        }
+    };
+
+    const finalSub = await ensureSubDir(mockRootHandle, 'assets/images');
+    assert.deepStrictEqual(createdDirs, ['assets', 'images']);
+    assert.strictEqual(finalSub.name, 'images');
+
+    // 3. FsWriter requires valid directory handle
+    assert.throws(() => {
+        new FsWriter(null as any);
+    }, /Directory handle is required for FsWriter/);
+
+    // 4. FsWriter.init throws if permission is denied
+    const deniedHandle = {
+        queryPermission: async () => 'denied',
+        requestPermission: async () => 'denied'
+    };
+    const deniedWriter = new FsWriter(deniedHandle);
+    await assert.rejects(async () => {
+        await deniedWriter.init();
+    }, /Directory permission not granted: denied/);
 });
 
 // ---------------------------------------------------------------------------

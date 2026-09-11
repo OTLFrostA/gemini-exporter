@@ -294,6 +294,7 @@ export const DomScraper = {
     parseDoc,
     contentFetchChatDetail,
     getScrollContainer,
+    isReservedRoute,
     getConversationLinks,
     tryExpandRecents,
     debugCurrentPage

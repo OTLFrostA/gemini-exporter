@@ -836,6 +836,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                             const record = {
                                 title: listTitle,
                                 exportedAt: new Date().toISOString(),
+                                format: options.format || 'markdown',
                                 messageCount: chat.messageCount || chat.messages?.length || 0,
                                 chatTime: exportTs,
                                 status: 'ok'
