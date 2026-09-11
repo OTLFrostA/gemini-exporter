@@ -5,7 +5,8 @@ import type { ExportRecord, IListView } from '../../types/ui.js';
 import GeminiUtils, {
     isRealTitle as utilsIsRealTitle,
     cleanTitle as utilsCleanTitle,
-    resolveTitle as utilsResolveTitle
+    resolveTitle as utilsResolveTitle,
+    getEffectiveTimestamp as utilsGetEffectiveTimestamp
 } from '../../core/utils/utils.js';
 
 function $(id: string): HTMLElement | null {
@@ -38,6 +39,13 @@ export const resolveTitle = (chat: any): { title: string; source: string } => {
         return (globalThis as any).GeminiUtils.resolveTitle(chat);
     }
     return utilsResolveTitle(chat);
+};
+
+export const getEffectiveTimestamp = (chat?: any): number => {
+    if (typeof (globalThis as any).GeminiUtils?.getEffectiveTimestamp === 'function') {
+        return (globalThis as any).GeminiUtils.getEffectiveTimestamp(chat);
+    }
+    return utilsGetEffectiveTimestamp(chat);
 };
 
 function escapeHtml(str?: string | null): string {
@@ -140,7 +148,8 @@ export function render(
         const titleStyle = isBad ? 'color:var(--warn); opacity:0.85;' : '';
 
         let dateStr = '';
-        const ts = c.timestamp || (c as any).updatedAt;
+        const effTs = getEffectiveTimestamp(c);
+        const ts = effTs || (c as any).updatedAt || c.timestamp;
         if (ts) {
             try {
                 const d = typeof ts === 'string' ? new Date(ts) : new Date(Number(ts));

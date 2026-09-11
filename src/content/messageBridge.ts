@@ -6,6 +6,8 @@ import { StorageService } from '../core/storage/storageService.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
+    touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
+    extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
     getAccountSlot?: () => string;
     isRealTitle?: (t: string, id: string) => boolean;
     cleanTitle?: (t: string) => string;
@@ -181,6 +183,28 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 obs.notifyStreamStart(id);
             }
         }
+        const activeId = id || (typeof location !== 'undefined' && location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/)?.[2]) || null;
+        if (activeId) {
+            const nid = String(activeId).replace(/^c_/, '').trim();
+            const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
+            try {
+                if (typeof (_deps as any)?.touchActiveConversation === 'function') {
+                    await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
+                } else if (typeof upsertConversations === 'function') {
+                    const now = Date.now();
+                    await upsertConversations([{
+                        id: nid,
+                        url: `https://gemini.google.com/app/${nid}`,
+                        href: `https://gemini.google.com/app/${nid}`,
+                        timestamp: now,
+                        updatedAt: now,
+                        sidebarIndex: 0
+                    }], 'stream-start', true, targetSlot);
+                }
+            } catch (err) {
+                if (contentContext.isDevMode()) console.debug('[MessageBridge] stream start touch err', err);
+            }
+        }
         return;
     }
 
@@ -192,6 +216,37 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             const obs = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveObserver);
             if (obs && typeof obs.notifyStreamComplete === 'function') {
                 obs.notifyStreamComplete(id);
+            }
+        }
+        const activeId = id || (typeof location !== 'undefined' && location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/)?.[2]) || null;
+        if (activeId) {
+            const nid = String(activeId).replace(/^c_/, '').trim();
+            const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
+            try {
+                if (typeof (_deps as any)?.touchActiveConversation === 'function') {
+                    await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
+                } else if (typeof upsertConversations === 'function') {
+                    const now = Date.now();
+                    const item: any = {
+                        id: nid,
+                        url: `https://gemini.google.com/app/${nid}`,
+                        href: `https://gemini.google.com/app/${nid}`,
+                        timestamp: now,
+                        updatedAt: now,
+                        sidebarIndex: 0
+                    };
+                    if (typeof (_deps as any)?.extractActiveChatTitle === 'function') {
+                        const titleObj = (_deps as any).extractActiveChatTitle(nid);
+                        if (titleObj && titleObj.title && isRealTitle(titleObj.title, nid)) {
+                            item.title = cleanTitle(titleObj.title);
+                            item.titleSource = titleObj.source || 'dom';
+                            item.titles = { [item.titleSource]: item.title };
+                        }
+                    }
+                    await upsertConversations([item], 'stream-complete', true, targetSlot);
+                }
+            } catch (err) {
+                if (contentContext.isDevMode()) console.debug('[MessageBridge] stream complete touch err', err);
             }
         }
         return;

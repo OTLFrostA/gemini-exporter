@@ -173,6 +173,9 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
             debounceMs: 300,
             onTurnComplete: (cid, reason) => {
                 LiveSaveCoordinator.executeLiveSave(cid, reason);
+                if (Sync && Sync.touchActiveConversation) {
+                    Sync.touchActiveConversation(cid, undefined, { source: 'live-turn-complete' }).catch(() => {});
+                }
             }
         });
     }
@@ -181,6 +184,8 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
     if (Bridge && Bridge.init && Sync) {
         Bridge.init({
             upsertConversations: Sync.upsertConversations,
+            touchActiveConversation: Sync.touchActiveConversation,
+            extractActiveChatTitle: Sync.extractActiveChatTitle,
             getAccountSlot,
             isRealTitle: Utils?.isRealTitle || ((t: string, id: string) => !!(t && String(t).trim().length > 1)),
             cleanTitle: Utils?.cleanTitle || ((t: string) => (t || '').trim()),

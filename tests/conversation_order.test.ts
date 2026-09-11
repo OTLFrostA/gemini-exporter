@@ -309,4 +309,45 @@ test('GeminiUtils.compareConversations - authoritative SSoT comparator', () => {
     assert.deepStrictEqual(list.map(c => c.id), ['c1', 'c3', 'c4', 'c2']);
 });
 
+test('Continuing old conversation - updates timestamp and elevates conversation to index 0', () => {
+    const existingList = [
+        { id: 'c_top1', title: 'Top 1', updatedAt: 5000, timestamp: 5000, createdAt: 4500, sidebarIndex: 0 },
+        { id: 'c_top2', title: 'Top 2', updatedAt: 4000, timestamp: 4000, createdAt: 3500, sidebarIndex: 1 },
+        { id: 'c_top3', title: 'Top 3', updatedAt: 3000, timestamp: 3000, createdAt: 2500, sidebarIndex: 2 },
+        { id: 'c_old_chat', title: 'Old Chat Project', updatedAt: 1000, timestamp: 1000, createdAt: 800, sidebarIndex: 3, messageCount: 4 }
+    ];
+
+    // Verify initial ordering: old chat is at the tail (index 3)
+    existingList.sort(GeminiUtils.compareConversations);
+    assert.strictEqual(existingList[3].id, 'c_old_chat', 'Old chat should initially be at the tail');
+
+    // User chats in c_old_chat, triggering stream-complete at now = 9000
+    const now = 9000;
+    const incomingTouch = {
+        id: 'old_chat',
+        timestamp: now,
+        updatedAt: now,
+        sidebarIndex: 0
+    };
+
+    const mergeRes = GeminiUtils.mergeConversation(existingList[3], incomingTouch, { source: 'stream-complete' });
+    assert.strictEqual(mergeRes.isChanged, true, 'merge must flag isChanged when timestamp is bumped');
+    assert.strictEqual(mergeRes.merged.updatedAt, 9000, 'updatedAt must be bumped to current stream time');
+    assert.strictEqual(mergeRes.merged.timestamp, 9000, 'timestamp must be bumped to current stream time');
+    assert.strictEqual(mergeRes.merged.createdAt, 800, 'original createdAt must be preserved');
+    assert.strictEqual(mergeRes.merged.title, 'Old Chat Project', 'original title must be preserved');
+    assert.strictEqual(mergeRes.merged.messageCount, 4, 'original messageCount must be preserved');
+
+    // Re-sorting with the updated chat
+    const updatedList = [existingList[0], existingList[1], existingList[2], mergeRes.merged];
+    updatedList.sort(GeminiUtils.compareConversations);
+
+    // Assert old_chat is now at the very top (index 0)
+    assert.strictEqual(updatedList[0].id, 'old_chat', 'Continued conversation must rise to index 0 (top of list)');
+    assert.strictEqual(updatedList[1].id, 'c_top1');
+    assert.strictEqual(updatedList[2].id, 'c_top2');
+    assert.strictEqual(updatedList[3].id, 'c_top3');
+});
+
+
 
