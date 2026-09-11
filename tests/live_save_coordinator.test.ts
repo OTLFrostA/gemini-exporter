@@ -133,15 +133,15 @@ test('liveSaveCoordinator - executeLiveSave delegates via chrome.runtime.sendMes
     }
 });
 
-test('liveSaveCoordinator - executeLiveSave falls back to direct download when options handle unavailable', async () => {
-    let directDownloadCalledWith: any = null;
+test('liveSaveCoordinator - executeLiveSave cleanly aborts and returns false without downloading when handle is unavailable', async () => {
     let feedbackCalled = false;
 
     const mockStorage = {
         getLiveConfig: async () => ({
             enabledDisk: true,
             format: 'markdown',
-            includeAssets: true
+            includeAssets: true,
+            dirName: ''
         }),
         getLiveDirHandle: async () => null,
         setLiveConfig: async () => {}
@@ -150,13 +150,12 @@ test('liveSaveCoordinator - executeLiveSave falls back to direct download when o
     const mockScraper = {
         parseDoc: (_doc: any, id: string) => ({
             id,
-            title: 'Fallback Download Test',
+            title: 'No Handle Test',
             messages: [{ role: 'user', content: 'ping' }, { role: 'model', content: 'pong' }],
             timestamp: Date.now()
         })
     };
 
-    // Save and mock triggerDirectDownload
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
         runtime: {
@@ -171,82 +170,16 @@ test('liveSaveCoordinator - executeLiveSave falls back to direct download when o
             storageManager: mockStorage,
             scraper: mockScraper,
             badge: {
-                showLiveSaveFeedback: () => { feedbackCalled = true; }
-            },
-            downloadFn: (fileName: string, content: any) => {
-                directDownloadCalledWith = { fileName, content: String(content) };
-            },
-            clientClass: null
-        });
-
-        const success = await LiveSaveCoordinator.executeLiveSave('c_fallback456', 'turn_complete');
-        assert.strictEqual(success, true);
-        assert.ok(directDownloadCalledWith);
-        const downloaded = directDownloadCalledWith as { fileName: string; content: string };
-        assert.strictEqual(downloaded.fileName, 'Fallback Download Test_fallback.md');
-        assert.ok(downloaded.content.includes('ping'));
-        assert.ok(downloaded.content.includes('pong'));
-        assert.strictEqual(feedbackCalled, true);
-    } finally {
-        (global as any).chrome = origChrome;
-    }
-});
-
-test('liveSaveCoordinator - executeLiveSave falls back to direct downloadFn only when dirName is not configured', async () => {
-    let directDownloadCalledWith: any = null;
-    let feedbackCalled = false;
-
-    const mockStorage = {
-        getLiveConfig: async () => ({
-            enabledDisk: true,
-            format: 'markdown',
-            includeAssets: true,
-            dirName: '' // No specific folder chosen
-        }),
-        getLiveDirHandle: async () => null,
-        setLiveConfig: async () => {}
-    };
-
-    const mockScraper = {
-        parseDoc: (_doc: any, id: string) => ({
-            id,
-            title: 'Direct Fallback Test',
-            messages: [{ role: 'user', content: 'test fallback' }],
-            timestamp: Date.now()
-        })
-    };
-
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = {
-        runtime: {
-            sendMessage: (msg: any, cb: (res: any) => void) => {
-                if (msg.action === 'liveSaveViaHandle') {
-                    if (cb) cb({ ok: false, error: 'no_dir_handle' });
-                }
-            }
-        }
-    };
-
-    try {
-        LiveSaveCoordinator.init({
-            storageManager: mockStorage,
-            scraper: mockScraper,
-            badge: {
                 showLiveSaveFeedback: () => { feedbackCalled = true; },
                 showLiveSaveWarning: () => {}
             },
-            downloadFn: (fileName: string, content: any) => {
-                directDownloadCalledWith = { fileName, content: String(content) };
-            },
             clientClass: null
         });
 
-        const success = await LiveSaveCoordinator.executeLiveSave('c_bgdl789', 'turn_complete');
-        assert.strictEqual(success, true);
-        assert.ok(directDownloadCalledWith);
-        assert.strictEqual(directDownloadCalledWith.fileName, 'Direct Fallback Test_bgdl789.md');
-        assert.ok(directDownloadCalledWith.content.includes('test fallback'));
-        assert.strictEqual(feedbackCalled, true);
+        const success = await LiveSaveCoordinator.executeLiveSave('c_nohandle456', 'turn_complete');
+        // Live save must cleanly return false without downloading or polluting
+        assert.strictEqual(success, false);
+        assert.strictEqual(feedbackCalled, false);
     } finally {
         (global as any).chrome = origChrome;
     }
