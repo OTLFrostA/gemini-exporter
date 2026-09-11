@@ -14,14 +14,22 @@
    - 所有的功能开发、Bug 修复、重构与测试，必须基于 `main` 通过 `git worktree` 创建一个干净的独立工作副本和对应的新分支（如 `feature/...`、`fix/...`、`docs/...`）。
    - 在 worktree 中进行编码、测试与本地提交。
 
-3. **严禁直接 Push 到 main，必须通过 PR 流程合并**：
+3. **严禁直接 Push 到 main，通过 PR + 自动合并 (Auto-Merge) 流程**：
    - **绝对禁止直接 push 到 `main` 分支**。
-   - 开发与测试验证完成后，必须将特性分支推送到远程仓库，并通过 GitHub CLI (`gh pr create --base main`) 创建 Pull Request。
-   - 待 CI 自动化校验通过并合并完成后，清理本地 worktree 副本与临时分支，并在主目录执行 `git pull --ff-only` 保持同步。
+   - 开发与测试验证完成后，将特性分支推送到远程仓库并创建 Pull Request：
+     ```bash
+     gh pr create --base main --title "..." --body "..."
+     ```
+   - **全自动 CI 门禁与合并（0 人工介入）**：创建 PR 后立即启用 GitHub 服务端 Auto-Merge：
+     ```bash
+     gh pr merge --auto --squash --delete-branch
+     ```
+     GitHub 服务端会自动挂起，待门禁 CI（`Unit Tests & Syntax`、`Playwright E2E Tests`、`CodeQL`）全绿通过后自动 Squash Merge 并删除远程分支，无需任何人工审批或手动点击。
+   - PR 自动合并完成后，清理本地 worktree 副本与临时分支，并在主目录执行 `git pull --ff-only` 保持与 `main` 最新同步。
 
 ---
 
-## 二、双层测试体系规范 (Two-Tier Testing Architecture)
+## 二、三层测试体系规范 (Three-Tier Testing Architecture)
 
 本项目严格区分并建立了双层测试体系，任何 AI 在提交代码或宣称功能完成前，必须严格依照下述标准执行验证：
 
