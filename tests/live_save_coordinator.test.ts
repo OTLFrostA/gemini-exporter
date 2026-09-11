@@ -76,3 +76,118 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
     // 4. Verify Badge feedback called
     assert.strictEqual(feedbackCalledWith, 'Quantum Computing Intro');
 });
+
+test('liveSaveCoordinator - executeLiveSave delegates via chrome.runtime.sendMessage when local handle is null', async () => {
+    let sentMessage: any = null;
+    let feedbackCalled = false;
+
+    const mockStorage = {
+        getLiveConfig: async () => ({
+            enabledDisk: true,
+            format: 'markdown',
+            includeAssets: true,
+            dirName: 'MyVault'
+        }),
+        getLiveDirHandle: async () => null, // No local handle
+        setLiveConfig: async () => {}
+    };
+
+    const mockScraper = {
+        parseDoc: (_doc: any, id: string) => ({
+            id,
+            title: 'Delegated Live Save Test',
+            messages: [{ role: 'user', content: 'hello' }, { role: 'model', content: 'world' }],
+            timestamp: Date.now()
+        })
+    };
+
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        runtime: {
+            sendMessage: (msg: any, cb: (res: any) => void) => {
+                sentMessage = msg;
+                if (cb) cb({ ok: true, handleName: 'MyVault' });
+            }
+        }
+    };
+
+    try {
+        LiveSaveCoordinator.init({
+            storageManager: mockStorage,
+            scraper: mockScraper,
+            badge: {
+                showLiveSaveFeedback: () => { feedbackCalled = true; }
+            },
+            clientClass: null
+        });
+
+        const success = await LiveSaveCoordinator.executeLiveSave('c_delegated123', 'turn_complete');
+        assert.strictEqual(success, true);
+        assert.ok(sentMessage);
+        const sent = sentMessage as any;
+        assert.strictEqual(sent.action, 'liveSaveViaHandle');
+        assert.strictEqual(sent.payload.safeTitle, 'Delegated Live Save Test');
+        assert.strictEqual(feedbackCalled, true);
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+test('liveSaveCoordinator - executeLiveSave falls back to direct download when options handle unavailable', async () => {
+    let directDownloadCalledWith: any = null;
+    let feedbackCalled = false;
+
+    const mockStorage = {
+        getLiveConfig: async () => ({
+            enabledDisk: true,
+            format: 'markdown',
+            includeAssets: true
+        }),
+        getLiveDirHandle: async () => null,
+        setLiveConfig: async () => {}
+    };
+
+    const mockScraper = {
+        parseDoc: (_doc: any, id: string) => ({
+            id,
+            title: 'Fallback Download Test',
+            messages: [{ role: 'user', content: 'ping' }, { role: 'model', content: 'pong' }],
+            timestamp: Date.now()
+        })
+    };
+
+    // Save and mock triggerDirectDownload
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        runtime: {
+            sendMessage: (_msg: any, cb: (res: any) => void) => {
+                if (cb) cb({ ok: false, error: 'no_dir_handle' });
+            }
+        }
+    };
+
+    try {
+        LiveSaveCoordinator.init({
+            storageManager: mockStorage,
+            scraper: mockScraper,
+            badge: {
+                showLiveSaveFeedback: () => { feedbackCalled = true; }
+            },
+            downloadFn: (fileName: string, content: any) => {
+                directDownloadCalledWith = { fileName, content: String(content) };
+            },
+            clientClass: null
+        });
+
+        const success = await LiveSaveCoordinator.executeLiveSave('c_fallback456', 'turn_complete');
+        assert.strictEqual(success, true);
+        assert.ok(directDownloadCalledWith);
+        const downloaded = directDownloadCalledWith as { fileName: string; content: string };
+        assert.strictEqual(downloaded.fileName, 'Fallback Download Test_fallback.md');
+        assert.ok(downloaded.content.includes('ping'));
+        assert.ok(downloaded.content.includes('pong'));
+        assert.strictEqual(feedbackCalled, true);
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});

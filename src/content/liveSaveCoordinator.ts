@@ -19,6 +19,7 @@ export interface LiveSaveCoordinatorDeps {
     clientClass?: typeof GeminiAPIClient;
     badge?: typeof BadgeView;
     assetFetcher?: typeof AssetFetcher;
+    downloadFn?: (fileName: string, content: string | Blob, mimeType?: string) => void;
 }
 
 let _deps: LiveSaveCoordinatorDeps = {};
@@ -55,6 +56,10 @@ function getBadge() {
 
 function getAssetFetcher() {
     return _deps.assetFetcher || AssetFetcher;
+}
+
+function getDownloadFn() {
+    return _deps.downloadFn || triggerDirectDownload;
 }
 
 function isDev(): boolean {
@@ -135,14 +140,6 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 return false;
             }
 
-            const dirHandle = await Storage.getLiveDirHandle();
-            if (!dirHandle) {
-                if (isDev()) {
-                    console.warn('[LiveSaveCoordinator] Disk save enabled but no dirHandle stored');
-                }
-                return false;
-            }
-
             const chat = await resolveConversationDetail(nid);
             if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) {
                 if (isDev()) console.warn('[LiveSaveCoordinator] No messages extracted for', nid);
@@ -154,8 +151,67 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
             const now = Date.now();
 
-            // Direct Disk Write via FileSystem Access API
-            await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
+            let writeSucceeded = false;
+            const dirHandle = await Storage.getLiveDirHandle();
+
+            if (dirHandle) {
+                // 1. Direct Disk Write via local FileSystem Access API
+                await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
+                writeSucceeded = true;
+            } else {
+                // 2. Delegate to extension options page holding the directory handle
+                if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+                    try {
+                        const resp = await new Promise<any>((resolve) => {
+                            chrome.runtime.sendMessage({
+                                action: 'liveSaveViaHandle',
+                                payload: {
+                                    chat,
+                                    safeTitle,
+                                    nid,
+                                    config
+                                }
+                            }, (r) => {
+                                if (chrome.runtime.lastError) {
+                                    resolve(null);
+                                } else {
+                                    resolve(r);
+                                }
+                            });
+                        });
+                        if (resp && resp.ok) {
+                            writeSucceeded = true;
+                            if (isDev()) {
+                                console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName})`);
+                            }
+                        }
+                    } catch (e) {
+                        if (isDev()) console.warn('[LiveSaveCoordinator] liveSaveViaHandle error:', e);
+                    }
+                }
+
+                // 3. Fallback: If no handle was accessible (e.g. Options page closed), directly download markdown file
+                if (!writeSucceeded) {
+                    const Formatter = getFormatter();
+                    const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
+                    const cid8 = nid.slice(0, 8);
+                    const fileName = `${sanitizedTitle}_${cid8}.md`;
+                    const markdown = Formatter?.toMarkdown
+                        ? Formatter.toMarkdown({ ...chat, title: safeTitle, id: nid })
+                        : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
+
+                    const downloadFn = getDownloadFn();
+                    downloadFn(fileName, markdown);
+                    writeSucceeded = true;
+                    if (isDev()) {
+                        console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via direct download fallback (${fileName})`);
+                    }
+                }
+            }
+
+            if (!writeSucceeded) {
+                return false;
+            }
 
             // 3. Update configuration metadata
             await Storage.setLiveConfig({
@@ -396,6 +452,30 @@ async function writeConversationToDisk(
     await writer.writeFile('', fileName, markdown);
 }
 
+export function triggerDirectDownload(fileName: string, content: string | Blob, mimeType = 'text/markdown;charset=utf-8'): void {
+    if (typeof document === 'undefined') return;
+    try {
+        const blob = (content instanceof Blob) ? content : new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.style.display = 'none';
+        (document.body || document.documentElement).appendChild(a);
+        a.click();
+        setTimeout(() => {
+            try {
+                URL.revokeObjectURL(url);
+                a.remove();
+            } catch {
+                /* ignore */
+            }
+        }, 1500);
+    } catch (e) {
+        console.warn('[LiveSaveCoordinator] triggerDirectDownload failed:', e);
+    }
+}
+
 export function isCurrentlySaving(): boolean {
     return _isSaving;
 }
@@ -405,7 +485,8 @@ export const LiveSaveCoordinator = {
     resolveConversationDetail,
     executeLiveSave,
     processAndSaveImages,
-    isCurrentlySaving
+    isCurrentlySaving,
+    triggerDirectDownload
 };
 
 declare global {

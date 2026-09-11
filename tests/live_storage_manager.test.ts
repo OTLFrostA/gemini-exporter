@@ -132,3 +132,44 @@ test('liveStorageManager - IDB mock, config persistence and V2 purge of conversa
         (global as any).indexedDB = origIdb;
     }
 });
+
+test('liveStorageManager - chrome.storage.local takes precedence over IDB as canonical SSoT', async () => {
+    let storageMap: Record<string, any> = {
+        live_save_config: {
+            enabledDisk: true,
+            dirName: 'SSoT_Directory',
+            format: 'markdown'
+        }
+    };
+
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        storage: {
+            local: {
+                get: async (keys: string[]) => {
+                    const res: any = {};
+                    for (const k of keys) {
+                        if (k in storageMap) res[k] = storageMap[k];
+                    }
+                    return res;
+                },
+                set: async (obj: any) => {
+                    Object.assign(storageMap, obj);
+                }
+            }
+        }
+    };
+
+    try {
+        // getLiveConfig should read from chrome.storage.local
+        const cfg = await LiveStorageManager.getLiveConfig();
+        assert.strictEqual(cfg.enabledDisk, true);
+        assert.strictEqual(cfg.dirName, 'SSoT_Directory');
+
+        // setLiveConfig should write to chrome.storage.local
+        await LiveStorageManager.setLiveConfig({ dirName: 'Updated_SSoT' });
+        assert.strictEqual(storageMap.live_save_config.dirName, 'Updated_SSoT');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});

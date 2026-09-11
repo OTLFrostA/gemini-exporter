@@ -9,6 +9,8 @@ import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js'
 import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
 import { DirHandleController as DefaultDirHandleController } from '../../controllers/dirHandleController.js';
+import { FsWriter as DefaultFsWriter } from '../../../core/engine/writers/fsWriter.js';
+import { ChatFormatter as DefaultChatFormatter } from '../../../core/engine/chatFormatter.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 
 function $(id: string): HTMLElement | null {
@@ -73,6 +75,20 @@ const getDirHandleController = () => {
     if (typeof DirHandleController !== 'undefined' && DirHandleController) return DirHandleController;
     if (typeof DefaultDirHandleController !== 'undefined' && DefaultDirHandleController) return DefaultDirHandleController;
     if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController) return (globalThis as any).DirHandleController;
+    return null;
+};
+
+const getFsWriter = () => {
+    if (typeof FsWriter !== 'undefined' && FsWriter) return FsWriter;
+    if (typeof DefaultFsWriter !== 'undefined' && DefaultFsWriter) return DefaultFsWriter;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).FsWriter) return (globalThis as any).FsWriter;
+    return null;
+};
+
+const getChatFormatter = () => {
+    if (typeof ChatFormatter !== 'undefined' && ChatFormatter) return ChatFormatter;
+    if (typeof DefaultChatFormatter !== 'undefined' && DefaultChatFormatter) return DefaultChatFormatter;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).ChatFormatter) return (globalThis as any).ChatFormatter;
     return null;
 };
 
@@ -449,6 +465,71 @@ export async function initLiveSaveSettings(): Promise<void> {
                 log('[LiveSave] Live disk sync disabled');
             }
             if (__updateZipUi) __updateZipUi();
+        });
+    }
+
+    if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage && !(globalThis as any).__liveSaveViaHandleBound) {
+        (globalThis as any).__liveSaveViaHandleBound = true;
+        chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: (resp: any) => void) => {
+            if (msg.action === 'liveSaveViaHandle' && msg.payload) {
+                (async () => {
+                    try {
+                        const { chat, safeTitle, nid, fileName } = msg.payload;
+                        let handle = DirHandle ? DirHandle.getDirHandle() : null;
+                        if (!handle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
+                            handle = await DirHandle.restoreSavedDirHandle();
+                        }
+                        if (!handle && DirHandle && typeof DirHandle.getStoredDirHandle === 'function') {
+                            handle = await DirHandle.getStoredDirHandle();
+                        }
+                        if (!handle) {
+                            sendResponse({ ok: false, error: 'no_dir_handle' });
+                            return;
+                        }
+
+                        const FsWriterCls = getFsWriter();
+                        const FormatterCls = getChatFormatter();
+                        const Utils = getUtils();
+
+                        if (!FsWriterCls) {
+                            sendResponse({ ok: false, error: 'no_fswriter' });
+                            return;
+                        }
+
+                        const writer = new FsWriterCls(handle, handle.name || 'gemini_export');
+                        await writer.init();
+
+                        const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
+                        const cid8 = String(nid || '').replace(/^c_/, '').slice(0, 8);
+                        const targetFile = fileName || `${sanitizedTitle}_${cid8}.md`;
+
+                        const markdown = FormatterCls?.toMarkdown
+                            ? FormatterCls.toMarkdown({ ...chat, title: safeTitle, id: nid })
+                            : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
+
+                        await writer.writeFile('', targetFile, markdown);
+
+                        const now = Date.now();
+                        await liveStorage.setLiveConfig({
+                            lastSavedAt: now,
+                            lastSavedTitle: safeTitle
+                        });
+
+                        const statusTagEl = $('liveSaveStatusTag');
+                        if (statusTagEl) {
+                            const timeStr = new Date(now).toLocaleTimeString();
+                            statusTagEl.textContent = `${t('liveSaveActive')} (${timeStr})`;
+                        }
+
+                        log(`[实时落盘] 自动保存成功: ${safeTitle} -> ${handle.name}`);
+                        sendResponse({ ok: true, handleName: handle.name });
+                    } catch (e: any) {
+                        console.warn('[OptionsSettings] liveSaveViaHandle error:', e);
+                        sendResponse({ ok: false, error: e?.message });
+                    }
+                })();
+                return true;
+            }
         });
     }
 }
