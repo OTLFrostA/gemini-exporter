@@ -14,7 +14,8 @@ test('liveStorageManager - default configuration structure', () => {
 test('liveStorageManager - IDB mock, config persistence and V2 purge of conversations store', async () => {
     const memoryStores: Record<string, Map<any, any>> = {
         conversations: new Map([['c_old', { id: 'old', title: 'Old Chat' }]]),
-        settings: new Map()
+        settings: new Map(),
+        handles: new Map()
     };
 
     let deletedStoreNames: string[] = [];
@@ -69,7 +70,7 @@ test('liveStorageManager - IDB mock, config persistence and V2 purge of conversa
             };
 
             setTimeout(() => {
-                if (version === 2 && typeof req.onupgradeneeded === 'function') {
+                if (typeof req.onupgradeneeded === 'function') {
                     req.onupgradeneeded();
                 }
                 if (typeof req.onsuccess === 'function') {

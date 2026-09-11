@@ -10,6 +10,7 @@ import { TakeoutEngine as DefaultTakeoutEngine } from '../../../core/engine/take
 import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
 import { GeminiConstants as DefaultGeminiConstants } from '../../../core/utils/constants.js';
 import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
+import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
 
 function $(id: string): HTMLElement | null {
     return typeof document !== 'undefined' ? document.getElementById(id) : null;
@@ -89,6 +90,13 @@ const getDirHandle = () => {
     return null;
 };
 
+const getLiveStorage = () => {
+    if (typeof LiveStorageManager !== 'undefined' && LiveStorageManager) return LiveStorageManager;
+    if (typeof DefaultLiveStorageManager !== 'undefined' && DefaultLiveStorageManager) return DefaultLiveStorageManager;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).LiveStorageManager) return (globalThis as any).LiveStorageManager;
+    return null;
+};
+
 const getUtils = () => {
     if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
     if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
@@ -127,15 +135,18 @@ export function updateZipUi(): void {
             ? (typeof t === 'function' ? t('btnExportZip') : '导出选中 → ZIP')
             : (typeof t === 'function' ? t('btnExportFolder') : '导出选中 → 文件夹');
     }
+    const liveToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
+    const isLiveDisk = !!liveToggle?.checked;
     const dirBox = $('dirBox');
     const btnSetDir = $('btnSetDir') as HTMLButtonElement | null;
+    const disableDir = isZip && !isLiveDisk;
     if (dirBox) {
-        dirBox.style.opacity = isZip ? '0.28' : '1';
-        dirBox.style.pointerEvents = isZip ? 'none' : 'auto';
-        dirBox.style.filter = isZip ? 'grayscale(0.8)' : 'none';
+        dirBox.style.opacity = disableDir ? '0.28' : '1';
+        dirBox.style.pointerEvents = disableDir ? 'none' : 'auto';
+        dirBox.style.filter = disableDir ? 'grayscale(0.8)' : 'none';
     }
     if (btnSetDir) {
-        btnSetDir.disabled = isZip;
+        btnSetDir.disabled = disableDir;
     }
 }
 
@@ -156,7 +167,15 @@ export async function startExportPipeline(
     const convs = Store ? Store.getConversations() : [];
     if (!includeZip && !dirHandle) {
         try {
-            if (DirHandle) dirHandle = await DirHandle.requestDirHandle();
+            if (DirHandle) {
+                dirHandle = await DirHandle.requestDirHandle();
+                const dirLabel = $('dirLabel');
+                if (dirLabel && dirHandle) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', dirHandle.name) : `已选目录: ${dirHandle.name}`;
+                const liveStorage = getLiveStorage();
+                if (liveStorage && typeof liveStorage.setLiveConfig === 'function' && dirHandle) {
+                    await liveStorage.setLiveConfig({ dirName: dirHandle.name });
+                }
+            }
         } catch (err: any) {
             log(typeof t === 'function' ? t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
             return;
@@ -342,6 +361,10 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
                             const dirLabel = $('dirLabel');
                             if (dirLabel) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', newHandle.name) : `已选目录: ${newHandle.name}`;
                             log(typeof t === 'function' ? t('logFolderSelected', newHandle.name) : `已选择保存目录: ${newHandle.name}`);
+                            const liveStorage = getLiveStorage();
+                            if (liveStorage && typeof liveStorage.setLiveConfig === 'function') {
+                                await liveStorage.setLiveConfig({ dirName: newHandle.name });
+                            }
                         }
                         const zipCh = $('includeZip') as HTMLInputElement | null;
                         if (zipCh) {
@@ -412,6 +435,10 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
                 const dirLabel = $('dirLabel');
                 if (dirLabel) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', handle.name) : `已选目录: ${handle.name}`;
                 log(typeof t === 'function' ? t('logFolderSelected', handle.name) : `已选择保存目录: ${handle.name}`);
+                const liveStorage = getLiveStorage();
+                if (liveStorage && typeof liveStorage.setLiveConfig === 'function') {
+                    await liveStorage.setLiveConfig({ dirName: handle.name });
+                }
             }
         } catch (err: any) {
             log(typeof t === 'function' ? t('dirCancelled', err.message) : `选择目录失败: ${err.message}`, 'warn');

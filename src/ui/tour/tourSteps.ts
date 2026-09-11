@@ -114,11 +114,11 @@ export const STEPS: any[] = [
                 diskToggle.addEventListener('change', onToggle);
                 cleanups.push(() => diskToggle.removeEventListener('change', onToggle));
             }
-            const btnSetLiveDir = document.getElementById('btnSetLiveDir');
-            if (btnSetLiveDir) {
+            const btnSetDir = document.getElementById('btnSetDir');
+            if (btnSetDir) {
                 const onBtn = () => setTimeout(advance, 300);
-                btnSetLiveDir.addEventListener('click', onBtn);
-                cleanups.push(() => btnSetLiveDir.removeEventListener('click', onBtn));
+                btnSetDir.addEventListener('click', onBtn);
+                cleanups.push(() => btnSetDir.removeEventListener('click', onBtn));
             }
             return () => cleanups.forEach(c => c());
         }

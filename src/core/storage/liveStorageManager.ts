@@ -117,13 +117,36 @@ export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<Liv
     return updated;
 }
 
+const UNIFIED_IDB_NAME = 'gemini_exporter_idb';
+const UNIFIED_IDB_STORE = 'handles';
+const UNIFIED_IDB_KEY = 'export_dir_handle';
+
+function openUnifiedHandleDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        if (typeof indexedDB === 'undefined') {
+            return reject(new Error('IndexedDB is not available in current environment'));
+        }
+        const req = indexedDB.open(UNIFIED_IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(UNIFIED_IDB_STORE)) {
+                db.createObjectStore(UNIFIED_IDB_STORE);
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
 export async function saveLiveDirHandle(handle: any): Promise<boolean> {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController?.setDirHandle) {
+        (globalThis as any).DirHandleController.setDirHandle(handle);
+    }
     try {
-        const db = await openLiveDB();
+        const db = await openUnifiedHandleDB();
         return new Promise((resolve, reject) => {
-            const tx = db.transaction(STORE_SETTINGS, 'readwrite');
-            const store = tx.objectStore(STORE_SETTINGS);
-            store.put(handle, KEY_DIR_HANDLE);
+            const tx = db.transaction(UNIFIED_IDB_STORE, 'readwrite');
+            tx.objectStore(UNIFIED_IDB_STORE).put(handle, UNIFIED_IDB_KEY);
             tx.oncomplete = () => resolve(true);
             tx.onerror = () => reject(tx.error);
         });
@@ -134,6 +157,23 @@ export async function saveLiveDirHandle(handle: any): Promise<boolean> {
 }
 
 export async function getLiveDirHandle(): Promise<any> {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController?.getDirHandle) {
+        const memHandle = (globalThis as any).DirHandleController.getDirHandle();
+        if (memHandle) return memHandle;
+    }
+    try {
+        const db = await openUnifiedHandleDB();
+        const handle = await new Promise((resolve, reject) => {
+            const tx = db.transaction(UNIFIED_IDB_STORE, 'readonly');
+            const req = tx.objectStore(UNIFIED_IDB_STORE).get(UNIFIED_IDB_KEY);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+        if (handle) return handle;
+    } catch {
+        /* intentional fallback */
+    }
+
     try {
         const db = await openLiveDB();
         return new Promise((resolve, reject) => {
@@ -150,6 +190,20 @@ export async function getLiveDirHandle(): Promise<any> {
 }
 
 export async function clearLiveDirHandle(): Promise<boolean> {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController?.setDirHandle) {
+        (globalThis as any).DirHandleController.setDirHandle(null);
+    }
+    try {
+        const db = await openUnifiedHandleDB();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(UNIFIED_IDB_STORE, 'readwrite');
+            tx.objectStore(UNIFIED_IDB_STORE).delete(UNIFIED_IDB_KEY);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch {
+        /* ignore */
+    }
     try {
         const db = await openLiveDB();
         return new Promise((resolve, reject) => {
