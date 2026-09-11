@@ -130,3 +130,31 @@ test('client - rpcClient.getApiUrl handles both u0/u1 and /u/0 formats', () => {
     assert.strictEqual(rpcClientMod.getApiUrl('default'), 'https://gemini.google.com/_/BardChatUi/data/batchexecute');
     assert.strictEqual(rpcClientMod.getApiUrl('u1'), 'https://gemini.google.com/u/1/_/BardChatUi/data/batchexecute');
 });
+
+test('messageBridge - handles GEMINI_STREAM_GENERATE_START and GEMINI_STREAM_GENERATE_COMPLETE', async () => {
+    let startedId: string | null = null;
+    let completedId: string | null = null;
+    let completedSlot: string | null = null;
+
+    const api = MessageBridge.init({
+        onStreamStart: (cid: any) => { startedId = cid; },
+        onStreamComplete: (cid: any, slot: any) => { completedId = cid; completedSlot = slot; }
+    });
+
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_STREAM_GENERATE_START',
+            payload: { id: 'c_abc123', slot: 'u0' }
+        }
+    });
+    assert.strictEqual(startedId, 'c_abc123');
+
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_STREAM_GENERATE_COMPLETE',
+            payload: { id: 'c_abc123', slot: 'u0' }
+        }
+    });
+    assert.strictEqual(completedId, 'c_abc123');
+    assert.strictEqual(completedSlot, 'u0');
+});

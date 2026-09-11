@@ -13,6 +13,8 @@ export interface MessageBridgeDeps {
     ensureBadge?: () => HTMLElement | null;
     Storage?: any;
     protocol?: any;
+    onStreamStart?: (cid?: string | null, slot?: string) => void;
+    onStreamComplete?: (cid?: string | null, slot?: string) => void;
 }
 
 let _deps: MessageBridgeDeps | null = null;
@@ -168,6 +170,32 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
+    // 4. Streaming generation lifecycle hooks (RPC / StreamGenerate)
+    if (d.type === 'GEMINI_STREAM_GENERATE_START') {
+        const { id, slot } = d.payload || {};
+        if (typeof (_deps as any)?.onStreamStart === 'function') {
+            (_deps as any).onStreamStart(id, slot);
+        } else {
+            const obs = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveObserver);
+            if (obs && typeof obs.notifyStreamStart === 'function') {
+                obs.notifyStreamStart(id);
+            }
+        }
+        return;
+    }
+
+    if (d.type === 'GEMINI_STREAM_GENERATE_COMPLETE') {
+        const { id, slot } = d.payload || {};
+        if (typeof (_deps as any)?.onStreamComplete === 'function') {
+            (_deps as any).onStreamComplete(id, slot);
+        } else {
+            const obs = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveObserver);
+            if (obs && typeof obs.notifyStreamComplete === 'function') {
+                obs.notifyStreamComplete(id);
+            }
+        }
+        return;
+    }
 }
 
 export const MessageBridge = {

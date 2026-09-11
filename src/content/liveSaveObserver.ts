@@ -202,12 +202,61 @@ export function flushCurrentTurnNow(): void {
     triggerSave('turn_complete');
 }
 
+/**
+ * Explicitly notify that streaming generation has started via RPC / network event.
+ */
+export function notifyStreamStart(cid?: string | null): void {
+    const activeId = cid || (__options.getActiveId ? __options.getActiveId() : getActiveConversationId());
+    __isGenerating = true;
+    if (activeId) {
+        __pendingConversationId = activeId;
+    }
+    if (__debounceTimer) {
+        clearTimeout(__debounceTimer);
+        __debounceTimer = null;
+        contentContext.clearTimer('liveSaveDebounce');
+    }
+    if (isDev()) {
+        console.log(`[LiveSaveObserver] RPC Stream started for ${__pendingConversationId || 'current chat'}`);
+    }
+}
+
+/**
+ * Explicitly notify that streaming generation has completed via RPC / network event.
+ * Triggers save immediately without heuristic debounce delays.
+ */
+export function notifyStreamComplete(cid?: string | null): void {
+    const activeId = cid || __pendingConversationId || (__options.getActiveId ? __options.getActiveId() : getActiveConversationId());
+    if (activeId) {
+        __pendingConversationId = activeId;
+    }
+    __isGenerating = false;
+
+    if (__debounceTimer) {
+        clearTimeout(__debounceTimer);
+        __debounceTimer = null;
+        contentContext.clearTimer('liveSaveDebounce');
+    }
+
+    if (isDev()) {
+        console.log(`[LiveSaveObserver] RPC Stream completed for ${activeId || 'current chat'}, triggering instant save`);
+    }
+
+    // Micro-delay (50ms) to allow DOM to commit any syntax highlighting/math rendering, then trigger save
+    const timer = setTimeout(() => {
+        triggerSave('turn_complete');
+    }, 50);
+    contentContext.registerTimer('liveSaveDebounce', timer);
+}
+
 export const LiveSaveObserver = {
     init,
     cleanup,
     isObserverActive,
     checkIsGeneratingDOM,
     getActiveConversationId,
+    notifyStreamStart,
+    notifyStreamComplete,
     flushCurrentTurnNow
 };
 

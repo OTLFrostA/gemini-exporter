@@ -157,6 +157,26 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:content.ts]', e);
     }
 
+    // Initialize Live Auto-Save system
+    if (LiveSaveCoordinator && LiveSaveObserver) {
+        LiveSaveCoordinator.init({
+            storageManager: LiveStorageManager,
+            scraper: Scraper,
+            formatter: typeof ChatFormatter !== 'undefined' ? ChatFormatter : (w.ChatFormatter || null),
+            fsWriterClass: typeof FsWriter !== 'undefined' ? FsWriter : (w.FsWriter || null),
+            utils: Utils,
+            clientClass: typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : (w.GeminiAPIClient || null),
+            badge: Badge
+        });
+
+        LiveSaveObserver.init({
+            debounceMs: 300,
+            onTurnComplete: (cid, reason) => {
+                LiveSaveCoordinator.executeLiveSave(cid, reason);
+            }
+        });
+    }
+
     // Initialize Inter-World Message Bridge
     if (Bridge && Bridge.init && Sync) {
         Bridge.init({
@@ -167,7 +187,17 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
             updateBadge: Sync.updateBadge,
             ensureBadge,
             Storage,
-            protocol: typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : null
+            protocol: typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : null,
+            onStreamStart: (cid) => {
+                if (LiveSaveObserver && typeof LiveSaveObserver.notifyStreamStart === 'function') {
+                    LiveSaveObserver.notifyStreamStart(cid);
+                }
+            },
+            onStreamComplete: (cid) => {
+                if (LiveSaveObserver && typeof LiveSaveObserver.notifyStreamComplete === 'function') {
+                    LiveSaveObserver.notifyStreamComplete(cid);
+                }
+            }
         });
     }
 
@@ -209,26 +239,6 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
             ensureBadge();
             autoInitSync();
         }, { once: true });
-    }
-
-    // Initialize Live Auto-Save system
-    if (LiveSaveCoordinator && LiveSaveObserver) {
-        LiveSaveCoordinator.init({
-            storageManager: LiveStorageManager,
-            scraper: Scraper,
-            formatter: typeof ChatFormatter !== 'undefined' ? ChatFormatter : (w.ChatFormatter || null),
-            fsWriterClass: typeof FsWriter !== 'undefined' ? FsWriter : (w.FsWriter || null),
-            utils: Utils,
-            clientClass: typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : (w.GeminiAPIClient || null),
-            badge: Badge
-        });
-
-        LiveSaveObserver.init({
-            debounceMs: 300,
-            onTurnComplete: (cid, reason) => {
-                LiveSaveCoordinator.executeLiveSave(cid, reason);
-            }
-        });
     }
 
     // Expose helpers on window for backwards-compatible test inspection
