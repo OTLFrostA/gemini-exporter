@@ -209,7 +209,7 @@ class FrameworkRunner:
                 if has_badge:
                     self.registry.record_result(feat_inpage, TestStatus.PASS, dur_badge, "页面端悬浮徽标正常渲染")
                 else:
-                    self.registry.record_result(feat_inpage, TestStatus.WARN, dur_badge, "未检测到悬浮徽标DOM，可能处于静默状态")
+                    self.registry.record_result(feat_inpage, TestStatus.FAIL, dur_badge, "未检测到悬浮徽标 DOM 节点 (#gemini-export-badge)")
 
                 # 执行 2 次会话
                 t_chat_start = time.time()
@@ -307,7 +307,16 @@ class FrameworkRunner:
                 self.registry.record_result(feat_chat, TestStatus.PASS, dur_chat, f"2 次会话全部轮次正常生成落地 (耗时 {dur_chat:.1f}s)")
 
                 if not imagen_verified:
-                    self.registry.record_result(feat_imagen, TestStatus.WARN, 0.0, "未在当次生成轮次中捕获到图片实体 (可能非生图 Prompt)")
+                    has_image_scenario = any(
+                        any(kw in str(t).lower() for kw in ["image", "draw", "画", "图", "生成"])
+                        for sc in self.scenarios[:2] for t in sc.get("turns", [])
+                    )
+                    if has_image_scenario:
+                        self.registry.record_result(feat_imagen, TestStatus.FAIL, 0.0, "预期生图场景未在页面捕获到 AI Imagen 图片渲染实体")
+                        print("   ❌ [feat_imagen_multimodal] 失败: 预期生图场景未捕获到图片实体")
+                    else:
+                        self.registry.record_result(feat_imagen, TestStatus.SKIP, 0.0, "当次提供的数据集中无生图提问轮次")
+                        print("   ℹ️ [feat_imagen_multimodal] 跳过: 当次数据集无生图需求")
 
             finally:
                 cdp_gemini.close()
@@ -479,8 +488,7 @@ class FrameworkRunner:
                         if eph_chat_id:
                             print(f"   🗑️ 成功生成瞬态会话 ({eph_chat_id})，在侧边栏触发删除...")
                             del_ok = CDPActions.delete_conversation_via_web(cdp_gem_live, eph_chat_id)
-                            time.sleep(2.5)
-                            pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id)
+                            pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id, timeout=5.0)
                             dur_e = time.time() - t_eph
                             if pruned_ok:
                                 self.registry.record_result(feat_pruning, TestStatus.PASS, dur_e, "瞬态会话已实时剥离 DOM 与本地 Storage")
@@ -489,9 +497,11 @@ class FrameworkRunner:
                                 self.registry.record_result(feat_pruning, TestStatus.FAIL, dur_e, pruned_msg)
                                 print(f"   ❌ [{feat_pruning}] 失败: {pruned_msg}")
                         else:
-                            self.registry.record_result(feat_pruning, TestStatus.WARN, time.time() - t_eph, "未能获取瞬态会话 ID")
+                            self.registry.record_result(feat_pruning, TestStatus.FAIL, time.time() - t_eph, "未能获取瞬态会话 ID")
+                            print(f"   ❌ [{feat_pruning}] 失败: 未能获取瞬态会话 ID")
                     else:
-                        self.registry.record_result(feat_pruning, TestStatus.WARN, time.time() - t_eph, f"瞬态会话发帖超时: {msg_eph}")
+                        self.registry.record_result(feat_pruning, TestStatus.FAIL, time.time() - t_eph, f"瞬态会话发帖超时: {msg_eph}")
+                        print(f"   ❌ [{feat_pruning}] 失败: 瞬态会话发帖超时")
                 finally:
                     cdp_gem_live.close()
             else:
@@ -535,8 +545,8 @@ class FrameworkRunner:
                     self.registry.record_result(feat_upgrade, TestStatus.PASS, 0.0, upg_msg)
                     print(f"   ✓ [{feat_upgrade}] 通过: {upg_msg}")
                 else:
-                    self.registry.record_result(feat_upgrade, TestStatus.WARN, 0.0, upg_msg)
-                    print(f"   ⚠️ [{feat_upgrade}] 提示: {upg_msg}")
+                    self.registry.record_result(feat_upgrade, TestStatus.FAIL, 0.0, upg_msg)
+                    print(f"   ❌ [{feat_upgrade}] 失败: {upg_msg}")
             else:
                 self.registry.record_result(feat_takeout, TestStatus.SKIP, 0.0, "未启用或未找到 Takeout ZIP 样本")
                 self.registry.record_result(feat_deep_scan, TestStatus.SKIP, 0.0, "未启用 Takeout")
@@ -565,8 +575,8 @@ class FrameworkRunner:
                 self.registry.record_result(feat_search_kw, TestStatus.PASS, dur_kw, "关键词过滤列表正常收缩")
                 print(f"   ✓ [{feat_search_kw}] 通过: 关键词过滤生效")
             else:
-                self.registry.record_result(feat_search_kw, TestStatus.WARN, dur_kw, filter_kw_msg)
-                print(f"   ⚠️ [{feat_search_kw}] 提示: {filter_kw_msg}")
+                self.registry.record_result(feat_search_kw, TestStatus.FAIL, dur_kw, filter_kw_msg)
+                print(f"   ❌ [{feat_search_kw}] 失败: {filter_kw_msg}")
 
             # 2. 按 ID 搜索与精准勾选
             t0 = time.time()
@@ -626,8 +636,8 @@ class FrameworkRunner:
                 self.registry.record_result(feat_lang, TestStatus.PASS, dur_lang, "多语言正确切换且UI渲染完备")
                 print(f"   ✓ [{feat_lang}] 通过: 中英文切换状态驻留")
             else:
-                self.registry.record_result(feat_lang, TestStatus.WARN, dur_lang, f"en='{en_text}', zh='{zh_text}'")
-                print(f"   ⚠️ [{feat_lang}] 提示: en='{en_text}', zh='{zh_text}'")
+                self.registry.record_result(feat_lang, TestStatus.FAIL, dur_lang, f"en='{en_text}', zh='{zh_text}'")
+                print(f"   ❌ [{feat_lang}] 失败: en='{en_text}', zh='{zh_text}'")
 
             # -------------------------------------------------------------
             # 步骤 5：物理磁盘落盘与多模态双轨断言 (Domain: EXPORT_DISK)
@@ -638,32 +648,72 @@ class FrameworkRunner:
 
             print("\n💾 [领域五 / 磁盘与导出断言] 验证真实物理磁盘落盘、ZIP导出与多模态规范断言...")
 
-            # 1. 物理磁盘实时落盘与非零字节核验
+            # 1. 物理磁盘实时落盘真实性核验 (严禁扫描历史静态旧目录)
             t0 = time.time()
-            disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save()
-            dur_disk = time.time() - t0
-            if disk_ok:
-                self.registry.record_result(feat_live_disk, TestStatus.PASS, dur_disk, disk_msg)
-                print(f"   ✓ [{feat_live_disk}] 通过: {disk_msg}")
-            else:
-                self.registry.record_result(feat_live_disk, TestStatus.WARN, dur_disk, disk_msg)
-                print(f"   ⚠️ [{feat_live_disk}] 提示: {disk_msg}")
+            live_cfg = cdp_opt.eval("""
+            (() => {
+                return new Promise((resolve) => {
+                    chrome.storage.local.get(['live_save_config'], (data) => {
+                        resolve(data.live_save_config || null);
+                    });
+                });
+            })()
+            """, await_promise=True) or {}
 
-            # 2. 联合勾选目标会话并触发 ZIP 导出
+            is_live_disk_enabled = bool(live_cfg.get("enabledDisk"))
+            live_dir_name = live_cfg.get("dirName") or ""
+
+            if self.skip_chat:
+                self.registry.record_result(feat_live_disk, TestStatus.SKIP, 0.0, "--skip-chat 模式未产生实时对话，跳过实时落盘校验")
+                print(f"   ℹ️ [{feat_live_disk}] 跳过: --skip-chat 模式未生成实时对话")
+            elif not is_live_disk_enabled:
+                self.registry.record_result(feat_live_disk, TestStatus.SKIP, 0.0, "扩展未启用或未授权本地目录实时落盘 (live_save_config.enabledDisk != true)")
+                print(f"   ℹ️ [{feat_live_disk}] 跳过: 扩展未启用实时磁盘保存，绝不扫描历史静态目录")
+            else:
+                target_cids = [r["chat_id"] for r in self.chat_records if r.get("chat_id")]
+                candidate_dirs = [
+                    os.path.join(os.path.expanduser("~"), "Downloads", live_dir_name),
+                    os.path.join(os.path.expanduser("~"), "Downloads", "gemini"),
+                    os.path.join(os.path.expanduser("~"), "Downloads")
+                ]
+                valid_live_dir = next((d for d in candidate_dirs if os.path.isdir(d)), None)
+                if not valid_live_dir:
+                    self.registry.record_result(feat_live_disk, TestStatus.FAIL, time.time() - t0, f"已配置实时落盘但本地目录不存在 (dirName: '{live_dir_name}')")
+                    print(f"   ❌ [{feat_live_disk}] 失败: 未找到对应本地目录")
+                else:
+                    disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
+                        target_dir=valid_live_dir,
+                        target_chat_ids=target_cids,
+                        min_mtime=self.start_time
+                    )
+                    dur_disk = time.time() - t0
+                    if disk_ok:
+                        self.registry.record_result(feat_live_disk, TestStatus.PASS, dur_disk, disk_msg)
+                        print(f"   ✓ [{feat_live_disk}] 通过: {disk_msg}")
+                    else:
+                        self.registry.record_result(feat_live_disk, TestStatus.FAIL, dur_disk, disk_msg)
+                        print(f"   ❌ [{feat_live_disk}] 失败: {disk_msg}")
+
+            # 2. 联合勾选目标会话并触发 ZIP 导出 (彻底移除静默兜底)
             t0 = time.time()
-            target_ids = [r["chat_id"] for r in self.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8]
+            target_ids = []
+            target_titles = []
+            if not self.skip_chat:
+                target_ids.extend([r["chat_id"] for r in self.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
+                target_titles.extend([r.get("title", "") for r in self.chat_records if r.get("title")])
+
             target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-            target_titles = [r.get("title", "") for r in self.chat_records if r.get("title")]
             target_titles.extend(["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"])
 
-            cdp_opt.eval(f"""
+            check_res = cdp_opt.eval(f"""
             (() => {{
                 const selectNone = document.getElementById('btnSelectNone');
                 if (selectNone) selectNone.click();
                 const targetIds = {json.dumps(target_ids)};
                 const targetTitles = {json.dumps(target_titles)};
                 const items = Array.from(document.querySelectorAll('#list .item'));
-                let checked = 0;
+                let checkedCount = 0;
+                const matchedList = [];
                 items.forEach(item => {{
                     const cid = item.dataset.chatId;
                     const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
@@ -674,22 +724,27 @@ class FrameworkRunner:
                         if (cb && !cb.checked) {{
                             cb.checked = true;
                             cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            checked++;
+                            checkedCount++;
+                            matchedList.push({{ id: cid, title: titleText }});
                         }}
                     }}
                 }});
-                if (checked < 2) {{
-                    items.slice(0, 2).forEach(item => {{
-                        const cb = item.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {{
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        }}
-                    }});
-                }}
+                return {{
+                    totalItems: items.length,
+                    checkedCount: checkedCount,
+                    matched: matchedList
+                }};
             }})()
-            """)
+            """) or {}
             time.sleep(0.5)
+
+            checked_count = check_res.get("checkedCount", 0)
+            expected_min_checked = 4 if self.skip_chat else 6
+            if checked_count < expected_min_checked:
+                err_msg = f"未能在工作台勾选到足够的预期会话: 实际勾选 {checked_count} < 预期最小 {expected_min_checked} (总卡片数: {check_res.get('totalItems')})"
+                self.registry.record_result(feat_zip_dl, TestStatus.FAIL, time.time() - t0, err_msg)
+                print(f"   ❌ [{feat_zip_dl}] 失败: {err_msg}")
+                return False
 
             downloaded_zip = CDPActions.trigger_export_zip(cdp_opt, self.output_dir, max_wait=60)
             dur_zip = time.time() - t0

@@ -129,7 +129,7 @@ class ExportSpecificationAsserter:
                 self.log_error("meta.json", f"meta.json 解析失败: {e}")
 
     def assert_frontmatter(self, content, file_name):
-        """校验 YAML Frontmatter"""
+        """校验 YAML Frontmatter 规范 (严格解析键值对非空与格式)"""
         if not content.startswith("---\n"):
             self.log_error(file_name, "文件头部必须以 YAML Frontmatter 开头 ('---\\n')")
             return
@@ -140,29 +140,69 @@ class ExportSpecificationAsserter:
             return
 
         fm_text = content[4:4 + end_match.start()]
-        required_keys = ["title:", "id:", "url:", "date:", "updated:", "exported:", "tags:"]
+        
+        # 逐行解析顶级键值对
+        fields = {}
+        for line in fm_text.splitlines():
+            line_str = line.strip()
+            if not line_str or line_str.startswith("#"):
+                continue
+            if ":" in line_str:
+                k, v = line_str.split(":", 1)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                if k not in fields:
+                    fields[k] = v
+
+        required_keys = ["title", "id", "url", "date", "updated", "exported", "tags"]
         for key in required_keys:
-            if key not in fm_text:
+            if key not in fields and f"{key}:" not in fm_text:
                 self.log_error(file_name, f"Frontmatter 缺少必要字段 '{key}'")
+            elif key in ["title", "id", "url", "date"]:
+                val = fields.get(key, "")
+                if not val:
+                    self.log_error(file_name, f"Frontmatter 字段 '{key}' 值为空非法")
+
+        # 检查 date 格式 (ISO 8601)
+        date_val = fields.get("date", "")
+        if date_val and not re.match(r"^\d{4}-\d{2}-\d{2}", date_val):
+            self.log_error(file_name, f"Frontmatter 'date' 字段格式非法 (非 ISO 8601): {date_val}")
 
         if "gemini-export" not in fm_text:
             self.log_error(file_name, "Frontmatter tags 必须包含 'gemini-export'")
 
-    def assert_turn_flow(self, content, file_name):
-        """校验问答轮次与角色标记"""
-        # 必须包含二级角色标题
-        user_headers = re.findall(r"^## 👤 你", content, flags=re.MULTILINE)
-        model_headers = re.findall(r"^## 🤖 Gemini", content, flags=re.MULTILINE)
+    def assert_turn_flow(self, content, file_name, min_turns: int = 1):
+        """校验问答轮次、角色交替与等量匹配"""
+        # 提取所有角色标头及其出现位置
+        headers = []
+        for m in re.finditer(r"^## 👤 (?:你|You)", content, flags=re.MULTILINE):
+            headers.append((m.start(), "user"))
+        for m in re.finditer(r"^## 🤖 Gemini", content, flags=re.MULTILINE):
+            headers.append((m.start(), "model"))
 
-        if not user_headers:
-            self.log_error(file_name, "正文中未找到用户角色标记 ('## 👤 你')")
-        if not model_headers:
-            self.log_error(file_name, "正文中未找到模型角色标记 ('## 🤖 Gemini')")
+        headers.sort(key=lambda x: x[0])
 
-        # 检查时间戳小标题
+        if not headers:
+            self.log_error(file_name, "正文中未找到任何用户或模型角色标头")
+            return
+
+        user_count = sum(1 for h in headers if h[1] == "user")
+        model_count = sum(1 for h in headers if h[1] == "model")
+
+        if user_count < min_turns:
+            self.log_error(file_name, f"用户提问轮次不足: {user_count} < 预期最小 {min_turns}")
+        if model_count < user_count:
+            self.log_error(file_name, f"模型回复轮次不足: 模型回复 {model_count} < 用户提问 {user_count}")
+
+        # 检查轮次是否严格交替出现 (User -> Model -> User -> Model)
+        for i in range(len(headers) - 1):
+            if headers[i][1] == headers[i+1][1]:
+                self.log_error(file_name, f"第 {i+1} 处角色标头未交替出现: 连续两个 '{headers[i][1]}' 角色标头")
+
+        # 检查时间戳小标题 (至少与用户轮次数对齐)
         time_quotes = re.findall(r"^> ⏱️ \d{4}/\d{1,2}/\d{1,2}", content, flags=re.MULTILINE)
-        if not time_quotes:
-            self.log_error(file_name, "正文中缺少时间戳引用行 ('> ⏱️ YYYY/MM/DD...')")
+        if len(time_quotes) < user_count:
+            self.log_error(file_name, f"时间戳引用行数量不足: 找到 {len(time_quotes)} 个，用户轮次为 {user_count}")
 
     def assert_zero_noise(self, content, file_name):
         """纯净度断言：绝不包含 Google JSPB 遥测单字符、遥测短词、语言标签泄露"""
