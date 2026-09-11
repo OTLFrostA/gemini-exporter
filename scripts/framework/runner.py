@@ -43,7 +43,7 @@ DEFAULT_SCENARIOS = [
             "在大型高并发秒杀系统中，如何基于 Redis Lua 脚本与 MySQL 设计一套高性能、防超卖的库存预扣方案？",
             "在上述预扣方案中，如果 Redis 扣减成功但后续消息队列异步落盘失败，应该设计怎样的补偿与对账机制来保证数据最终一致性？",
             "请用简洁的 ASCII 纯字符流程图绘制上述秒杀链路中 API 网关、Redis 预扣、消息队列与数据库落库的数据流转过程。",
-            "针对跨服务的分布式事务，请对比 2PC (两阶段提交)、TCC (Try-Confirm-Cancel) 与 SAGA 模式的优缺点及各自最适用的业务场景。"
+            "请为这套秒杀系统生成一张架构概念图片：赛博朋克科技感风格的分布式高并发服务器机群与微服务数据流全景图。"
         ]
     }
 ]
@@ -88,19 +88,11 @@ class FrameworkRunner:
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
         delay: int = 2,
-        skip_chat: bool = False,
-        skip_takeout: bool = False,
-        skip_reinstall: bool = False,
-        skip_tour: bool = False,
         takeout_zip: Optional[str] = None
     ):
         self.port = port
         self.output_dir = os.path.abspath(output_dir or os.path.join(os.path.dirname(__file__), "..", "..", "tests", "output", "live_export"))
         self.delay = delay
-        self.skip_chat = skip_chat
-        self.skip_takeout = skip_takeout
-        self.skip_reinstall = skip_reinstall
-        self.skip_tour = skip_tour
         self.takeout_zip = takeout_zip or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tests", "fixtures", "gemini_takeout_clean.zip"))
 
         if isinstance(dataset, dict) and "scenarios" in dataset:
@@ -126,18 +118,12 @@ class FrameworkRunner:
         # -------------------------------------------------------------
         # 步骤 0：扩展卸载与纯净重装
         # -------------------------------------------------------------
-        if not self.skip_reinstall:
-            print("\n🔄 [步骤 0] 通过 CDP 原生卸载并纯净安装当前工作区代码...")
-            self.ext_id = CDPActions.reinstall_extension(self.port, repo_path=worktree_root)
-            if not self.ext_id:
-                print("❌ 扩展安装失败，终止运行！")
-                return False
-            time.sleep(1.0)
-        else:
-            self.ext_id = get_extension_id(self.port)
-            if not self.ext_id:
-                print("❌ 未能获取活跃扩展 ID")
-                return False
+        print("\n🔄 [步骤 0] 通过 CDP 原生卸载并纯净安装当前工作区代码...")
+        self.ext_id = CDPActions.reinstall_extension(self.port, repo_path=worktree_root)
+        if not self.ext_id:
+            print("❌ 扩展安装失败，终止运行！")
+            return False
+        time.sleep(1.0)
 
         print(f"🧩 当前活跃扩展 ID: {self.ext_id}")
 
@@ -156,41 +142,37 @@ class FrameworkRunner:
             except Exception as e:
                 print(f"   ⚠️ 自动创建 Gemini 标签页异常: {e}")
 
-        if not gemini_tab and not self.skip_chat:
+        if not gemini_tab:
             print("❌ 未在 Chrome 中找到打开的 gemini.google.com 页面，请先启动测试浏览器！")
             return False
 
-        if gemini_tab and not self.skip_reinstall:
-            print("   🔄 刷新 Gemini 页面以注入最新 Content Scripts...")
-            cdp_g = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
-            try:
-                cdp_g.eval("location.reload()")
-            except Exception:
-                pass
-            finally:
-                cdp_g.close()
-            time.sleep(2.0)
+        print("   🔄 刷新 Gemini 页面以注入最新 Content Scripts...")
+        cdp_g = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+        try:
+            cdp_g.eval("location.reload()")
+        except Exception:
+            pass
+        finally:
+            cdp_g.close()
+        time.sleep(2.0)
 
         # -------------------------------------------------------------
         # 步骤 0.5：新手向导交互与 0 遮挡防撞 (feat_tour_guide_interactive)
         # -------------------------------------------------------------
         feat_tour = "feat_tour_guide_interactive"
-        if not self.skip_tour:
-            t0 = time.time()
-            print("\n🧭 [领域四 / 交互] 验证新手向导交互与持久化 (feat_tour_guide_interactive)...")
-            try:
-                tour_ok = CDPActions.verify_onboarding_tour(self.port, self.ext_id)
-                dur = time.time() - t0
-                if tour_ok:
-                    self.registry.record_result(feat_tour, TestStatus.PASS, dur, "新手向导交互推进与持久化完成")
-                    print(f"   ✓ [{feat_tour}] 通过 (耗时 {dur:.1f}s)")
-                else:
-                    self.registry.record_result(feat_tour, TestStatus.FAIL, dur, "向导未能正常完成或状态未落盘")
-                    print(f"   ❌ [{feat_tour}] 失败")
-            except Exception as e:
-                self.registry.record_result(feat_tour, TestStatus.FAIL, time.time() - t0, str(e))
-        else:
-            self.registry.record_result(feat_tour, TestStatus.SKIP, 0.0, "用户指定跳过向导验证")
+        t0 = time.time()
+        print("\n🧭 [领域四 / 交互] 验证新手向导交互与持久化 (feat_tour_guide_interactive)...")
+        try:
+            tour_ok = CDPActions.verify_onboarding_tour(self.port, self.ext_id)
+            dur = time.time() - t0
+            if tour_ok:
+                self.registry.record_result(feat_tour, TestStatus.PASS, dur, "新手向导交互推进与持久化完成")
+                print(f"   ✓ [{feat_tour}] 通过 (耗时 {dur:.1f}s)")
+            else:
+                self.registry.record_result(feat_tour, TestStatus.FAIL, dur, "向导未能正常完成或状态未落盘")
+                print(f"   ❌ [{feat_tour}] 失败")
+        except Exception as e:
+            self.registry.record_result(feat_tour, TestStatus.FAIL, time.time() - t0, str(e))
 
         # -------------------------------------------------------------
         # 步骤 1：Gemini 网页端与多轮问答发帖 (Domain: PAGE_CHAT)
@@ -199,154 +181,126 @@ class FrameworkRunner:
         feat_imagen = "feat_imagen_multimodal"
         feat_inpage = "feat_inpage_export_badge"
 
-        if not self.skip_chat:
-            cdp_gemini = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
-            try:
-                # 检查页面端导出悬浮徽标
-                t0 = time.time()
-                has_badge = cdp_gemini.eval("""!!document.querySelector('#gemini-export-badge, .gemini-export-badge, [data-test-id="gemini-export-badge"]')""")
-                dur_badge = time.time() - t0
-                if has_badge:
-                    self.registry.record_result(feat_inpage, TestStatus.PASS, dur_badge, "页面端悬浮徽标正常渲染")
-                else:
-                    self.registry.record_result(feat_inpage, TestStatus.FAIL, dur_badge, "未检测到悬浮徽标 DOM 节点 (#gemini-export-badge)")
+        cdp_gemini = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+        try:
+            # 检查页面端导出悬浮徽标
+            t0 = time.time()
+            has_badge = cdp_gemini.eval("""!!document.querySelector('#gemini-export-badge, .gemini-export-badge, [data-test-id="gemini-export-badge"]')""")
+            dur_badge = time.time() - t0
+            if has_badge:
+                self.registry.record_result(feat_inpage, TestStatus.PASS, dur_badge, "页面端悬浮徽标正常渲染")
+            else:
+                self.registry.record_result(feat_inpage, TestStatus.FAIL, dur_badge, "未检测到悬浮徽标 DOM 节点 (#gemini-export-badge)")
 
-                # 执行 2 次会话
-                t_chat_start = time.time()
-                imagen_verified = False
+            # 执行 2 次会话
+            t_chat_start = time.time()
+            imagen_verified = False
 
-                for chat_idx in range(2):
-                    sc = self.scenarios[chat_idx]
-                    sc_title = sc.get("title", f"会话 {chat_idx + 1}")
-                    turns = sc.get("turns", [])
-                    prompts_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in turns]
-                    first_p = prompts_clean[0][:14] if prompts_clean else ""
+            for chat_idx in range(2):
+                sc = self.scenarios[chat_idx]
+                sc_title = sc.get("title", f"会话 {chat_idx + 1}")
+                turns = sc.get("turns", [])
+                prompts_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in turns]
+                first_p = prompts_clean[0][:14] if prompts_clean else ""
 
-                    # 检查当前页面是否已匹配
-                    curr_ups = cdp_gemini.eval("""
-                    (() => {
-                        const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
-                        return ups.map(p => p.textContent);
-                    })()
-                    """) or []
+                # 检查当前页面是否已匹配
+                curr_ups = cdp_gemini.eval("""
+                (() => {
+                    const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
+                    return ups.map(p => p.textContent);
+                })()
+                """) or []
 
-                    is_curr_match = any(first_p in up for up in curr_ups) if (curr_ups and first_p) else False
+                is_curr_match = any(first_p in up for up in curr_ups) if (curr_ups and first_p) else False
 
-                    missing_turns = []
-                    for idx, t in enumerate(turns, 1):
-                        p_text = t.get("prompt", "") if isinstance(t, dict) else str(t)
-                        if not any(p_text[:14] in up for up in curr_ups):
-                            missing_turns.append((idx, t))
+                missing_turns = []
+                for idx, t in enumerate(turns, 1):
+                    p_text = t.get("prompt", "") if isinstance(t, dict) else str(t)
+                    if not any(p_text[:14] in up for up in curr_ups):
+                        missing_turns.append((idx, t))
 
-                    if not missing_turns and is_curr_match:
-                        existing_cid = CDPActions.get_current_chat_id(cdp_gemini)
-                        print(f"   ⚡ 会话 {chat_idx + 1} 在当前页面已完整存在 ({len(prompts_clean)} 轮全部就绪)，直接复用: {existing_cid}")
-                        self.chat_records.append({
-                            "chat_id": existing_cid,
-                            "title": CDPActions.get_current_chat_title(cdp_gemini) or sc_title,
-                            "turns": prompts_clean
-                        })
-                        continue
-
-                    chat_id = CDPActions.get_current_chat_id(cdp_gemini)
-                    if curr_ups and len(missing_turns) < len(turns):
-                        print(f"   ⚡ 当前会话已包含部分轮次，补充发送剩余 {len(missing_turns)} 轮 (会话 ID: {chat_id})")
-                        turns_to_run = missing_turns
-                    else:
-                        # 开启全新会话
-                        cdp_gemini.eval("location.href = 'https://gemini.google.com/app'")
-                        time.sleep(2.0)
-                        try:
-                            cdp_gemini.reconnect()
-                        except Exception:
-                            pass
-                        if not CDPActions.wait_for_gemini_ready(cdp_gemini):
-                            self.registry.record_result(feat_chat, TestStatus.FAIL, time.time() - t_chat_start, "Gemini 页面加载超时未能就绪")
-                            return False
-                        time.sleep(1.0)
-                        turns_to_run = list(enumerate(turns, 1))
-
-                    for turn_no, turn_input in turns_to_run:
-                        p_text = turn_input.get("prompt", "") if isinstance(turn_input, dict) else str(turn_input)
-                        preview = (p_text[:40] + "...") if len(p_text) > 40 else p_text
-                        print(f"   ▶️ 轮次 {turn_no}/{len(turns)}: '{preview}'")
-                        ok, msg = False, ""
-                        for try_idx in range(3):
-                            ok, msg = CDPActions.send_gemini_turn(cdp_gemini, turn_input, max_wait=300)
-                            if ok:
-                                break
-                            print(f"      ⚠️ 轮次 {turn_no} 提示: {msg}，等待重试 ({try_idx + 1}/3)...")
-                            time.sleep(4)
-
-                        if not ok:
-                            self.registry.record_result(feat_chat, TestStatus.FAIL, time.time() - t_chat_start, f"轮次 {turn_no} 失败: {msg}")
-                            return False
-
-                        chat_id = CDPActions.get_current_chat_id(cdp_gemini) or chat_id
-                        print(f"      ✅ 轮次完成 (会话 ID: {chat_id})")
-
-                        # Imagen 生图断言
-                        if any(kw in p_text for kw in ["生成图片", "画一张", "astronaut cat", "Imagen"]) and not imagen_verified:
-                            stream_ok, stream_msg, state_data = CDPAssertions.assert_stream_completed(cdp_gemini)
-                            if state_data.get("hasImages"):
-                                imagen_verified = True
-                                self.registry.record_result(feat_imagen, TestStatus.PASS, 0.0, "检测到 AI Imagen 图片渲染落地")
-                                print("      🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
-
-                        time.sleep(self.delay)
-
-                    real_title = CDPActions.get_current_chat_title(cdp_gemini) or sc_title
+                if not missing_turns and is_curr_match:
+                    existing_cid = CDPActions.get_current_chat_id(cdp_gemini)
+                    print(f"   ⚡ 会话 {chat_idx + 1} 在当前页面已完整存在 ({len(prompts_clean)} 轮全部就绪)，直接复用: {existing_cid}")
                     self.chat_records.append({
-                        "chat_id": chat_id,
-                        "title": real_title,
+                        "chat_id": existing_cid,
+                        "title": CDPActions.get_current_chat_title(cdp_gemini) or sc_title,
                         "turns": prompts_clean
                     })
-                    print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，总计 {len(prompts_clean)} 轮已就绪")
+                    continue
 
-                dur_chat = time.time() - t_chat_start
-                self.registry.record_result(feat_chat, TestStatus.PASS, dur_chat, f"2 次会话全部轮次正常生成落地 (耗时 {dur_chat:.1f}s)")
+                chat_id = CDPActions.get_current_chat_id(cdp_gemini)
+                if curr_ups and len(missing_turns) < len(turns):
+                    print(f"   ⚡ 当前会话已包含部分轮次，补充发送剩余 {len(missing_turns)} 轮 (会话 ID: {chat_id})")
+                    turns_to_run = missing_turns
+                else:
+                    # 开启全新会话
+                    cdp_gemini.eval("location.href = 'https://gemini.google.com/app'")
+                    time.sleep(2.0)
+                    try:
+                        cdp_gemini.reconnect()
+                    except Exception:
+                        pass
+                    if not CDPActions.wait_for_gemini_ready(cdp_gemini):
+                        self.registry.record_result(feat_chat, TestStatus.FAIL, time.time() - t_chat_start, "Gemini 页面加载超时未能就绪")
+                        return False
+                    time.sleep(1.0)
+                    turns_to_run = list(enumerate(turns, 1))
 
-                if not imagen_verified:
-                    has_image_scenario = any(
-                        any(kw in str(t).lower() for kw in ["image", "draw", "画", "图", "生成"])
-                        for sc in self.scenarios[:2] for t in sc.get("turns", [])
-                    )
-                    if has_image_scenario:
-                        self.registry.record_result(feat_imagen, TestStatus.FAIL, 0.0, "预期生图场景未在页面捕获到 AI Imagen 图片渲染实体")
-                        print("   ❌ [feat_imagen_multimodal] 失败: 预期生图场景未捕获到图片实体")
-                    else:
-                        self.registry.record_result(feat_imagen, TestStatus.SKIP, 0.0, "当次提供的数据集中无生图提问轮次")
-                        print("   ℹ️ [feat_imagen_multimodal] 跳过: 当次数据集无生图需求")
+                for turn_no, turn_input in turns_to_run:
+                    p_text = turn_input.get("prompt", "") if isinstance(turn_input, dict) else str(turn_input)
+                    preview = (p_text[:40] + "...") if len(p_text) > 40 else p_text
+                    print(f"   ▶️ 轮次 {turn_no}/{len(turns)}: '{preview}'")
+                    ok, msg = False, ""
+                    for try_idx in range(3):
+                        ok, msg = CDPActions.send_gemini_turn(cdp_gemini, turn_input, max_wait=300)
+                        if ok:
+                            break
+                        print(f"      ⚠️ 轮次 {turn_no} 提示: {msg}，等待重试 ({try_idx + 1}/3)...")
+                        time.sleep(4)
 
-            finally:
-                cdp_gemini.close()
-        else:
-            self.registry.record_result(feat_chat, TestStatus.SKIP, 0.0, "--skip-chat 模式")
-            self.registry.record_result(feat_imagen, TestStatus.SKIP, 0.0, "--skip-chat 模式")
-            self.registry.record_result(feat_inpage, TestStatus.SKIP, 0.0, "--skip-chat 模式")
-            # 从侧边栏复用最近会话 ID
-            try:
-                cdp_temp = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
-                try:
-                    sidebar_ids = cdp_temp.eval("""
-                    (() => {
-                        const anchors = Array.from(document.querySelectorAll("a"));
-                        return anchors.map(a => {
-                            const parts = (a.getAttribute("href") || "").split("/app/");
-                            return parts.length > 1 ? parts[1].split("?")[0].trim() : null;
-                        }).filter(id => id && id.length >= 8);
-                    })()
-                    """) or []
-                    for chat_idx in range(2):
-                        sc = self.scenarios[chat_idx]
-                        raw_turns = sc.get("turns", [])
-                        prompts = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
-                        cid = sidebar_ids[1 - chat_idx] if len(sidebar_ids) >= 2 else (sidebar_ids[0] if sidebar_ids else sc.get("id"))
-                        self.chat_records.append({"chat_id": cid, "title": sc.get("title", ""), "turns": prompts})
-                finally:
-                    cdp_temp.close()
-            except Exception:
-                pass
+                    if not ok:
+                        self.registry.record_result(feat_chat, TestStatus.FAIL, time.time() - t_chat_start, f"轮次 {turn_no} 失败: {msg}")
+                        return False
+
+                    chat_id = CDPActions.get_current_chat_id(cdp_gemini) or chat_id
+                    print(f"      ✅ 轮次完成 (会话 ID: {chat_id})")
+
+                    # Imagen 生图断言
+                    if any(kw in p_text for kw in ["生成图片", "画一张", "astronaut cat", "Imagen"]) and not imagen_verified:
+                        stream_ok, stream_msg, state_data = CDPAssertions.assert_stream_completed(cdp_gemini)
+                        if state_data.get("hasImages"):
+                            imagen_verified = True
+                            self.registry.record_result(feat_imagen, TestStatus.PASS, 0.0, "检测到 AI Imagen 图片渲染落地")
+                            print("      🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
+
+                    time.sleep(self.delay)
+
+                real_title = CDPActions.get_current_chat_title(cdp_gemini) or sc_title
+                self.chat_records.append({
+                    "chat_id": chat_id,
+                    "title": real_title,
+                    "turns": prompts_clean
+                })
+                print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，总计 {len(prompts_clean)} 轮已就绪")
+
+            dur_chat = time.time() - t_chat_start
+            self.registry.record_result(feat_chat, TestStatus.PASS, dur_chat, f"2 次会话全部轮次正常生成落地 (耗时 {dur_chat:.1f}s)")
+
+            if not imagen_verified:
+                has_image_scenario = any(
+                    any(kw in str(t).lower() for kw in ["image", "draw", "画", "图", "生成"])
+                    for sc in self.scenarios[:2] for t in sc.get("turns", [])
+                )
+                if has_image_scenario:
+                    self.registry.record_result(feat_imagen, TestStatus.FAIL, 0.0, "预期生图场景未在页面捕获到 AI Imagen 图片渲染实体")
+                    print("   ❌ [feat_imagen_multimodal] 失败: 预期生图场景未捕获到图片实体")
+                else:
+                    self.registry.record_result(feat_imagen, TestStatus.FAIL, 0.0, "当次提供的数据集中无生图提问轮次，多模态检验要求必须包含生图轮次")
+                    print("   ❌ [feat_imagen_multimodal] 失败: 当次数据集缺少生图需求")
+
+        finally:
+            cdp_gemini.close()
 
         # -------------------------------------------------------------
         # 步骤 2：会话生命周期与实时同步 (Domain: LIFECYCLE)
@@ -355,7 +309,7 @@ class FrameworkRunner:
         feat_updated_badge = "feat_updated_badge_display"
         feat_pruning = "feat_ephemeral_chat_pruning"
 
-        if not self.skip_chat and len(self.chat_records) >= 2:
+        if len(self.chat_records) >= 2:
             s1_id = self.chat_records[0].get("chat_id")
             s2_id = self.chat_records[1].get("chat_id")
             if s1_id and s2_id and s1_id != s2_id:
@@ -381,8 +335,10 @@ class FrameworkRunner:
                         self.registry.record_result(feat_promotion, TestStatus.FAIL, time.time() - t_promo, f"追加提问失败: {msg_add}")
                 finally:
                     cdp_g2.close()
+            else:
+                self.registry.record_result(feat_promotion, TestStatus.FAIL, 0.0, "会话 1 与会话 2 ID 无效或重复")
         else:
-            self.registry.record_result(feat_promotion, TestStatus.SKIP, 0.0, "跳过或会话记录不足 2 个")
+            self.registry.record_result(feat_promotion, TestStatus.FAIL, 0.0, "会话记录不足 2 个")
 
         # 打开 Options 工作台页面
         options_url = f"chrome-extension://{self.ext_id}/src/ui/options/options.html"
@@ -417,7 +373,7 @@ class FrameworkRunner:
             time.sleep(1.0)
 
             # 检验置顶与「已更新」徽章 (feat_updated_badge_display)
-            if not self.skip_chat and len(self.chat_records) >= 2:
+            if len(self.chat_records) >= 2:
                 s1_id = self.chat_records[0].get("chat_id")
                 s2_id = self.chat_records[1].get("chat_id")
                 if s1_id and s2_id and s1_id != s2_id:
@@ -467,45 +423,42 @@ class FrameworkRunner:
                         self.registry.record_result(feat_updated_badge, TestStatus.FAIL, dur_b, f"Order: {order_msg} | Badge: {badge_msg}")
                         print(f"   ❌ [{feat_updated_badge}] 失败: {order_msg} / {badge_msg}")
             else:
-                self.registry.record_result(feat_updated_badge, TestStatus.SKIP, 0.0, "跳过或记录不足")
+                self.registry.record_result(feat_updated_badge, TestStatus.FAIL, 0.0, "会话 1 与会话 2 ID 无效或重复")
 
             # 瞬态会话网页端删除实时剥离 (feat_ephemeral_chat_pruning)
-            if not self.skip_chat:
-                print("\n🗑️ [领域二 / 生命周期] 验证瞬态会话网页端删除实时剥离 (feat_ephemeral_chat_pruning)...")
-                t_eph = time.time()
-                cdp_gem_live = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+            print("\n🗑️ [领域二 / 生命周期] 验证瞬态会话网页端删除实时剥离 (feat_ephemeral_chat_pruning)...")
+            t_eph = time.time()
+            cdp_gem_live = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+            try:
+                cdp_gem_live.eval("location.href = 'https://gemini.google.com/app'")
+                time.sleep(2.0)
                 try:
-                    cdp_gem_live.eval("location.href = 'https://gemini.google.com/app'")
-                    time.sleep(2.0)
-                    try:
-                        cdp_gem_live.reconnect()
-                    except Exception:
-                        pass
-                    CDPActions.wait_for_gemini_ready(cdp_gem_live, max_wait=15)
-                    ok_eph, msg_eph = CDPActions.send_gemini_turn(cdp_gem_live, "什么是计算机系统的瞬态会话？请用一句话回答。", max_wait=90)
-                    if ok_eph:
-                        eph_chat_id = CDPActions.get_current_chat_id(cdp_gem_live)
-                        if eph_chat_id:
-                            print(f"   🗑️ 成功生成瞬态会话 ({eph_chat_id})，在侧边栏触发删除...")
-                            del_ok = CDPActions.delete_conversation_via_web(cdp_gem_live, eph_chat_id)
-                            pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id, timeout=5.0)
-                            dur_e = time.time() - t_eph
-                            if pruned_ok:
-                                self.registry.record_result(feat_pruning, TestStatus.PASS, dur_e, "瞬态会话已实时剥离 DOM 与本地 Storage")
-                                print(f"   ✓ [{feat_pruning}] 通过: {pruned_msg}")
-                            else:
-                                self.registry.record_result(feat_pruning, TestStatus.FAIL, dur_e, pruned_msg)
-                                print(f"   ❌ [{feat_pruning}] 失败: {pruned_msg}")
+                    cdp_gem_live.reconnect()
+                except Exception:
+                    pass
+                CDPActions.wait_for_gemini_ready(cdp_gem_live, max_wait=15)
+                ok_eph, msg_eph = CDPActions.send_gemini_turn(cdp_gem_live, "什么是计算机系统的瞬态会话？请用一句话回答。", max_wait=90)
+                if ok_eph:
+                    eph_chat_id = CDPActions.get_current_chat_id(cdp_gem_live)
+                    if eph_chat_id:
+                        print(f"   🗑️ 成功生成瞬态会话 ({eph_chat_id})，在侧边栏触发删除...")
+                        del_ok = CDPActions.delete_conversation_via_web(cdp_gem_live, eph_chat_id)
+                        pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id, timeout=5.0)
+                        dur_e = time.time() - t_eph
+                        if pruned_ok:
+                            self.registry.record_result(feat_pruning, TestStatus.PASS, dur_e, "瞬态会话已实时剥离 DOM 与本地 Storage")
+                            print(f"   ✓ [{feat_pruning}] 通过: {pruned_msg}")
                         else:
-                            self.registry.record_result(feat_pruning, TestStatus.FAIL, time.time() - t_eph, "未能获取瞬态会话 ID")
-                            print(f"   ❌ [{feat_pruning}] 失败: 未能获取瞬态会话 ID")
+                            self.registry.record_result(feat_pruning, TestStatus.FAIL, dur_e, pruned_msg)
+                            print(f"   ❌ [{feat_pruning}] 失败: {pruned_msg}")
                     else:
-                        self.registry.record_result(feat_pruning, TestStatus.FAIL, time.time() - t_eph, f"瞬态会话发帖超时: {msg_eph}")
-                        print(f"   ❌ [{feat_pruning}] 失败: 瞬态会话发帖超时")
-                finally:
-                    cdp_gem_live.close()
-            else:
-                self.registry.record_result(feat_pruning, TestStatus.SKIP, 0.0, "--skip-chat 模式")
+                        self.registry.record_result(feat_pruning, TestStatus.FAIL, time.time() - t_eph, "未能获取瞬态会话 ID")
+                        print(f"   ❌ [{feat_pruning}] 失败: 未能获取瞬态会话 ID")
+                else:
+                    self.registry.record_result(feat_pruning, TestStatus.FAIL, time.time() - t_eph, f"瞬态会话发帖超时: {msg_eph}")
+                    print(f"   ❌ [{feat_pruning}] 失败: 瞬态会话发帖超时")
+            finally:
+                cdp_gem_live.close()
 
             # -------------------------------------------------------------
             # 步骤 3：Takeout 离线导入与标题晋级 (Domain: TAKEOUT)
@@ -514,43 +467,46 @@ class FrameworkRunner:
             feat_deep_scan = "feat_deep_scan_pagination"
             feat_upgrade = "feat_authoritative_title_upgrade"
 
-            if not self.skip_takeout and os.path.isfile(self.takeout_zip):
-                print(f"\n📥 [领域三 / Takeout] 导入离线 ZIP 样本 ({os.path.basename(self.takeout_zip)})...")
-                t_to = time.time()
-                import_res = CDPActions.import_takeout_zip(cdp_opt, self.takeout_zip)
-                dur_to = time.time() - t_to
-                if import_res.get("success"):
-                    self.registry.record_result(feat_takeout, TestStatus.PASS, dur_to, f"导入成功，索引资源: {import_res.get('totalMediaCount', 0)}")
-                    print(f"   ✓ [{feat_takeout}] 通过: 离线附件池建立，已索引资源 {import_res.get('totalMediaCount', 0)}")
-                else:
-                    self.registry.record_result(feat_takeout, TestStatus.FAIL, dur_to, str(import_res.get("error")))
-                    print(f"   ❌ [{feat_takeout}] 失败: {import_res.get('error')}")
+            if not os.path.isfile(self.takeout_zip):
+                err_to = f"Takeout ZIP 样本文件不存在: {self.takeout_zip}"
+                self.registry.record_result(feat_takeout, TestStatus.FAIL, 0.0, err_to)
+                self.registry.record_result(feat_deep_scan, TestStatus.FAIL, 0.0, err_to)
+                self.registry.record_result(feat_upgrade, TestStatus.FAIL, 0.0, err_to)
+                print(f"   ❌ [{feat_takeout}] 失败: {err_to}")
+                return False
 
-                # 全量拉取历史分页同步 (feat_deep_scan_pagination)
-                print("\n🔄 [领域三 / 分页] 触发【全量拉取历史】(btnDeepScan)...")
-                t_scan = time.time()
-                scan_ok = CDPActions.trigger_deep_scan(cdp_opt, max_wait=90)
-                dur_scan = time.time() - t_scan
-                if scan_ok:
-                    self.registry.record_result(feat_deep_scan, TestStatus.PASS, dur_scan, "全量拉取历史分页同步完成")
-                    print(f"   ✓ [{feat_deep_scan}] 通过 (耗时 {dur_scan:.1f}s)")
-                else:
-                    self.registry.record_result(feat_deep_scan, TestStatus.FAIL, dur_scan, "全量拉取扫描超时未恢复可用")
-                    print(f"   ❌ [{feat_deep_scan}] 失败")
-
-                # 权威 RPC 标题覆盖晋级 (feat_authoritative_title_upgrade)
-                check_takeout_ids = ['1bd028d5c5b0c0e2', '1cea7e48cc166b57', '7b29852ecae8344a', 'f8ba969fe8c7d880']
-                upg_ok, upg_msg, _ = CDPAssertions.assert_title_upgraded(cdp_opt, check_takeout_ids)
-                if upg_ok:
-                    self.registry.record_result(feat_upgrade, TestStatus.PASS, 0.0, upg_msg)
-                    print(f"   ✓ [{feat_upgrade}] 通过: {upg_msg}")
-                else:
-                    self.registry.record_result(feat_upgrade, TestStatus.FAIL, 0.0, upg_msg)
-                    print(f"   ❌ [{feat_upgrade}] 失败: {upg_msg}")
+            print(f"\n📥 [领域三 / Takeout] 导入离线 ZIP 样本 ({os.path.basename(self.takeout_zip)})...")
+            t_to = time.time()
+            import_res = CDPActions.import_takeout_zip(cdp_opt, self.takeout_zip)
+            dur_to = time.time() - t_to
+            if import_res.get("success"):
+                self.registry.record_result(feat_takeout, TestStatus.PASS, dur_to, f"导入成功，索引资源: {import_res.get('totalMediaCount', 0)}")
+                print(f"   ✓ [{feat_takeout}] 通过: 离线附件池建立，已索引资源 {import_res.get('totalMediaCount', 0)}")
             else:
-                self.registry.record_result(feat_takeout, TestStatus.SKIP, 0.0, "未启用或未找到 Takeout ZIP 样本")
-                self.registry.record_result(feat_deep_scan, TestStatus.SKIP, 0.0, "未启用 Takeout")
-                self.registry.record_result(feat_upgrade, TestStatus.SKIP, 0.0, "未启用 Takeout")
+                self.registry.record_result(feat_takeout, TestStatus.FAIL, dur_to, str(import_res.get("error")))
+                print(f"   ❌ [{feat_takeout}] 失败: {import_res.get('error')}")
+
+            # 全量拉取历史分页同步 (feat_deep_scan_pagination)
+            print("\n🔄 [领域三 / 分页] 触发【全量拉取历史】(btnDeepScan)...")
+            t_scan = time.time()
+            scan_ok = CDPActions.trigger_deep_scan(cdp_opt, max_wait=90)
+            dur_scan = time.time() - t_scan
+            if scan_ok:
+                self.registry.record_result(feat_deep_scan, TestStatus.PASS, dur_scan, "全量拉取历史分页同步完成")
+                print(f"   ✓ [{feat_deep_scan}] 通过 (耗时 {dur_scan:.1f}s)")
+            else:
+                self.registry.record_result(feat_deep_scan, TestStatus.FAIL, dur_scan, "全量拉取扫描超时未恢复可用")
+                print(f"   ❌ [{feat_deep_scan}] 失败")
+
+            # 权威 RPC 标题覆盖晋级 (feat_authoritative_title_upgrade)
+            check_takeout_ids = ['1bd028d5c5b0c0e2', '1cea7e48cc166b57', '7b29852ecae8344a', 'f8ba969fe8c7d880']
+            upg_ok, upg_msg, _ = CDPAssertions.assert_title_upgraded(cdp_opt, check_takeout_ids)
+            if upg_ok:
+                self.registry.record_result(feat_upgrade, TestStatus.PASS, 0.0, upg_msg)
+                print(f"   ✓ [{feat_upgrade}] 通过: {upg_msg}")
+            else:
+                self.registry.record_result(feat_upgrade, TestStatus.FAIL, 0.0, upg_msg)
+                print(f"   ❌ [{feat_upgrade}] 失败: {upg_msg}")
 
             # -------------------------------------------------------------
             # 步骤 4：工作台搜索、过滤与交互控制 (Domain: WORKBENCH)
@@ -663,12 +619,9 @@ class FrameworkRunner:
             is_live_disk_enabled = bool(live_cfg.get("enabledDisk"))
             live_dir_name = live_cfg.get("dirName") or ""
 
-            if self.skip_chat:
-                self.registry.record_result(feat_live_disk, TestStatus.SKIP, 0.0, "--skip-chat 模式未产生实时对话，跳过实时落盘校验")
-                print(f"   ℹ️ [{feat_live_disk}] 跳过: --skip-chat 模式未生成实时对话")
-            elif not is_live_disk_enabled:
-                self.registry.record_result(feat_live_disk, TestStatus.SKIP, 0.0, "扩展未启用或未授权本地目录实时落盘 (live_save_config.enabledDisk != true)")
-                print(f"   ℹ️ [{feat_live_disk}] 跳过: 扩展未启用实时磁盘保存，绝不扫描历史静态目录")
+            if not is_live_disk_enabled:
+                self.registry.record_result(feat_live_disk, TestStatus.WARN, 0.0, "扩展未启用或未授权本地目录实时落盘 (live_save_config.enabledDisk != true)")
+                print(f"   ℹ️ [{feat_live_disk}] 提示: 扩展未启用实时磁盘保存，绝不扫描历史静态目录")
             else:
                 target_cids = [r["chat_id"] for r in self.chat_records if r.get("chat_id")]
                 candidate_dirs = [
@@ -698,9 +651,8 @@ class FrameworkRunner:
             t0 = time.time()
             target_ids = []
             target_titles = []
-            if not self.skip_chat:
-                target_ids.extend([r["chat_id"] for r in self.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
-                target_titles.extend([r.get("title", "") for r in self.chat_records if r.get("title")])
+            target_ids.extend([r["chat_id"] for r in self.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
+            target_titles.extend([r.get("title", "") for r in self.chat_records if r.get("title")])
 
             target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
             target_titles.extend(["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"])
@@ -739,7 +691,7 @@ class FrameworkRunner:
             time.sleep(0.5)
 
             checked_count = check_res.get("checkedCount", 0)
-            expected_min_checked = 4 if self.skip_chat else 6
+            expected_min_checked = 6
             if checked_count < expected_min_checked:
                 err_msg = f"未能在工作台勾选到足够的预期会话: 实际勾选 {checked_count} < 预期最小 {expected_min_checked} (总卡片数: {check_res.get('totalItems')})"
                 self.registry.record_result(feat_zip_dl, TestStatus.FAIL, time.time() - t0, err_msg)
@@ -761,11 +713,11 @@ class FrameworkRunner:
             extract_dir = os.path.join(self.output_dir, "extracted_verify_" + str(int(time.time())))
             golden_chats = [dict(c) for c in DESIGNATED_HISTORICAL_CHATS]
 
-            expected_scenarios_to_check = self.scenarios[:2] if (not self.skip_chat) else None
+            expected_scenarios_to_check = self.scenarios[:2]
             spec_ok, spec_msg, spec_data = CDPAssertions.assert_exported_zip_spec(
                 zip_path=downloaded_zip,
                 extract_dir=extract_dir,
-                min_conversations=4 if self.skip_chat else 6,
+                min_conversations=6,
                 expected_golden_chats=golden_chats,
                 expected_scenarios=expected_scenarios_to_check
             )
@@ -786,14 +738,16 @@ class FrameworkRunner:
         matrix_report = self.registry.generate_matrix_report()
         print("\n" + matrix_report)
 
-        # 评估最终成败：所有 critical 特性不得为 FAIL
+        # 评估最终成败：所有 critical 特性必须全部为 PASS
         all_feats = self.registry.all_features()
         has_failed_critical = False
         for f in all_feats:
             if f.critical:
                 res = self.registry.get_result(f.id)
-                if res and res.status == TestStatus.FAIL:
+                if not res or res.status != TestStatus.PASS:
                     has_failed_critical = True
+                    status_str = res.status.value if res else "未执行"
+                    print(f"❌ 关键特性 [{f.id}] ({f.name}) 未通过验证 (状态: {status_str})！")
                     break
 
         return not has_failed_critical
