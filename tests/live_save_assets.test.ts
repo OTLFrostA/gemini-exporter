@@ -115,26 +115,26 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
     assert.ok(fetchedUrls.includes('https://lh3.googleusercontent.com/user_cat_photo_123'));
     assert.ok(fetchedUrls.includes('https://lh3.googleusercontent.com/imagen_cat_artwork_456'));
 
-    // 3. Verify images were saved into attachments/
-    const attachmentFiles = Object.keys(writtenFiles).filter(k => k.startsWith('attachments/'));
-    assert.strictEqual(attachmentFiles.length, 2);
+    // 3. Verify images were saved into assets/
+    const assetFiles = Object.keys(writtenFiles).filter(k => k.startsWith('assets/'));
+    assert.strictEqual(assetFiles.length, 2);
 
-    const userCatFile = attachmentFiles.find(f => f.includes('cute_cat.jpg') || f.includes('t1_'));
-    assert.ok(userCatFile, 'User cat photo should be saved in attachments/');
+    const userCatFile = assetFiles.find(f => f.includes('cute_cat.jpg') || f.includes('t1_'));
+    assert.ok(userCatFile, 'User cat photo should be saved in assets/');
     assert.strictEqual((writtenFiles[userCatFile!] as ArrayBuffer).byteLength, 5);
 
-    const imagenFile = attachmentFiles.find(f => f.includes('cyberpunk_cat.png') || f.includes('t2_'));
-    assert.ok(imagenFile, 'Imagen generated artwork should be saved in attachments/');
+    const imagenFile = assetFiles.find(f => f.includes('cyberpunk_cat.png') || f.includes('t2_'));
+    assert.ok(imagenFile, 'Imagen generated artwork should be saved in assets/');
     assert.strictEqual((writtenFiles[imagenFile!] as ArrayBuffer).byteLength, 6);
 
-    // 4. Verify Markdown file content has relative attachments/ paths
-    const mdFile = 'Multimodal Cat & Cyberpunk Art_11223344.md';
+    // 4. Verify Markdown file content has relative assets/ paths
+    const mdFile = 'Multimodal Cat & Cyberpunk Art_667788.md';
     assert.ok(mdFile in writtenFiles, 'Markdown file should be written');
     const mdContent = writtenFiles[mdFile];
 
     assert.ok(mdContent.includes(userCatFile), `Markdown should link to user image at ${userCatFile}`);
     assert.ok(mdContent.includes(imagenFile), `Markdown should link to model image at ${imagenFile}`);
-    assert.ok(!mdContent.includes('https://lh3.googleusercontent.com/imagen_cat_artwork_456'), 'Online Imagen URL should be rewritten to relative attachments path');
+    assert.ok(!mdContent.includes('https://lh3.googleusercontent.com/imagen_cat_artwork_456'), 'Online Imagen URL should be rewritten to relative assets path');
 });
 
 test('liveSaveCoordinator - image download error tolerance & graceful fallback', async () => {
@@ -200,12 +200,12 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
     assert.strictEqual(success, true, 'Save should succeed even when image download fails');
 
     // Verify Markdown file was written with original remote URL intact
-    const mdFile = 'Failing Image Test_aabbccdd.md';
+    const mdFile = 'Failing Image Test_ff0011.md';
     assert.ok(mdFile in writtenFiles);
     assert.ok(writtenFiles[mdFile].includes('https://example.com/broken_image.jpg'));
-    // attachments/ should have 0 files
-    const attachmentFiles = Object.keys(writtenFiles).filter(k => k.startsWith('attachments/'));
-    assert.strictEqual(attachmentFiles.length, 0);
+    // assets/ should have 0 files
+    const assetFiles = Object.keys(writtenFiles).filter(k => k.startsWith('assets/'));
+    assert.strictEqual(assetFiles.length, 0);
 });
 
 test('assetFetcher - inferImageExt correctly detects MIME and URL extensions', () => {

@@ -178,3 +178,88 @@ test('liveSaveHandler - directory missing and deletion detection', async () => {
         (global as any).chrome = origChrome;
     }
 });
+
+test('liveSaveHandler - persists to gemini_export with cid6 filename and assets', async () => {
+    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
+    const idbStore = require('../src/core/storage/idbHandleStore.js');
+
+    let writtenFiles: Record<string, any> = {};
+    let createdFolder = '';
+
+    const mockAssetsDir = {
+        name: 'assets',
+        getFileHandle: async (name: string) => ({
+            createWritable: async () => ({
+                write: async (content: any) => { writtenFiles[`assets/${name}`] = content; },
+                close: async () => {}
+            })
+        })
+    };
+
+    const mockBatchDir = {
+        name: 'gemini_export',
+        getFileHandle: async (name: string) => ({
+            createWritable: async () => ({
+                write: async (content: any) => { writtenFiles[name] = content; },
+                close: async () => {}
+            })
+        }),
+        getDirectoryHandle: async (name: string) => {
+            if (name === 'assets') return mockAssetsDir;
+            return mockAssetsDir;
+        }
+    };
+
+    const mockHandle = {
+        name: 'UserSelectedFolder',
+        keys: async function* () { yield 'some-file'; },
+        queryPermission: async () => 'granted',
+        getDirectoryHandle: async (name: string) => {
+            createdFolder = name;
+            return mockBatchDir;
+        }
+    };
+
+    const origGetHandle = idbStore.getStoredDirHandle;
+    idbStore.getStoredDirHandle = async () => mockHandle;
+
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        storage: {
+            local: {
+                get: async () => ({ live_save_config: {} }),
+                set: async () => {}
+            }
+        }
+    };
+
+    try {
+        const payload = {
+            chat: {
+                title: 'Quantum Teleportation',
+                messages: [{ role: 'user', content: 'What is quantum entanglement?' }]
+            },
+            safeTitle: 'Quantum Teleportation',
+            nid: 'c_1234567890abcdef',
+            assets: [
+                {
+                    fileName: 'abcdef_t1_img1.png',
+                    subDir: 'assets',
+                    buffer: Buffer.from('png-bytes')
+                }
+            ]
+        };
+
+        const res = await handleLiveSaveViaHandle(payload, 'u0');
+        assert.strictEqual(res.ok, true);
+        assert.strictEqual(createdFolder, 'gemini_export', 'Must strictly use gemini_export folder');
+        assert.strictEqual(res.targetFile, 'Quantum Teleportation_abcdef.md', 'Must use cid6 filename');
+        assert.ok('Quantum Teleportation_abcdef.md' in writtenFiles);
+        assert.ok('assets/abcdef_t1_img1.png' in writtenFiles);
+        assert.strictEqual(writtenFiles['assets/abcdef_t1_img1.png'].toString(), 'png-bytes');
+    } finally {
+        idbStore.getStoredDirHandle = origGetHandle;
+        (global as any).chrome = origChrome;
+    }
+});
+

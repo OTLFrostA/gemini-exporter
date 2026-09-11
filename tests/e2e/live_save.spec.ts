@@ -123,4 +123,63 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
 
     await geminiPage.close();
   });
+
+  test('should write live save files to gemini_export folder with cid6 filename matching manual export', async ({ context, extensionId }) => {
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.waitForLoadState('domcontentloaded');
+
+    // Test FsWriter initialization and directory structure consistency
+    const result = await optionsPage.evaluate(async () => {
+      const written: Record<string, any> = {};
+      const mockDir = {
+        name: 'MyVault',
+        getDirectoryHandle: async (folder: string) => ({
+          name: folder,
+          getFileHandle: async (file: string) => ({
+            createWritable: async () => ({
+              write: async (content: any) => { written[`${folder}/${file}`] = content; },
+              close: async () => {}
+            })
+          }),
+          getDirectoryHandle: async (subFolder: string) => ({
+            name: subFolder,
+            getFileHandle: async (assetFile: string) => ({
+              createWritable: async () => ({
+                write: async (content: any) => { written[`${folder}/${subFolder}/${assetFile}`] = content; },
+                close: async () => {}
+              })
+            })
+          })
+        })
+      };
+
+      const FsWriterModule = (window as any).FsWriter;
+      const FsWriterClass = FsWriterModule?.FsWriter || FsWriterModule;
+      const writer = new FsWriterClass(mockDir, 'gemini_export');
+      await writer.init();
+
+      // Write markdown with cid6
+      const cid = 'c_0123456789abcdef';
+      const cid6 = cid.replace(/^c_/, '').slice(-6);
+      const fileName = `Quantum Computing_${cid6}.md`;
+      await writer.writeFile('', fileName, '# Quantum Computing\n\nContent');
+
+      // Write asset into assets/
+      await writer.writeFile('assets', `${cid6}_t1_img1.png`, new Uint8Array([1, 2, 3]));
+
+      return {
+        writtenFiles: Object.keys(written),
+        fileName,
+        cid6
+      };
+    });
+
+    expect(result.cid6).toBe('abcdef');
+    expect(result.fileName).toBe('Quantum Computing_abcdef.md');
+    expect(result.writtenFiles).toContain('gemini_export/Quantum Computing_abcdef.md');
+    expect(result.writtenFiles).toContain('gemini_export/assets/abcdef_t1_img1.png');
+
+    await optionsPage.close();
+  });
 });
