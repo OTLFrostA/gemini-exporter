@@ -355,10 +355,21 @@ test('liveSaveCoordinator - processAndSaveImages saves to assets/ with cid6 and 
     assert.strictEqual(chat.messages[1].content.includes('attachments/'), false);
     assert.strictEqual((chat.messages[1] as any)?.attachments?.[0]?.localName, `assets/${savedAssets[0].fileName}`);
 
-    // Verify collected assets returned
+    // Verify collected assets returned with valid base64 payload
     assert.strictEqual(collected.length, 1);
     assert.strictEqual(collected[0].subDir, 'assets');
     assert.strictEqual(collected[0].fileName, savedAssets[0].fileName);
+    assert.strictEqual(collected[0].base64, Buffer.from('fake-image-bytes').toString('base64'));
+});
+
+test('liveSaveCoordinator - arrayBufferToBase64 converts binary buffers correctly without overflow', () => {
+    const rawStr = 'hello-gemini-live-save-binary-asset-test';
+    const buf = Buffer.from(rawStr);
+    const b64 = LiveSaveCoordinator.arrayBufferToBase64(buf);
+    assert.strictEqual(b64, buf.toString('base64'));
+
+    const emptyB64 = LiveSaveCoordinator.arrayBufferToBase64(null);
+    assert.strictEqual(emptyB64, '');
 });
 
 

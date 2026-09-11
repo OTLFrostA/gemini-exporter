@@ -86,6 +86,17 @@ class FsWriter implements IExportWriter {
         if (!this.batchDirHandle) await this.init();
         const targetDir = actualSubDir ? await ensureSubDir(this.batchDirHandle, actualSubDir) : this.batchDirHandle;
         const cleanName = sanitizeFileName(actualFileName, 'file');
+
+        if (actualContent === null || actualContent === undefined) {
+            throw new Error(`[FsWriter] Cannot write null or undefined content to ${cleanName}`);
+        }
+        const isBlob = typeof Blob !== 'undefined' && actualContent instanceof Blob;
+        const isBufferSource = (typeof ArrayBuffer !== 'undefined' && actualContent instanceof ArrayBuffer) ||
+            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(actualContent));
+        if (typeof actualContent === 'object' && !isBlob && !isBufferSource) {
+            throw new Error(`[FsWriter] Invalid content object passed to writeFile for ${cleanName}`);
+        }
+
         const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
         const writable = await fileHandle.createWritable();
         try {

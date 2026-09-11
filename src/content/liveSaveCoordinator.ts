@@ -191,7 +191,11 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                                     safeTitle,
                                     nid,
                                     config,
-                                    assets: collectedAssets
+                                    assets: collectedAssets.map(a => ({
+                                        fileName: a.fileName,
+                                        subDir: a.subDir || 'assets',
+                                        base64: a.base64 || (a.buffer ? arrayBufferToBase64(a.buffer) : '')
+                                    }))
                                 }
                             }, (r) => {
                                 if (chrome.runtime.lastError) {
@@ -277,11 +281,39 @@ function hashString(str: string): number {
     return hash;
 }
 
+export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | any): string {
+    if (!buffer) return '';
+    let bytes: Uint8Array;
+    if (buffer instanceof Uint8Array) {
+        bytes = buffer;
+    } else if (buffer instanceof ArrayBuffer) {
+        bytes = new Uint8Array(buffer);
+    } else if (ArrayBuffer.isView(buffer)) {
+        bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(buffer)) {
+        return buffer.toString('base64');
+    } else {
+        return '';
+    }
+
+    if (typeof Buffer !== 'undefined' && typeof (Buffer as any).from === 'function') {
+        return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64');
+    }
+
+    const chunkSize = 8192;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+        binary += String.fromCharCode.apply(null, chunk as any);
+    }
+    return btoa(binary);
+}
+
 /**
  * Sniff, download, and persist all multimodal images to assets/ subfolder,
  * and rewrite references in chat to local relative paths.
  */
-export async function processAndSaveImages(chat: any, nid: string, writer?: any): Promise<Array<{ fileName: string; subDir: string; buffer: any }>> {
+export async function processAndSaveImages(chat: any, nid: string, writer?: any): Promise<Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }>> {
     if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return [];
 
     const Utils = getUtils();
@@ -363,7 +395,7 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
     // 2. Concurrently fetch and persist images
     const targetList = Array.from(targets.values());
     const fetcher = getAssetFetcher();
-    const collectedAssets: Array<{ fileName: string; subDir: string; buffer: any }> = [];
+    const collectedAssets: Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }> = [];
 
     await Promise.allSettled(targetList.map(async (target) => {
         try {
@@ -371,7 +403,10 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
                 ? fetcher.fetchImageBuffer(target.url, 12000)
                 : null);
 
-            if (res && res.buffer && res.buffer.byteLength > 0) {
+            const buf = res?.buffer;
+            const hasBytes = buf && (buf.byteLength > 0 || (buf as any).length > 0);
+
+            if (res && hasBytes) {
                 if (res.ext && !target.fileName.toLowerCase().endsWith(`.${res.ext}`)) {
                     target.fileName = target.fileName.replace(/\.[a-z0-9]+$/i, `.${res.ext}`);
                     target.localName = `assets/${target.fileName}`;
@@ -379,14 +414,16 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
                 if (writer && typeof writer.writeFile === 'function') {
                     await writer.writeFile('assets', target.fileName, res.buffer);
                 }
+                const b64 = (res as any).base64 || arrayBufferToBase64(res.buffer);
                 collectedAssets.push({
                     fileName: target.fileName,
                     subDir: 'assets',
-                    buffer: res.buffer
+                    buffer: res.buffer,
+                    base64: b64
                 });
                 target.saved = true;
                 if (isDev()) {
-                    console.log(`[LiveSaveCoordinator] Saved image asset ${target.fileName} (${res.buffer.byteLength} bytes)`);
+                    console.log(`[LiveSaveCoordinator] Saved image asset ${target.fileName} (${res.buffer.byteLength || (res.buffer as any).length} bytes)`);
                 }
             } else if (isDev()) {
                 console.warn('[LiveSaveCoordinator] Failed to fetch image asset, skipping relative rewrite:', target.url);
@@ -491,6 +528,7 @@ export const LiveSaveCoordinator = {
     resolveConversationDetail,
     executeLiveSave,
     processAndSaveImages,
+    arrayBufferToBase64,
     isCurrentlySaving
 };
 
