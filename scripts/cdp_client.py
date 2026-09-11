@@ -16,8 +16,20 @@ import base64
 import struct
 import urllib.request
 import urllib.error
+import urllib.parse
 
 CDP_DEFAULT_PORT = 9222
+
+
+def is_gemini_url(url: str) -> bool:
+    """严格校验 URL 主机名是否为 Gemini 官方站点，杜绝不安全子串匹配"""
+    if not url or not isinstance(url, str):
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        return parsed.hostname in ("gemini.google.com", "bard.google.com")
+    except Exception:
+        return False
 
 
 class CDPConnection:
@@ -185,7 +197,7 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
                 return ext
 
     for t in tabs:
-        if "gemini.google.com" in t.get("url", ""):
+        if is_gemini_url(t.get("url", "")):
             cdp = CDPConnection(t["webSocketDebuggerUrl"])
             try:
                 eid = cdp.eval("typeof chrome !== 'undefined' && chrome.runtime ? chrome.runtime.id : null")
