@@ -297,20 +297,6 @@ function bindSearchAndSelection(): void {
         const convs = Store ? Store.getConversations() : [];
         if (List) List.deselectAll(convs);
     });
-    ($('btnSelectUnexported') || $('btnFilterNew'))?.addEventListener('click', () => {
-        const Store = getStore();
-        const List = getList();
-        const convs = Store ? Store.getConversations() : [];
-        const expMap = Store ? Store.getExportedIds() : {};
-        if (List) List.selectUnexported(convs, expMap);
-    });
-    ($('btnSelectUpdated') || $('btnFilterNeedsUpdate'))?.addEventListener('click', () => {
-        const Store = getStore();
-        const List = getList();
-        const convs = Store ? Store.getConversations() : [];
-        const expMap = Store ? Store.getExportedIds() : {};
-        if (List) List.selectNeedsUpdate(convs, expMap);
-    });
 
     // Account Slot Switch Handler
     $('accountSlotSelect')?.addEventListener('change', async (e: Event) => {

@@ -69,12 +69,6 @@ export const STEPS: any[] = [
                 btnSelectAll.addEventListener('click', onAllClick);
                 cleanups.push(() => btnSelectAll.removeEventListener('click', onAllClick));
             }
-            const btnSelectUnexported = document.getElementById('btnSelectUnexported') || document.getElementById('btnFilterNew');
-            if (btnSelectUnexported) {
-                const onUnexportedClick = () => setTimeout(advance, 250);
-                btnSelectUnexported.addEventListener('click', onUnexportedClick);
-                cleanups.push(() => btnSelectUnexported.removeEventListener('click', onUnexportedClick));
-            }
             return () => cleanups.forEach(c => c());
         }
     },
