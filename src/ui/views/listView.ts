@@ -324,6 +324,17 @@ export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: 
     updateStat(conversations);
 }
 
+export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
+    if (typeof document === 'undefined') return;
+    const idSet = new Set(Array.from(targetIds).map(id => String(id).replace(/^c_/, '')));
+    document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
+        const item = cb.closest('.item') as HTMLElement | null;
+        const chatId = item?.dataset?.chatId ? String(item.dataset.chatId).replace(/^c_/, '') : '';
+        (cb as HTMLInputElement).checked = !!chatId && idSet.has(chatId);
+    });
+    updateStat(conversations || currentConversationsRef);
+}
+
 export const ListView: IListView = {
     render,
     updateStat,
@@ -333,6 +344,7 @@ export const ListView: IListView = {
     deselectAll,
     selectUnexported,
     selectNeedsUpdate,
+    selectByIds,
     isRealTitle,
     setOnDelete,
     updateItemExportStatus

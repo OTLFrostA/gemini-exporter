@@ -227,7 +227,14 @@ const __zhFactory = (): LocaleDictionary => {
             takeoutBrowsingLimitDesc: "已拉取约 {0} 条会话。受 Google 网页限制，更早的历史可能无法在线展示。推荐使用 Google Takeout 导出归档并点击下方导入补全。",
             btnModalImportTakeout: "📥 选择 Takeout ZIP 导入全部历史",
             btnModalOpenTakeoutWeb: "🌐 前往 Google Takeout (已自动勾选 Gemini)",
-            btnModalDismissTakeout: "我知道了，不再提示"
+            btnModalDismissTakeout: "我知道了，不再提示",
+            exportCompletedPartial: "导出完成：成功 {0} 篇，失败 {1} 篇。",
+            exportFailureBannerTitle: "部分会话导出失败",
+            btnRetryFailed: "重试失败项",
+            btnRetryFailedCount: "重试失败项 ({0})",
+            fsPermissionRevoked: "文件夹访问权限已失效或被撤销，导出已中止",
+            takeoutFormatChanged: "Takeout 归档格式未能识别，可能 Google 已调整导出结构",
+            syncFinishedWithLimit: "已拉取约 {0} 条会话（已达 Google 网页端上限），更早记录建议使用 Google Takeout 导入补全。"
     };
 };
 export const zh: LocaleDictionary = __zhFactory();

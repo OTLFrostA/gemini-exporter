@@ -224,11 +224,14 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                 } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:parseDetail.ts]", e); }
             }
 
+            let schemaDriftWarnings: string[] = [];
             let innerStr: string | null = null;
             if (Array.isArray(top)) {
+                let foundStandardWrb = false;
                 for (let item of top) {
                     if (Array.isArray(item) && item[0] === wrb && item[1] === detailRpc && typeof item[2] === "string") {
                         innerStr = item[2];
+                        foundStandardWrb = true;
                         break;
                     }
                 }
@@ -238,6 +241,9 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                             innerStr = item[2];
                             break;
                         }
+                    }
+                    if (top.length > 0 && !foundStandardWrb && innerStr) {
+                        schemaDriftWarnings.push(`Envelope drift: batchexecute response missing standard WRB detail RPC header [${wrb}, ${detailRpc}], fell back to heuristic payload discovery`);
                     }
                 }
             }
@@ -294,6 +300,9 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                     "conv:", inner[2][0]?.[0], "title:", inner[2][0]?.[1],
                     "rc_count:", inner[2][0]?.filter((x: any) => typeof x === "string" && x.startsWith("rc_")).length);
             }
+            if (!turns.length && inner && Array.isArray(inner) && inner.length > 0 && !isMetadataOnly) {
+                schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${inner.length}) but unable to locate turns array`);
+            }
 
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
@@ -319,7 +328,6 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                 return unique;
             };
             let imageSeq = { value: 1 };
-            let schemaDriftWarnings: string[] = [];
             let rev = [...turns].reverse();
 
             for (let turn of rev) {

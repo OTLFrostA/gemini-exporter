@@ -24,11 +24,13 @@ export interface ExportCallbacks {
 
 export interface ExportResult {
     landedChats: number;
+    exportedCount?: number;
     failedChats: any[];
     failedAttachments: any[];
     skipped: number;
     totalAssets: number;
     downloadedAssets: number;
+    aborted?: boolean;
 }
 
 export interface ExportOrchestratorModule {
@@ -396,6 +398,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
             }
 
             const writeFileDirect = async (localName: string, data: any): Promise<boolean> => {
+                if (this.aborted) return false;
                 try {
                     const cleanPath = sanitizeZipPath(localName);
                     if (fsWriter) {
@@ -415,6 +418,17 @@ export const sanitizeZipPath = (p?: string | null): string => {
                     await wr.close();
                     return true;
                 } catch (e: any) {
+                    const isPermissionRevoked = e?.name === 'NotAllowedError'
+                        || /permission|not\s*allowed/i.test(String(e?.message || ''));
+                    if (isPermissionRevoked) {
+                        const I18n = (globalThis as any).I18n;
+                        const permMsg = typeof I18n !== 'undefined'
+                            ? I18n.t('fsPermissionRevoked')
+                            : '文件夹访问权限已失效或被撤销，导出已中止';
+                        onLog(permMsg, 'error');
+                        this.abort();
+                        return false;
+                    }
                     onLog(`保存文件失败 (${localName}): ${e.message}`, 'error');
                     return false;
                 }
@@ -566,7 +580,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
             const finalizedChatsSet = new Set<string>();
 
             const recovery = getSessionRecovery();
-            const worker = getBatchWorker();
+            const worker = options.worker || getBatchWorker();
 
             async function finalizeChatExport(targetId: string) {
                 if (recovery && recovery.finalizeChatExport) {
@@ -674,7 +688,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                     }
 
                     skipped += (res.skipped || 0);
-                    const chunkResults = res.results || [];
+                    const chunkResults = res.results || (res.chat ? [res.chat] : []);
                     let chat = chunkResults[0] || { id: nid, title: requestedItem.title };
                     chat.id = nid;
 
@@ -829,6 +843,13 @@ export const sanitizeZipPath = (p?: string | null): string => {
                                 }
                             }
                         }
+                    } else {
+                        const failReason = this.aborted ? 'Aborted due to permission revocation' : 'File write failed';
+                        failedChats.push({
+                            id: chat.id || nid,
+                            title: listTitle,
+                            error: failReason
+                        });
                     }
 
                     metaResults.push({
@@ -988,11 +1009,13 @@ export const sanitizeZipPath = (p?: string | null): string => {
 
             return {
                 landedChats,
+                exportedCount: landedChats,
                 failedChats,
                 failedAttachments,
                 skipped,
                 totalAssets,
-                downloadedAssets
+                downloadedAssets,
+                aborted: this.aborted
             };
         }
     }

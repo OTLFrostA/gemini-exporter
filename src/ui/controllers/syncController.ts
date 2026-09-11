@@ -103,7 +103,14 @@ function _runScan(
 
         if (res && res.success) {
             const count = res.count || res.total || 0;
-            const finishMsg = typeof t === 'function' ? t(i18nKey, count) : fallbackMsgFn(count);
+            let finishMsg: string;
+            if (hitGoogleLimit) {
+                finishMsg = typeof t === 'function'
+                    ? t('syncFinishedWithLimit', count)
+                    : `已拉取约 ${count} 条会话（已达 Google 网页端上限），更早记录建议使用 Google Takeout 导入补全。`;
+            } else {
+                finishMsg = typeof t === 'function' ? t(i18nKey, count) : fallbackMsgFn(count);
+            }
             if (onLog) onLog(finishMsg, 'info');
             if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });
         } else {
