@@ -234,7 +234,9 @@ const __zhFactory = (): LocaleDictionary => {
             btnRetryFailedCount: "重试失败项 ({0})",
             fsPermissionRevoked: "文件夹访问权限已失效或被撤销，导出已中止",
             takeoutFormatChanged: "Takeout 归档格式未能识别，可能 Google 已调整导出结构",
-            syncFinishedWithLimit: "已拉取约 {0} 条会话（已达 Google 网页端上限），更早记录建议使用 Google Takeout 导入补全。"
+            syncFinishedWithLimit: "已拉取约 {0} 条会话（已达 Google 网页端上限），更早记录建议使用 Google Takeout 导入补全。",
+            takeoutHtmlTooLarge: "Takeout 活动记录 (MyActivity.html) 解压体积过大 ({0}MB)，超过 {1}MB 内存安全上限。为防止浏览器标签页崩溃，建议在 Google Takeout 导出时按时间范围分批导出后重试。",
+            exportLargeMemoryWarn: "当前导出预估包含较多媒体资源 (约 {0}MB)。ZIP 模式将在内存中全量缓冲，若遇到内存限制推荐切换为【文件夹直写】模式以避免内存压力。"
     };
 };
 export const zh: LocaleDictionary = __zhFactory();

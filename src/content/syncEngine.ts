@@ -3,7 +3,7 @@ import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { GeminiUtils } from '../core/utils/utils.js';
+import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { GeminiAPIClient } from '../core/api/geminiClient.js';
 
@@ -220,8 +220,9 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             updateBadge(merged.length, incomingItems.length);
             __lastKnownCount = merged.length;
             return merged.length;
-        } catch (e: any) {
-            if (e?.message?.includes('Extension context invalidated')) return 0;
+        } catch (e: unknown) {
+            const errMsg = getErrorMessage(e);
+            if (errMsg.includes('Extension context invalidated')) return 0;
             console.error('[Gemini Exporter] upsertConversations failed', e);
         }
     });
@@ -396,8 +397,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
         if (all && all.diagnostics) {
             return { count: 0, diagnostics: all.diagnostics, hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit) };
         }
-    } catch (e: any) {
-        if (contentContext.isDevMode()) console.debug('[Gemini Exporter] batch exec fail', e.message || e);
+    } catch (e: unknown) {
+        const errMsg = getErrorMessage(e);
+        if (contentContext.isDevMode()) console.debug('[Gemini Exporter] batch exec fail', errMsg);
     } finally {
         document.getElementById('geminiExportBadge')?.classList.remove('syncing');
         contentContext.setActiveClient(null);

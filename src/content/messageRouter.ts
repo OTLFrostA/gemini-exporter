@@ -4,7 +4,7 @@ import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { GeminiUtils } from '../core/utils/utils.js';
+import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
 
 export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
@@ -60,13 +60,13 @@ export function init({
                         diagnostics: res?.diagnostics,
                         hitGoogleLimit: !!(res?.hitGoogleLimit || res?.diagnostics?.hitGoogleLimit)
                     });
-                } catch (e: any) {
-                    const errStr = String(e?.message || e);
+                } catch (e: unknown) {
+                    const errStr = getErrorMessage(e);
                     const isLimit = errStr.includes('BardErrorInfo')
                         || errStr.includes('1096')
                         || errStr.includes('429')
                         || /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(errStr);
-                    sendResponse({ success: false, error: e?.message, hitGoogleLimit: isLimit });
+                    sendResponse({ success: false, error: errStr, hitGoogleLimit: isLimit });
                 }
             })();
             return true;
@@ -154,10 +154,11 @@ export function init({
                             }
                         }
                     }
-                } catch (e: any) {
-                    batchexecuteEmptyDebug = { error: e?.message };
+                } catch (e: unknown) {
+                    const errMsg = getErrorMessage(e);
+                    batchexecuteEmptyDebug = { error: errMsg };
                     if (contentContext.isDevMode()) {
-                        console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', e?.message);
+                        console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', errMsg);
                     }
                 }
                 try {
@@ -201,9 +202,10 @@ export function init({
                             return;
                         }
                     }
-                } catch (e: any) {
-                    const mergedDebug = { batchexecuteEmptyDebug, domError: e?.message };
-                    sendResponse({ success: false, error: e?.message || String(e), _debug: mergedDebug });
+                } catch (e: unknown) {
+                    const errMsg = getErrorMessage(e);
+                    const mergedDebug = { batchexecuteEmptyDebug, domError: errMsg };
+                    sendResponse({ success: false, error: errMsg, _debug: mergedDebug });
                 }
             })();
             return true;

@@ -258,3 +258,43 @@ test('takeout_engine - parseTakeoutZip detects structure drift and throws descri
     );
 });
 
+test('takeout_engine - takeoutHtmlParser parsing helpers', () => {
+    const TakeoutHtmlParser = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+    assert.strictEqual(typeof TakeoutHtmlParser.parseTakeoutPrompt, 'function');
+    assert.strictEqual(typeof TakeoutHtmlParser.parseTakeoutTimestamp, 'function');
+
+    // Prompt extraction test
+    const blockWithPrompt = '<div class="outer-cell">Prompted 计算复利公式<br><div class="content-cell"></div></div>';
+    const parsedPrompt = TakeoutHtmlParser.parseTakeoutPrompt(blockWithPrompt);
+    assert.strictEqual(parsedPrompt.hasExplicitPrompt, true);
+    assert.strictEqual(parsedPrompt.promptText, '计算复利公式');
+
+    // Timestamp extraction test
+    const blockWithZhTime = '2026年3月15日 下午2:30:00';
+    const ts = TakeoutHtmlParser.parseTakeoutTimestamp(blockWithZhTime);
+    assert.ok(typeof ts === 'number' && ts > 0, 'Parsed timestamp must be valid number');
+});
+
+test('takeout_engine - parseTakeoutZip S-4 memory guardrail on oversized MyActivity.html', async () => {
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
+
+    zip.file('Takeout/Gemini/MyActivity.html', 'small text');
+    // Mock the uncompressed size property to trigger the S-4 guardrail
+    const f = zip.file('Takeout/Gemini/MyActivity.html');
+    if (f) {
+        f._data = { uncompressedSize: 300 * 1024 * 1024 }; // 300MB > 250MB limit
+    }
+
+    const TakeoutParser = require('../src/core/engine/takeout/takeoutParser.js');
+    await assert.rejects(
+        async () => {
+            await TakeoutParser.parseTakeoutZip(zip);
+        },
+        (err: any) => {
+            return err && (err.name === 'TakeoutParseError' || err.message.includes('内存安全上限'));
+        }
+    );
+});
+
+

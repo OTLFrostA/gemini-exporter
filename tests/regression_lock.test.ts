@@ -287,8 +287,8 @@ test('regression: export_engine sanitizeZipPath must sanitize .. and preserve se
 
 test('regression: export_engine must throw on batchDirHandle creation failure instead of fallback', () => {
     const content = readSrc('../src/core/engine/export/exportOrchestrator.js');
-    assert.ok(content.includes('throw new Error(`无法创建导出子目录'), 'should throw on directory creation failure');
-    assert.ok(!content.includes('batchDirHandle = dirHandle;') || content.includes('throw new Error'), 'should not silently fallback to root dirHandle');
+    assert.ok(content.includes('throw new Error(`无法创建导出子目录') || content.includes('throw new ExportPipelineError(`无法创建导出子目录'), 'should throw on directory creation failure');
+    assert.ok(!content.includes('batchDirHandle = dirHandle;') || content.includes('throw new Error') || content.includes('throw new ExportPipelineError'), 'should not silently fallback to root dirHandle');
 });
 
 test('regression: export_engine failedChats must store detailed objects with error', () => {

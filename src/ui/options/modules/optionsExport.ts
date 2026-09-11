@@ -7,7 +7,7 @@ import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
 import { DirHandleController as DefaultDirHandle } from '../../controllers/dirHandleController.js';
 import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
 import { TakeoutEngine as DefaultTakeoutEngine } from '../../../core/engine/takeoutEngine.js';
-import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
+import { GeminiUtils as DefaultGeminiUtils, getErrorMessage } from '../../../core/utils/utils.js';
 import { GeminiConstants as DefaultGeminiConstants } from '../../../core/utils/constants.js';
 import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
@@ -246,6 +246,30 @@ export async function startExportPipeline(
     const List = getList();
 
     const convs = Store ? Store.getConversations() : [];
+
+    // S-1 Memory Guardrail: Pre-flight memory estimation for large ZIP exports
+    if (includeZip) {
+        const convMap = new Map<string, any>((convs || []).map((c: any) => [normId(c.id), c]));
+        let totalAttachments = 0;
+        let totalMessages = 0;
+        for (const item of selected) {
+            const rawId = typeof item === 'string' ? item : item?.id;
+            const conv = (rawId ? convMap.get(normId(rawId)) : null) || (typeof item === 'object' ? item : null);
+            if (conv) {
+                totalAttachments += (conv.attachmentCount || conv.attachments?.length || 0);
+                totalMessages += (conv.messageCount || conv.messages?.length || 0);
+            }
+        }
+        // Approximate: ~1.8MB per attachment, 20KB per message, 50KB per conversation metadata
+        const estimatedMb = Math.round((totalAttachments * 1.8) + (totalMessages * 0.02) + (selected.length * 0.05));
+        if (estimatedMb >= 300) {
+            const warnMsg = typeof t === 'function'
+                ? t('exportLargeMemoryWarn', estimatedMb)
+                : `当前导出预估包含较多媒体资源 (约 ${estimatedMb}MB)。ZIP 模式将在内存中全量缓冲，若遇到内存限制推荐切换为【文件夹直写】模式以避免内存压力。`;
+            log(warnMsg, 'warn');
+        }
+    }
+
     if (!includeZip && !dirHandle) {
         try {
             if (DirHandle) {
@@ -257,8 +281,9 @@ export async function startExportPipeline(
                     await liveStorage.setLiveConfig({ dirName: dirHandle.name });
                 }
             }
-        } catch (err: any) {
-            log(typeof t === 'function' ? t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
+        } catch (err: unknown) {
+            const errMsg = getErrorMessage(err);
+            log(typeof t === 'function' ? t('dirCancelled', errMsg) : `未选择导出目录: ${errMsg}`, 'warn');
             return;
         }
     }
@@ -397,9 +422,10 @@ export async function startExportPipeline(
             if (bar) bar.style.width = '100%';
             if (progText) progText.textContent = finishMsg;
         }
-    } catch (err: any) {
-        log(typeof t === 'function' ? t('exportFailed', err.message) : `Export failed: ${err.message}`, 'error');
-        if (progText) progText.textContent = `Error: ${err.message}`;
+    } catch (err: unknown) {
+        const errMsg = getErrorMessage(err);
+        log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
+        if (progText) progText.textContent = `Error: ${errMsg}`;
     } finally {
         setTimeout(() => {
             if (progWrap) progWrap.style.display = 'none';
@@ -485,8 +511,9 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
                             }
                         }
                         await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
-                    } catch (err: any) {
-                        log(typeof t === 'function' ? t('dirCancelled', err.message) : `未选择导出目录: ${err.message}`, 'warn');
+                    } catch (err: unknown) {
+                        const errMsg = getErrorMessage(err);
+                        log(typeof t === 'function' ? t('dirCancelled', errMsg) : `未选择导出目录: ${errMsg}`, 'warn');
                     }
                 },
                 async () => {
@@ -551,8 +578,9 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
                     await liveStorage.setLiveConfig({ dirName: handle.name });
                 }
             }
-        } catch (err: any) {
-            log(typeof t === 'function' ? t('dirCancelled', err.message) : `选择目录失败: ${err.message}`, 'warn');
+        } catch (err: unknown) {
+            const errMsg = getErrorMessage(err);
+            log(typeof t === 'function' ? t('dirCancelled', errMsg) : `选择目录失败: ${errMsg}`, 'warn');
         }
     });
 
