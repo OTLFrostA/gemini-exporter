@@ -96,71 +96,82 @@ declare global {
         await chrome.storage.local.set({ [convKey]: list || [] });
     }
 
+    let _convChain: Promise<any> = Promise.resolve();
+    function withConversationLock<T>(fn: () => Promise<T>): Promise<T> {
+        const p = _convChain.then(fn, fn);
+        _convChain = p.then(() => {}, () => {});
+        return p;
+    }
+
     async function removeConversation(slot: string | null | undefined, conversationId: string): Promise<boolean> {
-        if (!conversationId) return false;
-        const targetId = normId(conversationId);
-        const list = await getConversations(slot);
-        const initialLen = list.length;
-        const filtered = list.filter(c => {
-            if (!c || !c.id) return false;
-            return normId(c.id) !== targetId;
+        return withConversationLock(async () => {
+            if (!conversationId) return false;
+            const targetId = normId(conversationId);
+            const list = await getConversations(slot);
+            const initialLen = list.length;
+            const filtered = list.filter(c => {
+                if (!c || !c.id) return false;
+                return normId(c.id) !== targetId;
+            });
+            if (filtered.length !== initialLen) {
+                await setConversations(slot, filtered);
+                const { countKey } = getStorageKeys(slot);
+                await chrome.storage.local.set({ [countKey]: filtered.length });
+                await updateAccountSlot(slot, { count: filtered.length });
+                return true;
+            }
+            return false;
         });
-        if (filtered.length !== initialLen) {
-            await setConversations(slot, filtered);
-            const { countKey } = getStorageKeys(slot);
-            await chrome.storage.local.set({ [countKey]: filtered.length });
-            await updateAccountSlot(slot, { count: filtered.length });
-            return true;
-        }
-        return false;
     }
 
     async function reconcileConversations(slot: string | null | undefined, activeCloudList: any[], options: any = {}): Promise<ReconcileResult> {
-        const keepTakeout = options.keepTakeout !== false;
-        const existing = await getConversations(slot);
-        if (!Array.isArray(existing) || existing.length === 0) {
-            return { kept: 0, removed: 0, removedIds: [] };
-        }
-
-        const activeIdSet = new Set<string>();
-        (activeCloudList || []).forEach(c => {
-            if (c && c.id) {
-                activeIdSet.add(normId(c.id));
+        return withConversationLock(async () => {
+            const keepTakeout = options.keepTakeout !== false;
+            const existing = await getConversations(slot);
+            if (!Array.isArray(existing) || existing.length === 0) {
+                return { kept: 0, removed: 0, removedIds: [] };
             }
+
+            const activeIdSet = new Set<string>();
+            (activeCloudList || []).forEach(c => {
+                if (c && c.id) {
+                    activeIdSet.add(normId(c.id));
+                }
+            });
+
+            const kept: Conversation[] = [];
+            const removedIds: string[] = [];
+
+            for (const conv of existing) {
+                if (!conv || !conv.id) continue;
+                const nid = normId(conv.id);
+                const isTakeout = keepTakeout && (
+                    (conv as any).source === 'takeout' ||
+                    conv.titleSource === 'takeout' ||
+                    (conv as any).isTakeoutOnly ||
+                    (conv.titles && (conv.titles as any).takeout && !(conv.titles as any).rpc && !(conv.titles as any).dom)
+                );
+
+                if (activeIdSet.has(nid) || isTakeout) {
+                    kept.push(conv);
+                } else {
+                    removedIds.push(nid);
+                }
+            }
+
+            if (removedIds.length > 0) {
+                await setConversations(slot, kept);
+                const { countKey } = getStorageKeys(slot);
+                await chrome.storage.local.set({ [countKey]: kept.length });
+                await updateAccountSlot(slot, { count: kept.length });
+            }
+
+            return {
+                kept: kept.length,
+                removed: removedIds.length,
+                removedIds
+            };
         });
-
-        const kept: Conversation[] = [];
-        const removedIds: string[] = [];
-
-        for (const conv of existing) {
-            if (!conv || !conv.id) continue;
-            const nid = normId(conv.id);
-            const isTakeout = keepTakeout && (
-                (conv as any).source === 'takeout' ||
-                conv.titleSource === 'takeout' ||
-                (conv as any).isTakeoutOnly ||
-                (conv.titles && (conv.titles as any).takeout && !(conv.titles as any).rpc && !(conv.titles as any).dom)
-            );
-
-            if (activeIdSet.has(nid) || isTakeout) {
-                kept.push(conv);
-            } else {
-                removedIds.push(nid);
-            }
-        }
-
-        if (removedIds.length > 0) {
-            await setConversations(slot, kept);
-            const { countKey } = getStorageKeys(slot);
-            await chrome.storage.local.set({ [countKey]: kept.length });
-            await updateAccountSlot(slot, { count: kept.length });
-        }
-
-        return {
-            kept: kept.length,
-            removed: removedIds.length,
-            removedIds
-        };
     }
 
     async function getExportedIds(slot?: string | null): Promise<Record<string, any>> {

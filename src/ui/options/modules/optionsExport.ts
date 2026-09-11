@@ -119,6 +119,7 @@ export const isRealTitle = (tStr?: string | null, id?: string | null): boolean =
 let __loadStore: ((force?: boolean) => Promise<any>) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __getSearchFilter: () => string = () => '';
+let _isExporting = false;
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (__log) __log(msg, level);
@@ -305,11 +306,14 @@ export async function startExportPipeline(
 }
 
 export async function exportSelected(overrideFormat: string | null = null): Promise<void> {
-    const Store = getStore();
-    const List = getList();
-    const Formats = getFormats();
-    const Dialogs = getDialogs();
-    const DirHandle = getDirHandle();
+    if (_isExporting) return;
+    _isExporting = true;
+    try {
+        const Store = getStore();
+        const List = getList();
+        const Formats = getFormats();
+        const Dialogs = getDialogs();
+        const DirHandle = getDirHandle();
 
     const convs = Store ? Store.getConversations() : [];
     const selected = List ? List.getSelected(convs) : [];
@@ -390,6 +394,9 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     }
 
     await startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle);
+    } finally {
+        _isExporting = false;
+    }
 }
 
 export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsExportOptions = {}): Promise<void> {

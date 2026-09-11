@@ -15,6 +15,7 @@ let __isGenerating = false;
 let __pendingConversationId: string | null = null;
 let __options: LiveSaveObserverOptions = {};
 let __initialized = false;
+let _rafPending = false;
 
 function isDev(): boolean {
     return contentContext.isDevMode();
@@ -146,7 +147,12 @@ export function init(options: LiveSaveObserverOptions = {}): void {
     const targetNode = document.body || document.documentElement;
     if (targetNode) {
         __mutationObserver = new MutationObserver(() => {
-            handleDOMChange();
+            if (_rafPending) return;
+            _rafPending = true;
+            requestAnimationFrame(() => {
+                _rafPending = false;
+                handleDOMChange();
+            });
         });
         __mutationObserver.observe(targetNode, {
             childList: true,

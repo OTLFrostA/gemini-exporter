@@ -254,6 +254,7 @@ export class ContentContext {
         this._deepScanPromise = null;
         this._syncWindowMirrors();
         this.emit('reset');
+        this._listeners.clear();
     }
 }
 
