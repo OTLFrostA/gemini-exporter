@@ -10,11 +10,6 @@ on:
       - 'docs/**'
   pull_request:
     branches: [ main, dev ]
-    paths-ignore:
-      - '**.md'
-      - 'icons/**'
-      - 'store_assets/**'
-      - 'docs/**'
 
 permissions:
   contents: read
