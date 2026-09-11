@@ -158,3 +158,76 @@ test('messageBridge - handles GEMINI_STREAM_GENERATE_START and GEMINI_STREAM_GEN
     assert.strictEqual(completedId, 'c_abc123');
     assert.strictEqual(completedSlot, 'u0');
 });
+
+test('messageBridge - touches active conversation and updates timestamp on stream start & complete', async () => {
+    const touchedCalls: any[] = [];
+    const api = MessageBridge.init({
+        touchActiveConversation: async (cid: string, slot?: string, options?: any) => {
+            touchedCalls.push({ cid, slot, options });
+            return 1;
+        }
+    });
+
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_STREAM_GENERATE_START',
+            payload: { id: 'c_active_old_chat', slot: 'u1' }
+        }
+    });
+
+    assert.strictEqual(touchedCalls.length, 1);
+    assert.strictEqual(touchedCalls[0].cid, 'active_old_chat');
+    assert.strictEqual(touchedCalls[0].slot, 'u1');
+    assert.strictEqual(touchedCalls[0].options?.source, 'stream-start');
+
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_STREAM_GENERATE_COMPLETE',
+            payload: { id: 'c_active_old_chat', slot: 'u1' }
+        }
+    });
+
+    assert.strictEqual(touchedCalls.length, 2);
+    assert.strictEqual(touchedCalls[1].cid, 'active_old_chat');
+    assert.strictEqual(touchedCalls[1].slot, 'u1');
+    assert.strictEqual(touchedCalls[1].options?.source, 'stream-complete');
+});
+
+test('messageBridge - fallback to upsertConversations with updated timestamp when touchActiveConversation omitted', async () => {
+    let upsertedItems: any[] = [];
+    let upsertedSource = '';
+    let upsertedForceWrite = false;
+    let upsertedSlot = '';
+
+    const api = MessageBridge.init({
+        upsertConversations: async (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => {
+            upsertedItems = items;
+            upsertedSource = source;
+            upsertedForceWrite = !!forceWrite;
+            upsertedSlot = targetSlot || '';
+            return items.length;
+        },
+        extractActiveChatTitle: (_id: string) => ({ title: 'Updated In-Page Title', source: 'dom' })
+    });
+
+    const before = Date.now();
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_STREAM_GENERATE_COMPLETE',
+            payload: { id: 'c_active_fallback', slot: 'u0' }
+        }
+    });
+    const after = Date.now();
+
+    assert.strictEqual(upsertedItems.length, 1);
+    assert.strictEqual(upsertedItems[0].id, 'active_fallback');
+    assert.strictEqual(upsertedItems[0].title, 'Updated In-Page Title');
+    assert.strictEqual(upsertedItems[0].titleSource, 'dom');
+    assert.strictEqual(upsertedItems[0].sidebarIndex, 0);
+    assert.ok(upsertedItems[0].updatedAt >= before && upsertedItems[0].updatedAt <= after, 'updatedAt must be fresh timestamp');
+    assert.ok(upsertedItems[0].timestamp >= before && upsertedItems[0].timestamp <= after, 'timestamp must be fresh timestamp');
+    assert.strictEqual(upsertedSource, 'stream-complete');
+    assert.strictEqual(upsertedForceWrite, true, 'forceWrite must be true to ensure persistence');
+    assert.strictEqual(upsertedSlot, 'u0');
+});
+

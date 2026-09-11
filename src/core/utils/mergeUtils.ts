@@ -109,6 +109,8 @@ export function mergeConversation(
 
     const isRpcSource = options?.isRpcSource ?? (
         options?.source === 'network-list' ||
+        options?.source === 'network-detail' ||
+        (typeof options?.source === 'string' && options.source.startsWith('stream-')) ||
         incoming?.titleSource === 'rpc' ||
         incoming?.source === 'network-list'
     );

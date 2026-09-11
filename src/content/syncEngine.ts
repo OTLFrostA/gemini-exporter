@@ -138,6 +138,48 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
     }, 200);
 }
 
+const __lastTouchedMap = new Map<string, number>();
+
+export async function touchActiveConversation(
+    cid: string,
+    slot?: string,
+    options?: { forceWrite?: boolean; source?: string }
+): Promise<number> {
+    if (!cid) return 0;
+    const nid = String(cid).replace(/^c_/, '').trim();
+    if (!nid) return 0;
+
+    const now = Date.now();
+    const lastTouched = __lastTouchedMap.get(nid) || 0;
+    if (!options?.forceWrite && (now - lastTouched < 800)) {
+        return 0;
+    }
+    __lastTouchedMap.set(nid, now);
+
+    const targetSlot = slot || getAccountSlot();
+    const activeTitleObj = extractActiveChatTitle(nid);
+
+    const item: any = {
+        id: nid,
+        url: `https://gemini.google.com/app/${nid}`,
+        href: `https://gemini.google.com/app/${nid}`,
+        timestamp: now,
+        updatedAt: now,
+        sidebarIndex: 0
+    };
+
+    if (activeTitleObj && activeTitleObj.title && isRealTitle(activeTitleObj.title, nid)) {
+        const cleanT = cleanTitle(activeTitleObj.title);
+        const sourceTier = activeTitleObj.source || 'dom';
+        item.title = cleanT;
+        item.titleSource = sourceTier;
+        item.titles = { [sourceTier]: cleanT };
+    }
+
+    const source = options?.source || 'stream-complete';
+    return await upsertConversations([item], source, options?.forceWrite ?? true, targetSlot);
+}
+
 let __storageWriteQueue = Promise.resolve<any>(0);
 let __lastKnownCount = 0;
 let __syncOnceInFlight = false;
@@ -167,7 +209,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 
                 const res = mergeConversation(old, c, {
                     source,
-                    isRpcSource: source === 'network-list' || c.titleSource === 'rpc',
+                    isRpcSource: source === 'network-list' || c.titleSource === 'rpc' || (typeof source === 'string' && source.startsWith('stream-')),
                     targetSlot: slot
                 });
 
@@ -417,6 +459,7 @@ export const SyncEngine = {
     refreshInitialBadge,
     extractActiveChatTitle,
     scheduleActiveChatDetailFetch,
+    touchActiveConversation,
     upsertConversations,
     syncOnce,
     tryBatchExecuteFull,
