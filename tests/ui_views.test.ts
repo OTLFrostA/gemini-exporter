@@ -257,7 +257,7 @@ test('listView - row click toggles checkbox and fires change', () => {
         // Click inside the row (e.g. on title)
         const mockTitleTarget = {
             closest: (sel: string) => {
-                if (sel === 'a.open-link' || sel === '.btn-remove-chat') return null;
+                if (sel === 'a.open-link') return null;
                 if (sel === '.item') return mockItem;
                 return null;
             },

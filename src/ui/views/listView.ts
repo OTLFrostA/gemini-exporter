@@ -68,17 +68,6 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
             e.stopPropagation();
             return;
         }
-        const btn = target.closest('.btn-remove-chat') as HTMLElement | null;
-        if (btn) {
-            e.preventDefault();
-            e.stopPropagation();
-            const chatId = btn.dataset.removeId || btn.dataset.chatId || (btn.closest('[data-chat-id]') as HTMLElement | null)?.dataset?.chatId;
-            if (chatId) {
-                const cb = currentOnDeleteChatRef || onDeleteCallback;
-                if (typeof cb === 'function') cb(chatId);
-            }
-            return;
-        }
 
         // If clicking directly on checkbox, let native toggle proceed and updateStat
         if (target.matches('input[type=checkbox]')) {
@@ -177,7 +166,6 @@ export function render(
         }
 
         const url = (c as any).url || `https://gemini.google.com/app/${c.id}`;
-        const removeTitle = typeof t === 'function' ? t('btnRemoveChat') : 'Remove from local list';
 
         htmlArr.push(`
             <div class="item" data-chat-id="${escapeHtml(c.id)}" style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px; cursor:pointer; user-select:none;">
@@ -188,7 +176,6 @@ export function render(
                 </div>
                 <span style="font-size:11px; color:var(--muted); margin-left:12px; white-space:nowrap;">${escapeHtml(dateStr)}</span>
                 <a href="${escapeHtml(url)}" target="_blank" class="open-link" style="color:var(--muted); margin-left:10px; text-decoration:none; font-size:12px;" title="Open in Gemini">↗</a>
-                <button type="button" class="btn-remove-chat" data-remove-id="${escapeHtml(c.id)}" title="${escapeHtml(removeTitle)}" style="background:none; border:none; color:var(--muted); cursor:pointer; margin-left:8px; font-size:14px; padding:2px 4px; border-radius:4px; line-height:1;">&times;</button>
             </div>
         `);
     });

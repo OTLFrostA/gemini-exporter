@@ -170,38 +170,6 @@ function bindSyncButtons(): void {
             });
         }
     });
-
-    $('btnPruneDeleted')?.addEventListener('click', async () => {
-        if (Controller && Controller.isRunning()) return;
-        const btn = $('btnPruneDeleted') as HTMLButtonElement | null;
-        if (btn) btn.disabled = true;
-        log(typeof t === 'function' ? t('logPruneStarted') : '正在检测云端存活会话并清理本地失效会话...', 'info');
-        try {
-            const C: any = getApiClient();
-            if (!C) throw new Error('GeminiAPIClient not loaded');
-            const client = new C();
-            const all = await client.getAllConversations(2000, null, null, { incremental: false });
-            if (all && all.conversations && Store) {
-                const recRes = await Store.reconcileWithCloud(all.conversations, { keepTakeout: true });
-                if (recRes && recRes.removed > 0) {
-                    const msg = typeof t === 'function'
-                        ? t('logPruneFinished', recRes.removed, recRes.kept)
-                        : `清理完成: 成功剔除 ${recRes.removed} 条已删除会话，保留 ${recRes.kept} 条有效会话`;
-                    log(msg, 'info');
-                } else {
-                    const msg = typeof t === 'function'
-                        ? t('logPruneClean')
-                        : '所有本地会话均与云端状态一致，无失效残留会话';
-                    log(msg, 'info');
-                }
-                if (__loadStore) await __loadStore(true);
-            }
-        } catch (err: any) {
-            log((typeof t === 'function' ? t('syncFailed', err.message || err) : `清理失败: ${err.message || err}`), 'error');
-        } finally {
-            if (btn) btn.disabled = false;
-        }
-    });
 }
 
 export function bindBroadcastListeners(): void {
