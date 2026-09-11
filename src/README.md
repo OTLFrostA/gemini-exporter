@@ -104,20 +104,21 @@ src/
     global.d.ts                Ambient type augmentation (Chrome API polyfills, JSZip)
 ```
 
-## Build System: Dual-Track Architecture
+## Build System: Pure Bundle Architecture
 
-Gemini Exporter uses `esbuild` (`build.js`) configured for a dual-track build strategy:
+Gemini Exporter uses `esbuild` (`build.js`) configured for a high-performance, single-pass pure bundle strategy:
 
-1. **Bundle Track (Chrome MV3 Runtime)**:
+1. **5 Production Bundles (Chrome MV3 Runtime)**:
    - `src/content/content.ts` -> `dist/content/content.js` (ISOLATED World content script)
    - `src/content/hookCredentials.ts` -> `dist/content/hook.js` (MAIN World interceptor)
    - `src/background/background.ts` -> `dist/background/background.js` (Service Worker bundle with static ESM imports, zero `importScripts`)
    - `src/ui/popup/popup.ts` -> `dist/ui/popup.js` (Popup single-bundle entrypoint)
    - `src/ui/options/options.ts` -> `dist/ui/options.js` (Options single-bundle entrypoint, JSZip externalized)
+   All 5 entrypoints are compiled in parallel in ~25ms with sourcemaps and minification enabled.
 
-2. **Per-File Track (Test & Module Interoperability)**:
-   - All TypeScript files in `src/` are compiled individually to `dist/` preserving module structure.
-   - Node.js unit tests (`tests/*.test.js`) dynamically load TypeScript sources via `tests/ts_register.js` for instant testing without manual build steps.
+2. **Source-Level Test Execution**:
+   - Node.js unit tests (`tests/*.test.ts`) dynamically load TypeScript sources directly via `tests/ts_register.js` for instant testing without intermediate disk artifacts.
+   - Run `node build.js --per-file` if individual unbundled transpiled modules are needed for offline AST inspection.
 
 ## Architectural Rules
 
