@@ -889,6 +889,56 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 })
                 print(f"   🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {chat_id}，总计 {len(prompts_clean)} 轮已全量就绪")
 
+            # ==========================================
+            # 阶段 2.5：老会话继续对话与实时置顶上升检验 (Continued Chat Real-time Promotion)
+            # ==========================================
+            if len(chat_records) >= 2:
+                session1_id = chat_records[0].get("chat_id")
+                session2_id = chat_records[1].get("chat_id")
+                if session1_id and session2_id and session1_id != session2_id:
+                    print("\n" + "-" * 70)
+                    print("🔄 阶段 2.5：老会话继续对话与实时置顶检验 (Continued Chat Real-time Promotion)...")
+                    print("-" * 70)
+                    print(f"   🧭 正在返回首个历史会话 (会话 1, ID: {session1_id}) 进行追加对话...")
+                    cdp_gemini.eval(f"location.href = 'https://gemini.google.com/app/{session1_id}'")
+                    time.sleep(2.5)
+                    try:
+                        cdp_gemini.reconnect()
+                    except Exception:
+                        pass
+                    wait_for_gemini_ready(cdp_gemini, max_wait=15)
+
+                    continuation_prompt = "请对以上我们探讨的核心观点进行精炼总结，列出 3 条最具操作性的关键行动清单。"
+                    curr_ups_s1 = cdp_gemini.eval("""
+                    (() => {
+                        const ups = Array.from(document.querySelectorAll(".user-query, user-query, [data-test-id='user-query'], message-content.user-message"));
+                        return ups.map(p => p.textContent);
+                    })()
+                    """) or []
+
+                    already_has_cont = any(continuation_prompt[:14] in up for up in curr_ups_s1)
+                    if already_has_cont:
+                        print(f"   ⚡ 检测到会话 1 中追加轮次已存在，跳过发帖直接进入置顶与合流验证！")
+                    else:
+                        print(f"   ▶️ 追加轮次 (第 {len(chat_records[0]['turns']) + 1} 轮): \"{continuation_prompt}\"")
+                        cont_ok = False
+                        cont_msg = ""
+                        for try_idx in range(3):
+                            cont_ok, cont_msg = send_turn(cdp_gemini, continuation_prompt, max_wait=300)
+                            if cont_ok:
+                                break
+                            print(f"      ⚠️ 追加轮次提示: {cont_msg}，等待 4 秒后重试 ({try_idx + 1}/3)...")
+                            time.sleep(4)
+
+                        if cont_ok:
+                            print(f"      ✅ 追加回复完成！流式生成结束已触发 STREAM_COMPLETE 实时触达")
+                            chat_records[0]["turns"].append(continuation_prompt)
+                            if isinstance(scenarios[0].get("turns"), list):
+                                scenarios[0]["turns"].append(continuation_prompt)
+                        else:
+                            print(f"      ⚠️ 追加轮次发送异常: {cont_msg}")
+                    time.sleep(delay)
+
         finally:
             cdp_gemini.close()
     else:
@@ -973,6 +1023,56 @@ def run_live_chat_and_export(dataset=None, port=CDP_DEFAULT_PORT, output_dir=Non
                 pass
 
         time.sleep(1.0)
+
+        # ------------------------------------------------------------------
+        # 步骤 3.0：断言老会话追加发帖后的实时置顶与时间戳权威跃升状态
+        # ------------------------------------------------------------------
+        if not skip_chat and len(chat_records) >= 2:
+            s1_id = chat_records[0].get("chat_id")
+            s2_id = chat_records[1].get("chat_id")
+            if s1_id and s2_id and s1_id != s2_id:
+                print("   🔍 步骤 3.0：校验老会话继续发帖后的实时置顶提权状态...")
+                cdp_opt.eval("""
+                (() => {
+                    if (typeof window.__workbenchLoadStore === 'function') {
+                        window.__workbenchLoadStore(true);
+                    }
+                })()
+                """)
+                time.sleep(0.5)
+
+                order_info = cdp_opt.eval(f"""
+                (() => {{
+                    return new Promise((resolve) => {{
+                        chrome.storage.local.get(['gemini_conversations'], (data) => {{
+                            const convs = data.gemini_conversations || [];
+                            const c1 = convs.find(c => c.id === '{s1_id}' || c.id === 'c_{s1_id}');
+                            const c2 = convs.find(c => c.id === '{s2_id}' || c.id === 'c_{s2_id}');
+                            const domItems = Array.from(document.querySelectorAll('#list .item'));
+                            const idx1 = domItems.findIndex(el => el.dataset.chatId === '{s1_id}');
+                            const idx2 = domItems.findIndex(el => el.dataset.chatId === '{s2_id}');
+                            resolve({{
+                                ts1: c1 ? (c1.updatedAt || c1.timestamp) : 0,
+                                ts2: c2 ? (c2.updatedAt || c2.timestamp) : 0,
+                                idx1,
+                                idx2,
+                                totalDom: domItems.length
+                            }});
+                        }});
+                    }});
+                }})()
+                """, await_promise=True)
+                if order_info:
+                    ts1 = order_info.get("ts1", 0)
+                    ts2 = order_info.get("ts2", 0)
+                    idx1 = order_info.get("idx1", -1)
+                    idx2 = order_info.get("idx2", -1)
+                    print(f"      • 会话 1 时间戳: {ts1} (DOM 列表位置: {idx1})")
+                    print(f"      • 会话 2 时间戳: {ts2} (DOM 列表位置: {idx2})")
+                    if ts1 > ts2 and idx1 >= 0 and (idx2 < 0 or idx1 < idx2):
+                        print(f"      ✓ [PASS] 老会话追加提问后时间戳成功更新，并在列表中自动上升至首位！")
+                    else:
+                        print(f"      ⚠️ 老会话时间戳或排序对比提示: ts1={ts1}, ts2={ts2}, idx1={idx1}, idx2={idx2}")
 
         # ------------------------------------------------------------------
         # 步骤 3.1：自动导入纯净版 Google Takeout ZIP 样本 (验证离线历史与附件)

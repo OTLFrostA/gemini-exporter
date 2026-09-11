@@ -48,7 +48,10 @@
   * **通用验收铁律（四大不可逾越标准）**：
     1. **必须生成真实对话（严禁滥用 `--skip-chat`）**：必须真实驱动 Gemini 并等待全部流式回复物理落地；
     2. **必须实际检验导出 Markdown 文件内容（严禁仅凭内存判断）**：测试脚本会自动将导出的 ZIP 下载到磁盘并解压，必须逐字核对会话 1 全部 5 轮与会话 2 全部 8 轮提问与回答在 Markdown 中 100% 物理存在；
-    3. **必须校验 Google Takeout 离线导入与全量历史合流及网页端瞬态实时删除会话清理**：测试流会自动读取预置的 `tests/fixtures/gemini_takeout_clean.zip`，检验离线导入初始提问前缀临时标题（`titleSource: takeout`），随后触发【全量拉取历史】(`btnDeepScan`) 地毯式分页同步所有云端历史，核实 Takeout 临时标题被在线 RPC 权威升级覆盖（`titleSource: rpc`）；并通过【瞬态自毁会话】(Live Ephemeral Chat) 真实验证网页端删除时通过 RPC 拦截与消息桥接在无需刷新的情况下实时剥离本地 Storage 与 Options DOM 列表，且绝不误伤有效会话与离线 Takeout 存档；
+    3. **必须校验老会话追加提问实时置顶、Google Takeout 离线导入与全量历史合流及网页端瞬态实时删除会话清理**：
+       - **老会话实时置顶升权 (Stage 2.5)**：会话 2 生成完毕后，测试流自动回访较早创建的会话 1 并发送追加提问，检验流式生成完毕后通过 `STREAM_COMPLETE` 实时更新 `updatedAt`/`timestamp`，并在 Options 工作台中无需刷新即自动提升至列表首位（高于会话 2）；
+       - **Takeout 离线合流**：测试流会自动读取预置的 `tests/fixtures/gemini_takeout_clean.zip`，检验离线导入初始提问前缀临时标题（`titleSource: takeout`），随后触发【全量拉取历史】(`btnDeepScan`) 地毯式分页同步所有云端历史，核实 Takeout 临时标题被在线 RPC 权威升级覆盖（`titleSource: rpc`）；
+       - **瞬态自毁会话实时清理**：通过【瞬态自毁会话】(Live Ephemeral Chat) 真实验证网页端删除时通过 RPC 拦截与消息桥接在无需刷新的情况下实时剥离本地 Storage 与 Options DOM 列表，且绝不误伤有效会话与离线 Takeout 存档；
     4. **必须通过多模态联合导出规范断言**：当次导出会精准联合勾选 2 个现场新问答会话 + 4 种指定核心分类历史会话（AI Imagen 生图、Python 高质量代码块、Markdown 量子对比表格、深空探测长文本报告），解压后逐一核验新会话 100% 物理轮次及 4 大类别黄金语法特征与物理附件落地（索引文件、YAML Frontmatter 7 键闭合、角色交替与时间戳、0 遥测噪点、图片附件实体非空、AI Imagen 生成图模型归属断言）。
 
 ---
