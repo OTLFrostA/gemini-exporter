@@ -95,23 +95,22 @@ test.describe('Workbench UI & Selection Controls', () => {
     expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(1);
     expect(await page.locator('[data-chat-id="chat_002"] input[type=checkbox]').isChecked()).toBe(true);
 
-    // 8. Test Feedback Box & Link
+    // 8. Test Feedback Box as an interactive button link
     const feedbackBox = page.locator('#feedbackBox');
     await expect(feedbackBox).toBeVisible();
-    const btnFeedback = page.locator('#btnFeedback');
-    await expect(btnFeedback).toBeVisible();
-    await expect(btnFeedback).toHaveAttribute('href', 'https://tally.so/r/Y56ZBB');
-    await expect(btnFeedback).toHaveAttribute('target', '_blank');
-    await expect(btnFeedback).toContainText('反馈');
+    await expect(feedbackBox).toHaveAttribute('href', 'https://tally.so/r/Y56ZBB');
+    await expect(feedbackBox).toHaveAttribute('target', '_blank');
+    await expect(feedbackBox).toContainText('遇到问题或有新建议？');
+
+    // Standalone #btnFeedback must no longer exist
+    expect(await page.locator('#btnFeedback').count()).toBe(0);
 
     // Switch to English and check feedback text
     await page.click('#labelLangEn');
-    await expect(btnFeedback).toContainText('Feedback');
     await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('Got questions or suggestions?');
 
     // Switch back to Chinese
     await page.click('#labelLangZh');
-    await expect(btnFeedback).toContainText('反馈');
     await expect(page.locator('[data-i18n="feedbackPrompt"]')).toHaveText('遇到问题或有新建议？');
   });
 });
