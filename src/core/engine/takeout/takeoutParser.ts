@@ -157,6 +157,17 @@ function normId(id?: string | null): string {
         }
 
         const rawBlocks = htmlText.split('<div class="outer-cell');
+        if (rawBlocks.length <= 1) {
+            const hasOuterCell = htmlText.includes('outer-cell');
+            const hasTakeoutMarker = /gemini|bard|MyActivity|我的活动/i.test(htmlText);
+            if (!hasOuterCell && hasTakeoutMarker) {
+                const I18n = (globalThis as any).I18n;
+                const err = typeof I18n !== 'undefined'
+                    ? I18n.t('takeoutFormatChanged')
+                    : 'Takeout 归档格式未能识别，可能 Google 已调整导出结构';
+                throw new Error(err);
+            }
+        }
         const extractedMap: Record<string, any> = {};
         const genBlocks: any[] = [];
 

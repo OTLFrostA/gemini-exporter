@@ -229,3 +229,32 @@ test('takeout_engine - stripHtmlTags removes nested HTML and script injections s
     assert.strictEqual(TakeoutParser.stripHtmlTags(nested), 'deep text');
 });
 
+test('takeout_engine - parseTakeoutZip detects structure drift and throws descriptive error', async () => {
+    (global as any).JSZip = require('../lib/jszip.min.js');
+    const zip = new (global as any).JSZip();
+
+    const modifiedTakeoutHtml = `
+    <html><body>
+      <div class="google-gemini-redesign">
+        <h1>MyActivity Gemini</h1>
+        <div class="chat-card-new">
+          <p>Some new format content</p>
+        </div>
+      </div>
+    </body></html>
+    `;
+
+    zip.file('Takeout/Gemini/MyActivity.html', modifiedTakeoutHtml);
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+    TakeoutEngine.clearTakeoutData();
+    await assert.rejects(
+        async () => {
+            await TakeoutEngine.parseTakeoutZip(zipBuffer);
+        },
+        (err: any) => {
+            return err && String(err.message).includes('Takeout');
+        }
+    );
+});
+

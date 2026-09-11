@@ -225,6 +225,17 @@
     <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
     <div id="progText" class="stat" style="text-align:center; min-height:16px; line-height:16px;"></div>
 
+    <div id="exportFailureCard" style="display:none; margin-top:6px; padding:8px 10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; font-size:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <span id="exportFailureTitle" style="color:var(--danger, #f87171); font-weight:600;" data-i18n="exportFailureBannerTitle">部分会话导出失败</span>
+        <div style="display:flex; gap:6px;">
+          <button id="btnRetryFailed" class="small ghost" style="padding:2px 8px; font-size:11px; border-color:rgba(239,68,68,0.4); color:var(--danger, #f87171);" data-i18n="btnRetryFailed">重试失败项</button>
+          <button id="btnDismissFailure" class="small ghost" style="padding:2px 6px; font-size:11px; color:var(--text-muted);" title="关闭">✕</button>
+        </div>
+      </div>
+      <div id="exportFailureList" style="max-height:80px; overflow-y:auto; color:var(--text-muted); font-size:11px; line-height:1.4;"></div>
+    </div>
+
     <div id="logSection" class="dev-only" style="display:flex; flex-direction:column; gap:8px; flex:1; overflow:hidden; margin-top:4px;">
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; flex:none;">
         <select id="logLevel" title="级别" style="font-size:11px; padding:4px 6px; border-radius:6px; background:var(--card-inner);">

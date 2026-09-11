@@ -55,6 +55,7 @@ export interface IListView {
     isRealTitle: (title: string, id?: string) => boolean;
     setOnDelete: (cb: (chatId: string) => void) => void;
     updateItemExportStatus: (chatId: string, exportRecord?: ExportRecord | null) => void;
+    selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
 }
 
 export interface IAccountView {

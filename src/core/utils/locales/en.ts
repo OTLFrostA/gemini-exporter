@@ -227,7 +227,14 @@ const __enFactory = (): LocaleDictionary => {
             takeoutBrowsingLimitDesc: "Retrieved ~{0} chats. Older chats may not be visible online due to Google limits. Recommend exporting via Google Takeout and importing below.",
             btnModalImportTakeout: "📥 Select Takeout ZIP to Import All",
             btnModalOpenTakeoutWeb: "🌐 Open Google Takeout (Gemini Pre-selected)",
-            btnModalDismissTakeout: "Got it, don't show again"
+            btnModalDismissTakeout: "Got it, don't show again",
+            exportCompletedPartial: "Export finished: {0} succeeded, {1} failed.",
+            exportFailureBannerTitle: "Some conversations failed to export",
+            btnRetryFailed: "Retry Failed",
+            btnRetryFailedCount: "Retry Failed ({0})",
+            fsPermissionRevoked: "Folder access permission was revoked. Export stopped.",
+            takeoutFormatChanged: "Takeout archive format unrecognized; Google structure may have changed.",
+            syncFinishedWithLimit: "Fetched ~{0} chats (reached Google web limit ~600). Recommend importing older history via Google Takeout."
     };
 };
 export const en: LocaleDictionary = __enFactory();

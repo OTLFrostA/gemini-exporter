@@ -120,6 +120,86 @@ let __loadStore: ((force?: boolean) => Promise<any>) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __getSearchFilter: () => string = () => '';
 let _isExporting = false;
+let _lastFailedChats: any[] = [];
+
+export function getLastFailedChats(): any[] {
+    return _lastFailedChats;
+}
+
+export function renderExportFailureBanner(failedList: any[]): void {
+    _lastFailedChats = Array.isArray(failedList) ? failedList : [];
+    const card = $('exportFailureCard');
+    if (!card) return;
+    if (!_lastFailedChats.length) {
+        card.style.display = 'none';
+        return;
+    }
+    const titleEl = $('exportFailureTitle');
+    if (titleEl) {
+        titleEl.textContent = typeof t === 'function' ? t('exportFailureBannerTitle') : '部分会话导出失败';
+    }
+    const btnRetry = $('btnRetryFailed') as HTMLButtonElement | null;
+    if (btnRetry) {
+        btnRetry.textContent = typeof t === 'function' ? t('btnRetryFailedCount', _lastFailedChats.length) : `重试失败项 (${_lastFailedChats.length})`;
+        btnRetry.onclick = () => {
+            retryFailedExport();
+        };
+    }
+    const btnDismiss = $('btnDismissFailure') as HTMLButtonElement | null;
+    if (btnDismiss) {
+        btnDismiss.onclick = () => {
+            card.style.display = 'none';
+        };
+    }
+    const listEl = $('exportFailureList');
+    if (listEl) {
+        listEl.innerHTML = '';
+        _lastFailedChats.slice(0, 20).forEach(item => {
+            const row = document.createElement('div');
+            row.style.whiteSpace = 'nowrap';
+            row.style.overflow = 'hidden';
+            row.style.textOverflow = 'ellipsis';
+            row.style.padding = '1px 0';
+            const itemTitle = item.title || item.id || 'Untitled';
+            const itemErr = item.error ? ` (${item.error})` : '';
+            row.textContent = `• ${itemTitle}${itemErr}`;
+            row.title = `${itemTitle}${itemErr}`;
+            listEl.appendChild(row);
+        });
+        if (_lastFailedChats.length > 20) {
+            const more = document.createElement('div');
+            more.style.fontStyle = 'italic';
+            more.textContent = `... 以及其他 ${_lastFailedChats.length - 20} 项`;
+            listEl.appendChild(more);
+        }
+    }
+    card.style.display = 'block';
+}
+
+export function hideExportFailureBanner(): void {
+    _lastFailedChats = [];
+    const card = $('exportFailureCard');
+    if (card) card.style.display = 'none';
+}
+
+export async function retryFailedExport(): Promise<void> {
+    if (!_lastFailedChats.length) return;
+    const List = getList();
+    const Store = getStore();
+    const failedIds = new Set<string>();
+    for (const c of _lastFailedChats) {
+        if (c.id) {
+            failedIds.add(c.id);
+            failedIds.add(normId(c.id));
+            failedIds.add('c_' + normId(c.id));
+        }
+    }
+    if (List && typeof List.selectByIds === 'function') {
+        List.selectByIds(failedIds, Store ? Store.getConversations() : undefined);
+    }
+    hideExportFailureBanner();
+    await exportSelected();
+}
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (__log) __log(msg, level);
@@ -183,6 +263,7 @@ export async function startExportPipeline(
         }
     }
 
+    hideExportFailureBanner();
     const progWrap = $('progWrap');
     const bar = $('bar');
     const progText = $('progText');
@@ -275,21 +356,44 @@ export async function startExportPipeline(
             log(typeof t === 'function' ? t('exportAborted') : '导出任务已被用户中止', 'warn');
             if (progText) progText.textContent = typeof t === 'function' ? t('exportAborted') : '导出已终止';
         } else {
+            const failedList = Array.isArray(result?.failedChats) ? result.failedChats : [];
+            const failedCount = failedList.length;
+            const successCount = typeof result?.landedChats === 'number'
+                ? result.landedChats
+                : (typeof result?.exportedCount === 'number' ? result.exportedCount : Math.max(0, selected.length - failedCount));
+
             let finishMsg = '';
-            const totalExported = selected.length;
-            if (typeof t === 'function') {
-                const translated = t('exportSuccess', totalExported);
-                if (translated && translated !== 'exportSuccess') {
-                    finishMsg = translated;
+            if (failedCount > 0) {
+                if (typeof t === 'function') {
+                    const translated = t('exportCompletedPartial', successCount, failedCount);
+                    if (translated && translated !== 'exportCompletedPartial') {
+                        finishMsg = translated;
+                    }
                 }
+                if (!finishMsg) {
+                    const isEn = typeof getLang === 'function' && getLang() === 'en';
+                    finishMsg = isEn
+                        ? `Export finished: ${successCount} succeeded, ${failedCount} failed.`
+                        : `导出完成：成功 ${successCount} 篇，失败 ${failedCount} 篇。`;
+                }
+                log(finishMsg, 'warn');
+                renderExportFailureBanner(failedList);
+            } else {
+                if (typeof t === 'function') {
+                    const translated = t('exportSuccess', successCount);
+                    if (translated && translated !== 'exportSuccess') {
+                        finishMsg = translated;
+                    }
+                }
+                if (!finishMsg) {
+                    const isEn = typeof getLang === 'function' && getLang() === 'en';
+                    finishMsg = isEn
+                        ? `Export completed! ${successCount} conversations exported.`
+                        : `导出完成！已导出 ${successCount} 篇对话。`;
+                }
+                log(finishMsg, 'info');
+                hideExportFailureBanner();
             }
-            if (!finishMsg) {
-                const isEn = typeof getLang === 'function' && getLang() === 'en';
-                finishMsg = isEn
-                    ? `Export completed! ${totalExported} conversations exported.`
-                    : `导出完成！已导出 ${totalExported} 篇对话。`;
-            }
-            log(finishMsg, 'info');
             if (bar) bar.style.width = '100%';
             if (progText) progText.textContent = finishMsg;
         }
@@ -488,7 +592,11 @@ export const OptionsExport = {
     init,
     exportSelected,
     startExportPipeline,
-    updateZipUi
+    updateZipUi,
+    getLastFailedChats,
+    renderExportFailureBanner,
+    hideExportFailureBanner,
+    retryFailedExport
 };
 
 (OptionsExport as any).OptionsExport = OptionsExport;
