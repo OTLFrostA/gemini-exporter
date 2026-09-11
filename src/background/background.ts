@@ -224,6 +224,28 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         return;
     }
 
+    if (msg.action === 'liveSaveDownload') {
+        const { filename, url, conflictAction } = msg as any;
+        if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.download) {
+            chrome.downloads.download({
+                url,
+                filename: filename || 'gemini/chat.md',
+                saveAs: false,
+                conflictAction: (conflictAction as any) || 'overwrite'
+            }, (downloadId) => {
+                if (chrome.runtime.lastError) {
+                    sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+                } else {
+                    sendResponse({ ok: true, downloadId });
+                }
+            });
+            return true;
+        } else {
+            sendResponse({ ok: false, error: 'chrome.downloads unavailable' });
+            return;
+        }
+    }
+
     try { sendResponse({ ok: false, error: `unknown action: ${msg.action}` }); } catch {}
 });
 
