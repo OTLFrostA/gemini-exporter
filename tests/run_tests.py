@@ -205,7 +205,7 @@ def test_javascript_unit_tests():
                 catch(e) { throw new Error(name + ': ' + (e.stack || e.message || e)); }
             };
             nodeTest.test = nodeTest;
-            nodeTest.skip = () => {};
+            nodeTest.skip = (name) => { throw new Error('Skipping unit tests is strictly forbidden: ' + name); };
             nodeTest.only = nodeTest;
 
             function require(id) {
@@ -460,10 +460,6 @@ def test_dataset_freshness_gate():
         # 5. Default dataset with allow_stale -> should pass with None
         ok, res = validate_dataset_freshness(None, allow_stale=True)
         assert ok and res is None, "Default dataset with allow_stale should pass"
-
-        # 6. Default dataset with skip_chat -> should pass with None
-        ok, res = validate_dataset_freshness(None, allow_stale=False, skip_chat=True)
-        assert ok and res is None, "Default dataset with skip_chat should pass"
     finally:
         if os.path.isfile(f_name):
             os.remove(f_name)

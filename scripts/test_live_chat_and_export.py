@@ -71,11 +71,7 @@ def run_live_chat_and_export(
     port=CDP_DEFAULT_PORT,
     output_dir=None,
     delay=2,
-    skip_chat=False,
-    skip_takeout=False,
-    takeout_zip=None,
-    skip_reinstall=False,
-    skip_tour=False
+    takeout_zip=None
 ):
     """
     执行全流程特性驱动测试。
@@ -86,22 +82,18 @@ def run_live_chat_and_export(
         output_dir=output_dir,
         dataset=dataset,
         delay=delay,
-        skip_chat=skip_chat,
-        skip_takeout=skip_takeout,
-        skip_reinstall=skip_reinstall,
-        skip_tour=skip_tour,
         takeout_zip=takeout_zip
     )
     return runner.run()
 
 
-def validate_dataset_freshness(dataset_path, allow_stale=False, skip_chat=False, max_age_seconds=DATASET_MAX_AGE_SECONDS):
+def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=DATASET_MAX_AGE_SECONDS):
     """
     门禁检查：
-    在非 allow_stale 且非 skip_chat 模式下，强制要求必须传入 2 分钟之内新鲜生成的数据集文件。
+    在非 allow_stale 模式下，强制要求必须传入 2 分钟之内新鲜生成的数据集文件。
     若未传入或文件超过 max_age_seconds 秒，拦截并返回详细的错误指导说明。
     """
-    if allow_stale or skip_chat:
+    if allow_stale:
         if dataset_path:
             if not os.path.isfile(dataset_path):
                 return False, f"❌ 指定的数据集文件不存在: {dataset_path}"
@@ -168,10 +160,6 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
-    parser.add_argument("--skip-chat", action="store_true", help="跳过发帖步骤，直接使用已有会话跑导出与目录校验")
-    parser.add_argument("--skip-takeout", action="store_true", help="跳过预置 Takeout ZIP 导入步骤")
-    parser.add_argument("--skip-reinstall", action="store_true", help="跳过扩展卸载与重装步骤")
-    parser.add_argument("--skip-tour", action="store_true", help="跳过新手向导全流程测试步骤")
     parser.add_argument("--takeout-zip", default=None, help="自定义预置 Takeout ZIP 样本路径")
     args = parser.parse_args()
 
@@ -197,8 +185,7 @@ if __name__ == "__main__":
     else:
         valid, result_or_err = validate_dataset_freshness(
             args.dataset,
-            allow_stale=args.allow_stale_dataset,
-            skip_chat=args.skip_chat
+            allow_stale=args.allow_stale_dataset
         )
         if not valid:
             print(result_or_err)
@@ -210,10 +197,6 @@ if __name__ == "__main__":
         port=args.port,
         output_dir=args.output_dir,
         delay=args.delay,
-        skip_chat=args.skip_chat,
-        skip_takeout=args.skip_takeout,
-        takeout_zip=args.takeout_zip,
-        skip_reinstall=args.skip_reinstall,
-        skip_tour=args.skip_tour
+        takeout_zip=args.takeout_zip
     )
     sys.exit(0 if success else 1)

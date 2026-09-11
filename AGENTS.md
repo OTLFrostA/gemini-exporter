@@ -46,7 +46,7 @@
       - 亦可由 AI 现场动态构思全新数据集并在 2 分钟（120 秒）内保存落盘并通过 `--dataset <path>` 传入运行。
 
   * **通用验收铁律（四大不可逾越标准）**：
-    1. **必须生成真实对话（严禁滥用 `--skip-chat`）**：必须真实驱动 Gemini 并等待全部流式回复物理落地；
+    1. **全流程全特性强制闭环（物理禁止跳过）**：必须真实驱动 Gemini 发帖并等待全部流式回复物理落地；所有测试阶段（扩展重装、新手向导、实时发帖、老会话追加置顶、瞬态删除清理、Takeout 合流导入与 6 会话联合规范导出）强制 100% 完整闭环执行，测试脚本已物理移除所有跳过开关（如 `--skip-chat`、`--skip-takeout`、`--skip-reinstall`、`--skip-tour`），严禁任何形式的绕过或缩水；
     2. **必须实际检验导出 Markdown 文件内容（严禁仅凭内存判断）**：测试脚本会自动将导出的 ZIP 下载到磁盘并解压，必须逐字核对会话 1 全部 5 轮与会话 2 全部 8 轮提问与回答在 Markdown 中 100% 物理存在；
     3. **必须校验老会话追加提问实时置顶、Google Takeout 离线导入与全量历史合流及网页端瞬态实时删除会话清理**：
        - **老会话实时置顶升权 (Stage 2.5)**：会话 2 生成完毕后，测试流自动回访较早创建的会话 1 并发送追加提问，检验流式生成完毕后通过 `STREAM_COMPLETE` 实时更新 `updatedAt`/`timestamp`，并在 Options 工作台中无需刷新即自动提升至列表首位（高于会话 2）；
@@ -55,35 +55,6 @@
     4. **必须通过多模态联合导出规范断言**：当次导出会精准联合勾选 2 个现场新问答会话 + 4 种指定核心分类历史会话（AI Imagen 生图、Python 高质量代码块、Markdown 量子对比表格、深空探测长文本报告），解压后逐一核验新会话 100% 物理轮次及 4 大类别黄金语法特征与物理附件落地（索引文件、YAML Frontmatter 7 键闭合、角色交替与时间戳、0 遥测噪点、图片附件实体非空、AI Imagen 生成图模型归属断言）。
 
 ---
-
-## 三、常用辅助命令速查
-
-```bash
-# 启动独立调试环境 Chrome (端口 9222)
-./scripts/open_test_chrome.sh          # macOS / Linux
-.\scripts\open_test_chrome.ps1         # Windows PowerShell
-.\scripts\open_test_chrome.cmd         # Windows CMD
-
-# 查看场景池当前水位与领域特征分布
-npm run pool:status
-
-# 运行全量实跑测试 (首选标准模式：从 20 题场景池消费 2 个最新多模态场景)
-npm run test:live:pool
-# 或: python3 scripts/test_live_chat_and_export.py --pool
-
-# 运行全量实跑测试 (临时外挂模式：传入 2 分钟内动态构思的数据集)
-python3 scripts/test_live_chat_and_export.py --dataset <path_to_fresh_dataset.json>
-
-# 人工本地调试或离线复现 (绕过 2 分钟时效门禁限制，使用内置经典数据集)
-npm run test:live:local
-# 或: python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
-
-
-# 纯导出与断言验证 (跳过发帖，仅检验已有数据与 Takeout)
-python3 scripts/test_live_chat_and_export.py --skip-chat
-
-# 单独对任意导出解压目录运行规范断言器
-python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
 ### 第三层：纯视觉 AI 盲测与 UI 质检体系 (Visual Inspection & Feature Parity)
 * **执行命令**：
@@ -115,10 +86,6 @@ python3 scripts/test_live_chat_and_export.py --dataset <path_to_fresh_dataset.js
 # 人工本地调试或离线复现 (绕过 2 分钟时效门禁限制，使用内置经典数据集)
 npm run test:live:local
 # 或: python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
-
-
-# 纯导出与断言验证 (跳过发帖，仅检验已有数据与 Takeout)
-python3 scripts/test_live_chat_and_export.py --skip-chat
 
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>

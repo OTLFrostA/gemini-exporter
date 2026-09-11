@@ -100,11 +100,7 @@ python3 scripts/test_live_chat_and_export.py \
   --delay 2               # 轮次间等待秒数 (默认 2) \
   --port 9222             # Chrome 调试端口 (默认 9222) \
   --dataset <path>        # 传入现场生成的测试用例 JSON (2 分钟内有效) \
-  --allow-stale-dataset   # 显式允许历史旧数据集或默认数据集（供人工调试使用） \
-  --skip-chat             # 跳过在线发帖，直接使用已有会话与 Takeout 跑导出与断言 \
-  --skip-takeout          # 跳过 Takeout 导入步骤 \
-  --skip-reinstall        # 跳过 CDP 扩展卸载与重装步骤 \
-  --skip-tour             # 跳过新手向导测试步骤
+  --allow-stale-dataset   # 显式允许历史旧数据集或默认数据集（供人工调试使用）
 ```
 
 ---
@@ -113,9 +109,9 @@ python3 scripts/test_live_chat_and_export.py \
 
 任何协助开发本项目的 AI（无论是 Antigravity、Claude、Cursor、Copilot 或其他 AI 助手），在执行测试时必须严格遵守以下守则：
 
-### 守则 1：严禁偷懒，完整跑完 2 会话 × 5 轮发帖
+### 守则 1：严禁偷懒，完整跑完 2 会话发帖与全部生命周期特性
 * 在对核心解析器（Protobuf/JSPB）、会话排序、网络请求机制进行改动后，必须运行完整的实跑测试。
-* 除非在单独调试离线组件并向用户明确说明，**严禁滥用 `--skip-chat`**。必须每次动态生成 2 个富有技术深度的技术主题（如并发架构、分布式算法、底层编译器等），各执行 5 轮真实问答并拿到真实回复。
+* 测试脚本已**彻底物理移除 `--skip-chat`、`--skip-takeout`、`--skip-reinstall`、`--skip-tour` 等所有跳过开关**。必须真实执行扩展卸载重装、新手向导防撞、2 个富有技术深度的现场新多模态会话发帖与生图、老会话回访追加置顶、瞬态删除清理、Takeout 合流与 6 会话联合规范导出。严禁任何形式的绕过或缩水。
 
 ### 守则 2：必须实际检查导出文件的文本内容与图片
 * 导出不是终点，断言文件内容才是验证的核心。
