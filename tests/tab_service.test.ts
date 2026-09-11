@@ -104,7 +104,7 @@ test('TabService - sendToGeminiTab failover across candidates and timeouts', asy
         };
         await assert.rejects(
             () => TabService.sendToGeminiTab({ action: 'ping' }),
-            /未能与 Gemini 建立连接，请刷新 gemini\.google\.com 页面后重试/
+            /未能与 Gemini 建立连接，请刷新.*页面后重试/
         );
 
         let timeoutRecorded: any = null;

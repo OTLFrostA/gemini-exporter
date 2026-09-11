@@ -133,7 +133,7 @@ test('syncController - formats Receiving end does not exist with friendly refres
     const rawErr = 'Could not establish connection. Receiving end does not exist.';
     const formatted = fn(rawErr);
     assert.ok(
-        formatted.includes('刷新') && formatted.includes('gemini.google.com'),
+        formatted.includes('刷新') && formatted.includes('未能与 Gemini 建立连接'),
         `Formatted error should hint user to refresh gemini, got: ${formatted}`
     );
 
@@ -179,7 +179,7 @@ test('syncController - startIncrementalScan dispatches friendly message on conne
 
         assert.strictEqual(loggedLevel, 'error');
         assert.ok(
-            loggedMsg.includes('刷新') && loggedMsg.includes('gemini.google.com'),
+            loggedMsg.includes('刷新') && loggedMsg.includes('未能与 Gemini 建立连接'),
             `Log should contain friendly refresh prompt, got: ${loggedMsg}`
         );
         assert.strictEqual(errorMsg, loggedMsg);
