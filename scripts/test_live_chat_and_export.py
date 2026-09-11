@@ -71,7 +71,8 @@ def run_live_chat_and_export(
     port=CDP_DEFAULT_PORT,
     output_dir=None,
     delay=2,
-    takeout_zip=None
+    takeout_zip=None,
+    keep_chats=False
 ):
     """
     执行全流程特性驱动测试。
@@ -82,7 +83,8 @@ def run_live_chat_and_export(
         output_dir=output_dir,
         dataset=dataset,
         delay=delay,
-        takeout_zip=takeout_zip
+        takeout_zip=takeout_zip,
+        keep_chats=keep_chats
     )
     return runner.run()
 
@@ -110,9 +112,9 @@ def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=
 {sep}
 ❌ [AI 执行门禁拦截] 未指定测试数据集（--dataset <path>）！
 {sep}
-💡 场景池推荐模式：直接使用 `--pool` 参数从 20 题多模态场景池中自动消费 2 个高价值场景：
-   python3 scripts/test_live_chat_and_export.py --pool
-   (或 npm run test:live:pool)
+💡 场景池标准模式：推荐不传入 `--dataset`，执行器将自动通过统一场景池调度出队最新场景：
+   npm run test:live:pool
+   (或 python3 scripts/test_live_chat_and_export.py --pool)
 
 💡 规则说明：若手动传入 `--dataset`，由 AI Agent 驱动的测试与验收必须现场动态构思全新的测试场景并在 {max_age_seconds} 秒（2 分钟）之内生成 JSON 数据集文件，严禁直接复用静态数据集。
 💡 人工调试提示：若本次运行并非由 AI Agent 驱动（例如人工本地调试或离线复现），请添加 `--allow-stale-dataset` 参数以绕过此时效限制并允许使用内置默认数据集：
@@ -134,12 +136,8 @@ def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=
 {sep}
 ❌ [AI 执行门禁拦截] 数据集文件 `{dataset_path}` 生成/修改于 {int(file_age)} 秒前（已超过 2 分钟 / {max_age_seconds} 秒时效限制）！
 {sep}
-💡 场景池推荐模式：直接使用 `--pool` 参数从 20 题多模态场景池中自动消费 2 个高价值场景：
-   python3 scripts/test_live_chat_and_export.py --pool
-
-💡 规则说明：在 AI Agent 驱动的测试与验收模式下，必须现场动态构思全新的测试场景并在 2 分钟内实时生成 JSON，严禁复用历史旧数据集。
-💡 人工调试提示：若本次运行并非由 AI Agent 驱动（例如人工本地调试或复现历史用例），请添加 `--allow-stale-dataset` 参数以绕过此时效限制：
-   python3 scripts/test_live_chat_and_export.py --dataset {dataset_path} --allow-stale-dataset
+💡 场景池标准模式：推荐不传入 `--dataset`，执行器将自动通过统一场景池调度出队最新场景：
+   npm run test:live:pool
 {sep}"""
         return False, msg
 
@@ -153,36 +151,18 @@ def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 特性驱动全流程实跑测试 (Feature-Driven Live Chat & Export Test)")
-    parser.add_argument("--pool", action="store_true", help="从动态场景池 (scripts/test_scenario_pool.json) 中自动消费 2 个最新多模态场景并归档至 scripts/test_scenario_archive.json")
-    parser.add_argument("--pool-path", default=None, help="自定义场景池文件路径")
+    parser.add_argument("--pool", action="store_true", help="从动态场景池中自动消费最新多模态场景（默认行为）")
     parser.add_argument("--dataset", default=None, help="自定义测试数据集 JSON 文件路径 (AI 协同模式下必须在 2 分钟之内新鲜生成)")
-    parser.add_argument("--allow-stale-dataset", action="store_true", help="允许使用超过 2 分钟时效限制的历史数据集，或在未指定 --dataset 时使用内置默认数据集（供非 AI Agent 的人工本地调试使用）")
+    parser.add_argument("--allow-stale-dataset", action="store_true", help="允许使用超过 2 分钟时效限制的历史数据集（供非 AI Agent 的人工本地调试使用）")
+    parser.add_argument("--keep-chats", action="store_true", help="测试完成后豁免物理删除、保留线上生成的会话（默认 False，跑完即自动彻底删除清理）")
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
     parser.add_argument("--takeout-zip", default=None, help="自定义预置 Takeout ZIP 样本路径")
     args = parser.parse_args()
 
-    if args.pool:
-        try:
-            from scripts.manage_scenario_pool import consume_scenarios, DEFAULT_POOL_PATH, TARGET_POOL_SIZE
-        except ImportError:
-            from manage_scenario_pool import consume_scenarios, DEFAULT_POOL_PATH, TARGET_POOL_SIZE
-        pool_p = args.pool_path or DEFAULT_POOL_PATH
-        print(f"🏊 [场景池模式] 正在从测试池 ({pool_p}) 中提取 2 个最新多模态场景...")
-        try:
-            selected, remaining = consume_scenarios(pool_path=pool_p, count=2, require_imagen=True)
-        except Exception as e:
-            print(f"❌ 场景池消费失败: {e}")
-            sys.exit(1)
-        custom_dataset = selected
-        print(f"   ✅ 已成功消费 2 个场景并在 scripts/test_scenario_archive.json 归档留痕:")
-        for s in selected:
-            print(f"      • [{s.get('id')}] {s.get('title')} ({len(s.get('turns', []))} 轮)")
-        print(f"   💡 当前池剩余水位: {len(remaining)}/{TARGET_POOL_SIZE}")
-        if len(remaining) < TARGET_POOL_SIZE:
-            print(f"   ⚠️ 提示: 场景池剩余不足 {TARGET_POOL_SIZE} 题，请在下次提交 PR 前由 AI 助手构思补齐！")
-    else:
+    custom_dataset = None
+    if args.dataset:
         valid, result_or_err = validate_dataset_freshness(
             args.dataset,
             allow_stale=args.allow_stale_dataset
@@ -197,6 +177,7 @@ if __name__ == "__main__":
         port=args.port,
         output_dir=args.output_dir,
         delay=args.delay,
-        takeout_zip=args.takeout_zip
+        takeout_zip=args.takeout_zip,
+        keep_chats=args.keep_chats
     )
     sys.exit(0 if success else 1)

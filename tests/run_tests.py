@@ -514,6 +514,103 @@ def test_scenario_pool_pipeline():
 
     print("  ✓ Scenario pool pipeline, 20-scenario diversity, consume, archive & top-up verified")
 
+def test_online_scenario_provider_and_lifecycle_tracker():
+    import tempfile
+    scripts_dir = os.path.join(BASE_DIR, "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from framework.scenario_provider import OnlineScenarioProvider
+    from framework.lifecycle_tracker import SessionLifecycleTracker
+
+    # 1. Test OnlineScenarioProvider
+    OnlineScenarioProvider.reset()
+    mock_pool = [
+        {"id": "sc_img", "title": "Imagen Test", "features": ["imagen", "creative"], "turns": ["draw a cat", "draw a dog"]},
+        {"id": "sc_code", "title": "Code Test", "features": ["code", "python"], "turns": ["write fibonacci", "optimize it"]},
+    ]
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f_p:
+        json.dump(mock_pool, f_p, ensure_ascii=False)
+        p_path = f_p.name
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f_a:
+        json.dump([], f_a)
+        a_path = f_a.name
+
+    try:
+        prov = OnlineScenarioProvider(pool_path=p_path, archive_path=a_path)
+        status = prov.get_status()
+        assert status["count"] == 2
+        assert status["has_imagen"] == 1
+
+        # Pop imagen
+        sc1 = prov.pop_scenario(required_features=["imagen"])
+        assert sc1["id"] == "sc_img"
+        assert prov.get_status()["count"] == 1
+
+        # Pop next
+        sc2 = prov.pop_scenario()
+        assert sc2["id"] == "sc_code"
+        assert prov.get_status()["count"] == 0
+
+        # Archive check
+        with open(a_path, "r", encoding="utf-8") as af:
+            archived = json.load(af)
+        assert len(archived) == 2
+        assert "consumed_at" in archived[0]
+
+        # Ephemeral query fallback when pool empty
+        eq = prov.pop_ephemeral_query()
+        assert "瞬态一致性" in eq or len(eq) > 10
+
+        # Exhaused pool raises RuntimeError
+        try:
+            prov.pop_scenario()
+            assert False, "Should raise RuntimeError on exhausted pool"
+        except RuntimeError as e:
+            assert "场景池已枯竭" in str(e)
+    finally:
+        OnlineScenarioProvider.reset()
+        for p in [p_path, a_path]:
+            if os.path.isfile(p):
+                os.remove(p)
+
+    # 2. Test SessionLifecycleTracker
+    tracker = SessionLifecycleTracker()
+    tracker.track("chat_abc_1")
+    tracker.track("chat_abc_2")
+    tracker.track("chat_abc_1")  # duplicate
+    assert len(tracker._tracked_chat_ids) == 2
+
+    # mark one deleted
+    tracker.mark_deleted("chat_abc_1")
+    assert "chat_abc_1" in tracker._deleted_chat_ids
+
+    # keep_chats = True should skip teardown
+    deleted = tracker.teardown(None, keep_chats=True)
+    assert deleted == 0
+
+    # mock cdp to test teardown deletion
+    class MockCDP:
+        def __init__(self):
+            self.deleted_ids = []
+        def eval(self, script):
+            return {"x": 10, "y": 10}
+        def call(self, method, params=None):
+            return {}
+
+    mock_cdp = MockCDP()
+    from unittest.mock import patch
+    with patch("scripts.framework.actions.CDPActions.delete_conversation_via_web", return_value=True) as mock_del:
+        success = tracker.teardown(mock_cdp, keep_chats=False)
+        assert success == 1
+        assert "chat_abc_2" in tracker._deleted_chat_ids
+        mock_del.assert_called_once_with(mock_cdp, "chat_abc_2")
+
+    # second teardown should have nothing to delete
+    assert tracker.teardown(mock_cdp, keep_chats=False) == 0
+
+    print("  ✓ OnlineScenarioProvider & SessionLifecycleTracker unit tests passed")
+
+
 def test_tour_status_indicator_styling():
     # 1. Ensure options.html does not define unscoped .ok { ... }
     for html_file in ["src/ui/options/options.html"]:
@@ -721,6 +818,7 @@ test_content_badge_flicker_prevention()
 test_exported_history_and_slot_fallback()
 test_dataset_freshness_gate()
 test_scenario_pool_pipeline()
+test_online_scenario_provider_and_lifecycle_tracker()
 test_tour_status_indicator_styling()
 test_takeout_limit_modal_and_wall_detection()
 test_stage1_architecture_ssot_and_state_isolation()

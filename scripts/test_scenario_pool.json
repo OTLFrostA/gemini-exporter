@@ -1,59 +1,5 @@
 [
   {
-    "id": "ship_of_theseus_philosophy",
-    "title": "忒修斯之船与意识上传同一性哲学思辨",
-    "domain": "philosophy_and_logic",
-    "features": [
-      "blockquotes",
-      "dialectic",
-      "deep_argumentation"
-    ],
-    "description": "测试多层嵌套引用块、递进逻辑推演与哲学反驳",
-    "turns": [
-      "请详细阐述‘忒修斯之船 (Ship of Theseus)’悖论的起源与核心哲学命题，以及托马斯·霍布斯在此基础上增加的‘收集旧木板重建之船’对质料同一性与形式同一性的冲击。",
-      "将忒修斯之船引入现代神经科学思想实验：假设人类大脑神经元被功能完全相同的纳电子仿生芯片以每天 0.01% 的速度逐步替换，主观意识同一性在何时何地发生转移或维持？",
-      "分别用德里克·帕菲特 (Derek Parfit) 的非还原论人格同一性理论 (Relation R) 与四维主义 (Four-Dimensionalism / Worm Theory) 对上述神经元替换实验进行评述。",
-      "针对经典科幻‘星际迷航式量子传送机’（原子分解后在异地完美重组），构建一个支持‘传送等于自杀与复印’的严密演绎推理三段论，并给出反方强有力的反驳。",
-      "总结不同形而上学流派对‘灵魂/自我的本质’给出的终极解释范式。"
-    ]
-  },
-  {
-    "id": "raymarching_sdf_graphics",
-    "title": "计算机图形学：实时光线步进 (Ray Marching) 与有向距离场 (SDF)",
-    "domain": "computer_graphics",
-    "features": [
-      "shaders",
-      "math",
-      "glsl"
-    ],
-    "description": "测试 GLSL 着色器语法高亮、向量微积分数学推导与光照模型",
-    "turns": [
-      "请推导球体 (Sphere) 与圆角立方体 (Rounded Box) 的精确有向距离场 (Signed Distance Function, SDF) 数学定义，并解释为什么负值代表物体内部。",
-      "使用标准 GLSL 编写一个包含球体追踪循环 (Sphere Tracing loop)、表面法线估算 (梯度差分) 以及基础漫反射光照的完整片段着色器核心函数。",
-      "展示如何使用光滑极小值函数 (Smooth Minimum / smin) 在 SDF 中实现两个有机几何形体之间的自然融合熔接 (Metaball 效果)。",
-      "分析带有步长放松 (Over-relaxation) 的增强型 Ray Marching 算法如何将平均迭代步数减少 30% 以上，并指出其在拐角处的伪影陷阱。",
-      "给出利用 SDF 计算软阴影 (Soft Shadows) 的经典 Penumbra 估算算法，并用数学公式说明光源尺寸对半影平滑度的影响。"
-    ]
-  },
-  {
-    "id": "smart_contract_reentrancy_audit",
-    "title": "智能合约安全审计：重入攻击漏洞攻防与形式化验证",
-    "domain": "cybersecurity_web3",
-    "features": [
-      "code",
-      "callouts",
-      "security_audit"
-    ],
-    "description": "测试 Solidity 安全漏洞复现代码、审计告警提示块与安全开发规约",
-    "turns": [
-      "请详细剖析臭名昭著的 The DAO 重入攻击 (Reentrancy Attack) 底层 EVM 执行时序，重点解释 fallback/receive 函数与调用栈深度展开的过程。",
-      "请编写一段存在经典单函数重入漏洞的 Solidity 资金库合约示例代码，并附带黑客利用合约的恶意攻击实现。",
-      "给出售后重构代码，严格遵循检查-生效-交互模式 (Checks-Effects-Interactions Pattern)，并展示如何引入 OpenZeppelin 的 ReentrancyGuard 防护修饰器。",
-      "解释只读重入 (Read-Only Reentrancy) 漏洞是如何在跨合约 DeFi 价格预言机 (Oracle) 交互中产生的，传统的防重入锁为何对此失效？",
-      "列出针对智能合约状态不变量 (Invariants) 编写 Certora 或 Foundry 形式化模糊测试 (Fuzz Testing) 规则的最佳实践。"
-    ]
-  },
-  {
     "id": "silk_road_numismatics",
     "title": "丝绸之路钱币学与跨欧亚贸易网络考证",
     "domain": "historical_archaeology",
@@ -217,24 +163,6 @@
     ]
   },
   {
-    "id": "underwater_bioluminescent_coral_atoll",
-    "title": "发光深海珊瑚环礁与仿生潜水钟水下探险",
-    "domain": "marine_exploration_art",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "description": "测试生物发光水下概念艺术生图 (Imagen)、深海海洋学与流体静力学长推演",
-    "turns": [
-      "请帮我生成一张图片：一座位于水下 2000 米的宏伟生物发光珊瑚环礁探险基地。中央悬浮着带有弧形发光观察窗的黄铜镀层仿生潜水钟，周围环绕着发出幽蓝与翠绿荧光的深海珊瑚树与半透明水母群，超清 8k 写实水下光影。",
-      "请为这座深海潜水基地设计一套基于浮力调控与海水温差能发电（OTEC）的能量自给自足方案，使用 Markdown 列表条理清晰地列出核心工程模块。",
-      "请再帮我生成一张图片：在潜水钟内部，一位年轻的海洋生物学家正透过巨大弧形玻璃，近距离观察一只身体发出金色脉冲光芒的未知深海巨型章鱼游过的震撼瞬间。",
-      "请设计一个 Markdown 表格，对比该深海基地在耐压壳体材料选择上的优劣（钛合金 TC4 vs 硼硅酸盐高压玻璃 vs 碳纤维缠绕复合材料），包含抗压屈服强度、密度、透光性与制造成本。",
-      "如果基地的外部海水淡化与应急制氧管路因海底热液喷口地震发生震裂，请构思一套基于化学储氧与微生物电解的 72 小时应急闭环维生预案。"
-    ]
-  },
-  {
     "id": "zk_snark_groth16_elliptic_curves",
     "title": "零知识证明密码学：Groth16 协议推导与配对群运算",
     "domain": "cryptography_zkp",
@@ -251,23 +179,6 @@
       "请使用 Rust 结合 arkworks 密码学库编写一个简化的 Groth16 证明结构体定义与配对验证函数骨架代码片段，附带详细的类型与数学对应注释。",
       "请用一个结构化的 Markdown 表格，从可信设置（Trusted Setup）、证明尺寸（Proof Size）、验证延迟（Verification Time）与量子抗性四个维度，横向对比 Groth16、PLONK、Halo2 与 STARK 四大主流 ZKP 方案。",
       "为什么 Groth16 的通用可信设置（Powers of Tau）必须保证至少有一个参与方诚实销毁随机数（Toxic Waste）？若随机数泄露会导致怎样的伪造证明安全灾难？"
-    ]
-  },
-  {
-    "id": "cybernetic_zen_monastery",
-    "domain": "cybernetic_futurism_art",
-    "title": "赛博禅宗枯山水庭院与数字冥想空间",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments"
-    ],
-    "turns": [
-      "请帮我生成一张图片：一座悬浮在赛博朋克近未来高空穹顶下的禅宗枯山水庭院。发光的荧光苔藓、流动的全息水纹砂石庭园、钛合金构建的静虑回廊，背景可见微雨朦胧的霓虹都市夜景，电影质感，虚幻引擎5渲染风格。",
-      "请以建筑哲学家的视角，解析赛博朋克高科技冰冷机械感与东方枯山水虚静审美融合的设计语汇与空间叙事。",
-      "请再生成一张图片：在庭院中央，一位身披光导纤维织造袈裟的仿生人禅师正面对全息枯木盘膝冥想，身边漂浮着散发柔和微光的数字香炉，特写镜头，丁达尔光效。",
-      "探讨在意识数字化与脑机接口普及的时代，人类\"冥想\"行为的神经生物学机制与数字信号干预的伦理边界。",
-      "设计一个用于在脑机交互界面呈现的\"数字枯山水\"交互算法状态机，用伪代码或状态图描述脑电波专注度（Alpha/Theta波）与全息砂纹流速的动态反馈模型。"
     ]
   },
   {
@@ -356,6 +267,101 @@
       "使用 Python (NumPy) 编写一个简化的平面波展开法 (PWE, Plane Wave Expansion) 脚本框架，计算一维周期性布拉格光栅的色散关系并绘制第一布里渊区内的禁带结构图。",
       "详细推演在 60度 或 120度 尖锐拐角 (Sharp Bend) 传输时，谷拓扑边界态如何凭借赝自旋-谷锁定 (Pseudospin-Valley Locking) 抑制背向散射 (Backscattering) 实现无耗损拐弯传播。",
       "分析片上拓扑光子集成芯片在面向量子光源单光子路由与超低功耗光互连时的关键制造公差容忍度与挑战。"
+    ]
+  },
+  {
+    "id": "exoplanet_subsurface_ocean_probe",
+    "title": "系外冰卫星冰下海洋生命探测机器人与热液喷口生化推演",
+    "domain": "astrobiology_planetary_science",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "tables"
+    ],
+    "description": "测试木卫二/土卫二冰下深渊核动力熔冰探测生图 (Imagen)、深海化学渗透假说推演与天体生物学对比表格",
+    "turns": [
+      "请帮我生成一张图片：在木卫二（Europa）厚达数十公里的冰层深处，一台圆柱形发光核动力融冰探测器刚刚穿透冰盖，进入黑暗幽深的冰下海洋。探测器头部探照灯打亮前方一座散发着黑色矿物烟雾与红外热辐射的海底热液喷口，超清 8k 写实太空科考光影。",
+      "请为该冰下海洋探测器设计一套自主导航与声学通信浮标阵列方案，使用 Markdown 列表条理清晰地阐述其在强辐射与无 GPS 极端环境下的定位机制。",
+      "请再帮我生成一张图片：在探测器的高倍共聚焦显微成像室内，机械臂采集到的热液喷口沉积物样本中，正清晰显示出一种具有螺旋硅质骨架、散发微弱化学荧光的奇异外星极端微生物菌落显微特写。",
+      "请设计一个 Markdown 表格，对比木卫二（Europa）、土卫二（Enceladus）与土卫六（Titan）在冰下海洋水化学特征（盐度、pH 值、氧化还原电位、主要溶解气体与可能能量来源）上的异同。",
+      "基于化学渗透偶联假说（Chemiosmotic Coupling），详细推导非光合作用生命在富含甲烷与硫化氢的碱性热液喷口微孔道中起源的热力学自由能变化与质子动力势（Proton Motive Force）形成机制。"
+    ]
+  },
+  {
+    "id": "zero_knowledge_succinct_stark",
+    "title": "密码学与前沿计算：ZK-STARK 多项式承诺与 FRI 协议代数推导",
+    "domain": "applied_cryptography_algebraic_geometry",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "algorithms"
+    ],
+    "description": "测试抗量子透明零知识证明 STARK、代数中间表示 AIR、FRI 折叠算法与 Python 紧凑原型",
+    "turns": [
+      "请详细推导 ZK-STARK 相较于 SNARK 在免信任设置（Transparent Setup）与抗量子性（Post-Quantum Security）上的本质数学优势，说明为何仅依赖对称加密哈希函数与仿射变换。",
+      "使用 LaTeX 公式详细推导出代数中间表示 (AIR, Algebraic Intermediate Representation) 中转移约束多项式（Transition Constraint Polynomials）与边界多项式（Boundary Polynomials）如何组合为单一多项式 P(X)。",
+      "请给出 FRI (Fast Reed-Solomon Interactive Oracle Proofs of Proximity) 协议的折叠步骤（Folding Step）核心算法推导，写出每一轮交互中度数折半的代数关系式。",
+      "请用 Python 编写一段干净紧凑的代码，演示 Reed-Solomon 编码与基于 Merkle Tree 的承诺构建过程，包含生成码字与计算根哈希的核心函数。",
+      "针对递归证明（Recursive STARKs）与 Halo2、Plonky2 等现代证明系统的折叠方案（Nova/HyperNova），分析其在区块链扩容 Rollup 场景下的验证耗时、证明体积与硬件加速（GPU/FPGA）并行度权衡。"
+    ]
+  },
+  {
+    "id": "synthetic_biology_xenobiology_dna",
+    "title": "合成生物学：非天然碱基对与人造细胞异源重构",
+    "domain": "synthetic_biology_xenobiology",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "description": "测试合成生物学人工碱基双螺旋生图 (Imagen)、近邻热力学 Python 脚本与最小基因组推演",
+    "turns": [
+      "请帮我生成一张图片：在极具未来感的高等级无菌合成生物学实验室中心，一个悬浮的全息人造微流控反应器内部，正在人工合成带有第六种人工碱基对的超长双螺旋 DNA 分子链，散发微光，超清 8k 科技感细节。",
+      "请设计一个 Markdown 表格，对比天然 DNA 碱基对（A-T, C-G）与两种典型非天然人工碱基对（如 dNaM-d5SICS 与 dP-dZ）在氢键几何结构、热力学稳定性及 DNA 聚合酶保真度上的差异。",
+      "请再帮我生成一张图片：在光学超分辨荧光显微镜视野下，一个人工合成的酵母原生质体细胞膜透出蓝紫色的荧光，细胞核内正有节奏地进行着异源代谢途径的高表达蛋白分泌过程。",
+      "请用 Python 编写一段紧凑的代码，模拟计算包含自定义扩展人工碱基序列的熔解温度（Melting Temperature, Tm），采用近邻热力学模型（Nearest-Neighbor Method）。",
+      "详述从体外全合成最小基因组（如 JCVI-syn3.0）向具备自主代谢与达尔文进化的完全人造细胞跃迁所面临的三大本质工程瓶颈。"
+    ]
+  },
+  {
+    "id": "quantum_error_correction_surface_code",
+    "title": "量子纠错与表面码：超导量子比特网格拓扑编织与探测器误差推导",
+    "domain": "quantum_error_correction_architecture",
+    "features": [
+      "math",
+      "latex",
+      "algorithms",
+      "physics"
+    ],
+    "description": "测试表面码拓扑算符 LaTeX 推导、最小权重完美匹配 MWPM 解码器对比与容错阈值定理分析",
+    "turns": [
+      "请详细推导表面码（Surface Code）相较于 Shor 码与 Steane 码的拓扑优势，说明为何二维最近邻量子比特耦合网格是超导量子处理器的黄金架构。",
+      "使用 LaTeX 公式写出表面码中 X-稳定子（Vertex Operator）与 Z-稳定子（Plaquette Operator）的本征值方程，并解释当单个物理比特发生相位翻转（Phase-flip）时稳定子测量结果（Syndrome）的代数响应关系。",
+      "针对最小权重完美匹配算法（MWPM, Minimum-Weight Perfect Matching）和现代并行的并查集解码器（Union-Find Decoder），给出在解码综合征（Syndrome Decoding）时的算法时间复杂度与假阳性抑制能力对比分析。",
+      "推导表面码逻辑量子比特的阈值定理（Fault-tolerant Threshold Theorem），给出物理错误率 p 低于多少时可以通过增加晶格尺寸 d 指数级压低逻辑错误率。",
+      "分析容错量子计算（FTQC）中魔术态蒸馏（Magic State Distillation）在实现非 Clifford 门（如 T 门）时的物理资源消耗瓶颈。"
+    ]
+  },
+  {
+    "id": "confidential_computing_enclave_attestation",
+    "domain": "confidential_computing_enclave",
+    "title": "机密计算与硬件飞地：Intel SGX / AMD SEV 远程证明与侧信道攻防",
+    "features": [
+      "code",
+      "math",
+      "tables",
+      "security_audit"
+    ],
+    "turns": [
+      "请对比机密计算领域两大主流硬件飞地技术：Intel SGX (Software Guard Extensions) 与 AMD SEV-SNP (Secure Encrypted Virtualization-Secure Nested Paging)。请以 Markdown 表格的形式，从隔离粒度（进程级 vs 虚拟机级）、内存加密机制（MEE 引擎 vs AES-XTS 硬件密钥）、页表管理权属（OS 托管 vs RMP 反向映射表）、远程证明信任根（Intel PCS vs AMD VCEK）以及物理侧信道暴露面等 5 个维度展开深度横向评测。",
+      "在基于 ECDSA 的非对称远程证明 (DCAP, Data Center Attestation Primitives) 流程中，飞地如何生成包含用户数据度量 (ReportData) 的 MRENCLAVE 证明报告？请详细推导 ReportData 绑定的密码学推导过程，并给出客户端验证 Enclave Quote 真实性与平台证书链 (PCK Cert Chain) 吊销状态 (TCB Recovery) 的数学与逻辑步骤。",
+      "请提供一段符合生产级机密计算规范的高性能 Rust 代码（基于 Linux /dev/sgx_enclave 或 sgx_urts 运行时），展示飞地外部不可信宿主 (Untrusted Host) 与飞地内部可信环境 (Trusted App) 通过 EENTER / EEXIT 指令安全传递入参的边界防护模型。代码需包含对传入指针的严格越界校验（防止 Pointer Poisoning 漏洞）以及内存清零零化 (Zeroize) 处理。",
+      "针对 Foreshadow (L1TF)、AEP (Asynchronous Enclave Exit) 劫持以及内存访问模式侧信道攻击，飞地代码如何实现无分支恒定时间 (Constant-Time) 与混淆内存访问 (Oblivious RAM, ORAM)？请用公式与伪代码阐述 Path ORAM 在硬件飞地环境下的读写复杂度与隐藏访问模式的数学证明。",
+      "请结合云原生机密容器 (Confidential Containers / Kata Containers) 的落地实践，给出一份机密计算基础设施在金融核心清结算场景中的生产部署安全检查清单，涵盖密钥代理服务 (Key Broker Service, KBS)、度量引导策略 (Measured Boot) 与硬件故障转移降级防范。"
     ]
   }
 ]

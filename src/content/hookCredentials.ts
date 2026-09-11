@@ -154,6 +154,11 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
         try {
             const convId = extractConversationId(url, body);
             const slot = getSlotFromUrl(url);
+            try {
+                (window as any).__geminiIsStreaming = true;
+                (window as any).__geminiLastStreamStart = Date.now();
+                if (convId) (window as any).__geminiActiveStreamConvId = convId;
+            } catch {}
             window.postMessage({
                 type: Events.STREAM_START,
                 payload: { id: convId, slot }
@@ -167,6 +172,11 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
         try {
             const convId = extractConversationId(url, body, responseText);
             const slot = getSlotFromUrl(url);
+            try {
+                (window as any).__geminiIsStreaming = false;
+                (window as any).__geminiLastStreamComplete = Date.now();
+                if (convId) (window as any).__geminiActiveStreamConvId = convId;
+            } catch {}
             window.postMessage({
                 type: Events.STREAM_COMPLETE,
                 payload: { id: convId, slot, url: (url || '').toString() }

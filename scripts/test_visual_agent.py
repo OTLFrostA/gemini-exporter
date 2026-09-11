@@ -40,6 +40,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, ensure_extension_loaded, get_browser_ws_url, CDP_DEFAULT_PORT
 from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
+from scripts.framework.scenario_provider import OnlineScenarioProvider
+from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
 
 DESIGNATED_HISTORICAL_CHATS = [
     {
@@ -75,13 +77,16 @@ DESIGNATED_HISTORICAL_CHATS = [
 
 
 class VisualTestingAgent:
-    def __init__(self, port=CDP_DEFAULT_PORT, output_dir=None, ext_id=None, enable_ai_review=False):
+    def __init__(self, port=CDP_DEFAULT_PORT, output_dir=None, ext_id=None, enable_ai_review=False, keep_chats=False):
         self.port = port
         self.repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         self.output_dir = output_dir or os.path.join(self.repo_dir, "tests", "output", "visual_audit")
         os.makedirs(self.output_dir, exist_ok=True)
         self.ext_id = ext_id or ensure_extension_loaded(self.port, repo_path=self.repo_dir)
         self.enable_ai_review = enable_ai_review
+        self.keep_chats = keep_chats
+        self.provider = OnlineScenarioProvider()
+        self.tracker = SessionLifecycleTracker()
         self.snapshots = []
         self.audit_log = []
 
@@ -386,8 +391,9 @@ class VisualTestingAgent:
         # Part A: 瞬态自毁会话实时清理与布局无损审计 (Real-time Ephemeral Chat Pruning)
         # -------------------------------------------------------------
         self.log("\n--- [A. 瞬态自毁会话实时清理与布局无损视觉审计] ---", "INFO")
-        eph_id = "vis_eph_chat_8888"
-        eph_title = "瞬态自毁测试会话 (待实时清理)"
+        scenario = self.provider.pop_scenario(min_turns=1)
+        eph_id = f"vis_{scenario.get('id', 'eph')}"
+        eph_title = scenario.get('title', '瞬态自毁测试会话')
         cdp.eval(f"""
         (() => {{
             return new Promise((resolve) => {{
@@ -1220,8 +1226,8 @@ class VisualTestingAgent:
         self.log(f"HTML 自包含交互报告已落盘: {html_path}", "PASS")
 
 
-def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, full_mode=False, takeout_zip=None):
-    agent = VisualTestingAgent(port=port, output_dir=output_dir, enable_ai_review=enable_ai_review)
+def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, full_mode=False, takeout_zip=None, keep_chats=False):
+    agent = VisualTestingAgent(port=port, output_dir=output_dir, enable_ai_review=enable_ai_review, keep_chats=keep_chats)
     agent.log("🚀 启动 Gemini Exporter 纯视觉 AI 盲测与 UI 质检自动化执行...", "INFO")
     if full_mode:
         agent.log("✨ 已启用全量全流程闭环实测模式 (--full)", "INFO")
@@ -1298,6 +1304,18 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
 
         return success
     finally:
+        # 全生命周期用完即焚自动回收
+        try:
+            tabs = get_tabs(port)
+            gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+            if gemini_tab:
+                cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
+                try:
+                    agent.tracker.teardown(cdp_clean, keep_chats=keep_chats)
+                finally:
+                    cdp_clean.close()
+        except Exception as e:
+            agent.log(f"Teardown 清理异常: {e}", "WARN")
         cdp.close()
 
 
@@ -1307,6 +1325,7 @@ def main():
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for visual reports and screenshots")
     parser.add_argument("--ai-review", action="store_true", help="Enable Gemini 2.0 Flash Multimodal UI Review (requires GEMINI_API_KEY)")
     parser.add_argument("--full", action="store_true", help="Run full-blown visual E2E export, asset verification and spec assertion")
+    parser.add_argument("--keep-chats", action="store_true", help="测试完成后豁免物理删除、保留线上生成的会话（默认 False，跑完即自动彻底删除清理）")
     parser.add_argument("--takeout-zip", default=None, help="Custom Takeout ZIP path for import testing")
     args = parser.parse_args()
 
@@ -1315,7 +1334,8 @@ def main():
         output_dir=args.output_dir,
         enable_ai_review=args.ai_review,
         full_mode=args.full,
-        takeout_zip=args.takeout_zip
+        takeout_zip=args.takeout_zip,
+        keep_chats=args.keep_chats
     )
     sys.exit(0 if success else 1)
 

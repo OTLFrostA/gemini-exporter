@@ -30,7 +30,7 @@ class CDPAssertions:
             const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
             const lastResp = modelResponses.length > 0 ? modelResponses[modelResponses.length - 1] : null;
             const textLen = lastResp ? (lastResp.textContent || '').length : 0;
-            const hasImages = lastResp ? !!lastResp.querySelector('img, [data-image-id], mat-card-image') : false;
+            const hasImages = lastResp ? !!lastResp.querySelector('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container, [data-image-id], mat-card-image') : false;
             return {
                 userCount: userQueries.length,
                 modelCount: modelResponses.length,
@@ -52,8 +52,8 @@ class CDPAssertions:
             return False, f"模型回复数量不足: 模型 {model_count} < 提问 {user_count}", state
         if is_streaming:
             return False, "页面仍处于流式生成状态 (streaming flag active)", state
-        if last_len == 0:
-            return False, "末尾模型回复内容为空 (0 字符)", state
+        if last_len == 0 and not state.get("hasImages"):
+            return False, "末尾模型回复内容为空 (0 字符且无图片实体)", state
 
         return True, f"流式完成已断言 (轮次: {user_count}, 字符数: {last_len}, 包含图片: {state.get('hasImages')})", state
 
