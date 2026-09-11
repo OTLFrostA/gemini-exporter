@@ -42,9 +42,9 @@ from scripts.framework.cases import (
 )
 
 try:
-    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
+    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
 except ImportError:
-    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
+    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
 
 
 DEFAULT_SCENARIOS = [
@@ -124,7 +124,7 @@ class FrameworkRunner:
         finally:
             try:
                 tabs = get_tabs(self.port)
-                gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+                gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
                 if gemini_tab:
                     cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
                     try:

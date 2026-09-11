@@ -14,7 +14,7 @@ import json
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from scripts.cdp_client import CDPConnection, get_tabs
+from scripts.cdp_client import CDPConnection, get_tabs, is_gemini_url
 
 TEST_TITLE_KEYWORDS = [
     "赛博",
@@ -30,7 +30,7 @@ TEST_TITLE_KEYWORDS = [
 
 def cleanup_orphan_chats(port=9222):
     tabs = get_tabs(port)
-    gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+    gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
     if not gemini_tab:
         print("❌ 未在 127.0.0.1:9222 中找到 gemini.google.com 页面！")
         return 0

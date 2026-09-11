@@ -18,9 +18,9 @@ from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
 
 try:
-    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
+    from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
 except ImportError:
-    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
+    from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
 
 
 class TestContext:
@@ -62,7 +62,7 @@ class TestContext:
 
     def get_gemini_tab(self) -> Optional[Dict[str, Any]]:
         tabs = get_tabs(self.port)
-        return next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+        return next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
 
     def ensure_gemini_tab(self) -> Optional[Dict[str, Any]]:
         tab = self.get_gemini_tab()

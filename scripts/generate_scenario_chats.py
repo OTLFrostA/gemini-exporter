@@ -31,9 +31,9 @@ import urllib.request
 import urllib.error
 
 try:
-    from scripts.cdp_client import CDPConnection, get_tabs, CDP_DEFAULT_PORT
+    from scripts.cdp_client import CDPConnection, get_tabs, CDP_DEFAULT_PORT, is_gemini_url
 except ImportError:
-    from cdp_client import CDPConnection, get_tabs, CDP_DEFAULT_PORT
+    from cdp_client import CDPConnection, get_tabs, CDP_DEFAULT_PORT, is_gemini_url
 
 try:
     sys.stdout.reconfigure(line_buffering=True)
@@ -49,7 +49,7 @@ def get_gemini_tab(port=CDP_DEFAULT_PORT):
         sys.exit(1)
 
     for tab in tabs:
-        if "gemini.google.com" in tab.get("url", ""):
+        if is_gemini_url(tab.get("url", "")):
             return tab
 
     # 未找到则尝试新开一个

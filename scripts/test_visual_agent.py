@@ -38,7 +38,7 @@ except Exception:
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, ensure_extension_loaded, get_browser_ws_url, CDP_DEFAULT_PORT
+from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, ensure_extension_loaded, get_browser_ws_url, CDP_DEFAULT_PORT, is_gemini_url
 from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
@@ -403,7 +403,7 @@ class VisualTestingAgent:
         self.log("==================================================", "INFO")
 
         tabs = get_tabs(self.port)
-        gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+        gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
 
         if gemini_tab:
             # 真实闭环：通过真实 Gemini 页面触发删除与追加提问 (无写库作弊)
@@ -1142,7 +1142,7 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
     # 确保刷新活跃的 Gemini 标签页以注入最新 Content Scripts 并建立有效通信
     tabs = get_tabs(port)
     for t in tabs:
-        if "gemini.google.com" in t.get("url", ""):
+        if is_gemini_url(t.get("url", "")):
             try:
                 agent.log("正在刷新 gemini.google.com 页面以连接最新 Content Script 与悬浮徽标...", "INFO")
                 g_cdp = CDPConnection(t["webSocketDebuggerUrl"])
@@ -1208,7 +1208,7 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
         # 全生命周期用完即焚自动回收
         try:
             tabs = get_tabs(port)
-            gemini_tab = next((t for t in tabs if "gemini.google.com" in t.get("url", "")), None)
+            gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
             if gemini_tab:
                 cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
                 try:
