@@ -25,6 +25,7 @@ export interface ParseTakeoutHtmlOutput {
 
 export interface TakeoutHtmlParserModule {
     stripHtmlTags: (html?: string | null | any) => string;
+    unescapeHtmlEntities: (str: string) => string;
     parseTakeoutPrompt: (block: string) => { promptText: string; hasExplicitPrompt: boolean };
     parseTakeoutTimestamp: (block: string) => number | null;
     parseTakeoutHtmlBlocks: (options: ParseTakeoutHtmlOptions) => Promise<ParseTakeoutHtmlOutput>;
@@ -53,6 +54,23 @@ export function stripHtmlTags(html?: string | null | any): string {
         html = html.replace(/<[^>]+>/g, '');
     } while (html !== prev);
     return html;
+}
+
+/**
+ * Safely unescapes basic HTML entities in a single pass to prevent double-unescaping vulnerabilities.
+ */
+export function unescapeHtmlEntities(str: string): string {
+    if (!str || typeof str !== 'string') return '';
+    return str.replace(/&(?:amp|lt|gt|quot|#39);/g, (match) => {
+        switch (match) {
+            case '&amp;': return '&';
+            case '&lt;': return '<';
+            case '&gt;': return '>';
+            case '&quot;': return '"';
+            case '&#39;': return "'";
+            default: return match;
+        }
+    });
 }
 
 /**
@@ -274,7 +292,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                 const h1Match = responseHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
                 let docTitle = 'Deep Research Report';
                 if (h1Match) {
-                    docTitle = stripHtmlTags(h1Match[1]).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim();
+                    docTitle = unescapeHtmlEntities(stripHtmlTags(h1Match[1])).trim();
                 }
                 const convHtml = (globalThis as any).ChatFormatter?.convertHtmlToMarkdown;
                 let docMd = convHtml ? convHtml(responseHtml) : responseHtml.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
@@ -480,6 +498,7 @@ export function correlateGeneratedImages(
 
 export const TakeoutHtmlParser: TakeoutHtmlParserModule = {
     stripHtmlTags,
+    unescapeHtmlEntities,
     parseTakeoutPrompt,
     parseTakeoutTimestamp,
     parseTakeoutHtmlBlocks,
