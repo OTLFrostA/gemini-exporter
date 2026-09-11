@@ -605,11 +605,19 @@ def test_takeout_limit_modal_and_wall_detection():
     print("  ✓ Takeout limit modal & Google sliding window wall detection verified")
 
 def test_stage1_architecture_ssot_and_state_isolation():
-    # 1. Verify per-slot aborts in background.ts/js
-    bg_ts = os.path.join(BASE_DIR, "src/background/background.ts")
-    bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/background/background.js")
-    with open(bg_js_path, "r", encoding="utf-8") as f:
-        bg_code = f.read()
+    # 1. Verify per-slot aborts in background.ts/js (or modular src/background/)
+    bg_dir = os.path.join(BASE_DIR, "src/background")
+    if os.path.isdir(bg_dir):
+        bg_code = ""
+        for bf_name in sorted(os.listdir(bg_dir)):
+            if bf_name.endswith(".ts") or bf_name.endswith(".js"):
+                with open(os.path.join(bg_dir, bf_name), "r", encoding="utf-8") as bf:
+                    bg_code += bf.read() + "\n"
+    else:
+        bg_ts = os.path.join(BASE_DIR, "src/background/background.ts")
+        bg_js_path = bg_ts if os.path.isfile(bg_ts) else os.path.join(BASE_DIR, "src/background/background.js")
+        with open(bg_js_path, "r", encoding="utf-8") as f:
+            bg_code = f.read()
     assert "__bgAborts" in bg_code and "Map" in bg_code, "background.js must isolate abort flags per account slot using Map"
     assert not re.search(r'let\s+__bgAborted\s*=\s*(?:false|true);', bg_code), "background.js must not contain mutable global __bgAborted"
     assert "isSlotAborted" in bg_code and "setSlotAborted" in bg_code, "background.js must provide slot-aware abort helpers"

@@ -3,12 +3,30 @@ import assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-// Test that background source exists (ts or js) and satisfies architectural rules
-test('Background - static contract and AST checks', () => {
+function getBackgroundCode(): string {
+    const bgDir = path.join(__dirname, '../src/background');
+    if (fs.existsSync(bgDir)) {
+        const bgFiles = fs.readdirSync(bgDir).filter(f => f.endsWith('.ts') || f.endsWith('.js'));
+        return bgFiles.map(f => fs.readFileSync(path.join(bgDir, f), 'utf8')).join('\n');
+    }
     const bgTsPath = path.join(__dirname, '../src/background/background.ts');
     const bgJsPath = path.join(__dirname, '../src/background/background.js');
     const bgPath = fs.existsSync(bgTsPath) ? bgTsPath : bgJsPath;
-    const bgCode = fs.readFileSync(bgPath, 'utf8');
+    return fs.readFileSync(bgPath, 'utf8');
+}
+
+// Test that background source exists (ts or js) and satisfies architectural rules
+test('Background - static contract and AST checks', () => {
+    const bgDir = path.join(__dirname, '../src/background');
+    const bgCode = getBackgroundCode();
+
+    // Architecture modularity check
+    assert.ok(fs.existsSync(path.join(bgDir, 'abortManager.ts')), 'abortManager module must exist');
+    assert.ok(fs.existsSync(path.join(bgDir, 'keepAlive.ts')), 'keepAlive module must exist');
+    assert.ok(fs.existsSync(path.join(bgDir, 'tabAction.ts')), 'tabAction module must exist');
+    assert.ok(fs.existsSync(path.join(bgDir, 'liveSaveHandler.ts')), 'liveSaveHandler module must exist');
+    assert.ok(fs.existsSync(path.join(bgDir, 'batchFetcher.ts')), 'batchFetcher module must exist');
+    assert.ok(fs.existsSync(path.join(bgDir, 'lifecycle.ts')), 'lifecycle module must exist');
 
     // Per-slot aborts
     assert.ok(bgCode.includes('__bgAborts') && bgCode.includes('Map'), 'background must isolate abort flags per slot using Map');
@@ -63,8 +81,7 @@ test('Popup - openOptions removal and disabled styling', () => {
 });
 
 test('Background - tab action icon contextual state management', () => {
-    const bgTsPath = path.join(__dirname, '../src/background/background.ts');
-    const bgCode = fs.readFileSync(bgTsPath, 'utf8');
+    const bgCode = getBackgroundCode();
 
     assert.ok(bgCode.includes('updateTabActionState'), 'background must define updateTabActionState');
     assert.ok(bgCode.includes('ACTION_GRAY_ICONS'), 'background must configure gray action icons');
@@ -167,8 +184,7 @@ test('Background - keepAlive lifecycle timer', () => {
 });
 
 test('Background - liveSaveViaHandle native handle persistence and non-intercepting fallback', () => {
-    const bgTsPath = path.join(__dirname, '../src/background/background.ts');
-    const bgCode = fs.readFileSync(bgTsPath, 'utf8');
+    const bgCode = getBackgroundCode();
 
     assert.ok(bgCode.includes("msg.action === 'liveSaveViaHandle'"), 'background must handle liveSaveViaHandle action');
     assert.ok(bgCode.includes('getStoredDirHandle') || bgCode.includes('getStoredExportDirHandle'), 'background must read export directory handle from IndexedDB');

@@ -812,7 +812,11 @@ test('regression: content.js must fallback to DOM when batchexecute returns empt
 });
 
 test('regression: background Receiving end error must hint refresh', () => {
-    const bgContent = fs.readFileSync(path.join(__dirname, '../src/background/background.js'), 'utf8');
+    const bfTsPath = path.join(__dirname, '../src/background/batchFetcher.ts');
+    const bgPath = fs.existsSync(bfTsPath)
+        ? bfTsPath
+        : path.join(__dirname, '../src/background/background.js');
+    const bgContent = fs.readFileSync(bgPath, 'utf8');
     assert.ok(bgContent.includes('Receiving end does not exist'), 'should handle Receiving end');
     assert.ok(bgContent.includes('刷新 gemini.google.com'), 'should hint refresh after reload');
 });
