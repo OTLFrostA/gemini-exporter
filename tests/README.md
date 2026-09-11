@@ -137,5 +137,6 @@ python3 scripts/test_live_chat_and_export.py \
 
 * `tests/fixtures/gemini_takeout_clean.zip`：测试账号真实剥离后的纯净 Takeout 样本（包含 6 条已知历史会话与火星猫图片资产）；
 * `tests/helpers/export_spec_asserter.py`：全维度 Markdown 导出规范断言与 Lint 核心模块；
-* `scripts/test_live_chat_and_export.py`：第二层全流程实跑编排器（CDP 控制、实时问答、Takeout 导入、ZIP 导出与解压断言）；
+* `scripts/framework/`：模块化特性驱动测试框架核心（包含 18 项声明式特性定义 `features.py`、CDP 操作原语 `actions.py`、严格物理断言 `assertions.py` 与流程编排执行器 `runner.py`）；
+* `scripts/test_live_chat_and_export.py`：第二层全流程特性驱动实跑入口（委托至 `FrameworkRunner` 执行 5 大生命周期领域 18 项特性全闭环验证并输出检验矩阵报告）；
 * `scripts/open_test_chrome.sh` / `scripts/open_test_chrome.ps1` / `scripts/open_test_chrome.cmd`：自动化拉起独立调试 Chrome 的跨平台脚本。
