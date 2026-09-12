@@ -18,7 +18,6 @@
     "pool:status": "python3 scripts/manage_scenario_pool.py status",
     "pool:validate": "python3 scripts/manage_scenario_pool.py validate",
     "test:visual": "python3 scripts/test_visual_agent.py",
-    "test:visual:full": "python3 scripts/test_visual_agent.py --full",
     "release": "gh workflow run release.yml --ref main"
   },
   "keywords": [

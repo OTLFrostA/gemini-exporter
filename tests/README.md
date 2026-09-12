@@ -91,12 +91,9 @@ npm run test:live:local
 
 ### 2. 运行命令
 ```bash
-# 运行纯视觉 AI 盲测与 UI 质检
+# 运行纯视觉全流程闭环实测 (向导 ➔ Takeout 导入 ➔ 物理勾选 ➔ 物理导出 ➔ 规范断言)
 npm run test:visual
 
-# 运行纯视觉全量全流程闭环实测 (向导 ➔ Takeout 导入 ➔ 物理勾选 ➔ 物理导出 ➔ 规范断言)
-npm run test:visual:full
-
 # 启用 Gemini 2.0 Flash 视觉大模型多模态深度体检报告
-python3 scripts/test_visual_agent.py --full --ai-review
+python3 scripts/test_visual_agent.py --ai-review
 ```

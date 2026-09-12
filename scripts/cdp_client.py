@@ -211,13 +211,9 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
 
 def ensure_extension_loaded(port=CDP_DEFAULT_PORT, repo_path=None):
     """
-    确保工作区扩展已加载到 Chrome 中。若未加载，直接通过 Chrome Browser WebSocket
-    调用 Extensions.loadUnpacked 原生静默挂载，杜绝一切系统文件弹窗。
+    确保工作区扩展已加载到 Chrome 中。优先通过 Chrome Browser WebSocket
+    调用 Extensions.loadUnpacked 原生静默挂载当前 repo_path，返回权威 extension ID。
     """
-    eid = get_extension_id(port)
-    if eid:
-        return eid
-
     repo_path = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), ".."))
     browser_ws = get_browser_ws_url(port)
     if browser_ws:
