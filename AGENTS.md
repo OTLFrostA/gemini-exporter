@@ -66,9 +66,8 @@
 
 ### 第三层：纯视觉 AI 盲测与 UI 质检体系 (Visual Inspection & Feature Parity)
 * **执行命令**：
-  - `npm run test:visual`：新手向导碰撞与 0 遮挡检测、排版截断、弹窗背景遮罩全屏防穿透、老会话置顶升权物理 Hit-Testing、瞬态自毁会话实时剥离布局无损审计。
-  - `npm run test:visual:full`：在上述基础上闭环执行 Google Takeout 导入、全量历史扫描与标题在线权威升级、4 大核心分类黄金会话物理光标逐项勾选、物理导出 ZIP、解压资产校验与 4 大分类多模态规范断言（`ExportSpecificationAsserter`）。
-  - 带多模态 AI 审查：`python3 scripts/test_visual_agent.py --full --ai-review`（可选通过 Gemini 2.0 Flash 视觉模型对全流程截屏出具质检报告）。
+  - `npm run test:visual`（对应 `python3 scripts/test_visual_agent.py`）：纯视觉全流程闭环实测。涵盖新手向导碰撞与 0 遮挡检测、排版截断、弹窗背景遮罩全屏防穿透、老会话置顶升权物理 Hit-Testing、瞬态自毁会话实时剥离布局无损审计，并闭环执行 Google Takeout 导入、全量历史扫描与标题权威升级、4 大核心分类黄金会话物理光标逐项勾选、物理导出 ZIP、解压资产校验与 4 大分类多模态规范断言（`ExportSpecificationAsserter`）。
+  - 带多模态 AI 审查：`python3 scripts/test_visual_agent.py --ai-review`（可选通过 Gemini 2.0 Flash 视觉模型对全流程截屏出具质检报告）。
 * **功能一致性保证**：纯视觉测试套件已与全流程实跑测试达成 100% 业务生命周期对齐，在视觉质检（0 遮挡、文本截断、背景遮罩、Hit-Testing）的基础上，物理穿透验证老会话置顶、瞬态删除清理、Takeout 合流与 4 大黄金多模态分类（Imagen 生图、Python 装饰器、量子对比表格、深空探测科学报告）物理导出规范落地。
 
 ---
@@ -98,11 +97,8 @@ npm run test:live:local
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
-# 运行纯视觉 AI 盲测与 UI 质检自动化套件 (向导 0 遮挡碰撞、老会话置顶、瞬态删除剥离与物理 Hit-Testing)
+# 运行纯视觉全流程闭环盲测与 UI 质检套件 (全量闭环：向导 0 遮挡 ➔ Takeout 导入 ➔ 标题权威升级 ➔ 4 大分类物理勾选 ➔ 导出 ZIP ➔ 规范断言)
 npm run test:visual
-
-# 运行纯视觉全量全流程闭环测试 (向导 -> Takeout 导入 -> 标题权威升级 -> 4 大分类物理勾选 -> 导出 ZIP -> 规范断言 -> 视觉质检)
-npm run test:visual:full
-# 或带多模态审查: python3 scripts/test_visual_agent.py --full --ai-review
+# 或带多模态模型审查: python3 scripts/test_visual_agent.py --ai-review
 ```
 

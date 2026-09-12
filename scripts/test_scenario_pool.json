@@ -1,42 +1,5 @@
 [
   {
-    "id": "cloud_native_chaos_circuit_breaker",
-    "title": "云原生微服务：自适应熔断降级与混沌工程演练",
-    "domain": "cloud_native_reliability",
-    "features": [
-      "diagrams",
-      "tables",
-      "resilience"
-    ],
-    "description": "测试微服务高可用熔断器状态机、自适应并发限制与混沌实验设计",
-    "turns": [
-      "请画出经典熔断器 (Circuit Breaker) 在 Closed、Open 与 Half-Open 三种状态之间的转换时序图，并说明基于滑动时间窗口的失败率统计算法。",
-      "阐述 Netflix Hystrix 的固定线程池隔离与 Envoy 基于梯度下降算法的自适应并发限制 (Adaptive Concurrency Limit) 在长尾延迟突增时的表现差异。",
-      "为一套包含 API Gateway、订单服务、支付微服务与库存系统的电商核心链路，设计一份混沌工程 (Chaos Engineering) 故障注入演练剧本，使用 Markdown 表格明确实验假设、稳态指标 (Steady State)、注入手段与回滚预案。",
-      "如何防范微服务级联雪崩 (Cascading Failure) 中的‘重试风暴 (Retry Storm)’？详细解析指数退避加抖动 (Exponential Backoff with Full Jitter) 的算法原理。",
-      "结合分布式链路追踪 (OpenTelemetry Trace/Span)，说明如何在百万级 RPS 规模下实现基于错误与长延迟的自适应尾部采样 (Tail-based Sampling)。"
-    ]
-  },
-  {
-    "id": "robotics_impedance_control_dynamics",
-    "title": "机器人动力学：六自由度机械臂阻抗控制与李代数姿态插值",
-    "domain": "robotics_and_control",
-    "features": [
-      "math",
-      "code",
-      "differential_equations",
-      "algorithms"
-    ],
-    "description": "测试刚体动力学微分方程、李群 SE(3) 旋量理论与实时阻抗控制代码",
-    "turns": [
-      "请从拉格朗日力学（Lagrangian Mechanics）出发，详细推导含重力项、离心力与科氏力矩阵的标准刚体机械臂动力学方程 M(q)q'' + C(q,q')q' + g(q) = tau，并证明其质量矩阵 M(q) 的对称正定性及 M'(q) - 2C(q,q') 的斜对称性。",
-      "在机械臂与未知刚度环境接触装配任务中，位置控制往往会导致接触力过大甚至失稳。请详细推导基于力矩的笛卡尔空间阻抗控制（Cartesian Impedance Control）律，并写出包含虚拟质量、阻尼与刚度的二阶期望阻抗动态微分方程。",
-      "请使用 Python (NumPy) 编写一个六自由度末端位姿在李群 SE(3) 上的流形轨迹插值算法（使用李代数 se(3) 的对数与指数映射，避免欧拉角奇异性与万向节死锁），并附带详细注释。",
-      "请用一个 Markdown 表格，对比导纳控制（Admittance Control）、阻抗控制（Impedance Control）以及力/位混合控制（Hybrid Position/Force Control）在适用传感器硬件、控制内环类型与接触环境刚度适应性上的核心区别。",
-      "针对机械臂末端有效载荷（Payload）未知变化带来的模型失配，如何引入基于李雅普诺夫（Lyapunov）稳定性的自适应控制或扩张状态观测器（ESO）实现扰动补偿？给出收敛性证明思路。"
-    ]
-  },
-  {
     "id": "zk_snark_groth16_elliptic_curves",
     "title": "零知识证明密码学：Groth16 协议推导与配对群运算",
     "domain": "cryptography_zkp",
@@ -379,6 +342,48 @@
       "使用 Python 编写一个面向硬件感知训练 (Hardware-Aware Training) 的 PyTorch 自定义算子层，在前向传播矩阵乘中注入基于正态分布的对数电导噪声与器件阻态量化限制，并展示后向传播直通估计器 (STE)。",
       "设计一套基于差分对 (Differential Pair) 结构的忆阻器阵列零点漂移在线背景自校准电路拓扑与脉冲重编程状态机控制流程。",
       "使用 Markdown 表格横向对比氧空位氧化物 RRAM、硫族化合物相变存储器 PCM、自旋轨道力矩磁阻存储器 SOT-MRAM 与铁电场效应晶体管 FeFET 在编程耐久度 (Endurance)、多值存储级别 (Levels)、开关功耗及存内计算成熟度指标。"
+    ]
+  },
+  {
+    "id": "distributed_raft_consensus_partition_healing",
+    "domain": "distributed_consensus_and_storage",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "请系统推演 Raft 分布式共识协议在面临网络三向分区（Split-Brain）时的状态机安全保证。请用 LaTeX 公式形式化定义选举超时时间约束与 Leader 租约有效期。",
+      "请用 Python 编写一个最小化可运行的 Raft 节点状态机（包含 Follower/Candidate/Leader 状态转移、Term 任期自增与 AppendEntries RPC 请求处理）。",
+      "当发生多数派网络分区（Partition A: 3节点, Partition B: 2节点）时，请用 Markdown 对比表格列出两个分区在接收写入请求时的状态机提交响应（Commit Index 推进、未提交日志截断与客户端超时行为）。",
+      "当网络分区恢复愈合时，低任期旧 Leader 是如何通过高任期的心跳 RPC 降级为 Follower 并由状态机对齐日志的？请写出详细日志复制校验算法。",
+      "请总结 Raft 与 Multi-Paxos 在强一致性线性一致读（Linearizable Read）实现机制（如 ReadIndex 与 Lease Read）上的核心性能与实现复杂度对比。"
+    ],
+    "title": "分布式系统与实时流计算：基于 Raft 共识引擎的状态机复制与网络分区自愈",
+    "description": "深入推演 Raft 共识协议在网络三向分区下的选举与复制安全性，包含最小化状态机实现、脑裂恢复与线性一致读对比。"
+  },
+  {
+    "id": "autonomous_driving_bev_spatial_temporal_fusion",
+    "title": "自动驾驶端到端架构：BEVFormer 纯视觉多相机环视感知识别与时序融合",
+    "domain": "autonomous_driving_perception",
+    "description": "深入推演自动驾驶 BEV (Bird-Eye-View) 感知架构，包含时空 Cross-Attention 数学公式、PyTorch 伪代码、3D 目标检测对比表格与 Imagen 鸟瞰语义生图。",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "math",
+      "latex",
+      "tables"
+    ],
+    "turns": [
+      "请系统推演自动驾驶纯视觉 BEV (Bird’s-Eye-View) 环视感知架构的核心原理。请用 LaTeX 公式形式化推导 2D 多相机图像特征到 3D BEV 空间的网格投影过程，重点阐述可变形注意力（Deformable Attention）的空间交叉注意力（Spatial Cross-Attention）计算方程。",
+      "请用 PyTorch 编写一个简明高效的 BEV 时序自注意力（Temporal Self-Attention）模块核心实现（包含历史帧 BEV 特征与当前帧基于自车运动 Ego-Motion 速度偏航角的坐标对齐插值与加权融合）。",
+      "请帮我生成一张图片：夜晚暴雨场景下，自动驾驶测试车通过 6 颗环视摄像头在车载激光雷达与多模态屏幕上投影出霓虹风格的高精度 3D 鸟瞰（BEV）语义网格图，包含车辆预测轨迹线与 3D 边界框，赛博朋克极简科幻风格。",
+      "请用 Markdown 对比表格系统梳理学术界三大经典视觉 BEV 方案（LSS/BEVDet、BEVFormer、StreamPETR）在相机内外参标定容错率、时序融合显存开销、FPS 帧率以及 nuScenes 3D 检测 mAP 上的核心差异与工业落地取舍。",
+      "在真实车载量产部署时，当遭遇某颗相机脏污遮挡或强逆光盲区时，时序 BEV 空间特征网络是如何通过卡尔曼滤波与历史特征保持航向估计鲁棒性的？请给出防御性自适应加权算法。"
     ]
   }
 ]

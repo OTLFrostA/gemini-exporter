@@ -403,7 +403,7 @@ class VisualTestingAgent:
         self.log("==================================================", "INFO")
 
         tabs = get_tabs(self.port)
-        gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+        gemini_tab = next((t for t in tabs if t.get("type") == "page" and is_gemini_url(t.get("url", ""))), None)
 
         if gemini_tab:
             # 真实闭环：通过真实 Gemini 页面触发删除与追加提问 (无写库作弊)
@@ -667,6 +667,11 @@ class VisualTestingAgent:
         self.log("🎯 计算目标会话坐标并执行真实物理光标逐项点击选择...", "THINK")
         select_targets = cdp.eval("""
         (() => {
+            const searchInput = document.getElementById('search');
+            if (searchInput && searchInput.value) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
             const selectNone = document.getElementById('btnSelectNone');
             if (selectNone) selectNone.click();
 
@@ -1014,13 +1019,13 @@ class VisualTestingAgent:
             self.log(f"调用 Gemini 视觉模型提示: {e}", "WARN")
             return None
 
-    def generate_reports(self, ai_review=None, full_mode=False):
+    def generate_reports(self, ai_review=None):
         # 1. 生成 Markdown 报告
         md_path = os.path.join(self.output_dir, "visual_audit_report.md")
         lines = [
             "# Gemini Exporter — 纯视觉 AI 盲测与 UI 质检报告",
             f"\n- **执行时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"- **测试模式**: {'全量闭环纯视觉测试 (--full)' if full_mode else '界面与向导纯视觉盲测'}",
+            "- **测试模式**: 全量闭环纯视觉实测 (Visual AI Full E2E)",
             f"- **截屏留档数**: {len(self.snapshots)} 张",
             "\n## 视觉质量审计汇总 (Quality Assertions)",
             "| 质检项 | 检验方式 | 判定标准 | 审计结论 |",
@@ -1031,14 +1036,12 @@ class VisualTestingAgent:
             "| **文本截断与溢出** | `scrollWidth` 与 `clientWidth` 比对 | 按钮与操作控件文字 0 截断 | **✅ 排版结构完整** |",
             "| **模态遮罩全屏防漏** | 全视口覆盖与坐标遮蔽探测 | 阻止背景控件被非预期误触 | **✅ 全屏隔离生效** |",
             "| **老会话继续对话置顶** | 时间戳触达与列表首位重排检测 | 追加对话后即刻跃升至列表首位 (Index 0) | **✅ 实时置顶提权生效** |",
-            "| **瞬态自毁会话实时清理** | 删除事件广播与 DOM 剥离校验 | 删除后无需刷新无损平滑剥离 (0 残留空白) | **✅ 实时剥离且布局完整** |"
+            "| **瞬态自毁会话实时清理** | 删除事件广播与 DOM 剥离校验 | 删除后无需刷新无损平滑剥离 (0 残留空白) | **✅ 实时剥离且布局完整** |",
+            "| **Takeout 离线合流与升级** | Takeout 样本合流与全量历史扫描 | 初始具备提问前缀并完成在线权威覆盖 | **✅ 合流与晋级生效** |",
+            "| **4大核心分类物理联合导出** | 真实光标勾选与物理点击导出 | 成功勾选生图/代码/表格/深空并导出 ZIP | **✅ 100% 物理闭环** |",
+            "| **多媒体资产实体归档** | 物理附件落盘与体积校验 | 图片等资产实体存在且非空 (> 0 字节) | **✅ 物理提取有效** |",
+            "| **多模态全维度规范断言** | ExportSpecificationAsserter | 4 大黄金分类 Markdown/表格/代码/图片断言 | **✅ 100% 黄金规范合格** |"
         ]
-
-        if full_mode:
-            lines.append("| **Takeout 离线合流与升级** | Takeout 样本合流与全量历史扫描 | 初始具备提问前缀并完成在线权威覆盖 | **✅ 合流与晋级生效** |")
-            lines.append("| **4大核心分类物理联合导出** | 真实光标勾选与物理点击导出 | 成功勾选生图/代码/表格/深空并导出 ZIP | **✅ 100% 物理闭环** |")
-            lines.append("| **多媒体资产实体归档** | 物理附件落盘与体积校验 | 图片等资产实体存在且非空 (> 0 字节) | **✅ 物理提取有效** |")
-            lines.append("| **多模态全维度规范断言** | ExportSpecificationAsserter | 4 大黄金分类 Markdown/表格/代码/图片断言 | **✅ 100% 黄金规范合格** |")
 
         if ai_review:
             lines.append("\n## Gemini 2.0 视觉质检员多模态分析报告")
@@ -1070,7 +1073,7 @@ class VisualTestingAgent:
             <tr><td><b>4大核心分类物理联合导出</b></td><td>真实光标勾选与物理点击导出</td><td>成功勾选生图/代码/表格/深空并导出 ZIP</td><td><span class="badge-pass">PASS (100% 物理闭环)</span></td></tr>
             <tr><td><b>多媒体资产实体归档</b></td><td>物理附件落盘与体积校验</td><td>图片等资产实体存在且非空 (> 0 字节)</td><td><span class="badge-pass">PASS (物理提取有效)</span></td></tr>
             <tr><td><b>多模态全维度规范断言</b></td><td>ExportSpecificationAsserter</td><td>4 大黄金分类 Markdown/表格/代码/图片断言</td><td><span class="badge-pass">PASS (100% 黄金规范合格)</span></td></tr>
-        """ if full_mode else ""
+        """
 
         html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -1095,7 +1098,7 @@ class VisualTestingAgent:
 </head>
 <body>
     <h1>🎯 Gemini Exporter — 纯视觉 AI 盲测与 UI 质检报告</h1>
-    <div class="subtitle">执行时间: {time.strftime('%Y-%m-%d %H:%M:%S')} · 模式: {'全量闭环纯视觉测试 (--full)' if full_mode else '界面与向导纯视觉盲测'} (Page.captureScreenshot & Input.dispatchMouseEvent)</div>
+    <div class="subtitle">执行时间: {time.strftime('%Y-%m-%d %H:%M:%S')} · 模式: 全量闭环纯视觉实测 (Visual AI Full E2E) (Page.captureScreenshot & Input.dispatchMouseEvent)</div>
 
     <table>
         <thead>
@@ -1127,11 +1130,9 @@ class VisualTestingAgent:
         self.scorecard.save()
 
 
-def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, full_mode=False, takeout_zip=None, keep_chats=False):
+def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, takeout_zip=None, keep_chats=False):
     agent = VisualTestingAgent(port=port, output_dir=output_dir, enable_ai_review=enable_ai_review, keep_chats=keep_chats)
-    agent.log("🚀 启动 Gemini Exporter 纯视觉 AI 盲测与 UI 质检自动化执行...", "INFO")
-    if full_mode:
-        agent.log("✨ 已启用全量全流程闭环实测模式 (--full)", "INFO")
+    agent.log("🚀 启动 Gemini Exporter 纯视觉 AI 盲测与 UI 质检全流程实测...", "INFO")
 
     if not agent.ext_id:
         agent.log(f"❌ 无法检测到 Chrome 上的扩展 ID (端口 {port})，请确认 Chrome 正在运行", "FAIL")
@@ -1142,7 +1143,7 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
     # 确保刷新活跃的 Gemini 标签页以注入最新 Content Scripts 并建立有效通信
     tabs = get_tabs(port)
     for t in tabs:
-        if is_gemini_url(t.get("url", "")):
+        if t.get("type") == "page" and is_gemini_url(t.get("url", "")):
             try:
                 agent.log("正在刷新 gemini.google.com 页面以连接最新 Content Script 与悬浮徽标...", "INFO")
                 g_cdp = CDPConnection(t["webSocketDebuggerUrl"])
@@ -1153,7 +1154,7 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
                 pass
 
     tabs = get_tabs(port)
-    welcome_tab = next((t for t in tabs if f"chrome-extension://{agent.ext_id}" in t.get("url", "")), None)
+    welcome_tab = next((t for t in tabs if t.get("type") == "page" and f"chrome-extension://{agent.ext_id}" in t.get("url", "") and "options.html" in t.get("url", "")), None)
 
     if not welcome_tab:
         agent.log("正在通过 CDP 打开 options.html?welcome=1 视口页面...", "INFO")
@@ -1184,10 +1185,8 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
         # 3.5 执行生命周期实时同步与置顶纯视觉物理审计
         lifecycle_ok = agent.run_realtime_lifecycle_visual_audit(cdp)
 
-        # 4. 若启用 --full，执行全量 Takeout 导入、物理勾选与导出断言
-        full_ok = True
-        if full_mode:
-            full_ok = agent.run_full_export_and_spec_audit(cdp, takeout_zip=takeout_zip)
+        # 4. 执行全量 Takeout 导入、物理勾选与导出断言
+        full_ok = agent.run_full_export_and_spec_audit(cdp, takeout_zip=takeout_zip)
 
         # 5. 可选多模态模型质检
         ai_review = None
@@ -1195,9 +1194,9 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
             ai_review = agent.run_optional_ai_vision_review()
 
         # 6. 生成报告
-        agent.generate_reports(ai_review=ai_review, full_mode=full_mode)
+        agent.generate_reports(ai_review=ai_review)
 
-        success = tour_ok and bench_ok and lifecycle_ok and (full_ok if full_mode else True)
+        success = tour_ok and bench_ok and lifecycle_ok and full_ok
         if success:
             agent.log("🏆 🎉 纯视觉 AI 盲测与 UI 质检全流程 100% 成功通过！", "PASS")
         else:
@@ -1208,7 +1207,7 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
         # 全生命周期用完即焚自动回收
         try:
             tabs = get_tabs(port)
-            gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+            gemini_tab = next((t for t in tabs if t.get("type") == "page" and is_gemini_url(t.get("url", ""))), None)
             if gemini_tab:
                 cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
                 try:
@@ -1221,11 +1220,11 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gemini Exporter Visual AI Testing Agent")
+    parser = argparse.ArgumentParser(description="Gemini Exporter Visual AI Testing Agent (Full Lifecycle)")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP Remote Debugging Port (default: 9222)")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for visual reports and screenshots")
     parser.add_argument("--ai-review", action="store_true", help="Enable Gemini 2.0 Flash Multimodal UI Review (requires GEMINI_API_KEY)")
-    parser.add_argument("--full", action="store_true", help="Run full-blown visual E2E export, asset verification and spec assertion")
+    parser.add_argument("--full", action="store_true", default=True, help="Full visual E2E export, asset verification and spec assertion (Default: True)")
     parser.add_argument("--keep-chats", action="store_true", help="测试完成后豁免物理删除、保留线上生成的会话（默认 False，跑完即自动彻底删除清理）")
     parser.add_argument("--takeout-zip", default=None, help="Custom Takeout ZIP path for import testing")
     args = parser.parse_args()
@@ -1234,7 +1233,6 @@ def main():
         port=args.port,
         output_dir=args.output_dir,
         enable_ai_review=args.ai_review,
-        full_mode=args.full,
         takeout_zip=args.takeout_zip,
         keep_chats=args.keep_chats
     )
