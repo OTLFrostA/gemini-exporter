@@ -11,10 +11,20 @@ import {
     getSyncCtrl as getSyncController
 } from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
+import { detectSlotFromUrl } from '../../../core/utils/pathUtils.js';
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __maybePromptTakeout: ((count: number, hitLimit: boolean) => Promise<void> | void) | null = null;
+
+async function checkAndPromptTakeoutLimit(count?: number, hitGoogleLimit?: boolean): Promise<void> {
+    const protocol = getProtocol();
+    const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 500;
+    const isLimit = !!hitGoogleLimit || ((count || 0) >= slidingLimit);
+    if (isLimit && __maybePromptTakeout) {
+        await __maybePromptTakeout(count || slidingLimit, !!hitGoogleLimit);
+    }
+}
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (__log) __log(msg, level);
@@ -83,22 +93,12 @@ function bindSyncButtons(): void {
                     }, 2500);
                     if (__loadStore) __loadStore();
                     const currentCount = count || res?.count || (Store && typeof (Store as any).getConversations === 'function' ? (Store as any).getConversations().length : 0);
-                    const protocol = getProtocol();
-                    const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
-                    const isLimit = hitGoogleLimit || (currentCount >= slidingLimit);
-                    if (isLimit && __maybePromptTakeout) {
-                        await __maybePromptTakeout(currentCount, !!hitGoogleLimit);
-                    }
+                    await checkAndPromptTakeoutLimit(currentCount, hitGoogleLimit);
                 },
                 onError: async (err: any, errMsg: string, details: any) => {
                     if (progText) progText.textContent = errMsg;
-                    const protocol = getProtocol();
-                    const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
                     const currentCount = (Store && typeof (Store as any).getConversations === 'function') ? (Store as any).getConversations().length : 0;
-                    const isLimit = details?.hitGoogleLimit || (currentCount >= slidingLimit) || (details?.count >= slidingLimit);
-                    if (isLimit && __maybePromptTakeout) {
-                        await __maybePromptTakeout(currentCount || details?.count || slidingLimit, !!details?.hitGoogleLimit);
-                    }
+                    await checkAndPromptTakeoutLimit(currentCount || details?.count, details?.hitGoogleLimit);
                 }
             });
         }
@@ -124,7 +124,7 @@ export function bindBroadcastListeners(): void {
     chrome.runtime.onMessage.addListener((msg: any) => {
         if (msg.action === 'scanProgress') {
             const progWrap = $('progWrap');
-            const bar = $('progBar') || $('bar');
+            const bar = $('bar');
             const progText = $('progText');
             if (progWrap) progWrap.style.display = 'block';
             let pct = typeof msg.percent === 'number' ? msg.percent : 50;
@@ -132,12 +132,8 @@ export function bindBroadcastListeners(): void {
             if (progText && msg.title) progText.textContent = msg.title;
             if (msg.title) log(msg.title);
 
-            const protocol = getProtocol();
-            const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 600;
-            if ((msg.percent === 100 || msg.done === 1) && (msg.hitGoogleLimit || (msg.count >= slidingLimit))) {
-                if (__maybePromptTakeout) {
-                    __maybePromptTakeout(msg.count || slidingLimit, !!msg.hitGoogleLimit);
-                }
+            if (msg.percent === 100 || msg.done === 1) {
+                checkAndPromptTakeoutLimit(msg.count, msg.hitGoogleLimit);
             }
         }
         if (msg.action === 'syncUpdate') {
@@ -152,11 +148,8 @@ export async function autoDetectActiveSlot(): Promise<void> {
         const Store = getStore();
         if (TabService && TabService.getGeminiTab) {
             const tab = await TabService.getGeminiTab();
-            if (tab && tab.url) {
-                const m = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
-                if (m && Store) {
-                    Store.setCurrentSlot('u' + m[1]);
-                }
+            if (tab && tab.url && Store) {
+                Store.setCurrentSlot(detectSlotFromUrl(tab.url));
             }
         }
     } catch (e) {

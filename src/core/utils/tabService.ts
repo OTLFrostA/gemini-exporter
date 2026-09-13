@@ -1,18 +1,12 @@
 // src/core/utils/tabService.ts - Unified Gemini Tab Discovery & Communication Service
 
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
-
-
+import { detectSlotFromUrl } from './pathUtils.js';
 
     function filterTabsBySlot(tabs: chrome.tabs.Tab[], slot?: string): chrome.tabs.Tab[] {
         if (!tabs || !tabs.length) return [];
-        if (slot && slot !== 'u0') {
-            const slotNum = slot.replace('u', '');
-            return tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
-        } else if (slot === 'u0') {
-            return tabs.filter(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
-        }
-        return tabs;
+        if (!slot) return tabs;
+        return tabs.filter(t => t.url && detectSlotFromUrl(t.url) === slot);
     }
 
     async function getGeminiTab(slot?: string): Promise<chrome.tabs.Tab | null> {

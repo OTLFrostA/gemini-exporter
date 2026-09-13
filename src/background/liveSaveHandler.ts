@@ -1,6 +1,7 @@
 // src/background/liveSaveHandler.ts - Live Save via File System Handle execution and disk state probing
 
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
+import { setLiveConfig } from '../core/storage/liveStorageManager.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
@@ -8,21 +9,14 @@ import { StorageService } from '../core/storage/storageService.js';
 import { buildExportFileName } from '../core/utils/pathUtils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
-    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        try {
-            const data = await chrome.storage.local.get('live_save_config');
-            const cur = data?.live_save_config || {};
-            await chrome.storage.local.set({
-                live_save_config: {
-                    ...cur,
-                    enabledDisk: false,
-                    dirName: '',
-                    dirError: 'not_found'
-                }
-            });
-        } catch {
-            /* ignore */
-        }
+    try {
+        await setLiveConfig({
+            enabledDisk: false,
+            dirName: '',
+            dirError: 'not_found'
+        });
+    } catch {
+        /* ignore */
     }
 }
 
@@ -130,21 +124,14 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         }
 
         const now = Date.now();
-        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-            try {
-                const data = await chrome.storage.local.get('live_save_config');
-                const cur = data?.live_save_config || {};
-                await chrome.storage.local.set({
-                    live_save_config: {
-                        ...cur,
-                        lastSavedAt: now,
-                        lastSavedTitle: safeTitle,
-                        dirError: null
-                    }
-                });
-            } catch {
-                /* best-effort storage update */
-            }
+        try {
+            await setLiveConfig({
+                lastSavedAt: now,
+                lastSavedTitle: safeTitle,
+                dirError: null
+            });
+        } catch {
+            /* best-effort storage update */
         }
 
         // Mark conversation as exported in exportedIds SSoT

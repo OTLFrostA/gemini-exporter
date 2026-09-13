@@ -17,15 +17,9 @@ import {
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';
-import { cleanTitle } from '../../../core/utils/utils.js';
+import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
 
-export { normId, cleanTitle };
-
-export const resolveTitle = (chat: any): { title: string; source: string } => {
-    const utils = getUtils();
-    if (utils && typeof utils.resolveTitle === 'function') return utils.resolveTitle(chat);
-    return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
-};
+export { normId, cleanTitle, resolveTitle };
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -236,18 +230,12 @@ export function checkWalkthroughOnOpen(): void {
             const Tour = getTour();
             if (!Tour) return;
 
-            // 1. Explicit user request to run full tour (e.g. ?tour=1 or manual button click)
-            if (isExplicitTour) {
-                if (Tour.startTour) Tour.startTour(0);
-                return;
-            }
-
             const tourDone = (Storage && Storage.isTourCompleted)
                 ? await Storage.isTourCompleted()
                 : false;
 
-            // 2. Track A: New user onboarding (first time opening workbench, tour not completed)
-            if (!tourDone) {
+            // Track A: Explicit request (?tour=1) or new user onboarding (first time, tour not completed)
+            if (isExplicitTour || !tourDone) {
                 if (Tour.startTour) Tour.startTour(0);
                 return;
             }
@@ -348,11 +336,6 @@ export async function initLiveSaveSettings(): Promise<void> {
                     try {
                         if (DirHandle && typeof DirHandle.requestDirHandle === 'function') {
                             handle = await DirHandle.requestDirHandle();
-                        } else if (typeof window !== 'undefined' && (window as any).showDirectoryPicker) {
-                            handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-                            if (DirHandle && typeof DirHandle.saveStoredDirHandle === 'function') {
-                                await DirHandle.saveStoredDirHandle(handle);
-                            }
                         }
                     } catch (err: any) {
                         diskToggle.checked = false;
