@@ -87,7 +87,7 @@ declare global {
     var detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
 }
 
-import { GeminiUtils, normId as utilsNormId, isRealTitle as utilsIsRealTitle, cleanTitle as utilsCleanTitle } from "../../utils/utils.js";
+import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
 
 /**
@@ -136,18 +136,6 @@ import { GeminiProtocol } from "../../protocol/protocol.js";
     // Protocol anti-corruption layer (see core/protocol/protocol.ts).
     function getProtocol(): any {
         return GeminiProtocol;
-    }
-
-    function normId(id?: string | number | null): string {
-        return utilsNormId(id);
-    }
-
-    function isRealTitle(t?: string | null, fallbackId?: string | number): boolean {
-        return utilsIsRealTitle(t, fallbackId);
-    }
-
-    function cleanTitle(rawTitle?: string | null): string {
-        return utilsCleanTitle(rawTitle);
     }
 
 

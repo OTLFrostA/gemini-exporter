@@ -183,7 +183,7 @@ function getProtocol(): any {
                 }
 
                 if (id) {
-                    let cleanId = String(id).replace(/^c_/, "").trim();
+                    let cleanId = normId(id);
                     const cleanT = cleanTitle(title || cleanId);
                     const isReal = isRealTitle(cleanT, cleanId);
                     convs.push({

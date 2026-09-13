@@ -4,10 +4,7 @@ import { ConversationsStore as DefaultConversationsStore } from '../../state/con
 import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
 import { TakeoutController as DefaultTakeoutCtrl } from '../../controllers/takeoutController.js';
 import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
-
-function $(id: string): HTMLElement | null {
-    return typeof document !== 'undefined' ? document.getElementById(id) : null;
-}
+import { $ } from '../../uiCommon.js';
 
 const getStore = () => {
     if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;

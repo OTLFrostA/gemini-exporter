@@ -306,7 +306,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
 
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
-            let shortScope = convId ? String(convId).replace(/^c_/, "").slice(-6) + "_" : "";
+            let shortScope = convId ? normId(convId).slice(-6) + "_" : "";
             let msgs: any[] = [];
             let dedupSet = new Set<string>();
             let docDedupSet = new Set<string>();

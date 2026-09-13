@@ -52,17 +52,7 @@ function getHtmlParser(): TakeoutHtmlParserModule {
     return DefaultTakeoutHtmlParser;
 }
 
-function normId(id?: string | null): string {
-    try {
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils?.normId) {
-            return (globalThis as any).GeminiUtils.normId(id);
-        }
-        return utilsNormId(id);
-    } catch {
-        if (!id) return "";
-        return String(id).replace(/^c_/, "").trim();
-    }
-}
+const normId = utilsNormId;
 
 /**
  * Strips HTML tags from input string (re-exported for 100% backward compatibility).

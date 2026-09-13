@@ -51,6 +51,7 @@ import GeminiUtils, {
     sanitizeFileName as utilsSanitizeFileName,
     normId as utilsNormId,
     sanitizeRelativePath,
+    buildExportFileName,
     getErrorMessage
 } from "../../utils/utils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
@@ -728,7 +729,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                     const content = formatted.content;
                     const ext = formatted.ext;
                     const safeBase = sanitizeFileName(listTitle, chat.id);
-                    const fileName = `${safeBase}_${chat.id.slice(-6)}.${ext}`;
+                    const fileName = buildExportFileName(listTitle, chat.id, ext);
 
                     let writeOk = true;
                     if (useZip) {

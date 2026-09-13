@@ -1,23 +1,8 @@
-// src/ui/controllers/syncController.ts - Synchronization & Background Scanning Controller
 import type { SyncControllerContract } from '../../types/ui.js';
 import GeminiProtocol, { LIMITS } from '../../core/protocol/protocol.js';
-
-const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
-    }
-    return key;
-};
-
-function hasI18n(): boolean {
-    return typeof I18n !== 'undefined' && typeof I18n.t === 'function';
-}
+import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
 
 let scanRunning = false;
-
-function $(id: string): HTMLElement | null {
-    return typeof document !== 'undefined' ? document.getElementById(id) : null;
-}
 
 export function isScanning(): boolean {
     return scanRunning;
@@ -25,23 +10,9 @@ export function isScanning(): boolean {
 
 export function setScanRunning(running: boolean): void {
     scanRunning = !!running;
-    const btnInc = $('btnIncrementalScan') as HTMLButtonElement | null;
-    const btnDeep = $('btnDeepScan') as HTMLButtonElement | null;
+    setWorkbenchControlsDisabled(running);
     const btnStop = $('btnStopScan');
-    const btnExport = $('btnExport') as HTMLButtonElement | null;
-    const btnImport = $('btnImportTakeout') as HTMLButtonElement | null;
-    const btnSetDir = $('btnSetDir') as HTMLButtonElement | null;
-    const btnClearExp = $('btnClearExported') as HTMLButtonElement | null;
-    const btnClearAll = $('btnClearAll') as HTMLButtonElement | null;
-
-    if (btnInc) btnInc.disabled = !!running;
-    if (btnDeep) btnDeep.disabled = !!running;
     if (btnStop) btnStop.style.display = running ? 'inline-flex' : 'none';
-    if (btnExport) btnExport.disabled = !!running;
-    if (btnImport) btnImport.disabled = !!running;
-    if (btnSetDir) btnSetDir.disabled = !!running;
-    if (btnClearExp) btnClearExp.disabled = !!running;
-    if (btnClearAll) btnClearAll.disabled = !!running;
 }
 
 function isConnectionError(err: string): boolean {

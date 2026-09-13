@@ -12,18 +12,12 @@ export const ACTION_GRAY_ICONS: Record<number, string> = {
     128: 'icons/icon128_gray.png'
 };
 
+import { isGeminiUrl } from '../core/utils/pathUtils.js';
+
 /**
  * Determine if a given URL belongs to the Gemini web domain.
  */
-export function isGeminiTabUrl(urlStr?: string | null): boolean {
-    if (!urlStr || typeof urlStr !== 'string') return false;
-    try {
-        const u = new URL(urlStr);
-        return u.hostname === 'gemini.google.com';
-    } catch {
-        return false;
-    }
-}
+export const isGeminiTabUrl = isGeminiUrl;
 
 /**
  * Update the extension browser action icon and tooltip based on the current tab URL.

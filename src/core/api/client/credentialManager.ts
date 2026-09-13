@@ -1,4 +1,5 @@
 import GeminiProtocol, { GeminiProtocolModule, TOKEN_PATTERNS, TOKENS, BL_FALLBACK } from "../../protocol/protocol.js";
+import { detectSlotFromUrl } from "../../utils/pathUtils.js";
 
 export interface GeminiCredentials {
     sid: string;
@@ -102,8 +103,9 @@ function getProtocol(): GeminiProtocolModule {
         if (typeof document === "undefined") return null;
         try {
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
-            let m = (glob.location && glob.location.pathname || "").match(/\/u\/(\d+)/);
-            if (m) return `u${m[1]}`;
+            const path = (glob.location && glob.location.pathname) || "";
+            const slot = detectSlotFromUrl(path);
+            return slot === "u0" ? "default" : slot;
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
         return "default";
     }

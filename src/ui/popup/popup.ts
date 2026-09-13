@@ -5,6 +5,13 @@ import { I18n } from '../../core/utils/i18n.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
+import {
+    isGeminiUrl,
+    detectSlotFromUrl,
+    extractConversationIdFromUrl,
+    buildExportFileName,
+    normId
+} from '../../core/utils/pathUtils.js';
 
 const Storage = (typeof StorageService !== 'undefined')
     ? StorageService
@@ -36,16 +43,6 @@ const sanitizeFileName = (name: any, fallback: string = 'untitled'): string =>
             : (name || fallback).trim() || fallback));
 
 const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n);
-
-    function isGeminiUrl(urlStr?: string | null): boolean {
-        if (!urlStr || typeof urlStr !== 'string') return false;
-        try {
-            const u = new URL(urlStr);
-            return u.hostname === 'gemini.google.com';
-        } catch {
-            return false;
-        }
-    }
 
     function updateUiForTabState(isGemini: boolean): void {
         const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
@@ -93,8 +90,7 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (tab?.url && isGeminiUrl(tab.url)) {
                 isGemini = true;
-                const m = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
-                if (m) slot = 'u' + m[1];
+                slot = detectSlotFromUrl(tab.url);
             }
             updateUiForTabState(isGemini);
 
@@ -215,14 +211,12 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
                 log(typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com，请先打开 Gemini 对话页');
                 return;
             }
-            const slotMatch = tab.url.match(/\/u\/(\d+)(?:\/|$)/);
-            const slot = slotMatch ? ('u' + slotMatch[1]) : 'u0';
-            const m = tab.url.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
-            if (!m) {
+            const slot = detectSlotFromUrl(tab.url);
+            const convId = extractConversationIdFromUrl(tab.url);
+            if (!convId) {
                 log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话 (URL 中没找到对话 ID)');
                 return;
             }
-            const convId = m[2].replace(/^c_/, '');
             log(typeof i18n !== 'undefined' ? i18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
             if (bar) bar.style.width = '40%';
 
@@ -260,8 +254,7 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
                 const ext = formatted.ext;
                 const mime = formatted.mime;
 
-                const safeTitle = sanitizeFileName(cleanTitle(chat.title || chat.id), 'conversation');
-                const fileName = `${safeTitle}_${convId.slice(-6)}.${ext}`;
+                const fileName = buildExportFileName(cleanTitle(chat.title || chat.id), convId, ext);
                 const blob = new Blob([content], { type: mime });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -285,7 +278,6 @@ const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as 
                     if (Storage) {
                         await Storage.saveExportRecord(slot, convId, rec);
                         const list = await Storage.getConversations(slot);
-                        const normId = (id: any) => String(id || '').replace(/^c_/, '').trim();
                         const item = list.find((c: any) => normId(c.id) === normId(convId));
                         if (item && finalTitle !== convId && item.title !== finalTitle) {
                             item.title = finalTitle;

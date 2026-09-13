@@ -8,10 +8,7 @@ import GeminiUtils, {
     resolveTitle as utilsResolveTitle,
     getEffectiveTimestamp as utilsGetEffectiveTimestamp
 } from '../../core/utils/utils.js';
-
-function $(id: string): HTMLElement | null {
-    return document.getElementById(id);
-}
+import { $ } from '../uiCommon.js';
 
 const t = (key: string, ...args: any[]): string => {
     if (typeof I18n !== 'undefined' && I18n.t) {

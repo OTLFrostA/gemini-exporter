@@ -197,7 +197,9 @@ export function deduplicateConversations(
         if (/accounts\.google\.com|SignOutOptions/i.test(u)) continue;
 
         const nid = normId(item.id);
-        if (isReservedRoute(nid) || isReservedRoute(item.id) || /\/app\/(download|settings|prompts|archive|trash|share|activity|help|feedback|gems|explore|privacy|terms|updates|faq)($|\/|\?)/i.test(u)) {
+        const uRouteMatch = u.match(/\/app\/([A-Za-z0-9_-]+)/);
+        const uRoute = uRouteMatch ? uRouteMatch[1] : '';
+        if (isReservedRoute(nid) || isReservedRoute(item.id) || isReservedRoute(uRoute)) {
             changedCount++;
             hasDirtyTitles = true;
             continue;

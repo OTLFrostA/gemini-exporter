@@ -5,6 +5,7 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { StorageService } from '../core/storage/storageService.js';
+import { buildExportFileName } from '../core/utils/pathUtils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -85,11 +86,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         const writer = new FsWriterCls(handle, 'gemini_export');
         await writer.init();
 
-        const sanitizedTitle = GeminiUtils?.sanitizeFileName
-            ? GeminiUtils.sanitizeFileName(safeTitle)
-            : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-        const cid6 = String(nid || '').replace(/^c_/, '').slice(-6);
-        const targetFile = fileName || `${sanitizedTitle}_${cid6}.md`;
+        const targetFile = fileName || buildExportFileName(safeTitle, nid, 'md');
 
         const FormatterCls = (typeof ChatFormatter !== 'undefined' && ChatFormatter)
             ? ChatFormatter
