@@ -53,6 +53,21 @@ export function unescapeHtml(text?: string | null): string {
 }
 
 /**
+ * Strips HTML tags recursively to ensure safe plain text output.
+ */
+export function stripHtmlTags(html?: string | null): string {
+    if (!html || typeof html !== 'string') return '';
+    let res = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                  .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    let prev = '';
+    do {
+        prev = res;
+        res = res.replace(/<[^>]+>/g, '');
+    } while (res !== prev);
+    return res;
+}
+
+/**
  * Clean conversation title by removing brand suffixes and prefixes
  */
 export function cleanTitle(rawTitle?: string | null): string {

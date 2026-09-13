@@ -5,7 +5,10 @@
  * document detection, and generated image correlation.
  */
 
-import { normId as utilsNormId } from "../../utils/utils.js";
+import {
+    normId as utilsNormId,
+    stripHtmlTags as utilsStripHtmlTags
+} from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
 import type { Conversation } from "../../../types/index.js";
 
@@ -46,18 +49,7 @@ declare global {
 /**
  * Strips HTML tags recursively to ensure safe plain text output.
  */
-export function stripHtmlTags(html?: string | null | any): string {
-    if (!html || typeof html !== 'string') return '';
-    // Strip script and style elements including their nested content safely
-    html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-    let prev: string;
-    do {
-        prev = html;
-        html = html.replace(/<[^>]+>/g, '');
-    } while (html !== prev);
-    return html;
-}
+export const stripHtmlTags = utilsStripHtmlTags;
 
 /**
  * Safely unescapes basic HTML entities in a single pass to prevent double-unescaping vulnerabilities.
