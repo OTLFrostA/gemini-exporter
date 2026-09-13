@@ -230,21 +230,15 @@ export function checkWalkthroughOnOpen(): void {
         if (typeof window === 'undefined') return;
         const urlParams = new URLSearchParams(window.location.search);
         const isExplicitTour = urlParams.get('tour') === '1';
-        const isTourDisabled = urlParams.get('tour') === '0' || urlParams.get('notour') === '1';
 
         setTimeout(async () => {
             const Storage = getStorage();
             const Tour = getTour();
             if (!Tour) return;
 
-            // 1. Explicit user request to run full tour
+            // 1. Explicit user request to run full tour (e.g. ?tour=1 or manual button click)
             if (isExplicitTour) {
                 if (Tour.startTour) Tour.startTour(0);
-                return;
-            }
-
-            // 2. Explicitly disabled (e.g. automated tests or specific opt-out)
-            if (isTourDisabled) {
                 return;
             }
 
@@ -252,7 +246,7 @@ export function checkWalkthroughOnOpen(): void {
                 ? await Storage.isTourCompleted()
                 : false;
 
-            // 3. Track A: New user onboarding (first time opening workbench, tour not completed)
+            // 2. Track A: New user onboarding (first time opening workbench, tour not completed)
             if (!tourDone) {
                 if (Tour.startTour) Tour.startTour(0);
                 return;
