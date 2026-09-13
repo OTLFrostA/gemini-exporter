@@ -94,69 +94,47 @@ export async function loadStore(slotOverride?: string): Promise<{
 export async function getLastSync(slot?: string): Promise<{ timestamp: number | null; count: number }> {
     const s = slot || currentSlot || 'u0';
     const storage = getStorage();
-    if (storage && storage.getLastSync) return await storage.getLastSync(s);
-    const syncKey = s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`;
-    const countKey = s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`;
-    const countKeyLegacy = s === 'u0' ? 'gemini_last_sync_count' : `gemini_last_sync_count_${s}`;
-    const data: any = await chrome.storage.local.get([syncKey, countKey, countKeyLegacy]);
-    return { timestamp: data[syncKey] || null, count: (typeof data[countKey] === 'number' ? data[countKey] : data[countKeyLegacy]) || 0 };
+    if (storage?.getLastSync) return await storage.getLastSync(s);
+    return { timestamp: null, count: 0 };
 }
 
 export async function saveConversations(slot: string, list: Conversation[]): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
-    if (storage) await storage.setConversations(s, list);
-    else {
-        const convKey = s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`;
-        await chrome.storage.local.set({ [convKey]: list || [] });
-    }
+    if (storage?.setConversations) await storage.setConversations(s, list);
     if (s === currentSlot) setConversations(list);
 }
 
 export async function saveExportedIds(slot: string, map: Record<string, ExportRecord>): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
-    if (storage) await storage.setExportedIds(s, map);
-    else {
-        const expKey = s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
-        await chrome.storage.local.set({ [expKey]: map || {} });
-    }
+    if (storage?.setExportedIds) await storage.setExportedIds(s, map);
     if (s === currentSlot) setExportedIds(map);
 }
 
 export async function clearExported(slot: string): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
-    if (storage && storage.setExportedIds) await storage.setExportedIds(s, {});
-    else {
-        const expKey = s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
-        await chrome.storage.local.remove([expKey]);
-    }
+    if (storage?.setExportedIds) await storage.setExportedIds(s, {});
     if (s === currentSlot) setExportedIds({});
 }
 
 export async function clearAll(slot: string): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
-    if (storage && storage.setConversations) await storage.setConversations(s, []);
-    else {
-        const convKey = s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`;
-        await chrome.storage.local.remove([convKey]);
-    }
+    if (storage?.setConversations) await storage.setConversations(s, []);
     if (s === currentSlot) setConversations([]);
 }
 
 export async function getDevMode(): Promise<boolean> {
     const storage = getStorage();
-    if (storage && storage.getDevMode) return await storage.getDevMode();
-    const d = await chrome.storage.local.get(['gemini_dev_mode']);
-    return !!d.gemini_dev_mode;
+    if (storage?.getDevMode) return await storage.getDevMode();
+    return false;
 }
 
 export async function setDevMode(devOn: boolean): Promise<void> {
     const storage = getStorage();
-    if (storage && storage.setDevMode) await storage.setDevMode(devOn);
-    else await chrome.storage.local.set({ gemini_dev_mode: !!devOn });
+    if (storage?.setDevMode) await storage.setDevMode(devOn);
 }
 
 export async function removeConversation(id: string): Promise<Conversation[]> {
@@ -164,10 +142,8 @@ export async function removeConversation(id: string): Promise<Conversation[]> {
     const nid = normId(id);
     const storage = getStorage();
     conversations = (conversations || []).filter(c => normId(c.id) !== nid);
-    if (storage && storage.removeConversation) {
+    if (storage?.removeConversation) {
         await storage.removeConversation(currentSlot, nid);
-    } else {
-        await saveConversations(currentSlot, conversations);
     }
     return conversations;
 }

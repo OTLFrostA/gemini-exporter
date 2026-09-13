@@ -15,31 +15,17 @@ import {
 } from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';
-import { cleanTitle, isRealTitle } from '../../../core/utils/utils.js';
+import {
+    cleanTitle,
+    isRealTitle,
+    resolveTitle,
+    getEffectiveTimestamp,
+    compareConversations
+} from '../../../core/utils/utils.js';
 
-export { normId, cleanTitle, isRealTitle };
-
+export { normId, cleanTitle, isRealTitle, resolveTitle, compareConversations };
+export const getEffectiveTime = getEffectiveTimestamp;
 export const isBad = (tStr?: string | null, id?: string | null): boolean => !isRealTitle(tStr, id || undefined);
-
-export const resolveTitle = (chat: any): { title: string; source: string } => {
-    const utils = getUtils();
-    if (utils && typeof utils.resolveTitle === 'function') return utils.resolveTitle(chat);
-    return { title: cleanTitle(chat?.title) || '未命名对话', source: chat?.titleSource || 'legacy' };
-};
-
-export const getEffectiveTime = (conv: any): number => {
-    const utils = getUtils();
-    if (utils && typeof utils.getEffectiveTimestamp === 'function') return utils.getEffectiveTimestamp(conv);
-    if (!conv) return 0;
-    const ts = conv.updatedAt || conv.timestamp || 0;
-    return (typeof ts === 'string') ? new Date(ts).getTime() : ts;
-};
-
-export const compareConversations = (a: any, b: any): number => {
-    const utils = getUtils();
-    if (utils && typeof utils.compareConversations === 'function') return utils.compareConversations(a, b);
-    return 0;
-};
 
 let __lastRenderedSignature = '';
 let __lastRenderTime = 0;

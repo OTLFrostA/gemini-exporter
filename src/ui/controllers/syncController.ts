@@ -29,6 +29,17 @@ export function formatSyncErrorMessage(err: string): string {
     return hasI18n() ? t('syncFailed', errStr) : `同步失败: ${errStr}`;
 }
 
+export function isServerRateOrQuotaLimit(text?: string | null): boolean {
+    if (!text) return false;
+    const str = String(text);
+    return str.includes('BardErrorInfo') ||
+        str.includes('服务端上限') ||
+        str.includes(GeminiProtocol?.LIMITS?.SERVER_LIMIT_TEXT || '') ||
+        str.includes('1096') ||
+        str.includes('429') ||
+        /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(str);
+}
+
 function _runScan(
     mode: 'incremental' | 'full',
     slot: string,
@@ -56,20 +67,8 @@ function _runScan(
             res?.hitGoogleLimit ||
             res?.diagnostics?.hitGoogleLimit ||
             (mode === 'full' && ((res?.count >= slidingLimit) || (res?.total >= slidingLimit))) ||
-            (res?.diagnostics?.stopReason && (
-                res.diagnostics.stopReason.includes('BardErrorInfo') ||
-                res.diagnostics.stopReason.includes('服务端上限') ||
-                res.diagnostics.stopReason.includes(GeminiProtocol?.LIMITS?.SERVER_LIMIT_TEXT || '') ||
-                res.diagnostics.stopReason.includes('1096') ||
-                res.diagnostics.stopReason.includes('429') ||
-                /quota|rate\s*limit|resource_exhausted/i.test(res.diagnostics.stopReason)
-            )) ||
-            (res?.error && (
-                String(res.error).includes('BardErrorInfo') ||
-                String(res.error).includes('1096') ||
-                String(res.error).includes('429') ||
-                /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(String(res.error))
-            ))
+            isServerRateOrQuotaLimit(res?.diagnostics?.stopReason) ||
+            isServerRateOrQuotaLimit(res?.error)
         );
 
         if (res && res.success) {

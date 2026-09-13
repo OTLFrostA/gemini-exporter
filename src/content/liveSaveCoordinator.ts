@@ -238,11 +238,13 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 return false;
             }
 
-            // 3. Update configuration metadata
-            await Storage.setLiveConfig({
-                lastSavedAt: now,
-                lastSavedTitle: safeTitle
-            });
+            // 3. Update configuration metadata if direct disk write occurred (background updates its own)
+            if (dirHandle) {
+                await Storage.setLiveConfig({
+                    lastSavedAt: now,
+                    lastSavedTitle: safeTitle
+                });
+            }
 
             // 4. Visual Feedback via Badge
             const Badge = getBadge();
