@@ -58,13 +58,8 @@ export async function parseTakeoutZip(
     }
 
     const guard = (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) || ZipBombGuard;
-    if (guard && guard.validateZipFile) {
+    if (guard?.validateZipFile) {
         guard.validateZipFile(file);
-    } else {
-        const MAX_ZIP_SIZE = 500 * 1024 * 1024;
-        if (file && typeof file.size === 'number' && file.size > MAX_ZIP_SIZE) {
-            throw new Error(`Takeout ZIP 体积过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)，超过 ${MAX_ZIP_SIZE / 1024 / 1024}MB 上限，请确认是否为完整 Takeout 归档`);
-        }
     }
 
     if (onProgress) onProgress(15, '正在解压 Takeout 压缩包...');
@@ -72,14 +67,8 @@ export async function parseTakeoutZip(
     const zip = (file && typeof file.file === 'function' && file.files)
         ? file
         : await (JSZip as any).loadAsync(file);
-    if (guard && guard.validateZipEntries) {
+    if (guard?.validateZipEntries) {
         guard.validateZipEntries(zip);
-    } else {
-        const MAX_ENTRY_COUNT = 10000;
-        const entryCount = Object.keys(zip.files).length;
-        if (entryCount > MAX_ENTRY_COUNT) {
-            throw new Error(`ZIP 条目数过多 (${entryCount})，超过 ${MAX_ENTRY_COUNT} 上限，疑似 ZipBomb，已中止`);
-        }
     }
 
     const i18nInstance = typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n;

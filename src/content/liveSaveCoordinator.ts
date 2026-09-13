@@ -62,6 +62,22 @@ function isDev(): boolean {
     return contentContext.isDevMode();
 }
 
+function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle'): void {
+    const isZh = contentContext.isZh();
+    const Badge = getBadge();
+    let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
+    if (errorType === 'permission_not_granted') {
+        warnMsg = isZh ? '⚠ 目录未授权，实时同步已暂停' : '⚠ Folder permission denied, sync paused';
+    } else if (errorType === 'no_dir_handle') {
+        warnMsg = isZh ? '⚠ 目录未就绪，实时同步已暂停' : '⚠ Folder not ready, sync paused';
+    }
+    if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
+        (Badge as any).showLiveSaveWarning(warnMsg, isZh);
+    } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
+        (Badge as any).showLiveSaveFeedback(warnMsg);
+    }
+}
+
 export function init(deps: LiveSaveCoordinatorDeps = {}): void {
     _deps = deps;
     if (isDev()) console.log('[LiveSaveCoordinator] Initialized');
@@ -164,14 +180,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             await Storage.saveLiveDirHandle(null);
                             await Storage.setLiveConfig({ enabledDisk: false, dirName: '', dirError: 'not_found' });
                         } catch { /* best effort */ }
-                        const isZh = contentContext.isZh();
-                        const Badge = getBadge();
-                        const warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
-                        if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
-                            (Badge as any).showLiveSaveWarning(warnMsg, isZh);
-                        } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
-                            (Badge as any).showLiveSaveFeedback(warnMsg);
-                        }
+                        notifyLiveSaveWarning('dir_deleted');
                         return false;
                     }
                     throw err;
@@ -213,19 +222,10 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             }
                         } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || (resp.error === 'no_dir_handle' && config.dirName))) {
                             console.warn(`[LiveSaveCoordinator] Directory handle unavailable (${resp.error}). Aborting live save to avoid polluting Downloads.`);
-                            const isZh = contentContext.isZh();
-                            const Badge = getBadge();
-                            let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
-                            if (resp.error === 'permission_not_granted') {
-                                warnMsg = isZh ? '⚠ 目录未授权，实时同步已暂停' : '⚠ Folder permission denied, sync paused';
-                            } else if (resp.error === 'no_dir_handle') {
-                                warnMsg = isZh ? '⚠ 目录未就绪，实时同步已暂停' : '⚠ Folder not ready, sync paused';
-                            }
-                            if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
-                                (Badge as any).showLiveSaveWarning(warnMsg, isZh);
-                            } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
-                                (Badge as any).showLiveSaveFeedback(warnMsg);
-                            }
+                            const errType = resp.error === 'permission_not_granted'
+                                ? 'permission_not_granted'
+                                : (resp.error === 'no_dir_handle' ? 'no_dir_handle' : 'dir_deleted');
+                            notifyLiveSaveWarning(errType);
                             return false;
                         }
                     } catch (e) {

@@ -4,6 +4,7 @@
  * Supports Markdown (Obsidian / Notion / Logseq optimized), OpenAI JSON, Standard JSON, and Raw JSON.
  */
 import type { Conversation, ChatMessage, Attachment } from "../../types/conversation.js";
+import { unescapeHtml } from "../utils/utils.js";
 
 export interface FormattedResult {
     content: string;
@@ -118,23 +119,12 @@ declare global {
         let res = html;
         // 1. Convert <pre><code> blocks
         res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match, lang, code) => {
-            let cleanCode = code
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&amp;/g, '&');
+            const cleanCode = unescapeHtml(code);
             return `\n\`\`\`${lang || ''}\n${cleanCode.trim()}\n\`\`\`\n`;
         });
         // 2. Inline code
         res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
-            let cleanCode = code
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&amp;/g, '&');
-            return `\`${cleanCode}\``;
+            return `\`${unescapeHtml(code)}\``;
         });
         // 3. Headings
         res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);

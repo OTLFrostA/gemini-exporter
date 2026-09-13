@@ -88,18 +88,12 @@ const DEFAULT = DEFAULT_FORMAT;
     }
 
     function getCurrentFormat(isDev?: boolean, currentVal?: string): string {
-        let v = currentVal !== undefined ? currentVal : DEFAULT;
-        if (!isAllowed(v)) v = DEFAULT;
-        if (v === 'json_raw' && !isDev) v = DEFAULT;
-        return v;
+        return normalizeFormat(currentVal !== undefined ? currentVal : DEFAULT, isDev);
     }
 
     function getFormatFromSelect(selectEl: any, isDev?: boolean): string {
-        let v = selectEl ? selectEl.value : DEFAULT;
-        if (!isAllowed(v)) v = DEFAULT;
         const devMode = isDev !== undefined ? isDev : (typeof document !== 'undefined' && document.body && document.body.classList.contains('dev-mode'));
-        if (v === 'json_raw' && !devMode) v = DEFAULT;
-        return v;
+        return normalizeFormat(selectEl ? selectEl.value : DEFAULT, devMode);
     }
 
     function bindFormatSelect(selectEl: any): void {

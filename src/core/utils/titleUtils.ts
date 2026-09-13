@@ -40,6 +40,19 @@ export function isRealTitle(title?: string | null, id?: string | number): boolea
 }
 
 /**
+ * Decodes standard HTML entities into plain characters.
+ */
+export function unescapeHtml(text?: string | null): string {
+    if (!text || typeof text !== 'string') return '';
+    return text
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+}
+
+/**
  * Clean conversation title by removing brand suffixes and prefixes
  */
 export function cleanTitle(rawTitle?: string | null): string {
