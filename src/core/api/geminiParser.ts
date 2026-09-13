@@ -62,42 +62,42 @@ import * as att from "./parser/attachments.js";
 import * as listMod from "./parser/parseList.js";
 import * as detailMod from "./parser/parseDetail.js";
 
-const GEMINI_JSPB_SCHEMA: GeminiJspbSchema = ext.GEMINI_JSPB_SCHEMA;
+const {
+    GEMINI_JSPB_SCHEMA,
+    detectTurnSchemaDrift,
+    extractModelCandidates,
+    extractCandidateText,
+    robustFirstPayload,
+    extractTurnTimestamp,
+    extractThoughts,
+    extractCitations,
+    extractConversationId,
+    extractConversationTitle,
+    isRealTitle,
+    cleanTitle,
+    normId,
+    safeStructureClean,
+    deepWalk,
+    smartSummarizePrompt,
+    extractMetaTitleFromTop
+} = ext;
 
+const {
+    extractImageSelectionIndex,
+    getImageDedupKey,
+    filterNewImages,
+    highResVariant,
+    extractImages,
+    extractUserFiles,
+    extractDocumentsMeta,
+    findDocContentById,
+    parseDocSections,
+    findDocMarkdownByClues,
+    isInternalChipUrl
+} = att;
 
-    const detectTurnSchemaDrift = ext.detectTurnSchemaDrift || function() { return { isDrifted: false, warnings: [] }; };
-    const extractModelCandidates = ext.extractModelCandidates || function() { return []; };
-    const extractCandidateText = ext.extractCandidateText || function() { return ""; };
-    const robustFirstPayload = ext.robustFirstPayload || function(t: any) { try { return JSON.parse(t); } catch (_) { return null; } };
-    const safeStructureClean = ext.safeStructureClean || function(s: any) { return s || ""; };
-    const deepWalk = ext.deepWalk || function(r: any, v: any) { if (r) v(r); };
-    const extractThoughts = ext.extractThoughts || function() { return null; };
-    const extractCitations = ext.extractCitations || function() { return []; };
-    const extractConversationId = ext.extractConversationId || function(inner: any) { return inner?.[0] || "c_unknown"; };
-    const smartSummarizePrompt = ext.smartSummarizePrompt || function(t: any) { return String(t || "").trim(); };
-    const extractConversationTitle = ext.extractConversationTitle || function() { return { title: "未命名对话", source: "default" }; };
-    const extractMetaTitleFromTop = ext.extractMetaTitleFromTop || function() { return null; };
-    const extractTurnTimestamp = ext.extractTurnTimestamp || function() { return null; };
-    const isRealTitle = ext.isRealTitle || function(t: any) { return !!(t && String(t).trim().length >= 2); };
-    const cleanTitle = ext.cleanTitle || function(t: any) { return String(t || "").trim(); };
-    const normId = ext.normId || function(id: any) { return String(id || "").replace(/^c_/, "").trim(); };
-
-    const extractImageSelectionIndex = att.extractImageSelectionIndex || function() { return undefined; };
-    const getImageDedupKey = att.getImageDedupKey || function(img: any) { return img?.sourceUrl || img?.token || ""; };
-    const filterNewImages = att.filterNewImages || function(imgs: any) { return imgs || []; };
-    const highResVariant = att.highResVariant || function(u: any) { return u; };
-    const isInternalChipUrl = att.isInternalChipUrl || function() { return false; };
-    const extractImages = att.extractImages || function() { return []; };
-    const extractUserFiles = att.extractUserFiles || function() { return []; };
-    const extractDocumentsMeta = att.extractDocumentsMeta || function() { return []; };
-    const findDocContentById = att.findDocContentById || function() { return null; };
-    const parseDocSections = att.parseDocSections || function() { return { sections: [], links: [], contentMarkdown: "" }; };
-    const findDocMarkdownByClues = att.findDocMarkdownByClues || function() { return ""; };
-
-    const extractListItemTimestamp = listMod.extractListItemTimestamp || function() { return null; };
-    const parseList = listMod.parseList || function() { return { conversations: [], nextPageToken: null }; };
-    const parseDetail = detailMod.parseDetail || function() { return { messages: [] }; };
-    const findTurnsDeep = detailMod.findTurnsDeep || function() { return null; };
+const { extractListItemTimestamp, parseList } = listMod;
+const { parseDetail, findTurnsDeep } = detailMod;
 
     /**
      * Facade object exporting all canonical parsing methods and schemas.

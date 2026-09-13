@@ -3,32 +3,34 @@ import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
+import {
+    GeminiUtils,
+    getErrorMessage,
+    cleanTitle,
+    isRealTitle,
+    resolveTitle,
+    compareConversations,
+    mergeConversation,
+    deduplicateConversations
+} from '../core/utils/utils.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
 
-const getStorage = () => (typeof StorageService !== 'undefined'
-    ? StorageService
-    : ((typeof globalThis !== 'undefined' && (globalThis as any).StorageService) || null)) as any;
+const getStorage = () => (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
-const getUtils = () => (typeof GeminiUtils !== 'undefined'
-    ? GeminiUtils
-    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) || null)) as any;
-const getProtocol = () => (typeof GeminiProtocol !== 'undefined'
-    ? GeminiProtocol
-    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiProtocol) || null)) as any;
-const getApiClientClass = () => (typeof GeminiAPIClient !== 'undefined'
-    ? GeminiAPIClient
-    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiAPIClient) || null)) as any;
+const getProtocol = () => (typeof (globalThis as any).GeminiProtocol !== 'undefined' ? (globalThis as any).GeminiProtocol : GeminiProtocol);
+const getApiClientClass = () => (typeof (globalThis as any).GeminiAPIClient !== 'undefined' ? (globalThis as any).GeminiAPIClient : GeminiAPIClient);
 
-export const cleanTitle = (t?: string | null) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(t || '') : (t || '').trim());
-export const isRealTitle = (t?: string | null, id?: string) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
-export const resolveTitle = (chat: any) => (getUtils()?.resolveTitle ? getUtils().resolveTitle(chat) : { title: chat?.title || '未命名对话', source: 'default' });
-export const compareConversations = (a: any, b: any) => (getUtils()?.compareConversations ? getUtils().compareConversations(a, b) : 0);
-export const mergeConversation = (old: any, incoming: any, options?: any) => (getUtils()?.mergeConversation ? getUtils().mergeConversation(old, incoming, options) : { merged: { ...(old || {}), ...(incoming || {}) }, isChanged: true, hasDirtyTitles: false });
-export const deduplicateConversations = (list: any[], options?: any) => (getUtils()?.deduplicateConversations ? getUtils().deduplicateConversations(list, options) : { processed: list || [], changedCount: 0, hasDirtyTitles: false });
+export {
+    cleanTitle,
+    isRealTitle,
+    resolveTitle,
+    compareConversations,
+    mergeConversation,
+    deduplicateConversations
+};
 
 export function isZh(): boolean {
     return contentContext.isZh();

@@ -37,33 +37,12 @@ declare global {
     var I18n: any;
 }
 
-function getZipBombGuard(): ZipBombGuardModule {
-    if (typeof globalThis !== "undefined" && (globalThis as any).ZipBombGuard) return (globalThis as any).ZipBombGuard;
-    return ZipBombGuard;
-}
-
-function getMediaIndex(): MediaIndexModule {
-    if (typeof globalThis !== "undefined" && (globalThis as any).MediaIndex) return (globalThis as any).MediaIndex;
-    return MediaIndex;
-}
-
-function getHtmlParser(): TakeoutHtmlParserModule {
-    if (typeof globalThis !== "undefined" && (globalThis as any).TakeoutHtmlParser) return (globalThis as any).TakeoutHtmlParser;
-    return DefaultTakeoutHtmlParser;
-}
-
 const normId = utilsNormId;
 
 /**
  * Strips HTML tags from input string (re-exported for 100% backward compatibility).
  */
-export function stripHtmlTags(html?: string | null | any): string {
-    const parser = getHtmlParser();
-    if (parser && typeof parser.stripHtmlTags === 'function') {
-        return parser.stripHtmlTags(html);
-    }
-    return htmlStripTags(html);
-}
+export const stripHtmlTags = htmlStripTags;
 
 /**
  * Main coordinator: unpacks Google Takeout archive, scans structure,
@@ -78,7 +57,7 @@ export async function parseTakeoutZip(
         throw new Error('JSZip 库未加载，无法解析 ZIP');
     }
 
-    const guard = getZipBombGuard();
+    const guard = (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) || ZipBombGuard;
     if (guard && guard.validateZipFile) {
         guard.validateZipFile(file);
     } else {
@@ -151,7 +130,7 @@ export async function parseTakeoutZip(
     const htmlText = await activityFile.async('text');
     if (onProgress) onProgress(70, (i18nInstance && typeof i18nInstance.t === 'function') ? i18nInstance.t('takeoutParsingDetail') : '正在解析对话并建立离线媒体索引...');
 
-    const mediaIdx = getMediaIndex();
+    const mediaIdx = (typeof globalThis !== 'undefined' && (globalThis as any).MediaIndex) || MediaIndex;
     const extractC2PATime = mediaIdx?.extractC2PATimestamp || (() => null);
 
     const localGlobalMedia: Record<string, any> = {};
@@ -191,7 +170,7 @@ export async function parseTakeoutZip(
         }
     }
 
-    const parser = getHtmlParser();
+    const parser = (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutHtmlParser) || DefaultTakeoutHtmlParser;
     const parseFn = parser?.parseTakeoutHtmlBlocks || parseTakeoutHtmlBlocks;
     const { extractedMap, localConvCache, localMediaMap, genBlocks } = await parseFn({
         htmlText,

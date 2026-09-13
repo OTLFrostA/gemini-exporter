@@ -3,9 +3,7 @@ import type { IDialogView } from '../../types/ui.js';
 import StorageService from '../../core/storage/storageService.js';
 import ConversationsStore from '../state/conversationsStore.js';
 
-function $(id: string): HTMLElement | null {
-    return typeof document !== 'undefined' ? document.getElementById(id) : null;
-}
+import { $ } from '../uiCommon.js';
 
 const t = (key: string, ...args: any[]): string => {
     if (typeof I18n !== 'undefined' && I18n.t) {
@@ -14,15 +12,8 @@ const t = (key: string, ...args: any[]): string => {
     return key;
 };
 
-const getStorage = () => {
-    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
-    return StorageService;
-};
-
-const getStore = () => {
-    if (typeof (globalThis as any).ConversationsStore !== 'undefined') return (globalThis as any).ConversationsStore;
-    return ConversationsStore;
-};
+const getStorage = () => (globalThis as any).StorageService || StorageService;
+const getStore = () => (globalThis as any).ConversationsStore || ConversationsStore;
 
 export function renderExportBanner(session: any, currentSlot: string, isRunning: boolean): void {
     const banner = $('exportSessionBanner');

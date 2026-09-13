@@ -17,33 +17,17 @@ const t = (key: string, ...args: any[]): string => {
     return key;
 };
 
-export const isRealTitle = (title?: string | null, id?: string | null): boolean => {
-    if (typeof (globalThis as any).GeminiUtils?.isRealTitle === 'function') {
-        return (globalThis as any).GeminiUtils.isRealTitle(title as unknown as string, id as unknown as string);
-    }
-    return utilsIsRealTitle(title, id || undefined);
-};
+export const isRealTitle = (title?: string | null, id?: string | null): boolean =>
+    (globalThis as any).GeminiUtils?.isRealTitle ? (globalThis as any).GeminiUtils.isRealTitle(title, id) : utilsIsRealTitle(title, id || undefined);
 
-export const cleanTitle = (tStr?: string | null): string => {
-    if (typeof (globalThis as any).GeminiUtils?.cleanTitle === 'function') {
-        return (globalThis as any).GeminiUtils.cleanTitle(tStr);
-    }
-    return utilsCleanTitle(tStr);
-};
+export const cleanTitle = (tStr?: string | null): string =>
+    (globalThis as any).GeminiUtils?.cleanTitle ? (globalThis as any).GeminiUtils.cleanTitle(tStr) : utilsCleanTitle(tStr);
 
-export const resolveTitle = (chat: any): { title: string; source: string } => {
-    if (typeof (globalThis as any).GeminiUtils?.resolveTitle === 'function') {
-        return (globalThis as any).GeminiUtils.resolveTitle(chat);
-    }
-    return utilsResolveTitle(chat);
-};
+export const resolveTitle = (chat: any): { title: string; source: string } =>
+    (globalThis as any).GeminiUtils?.resolveTitle ? (globalThis as any).GeminiUtils.resolveTitle(chat) : utilsResolveTitle(chat);
 
-export const getEffectiveTimestamp = (chat?: any): number => {
-    if (typeof (globalThis as any).GeminiUtils?.getEffectiveTimestamp === 'function') {
-        return (globalThis as any).GeminiUtils.getEffectiveTimestamp(chat);
-    }
-    return utilsGetEffectiveTimestamp(chat);
-};
+export const getEffectiveTimestamp = (chat?: any): number =>
+    (globalThis as any).GeminiUtils?.getEffectiveTimestamp ? (globalThis as any).GeminiUtils.getEffectiveTimestamp(chat) : utilsGetEffectiveTimestamp(chat);
 
 export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
     if (!c || !rec) return false;
