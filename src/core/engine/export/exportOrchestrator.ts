@@ -60,6 +60,7 @@ import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.j
 import rateLimitModule, { RateLimitManager, type RateLimitModule } from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
 import TabService from "../../utils/tabService.js";
+import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
 
 export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3';
 export function getExtensionVersion(): string {
@@ -73,51 +74,20 @@ export function getExtensionVersion(): string {
     return EXT_VERSION;
 }
 
-const getUtils = (): GeminiUtilsModule | null => {
-    if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-    return GeminiUtils;
-};
+const getUtils = (): GeminiUtilsModule | null => (globalThis as any).GeminiUtils || GeminiUtils;
+const getProgressReporter = (): any => (globalThis as any).ProgressReporter || progressReporterModule;
+const getBatchWorker = (): BatchWorkerModule => (globalThis as any).BatchWorker || BatchWorker;
+const getSessionRecovery = (): SessionRecoveryModule => (globalThis as any).SessionRecovery || SessionRecovery;
+const getRateLimiter = (): RateLimitModule => (globalThis as any).RateLimitModule || rateLimitModule;
 
-const getProgressReporter = (): any => {
-    if (typeof (globalThis as any).ProgressReporter !== 'undefined') return (globalThis as any).ProgressReporter;
-    return progressReporterModule;
-};
+export const sanitizeFileName = (name?: string | null, fallback?: string): string =>
+    ((globalThis as any).GeminiUtils?.sanitizeFileName || utilsSanitizeFileName)(name, fallback);
 
-const getBatchWorker = (): BatchWorkerModule => {
-    if (typeof (globalThis as any).BatchWorker !== 'undefined') return (globalThis as any).BatchWorker;
-    return BatchWorker;
-};
+export const normId = (id?: string | number | null): string =>
+    ((globalThis as any).GeminiUtils?.normId || utilsNormId)(id);
 
-const getSessionRecovery = (): SessionRecoveryModule => {
-    if (typeof (globalThis as any).SessionRecovery !== 'undefined') return (globalThis as any).SessionRecovery;
-    return SessionRecovery;
-};
-
-const getRateLimiter = (): RateLimitModule => {
-    if (typeof (globalThis as any).RateLimitModule !== 'undefined') return (globalThis as any).RateLimitModule;
-    return rateLimitModule;
-};
-
-export const sanitizeFileName = (name?: string | null, fallback?: string): string => {
-    if (typeof (globalThis as any).GeminiUtils?.sanitizeFileName === 'function') {
-        return (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback);
-    }
-    return utilsSanitizeFileName(name, fallback);
-};
-
-export const normId = (id?: string | number | null): string => {
-    if (typeof (globalThis as any).GeminiUtils?.normId === 'function') {
-        return (globalThis as any).GeminiUtils.normId(id);
-    }
-    return utilsNormId(id);
-};
-
-export const sanitizeZipPath = (p?: string | null): string => {
-    if (typeof (globalThis as any).GeminiUtils?.sanitizeRelativePath === 'function') {
-        return (globalThis as any).GeminiUtils.sanitizeRelativePath(p, 'file');
-    }
-    return sanitizeRelativePath(p, 'file');
-};
+export const sanitizeZipPath = (p?: string | null): string =>
+    ((globalThis as any).GeminiUtils?.sanitizeRelativePath || sanitizeRelativePath)(p, 'file');
 
     function toIso(v: any): string | null {
         if (!v) return null;
@@ -188,28 +158,14 @@ export const sanitizeZipPath = (p?: string | null): string => {
     }
 
     async function ensureSubDir(root: any, subPath: string): Promise<any> {
-        const FsWriter = (globalThis as any).FsWriter;
-        if (typeof FsWriter !== 'undefined' && FsWriter.ensureSubDir) {
-            return await FsWriter.ensureSubDir(root, subPath);
-        }
-        let cur = root;
-        const parts = subPath.split('/').filter(Boolean).filter(p => p !== '.' && p !== '..').map(p => sanitizeFileName(p, 'dir'));
-        for (let p of parts) {
-            if (!p || p === '.' || p === '..') continue;
-            cur = await cur.getDirectoryHandle(p, { create: true });
-        }
-        return cur;
+        const fn = (globalThis as any).FsWriter?.ensureSubDir || fsEnsureSubDir;
+        return await fn(root, subPath);
     }
 
-    async function getGeminiTab(slot?: string): Promise<any> {
-        const tabSvc = (typeof (globalThis as any).TabService !== 'undefined') ? (globalThis as any).TabService : TabService;
-        return tabSvc && typeof tabSvc.getGeminiTab === 'function' ? await tabSvc.getGeminiTab(slot) : null;
-    }
+    const getGeminiTab = async (slot?: string): Promise<any> =>
+        ((globalThis as any).TabService || TabService)?.getGeminiTab?.(slot) ?? null;
 
-    const getAssetPipelineClass = (): any => {
-        if (typeof (globalThis as any).AssetPipeline !== 'undefined') return (globalThis as any).AssetPipeline;
-        return null;
-    };
+    const getAssetPipelineClass = (): any => (globalThis as any).AssetPipeline || null;
 
     class ExportOrchestrator {
         aborted: boolean;

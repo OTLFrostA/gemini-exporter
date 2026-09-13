@@ -1,6 +1,6 @@
 // src/ui/popup/popup.ts - Popup UI controller for Gemini Exporter
 
-import { GeminiUtils } from '../../core/utils/utils.js';
+import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { I18n } from '../../core/utils/i18n.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
@@ -12,37 +12,11 @@ import {
     buildExportFileName,
     normId
 } from '../../core/utils/pathUtils.js';
+import { $, getI18n as commonGetI18n } from '../uiCommon.js';
 
-const Storage = (typeof StorageService !== 'undefined')
-    ? StorageService
-    : ((typeof (globalThis as any).StorageService !== 'undefined')
-        ? (globalThis as any).StorageService
-        : null);
-
-function $(id: string): HTMLElement | null {
-    return typeof document !== 'undefined' ? document.getElementById(id) : null;
-}
-
-function log(_msg: string): void {
-    // no-op: popup no longer shows log stream; badge + button disabled state is sufficient
-    // kept as no-op to avoid touching every caller; callers below are also removed
-}
-
-const cleanTitle = (t: any): string =>
-    (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.cleanTitle === 'function'
-        ? GeminiUtils.cleanTitle(t)
-        : (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.cleanTitle
-            ? (globalThis as any).GeminiUtils.cleanTitle(t)
-            : (t || '').trim()));
-
-const sanitizeFileName = (name: any, fallback: string = 'untitled'): string =>
-    (typeof GeminiUtils !== 'undefined' && typeof GeminiUtils.sanitizeFileName === 'function'
-        ? GeminiUtils.sanitizeFileName(name, fallback)
-        : (typeof (globalThis as any).GeminiUtils !== 'undefined' && (globalThis as any).GeminiUtils.sanitizeFileName
-            ? (globalThis as any).GeminiUtils.sanitizeFileName(name, fallback)
-            : (name || fallback).trim() || fallback));
-
-const getI18n = (): any => (typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n);
+const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
+const log = (_msg: string): void => {};
+const getI18n = (): any => commonGetI18n() || I18n;
 
     function updateUiForTabState(isGemini: boolean): void {
         const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
