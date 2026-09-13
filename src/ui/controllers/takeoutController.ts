@@ -1,38 +1,13 @@
 // src/ui/controllers/takeoutController.ts - Takeout Import Controller
 import type { TakeoutControllerContract } from '../../types/ui.js';
-import GeminiUtils, { normId as utilsNormId } from '../../core/utils/utils.js';
 import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
+import { t, normId } from '../uiCommon.js';
 
-const normId = (id?: string | null) => {
-    if (typeof (globalThis as any).GeminiUtils?.normId === 'function') {
-        return (globalThis as any).GeminiUtils.normId(id);
-    }
-    return utilsNormId(id);
-};
-
-const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
-    }
-    return key;
-};
-
-const getTakeoutEngine = () => {
-    if (typeof (globalThis as any).TakeoutEngine !== 'undefined') return (globalThis as any).TakeoutEngine;
-    return TakeoutEngine;
-};
-
-const getStore = () => {
-    if (typeof (globalThis as any).ConversationsStore !== 'undefined') return (globalThis as any).ConversationsStore;
-    return ConversationsStore;
-};
-
-const getStorage = () => {
-    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
-    return StorageService;
-};
+const getTakeoutEngine = () => (globalThis as any).TakeoutEngine || TakeoutEngine;
+const getStore = () => (globalThis as any).ConversationsStore || ConversationsStore;
+const getStorage = () => (globalThis as any).StorageService || StorageService;
 
 export async function handleTakeoutImport(
     file: File,

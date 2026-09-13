@@ -8,14 +8,7 @@ import GeminiUtils, {
     resolveTitle as utilsResolveTitle,
     getEffectiveTimestamp as utilsGetEffectiveTimestamp
 } from '../../core/utils/utils.js';
-import { $ } from '../uiCommon.js';
-
-const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
-    }
-    return key;
-};
+import { $, t } from '../uiCommon.js';
 
 export const isRealTitle = (title?: string | null, id?: string | null): boolean =>
     (globalThis as any).GeminiUtils?.isRealTitle ? (globalThis as any).GeminiUtils.isRealTitle(title, id) : utilsIsRealTitle(title, id || undefined);

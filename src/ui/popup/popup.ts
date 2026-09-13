@@ -12,11 +12,10 @@ import {
     buildExportFileName,
     normId
 } from '../../core/utils/pathUtils.js';
-import { $, getI18n as commonGetI18n } from '../uiCommon.js';
+import { $, getI18n } from '../uiCommon.js';
 
 const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
 const log = (_msg: string): void => {};
-const getI18n = (): any => commonGetI18n() || I18n;
 
     function updateUiForTabState(isGemini: boolean): void {
         const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
