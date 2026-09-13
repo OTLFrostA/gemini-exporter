@@ -1,98 +1,25 @@
 // src/ui/options/modules/optionsInit.ts - Workbench initialization & state loader
 import type { OptionsInitOptions } from '../../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
-import { ListView as DefaultListView } from '../../views/listView.js';
-import { LogView as DefaultLogView } from '../../views/logView.js';
-import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
-import { AccountView as DefaultAccountView } from '../../views/accountView.js';
-import { ExportController as DefaultExportController } from '../../controllers/exportController.js';
-import { TourGuide as DefaultTourGuide } from '../../tour/tourGuide.js';
-import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
-import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
-import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
-import { $, getI18n as commonGetI18n } from '../../uiCommon.js';
+import {
+    getI18n,
+    t,
+    getStore,
+    getList,
+    getLogView as getLog,
+    getDialogs,
+    getAccountView as getAccount,
+    getExportCtrl as getController,
+    getTour,
+    getStorage,
+    getUtils
+} from '../optionsContext.js';
+import { $ } from '../../uiCommon.js';
+import { normId } from '../../../core/utils/pathUtils.js';
+import { cleanTitle, isRealTitle } from '../../../core/utils/utils.js';
 
-const getI18n = () => commonGetI18n() || DefaultI18n;
-const t = (key: string, ...args: any[]): string => {
-    const i18n = getI18n();
-    return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
-};
+export { normId, cleanTitle, isRealTitle };
 
-const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
-};
-
-const getList = () => {
-    if (typeof DefaultListView !== 'undefined' && DefaultListView) return DefaultListView;
-    if (typeof ListView !== 'undefined') return ListView;
-    return null;
-};
-
-const getLog = () => {
-    if (typeof DefaultLogView !== 'undefined' && DefaultLogView) return DefaultLogView;
-    if (typeof LogView !== 'undefined') return LogView;
-    return null;
-};
-
-const getDialogs = () => {
-    if (typeof DefaultDialogView !== 'undefined' && DefaultDialogView) return DefaultDialogView;
-    if (typeof DialogView !== 'undefined') return DialogView;
-    return null;
-};
-
-const getAccount = () => {
-    if (typeof DefaultAccountView !== 'undefined' && DefaultAccountView) return DefaultAccountView;
-    if (typeof AccountView !== 'undefined') return AccountView;
-    return null;
-};
-
-const getController = () => {
-    if (typeof DefaultExportController !== 'undefined' && DefaultExportController) return DefaultExportController;
-    if (typeof ExportController !== 'undefined') return ExportController;
-    return null;
-};
-
-const getTour = () => {
-    if (typeof DefaultTourGuide !== 'undefined' && DefaultTourGuide) return DefaultTourGuide;
-    if (typeof TourGuide !== 'undefined') return TourGuide;
-    return null;
-};
-
-const getStorage = () => {
-    if (typeof StorageService !== 'undefined' && StorageService) return StorageService;
-    if (typeof DefaultStorageService !== 'undefined' && DefaultStorageService) return DefaultStorageService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
-    return null;
-};
-
-const getUtils = () => {
-    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
-    if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-    return null;
-};
-
-export const normId = (id?: string | null): string => {
-    const utils = getUtils();
-    if (utils && typeof utils.normId === 'function') return utils.normId(id);
-    return String(id || '').replace(/^c_/, '');
-};
-
-export const cleanTitle = (tStr?: string | null): string => {
-    const utils = getUtils();
-    if (utils && typeof utils.cleanTitle === 'function') return utils.cleanTitle(tStr);
-    return (tStr || '').trim();
-};
-
-export const isRealTitle = (tStr?: string | null, id?: string | null): boolean => {
-    const utils = getUtils();
-    if (utils && typeof utils.isRealTitle === 'function') return utils.isRealTitle(tStr as string, id as string);
-    return !!(tStr && String(tStr).trim().length > 1);
-};
-
-export const isBad = (tStr?: string | null, id?: string | null): boolean => !isRealTitle(tStr, id);
+export const isBad = (tStr?: string | null, id?: string | null): boolean => !isRealTitle(tStr, id || undefined);
 
 export const resolveTitle = (chat: any): { title: string; source: string } => {
     const utils = getUtils();

@@ -201,37 +201,8 @@ export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: 
         return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles };
     }
 
-    const uResolveTitle = (chat: any) => (utils && typeof utils.resolveTitle === 'function'
-        ? utils.resolveTitle(chat)
-        : { title: (chat?.title || '').trim() || '未命名对话', source: chat?.titleSource || 'legacy' });
-    const uCompare = (a: any, b: any) => (utils && typeof utils.compareConversations === 'function'
-        ? utils.compareConversations(a, b)
-        : 0);
-
-    const dedupMap = new Map<string, Conversation>();
-    let hasDirtyTitles = false;
-    incoming.forEach(c => {
-        if (!c || !c.id) return;
-        const u = ((c as any).url || (c as any).href || '').toString();
-        if (/accounts\.google\.com|SignOutOptions/i.test(u)) return;
-
-        const nid = normId(c.id);
-        if (utils && typeof utils.isReservedRoute === 'function' && (utils.isReservedRoute(nid) || utils.isReservedRoute(c.id))) {
-            hasDirtyTitles = true;
-            return;
-        }
-        const resolved = uResolveTitle(c);
-        dedupMap.set(nid, {
-            ...c,
-            id: nid,
-            title: resolved.title,
-            titleSource: resolved.source
-        });
-    });
-
-    const processed = Array.from(dedupMap.values());
-    processed.sort(uCompare);
-    return { processed, hasDirtyTitles };
+    const res = utilsDeduplicateConversations(incoming);
+    return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles };
 }
 
 export function hasTakeoutData(): boolean {

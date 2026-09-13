@@ -1,104 +1,25 @@
 // src/ui/options/modules/optionsExport.ts - Export interaction & pipeline runner
 import type { OptionsExportOptions } from '../../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
-import { ListView as DefaultListView } from '../../views/listView.js';
-import { ExportController as DefaultExportController } from '../../controllers/exportController.js';
-import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
-import { DirHandleController as DefaultDirHandle } from '../../controllers/dirHandleController.js';
-import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
-import { TakeoutEngine as DefaultTakeoutEngine } from '../../../core/engine/takeoutEngine.js';
-import { GeminiUtils as DefaultGeminiUtils, getErrorMessage } from '../../../core/utils/utils.js';
-import { GeminiConstants as DefaultGeminiConstants } from '../../../core/utils/constants.js';
-import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
-import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
-import { $, getI18n as commonGetI18n } from '../../uiCommon.js';
+import {
+    getI18n,
+    t,
+    getLang,
+    getStore,
+    getList,
+    getExportCtrl as getController,
+    getFormats,
+    getTakeoutEngine,
+    getConstants,
+    getDialogs,
+    getDirHandle,
+    getLiveStorage,
+    getUtils
+} from '../optionsContext.js';
+import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
+import { normId } from '../../../core/utils/pathUtils.js';
+import { $ } from '../../uiCommon.js';
 
-const getI18n = () => commonGetI18n() || DefaultI18n;
-const t = (key: string, ...args: any[]): string => {
-    const i18n = getI18n();
-    return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
-};
-const getLang = (): string => {
-    const i18n = getI18n();
-    return i18n && typeof i18n.getLang === 'function' ? i18n.getLang() : 'en';
-};
-
-const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
-};
-
-const getList = () => {
-    if (typeof DefaultListView !== 'undefined' && DefaultListView) return DefaultListView;
-    if (typeof ListView !== 'undefined') return ListView;
-    return null;
-};
-
-const getController = () => {
-    if (typeof DefaultExportController !== 'undefined' && DefaultExportController) return DefaultExportController;
-    if (typeof ExportController !== 'undefined') return ExportController;
-    return null;
-};
-
-const getFormats = () => {
-    if (typeof FormatStore !== 'undefined' && FormatStore) return FormatStore;
-    if (typeof DefaultFormatStore !== 'undefined' && DefaultFormatStore) return DefaultFormatStore;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).FormatStore) return (globalThis as any).FormatStore;
-    return null;
-};
-
-const getTakeoutEngine = () => {
-    if (typeof TakeoutEngine !== 'undefined' && TakeoutEngine) return TakeoutEngine;
-    if (typeof DefaultTakeoutEngine !== 'undefined' && DefaultTakeoutEngine) return DefaultTakeoutEngine;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutEngine) return (globalThis as any).TakeoutEngine;
-    return null;
-};
-
-const getConstants = () => {
-    if (typeof GeminiConstants !== 'undefined' && GeminiConstants) return GeminiConstants;
-    if (typeof DefaultGeminiConstants !== 'undefined' && DefaultGeminiConstants) return DefaultGeminiConstants;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiConstants) return (globalThis as any).GeminiConstants;
-    return null;
-};
-
-const getDialogs = () => {
-    if (typeof DefaultDialogView !== 'undefined' && DefaultDialogView) return DefaultDialogView;
-    if (typeof DialogView !== 'undefined') return DialogView;
-    return null;
-};
-
-const getDirHandle = () => {
-    if (typeof DefaultDirHandle !== 'undefined' && DefaultDirHandle) return DefaultDirHandle;
-    if (typeof DirHandleController !== 'undefined') return DirHandleController;
-    return null;
-};
-
-const getLiveStorage = () => {
-    if (typeof LiveStorageManager !== 'undefined' && LiveStorageManager) return LiveStorageManager;
-    if (typeof DefaultLiveStorageManager !== 'undefined' && DefaultLiveStorageManager) return DefaultLiveStorageManager;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).LiveStorageManager) return (globalThis as any).LiveStorageManager;
-    return null;
-};
-
-const getUtils = () => {
-    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
-    if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-    return null;
-};
-
-export const normId = (id?: string | null): string => {
-    const utils = getUtils();
-    if (utils && typeof utils.normId === 'function') return utils.normId(id);
-    return String(id || '').replace(/^c_/, '');
-};
-
-export const isRealTitle = (tStr?: string | null, id?: string | null): boolean => {
-    const utils = getUtils();
-    if (utils && typeof utils.isRealTitle === 'function') return utils.isRealTitle(tStr as string, id as string);
-    return !!(tStr && String(tStr).trim().length > 1);
-};
+export { normId, isRealTitle };
 
 let __loadStore: ((force?: boolean) => Promise<any>) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;

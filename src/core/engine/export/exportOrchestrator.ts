@@ -59,6 +59,7 @@ import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, { RateLimitManager, type RateLimitModule } from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
+import TabService from "../../utils/tabService.js";
 
 export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3';
 export function getExtensionVersion(): string {
@@ -201,14 +202,8 @@ export const sanitizeZipPath = (p?: string | null): string => {
     }
 
     async function getGeminiTab(slot?: string): Promise<any> {
-        const TabService = (globalThis as any).TabService;
-        if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
-            return await TabService.getGeminiTab(slot);
-        }
-        if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-            return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then((tabs: any[]) => tabs?.[0] || null);
-        }
-        return null;
+        const tabSvc = (typeof (globalThis as any).TabService !== 'undefined') ? (globalThis as any).TabService : TabService;
+        return tabSvc && typeof tabSvc.getGeminiTab === 'function' ? await tabSvc.getGeminiTab(slot) : null;
     }
 
     const getAssetPipelineClass = (): any => {
@@ -249,22 +244,6 @@ export const sanitizeZipPath = (p?: string | null): string => {
             const recovery = getSessionRecovery();
             if (recovery && recovery.updateSessionStatus) {
                 recovery.updateSessionStatus({ status: 'aborted' });
-            } else {
-                try {
-                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                        chrome.storage.local.get(['gemini_last_export_session'], (data: any) => {
-                            if (data?.gemini_last_export_session) {
-                                chrome.storage.local.set({
-                                    gemini_last_export_session: {
-                                        ...data.gemini_last_export_session,
-                                        status: 'aborted',
-                                        updatedAt: Date.now()
-                                    }
-                                });
-                            }
-                        });
-                    }
-                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
             }
         }
 
@@ -315,23 +294,6 @@ export const sanitizeZipPath = (p?: string | null): string => {
                     useZip,
                     startTime: Date.now()
                 });
-            } else {
-                try {
-                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                        await chrome.storage.local.set({
-                            gemini_last_export_session: {
-                                status: 'running',
-                                slot,
-                                total: payloadIds.length,
-                                current: 0,
-                                format,
-                                useZip,
-                                startTime: Date.now(),
-                                updatedAt: Date.now()
-                            }
-                        });
-                    }
-                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
             }
 
             return {
@@ -602,26 +564,7 @@ export const sanitizeZipPath = (p?: string | null): string => {
                         slot,
                         onItemExported
                     });
-                    return;
                 }
-                const targetNid = normId(targetId);
-                if (finalizedChatsSet.has(targetNid)) return;
-                const rec = chatRecordsMap.get(targetNid);
-                if (!rec || chatFailedAssetsSet.has(targetNid)) return;
-                finalizedChatsSet.add(targetNid);
-                curIds[targetId] = rec;
-                curIds[targetNid] = rec;
-                curIds['c_' + targetNid] = rec;
-                exportedIds[targetId] = rec;
-                exportedIds[targetNid] = rec;
-                exportedIds['c_' + targetNid] = rec;
-                if (Storage) {
-                    await Storage.saveExportRecord(slot, targetId, rec);
-                } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                    chrome.storage.local.set({ [expKey]: curIds });
-                }
-                onItemExported(targetId, rec);
             }
 
             const CONCURRENCY = Math.max(1, typeof options.concurrency === 'number' ? options.concurrency : 3);
@@ -998,22 +941,6 @@ export const sanitizeZipPath = (p?: string | null): string => {
                     failedCount: failedChats.length,
                     skipped
                 });
-            } else {
-                try {
-                    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                        await chrome.storage.local.set({
-                            gemini_last_export_session: {
-                                status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
-                                slot,
-                                total: payloadIds.length,
-                                current: landedChats,
-                                failedCount: failedChats.length,
-                                skipped,
-                                updatedAt: Date.now()
-                            }
-                        });
-                    }
-                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
             }
 
             return {

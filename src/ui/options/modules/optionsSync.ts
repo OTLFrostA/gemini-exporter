@@ -1,58 +1,16 @@
 // src/ui/options/modules/optionsSync.ts - Cloud synchronization, background progress & pruning
 import type { OptionsSyncOptions } from '../../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
-import { ExportController as DefaultExportController } from '../../controllers/exportController.js';
-import { SyncController as DefaultSyncCtrl } from '../../controllers/syncController.js';
-import { GeminiAPIClient as DefaultApiClient } from '../../../core/api/geminiClient.js';
-import { GeminiProtocol as DefaultGeminiProtocol } from '../../../core/protocol/protocol.js';
-import { TabService as DefaultTabService } from '../../../core/utils/tabService.js';
-import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
-import { $, getI18n as commonGetI18n } from '../../uiCommon.js';
-
-const getI18n = () => commonGetI18n() || DefaultI18n;
-const t = (key: string, ...args: any[]): string => {
-    const i18n = getI18n();
-    return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
-};
-
-const getProtocol = () => {
-    if (typeof GeminiProtocol !== 'undefined' && GeminiProtocol) return GeminiProtocol;
-    if (typeof DefaultGeminiProtocol !== 'undefined' && DefaultGeminiProtocol) return DefaultGeminiProtocol;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiProtocol) return (globalThis as any).GeminiProtocol;
-    return null;
-};
-
-const getApiClient = () => {
-    if (typeof GeminiAPIClient !== 'undefined' && GeminiAPIClient) return GeminiAPIClient;
-    if (typeof DefaultApiClient !== 'undefined' && DefaultApiClient) return DefaultApiClient;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiAPIClient) return (globalThis as any).GeminiAPIClient;
-    return null;
-};
-
-const getTabService = () => {
-    if (typeof TabService !== 'undefined' && TabService) return TabService;
-    if (typeof DefaultTabService !== 'undefined' && DefaultTabService) return DefaultTabService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).TabService) return (globalThis as any).TabService;
-    return null;
-};
-
-const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
-};
-
-const getExportController = () => {
-    if (typeof DefaultExportController !== 'undefined' && DefaultExportController) return DefaultExportController;
-    if (typeof ExportController !== 'undefined') return ExportController;
-    return null;
-};
-
-const getSyncController = () => {
-    if (typeof DefaultSyncCtrl !== 'undefined' && DefaultSyncCtrl) return DefaultSyncCtrl;
-    if (typeof SyncController !== 'undefined') return SyncController;
-    return null;
-};
+import {
+    getI18n,
+    t,
+    getProtocol,
+    getApiClient,
+    getTabService,
+    getStore,
+    getExportCtrl as getExportController,
+    getSyncCtrl as getSyncController
+} from '../optionsContext.js';
+import { $ } from '../../uiCommon.js';
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
