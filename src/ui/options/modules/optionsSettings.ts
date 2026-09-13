@@ -1,96 +1,25 @@
 // src/ui/options/modules/optionsSettings.ts - Language, dev mode, diagnostics, and storage cleanup
 import type { OptionsSettingsOptions } from '../../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
-import { ListView as DefaultListView } from '../../views/listView.js';
-import { TourGuide as DefaultTourGuide } from '../../tour/tourGuide.js';
-import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
-import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
-import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
-import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
-import { DirHandleController as DefaultDirHandleController } from '../../controllers/dirHandleController.js';
-import { FsWriter as DefaultFsWriter } from '../../../core/engine/writers/fsWriter.js';
-import { ChatFormatter as DefaultChatFormatter } from '../../../core/engine/chatFormatter.js';
+import {
+    getI18n,
+    t,
+    getStore,
+    getList,
+    getFormats,
+    getStorage,
+    getTour,
+    getUtils,
+    getDirHandle as getDirHandleController,
+    getLiveStorage,
+    getFsWriter,
+    getChatFormatter
+} from '../optionsContext.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
-import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
-import { $, getI18n as commonGetI18n } from '../../uiCommon.js';
+import { $ } from '../../uiCommon.js';
+import { normId } from '../../../core/utils/pathUtils.js';
+import { cleanTitle } from '../../../core/utils/utils.js';
 
-const getI18n = () => commonGetI18n() || DefaultI18n;
-const t = (key: string, ...args: any[]): string => {
-    const i18n = getI18n();
-    return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
-};
-
-const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
-};
-
-const getList = () => {
-    if (typeof DefaultListView !== 'undefined' && DefaultListView) return DefaultListView;
-    if (typeof ListView !== 'undefined') return ListView;
-    return null;
-};
-
-const getFormats = () => {
-    if (typeof FormatStore !== 'undefined' && FormatStore) return FormatStore;
-    if (typeof DefaultFormatStore !== 'undefined' && DefaultFormatStore) return DefaultFormatStore;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).FormatStore) return (globalThis as any).FormatStore;
-    return null;
-};
-
-const getStorage = () => {
-    if (typeof StorageService !== 'undefined' && StorageService) return StorageService;
-    if (typeof DefaultStorageService !== 'undefined' && DefaultStorageService) return DefaultStorageService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
-    return null;
-};
-
-const getTour = () => {
-    if (typeof DefaultTourGuide !== 'undefined' && DefaultTourGuide) return DefaultTourGuide;
-    if (typeof TourGuide !== 'undefined') return TourGuide;
-    return null;
-};
-
-const getUtils = () => {
-    if (typeof GeminiUtils !== 'undefined' && GeminiUtils) return GeminiUtils;
-    if (typeof DefaultGeminiUtils !== 'undefined' && DefaultGeminiUtils) return DefaultGeminiUtils;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) return (globalThis as any).GeminiUtils;
-    return null;
-};
-
-const getDirHandleController = () => {
-    if (typeof DirHandleController !== 'undefined' && DirHandleController) return DirHandleController;
-    if (typeof DefaultDirHandleController !== 'undefined' && DefaultDirHandleController) return DefaultDirHandleController;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).DirHandleController) return (globalThis as any).DirHandleController;
-    return null;
-};
-
-const getFsWriter = () => {
-    if (typeof FsWriter !== 'undefined' && FsWriter) return FsWriter;
-    if (typeof DefaultFsWriter !== 'undefined' && DefaultFsWriter) return DefaultFsWriter;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).FsWriter) return (globalThis as any).FsWriter;
-    return null;
-};
-
-const getChatFormatter = () => {
-    if (typeof ChatFormatter !== 'undefined' && ChatFormatter) return ChatFormatter;
-    if (typeof DefaultChatFormatter !== 'undefined' && DefaultChatFormatter) return DefaultChatFormatter;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).ChatFormatter) return (globalThis as any).ChatFormatter;
-    return null;
-};
-
-export const normId = (id?: string | null): string => {
-    const utils = getUtils();
-    if (utils && typeof utils.normId === 'function') return utils.normId(id);
-    return String(id || '').replace(/^c_/, '');
-};
-
-export const cleanTitle = (tStr?: string | null): string => {
-    const utils = getUtils();
-    if (utils && typeof utils.cleanTitle === 'function') return utils.cleanTitle(tStr);
-    return (tStr || '').trim();
-};
+export { normId, cleanTitle };
 
 export const resolveTitle = (chat: any): { title: string; source: string } => {
     const utils = getUtils();
@@ -376,7 +305,7 @@ export async function init({
 }
 
 export async function initLiveSaveSettings(): Promise<void> {
-    const liveStorage = (typeof LiveStorageManager !== 'undefined' ? LiveStorageManager : DefaultLiveStorageManager);
+    const liveStorage = getLiveStorage();
     if (!liveStorage) return;
 
     const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;

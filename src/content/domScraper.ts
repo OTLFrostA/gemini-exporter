@@ -1,16 +1,10 @@
 // src/content/domScraper.ts - DOM fallback parser and conversation list scroller
 import { contentContext } from './contentContext.js';
-import { GeminiUtils } from '../core/utils/utils.js';
+import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
 
 function cleanText(t?: string | null): string {
     return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
 }
-
-const getUtils = () => (typeof GeminiUtils !== 'undefined'
-    ? GeminiUtils
-    : ((typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils) || null)) as any;
-const cleanTitle = (raw?: string | null) => (getUtils()?.cleanTitle ? getUtils().cleanTitle(raw || '') : (raw || '').trim());
-const isRealTitle = (t?: string | null, fallbackId?: string) => (getUtils()?.isRealTitle ? getUtils().isRealTitle(t || '', fallbackId) : !!(t && typeof t === 'string' && t.trim().length > 1));
 
 export function parseDoc(doc: Document, id: string, url?: string): any {
     let title = doc.title ? cleanTitle(doc.title) : '';

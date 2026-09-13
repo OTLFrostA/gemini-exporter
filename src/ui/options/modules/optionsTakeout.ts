@@ -1,35 +1,12 @@
 // src/ui/options/modules/optionsTakeout.ts - Takeout archive import & Google limit detection
 import type { OptionsTakeoutOptions } from '../../../types/ui.js';
-import { ConversationsStore as DefaultConversationsStore } from '../../state/conversationsStore.js';
-import { DialogView as DefaultDialogView } from '../../views/dialogView.js';
-import { TakeoutController as DefaultTakeoutCtrl } from '../../controllers/takeoutController.js';
-import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
+import {
+    getStore,
+    getDialogs,
+    getStorage,
+    getTakeoutCtrl
+} from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
-
-const getStore = () => {
-    if (typeof DefaultConversationsStore !== 'undefined' && DefaultConversationsStore) return DefaultConversationsStore;
-    if (typeof ConversationsStore !== 'undefined') return ConversationsStore;
-    return null;
-};
-
-const getDialogs = () => {
-    if (typeof DefaultDialogView !== 'undefined' && DefaultDialogView) return DefaultDialogView;
-    if (typeof DialogView !== 'undefined') return DialogView;
-    return null;
-};
-
-const getStorage = () => {
-    if (typeof StorageService !== 'undefined' && StorageService) return StorageService;
-    if (typeof DefaultStorageService !== 'undefined' && DefaultStorageService) return DefaultStorageService;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).StorageService) return (globalThis as any).StorageService;
-    return null;
-};
-
-const getTakeoutCtrl = () => {
-    if (typeof DefaultTakeoutCtrl !== 'undefined' && DefaultTakeoutCtrl) return DefaultTakeoutCtrl;
-    if (typeof TakeoutController !== 'undefined') return TakeoutController;
-    return null;
-};
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
