@@ -1,5 +1,5 @@
-// src/content/liveSaveObserver.ts - Mutation and interaction observer for live conversation turns
 import { contentContext } from './contentContext.js';
+import { extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
 
 export type LiveTurnCallback = (conversationId: string, reason: 'turn_complete' | 'location_change' | 'unload') => void;
 
@@ -68,8 +68,7 @@ export function checkIsGeneratingDOM(): boolean {
  */
 export function getActiveConversationId(): string | null {
     if (typeof location === 'undefined') return null;
-    const m = location.pathname.match(/\/app\/([a-f0-9]+)/i);
-    return m ? m[1] : null;
+    return extractConversationIdFromUrl(location.pathname);
 }
 
 function triggerSave(reason: 'turn_complete' | 'location_change' | 'unload'): void {

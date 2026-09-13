@@ -5,6 +5,7 @@ import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
+import { buildExportFileName } from '../core/utils/pathUtils.js';
 import { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
@@ -507,9 +508,7 @@ async function writeConversationToDisk(
     }
 
     // 2. Target filename format: CleanTitle_Cid6.md (consistent with manual export)
-    const sanitizedTitle = Utils?.sanitizeFileName ? Utils.sanitizeFileName(safeTitle) : safeTitle.replace(/[\\/:*?"<>|]/g, '_');
-    const cid6 = nid.slice(-6);
-    const fileName = `${sanitizedTitle}_${cid6}.md`;
+    const fileName = (Utils?.buildExportFileName || buildExportFileName)(safeTitle, nid, 'md');
 
     // 3. Format content with full YAML frontmatter & markdown standards
     const markdown = Formatter?.toMarkdown

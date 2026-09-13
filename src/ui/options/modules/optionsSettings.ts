@@ -6,30 +6,18 @@ import { TourGuide as DefaultTourGuide } from '../../tour/tourGuide.js';
 import { StorageService as DefaultStorageService } from '../../../core/storage/storageService.js';
 import { FormatStore as DefaultFormatStore } from '../../../core/storage/formatStore.js';
 import { GeminiUtils as DefaultGeminiUtils } from '../../../core/utils/utils.js';
-import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
 import { LiveStorageManager as DefaultLiveStorageManager } from '../../../core/storage/liveStorageManager.js';
 import { DirHandleController as DefaultDirHandleController } from '../../controllers/dirHandleController.js';
 import { FsWriter as DefaultFsWriter } from '../../../core/engine/writers/fsWriter.js';
 import { ChatFormatter as DefaultChatFormatter } from '../../../core/engine/chatFormatter.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
+import { I18n as DefaultI18n } from '../../../core/utils/i18n.js';
+import { $, getI18n as commonGetI18n } from '../../uiCommon.js';
 
-function $(id: string): HTMLElement | null {
-    return typeof document !== 'undefined' ? document.getElementById(id) : null;
-}
-
-const getI18n = () => {
-    if (typeof I18n !== 'undefined' && I18n) return I18n;
-    if (typeof DefaultI18n !== 'undefined' && DefaultI18n) return DefaultI18n;
-    if (typeof globalThis !== 'undefined' && (globalThis as any).I18n) return (globalThis as any).I18n;
-    return null;
-};
-
+const getI18n = () => commonGetI18n() || DefaultI18n;
 const t = (key: string, ...args: any[]): string => {
     const i18n = getI18n();
-    if (i18n && typeof i18n.t === 'function') {
-        return i18n.t(key, ...args);
-    }
-    return key;
+    return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
 };
 
 const getStore = () => {

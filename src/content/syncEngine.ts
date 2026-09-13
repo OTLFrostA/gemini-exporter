@@ -6,6 +6,7 @@ import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { GeminiAPIClient } from '../core/api/geminiClient.js';
+import { detectSlotFromUrl, extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
 
 const getStorage = () => (typeof StorageService !== 'undefined'
     ? StorageService
@@ -38,9 +39,7 @@ export function setLanguage(lang: string): void {
 }
 
 export function getAccountSlot(): string {
-    if (typeof location === 'undefined') return 'u0';
-    const m = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
-    return m ? ('u' + m[1]) : 'u0';
+    return detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
 }
 
 export function updateBadge(mergedLen?: number, visible?: number, overrideText?: string, isSyncing = false): void {
@@ -277,26 +276,20 @@ export async function syncOnce(): Promise<number> {
     try {
         const items: any[] = [];
         // 1. Check current active page chat
-        const m = typeof location !== 'undefined' ? location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/) : null;
-        let activeId: string | null = null;
-        if (m) {
-            const cand = m[2].replace(/^c_/, '');
-            const isReserved = (DomScraper as any)?.isReservedRoute ? (DomScraper as any).isReservedRoute(cand) : (cand.toLowerCase() === 'download' || cand.toLowerCase() === 'settings');
-            if (!isReserved) {
-                activeId = cand;
-                const activeTitleObj = extractActiveChatTitle(activeId);
-                if (activeTitleObj && activeTitleObj.title) {
-                    const titlesMap: Record<string, string> = {};
-                    titlesMap[activeTitleObj.source] = activeTitleObj.title;
-                    items.push({
-                        id: activeId,
-                        title: activeTitleObj.title,
-                        titleSource: activeTitleObj.source,
-                        titles: titlesMap,
-                        url: `https://gemini.google.com/app/${activeId}`,
-                        href: `https://gemini.google.com/app/${activeId}`
-                    });
-                }
+        const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
+        if (activeId) {
+            const activeTitleObj = extractActiveChatTitle(activeId);
+            if (activeTitleObj && activeTitleObj.title) {
+                const titlesMap: Record<string, string> = {};
+                titlesMap[activeTitleObj.source] = activeTitleObj.title;
+                items.push({
+                    id: activeId,
+                    title: activeTitleObj.title,
+                    titleSource: activeTitleObj.source,
+                    titles: titlesMap,
+                    url: `https://gemini.google.com/app/${activeId}`,
+                    href: `https://gemini.google.com/app/${activeId}`
+                });
             }
         }
 

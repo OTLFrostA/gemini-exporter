@@ -3,6 +3,7 @@ import { contentContext } from './contentContext.js';
 import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { StorageService } from '../core/storage/storageService.js';
+import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
@@ -80,7 +81,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 try {
                     const detailRes = parser.parseDetail(text);
                     if (detailRes && detailRes.id) {
-                        const nid = String(detailRes.id).replace(/^c_/, '').trim();
+                        const nid = normId(detailRes.id);
                         let title = cleanTitle(detailRes.title);
                         let sourceTier = detailRes.titleSource || 'rpc';
                         if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
@@ -183,9 +184,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 obs.notifyStreamStart(id);
             }
         }
-        const activeId = id || (typeof location !== 'undefined' && location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/)?.[2]) || null;
+        const activeId = id ? normId(id) : (typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null);
         if (activeId) {
-            const nid = String(activeId).replace(/^c_/, '').trim();
+            const nid = activeId;
             const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
             try {
                 if (typeof (_deps as any)?.touchActiveConversation === 'function') {
@@ -218,9 +219,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 obs.notifyStreamComplete(id);
             }
         }
-        const activeId = id || (typeof location !== 'undefined' && location.pathname.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/)?.[2]) || null;
+        const activeId = id ? normId(id) : (typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null);
         if (activeId) {
-            const nid = String(activeId).replace(/^c_/, '').trim();
+            const nid = activeId;
             const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
             try {
                 if (typeof (_deps as any)?.touchActiveConversation === 'function') {

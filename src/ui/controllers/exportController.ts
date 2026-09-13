@@ -1,6 +1,6 @@
-// src/ui/controllers/exportController.ts - Orchestrates ExportEngine, no direct DOM except callbacks
 import type { ExportControllerContract } from '../../types/ui.js';
 import ExportEngine from '../../core/engine/exportEngine.js';
+import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
 
 const getExportEngineClass = (): any => {
     if (typeof (globalThis as any).ExportEngine !== 'undefined') {
@@ -12,31 +12,12 @@ const getExportEngineClass = (): any => {
 let activeEngine: any = null;
 let exportRunning = false;
 
-function $(id: string): HTMLElement | null {
-    return typeof document !== 'undefined' ? document.getElementById(id) : null;
-}
-
 export function setRunning(running: boolean): void {
     exportRunning = !!running;
-    const btnExport = $('btnExport') as HTMLButtonElement | null;
+    setWorkbenchControlsDisabled(running);
     const btnCancel = $('btnCancel');
-    const btnIncrementalScan = $('btnIncrementalScan') as HTMLButtonElement | null;
-    const btnDeepScan = $('btnDeepScan') as HTMLButtonElement | null;
-    const btnImportTakeout = $('btnImportTakeout') as HTMLButtonElement | null;
-    const btnSetDir = $('btnSetDir') as HTMLButtonElement | null;
-    const btnClearExported = $('btnClearExported') as HTMLButtonElement | null;
-    const btnClearAll = $('btnClearAll') as HTMLButtonElement | null;
-    const banner = $('exportSessionBanner');
-
-    if (btnExport) btnExport.disabled = !!running;
     if (btnCancel) btnCancel.style.display = running ? '' : 'none';
-    if (btnIncrementalScan) btnIncrementalScan.disabled = !!running;
-    if (btnDeepScan) btnDeepScan.disabled = !!running;
-    if (btnImportTakeout) btnImportTakeout.disabled = !!running;
-    if (btnSetDir) btnSetDir.disabled = !!running;
-    if (btnClearExported) btnClearExported.disabled = !!running;
-    if (btnClearAll) btnClearAll.disabled = !!running;
-
+    const banner = $('exportSessionBanner');
     if (running && banner) {
         banner.style.display = 'none';
     }

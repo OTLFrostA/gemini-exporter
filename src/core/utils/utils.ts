@@ -6,7 +6,11 @@ import {
     sanitizeRelativePath,
     normId,
     isReservedRoute,
-    RESERVED_ROUTES
+    RESERVED_ROUTES,
+    isGeminiUrl,
+    detectSlotFromUrl,
+    extractConversationIdFromUrl,
+    buildExportFileName
 } from './pathUtils.js';
 import {
     isRealTitle,
@@ -43,6 +47,10 @@ export {
     normId,
     isReservedRoute,
     RESERVED_ROUTES,
+    isGeminiUrl,
+    detectSlotFromUrl,
+    extractConversationIdFromUrl,
+    buildExportFileName,
     // Title
     isRealTitle,
     cleanTitle,
@@ -77,6 +85,10 @@ export interface GeminiUtilsModule {
     normId: (id?: string | number | null) => string;
     isReservedRoute: (id?: string | number | null) => boolean;
     RESERVED_ROUTES: Set<string>;
+    isGeminiUrl: (urlStr?: string | null) => boolean;
+    detectSlotFromUrl: (urlOrPath?: string | null) => string;
+    extractConversationIdFromUrl: (urlOrPath?: string | null) => string | null;
+    buildExportFileName: (title?: string | null, id?: string | null, ext?: string) => string;
     resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
@@ -113,6 +125,10 @@ export const GeminiUtils: GeminiUtilsModule = {
     normId,
     isReservedRoute,
     RESERVED_ROUTES,
+    isGeminiUrl,
+    detectSlotFromUrl,
+    extractConversationIdFromUrl,
+    buildExportFileName,
     resolveTitle,
     setTitleBySource,
     getEffectiveTimestamp,

@@ -1,5 +1,6 @@
 // storageService.ts - Unified multi-account Chrome storage access and key management
 import type { Conversation } from "../../types/index.js";
+import { normId } from "../utils/pathUtils.js";
 
 export interface StorageKeys {
     slot: string;
@@ -63,11 +64,6 @@ declare global {
         if (!slot || slot === 'default' || slot === 'u0') return 'u0';
         const m = String(slot).match(/u(\d+)/i);
         return m ? ('u' + m[1]) : 'u0';
-    }
-
-    function normId(id?: string | null): string {
-        if (!id) return '';
-        return String(id).replace(/^c_/, '').trim();
     }
 
     function getStorageKeys(slot?: string | null): StorageKeys {

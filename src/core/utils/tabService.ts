@@ -4,17 +4,27 @@ import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 
 
 
+    function filterTabsBySlot(tabs: chrome.tabs.Tab[], slot?: string): chrome.tabs.Tab[] {
+        if (!tabs || !tabs.length) return [];
+        if (slot && slot !== 'u0') {
+            const slotNum = slot.replace('u', '');
+            return tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
+        } else if (slot === 'u0') {
+            return tabs.filter(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+        }
+        return tabs;
+    }
+
     async function getGeminiTab(slot?: string): Promise<chrome.tabs.Tab | null> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) return null;
         if (slot && slot !== 'u0') {
-            const slotNum = slot.replace('u', '');
-            const match = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`));
-            return match || null;
+            const match = filterTabsBySlot(tabs, slot);
+            return match[0] || null;
         } else if (slot === 'u0') {
-            const defMatch = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
-            return defMatch || tabs.find(t => t.active) || tabs[0];
+            const defMatch = filterTabsBySlot(tabs, 'u0');
+            return defMatch[0] || tabs.find(t => t.active) || tabs[0];
         }
         return tabs.find(t => t.active) || tabs[0];
     }
@@ -31,13 +41,12 @@ import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 
         let candidates: chrome.tabs.Tab[] = [];
         if (slot && slot !== 'u0') {
-            const slotNum = slot.replace('u', '');
-            candidates = tabs.filter(t => t.url && t.url.includes(`/u/${slotNum}/`));
+            candidates = filterTabsBySlot(tabs, slot);
             if (!candidates.length) {
                 throw new Error(`未找到多账号 slot ${slot} 对应的 Gemini 标签页，请在浏览器中打开该账号标签页`);
             }
         } else if (slot === 'u0') {
-            candidates = tabs.filter(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/')));
+            candidates = filterTabsBySlot(tabs, 'u0');
             if (!candidates.length) candidates = tabs;
         } else {
             candidates = tabs;
@@ -99,10 +108,11 @@ import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
             }
             let targetTab: chrome.tabs.Tab | null = null;
             if (slot && slot !== 'u0') {
-                const slotNum = slot.replace('u', '');
-                targetTab = tabs.find(t => t.url && t.url.includes(`/u/${slotNum}/`)) || null;
+                const matched = filterTabsBySlot(tabs, slot);
+                targetTab = matched[0] || null;
             } else if (slot === 'u0') {
-                targetTab = tabs.find(t => t.url && (!t.url.match(/\/u\/\d+\//) || t.url.includes('/u/0/'))) || null;
+                const matched = filterTabsBySlot(tabs, 'u0');
+                targetTab = matched[0] || null;
             }
             if (!targetTab) targetTab = tabs.find(t => t.active) || tabs[0];
 
