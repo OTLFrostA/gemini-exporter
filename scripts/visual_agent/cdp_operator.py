@@ -40,12 +40,12 @@ def get_options_connection(port=CDP_DEFAULT_PORT, repo_path=None):
         non_gemini = next((t for t in tabs if t.get("type") == "page" and not is_gemini_url(t.get("url", "")) and "tally.so" not in t.get("url", "")), None)
         if non_gemini:
             cdp = CDPConnection(non_gemini["webSocketDebuggerUrl"])
-            cdp.call("Page.navigate", {"url": f"{options_url}?welcome=1"})
+            cdp.call("Page.navigate", {"url": options_url})
             cdp.close()
             time.sleep(1.0)
             tab = non_gemini
         else:
-            new_url = f"http://127.0.0.1:{port}/json/new?{options_url}?welcome=1"
+            new_url = f"http://127.0.0.1:{port}/json/new?{options_url}"
             req = urllib.request.Request(new_url, method="PUT")
             with urllib.request.urlopen(req, timeout=5) as r:
                 tab = json.loads(r.read().decode("utf-8"))
@@ -79,7 +79,7 @@ def cmd_reinstall_and_open(port=CDP_DEFAULT_PORT, repo_path=None):
     else:
         new_eid = ensure_extension_loaded(port, repo_path=repo_path)
 
-    welcome_url = f"chrome-extension://{new_eid}/src/ui/options/options.html?welcome=1"
+    options_page_url = f"chrome-extension://{new_eid}/src/ui/options/options.html"
 
     # 等待 onInstalled 自然创建 options 页面，或就地导航已有页面，绝不新建激活 tab
     time.sleep(1.5)
@@ -91,11 +91,11 @@ def cmd_reinstall_and_open(port=CDP_DEFAULT_PORT, repo_path=None):
         reuse_tab = next((t for t in tabs if t.get("type") == "page" and not is_gemini_url(t.get("url", ""))), None)
         if reuse_tab:
             cdp = CDPConnection(reuse_tab["webSocketDebuggerUrl"])
-            cdp.call("Page.navigate", {"url": welcome_url})
+            cdp.call("Page.navigate", {"url": options_page_url})
             cdp.close()
             opt_tab = reuse_tab
         else:
-            new_url = f"http://127.0.0.1:{port}/json/new?{welcome_url}"
+            new_url = f"http://127.0.0.1:{port}/json/new?{options_page_url}"
             req = urllib.request.Request(new_url, method="PUT")
             with urllib.request.urlopen(req, timeout=5) as r:
                 opt_tab = json.loads(r.read().decode("utf-8"))
@@ -113,7 +113,7 @@ def cmd_reinstall_and_open(port=CDP_DEFAULT_PORT, repo_path=None):
         "status": "ready",
         "extension_id": new_eid,
         "viewport": [bounds.get("width", 1280), bounds.get("height", 800)],
-        "url": welcome_url
+        "url": options_page_url
     }))
 
 

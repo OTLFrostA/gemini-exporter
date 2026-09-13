@@ -58,7 +58,7 @@ export const PRESERVE_DEBUG_NOTE = '_debug';
 // 1. Initialize session storage access level for content script credentials
 initSessionAccessLevel();
 
-// 2. Initialize lifecycle listeners (install welcome page, uninstall feedback URL)
+// 2. Initialize lifecycle listeners (install options workbench, uninstall feedback URL)
 initLifecycleListeners();
 initUninstallUrl();
 

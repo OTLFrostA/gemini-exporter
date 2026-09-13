@@ -54,32 +54,26 @@ class CDPActions:
 
     @staticmethod
     def verify_onboarding_tour(port: int = 9222, ext_id: Optional[str] = None, timeout: int = 15) -> bool:
-        """全自动验证 options.html?welcome=1 新手向导交互流程与状态持久化"""
-        print("   🧭 正在定位 options.html?welcome=1 标签页...")
+        """全自动验证 options.html 新手向导交互流程与状态持久化"""
+        print("   🧭 正在定位 options.html 标签页...")
         start_time = time.time()
-        welcome_tab = None
-        welcome_url_part = f"chrome-extension://{ext_id}/src/ui/options/options.html?welcome=1"
+        options_tab = None
         base_options_part = f"chrome-extension://{ext_id}/src/ui/options/options.html"
 
         while time.time() - start_time < timeout:
             tabs = get_tabs(port)
-            welcome_tab = next((t for t in tabs if welcome_url_part in t.get("url", "")), None)
-            if welcome_tab:
+            options_tab = next((t for t in tabs if base_options_part in t.get("url", "")), None)
+            if options_tab:
                 break
-            if not welcome_tab:
-                opt = next((t for t in tabs if base_options_part in t.get("url", "")), None)
-                if opt:
-                    welcome_tab = opt
-                    break
             time.sleep(0.5)
 
-        if not welcome_tab:
-            new_url = f"http://127.0.0.1:{port}/json/new?{welcome_url_part}"
+        if not options_tab:
+            new_url = f"http://127.0.0.1:{port}/json/new?{base_options_part}"
             req = urllib.request.Request(new_url, method="PUT")
             with urllib.request.urlopen(req, timeout=5) as r:
-                welcome_tab = json.loads(r.read().decode("utf-8"))
+                options_tab = json.loads(r.read().decode("utf-8"))
 
-        cdp = CDPConnection(welcome_tab["webSocketDebuggerUrl"])
+        cdp = CDPConnection(options_tab["webSocketDebuggerUrl"])
         try:
             tour_ready = False
             for _ in range(20):
