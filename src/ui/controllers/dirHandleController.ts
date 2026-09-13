@@ -1,9 +1,6 @@
 // src/ui/controllers/dirHandleController.ts - Directory Handle Persistence & Permission Controller
 import type { DirHandleControllerContract } from '../../types/ui.js';
-const t = (key: string, ...args: any[]): string => {
-    const g: any = (typeof I18n !== 'undefined' ? I18n : (typeof globalThis !== 'undefined' ? (globalThis as any).I18n : null));
-    return g && typeof g.t === 'function' ? g.t(key, ...args) : key;
-};
+import { t } from '../uiCommon.js';
 
 import { getStoredDirHandle, saveStoredDirHandle } from '../../core/storage/idbHandleStore.js';
 export { getStoredDirHandle, saveStoredDirHandle };

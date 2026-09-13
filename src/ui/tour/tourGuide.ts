@@ -13,28 +13,15 @@ let pollTimer: any = null;
 let lastTabStatus: any = null;
 let activeActionCleanup: (() => void) | null = null;
 
-const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
-    }
-    return key;
-};
-
 import StorageService from '../../core/storage/storageService.js';
 import TabService from '../../core/utils/tabService.js';
+import { t } from '../uiCommon.js';
 import { STEPS } from './tourSteps.js';
 import { positionElements as positionTourElements } from './tourPosition.js';
 export { STEPS } from './tourSteps.js';
 
-const getStorage = () => {
-    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
-    return StorageService;
-};
-
-const getTabService = () => {
-    if (typeof (globalThis as any).TabService !== 'undefined') return (globalThis as any).TabService;
-    return TabService;
-};
+const getStorage = () => (globalThis as any).StorageService || StorageService;
+const getTabService = () => (globalThis as any).TabService || TabService;
 
 export function clearActionListeners(): void {
     if (typeof activeActionCleanup === 'function') {

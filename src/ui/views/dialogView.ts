@@ -3,14 +3,7 @@ import type { IDialogView } from '../../types/ui.js';
 import StorageService from '../../core/storage/storageService.js';
 import ConversationsStore from '../state/conversationsStore.js';
 
-import { $ } from '../uiCommon.js';
-
-const t = (key: string, ...args: any[]): string => {
-    if (typeof I18n !== 'undefined' && I18n.t) {
-        return I18n.t(key, ...args);
-    }
-    return key;
-};
+import { $, t } from '../uiCommon.js';
 
 const getStorage = () => (globalThis as any).StorageService || StorageService;
 const getStore = () => (globalThis as any).ConversationsStore || ConversationsStore;
