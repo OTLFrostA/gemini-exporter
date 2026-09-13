@@ -153,30 +153,18 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
     const store = getStore();
 
     if (!options.force) {
-        if (storage) {
-            if (storage.isTakeoutPromptCompleted) {
-                try {
-                    const isCompleted = await storage.isTakeoutPromptCompleted();
-                    if (isCompleted) return;
-                } catch (e) {
-                    console.warn("[GemExporter:storage] Storage operation failed:", e);
-                }
-            }
-            if (storage.hasTakeoutData) {
-                try {
-                    const hasTakeout = await storage.hasTakeoutData();
-                    if (hasTakeout) return;
-                } catch (e) {
-                    console.warn("[GemExporter:storage] Storage operation failed:", e);
-                }
+        if (storage?.isTakeoutPromptCompleted) {
+            try {
+                if (await storage.isTakeoutPromptCompleted()) return;
+            } catch (e) {
+                console.warn("[GemExporter:storage] Storage operation failed:", e);
             }
         }
-        if (store && store.hasTakeoutData) {
-            try {
-                if (store.hasTakeoutData()) return;
-            } catch (e) {
-                if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:dialogView.ts]", e);
-            }
+        try {
+            if (store?.hasTakeoutData && store.hasTakeoutData()) return;
+            if (storage?.hasTakeoutData && await storage.hasTakeoutData()) return;
+        } catch (e) {
+            console.warn("[GemExporter:dialogView.ts]", e);
         }
     }
 

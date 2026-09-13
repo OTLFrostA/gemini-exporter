@@ -172,20 +172,13 @@ declare global {
 
     async function getExportedIds(slot?: string | null): Promise<Record<string, any>> {
         const { expKey, slot: s } = getStorageKeys(slot);
-        const keys = [expKey, 'exportedIds', 'gemini_exported_u0'];
-        if (s !== 'u0') {
-            keys.push(`gemini_exported_${s}`);
-        }
+        const keys = Array.from(new Set([expKey, 'exportedIds', 'gemini_exported_u0', ...(s !== 'u0' ? [`gemini_exported_${s}`] : [])]));
         const data = await chrome.storage.local.get(keys);
         const merged: Record<string, any> = {};
-        if (data.exportedIds && typeof data.exportedIds === 'object') {
-            Object.assign(merged, data.exportedIds);
-        }
-        if (data.gemini_exported_u0 && typeof data.gemini_exported_u0 === 'object') {
-            Object.assign(merged, data.gemini_exported_u0);
-        }
-        if (data[expKey] && typeof data[expKey] === 'object') {
-            Object.assign(merged, data[expKey]);
+        for (const k of keys) {
+            if (data[k] && typeof data[k] === 'object') {
+                Object.assign(merged, data[k]);
+            }
         }
         return merged;
     }

@@ -25,7 +25,7 @@ export const getEffectiveTimestamp = (chat?: any): number =>
 export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
     if (!c || !rec) return false;
     try {
-        const cTs = getEffectiveTimestamp(c) || (c.updatedAt ? new Date(c.updatedAt).getTime() : 0) || (c.timestamp ? new Date(c.timestamp).getTime() : 0);
+        const cTs = getEffectiveTimestamp(c);
         const rTs = rec.exportedAt ? (typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : Number(rec.exportedAt)) : 0;
         const rChatTime = (rec as any).chatTime ? (typeof (rec as any).chatTime === 'string' ? new Date((rec as any).chatTime).getTime() : Number((rec as any).chatTime)) : 0;
 

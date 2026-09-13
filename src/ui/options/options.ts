@@ -90,9 +90,6 @@ export async function isTakeoutPromptCompleted(): Promise<boolean> {
 
 // 5. loadStore facade & window binding
 export async function loadStore(force: boolean = false): Promise<any> {
-    if (typeof window !== 'undefined') {
-        (window as any).__workbenchLoadStore = loadStore;
-    }
     if (OptionsInit && OptionsInit.loadStore) {
         return await OptionsInit.loadStore(force);
     }
