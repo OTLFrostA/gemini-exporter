@@ -15,8 +15,8 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    // Open options page with onboarding welcome flag
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?welcome=1`);
+    // Open options page for new user onboarding
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await page.waitForLoadState('domcontentloaded');
 
     const popover = page.locator('.tour-popover');
@@ -130,7 +130,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       });
     });
 
-    // 2. Reload options page without welcome flag
+    // 2. Reload options page to trigger spotlight for returning user
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
 

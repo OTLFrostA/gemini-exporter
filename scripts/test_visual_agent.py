@@ -1138,7 +1138,7 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
         agent.log(f"❌ 无法检测到 Chrome 上的扩展 ID (端口 {port})，请确认 Chrome 正在运行", "FAIL")
         return False
 
-    options_welcome_url = f"chrome-extension://{agent.ext_id}/src/ui/options/options.html?welcome=1"
+    options_workbench_url = f"chrome-extension://{agent.ext_id}/src/ui/options/options.html"
 
     # 确保刷新活跃的 Gemini 标签页以注入最新 Content Scripts 并建立有效通信
     tabs = get_tabs(port)
@@ -1154,16 +1154,16 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
                 pass
 
     tabs = get_tabs(port)
-    welcome_tab = next((t for t in tabs if t.get("type") == "page" and f"chrome-extension://{agent.ext_id}" in t.get("url", "") and "options.html" in t.get("url", "")), None)
+    workbench_tab = next((t for t in tabs if t.get("type") == "page" and f"chrome-extension://{agent.ext_id}" in t.get("url", "") and "options.html" in t.get("url", "")), None)
 
-    if not welcome_tab:
-        agent.log("正在通过 CDP 打开 options.html?welcome=1 视口页面...", "INFO")
-        new_url = f"http://127.0.0.1:{port}/json/new?{options_welcome_url}"
+    if not workbench_tab:
+        agent.log("正在通过 CDP 打开 options.html 视口页面...", "INFO")
+        new_url = f"http://127.0.0.1:{port}/json/new?{options_workbench_url}"
         req = urllib.request.Request(new_url, method="PUT")
         with urllib.request.urlopen(req, timeout=5) as r:
-            welcome_tab = json.loads(r.read().decode("utf-8"))
+            workbench_tab = json.loads(r.read().decode("utf-8"))
 
-    cdp = CDPConnection(welcome_tab["webSocketDebuggerUrl"])
+    cdp = CDPConnection(workbench_tab["webSocketDebuggerUrl"])
     try:
         # 1. 视口标准化 (1280x800)
         cdp.call("Emulation.setDeviceMetricsOverride", {
@@ -1172,8 +1172,8 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
             "deviceScaleFactor": 1,
             "mobile": False
         })
-        # 确保导航到 welcome=1 并给足页面加载与模块注册时间
-        cdp.eval(f"window.location.href = '{options_welcome_url}';")
+        # 确保导航到 options.html 并给足页面加载与模块注册时间
+        cdp.eval(f"window.location.href = '{options_workbench_url}';")
         time.sleep(1.5)
 
         # 2. 执行新手向导全流程视觉盲测

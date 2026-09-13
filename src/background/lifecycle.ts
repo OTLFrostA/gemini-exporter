@@ -40,7 +40,7 @@ export function initUninstallUrl(): void {
 }
 
 /**
- * Register onInstalled listener to open options welcome page on initial install.
+ * Register onInstalled listener to open options workbench on initial install.
  */
 export function initLifecycleListeners(): void {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onInstalled) return;
@@ -49,7 +49,7 @@ export function initLifecycleListeners(): void {
         initUninstallUrl();
         if (details.reason === 'install') {
             chrome.tabs.create({
-                url: chrome.runtime.getURL('src/ui/options/options.html?welcome=1')
+                url: chrome.runtime.getURL('src/ui/options/options.html')
             });
         }
     });

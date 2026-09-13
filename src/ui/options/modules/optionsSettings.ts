@@ -230,7 +230,7 @@ export function checkWalkthroughOnOpen(): void {
         if (typeof window === 'undefined') return;
         const urlParams = new URLSearchParams(window.location.search);
         const isExplicitTour = urlParams.get('tour') === '1';
-        const isWelcome = urlParams.get('welcome') === '1' || urlParams.get('onboarding') === '1';
+        const isTourDisabled = urlParams.get('tour') === '0' || urlParams.get('notour') === '1';
 
         setTimeout(async () => {
             const Storage = getStorage();
@@ -243,29 +243,30 @@ export function checkWalkthroughOnOpen(): void {
                 return;
             }
 
+            // 2. Explicitly disabled (e.g. automated tests or specific opt-out)
+            if (isTourDisabled) {
+                return;
+            }
+
             const tourDone = (Storage && Storage.isTourCompleted)
                 ? await Storage.isTourCompleted()
                 : false;
 
-            // 2. Track A: New user onboarding (only on install / welcome URL)
-            if (isWelcome) {
-                if (!tourDone || isExplicitTour) {
-                    if (Tour.startTour) Tour.startTour(0);
-                }
+            // 3. Track A: New user onboarding (first time opening workbench, tour not completed)
+            if (!tourDone) {
+                if (Tour.startTour) Tour.startTour(0);
                 return;
             }
 
-            // 3. Track B: Returning user major feature spotlight (on normal workbench open)
-            if (tourDone) {
-                const currentAppVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
-                const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
-                    ? await Storage.getLastSeenFeatureVersion()
-                    : '';
+            // 4. Track B: Returning user major feature spotlight (on normal workbench open)
+            const currentAppVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+            const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
+                ? await Storage.getLastSeenFeatureVersion()
+                : '';
 
-                const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
-                if (eligibleFeature && Tour.startFeatureSpotlight) {
-                    Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
-                }
+            const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
+            if (eligibleFeature && Tour.startFeatureSpotlight) {
+                Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
             }
         }, 400);
     } catch (e) {
