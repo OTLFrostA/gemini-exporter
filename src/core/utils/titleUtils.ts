@@ -57,13 +57,15 @@ export function unescapeHtml(text?: string | null): string {
  */
 export function stripHtmlTags(html?: string | null): string {
     if (!html || typeof html !== 'string') return '';
-    let res = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                  .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    let res = html;
     let prev = '';
-    do {
+    while (res !== prev) {
         prev = res;
-        res = res.replace(/<[^>]+>/g, '');
-    } while (res !== prev);
+        res = res
+            .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+            .replace(/<style\b[\s\S]*?<\/style\s*>/gi, '')
+            .replace(/<[^>]+>/g, '');
+    }
     return res;
 }
 
