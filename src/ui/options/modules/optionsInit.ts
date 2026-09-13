@@ -96,9 +96,6 @@ export async function checkExportSession(): Promise<void> {
 
 export async function loadStore(force: boolean = false): Promise<any> {
     try {
-        if (typeof window !== 'undefined') {
-            (window as any).__workbenchLoadStore = loadStore;
-        }
         const Store = getStore();
         const List = getList();
         const Storage = getStorage();

@@ -389,20 +389,8 @@ export async function finishTour(): Promise<void> {
     removeElements();
 }
 
-export async function skipTour(): Promise<void> {
-    const storage = getStorage();
-    if (storage) {
-        if (storage.setTourCompleted) {
-            await storage.setTourCompleted(true);
-        }
-        if (storage.setLastSeenFeatureVersion) {
-            const currentVer = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
-            await storage.setLastSeenFeatureVersion(currentVer);
-        }
-    }
-    spotlightMode = false;
-    removeElements();
-}
+export const skipTour = finishTour;
+
 
 export async function startFeatureSpotlight(
     stepId: string,

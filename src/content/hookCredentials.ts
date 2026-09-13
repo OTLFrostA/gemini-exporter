@@ -42,14 +42,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                 }
             }
             if (atMatch || sidMatch) {
-                // Infer account slot from URL path /u/1/
-                let slot = 'default';
-                const m = u.match(/\/u\/(\d+)\//);
-                if (m) slot = 'u' + m[1];
-                else {
-                    const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
-                    if (m2) slot = 'u' + m2[1];
-                }
+                const slot = getSlotFromUrl(u);
                 const payload = {
                     at: atMatch ? decodeURIComponent(atMatch[1]) : '',
                     sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
@@ -75,14 +68,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                           ((url || '').toString().includes(Proto.RPCS.DELETE));
             if (!hasGz) return;
 
-            let slot = 'default';
-            const uStr = (url || '').toString();
-            const m = uStr.match(/\/u\/(\d+)\//);
-            if (m) slot = 'u' + m[1];
-            else {
-                const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
-                if (m2) slot = 'u' + m2[1];
-            }
+            const slot = getSlotFromUrl(url);
 
             let targetText = (body || '') + ' ' + (responseText || '');
             try {

@@ -78,15 +78,14 @@ const pagination = GeminiClientPagination;
             this.aborted = true;
         }
 
-        // 兼容标准 AbortSignal 及过渡期全局标志（仅作 fallback）
+        // 兼容标准 AbortSignal 及过渡期全局标志（仅作 fallback: window.__gemExporterAborted）
         isAborted(callSignal?: AbortSignal | null): boolean {
             if (this.aborted) return true;
             if (callSignal && callSignal.aborted) return true;
             if (this.signal && this.signal.aborted) return true;
             return !!(
-                (typeof window !== "undefined" && ((window as any).__gemExporterAborted || (window as any).window?.__gemExporterAborted)) ||
-                (typeof window !== "undefined" && (window as any)['__gemExporterAborted']) || // window.__gemExporterAborted fallback check
-                (typeof globalThis !== "undefined" && (globalThis as any).__gemExporterAborted)
+                (typeof globalThis !== "undefined" && (globalThis as any).__gemExporterAborted) ||
+                (typeof window !== "undefined" && (window as any).__gemExporterAborted)
             );
         }
 
@@ -99,16 +98,11 @@ const pagination = GeminiClientPagination;
             let api = getApiUrl(cred.accountSlot || "default");
             const filter = customFilter || [0, null, 1];
             const P = getProtocol();
-            let req = pageToken ? JSON.stringify([
-                    [
-                        [P.RPCS.LIST, JSON.stringify([50, pageToken, filter]), null, "generic"]
-                    ]
-                ]) :
-                JSON.stringify([
-                    [
-                        [P.RPCS.LIST, JSON.stringify([50, null, filter]), null, "generic"]
-                    ]
-                ]);
+            let req = JSON.stringify([
+                [
+                    [P.RPCS.LIST, JSON.stringify([50, pageToken || null, filter]), null, "generic"]
+                ]
+            ]);
 
             let resp = await postBatchexecute({
                 api,

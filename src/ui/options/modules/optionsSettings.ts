@@ -343,9 +343,6 @@ export async function initLiveSaveSettings(): Promise<void> {
                 if (!handle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
                     handle = await DirHandle.restoreSavedDirHandle();
                 }
-                if (!handle && DirHandle && typeof DirHandle.getStoredDirHandle === 'function') {
-                    handle = await DirHandle.getStoredDirHandle();
-                }
 
                 if (!handle) {
                     try {

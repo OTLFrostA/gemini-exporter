@@ -68,18 +68,11 @@ const log = (_msg: string): void => {};
             updateUiForTabState(isGemini);
 
             let count = 0;
-            if (Storage) {
-                const convs = await Storage.getConversations(slot);
-                count = convs.length;
-                if (!count) {
-                    const syncInfo = await Storage.getLastSync(slot);
-                    count = syncInfo?.count || 0;
-                }
-            } else {
-                const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-                const countKey = slot === 'u0' ? 'gemini_last_count' : `gemini_last_count_${slot}`;
-                const data: any = await chrome.storage.local.get([convKey, countKey]);
-                count = data[convKey]?.length || data[countKey] || 0;
+            const convs = await Storage.getConversations(slot);
+            count = convs.length;
+            if (!count) {
+                const syncInfo = await Storage.getLastSync(slot);
+                count = syncInfo?.count || 0;
             }
             const badge = $('countBadge');
             if (badge) {
@@ -171,7 +164,6 @@ const log = (_msg: string): void => {};
             : (currentFormatSelect?.value || 'markdown');
         if (typeof formatStore === 'undefined' && !ALLOWED_FORMATS.includes(format)) format = 'markdown';
 
-        void (typeof i18n !== 'undefined' ? i18n.t('popupExporting') : '');
         const progWrap = $('progWrap');
         const bar = $('bar');
         if (progWrap) progWrap.style.display = 'block';
@@ -248,20 +240,12 @@ const log = (_msg: string): void => {};
                         chatTime: chat.timestamp || Date.now(),
                         status: 'ok'
                     };
-                    if (Storage) {
-                        await Storage.saveExportRecord(slot, convId, rec);
-                        const list = await Storage.getConversations(slot);
-                        const item = list.find((c: any) => normId(c.id) === normId(convId));
-                        if (item && finalTitle !== convId && item.title !== finalTitle) {
-                            item.title = finalTitle;
-                            await Storage.setConversations(slot, list);
-                        }
-                    } else {
-                        const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                        const expData: any = await chrome.storage.local.get([expKey]);
-                        const curExp = expData[expKey] || {};
-                        curExp[convId] = rec;
-                        await chrome.storage.local.set({ [expKey]: curExp });
+                    await Storage.saveExportRecord(slot, convId, rec);
+                    const list = await Storage.getConversations(slot);
+                    const item = list.find((c: any) => normId(c.id) === normId(convId));
+                    if (item && finalTitle !== convId && item.title !== finalTitle) {
+                        item.title = finalTitle;
+                        await Storage.setConversations(slot, list);
                     }
                 } catch (e) {
                     console.warn('[GemExporter:storage] Storage operation failed:', e);
