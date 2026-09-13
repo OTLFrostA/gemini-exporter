@@ -118,34 +118,30 @@ function getProtocol(): GeminiProtocolModule {
         return null;
     }
 
+    function normalizeLegacySingleCred(s: any, map: GeminiCredentialsMap): void {
+        if (s?.gemini_credentials?.sid && !map[s.gemini_credentials.sid]) {
+            map[s.gemini_credentials.sid] = {
+                at: s.gemini_credentials.at || "",
+                bl: s.gemini_credentials.bl || getProtocol().BL_FALLBACK,
+                sid: s.gemini_credentials.sid,
+                accountSlot: "default",
+                lastUsed: Date.now()
+            };
+        }
+    }
+
     async function loadCredMap(): Promise<GeminiCredentialsMap> {
         const storage = getCredStorage();
         if (!storage) return {};
         try {
             let s: any = await storage.get(["gemini_credentials_map", "gemini_credentials"]);
             let map: GeminiCredentialsMap = s.gemini_credentials_map || {};
-            if (s.gemini_credentials && s.gemini_credentials.sid && !map[s.gemini_credentials.sid]) {
-                map[s.gemini_credentials.sid] = {
-                    at: s.gemini_credentials.at || "",
-                    bl: s.gemini_credentials.bl || getProtocol().BL_FALLBACK,
-                    sid: s.gemini_credentials.sid,
-                    accountSlot: "default",
-                    lastUsed: Date.now()
-                };
-            }
+            normalizeLegacySingleCred(s, map);
             if (Object.keys(map).length === 0 && typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
                 try {
                     let localS: any = await chrome.storage.local.get(["gemini_credentials_map", "gemini_credentials"]);
                     let localMap: GeminiCredentialsMap = localS.gemini_credentials_map || {};
-                    if (localS.gemini_credentials && localS.gemini_credentials.sid && !localMap[localS.gemini_credentials.sid]) {
-                        localMap[localS.gemini_credentials.sid] = {
-                            at: localS.gemini_credentials.at || "",
-                            bl: localS.gemini_credentials.bl || getProtocol().BL_FALLBACK,
-                            sid: localS.gemini_credentials.sid,
-                            accountSlot: "default",
-                            lastUsed: Date.now()
-                        };
-                    }
+                    normalizeLegacySingleCred(localS, localMap);
                     if (Object.keys(localMap).length > 0) {
                         map = localMap;
                         await storage.set({ gemini_credentials_map: map });

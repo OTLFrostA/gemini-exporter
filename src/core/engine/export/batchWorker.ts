@@ -56,6 +56,7 @@ declare global {
 import GeminiUtils, {
     normId as utilsNormId,
     cleanTitle as utilsCleanTitle,
+    unescapeHtml as utilsUnescapeHtml,
     isRealTitle as utilsIsRealTitle,
     resolveTitle as utilsResolveTitle
 } from "../../utils/utils.js";
@@ -72,6 +73,13 @@ const cleanTitle = (t?: string | null): string => {
         return (globalThis as any).GeminiUtils.cleanTitle(t);
     }
     return utilsCleanTitle(t);
+};
+
+const unescapeHtml = (t?: string | null): string => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.unescapeHtml) {
+        return (globalThis as any).GeminiUtils.unescapeHtml(t);
+    }
+    return utilsUnescapeHtml(t);
 };
 
 const isRealTitle = (t?: string | null, fallbackId?: string | number): boolean => {
@@ -270,7 +278,7 @@ const resolveTitle = (chat?: any) => {
                     if (isHtmlReport) {
                         const h1Match = m.content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
                         if (h1Match) {
-                            docTitle = cleanTitle(h1Match[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"'));
+                            docTitle = cleanTitle(unescapeHtml(h1Match[1].replace(/<[^>]+>/g, '')));
                         }
                         const convHtml = (globalThis as any).ChatFormatter?.convertHtmlToMarkdown;
                         docMarkdown = convHtml ? convHtml(m.content) : m.content.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_match: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);

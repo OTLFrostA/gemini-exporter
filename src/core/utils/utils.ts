@@ -15,6 +15,7 @@ import {
 import {
     isRealTitle,
     cleanTitle,
+    unescapeHtml,
     resolveTitle,
     setTitleBySource,
     getEffectiveTimestamp,
@@ -54,6 +55,7 @@ export {
     // Title
     isRealTitle,
     cleanTitle,
+    unescapeHtml,
     resolveTitle,
     setTitleBySource,
     getEffectiveTimestamp,
@@ -80,6 +82,7 @@ export interface GeminiUtilsModule {
     isDevMode: () => boolean;
     isRealTitle: (title?: string | null, id?: string | number) => boolean;
     cleanTitle: (rawTitle?: string | null) => string;
+    unescapeHtml: (text?: string | null) => string;
     sanitizeFileName: (name?: string | null, fallback?: string) => string;
     sanitizeRelativePath: (p?: string | null, defaultName?: string) => string;
     normId: (id?: string | number | null) => string;
@@ -120,6 +123,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     isDevMode,
     isRealTitle,
     cleanTitle,
+    unescapeHtml,
     sanitizeFileName,
     sanitizeRelativePath,
     normId,

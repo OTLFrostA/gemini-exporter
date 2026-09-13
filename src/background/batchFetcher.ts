@@ -5,23 +5,12 @@ import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimit
 import { isSlotAborted } from './abortManager.js';
 import { startKeepAlive } from './keepAlive.js';
 
-// Tab communication service helper (handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
-export const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> => {
-    if (typeof TabService !== 'undefined' && TabService.sendToGeminiTab) {
-        return TabService.sendToGeminiTab(msg, slot, timeoutMs);
-    }
-    return Promise.reject(new Error('与 Gemini 页面连接失败（扩展重载后需刷新 gemini.google.com 页面）: Receiving end does not exist'));
-};
+// Tab communication service helper (delegates to TabService: handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
+export const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> =>
+    TabService.sendToGeminiTab(msg, slot, timeoutMs);
 
-export const getGeminiTab = (slot?: string): Promise<any> => {
-    if (typeof TabService !== 'undefined' && TabService.getGeminiTab) {
-        return TabService.getGeminiTab(slot);
-    }
-    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-        return chrome.tabs.query({ url: 'https://gemini.google.com/*' }).then((t: any[]) => t?.[0] || null);
-    }
-    return Promise.resolve(null);
-};
+export const getGeminiTab = (slot?: string): Promise<any> =>
+    TabService.getGeminiTab(slot);
 
 export async function fetchBatch(
     list: any,

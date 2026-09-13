@@ -56,6 +56,39 @@ export function sanitizeZipPath(p?: string | null): string {
     return sanitizeRelativePath(p, 'file');
 }
 
+function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferBuffer: boolean, timeoutMs: number, timeoutMsg: string): Promise<any> {
+    return new Promise(resolve => {
+        let timer: any = null;
+        let settled = false;
+
+        if (timeoutMs > 0) {
+            timer = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    resolve({ success: false, error: `${timeoutMsg} after ${timeoutMs}ms` });
+                }
+            }, timeoutMs);
+        }
+
+        chrome.tabs.sendMessage(tabId, {
+            action: 'downloadAssetDirect',
+            url,
+            referer: `https://gemini.google.com/app/${chatId}`,
+            preferBuffer
+        }, (resp: any) => {
+            if (timer) clearTimeout(timer);
+            if (!settled) {
+                settled = true;
+                if (chrome.runtime && chrome.runtime.lastError) {
+                    resolve({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                    resolve(resp);
+                }
+            }
+        });
+    });
+}
+
     class AssetPipeline implements AssetPipelineInstance {
         currentSlot: string;
         useZip: boolean;
@@ -108,81 +141,27 @@ export function sanitizeZipPath(p?: string | null): string {
                     });
                 } else {
                     const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-                    if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.sendMessage) {
-                        r = await new Promise(resolve => {
-                            let timer: any = null;
-                            let settled = false;
-
-                            if (timeoutMs > 0) {
-                                timer = setTimeout(() => {
-                                    if (!settled) {
-                                        settled = true;
-                                        resolve({ success: false, error: `tabs.sendMessage timed out after ${timeoutMs}ms` });
-                                    }
-                                }, timeoutMs);
-                            }
-
-                            chrome.tabs.sendMessage(tab.id, {
-                                action: 'downloadAssetDirect',
-                                url: targetUrl,
-                                referer: `https://gemini.google.com/app/${chat.id}`,
-                                preferBuffer: true
-                            }, (resp: any) => {
-                                if (timer) clearTimeout(timer);
-                                if (!settled) {
-                                    settled = true;
-                                    if (chrome.runtime && chrome.runtime.lastError) {
-                                        resolve({ success: false, error: chrome.runtime.lastError.message });
-                                    } else {
-                                        resolve(resp);
-                                    }
-                                }
-                            });
-                        });
+                    if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs) {
+                        r = await sendTabAssetRequest(tab.id, targetUrl, chat.id, true, timeoutMs, 'tabs.sendMessage timed out');
                     }
                 }
 
                 // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
                 // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
-                const hasValidBuffer = !!(r && r.dataBuffer && (
+                let hasValidBuffer = !!(r && r.dataBuffer && (
                     (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
                     (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
                 ));
                 const hasValidB64 = !!(r && (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(','))));
 
-                if (r && r.success && !hasValidBuffer && !hasValidB64 && typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.sendMessage) {
+                if (r && r.success && !hasValidBuffer && !hasValidB64 && typeof chrome !== 'undefined' && chrome.tabs) {
                     const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                     if (fallbackTab && fallbackTab.id) {
-                        r = await new Promise(resolve => {
-                            let timer: any = null;
-                            let settled = false;
-
-                            if (timeoutMs > 0) {
-                                timer = setTimeout(() => {
-                                    if (!settled) {
-                                        settled = true;
-                                        resolve({ success: false, error: `tabs.sendMessage fallback timed out after ${timeoutMs}ms` });
-                                    }
-                                }, timeoutMs);
-                            }
-
-                            chrome.tabs.sendMessage(fallbackTab.id, {
-                                action: 'downloadAssetDirect',
-                                url: targetUrl,
-                                referer: `https://gemini.google.com/app/${chat.id}`,
-                                preferBuffer: false
-                            }, (resp: any) => {
-                                if (timer) clearTimeout(timer);
-                                if (!settled) {
-                                    settled = true;
-                                    if (chrome.runtime && chrome.runtime.lastError) {
-                                        resolve({ success: false, error: chrome.runtime.lastError.message });
-                                    } else {
-                                        resolve(resp);
-                                    }
-                                }
-                            });
-                        });
+                        r = await sendTabAssetRequest(fallbackTab.id, targetUrl, chat.id, false, timeoutMs, 'tabs.sendMessage fallback timed out');
+                        hasValidBuffer = !!(r && r.dataBuffer && (
+                            (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
+                            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
+                        ));
                     }
                 }
 
