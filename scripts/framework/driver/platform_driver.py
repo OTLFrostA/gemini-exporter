@@ -102,6 +102,43 @@ class ChatPlatformDriver(ABC):
         """Return platform DOM selector dictionary."""
         pass
 
+    def prepare_turn_environment(self, is_image: bool = False) -> bool:
+        """
+        Hook executed before staging a turn, allowing the platform driver to setup
+        streaming event listeners, verify active models, or reset session states.
+        """
+        return True
+
+    @abstractmethod
+    def build_turn_pipeline(
+        self,
+        prompt_text: str,
+        max_wait: int = 300,
+        is_image: bool = False,
+        cooldown_seconds: float = 6.0
+    ) -> List[Any]:
+        """
+        Construct the platform-specific atomic action sequence for a single turn.
+        Returns a list of AtomicAction primitives to be executed by SerialActionExecutor.
+        """
+        pass
+
+    def extract_turn_result(
+        self,
+        prompt_text: str,
+        duration: float,
+        is_image: bool = False
+    ) -> TurnResult:
+        """
+        Extract the model's generated response, images, and telemetry data from the active DOM.
+        """
+        return TurnResult(
+            success=True,
+            prompt=prompt_text,
+            duration=duration,
+            chat_id=self.get_current_chat_id()
+        )
+
     def get_pipeline_strategies(self) -> Dict[str, Callable]:
         """Optional pipeline atomic execution strategy hooks for this platform."""
         return {}

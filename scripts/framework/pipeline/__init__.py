@@ -8,6 +8,7 @@ from .actions import (
     StagePromptAction,
     SingleClickSendAction,
     AwaitStreamSettledAction,
+    StreamSettledConfig,
     HumanCooldownAction,
     ClickNewChatAction,
     NavigateChatAction
@@ -26,6 +27,7 @@ __all__ = [
     "StagePromptAction",
     "SingleClickSendAction",
     "AwaitStreamSettledAction",
+    "StreamSettledConfig",
     "HumanCooldownAction",
     "ClickNewChatAction",
     "NavigateChatAction",

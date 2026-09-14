@@ -711,5 +711,223 @@
     ],
     "consumed_at": "2026-09-14T15:48:16.594900",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "gravitational_wave_space_interferometer_lisa",
+    "domain": "gravitational_wave_space_interferometer_lisa",
+    "title": "空间引力波天文台：百万公里激光外差干涉与无拖曳控制",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math"
+    ],
+    "description": "测试 LISA 空间三体干涉编队生图 (Imagen)、时间延迟干涉 (TDI) 算法推导与激光相位噪声消除",
+    "turns": [
+      "请帮我生成一张图片：在日心轨道深空中，三艘相距 250 万公里的先进引力波空间探测飞船构成巨大的等边三角形编队。飞船之间互相发射金色与蓝色的超稳红外激光链路，背景是壮丽的银河系悬臂与深空星云，宏大科幻写实天文风格。",
+      "详细推导空间激光干涉引力波天文台 (如 LISA) 中的时间延迟干涉 (Time Delay Interferometry, TDI) 基础干涉仪合成算子 X(t)，解释其如何利用臂长对称抵消消除主要激光相位噪声 (Laser Phase Noise)。",
+      "请再帮我生成一张图片：飞船内部核心无拖曳控制系统 (Drag-Free Control) 的超纯净金铂合金测试质量球 (Test Mass) 特写，在静电悬浮电极笼中自由悬浮，微米级间隙透出淡紫色静电传感微光，微观高精仪器渲染。",
+      "推导超大质量双黑洞并合在空间毫赫兹 (mHz) 频段引力波应变振幅 h_{eff}(f) 的特征信噪比 (SNR) 积分表达式，分析其相比地面探测器在角分辨率与早期预警上的核心优势。",
+      "使用 Markdown 表格对比空间 LISA 天文台、地面下一代爱因斯坦望远镜 (ET) 与宇宙大爆炸探测器 (DECIGO) 在探测目标频段、主要天文波源类型、单向激光功率与干涉灵敏度极限指标。"
+    ],
+    "consumed_at": "2026-09-14T15:58:46.724055",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "confidential_computing_enclave_attestation",
+    "domain": "confidential_computing_enclave",
+    "title": "机密计算与硬件飞地：Intel SGX / AMD SEV 远程证明与侧信道攻防",
+    "features": [
+      "code",
+      "math",
+      "tables",
+      "security_audit"
+    ],
+    "turns": [
+      "请对比机密计算领域两大主流硬件飞地技术：Intel SGX (Software Guard Extensions) 与 AMD SEV-SNP (Secure Encrypted Virtualization-Secure Nested Paging)。请以 Markdown 表格的形式，从隔离粒度（进程级 vs 虚拟机级）、内存加密机制（MEE 引擎 vs AES-XTS 硬件密钥）、页表管理权属（OS 托管 vs RMP 反向映射表）、远程证明信任根（Intel PCS vs AMD VCEK）以及物理侧信道暴露面等 5 个维度展开深度横向评测。",
+      "在基于 ECDSA 的非对称远程证明 (DCAP, Data Center Attestation Primitives) 流程中，飞地如何生成包含用户数据度量 (ReportData) 的 MRENCLAVE 证明报告？请详细推导 ReportData 绑定的密码学推导过程，并给出客户端验证 Enclave Quote 真实性与平台证书链 (PCK Cert Chain) 吊销状态 (TCB Recovery) 的数学与逻辑步骤。",
+      "请提供一段符合生产级机密计算规范的高性能 Rust 代码（基于 Linux /dev/sgx_enclave 或 sgx_urts 运行时），展示飞地外部不可信宿主 (Untrusted Host) 与飞地内部可信环境 (Trusted App) 通过 EENTER / EEXIT 指令安全传递入参的边界防护模型。代码需包含对传入指针的严格越界校验（防止 Pointer Poisoning 漏洞）以及内存清零零化 (Zeroize) 处理。",
+      "针对 Foreshadow (L1TF)、AEP (Asynchronous Enclave Exit) 劫持以及内存访问模式侧信道攻击，飞地代码如何实现无分支恒定时间 (Constant-Time) 与混淆内存访问 (Oblivious RAM, ORAM)？请用公式与伪代码阐述 Path ORAM 在硬件飞地环境下的读写复杂度与隐藏访问模式的数学证明。",
+      "请结合云原生机密容器 (Confidential Containers / Kata Containers) 的落地实践，给出一份机密计算基础设施在金融核心清结算场景中的生产部署安全检查清单，涵盖密钥代理服务 (Key Broker Service, KBS)、度量引导策略 (Measured Boot) 与硬件故障转移降级防范。"
+    ],
+    "consumed_at": "2026-09-14T15:58:46.725003",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "computational_geophysics_seismic_fwi",
+    "title": "计算地球物理：全波形反演 (FWI) 与地幔柱三维地震层析成像",
+    "domain": "computational_geophysics",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "physics"
+    ],
+    "description": "测试伴随状态法波动方程偏微分推导、吸收边界条件有限差分实现与反演算法对比",
+    "turns": [
+      "请详细阐述地震全波形反演（Full Waveform Inversion, FWI）的基本数学物理框架，写出非均匀声波介质中含震源项的二阶标量波动偏微分方程，并定义基于 L2 范数波场残差的目标泛函 $J(m)$。",
+      "借助伴随状态法（Adjoint-State Method）与拉格朗日乘子，详细推导速度模型参数 $v(x)$ 的目标函数梯度 $\\nabla_m J$，展示正演波场与伴随逆时残差波场在时间上的零延迟互相关卷积核（Sensitivity Kernel）。",
+      "使用 Python 与 NumPy 实现一个二维声波有限差分正演（FD）核心步进函数，包含完美匹配层（PML）边界衰减与震源雷克子波（Ricker Wavelet）注入代码。",
+      "分析全波形反演中由于低频缺失和初始模型偏差导致的周期跳跃（Cycle Skipping）问题，解释多尺度频率延拓（Multiscale Frequency Continuation）与包络反演如何避免陷入局部极小值。",
+      "使用 Markdown 表格横向对比传统射线走时层析成像（Ray-based Traveltime Tomography）、局部全波形反演（Local FWI）与基于贝叶斯推断的马尔可夫链蒙特卡洛（MCMC）全波形反演在深部分辨率、非线性反演度、初始模型依赖性与计算复杂度上的差异。"
+    ],
+    "consumed_at": "2026-09-14T16:03:28.237567",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "autonomous_driving_bev_spatial_temporal_fusion",
+    "title": "自动驾驶端到端架构：BEVFormer 纯视觉多相机环视感知识别与时序融合",
+    "domain": "autonomous_driving_perception",
+    "description": "深入推演自动驾驶 BEV (Bird-Eye-View) 感知架构，包含时空 Cross-Attention 数学公式、PyTorch 伪代码、3D 目标检测对比表格与 Imagen 鸟瞰语义生图。",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "math",
+      "latex",
+      "tables"
+    ],
+    "turns": [
+      "请系统推演自动驾驶纯视觉 BEV (Bird’s-Eye-View) 环视感知架构的核心原理。请用 LaTeX 公式形式化推导 2D 多相机图像特征到 3D BEV 空间的网格投影过程，重点阐述可变形注意力（Deformable Attention）的空间交叉注意力（Spatial Cross-Attention）计算方程。",
+      "请用 PyTorch 编写一个简明高效的 BEV 时序自注意力（Temporal Self-Attention）模块核心实现（包含历史帧 BEV 特征与当前帧基于自车运动 Ego-Motion 速度偏航角的坐标对齐插值与加权融合）。",
+      "请帮我生成一张图片：夜晚暴雨场景下，自动驾驶测试车通过 6 颗环视摄像头在车载激光雷达与多模态屏幕上投影出霓虹风格的高精度 3D 鸟瞰（BEV）语义网格图，包含车辆预测轨迹线与 3D 边界框，赛博朋克极简科幻风格。",
+      "请用 Markdown 对比表格系统梳理学术界三大经典视觉 BEV 方案（LSS/BEVDet、BEVFormer、StreamPETR）在相机内外参标定容错率、时序融合显存开销、FPS 帧率以及 nuScenes 3D 检测 mAP 上的核心差异与工业落地取舍。",
+      "在真实车载量产部署时，当遭遇某颗相机脏污遮挡或强逆光盲区时，时序 BEV 空间特征网络是如何通过卡尔曼滤波与历史特征保持航向估计鲁棒性的？请给出防御性自适应加权算法。"
+    ],
+    "consumed_at": "2026-09-14T16:05:16.854947",
+    "consumed_by": "-c"
+  },
+  {
+    "id": "silicon_photonics_optical_computing",
+    "domain": "silicon_photonics_optical_computing",
+    "title": "神经形态硅光子芯片与全光存算一体矩阵架构",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试硅光 MZI 网格酉变换矩阵推导、光学乘加 (MAC) 物理仿真代码与微电子能效对照表",
+    "turns": [
+      "深入剖析马赫-曾德尔干涉仪 (MZI) 与硅基微环谐振腔 (MRR) 在构建光学模拟乘加运算 (Optical MAC) 网络时的物理干涉与相移调谐机理。",
+      "基于传输矩阵法 (Transfer Matrix Method, TMM)，推导单个 2x2 MZI 光开关单元的光电场转换酉矩阵 U(\\theta, \\phi)，并展示其如何通过 Reck 或 Clements 拓扑分解任意 N\\times N 酉矩阵。",
+      "使用 Python/NumPy 编写一个仿真类，模拟 4x4 Clements 拓扑 MZI 光子网格的光强前向传播过程，包含相位热漂移误差注入与奇异值分解 (SVD) 权重映射。",
+      "用 Markdown 表格对比相干光计算芯片、类脑神经形态芯片 (如 Loihi 2) 与先进 GPU Tensor Core 在算力密度 (TOPS/mm²)、能效比 (TOPS/W) 与单次矩阵乘法延迟 (ns) 上的理论与实测指标。",
+      "针对共封装光学 (Co-Packaged Optics, CPO) 在高密度光电异质集成中的热串扰与波长漂移问题，提出一套闭环片上光学锁相环 (OPLL) 补偿控制算法策略。"
+    ],
+    "consumed_at": "2026-09-14T16:05:16.855887",
+    "consumed_by": "-c"
+  },
+  {
+    "id": "synthetic_biology_organoid_bioprinting",
+    "title": "合成生物与生物打印：类器官微流控芯片与血管化 3D 生物打印",
+    "domain": "synthetic_biology_and_bioprinting",
+    "description": "测试类器官 3D 生物打印微流控生图 (Imagen)、非牛顿流体流变学模拟与组织工程扩散瓶颈推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在未来高等级无菌生物制造实验室内，一台超高精度的多喷头微流控 3D 生物打印机正在微米尺度上逐层构建仿生肝脏类器官的毛细血管网络结构，周围伴随生物水凝胶和微通道荧光标记，极富科技感与微观细节。",
+      "请设计一个 Markdown 表格，从生物相容性、剪切变稀流变特性、交联动力学机制与打印分辨率四个维度，横向对比海藻酸盐（Alginate）、明胶甲基丙烯酰基（GelMA）、胶原蛋白（Collagen）以及脱细胞细胞外基质（dECM）四种典型生物墨水（Bio-inks）。",
+      "请用 Python 编写一段紧凑的代码，使用 Poiseuille 流动模型与幂律流体（Power-Law Fluid）本构方程，数值模拟非牛顿流体生物墨水在圆柱形微喷嘴内的剪切速率（Shear Rate）与剪切应力分布，防止高剪切力导致细胞膜破裂失活。",
+      "请再帮我生成一张图片：共聚焦显微镜三维重构视野下，血管化神经类器官内部绿色荧光标记的神经元突触与红色荧光标记的内皮细胞微血管相互交织缠绕，呈现生机勃勃的微生理系统多细胞共培养结构。",
+      "深入解析在体外构建厘米级宏观实质组织器官时，缺乏层级化主动灌注灌流血管系统导致的核心区域氧气与营养输运极限（扩散极限 ~200μm 缺氧坏死），以及微流控芯片技术如何突破这一屏障。"
+    ],
+    "consumed_at": "2026-09-14T16:05:21.819570",
+    "consumed_by": "-c"
+  },
+  {
+    "id": "fusion_tokamak_plasma_magnetics",
+    "domain": "fusion_tokamak_plasma_magnetics",
+    "title": "托卡马克磁约束受控核聚变等离子体撕裂模与磁流体动力学稳定性",
+    "features": [
+      "latex",
+      "math",
+      "physics",
+      "code"
+    ],
+    "description": "测试 Grad-Shafranov 方程磁流体平衡推导、撕裂模电阻不稳定性判据与 Python 磁场位形模拟",
+    "turns": [
+      "在轴对称柱坐标系下，写出描述托卡马克磁约束等离子体二维磁流体动力学 (MHD) 平衡的 Grad-Shafranov 方程，并解释多极磁通函数 \\psi 与极向电流函数 I(\\psi) 的物理意义。",
+      "根据电阻磁流体动力学 (Resistive MHD) 理论，推导磁面重联 (Magnetic Reconnection) 与撕裂模 (Tearing Mode) 不稳定性的经典稳定性参数 \\Delta' 判据。",
+      "推导等离子体在极向磁场与环向磁场共同作用下的安全因子 q(r) 径向分布方程，阐明为什么当有理面 q=m/n (如 q=2/1) 出现时容易诱发大破裂 (Major Disruption)。",
+      "使用 Python 编写脚本，基于简化的螺线管近似计算并绘制托卡马克环形等离子体截面内的极向磁场与环向磁场矢量线，展示磁剪切 (Magnetic Shear) 的空间几何分布。",
+      "使用 Markdown 表格对比磁约束核聚变 (MCF) 中的托卡马克 (Tokamak)、仿星器 (Stellarator) 与场反转位形 (FRC) 在稳态运行能力、等离子体约束性能 (Beta 值) 及工程建造复杂度维度的优劣。"
+    ],
+    "consumed_at": "2026-09-14T16:05:21.821592",
+    "consumed_by": "-c"
+  },
+  {
+    "id": "neural_interface_optogenetics",
+    "title": "神经工程与光遗传学：闭环光电神经刺激与膜片钳突触动力学",
+    "domain": "neural_engineering_optogenetics",
+    "description": "测试石墨烯微电极阵列光遗传生图 (Imagen)、Hodgkin-Huxley 神经元方程数值仿真与脑机接口物理瓶颈推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在神经工程前沿实验室中，一个微米级的柔性透明石墨烯神经微电极阵列正贴附在大脑皮层组织切片表面，伴随微纳光纤发射的脉冲蓝光精确激活视紫红质通道蛋白 (Channelrhodopsin-2)，呈现微观荧光钙信号激发的未来神经芯片科幻感细节。",
+      "请设计一个 Markdown 表格，对比 ChR2、eNpHR3.0、ArchT 与 GCaMP6s 四种光遗传学与钙成像工具在激发波长、离子传输选择性、时间响应动力学（tau_on / tau_off）与光毒性容忍阈值上的物理与生化参数。",
+      "请用 Python 编写一个基于 Hodgkin-Huxley 神经元方程的扩展数值仿真代码，在经典动作电位微分方程组中引入光致离子电流项 I_opt(t) = g_opt * O(t) * (V - E_opt)，并模拟特定频率蓝光方波照射下的脉冲发放频率响应。",
+      "请再帮我生成一张图片：高倍多光子激光扫描荧光显微镜视野下，小鼠皮层锥体神经元树突棘（Dendritic Spines）在光刺激下产生局部钙瞬变信号，呈现晶莹剔透的多色荧光发光点与精细神经树突分支结构。",
+      "深入推演全植入式无线无源脑机接口在长期颅内慢性驻留时所面临的生物相容性胶质瘢痕包裹（Glial Scarring）、电极阻抗退化与脑组织微运动位移三大硬件生物物理瓶颈。"
+    ],
+    "consumed_at": "2026-09-14T16:07:03.956250",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "aerospace_hypersonic_scramjet_cfd",
+    "domain": "aerospace_hypersonic_scramjet_cfd",
+    "title": "高超声速超燃冲压发动机热流固耦合与激波边界层干扰",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code"
+    ],
+    "description": "测试可压缩 Navier-Stokes 控制方程推导、激波反射脱体判据与 Python 激波捕捉有限差分数值解",
+    "turns": [
+      "在马赫数 Ma > 6 的超声速流场中，给出守恒形式的三维可压缩雷诺平均 Navier-Stokes (RANS) 控制方程组，并解释其中的 Favre 质量平均应力张量与湍流马赫数对可压缩性耗散修正项。",
+      "推导超燃冲压发动机隔离段内激波/湍流边界层干扰 (Shock Wave / Boundary Layer Interaction, SWBLI) 诱发气流分离的自由相互作用理论 (Free Interaction Theory) 压力平台经验关系式。",
+      "使用 Python 编写脚本，基于一维 Roe 格式黎曼求解器 (Riemann Solver) 实现激波管 (Sod Shock Tube) 问题的一维欧拉方程高精度数值模拟，并可视化密度突变与接触间断。",
+      "针对超声速燃烧室内超细微秒级混合受限问题，分析横向超声速氢气/甲烷多股喷流在斜激波诱导涡破碎下的自燃热着火延迟机理与 Da 数 (Damköhler Number) 物理判据。",
+      "使用 Markdown 表格对比主动碳氢燃料再生冷却、发散冷却 (Transpiration Cooling) 与超高温超音速碳/碳 (C/C) 及碳/碳化硅 (C/SiC) 陶瓷基复合材料在超燃冲压发动机燃烧室热防护极限温度与结构质量代价指标。"
+    ],
+    "consumed_at": "2026-09-14T16:07:03.957429",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "graph_neural_networks_drug_discovery",
+    "domain": "graph_neural_networks_drug_discovery",
+    "title": "几何深度学习：等变图神经网络 (EGNN) 与小分子配体生成动力学",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 SE(3)/E(3) 旋转平移等变性数学证明、PyTorch Geometric 消息传递类实现与分子活性对比",
+    "turns": [
+      "在三维欧几里得几何空间中，严格证明 SE(3) 群旋转、平移以及反射操作下的 E(n)-等变图卷积网络 (EGNN) 节点坐标更新公式 x_i^{(l+1)} = x_i^{(l)} + \\sum_{j \\neq i} (x_i^{(l)} - x_j^{(l)}) \\phi_x(m_{ij}) 的等变性 (Equivariance)。",
+      "解释为什么在靶点口袋小分子对接与结合自由能 (\\Delta G_{bind}) 预测中，SE(3) 等变几何归纳偏置相比传统基于 2D 分子图的 GCN/GAT 能显著降低数据样本复杂度并提升跨空间构象泛化力。",
+      "使用 Python + PyTorch 实现一个带有等变坐标变换与自注意力边特征聚合机制的自定义 EGNN 层 (EGNNLayer)，包含前向传播与多维动量守恒边界保护。",
+      "设计一套基于扩散模型 (Equivariant Diffusion Model, EDM) 的受体口袋靶向从头药物分子三维原子坐标生成采样循环算法流程。",
+      "使用 Markdown 表格横向对比传统基于物理的分子对接算法 (如 AutoDock Vina)、经验打分函数与现代几何图深度学习打分网络 (如 EquiBind、TankBind) 在虚拟筛选富集因子 (EF1%)、单分子结合姿态平均 RMSD 与计算耗时维度的对比。"
+    ],
+    "consumed_at": "2026-09-14T16:12:15.903225",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

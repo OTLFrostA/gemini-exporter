@@ -9,7 +9,7 @@ import os
 import sys
 import unittest
 from unittest.mock import MagicMock
-from typing import Dict, Optional, Any, Union
+from typing import Dict, Optional, Any, Union, List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -60,6 +60,15 @@ class ConcreteTestDriver(ChatPlatformDriver):
 
     def get_selectors(self) -> Dict[str, str]:
         return {"input": "#mock-input"}
+
+    def build_turn_pipeline(
+        self,
+        prompt_text: str,
+        max_wait: int = 300,
+        is_image: bool = False,
+        cooldown_seconds: float = 6.0
+    ) -> List[Any]:
+        return []
 
 
 class TestPlatformDriver(unittest.TestCase):

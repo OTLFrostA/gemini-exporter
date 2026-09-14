@@ -45,7 +45,7 @@ class GeminiChatSession:
         wait_timeout = max(max_wait, 240) if is_image_turn else max_wait
 
         # 执行单飞原子流水线发帖
-        ok, msg = CDPActions.send_gemini_turn(self.driver.cdp, prompt, max_wait=wait_timeout)
+        ok, msg = CDPActions.send_gemini_turn(self.driver.cdp, prompt_text, max_wait=wait_timeout)
         duration = time.time() - t0
 
         if not ok:
@@ -64,48 +64,9 @@ class GeminiChatSession:
         if curr_id:
             self.chat_id = curr_id
 
-        # 提取最新回复文本与生图实体
-        resp_data = self.driver.cdp.eval(f"""
-        (() => {{
-            const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
-            if (models.length === 0) return {{ text: '', hasImages: false, modelCount: 0 }};
-            const last = models[models.length - 1];
-            const text = (last.textContent || '').trim();
-            const imgs = last.querySelectorAll('{GeminiSelectors.IMAGES}');
-            return {{
-                text: text,
-                hasImages: imgs.length > 0,
-                modelCount: models.length
-            }};
-        }})()
-        """) or {}
-
-        # 若为生图轮次但初检尚未渲染完成，给予短暂渲染等待
-        has_images = bool(resp_data.get("hasImages", False))
-        if is_image_turn and not has_images:
-            for _ in range(5):
-                time.sleep(2.0)
-                img_check = self.driver.cdp.eval(f"""
-                (() => {{
-                    const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
-                    const root = models.length > 0 ? models[models.length - 1] : document;
-                    const imgs = root.querySelectorAll('{GeminiSelectors.IMAGES}');
-                    return imgs.length > 0;
-                }})()
-                """)
-                if img_check:
-                    has_images = True
-                    break
-
-        turn_res = TurnResult(
-            success=True,
-            prompt=prompt_text,
-            model_response=resp_data.get("text", ""),
-            has_images=has_images,
-            duration=duration,
-            chat_id=self.chat_id,
-            metadata={"model_count": resp_data.get("modelCount", 1)}
-        )
+        # 通过 Driver 提取最新回复文本与生图实体
+        turn_res = self.driver.extract_turn_result(prompt_text, duration=duration, is_image=is_image_turn)
+        turn_res.chat_id = self.chat_id
         self.turns.append(turn_res)
         return turn_res
 
@@ -197,6 +158,120 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             "send_turn": CDPActions.send_gemini_turn,
             "wait_ready": CDPActions.wait_for_gemini_ready,
         }
+
+    def prepare_turn_environment(self, is_image: bool = False) -> bool:
+        """
+        发帖前环境准备：
+        1. 确保模型为 3.8 Flash + Extended thinking
+        2. 挂载网络流式完成事件监听器
+        """
+        self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
+        self.cdp.eval("""
+        (() => {
+            window.__testStreamState = {
+                started: false,
+                completed: false,
+                convId: null,
+                startedAt: 0,
+                completedAt: 0
+            };
+            if (!window.__testStreamListenerAttached) {
+                window.addEventListener('message', (e) => {
+                    if (!e.data || typeof e.data !== 'object') return;
+                    if (e.data.type === 'GEMINI_STREAM_GENERATE_START') {
+                        window.__testStreamState.started = true;
+                        window.__testStreamState.startedAt = Date.now();
+                        if (e.data.payload && e.data.payload.id) {
+                            window.__testStreamState.convId = e.data.payload.id;
+                        }
+                    } else if (e.data.type === 'GEMINI_STREAM_GENERATE_COMPLETE') {
+                        window.__testStreamState.completed = true;
+                        window.__testStreamState.completedAt = Date.now();
+                        if (e.data.payload && e.data.payload.id) {
+                            window.__testStreamState.convId = e.data.payload.id;
+                        }
+                    }
+                });
+                window.__testStreamListenerAttached = true;
+            }
+        })()
+        """)
+        return True
+
+    def build_turn_pipeline(
+        self,
+        prompt_text: str,
+        max_wait: int = 300,
+        is_image: bool = False,
+        cooldown_seconds: float = 6.0
+    ) -> List[Any]:
+        """构建 Gemini 平台的单轮发帖原子动作序列"""
+        from scripts.framework.pipeline.actions import (
+            AssertIdleAction,
+            StagePromptAction,
+            SingleClickSendAction,
+            AwaitStreamSettledAction,
+            HumanCooldownAction
+        )
+        turn_start_time = time.time()
+        pipeline = [
+            AssertIdleAction(max_wait=45),
+            StagePromptAction(prompt_text),
+            SingleClickSendAction(),
+            AwaitStreamSettledAction(timeout=max_wait, require_image=is_image, turn_start_time=turn_start_time)
+        ]
+        if cooldown_seconds > 0:
+            pipeline.append(HumanCooldownAction(seconds=cooldown_seconds))
+        return pipeline
+
+    def extract_turn_result(
+        self,
+        prompt_text: str,
+        duration: float,
+        is_image: bool = False
+    ) -> TurnResult:
+        """从页面 DOM 提取 Gemini 最新回复文本与生图实体"""
+        resp_data = self.cdp.eval(f"""
+        (() => {{
+            const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
+            if (models.length === 0) return {{ text: '', hasImages: false, modelCount: 0 }};
+            const last = models[models.length - 1];
+            const text = (last.textContent || '').trim();
+            const imgs = last.querySelectorAll('{GeminiSelectors.IMAGES}');
+            return {{
+                text: text,
+                hasImages: imgs.length > 0,
+                modelCount: models.length
+            }};
+        }})()
+        """) or {}
+
+        has_images = bool(resp_data.get("hasImages", False))
+        if is_image and not has_images:
+            for _ in range(5):
+                time.sleep(2.0)
+                img_check = self.cdp.eval(f"""
+                (() => {{
+                    const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
+                    const root = models.length > 0 ? models[models.length - 1] : document;
+                    const imgs = root.querySelectorAll('{GeminiSelectors.IMAGES}');
+                    return imgs.length > 0;
+                }})()
+                """)
+                if img_check:
+                    has_images = True
+                    break
+
+        curr_id = self.get_current_chat_id()
+        return TurnResult(
+            success=True,
+            prompt=prompt_text,
+            model_response=resp_data.get("text", ""),
+            has_images=has_images,
+            duration=duration,
+            chat_id=curr_id,
+            metadata={"model_count": resp_data.get("modelCount", 1)}
+        )
 
     def new_chat(self, timeout: float = 20.0) -> GeminiChatSession:
         """

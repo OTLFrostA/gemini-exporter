@@ -189,6 +189,23 @@ class SingleClickSendAction(AtomicAction):
 
 
 
+@dataclass
+class StreamSettledConfig:
+    """可配置的流式落盘与判定规则，支持不同 AI 平台策略定制"""
+    stop_btn_selector: str = GeminiSelectors.STOP_BTN
+    send_btn_selector: str = GeminiSelectors.SEND_BTN_NOT_STOP
+    editor_selector: str = GeminiSelectors.EDITOR
+    streaming_indicators_selector: str = GeminiSelectors.STREAMING_INDICATORS
+    model_response_selector: str = GeminiSelectors.MODEL_RESPONSE_ALL
+    images_selector: str = GeminiSelectors.IMAGES
+    retry_btn_selector: str = GeminiSelectors.RETRY_BTN
+    toast_selector: str = GeminiSelectors.TOAST
+    stream_complete_flag: str = "__geminiLastStreamComplete"
+    stream_state_var: str = "__testStreamState"
+    abort_keywords: Tuple[str, ...] = ("you stopped this response", "你已停止此回复")
+    error_keywords: Tuple[str, ...] = ("something went wrong", "无法生成图片", "i cannot generate", "unable to process")
+
+
 class AwaitStreamSettledAction(AtomicAction):
     """
     权威等待流式生成与落盘。
@@ -196,10 +213,17 @@ class AwaitStreamSettledAction(AtomicAction):
     同时内建 Fail-Fast 即刻熔断：遇「You stopped this response」或卡片报错 1 秒内中止，绝不盲等 300 秒。
     """
 
-    def __init__(self, timeout: int = 300, require_image: bool = False, turn_start_time: Optional[float] = None):
+    def __init__(
+        self,
+        timeout: int = 300,
+        require_image: bool = False,
+        turn_start_time: Optional[float] = None,
+        config: Optional[StreamSettledConfig] = None
+    ):
         self.timeout = timeout
         self.require_image = require_image
         self.turn_start_time = turn_start_time or time.time()
+        self.config = config or StreamSettledConfig()
 
     @property
     def name(self) -> str:
@@ -218,6 +242,7 @@ class AwaitStreamSettledAction(AtomicAction):
         turn_start_ms = int(self.turn_start_time * 1000)
         last_seen_len = 0
         stable_count = 0
+        cfg = self.config
 
         while time.time() - start_wait < self.timeout:
             time.sleep(1.0)
@@ -225,27 +250,27 @@ class AwaitStreamSettledAction(AtomicAction):
 
             state = cdp.eval(f"""
             (() => {{
-                const stopBtn = document.querySelector('{GeminiSelectors.STOP_BTN}');
+                const stopBtn = document.querySelector('{cfg.stop_btn_selector}');
                 const hasStop = !!(stopBtn && stopBtn.offsetWidth > 0);
-                const sendBtn = document.querySelector('{GeminiSelectors.SEND_BTN_NOT_STOP}');
+                const sendBtn = document.querySelector('{cfg.send_btn_selector}');
                 const hasSend = !!(sendBtn && sendBtn.offsetWidth > 0 && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true');
-                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+                const editor = document.querySelector('{cfg.editor_selector}');
                 const isEditorReady = !!(editor && (editor.getAttribute('contenteditable') === 'true' || editor.offsetWidth > 0));
-                const isStreamingDOM = !!document.querySelector('{GeminiSelectors.STREAMING_INDICATORS}');
+                const isStreamingDOM = !!document.querySelector('{cfg.streaming_indicators_selector}');
 
-                const streamState = window.__testStreamState || {{}};
-                const lastCompleteTime = window.__geminiLastStreamComplete || 0;
+                const streamState = window.{cfg.stream_state_var} || {{}};
+                const lastCompleteTime = window.{cfg.stream_complete_flag} || 0;
                 const netCompleted = !!streamState.completed || (lastCompleteTime >= {turn_start_ms});
 
-                const allModels = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE_ALL}'));
+                const allModels = Array.from(document.querySelectorAll('{cfg.model_response_selector}'));
                 const currCount = allModels.length;
                 const lastModel = currCount > 0 ? allModels[currCount - 1] : null;
                 const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
                 const lastSnippet = lastModel ? (lastModel.textContent || '').trim().slice(0, 150) : '';
-                const hasImages = lastModel ? (lastModel.querySelectorAll('{GeminiSelectors.IMAGES}').length > 0) : false;
+                const hasImages = lastModel ? (lastModel.querySelectorAll('{cfg.images_selector}').length > 0) : false;
 
-                const retryBtn = document.querySelector('{GeminiSelectors.RETRY_BTN}');
-                const toastEl = document.querySelector('{GeminiSelectors.TOAST}');
+                const retryBtn = document.querySelector('{cfg.retry_btn_selector}');
+                const toastEl = document.querySelector('{cfg.toast_selector}');
 
                 return {{
                     hasStop,
@@ -273,9 +298,9 @@ class AwaitStreamSettledAction(AtomicAction):
 
             last_snippet = (state.get("lastSnippet") or "").lower()
             # 异常熔断守护 2：若卡片内被掐死或打出报错提示，即刻熔断，绝不盲等 300 秒！
-            if "you stopped this response" in last_snippet or "你已停止此回复" in last_snippet:
-                return ActionResult(False, "检测到回复被异常中断掐死 (You stopped this response)")
-            if any(err_kw in last_snippet for err_kw in ["something went wrong", "无法生成图片", "i cannot generate", "unable to process"]):
+            if any(abort_kw in last_snippet for abort_kw in cfg.abort_keywords):
+                return ActionResult(False, f"检测到回复被异常中断掐死 ({last_snippet[:60]})")
+            if any(err_kw in last_snippet for err_kw in cfg.error_keywords):
                 return ActionResult(False, f"卡片内显示报错信息: {last_snippet[:60]}")
 
             has_stop = state.get("hasStop", False)

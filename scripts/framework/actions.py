@@ -730,51 +730,16 @@ class CDPActions(ExtensionActions):
         if is_image_gen:
             max_wait = max(max_wait, 240)
 
-        # 0. 模式硬门禁：强制确保为 3.8 Flash + Extended thinking (不存在则抛致命异常中止测试)
-        CDPActions.ensure_model_and_thinking(cdp, target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
-
-        # 1. 安装流式网络监听器并重置轮次状态
-        turn_start_time = time.time()
-        cdp.eval("""
-        (() => {
-            window.__testStreamState = {
-                started: false,
-                completed: false,
-                convId: null,
-                startedAt: 0,
-                completedAt: 0
-            };
-            if (!window.__testStreamListenerAttached) {
-                window.addEventListener('message', (e) => {
-                    if (!e.data || typeof e.data !== 'object') return;
-                    if (e.data.type === 'GEMINI_STREAM_GENERATE_START') {
-                        window.__testStreamState.started = true;
-                        window.__testStreamState.startedAt = Date.now();
-                        if (e.data.payload && e.data.payload.id) {
-                            window.__testStreamState.convId = e.data.payload.id;
-                        }
-                    } else if (e.data.type === 'GEMINI_STREAM_GENERATE_COMPLETE') {
-                        window.__testStreamState.completed = true;
-                        window.__testStreamState.completedAt = Date.now();
-                        if (e.data.payload && e.data.payload.id) {
-                            window.__testStreamState.convId = e.data.payload.id;
-                        }
-                    }
-                });
-                window.__testStreamListenerAttached = true;
-            }
-        })()
-        """)
-
-        # 2. 组装并调度原子流水线 (绝对串行单飞，杜绝并发发帖与疯狂重试)
-        pipeline = [
-            AssertIdleAction(max_wait=45),
-            StagePromptAction(prompt_text),
-            SingleClickSendAction(),
-            AwaitStreamSettledAction(timeout=max_wait, require_image=is_image_gen, turn_start_time=turn_start_time)
-        ]
-
-        result = _SHARED_PIPELINE_EXECUTOR.run_pipeline(None, cdp, pipeline)
+        from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
+        driver = GeminiPlatformDriver(cdp)
+        result = _SHARED_PIPELINE_EXECUTOR.execute_driver_turn(
+            ctx=None,
+            driver=driver,
+            prompt_text=prompt_text,
+            max_wait=max_wait,
+            is_image=is_image_gen,
+            cooldown_seconds=0.0
+        )
         if result.success:
             return True, f"流式生成权威落地 (单飞执行器完成, 耗时 {result.duration:.1f}s)"
         return False, f"发帖流水线熔断: {result.error}"
