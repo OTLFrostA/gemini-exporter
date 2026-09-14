@@ -78,8 +78,10 @@ class SearchClearCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             target_search_id = ctx.shared_data.get("target_search_id", "1bd028d5c5b0c0e2")
-            restored_count = CDPActions.clear_search_workbench(cdp_opt)
-            time.sleep(0.4)
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.5)
+            # 等待搜索防抖 (100ms) 及虚拟列表 DOM 重新完整铺展
+            restored_count = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
             is_still_checked = bool(cdp_opt.eval(f"""
             (() => {{
                 const item = document.querySelector('#list .item[data-chat-id="{target_search_id}"], #list .item[data-chat-id="c_{target_search_id}"]');
@@ -89,6 +91,7 @@ class SearchClearCase(FeatureTestCase):
             if restored_count > 1 and is_still_checked:
                 return True, f"列表恢复全量 ({restored_count}项) 且勾选状态完好保留", {"restored_count": restored_count}
             return False, f"恢复数量={restored_count}, 勾选保留={is_still_checked}", None
+
         finally:
             cdp_opt.close()
 
