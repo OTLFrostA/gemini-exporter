@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from scripts.framework.features import Feature, FeatureDomain, FeatureRegistry, TestStatus, TestResult
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
+from scripts.framework.pipeline import SerialActionExecutor
 
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
@@ -29,14 +30,14 @@ class TestContext:
         port: int = 9222,
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
-        delay: int = 2,
+        delay: int = 6,
         takeout_zip: Optional[str] = None,
         keep_chats: bool = False
     ):
         self.port = port
         self.worktree_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         self.output_dir = os.path.abspath(output_dir or os.path.join(self.worktree_root, "tests", "output", "live_export"))
-        self.delay = delay
+        self.delay = max(4, delay)
         self.takeout_zip = takeout_zip or os.path.abspath(os.path.join(self.worktree_root, "tests", "fixtures", "gemini_takeout_clean.zip"))
         self.keep_chats = keep_chats
         self.start_time = time.time()
@@ -44,6 +45,7 @@ class TestContext:
         self.provider = OnlineScenarioProvider()
         self.tracker = SessionLifecycleTracker()
         self.registry = FeatureRegistry()
+        self.executor = SerialActionExecutor()
 
         if isinstance(dataset, dict) and "scenarios" in dataset:
             self.scenarios = dataset["scenarios"]

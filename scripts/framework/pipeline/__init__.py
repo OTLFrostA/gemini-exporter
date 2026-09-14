@@ -1,0 +1,34 @@
+# scripts/framework/pipeline/__init__.py
+from .stages import PipelineStage, PipelineConcurrencyViolationError, CircuitBreakerError
+from .process_lock import ProcessLock, ProcessLockError
+from .actions import (
+    AtomicAction,
+    ActionResult,
+    AssertIdleAction,
+    StagePromptAction,
+    SingleClickSendAction,
+    AwaitStreamSettledAction,
+    HumanCooldownAction,
+    ClickNewChatAction,
+    NavigateChatAction
+)
+from .executor import SerialActionExecutor, PipelineResult
+
+__all__ = [
+    "PipelineStage",
+    "PipelineConcurrencyViolationError",
+    "CircuitBreakerError",
+    "ProcessLock",
+    "ProcessLockError",
+    "AtomicAction",
+    "ActionResult",
+    "AssertIdleAction",
+    "StagePromptAction",
+    "SingleClickSendAction",
+    "AwaitStreamSettledAction",
+    "HumanCooldownAction",
+    "ClickNewChatAction",
+    "NavigateChatAction",
+    "SerialActionExecutor",
+    "PipelineResult"
+]

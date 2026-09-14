@@ -19,6 +19,17 @@ try:
 except ImportError:
     from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
 
+from scripts.framework.pipeline import (
+    SerialActionExecutor,
+    AssertIdleAction,
+    StagePromptAction,
+    SingleClickSendAction,
+    AwaitStreamSettledAction,
+    HumanCooldownAction
+)
+
+_SHARED_PIPELINE_EXECUTOR = SerialActionExecutor()
+
 
 class CDPActions:
     @staticmethod
@@ -422,7 +433,7 @@ class CDPActions:
 
     @staticmethod
     def send_gemini_turn(cdp, turn_input: Any, max_wait: int = 300) -> Tuple[bool, str]:
-        """向 Gemini 聚焦输入框、粘贴 Prompt、点击发送并完整等待流式生成稳定完成"""
+        """向 Gemini 聚焦输入框、粘贴 Prompt、单次物理点击并以单飞串行流水线权威等待流式生成落地"""
         if isinstance(turn_input, dict):
             prompt_text = turn_input.get("prompt", "")
         else:
@@ -432,46 +443,11 @@ class CDPActions:
         if is_image_gen:
             max_wait = max(max_wait, 240)
 
-        # 0.5. 模式硬门禁：强制确保为 3.8 Flash + Extended thinking (不存在则抛致命异常中止测试)
+        # 0. 模式硬门禁：强制确保为 3.8 Flash + Extended thinking (不存在则抛致命异常中止测试)
         CDPActions.ensure_model_and_thinking(cdp, target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
 
-        # 1. 确保 Gemini 处于空闲状态 (严禁在上一次生成未结束时并发发帖)
-        is_still_busy = True
-        for _ in range(45):
-            busy = cdp.eval("""
-            (() => {
-                const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
-                const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
-                return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
-            })()
-            """)
-            if not busy:
-                is_still_busy = False
-                break
-            time.sleep(1.0)
-
-        if is_still_busy:
-            return False, "Gemini 界面处于忙碌状态（前序流式生成尚未结束），禁止并发注入新提问"
-
-        prev_model_info = cdp.eval("""
-        (() => {
-            const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text, structured-content-container.model-response-text'));
-            return {
-                count: allModels.length,
-                lastLen: allModels.length ? (allModels[allModels.length - 1].textContent || '').trim().length : 0
-            };
-        })()
-        """) or {"count": 0, "lastLen": 0}
-        prev_resp_count = prev_model_info.get("count", 0)
-        prev_last_len = prev_model_info.get("lastLen", 0)
-
-        prev_user_count = cdp.eval("""
-        (() => document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length)()
-        """) or 0
-
-        # 2. 安装流式网络监听器并重置轮次状态
+        # 1. 安装流式网络监听器并重置轮次状态
         turn_start_time = time.time()
-        turn_start_ms = int(turn_start_time * 1000)
         cdp.eval("""
         (() => {
             window.__testStreamState = {
@@ -503,202 +479,18 @@ class CDPActions:
         })()
         """)
 
-        # 3. 聚焦输入框并彻底清空 Quill 编辑器模型 (防止文字追加双重叠加)
-        cdp.eval("""
-        (() => {
-          const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-          if (editor) {
-            editor.focus();
-            const sel = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(editor);
-            sel.removeAllRanges();
-            sel.addRange(range);
-            document.execCommand('delete', false, null);
-            if (editor.textContent.trim().length > 0) {
-              editor.innerHTML = '<p><br></p>';
-              editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
-            }
-            editor.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        })()
-        """)
-        time.sleep(0.3)
+        # 2. 组装并调度原子流水线 (绝对串行单飞，杜绝并发发帖与疯狂重试)
+        pipeline = [
+            AssertIdleAction(max_wait=45),
+            StagePromptAction(prompt_text),
+            SingleClickSendAction(),
+            AwaitStreamSettledAction(timeout=max_wait, require_image=is_image_gen, turn_start_time=turn_start_time)
+        ]
 
-        # 4. 原生插入文本并分发事件
-        cdp.call("Input.insertText", {"text": prompt_text})
-        time.sleep(0.3)
-        cdp.eval("""
-        (() => {
-          const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-          if (editor) {
-            editor.dispatchEvent(new Event('input', { bubbles: true }));
-            editor.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        })()
-        """)
-        time.sleep(0.3)
-
-        # 5. 点击发送按钮并严格防范 Stop 按钮误触（坚决杜绝二次物理点击与回车注入）
-        sent = False
-        for attempt in range(12):
-            status = cdp.eval(f"""
-            (() => {{
-              const currUserCount = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length;
-              const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
-              const isStopActive = !!(stopBtn && stopBtn.offsetWidth > 0);
-              const streamState = window.__testStreamState || {{}};
-              const isNetStreaming = !!window.__geminiIsStreaming || streamState.started;
-
-              // 如果已出现 Stop 按钮，或网络层已触发 STREAM_START，或用户提问节点已增加，即确认发送成功！
-              if (currUserCount > {prev_user_count} || isStopActive || isNetStreaming) {{
-                return {{ sent: true, userCount: currUserCount, isStop: isStopActive }};
-              }}
-
-              // 严格排他性寻找真正的发送按钮（坚决排除 .stop 及含 Stop 语义的按钮）
-              const sendBtn = document.querySelector('button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]');
-              let coords = null;
-              if (sendBtn && !sendBtn.closest('.stop')) {{
-                const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
-                if (!label.includes('stop') && !label.includes('停止')) {{
-                  const r = sendBtn.getBoundingClientRect();
-                  if (r.width > 0 && r.height > 0) {{
-                    coords = {{ x: r.left + r.width / 2, y: r.top + r.height / 2 }};
-                  }}
-                }}
-              }}
-
-              return {{ sent: false, userCount: currUserCount, coords: coords }};
-            }})()
-            """)
-            if status and status.get("sent"):
-                sent = True
-                break
-
-            if status and status.get("coords"):
-                cx = status["coords"]["x"]
-                cy = status["coords"]["y"]
-                # 单次物理点击
-                cdp.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": cx, "y": cy})
-                cdp.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1})
-                cdp.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1})
-
-                # 点击后等待，确认流式开始即刻退出循环，绝对不点第二次
-                for _ in range(10):
-                    time.sleep(0.3)
-                    check = cdp.eval(f"""
-                    (() => {{
-                      const currUserCount = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message').length;
-                      const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
-                      const isStopActive = !!(stopBtn && stopBtn.offsetWidth > 0);
-                      const streamState = window.__testStreamState || {{}};
-                      return currUserCount > {prev_user_count} || isStopActive || !!window.__geminiIsStreaming || streamState.started;
-                    }})()
-                    """)
-                    if check:
-                        sent = True
-                        break
-                if sent:
-                    break
-
-            time.sleep(0.5)
-
-        if not sent:
-            return False, "未能成功派发消息（发送按钮未响应或未进入流式生成）"
-
-        # 6. 等待流式生成完全结束 (以网络拦截为核心，UI 与 DOM 为辅助)
-        start_wait = time.time()
-        last_seen_len = 0
-        stable_count = 0
-        while time.time() - start_wait < max_wait:
-            time.sleep(0.8)
-            elapsed = time.time() - start_wait
-            state = cdp.eval(f"""
-            (() => {{
-              const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
-              const hasStop = !!(stopBtn && stopBtn.offsetWidth > 0);
-              const sendBtn = document.querySelector('button[aria-label*="Send"]:not(.stop), gem-icon-button.send-button:not(.stop)');
-              const hasSend = !!(sendBtn && sendBtn.offsetWidth > 0 && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true');
-              const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-              const isEditorReady = !!(editor && (editor.getAttribute('contenteditable') === 'true' || editor.offsetWidth > 0));
-              const isStreamingDOM = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
-
-              const streamState = window.__testStreamState || {{}};
-              const lastCompleteTime = window.__geminiLastStreamComplete || 0;
-              const netCompleted = !!streamState.completed || (lastCompleteTime >= {turn_start_ms});
-
-              const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text, structured-content-container.model-response-text'));
-              const currCount = allModels.length;
-              const lastModel = currCount > 0 ? allModels[currCount - 1] : null;
-              const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
-              const lastText = lastModel ? (lastModel.textContent || '').trim() : '';
-              const hasImages = lastModel ? (lastModel.querySelectorAll('img[src*="blob:"], img[src*="googleusercontent"], .image-container, img').length > 0) : false;
-              const retryBtn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
-              const toastEl = document.querySelector('toast-content, .toast, .error-message, [role="alert"]');
-
-              return {{
-                hasStop,
-                hasSend,
-                isEditorReady,
-                isStreamingDOM,
-                netCompleted,
-                currCount,
-                lastLen,
-                lastTextSnippet: lastText.slice(0, 80),
-                hasImages,
-                hasRetry: !!retryBtn,
-                toast: toastEl ? toastEl.textContent.trim() : null
-              }};
-            }})()
-            """)
-            if not state:
-                continue
-
-            if state.get("hasRetry"):
-                cdp.eval("const b = document.querySelector('button[aria-label*=\"Retry\"], button[aria-label*=\"重试\"]'); if (b) b.click();")
-                time.sleep(1.5)
-                continue
-
-            has_stop = state.get("hasStop", False)
-            has_send = state.get("hasSend", False)
-            is_editor_ready = state.get("isEditorReady", False)
-            is_stream_dom = state.get("isStreamingDOM", False)
-            net_completed = state.get("netCompleted", False)
-            curr_count = state.get("currCount", 0)
-            last_len = state.get("lastLen", 0)
-            has_images = state.get("hasImages", False)
-            snippet = state.get("lastTextSnippet", "")
-
-            # 校验是否被意外掐死
-            if "you stopped this response" in snippet.lower() or "你已停止此回复" in snippet:
-                return False, "检测到回复被异常中断 (You stopped this response)"
-
-            # 条件 1：网络层确知 Stream 完成 + Stop 按钮消失 + UI 恢复就绪
-            if net_completed and not has_stop and (has_send or is_editor_ready) and not is_stream_dom:
-                if is_image_gen:
-                    if has_images or elapsed > 30:
-                        time.sleep(1.0)
-                        return True, f"生图回复完成 (网络拦截确认, 耗时 {elapsed:.1f}s, 检测到图片实体)"
-                else:
-                    time.sleep(0.5)
-                    return True, f"流式回复完成 (网络拦截确认, 耗时 {elapsed:.1f}s, 字符数: {last_len})"
-
-            # 条件 2 (兜底容错)：如果网络 hook 因偶发未捕获，但 Stop 消失且有新回复且文本稳定
-            if not has_stop and (has_send or is_editor_ready) and not is_stream_dom and curr_count > prev_resp_count:
-                if last_len == last_seen_len and last_len > 10:
-                    stable_count += 1
-                    if stable_count >= 4:
-                        time.sleep(0.5)
-                        return True, f"生成完毕 (DOM 稳定兜底确认, 耗时 {elapsed:.1f}s, 字符数: {last_len})"
-                else:
-                    last_seen_len = last_len
-                    stable_count = 0
-
-            # 异常卡死判断
-            if elapsed > 30 and not has_stop and not is_stream_dom and curr_count == prev_resp_count and state.get("toast"):
-                return False, f"页面报错: {state.get('toast')}"
-
-        return False, f"流式回复超时未完全稳定 (耗时 {max_wait}s)"
+        result = _SHARED_PIPELINE_EXECUTOR.run_pipeline(None, cdp, pipeline)
+        if result.success:
+            return True, f"流式生成权威落地 (单飞执行器完成, 耗时 {result.duration:.1f}s)"
+        return False, f"发帖流水线熔断: {result.error}"
 
     @staticmethod
     def click_new_chat(cdp) -> bool:

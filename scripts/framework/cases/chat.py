@@ -81,16 +81,10 @@ class ChatGenerationCase(FeatureTestCase):
                     preview = (p_text[:40] + "...") if len(p_text) > 40 else p_text
                     print(f"      ▶️ 轮次 {turn_no}/{len(turns)}: '{preview}'")
 
-                    ok, msg = False, ""
-                    for try_idx in range(3):
-                        ok, msg = CDPActions.send_gemini_turn(cdp_gemini, turn_input, max_wait=300)
-                        if ok:
-                            break
-                        print(f"         ⚠️ 轮次 {turn_no} 提示: {msg}，等待重试 ({try_idx + 1}/3)...")
-                        time.sleep(4)
-
+                    # 单飞原子流水线发帖 (零无脑重试，异常即刻 Fail-Fast 熔断)
+                    ok, msg = CDPActions.send_gemini_turn(cdp_gemini, turn_input, max_wait=300)
                     if not ok:
-                        return False, f"会话 {chat_idx + 1} 轮次 {turn_no} 失败: {msg}", None
+                        return False, f"会话 {chat_idx + 1} 轮次 {turn_no} 失败 (Fail-Fast 熔断安全停机，杜绝重试风暴并发): {msg}", None
 
                     chat_id = CDPActions.get_current_chat_id(cdp_gemini) or chat_id
                     if chat_id:

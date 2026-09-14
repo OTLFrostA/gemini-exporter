@@ -817,6 +817,13 @@ def test_stage2_architecture_improvements():
 
     print("  ✓ Stage 2 Architecture: Pipeline decoupling, event-driven AsyncQueue, and path sanitization verified")
 
+def test_serial_pipeline_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_serial_pipeline.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_serial_pipeline.py failed: {res.stderr or res.stdout}"
+    print("  ✓ Serial Action Pipeline & Single-Flight Executor verification passed")
+
 test_json_files()
 test_manifest_structure()
 test_build_pipeline()
@@ -831,6 +838,7 @@ test_tour_status_indicator_styling()
 test_takeout_limit_modal_and_wall_detection()
 test_stage1_architecture_ssot_and_state_isolation()
 test_stage2_architecture_improvements()
+test_serial_pipeline_suite()
 test_javascript_syntax()
 test_javascript_unit_tests()
 
