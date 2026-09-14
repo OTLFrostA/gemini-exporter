@@ -27,6 +27,8 @@ from scripts.framework.pipeline import (
     AwaitStreamSettledAction,
     HumanCooldownAction
 )
+from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
+from scripts.framework.gateway import get_gateway
 
 _SHARED_PIPELINE_EXECUTOR = SerialActionExecutor()
 
@@ -88,12 +90,12 @@ class CDPActions:
         try:
             tour_ready = False
             for _ in range(20):
-                is_active = cdp.eval("""
-                (() => {
-                    const popover = document.querySelector('.tour-popover');
+                is_active = cdp.eval(f"""
+                (() => {{
+                    const popover = document.querySelector('{WorkbenchSelectors.TOUR_POPOVER}');
                     const active = window.TourGuide ? window.TourGuide.isActive() : false;
                     return active && !!popover;
-                })()
+                }})()
                 """)
                 if is_active:
                     tour_ready = True
@@ -105,12 +107,12 @@ class CDPActions:
                 time.sleep(0.5)
 
             # Step 1
-            step1_info = cdp.eval("""
-            (() => {
-                const badge = document.querySelector('.tour-step-badge')?.textContent || '';
+            step1_info = cdp.eval(f"""
+            (() => {{
+                const badge = document.querySelector('{WorkbenchSelectors.TOUR_BADGE}')?.textContent || '';
                 const step = window.TourGuide ? window.TourGuide.getCurrentStep() : -1;
-                return { badge, step };
-            })()
+                return {{ badge, step }};
+            }})()
             """) or {}
             current_step_num = step1_info.get("step", 0)
             if current_step_num == 0:
@@ -133,17 +135,17 @@ class CDPActions:
             time.sleep(0.8)
 
             # Step 3: 会话勾选推进
-            cdp.eval("""
-            (() => {
-                const firstCb = document.querySelector('#list .item input[type=checkbox]');
-                if (firstCb) {
+            cdp.eval(f"""
+            (() => {{
+                const firstCb = document.querySelector('{WorkbenchSelectors.ITEM} {WorkbenchSelectors.CHECKBOX}');
+                if (firstCb) {{
                     firstCb.checked = true;
-                    firstCb.dispatchEvent(new Event('change', { bubbles: true }));
-                } else {
+                    firstCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }} else {{
                     const btnAll = document.getElementById('btnSelectAll');
                     if (btnAll) btnAll.click();
-                }
-            })()
+                }}
+            }})()
             """)
             time.sleep(0.8)
 
@@ -174,17 +176,17 @@ class CDPActions:
                     })()
                     """)
 
-            completed_state = cdp.eval("""
-            (async () => {
-                const popover = document.querySelector('.tour-popover');
+            completed_state = cdp.eval(f"""
+            (async () => {{
+                const popover = document.querySelector('{WorkbenchSelectors.TOUR_POPOVER}');
                 const isActive = window.TourGuide ? window.TourGuide.isActive() : false;
                 const storage = await chrome.storage.local.get('has_completed_tour');
-                return {
+                return {{
                     hasPopover: !!popover,
                     isActive,
                     storageCompleted: !!storage.has_completed_tour
-                };
-            })()
+                }};
+            }})()
             """, await_promise=True) or {}
 
             if completed_state.get("isActive") or completed_state.get("hasPopover"):
@@ -202,11 +204,11 @@ class CDPActions:
         """等待 Gemini 页面输入框及核心 DOM 就绪"""
         start = time.time()
         while time.time() - start < max_wait:
-            ready = cdp.eval("""
-            (() => {
-                const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+            ready = cdp.eval(f"""
+            (() => {{
+                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
                 return !!(editor && document.body);
-            })()
+            }})()
             """)
             if ready:
                 return True
@@ -216,44 +218,44 @@ class CDPActions:
     @staticmethod
     def get_current_chat_id(cdp) -> Optional[str]:
         """从当前页面 URL、网络流式状态、扩展 Hook 属性或侧边栏提取正在进行的对话 ID"""
-        raw_id = cdp.eval("""
-        (() => {
+        raw_id = cdp.eval(f"""
+        (() => {{
             // 1. 从 URL pathname 提取
             const path = window.location.pathname || "";
             const parts = path.split("/app/");
-            if (parts.length > 1) {
+            if (parts.length > 1) {{
                 const cid = parts[1].split("?")[0].trim();
                 if (cid && cid.length >= 8) return cid;
-            }
+            }}
             // 2. 从 DOM 显式属性提取
             const el = document.querySelector('[data-conversation-id], [data-chat-id]');
-            if (el) {
+            if (el) {{
                 const attrId = el.getAttribute('data-conversation-id') || el.getAttribute('data-chat-id');
                 if (attrId && attrId.length >= 8) return attrId.trim();
-            }
+            }}
             // 3. 从扩展流式网络监听器捕获的会话 ID 提取
-            if (window.__testStreamState && window.__testStreamState.convId && window.__testStreamState.convId.length >= 8) {
+            if (window.__testStreamState && window.__testStreamState.convId && window.__testStreamState.convId.length >= 8) {{
                 return window.__testStreamState.convId;
-            }
-            if (window.__geminiActiveStreamConvId && window.__geminiActiveStreamConvId.length >= 8) {
+            }}
+            if (window.__geminiActiveStreamConvId && window.__geminiActiveStreamConvId.length >= 8) {{
                 return window.__geminiActiveStreamConvId;
-            }
+            }}
             // 4. 若页面上已存在对话气泡，则侧边栏首项即为当次会话
-            const hasBubbles = document.querySelectorAll('user-query, model-response').length > 0;
-            if (hasBubbles) {
-                const activeA = document.querySelector('gem-nav-list-item.selected a, a.is-active[href*="/app/"], [aria-current="page"][href*="/app/"]');
-                if (activeA) {
+            const hasBubbles = document.querySelectorAll('{GeminiSelectors.USER_QUERY}, {GeminiSelectors.MODEL_RESPONSE}').length > 0;
+            if (hasBubbles) {{
+                const activeA = document.querySelector('{GeminiSelectors.NAV_ITEM_ACTIVE}');
+                if (activeA) {{
                     const ap = (activeA.getAttribute('href') || '').split('/app/');
                     if (ap.length > 1 && ap[1].length >= 8) return ap[1].split('?')[0].trim();
-                }
-                const firstA = document.querySelector('gem-nav-list-item a[href^="/app/"], nav a[href^="/app/"], a[href^="/app/"]');
-                if (firstA) {
+                }}
+                const firstA = document.querySelector('{GeminiSelectors.NAV_ITEM} a[href^="/app/"], nav a[href^="/app/"], a[href^="/app/"]');
+                if (firstA) {{
                     const fp = (firstA.getAttribute('href') || '').split('/app/');
                     if (fp.length > 1 && fp[1].length >= 8) return fp[1].split('?')[0].trim();
-                }
-            }
+                }}
+            }}
             return null;
-        })()
+        }})()
         """)
         return str(raw_id).strip() if raw_id else None
 
@@ -261,9 +263,9 @@ class CDPActions:
     @staticmethod
     def get_current_chat_title(cdp) -> Optional[str]:
         """从当前 Gemini 页面提取权威对话标题"""
-        title = cdp.eval("""
-        (() => {
-            const explicit = document.querySelector('.conversation-title, [data-test-id="conversation-title"]');
+        title = cdp.eval(f"""
+        (() => {{
+            const explicit = document.querySelector('{GeminiSelectors.CONVERSATION_TITLE}');
             if (explicit && explicit.textContent.trim()) return explicit.textContent.trim();
             const heading = document.querySelector('h1');
             if (heading && heading.textContent.trim() && !heading.textContent.includes('Gemini')) return heading.textContent.trim();
@@ -271,7 +273,7 @@ class CDPActions:
             const cleaned = docTitle.replace(/ - Gemini$| - Google Gemini$|^Gemini - /i, '').trim();
             if (cleaned && cleaned !== 'Gemini') return cleaned;
             return null;
-        })()
+        }})()
         """)
         return str(title).strip() if title else None
 
@@ -284,14 +286,14 @@ class CDPActions:
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
         for pass_idx in range(3):
-            status = cdp.eval("""
-            (() => {
-                const btn = document.querySelector('[data-test-id="bard-mode-menu-button"], button.input-area-switch');
+            status = cdp.eval(f"""
+            (() => {{
+                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
                 if (!btn) return null;
                 const text = (btn.textContent || '').trim();
                 const label = (btn.getAttribute('aria-label') || '').trim();
-                return { text, label, disabled: !!btn.disabled };
-            })()
+                return {{ text, label, disabled: !!btn.disabled }};
+            }})()
             """)
             if not status:
                 time.sleep(0.5)
@@ -307,15 +309,15 @@ class CDPActions:
                 return True
 
             # 点击展开模式选择菜单以进行物理菜单项门禁校验与切换
-            opened = cdp.eval("""
-            (() => {
-                const btn = document.querySelector('[data-test-id="bard-mode-menu-button"], button.input-area-switch');
-                if (btn && !btn.disabled) {
+            opened = cdp.eval(f"""
+            (() => {{
+                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
+                if (btn && !btn.disabled) {{
                     btn.click();
                     return true;
-                }
+                }}
                 return false;
-            })()
+            }})()
             """)
             if not opened:
                 time.sleep(0.5)
@@ -324,16 +326,16 @@ class CDPActions:
             time.sleep(0.5)
 
             # 抓取菜单项并执行硬门禁断言
-            menu_info = cdp.eval("""
-            (() => {
-                const menu = document.querySelector('gem-menu[data-test-id="gem-mode-menu"], [role="menu"]');
+            menu_info = cdp.eval(f"""
+            (() => {{
+                const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
                 if (!menu) return null;
-                const items = Array.from(menu.querySelectorAll('gem-menu-item, [role="menuitem"], [role="menuitemcheckbox"]'));
-                return items.map(el => ({
+                const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
+                return items.map(el => ({{
                     text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
                     isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
-                }));
-            })()
+                }}));
+            }})()
             """)
 
             if not menu_info:
@@ -396,47 +398,47 @@ class CDPActions:
 
             # 若未选中，点击切换至目标模型与思考模式
             if not is_flash_selected:
-                cdp.eval("""
-                (() => {
-                    const menu = document.querySelector('gem-menu[data-test-id="gem-mode-menu"], [role="menu"]');
+                cdp.eval(f"""
+                (() => {{
+                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
                     if (!menu) return;
-                    const items = Array.from(menu.querySelectorAll('gem-menu-item, [role="menuitem"], [role="menuitemcheckbox"]'));
-                    for (const el of items) {
+                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
+                    for (const el of items) {{
                         const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('3.8 flash') || (t.includes('3.8') && t.includes('flash'))) {
+                        if (t.includes('3.8 flash') || (t.includes('3.8') && t.includes('flash'))) {{
                             el.click();
                             return;
-                        }
-                    }
-                })()
+                        }}
+                    }}
+                }})()
                 """)
                 time.sleep(0.5)
 
             if not is_thinking_selected:
                 # 重新检查菜单是否仍开启，若关闭则重新打开
-                still_open = cdp.eval("!!document.querySelector('gem-menu[data-test-id=\"gem-mode-menu\"], [role=\"menu\"]')")
+                still_open = cdp.eval(f"!!document.querySelector('{GeminiSelectors.MODE_MENU}')")
                 if not still_open:
-                    cdp.eval("""
-                    (() => {
-                        const btn = document.querySelector('[data-test-id="bard-mode-menu-button"], button.input-area-switch');
+                    cdp.eval(f"""
+                    (() => {{
+                        const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
                         if (btn) btn.click();
-                    })()
+                    }})()
                     """)
                     time.sleep(0.5)
 
-                cdp.eval("""
-                (() => {
-                    const menu = document.querySelector('gem-menu[data-test-id="gem-mode-menu"], [role="menu"]');
+                cdp.eval(f"""
+                (() => {{
+                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
                     if (!menu) return;
-                    const items = Array.from(menu.querySelectorAll('gem-menu-item, [role="menuitem"], [role="menuitemcheckbox"]'));
-                    for (const el of items) {
+                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
+                    for (const el of items) {{
                         const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('extended thinking') || (t.includes('extended') && t.includes('thinking'))) {
+                        if (t.includes('extended thinking') || (t.includes('extended') && t.includes('thinking'))) {{
                             el.click();
                             return;
-                        }
-                    }
-                })()
+                        }}
+                    }}
+                }})()
                 """)
                 time.sleep(0.5)
 
@@ -447,11 +449,11 @@ class CDPActions:
             # 完成一次物理校验和切换后，force_menu_check 视为完成
             force_menu_check = False
 
-        final_status = cdp.eval("""
-        (() => {
-            const btn = document.querySelector('[data-test-id="bard-mode-menu-button"], button.input-area-switch');
+        final_status = cdp.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
             return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')).toLowerCase() : '';
-        })()
+        }})()
         """) or ""
         if "flash" in final_status and ("extended" in final_status or "thinking" in final_status):
             return True
@@ -521,23 +523,23 @@ class CDPActions:
 
     @staticmethod
     def click_new_chat(cdp) -> bool:
-        """开启新对话 (优先通过 CDP 原生 Page.navigate 导航至 /app，保障物理清空残留气泡)"""
+        """开启新对话 (优先通过安全网关导航至 /app，保障物理清空残留气泡)"""
         try:
-            cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
-            time.sleep(2.0)
-            return True
+            if get_gateway().safe_navigate(cdp, "https://gemini.google.com/app"):
+                time.sleep(2.0)
+                return True
         except Exception:
             pass
-        res = cdp.eval("""
-        (() => {
-            const newBtn = document.querySelector('a.side-nav-sparkle-button, a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]');
-            if (newBtn) {
+        res = cdp.eval(f"""
+        (() => {{
+            const newBtn = document.querySelector('{GeminiSelectors.NEW_CHAT_BTN}');
+            if (newBtn) {{
                 newBtn.click();
                 return true;
-            }
+            }}
             window.location.href = 'https://gemini.google.com/app';
             return true;
-        })()
+        }})()
         """)
         time.sleep(2.0)
         return bool(res)
@@ -546,12 +548,13 @@ class CDPActions:
     @staticmethod
     def delete_conversation_via_web(cdp_gemini, chat_id: str) -> bool:
         """在 Gemini 网页端侧边栏执行真实会话删除链路"""
+        nav_sel = GeminiSelectors.nav_item_by_chat_id(chat_id)
         # 触发悬停使三点菜单显示
         rect = cdp_gemini.eval(f"""
         (() => {{
-            const a = document.querySelector('gem-nav-list-item a[href*="{chat_id}"]') || document.querySelector('nav a[href*="{chat_id}"]') || document.querySelector('a[href*="{chat_id}"]');
+            const a = document.querySelector('{nav_sel}');
             if (!a) return null;
-            const item = a.closest('gem-nav-list-item') || a.parentElement;
+            const item = a.closest('{GeminiSelectors.NAV_ITEM}') || a.parentElement;
             item.dispatchEvent(new MouseEvent('mouseenter', {{ bubbles: true }}));
             item.dispatchEvent(new MouseEvent('mouseover', {{ bubbles: true }}));
             const r = item.getBoundingClientRect();
@@ -567,10 +570,10 @@ class CDPActions:
 
         click_opts = cdp_gemini.eval(f"""
         (() => {{
-            const a = document.querySelector('gem-nav-list-item a[href*="{chat_id}"]') || document.querySelector('nav a[href*="{chat_id}"]') || document.querySelector('a[href*="{chat_id}"]');
+            const a = document.querySelector('{nav_sel}');
             if (!a) return 'link_not_found';
-            const item = a.closest('gem-nav-list-item') || a.parentElement;
-            let btn = item.querySelector('button[aria-label*="More options"], button[aria-label*="更多选项"]');
+            const item = a.closest('{GeminiSelectors.NAV_ITEM}') || a.parentElement;
+            let btn = item.querySelector('{GeminiSelectors.MORE_OPTIONS_BTN}');
             if (!btn) {{
                 const allBtns = Array.from(item.querySelectorAll('button'));
                 btn = allBtns.find(b => {{
@@ -587,43 +590,43 @@ class CDPActions:
             return False
         time.sleep(0.6)
 
-        del_click = cdp_gemini.eval("""
-        (() => {
-            const delBtn = document.querySelector('button[data-test-id="delete-button"], [role="menuitem"][data-test-id*="delete"], [role="menuitem"]:has(.delete-icon)');
-            if (delBtn) {
+        del_click = cdp_gemini.eval(f"""
+        (() => {{
+            const delBtn = document.querySelector('{GeminiSelectors.DELETE_ITEM_BTN}');
+            if (delBtn) {{
                 delBtn.click();
                 return true;
-            }
+            }}
             const items = Array.from(document.querySelectorAll('[role="menuitem"], button'));
-            const match = items.find(b => {
+            const match = items.find(b => {{
                 const t = b.textContent.trim().toLowerCase();
                 return t.includes('delete') || t.includes('删除');
-            });
-            if (match) {
+            }});
+            if (match) {{
                 match.click();
                 return true;
-            }
+            }}
             return false;
-        })()
+        }})()
         """)
         if not del_click:
             return False
         time.sleep(0.8)
 
-        confirm_click = cdp_gemini.eval("""
-        (() => {
-            const dialog = document.querySelector('mat-dialog-container, [role="dialog"], .mat-mdc-dialog-container');
+        confirm_click = cdp_gemini.eval(f"""
+        (() => {{
+            const dialog = document.querySelector('{GeminiSelectors.DIALOG}');
             if (!dialog) return false;
-            const confirmBtn = Array.from(dialog.querySelectorAll('button')).find(b => {
+            const confirmBtn = Array.from(dialog.querySelectorAll('button')).find(b => {{
                 const txt = b.innerText.trim().toLowerCase();
                 return txt === 'delete' || txt === '删除';
-            });
-            if (confirmBtn) {
+            }});
+            if (confirmBtn) {{
                 confirmBtn.click();
                 return true;
-            }
+            }}
             return false;
-        })()
+        }})()
         """)
         time.sleep(2.0)
         return bool(confirm_click)
@@ -633,7 +636,7 @@ class CDPActions:
         """在 Options 工作台搜索框输入检索内容并等待过滤生效，返回过滤后可见条目数"""
         cdp_opt.eval(f"""
         (() => {{
-            const input = document.getElementById('chatSearchInput') || document.getElementById('search');
+            const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
             if (!input) return -1;
             input.focus();
             input.value = {json.dumps(query)};
@@ -643,15 +646,15 @@ class CDPActions:
         """)
         # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
         start = time.time()
-        total_items = cdp_opt.eval("""
-        (() => {
+        total_items = cdp_opt.eval(f"""
+        (() => {{
             const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
-            return s ? s.getConversations().length : document.querySelectorAll('#list .item').length;
-        })()
+            return s ? s.getConversations().length : document.querySelectorAll('{WorkbenchSelectors.ITEM}').length;
+        }})()
         """) or 0
 
         while time.time() - start < timeout:
-            visible_count = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+            visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
             if total_items > 1:
                 if query and visible_count < total_items:
                     return visible_count
@@ -661,19 +664,19 @@ class CDPActions:
                 return visible_count
             time.sleep(0.05)
 
-        return cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+        return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
 
     @staticmethod
     def clear_search_workbench(cdp_opt, timeout: float = 3.0) -> int:
         """清空 Options 工作台搜索框并等待完整列表恢复，返回恢复后的列表总数"""
-        cdp_opt.eval("""
-        (() => {
-            const input = document.getElementById('chatSearchInput') || document.getElementById('search');
+        cdp_opt.eval(f"""
+        (() => {{
+            const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
             if (!input) return -1;
             input.value = '';
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        })()
+            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        }})()
         """)
         # 轮询等待搜索防抖及全量列表恢复
         start = time.time()
@@ -685,21 +688,22 @@ class CDPActions:
         """) or 0
 
         while time.time() - start < timeout:
-            visible_count = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+            visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
             if target_total > 0 and visible_count >= target_total:
                 return visible_count
             time.sleep(0.05)
 
-        return cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+        return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
 
     @staticmethod
     def select_workbench_item(cdp_opt, chat_id: str, checked: bool = True) -> bool:
         """精准操作指定 chatId 卡片的复选框勾选状态"""
+        item_sel = WorkbenchSelectors.item_by_chat_id(chat_id)
         return bool(cdp_opt.eval(f"""
         (() => {{
-            const item = document.querySelector('#list .item[data-chat-id="{chat_id}"], #list .item[data-chat-id="c_{chat_id}"]');
+            const item = document.querySelector('{item_sel}');
             if (!item) return false;
-            const cb = item.querySelector('input[type=checkbox]');
+            const cb = item.querySelector('{WorkbenchSelectors.CHECKBOX}');
             if (!cb) return false;
             if (cb.checked !== {str(checked).lower()}) {{
                 cb.checked = {str(checked).lower()};
@@ -712,23 +716,23 @@ class CDPActions:
     @staticmethod
     def toggle_select_all(cdp_opt) -> int:
         """点击全选按钮，返回勾选后的复选框总数"""
-        return cdp_opt.eval("""
-        (() => {
-            const btn = document.getElementById('btnSelectAll');
+        return cdp_opt.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_ALL}');
             if (btn) btn.click();
-            return document.querySelectorAll('#list input[type=checkbox]:checked').length;
-        })()
+            return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
+        }})()
         """) or 0
 
     @staticmethod
     def toggle_select_none(cdp_opt) -> int:
         """点击取消全选按钮，返回勾选后的复选框总数"""
-        return cdp_opt.eval("""
-        (() => {
-            const btn = document.getElementById('btnSelectNone');
+        return cdp_opt.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_NONE}');
             if (btn) btn.click();
-            return document.querySelectorAll('#list input[type=checkbox]:checked').length;
-        })()
+            return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
+        }})()
         """) or 0
 
     @staticmethod
@@ -798,22 +802,22 @@ class CDPActions:
     @staticmethod
     def trigger_deep_scan(cdp_opt, max_wait: int = 90) -> bool:
         """触发【全量拉取历史】(btnDeepScan) 并等待分页同步完成"""
-        cdp_opt.eval("""
-        (() => {
-            const btn = document.getElementById('btnDeepScan');
+        cdp_opt.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_DEEP_SCAN}');
             if (btn) btn.click();
-        })()
+        }})()
         """)
         start = time.time()
         while time.time() - start < max_wait:
             time.sleep(1.0)
-            state = cdp_opt.eval("""
-            (() => {
+            state = cdp_opt.eval(f"""
+            (() => {{
                 const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
                 const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
-                const btn = document.getElementById('btnExport');
-                return { isScan: isScan || (btn && btn.disabled) };
-            })()
+                const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
+                return {{ isScan: isScan || (btn && btn.disabled) }};
+            }})()
             """)
             if not state or not state.get("isScan"):
                 return True
@@ -822,21 +826,21 @@ class CDPActions:
     @staticmethod
     def trigger_export_zip(cdp_opt, output_dir: str, max_wait: int = 60) -> Optional[str]:
         """确保启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
-        cdp_opt.eval("""
-        (() => {
+        cdp_opt.eval(f"""
+        (() => {{
             const skipCb = document.getElementById('skipExported');
-            if (skipCb && skipCb.checked) {
+            if (skipCb && skipCb.checked) {{
                 skipCb.checked = false;
-                skipCb.dispatchEvent(new Event('change', { bubbles: true }));
-            }
+                skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
             const zipCb = document.getElementById('includeZip');
-            if (zipCb && !zipCb.checked) {
+            if (zipCb && !zipCb.checked) {{
                 zipCb.checked = true;
-                zipCb.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            const btn = document.getElementById('btnExport');
+                zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
             if (btn && !btn.disabled) btn.click();
-        })()
+        }})()
         """)
         start_time = time.time()
         downloaded_zip = None

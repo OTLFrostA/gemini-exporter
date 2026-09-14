@@ -5,6 +5,7 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
+from scripts.framework.selectors import GeminiSelectors
 
 try:
     from scripts.cdp_client import CDPConnection
@@ -26,7 +27,7 @@ class InpageBadgeCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp = ctx.connect_gemini()
         try:
-            has_badge = cdp.eval("""!!document.querySelector('#geminiExportBadge, #gemini-export-badge, .gemini-export-badge, [data-test-id="gemini-export-badge"]')""")
+            has_badge = cdp.eval(f"""!!document.querySelector('{GeminiSelectors.INPAGE_EXPORT_BADGE}')""")
             if has_badge:
                 return True, "页面端悬浮徽标正常渲染", None
             return False, "未检测到悬浮徽标 DOM 节点 (#geminiExportBadge)", None
@@ -143,11 +144,11 @@ class ImagenMultimodalCase(FeatureTestCase):
         # 兜底再次到 Gemini 页面检查一次
         cdp_g = ctx.connect_gemini()
         try:
-            has_img = cdp_g.eval("""
-            (() => {
-                const imgs = document.querySelectorAll('model-response img.image, model-response img[src*="blob:"], model-response img[src*="googleusercontent"], model-response .image-button, model-response .image-container, model-response picture img');
+            has_img = cdp_g.eval(f"""
+            (() => {{
+                const imgs = document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE} {GeminiSelectors.IMAGES}');
                 return imgs.length > 0;
-            })()
+            }})()
             """)
             if has_img:
                 ctx.shared_data["imagen_found"] = True

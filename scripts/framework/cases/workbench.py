@@ -6,6 +6,7 @@ from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions
+from scripts.framework.selectors import WorkbenchSelectors
 
 
 class SearchKeywordCase(FeatureTestCase):
@@ -46,7 +47,7 @@ class SearchIdCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
-            target_search_id = cdp_opt.eval("document.querySelector('#list .item')?.dataset.chatId") or "1bd028d5c5b0c0e2"
+            target_search_id = cdp_opt.eval(f"document.querySelector('{WorkbenchSelectors.ITEM}')?.dataset.chatId") or "1bd028d5c5b0c0e2"
             ctx.shared_data["target_search_id"] = target_search_id
 
             CDPActions.search_workbench(cdp_opt, target_search_id)

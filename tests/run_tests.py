@@ -814,6 +814,13 @@ def test_gemini_driver_suite():
     assert res.returncode == 0, f"test_gemini_driver.py failed: {res.stderr or res.stdout}"
     print("  ✓ High-Level GeminiDriver & ChatSession test suite passed")
 
+def test_selectors_and_gateway_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_selectors_and_gateway.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_selectors_and_gateway.py failed: {res.stderr or res.stdout}"
+    print("  ✓ Central Selectors Registry & SafeInteractionGateway test suite passed")
+
 test_json_files()
 test_manifest_structure()
 test_build_pipeline()
@@ -830,6 +837,7 @@ test_stage1_architecture_ssot_and_state_isolation()
 test_stage2_architecture_improvements()
 test_serial_pipeline_suite()
 test_gemini_driver_suite()
+test_selectors_and_gateway_suite()
 test_javascript_syntax()
 test_javascript_unit_tests()
 

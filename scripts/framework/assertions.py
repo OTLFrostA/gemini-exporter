@@ -18,27 +18,29 @@ try:
 except ImportError:
     ExportSpecificationAsserter = None
 
+from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
+
 
 class CDPAssertions:
     @staticmethod
     def assert_stream_completed(cdp_gemini, min_turns: int = 1) -> Tuple[bool, str, Dict[str, Any]]:
         """断言 Gemini 页面流式回复已彻底完成且 DOM 稳定"""
-        state = cdp_gemini.eval("""
-        (() => {
-            const userQueries = document.querySelectorAll('.user-query, user-query, [data-test-id="user-query"], message-content.user-message');
-            const modelResponses = document.querySelectorAll('.model-response, model-response, [data-test-id="model-response"], message-content.model-message, .response-container');
-            const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
+        state = cdp_gemini.eval(f"""
+        (() => {{
+            const userQueries = document.querySelectorAll('{GeminiSelectors.USER_QUERY_ALL}');
+            const modelResponses = document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE_ALL}');
+            const isStreaming = !!document.querySelector('{GeminiSelectors.STREAMING_INDICATORS}');
             const lastResp = modelResponses.length > 0 ? modelResponses[modelResponses.length - 1] : null;
             const textLen = lastResp ? (lastResp.textContent || '').length : 0;
-            const hasImages = lastResp ? !!lastResp.querySelector('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container, [data-image-id], mat-card-image') : false;
-            return {
+            const hasImages = lastResp ? !!lastResp.querySelector('{GeminiSelectors.IMAGES}') : false;
+            return {{
                 userCount: userQueries.length,
                 modelCount: modelResponses.length,
                 isStreaming: isStreaming,
                 lastTextLength: textLen,
                 hasImages: hasImages
-            };
-        })()
+            }};
+        }})()
         """) or {}
 
         user_count = state.get("userCount", 0)
@@ -67,7 +69,7 @@ class CDPAssertions:
                     const convs = data.gemini_conversations || [];
                     const c1 = convs.find(c => c.id === '{promoted_chat_id}' || c.id === 'c_{promoted_chat_id}');
                     const c2 = convs.find(c => c.id === '{older_chat_id}' || c.id === 'c_{older_chat_id}');
-                    const domItems = Array.from(document.querySelectorAll('#list .item'));
+                    const domItems = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
                     const el1 = domItems.find(el => el.dataset.chatId === '{promoted_chat_id}' || el.dataset.chatId === 'c_{promoted_chat_id}');
                     const el2 = domItems.find(el => el.dataset.chatId === '{older_chat_id}' || el.dataset.chatId === 'c_{older_chat_id}');
                     const idx1 = domItems.indexOf(el1);
@@ -106,13 +108,14 @@ class CDPAssertions:
     @staticmethod
     def assert_badge_status(cdp_opt, chat_id: str, expected_type: str = "updated") -> Tuple[bool, str, Dict[str, Any]]:
         """断言指定会话卡片的徽章类型 (updated / exported) 及自动勾选状态"""
+        item_sel = WorkbenchSelectors.item_by_chat_id(chat_id)
         badge_info = cdp_opt.eval(f"""
         (() => {{
-            const el = document.querySelector('#list .item[data-chat-id="{chat_id}"], #list .item[data-chat-id="c_{chat_id}"]');
+            const el = document.querySelector('{item_sel}');
             if (!el) return {{ found: false }};
-            const bUpdated = el.querySelector('.badge-updated');
-            const bExported = el.querySelector('.badge-exported');
-            const cb = el.querySelector('input[type=checkbox]');
+            const bUpdated = el.querySelector('{WorkbenchSelectors.BADGE_UPDATED}');
+            const bExported = el.querySelector('{WorkbenchSelectors.BADGE_EXPORTED}');
+            const cb = el.querySelector('{WorkbenchSelectors.CHECKBOX}');
             return {{
                 found: true,
                 hasUpdated: !!bUpdated,
@@ -146,6 +149,7 @@ class CDPAssertions:
         t_start = time.time()
         last_check: Dict[str, Any] = {}
         clean_id = str(deleted_chat_id).replace('c_', '')
+        pruned_sel = WorkbenchSelectors.item_by_chat_id(deleted_chat_id)
 
         while time.time() - t_start < timeout:
             check = cdp_opt.eval(f"""
@@ -154,7 +158,7 @@ class CDPAssertions:
                     chrome.storage.local.get(['gemini_conversations'], (data) => {{
                         const convs = data.gemini_conversations || [];
                         const inStorage = convs.some(c => c.id === '{deleted_chat_id}' || c.id === 'c_{clean_id}' || c.id === '{clean_id}');
-                        const inDom = !!document.querySelector('#list .item[data-chat-id="{deleted_chat_id}"], #list .item[data-chat-id="c_{clean_id}"], #list .item[data-chat-id="{clean_id}"]');
+                        const inDom = !!document.querySelector('{pruned_sel}');
                         resolve({{
                             inStorage: inStorage,
                             inDom: inDom,
@@ -227,8 +231,8 @@ class CDPAssertions:
         while time.time() - start < timeout:
             vis_info = cdp_opt.eval(f"""
             (() => {{
-                const input = document.getElementById('chatSearchInput') || document.getElementById('search');
-                const items = Array.from(document.querySelectorAll('#list .item'));
+                const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
+                const items = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
                 const visible = items.filter(el => el.style.display !== 'none');
                 const store = typeof ConversationsStore !== 'undefined' ? ConversationsStore : (window.ConversationsStore || null);
                 const defaultStore = typeof DefaultConversationsStore !== 'undefined' ? DefaultConversationsStore : (window.DefaultConversationsStore || null);
@@ -239,7 +243,7 @@ class CDPAssertions:
                     totalCount: totalStore,
                     visibleCount: visible.length,
                     firstVisibleId: visible.length > 0 ? visible[0].dataset.chatId : null,
-                    firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('.chat-title, .title')?.textContent || '') : ''
+                    firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('{WorkbenchSelectors.ITEM_TITLE}')?.textContent || '') : ''
                 }};
             }})()
             """) or {}

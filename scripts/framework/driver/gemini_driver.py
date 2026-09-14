@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Union
 
 from scripts.framework.actions import CDPActions
+from scripts.framework.selectors import GeminiSelectors
+from scripts.framework.gateway import get_gateway
 
 
 @dataclass
@@ -76,19 +78,19 @@ class GeminiChatSession:
             self.chat_id = curr_id
 
         # 提取最新回复文本与生图实体
-        resp_data = self.driver.cdp.eval("""
-        (() => {
-            const models = Array.from(document.querySelectorAll('model-response'));
-            if (models.length === 0) return { text: '', hasImages: false, modelCount: 0 };
+        resp_data = self.driver.cdp.eval(f"""
+        (() => {{
+            const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
+            if (models.length === 0) return {{ text: '', hasImages: false, modelCount: 0 }};
             const last = models[models.length - 1];
             const text = (last.textContent || '').trim();
-            const imgs = last.querySelectorAll('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container, picture img, img[alt*="image"], img[alt*="Image"], img[alt*="生成"]');
-            return {
+            const imgs = last.querySelectorAll('{GeminiSelectors.IMAGES}');
+            return {{
                 text: text,
                 hasImages: imgs.length > 0,
                 modelCount: models.length
-            };
-        })()
+            }};
+        }})()
         """) or {}
 
         # 若为生图轮次但初检尚未渲染完成，给予短暂渲染等待
@@ -96,13 +98,13 @@ class GeminiChatSession:
         if is_image_turn and not has_images:
             for _ in range(5):
                 time.sleep(2.0)
-                img_check = self.driver.cdp.eval("""
-                (() => {
-                    const models = Array.from(document.querySelectorAll('model-response'));
+                img_check = self.driver.cdp.eval(f"""
+                (() => {{
+                    const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
                     const root = models.length > 0 ? models[models.length - 1] : document;
-                    const imgs = root.querySelectorAll('img.image, img[src*="blob:"], img[src*="googleusercontent"], .image-button, .image-container, picture img');
+                    const imgs = root.querySelectorAll('{GeminiSelectors.IMAGES}');
                     return imgs.length > 0;
-                })()
+                }})()
                 """)
                 if img_check:
                     has_images = True
@@ -178,18 +180,18 @@ class GeminiDriver:
 
         start_t = time.time()
         while time.time() - start_t < timeout:
-            state = self.cdp.eval("""
-            (() => {
+            state = self.cdp.eval(f"""
+            (() => {{
                 const path = window.location.pathname || '';
                 const isAppRoute = (path === '/app' || path === '/app/');
-                const bubbleCount = document.querySelectorAll('user-query, model-response').length;
-                const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-                return {
+                const bubbleCount = document.querySelectorAll('{GeminiSelectors.USER_QUERY}, {GeminiSelectors.MODEL_RESPONSE}').length;
+                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+                return {{
                     isAppRoute,
                     bubbleCount,
                     hasEditor: !!editor
-                };
-            })()
+                }};
+            }})()
             """)
             if state and state.get("isAppRoute") and state.get("bubbleCount") == 0 and state.get("hasEditor"):
                 break
@@ -208,13 +210,9 @@ class GeminiDriver:
         chat_id_clean = str(chat_id).strip()
         curr_id = self.get_current_chat_id()
         if curr_id != chat_id_clean:
-            try:
-                self.cdp.call("Page.navigate", {"url": f"https://gemini.google.com/app/{chat_id_clean}"})
-                time.sleep(2.0)
-            except Exception:
-                self.cdp.eval(f"window.location.href = 'https://gemini.google.com/app/{chat_id_clean}'")
-                time.sleep(2.0)
-
+            target_url = f"https://gemini.google.com/app/{chat_id_clean}"
+            get_gateway().safe_navigate(self.cdp, target_url)
+            time.sleep(2.0)
 
         start_t = time.time()
         while time.time() - start_t < timeout:
@@ -222,7 +220,7 @@ class GeminiDriver:
             (() => {{
                 const path = window.location.pathname || '';
                 const onPath = path.includes('{chat_id_clean}');
-                const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
                 return onPath && !!editor;
             }})()
             """)
