@@ -523,5 +523,68 @@
     ],
     "consumed_at": "2026-09-11T18:05:11.621704",
     "consumed_by": "test_visual_agent.py"
+  },
+  {
+    "id": "synthetic_biology_xenobiology_dna",
+    "title": "合成生物学：非天然碱基对与人造细胞异源重构",
+    "domain": "synthetic_biology_xenobiology",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "description": "测试合成生物学人工碱基双螺旋生图 (Imagen)、近邻热力学 Python 脚本与最小基因组推演",
+    "turns": [
+      "请帮我生成一张图片：在极具未来感的高等级无菌合成生物学实验室中心，一个悬浮的全息人造微流控反应器内部，正在人工合成带有第六种人工碱基对的超长双螺旋 DNA 分子链，散发微光，超清 8k 科技感细节。",
+      "请设计一个 Markdown 表格，对比天然 DNA 碱基对（A-T, C-G）与两种典型非天然人工碱基对（如 dNaM-d5SICS 与 dP-dZ）在氢键几何结构、热力学稳定性及 DNA 聚合酶保真度上的差异。",
+      "请再帮我生成一张图片：在光学超分辨荧光显微镜视野下，一个人工合成的酵母原生质体细胞膜透出蓝紫色的荧光，细胞核内正有节奏地进行着异源代谢途径的高表达蛋白分泌过程。",
+      "请用 Python 编写一段紧凑的代码，模拟计算包含自定义扩展人工碱基序列的熔解温度（Melting Temperature, Tm），采用近邻热力学模型（Nearest-Neighbor Method）。",
+      "详述从体外全合成最小基因组（如 JCVI-syn3.0）向具备自主代谢与达尔文进化的完全人造细胞跃迁所面临的三大本质工程瓶颈。"
+    ],
+    "consumed_at": "2026-09-14T15:16:20.884265",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "zk_snark_groth16_elliptic_curves",
+    "title": "零知识证明密码学：Groth16 协议推导与配对群运算",
+    "domain": "cryptography_zkp",
+    "features": [
+      "math",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试椭圆曲线双线性配对 (Bilinear Pairing)、R1CS 约束系统与 Rust arkworks 验证代码",
+    "turns": [
+      "请详细推导零知识证明中基于 QAP (Quadratic Arithmetic Program) 的 Groth16 协议核心数学原理，包括如何将 R1CS 约束矩阵转换为多项式整除问题 A(x)B(x) - C(x) = H(x)t(x)。",
+      "请解释在 BN254 或 BLS12-381 椭圆曲线上的双线性对映射（Bilinear Pairing）性质 e: G1 x G2 -> GT，并证明为什么验证者只需一次多标量配对等式校验即可验证计算正确性。",
+      "请使用 Rust 结合 arkworks 密码学库编写一个简化的 Groth16 证明结构体定义与配对验证函数骨架代码片段，附带详细的类型与数学对应注释。",
+      "请用一个结构化的 Markdown 表格，从可信设置（Trusted Setup）、证明尺寸（Proof Size）、验证延迟（Verification Time）与量子抗性四个维度，横向对比 Groth16、PLONK、Halo2 与 STARK 四大主流 ZKP 方案。",
+      "为什么 Groth16 的通用可信设置（Powers of Tau）必须保证至少有一个参与方诚实销毁随机数（Toxic Waste）？若随机数泄露会导致怎样的伪造证明安全灾难？"
+    ],
+    "consumed_at": "2026-09-14T15:16:20.885042",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "vlsi_riscv_pipeline_hazards",
+    "domain": "vlsi_computer_architecture",
+    "title": "超标量微处理器：RISC-V 五级流水线与冒险处理实战",
+    "features": [
+      "code",
+      "tables",
+      "architecture",
+      "hardware"
+    ],
+    "turns": [
+      "请详细拆解标准 RISC-V 32I 五级流水线（IF、ID、EX、MEM、WB）的结构，并解释结构冒险 (Structural Hazard)、数据冒险 (Data Hazard) 与控制冒险 (Control Hazard) 的产生机理。",
+      "请绘制一张详细的 Markdown 状态对比表格，对比针对 RAW (Read-After-Write) 数据冒险的三种解决策略：插入气泡 (Pipeline Stalling/Bubbling)、前向转发 (Operand Forwarding) 与编译器重排指令在性能 CPI、硬件开销与复杂度上的权衡。",
+      "请使用 Verilog HDL 或伪代码编写一个用于 RISC-V 3-way 转发单元 (Forwarding Unit) 的控制逻辑，要求准确处理 EX 阶段与 MEM 阶段对 ID/EX 源操作数的前向旁路匹配。",
+      "在引入动态分支预测器（如 2-bit 饱和计数器与二阶自适应分支预测器）后，当发生预测失误 (Misprediction) 时，流水线冲刷 (Pipeline Flush) 的硬件时钟周期代价与恢复机制是什么？",
+      "分析超标量 (Superscalar) 双发射架构中重排序缓冲区 (ROB, Reorder Buffer) 与寄存器重命名 (Register Renaming) 如何协同解决 WAR (Write-After-Read) 与 WAW (Write-After-Write) 假相关问题。"
+    ],
+    "consumed_at": "2026-09-14T15:20:57.425379",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

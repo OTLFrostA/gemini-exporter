@@ -12,6 +12,8 @@ from typing import Set, Optional, Dict, Any, Tuple
 from dataclasses import dataclass
 
 from .stages import PipelineStage, PipelineConcurrencyViolationError, CircuitBreakerError
+from scripts.framework.selectors import GeminiSelectors
+from scripts.framework.gateway import get_gateway
 
 
 @dataclass
@@ -63,12 +65,12 @@ class AssertIdleAction(AtomicAction):
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         start = time.time()
         while time.time() - start < self.max_wait:
-            busy = cdp.eval("""
-            (() => {
-                const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
-                const isStreaming = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
+            busy = cdp.eval(f"""
+            (() => {{
+                const stopBtn = document.querySelector('{GeminiSelectors.STOP_BTN}');
+                const isStreaming = !!document.querySelector('{GeminiSelectors.STREAMING_INDICATORS}');
                 return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
-            })()
+            }})()
             """)
             if not busy:
                 return ActionResult(True, "页面处于完全空闲状态")
@@ -97,10 +99,10 @@ class StagePromptAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         # 1. 彻底清空 Quill 编辑器并触发 input 事件
-        cdp.eval("""
-        (() => {
-            const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-            if (editor) {
+        cdp.eval(f"""
+        (() => {{
+            const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+            if (editor) {{
                 editor.focus();
                 const sel = window.getSelection();
                 const range = document.createRange();
@@ -108,13 +110,13 @@ class StagePromptAction(AtomicAction):
                 sel.removeAllRanges();
                 sel.addRange(range);
                 document.execCommand('delete', false, null);
-                if (editor.textContent.trim().length > 0) {
+                if (editor.textContent.trim().length > 0) {{
                     editor.innerHTML = '<p><br></p>';
-                    editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
-                }
-                editor.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        })()
+                    editor.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'deleteContentBackward' }}));
+                }}
+                editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            }}
+        }})()
         """)
         time.sleep(0.3)
 
@@ -123,16 +125,16 @@ class StagePromptAction(AtomicAction):
         time.sleep(0.3)
 
         # 3. 分发 change/input 事件
-        staged_len = cdp.eval("""
-        (() => {
-            const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
-            if (editor) {
-                editor.dispatchEvent(new Event('input', { bubbles: true }));
-                editor.dispatchEvent(new Event('change', { bubbles: true }));
+        staged_len = cdp.eval(f"""
+        (() => {{
+            const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+            if (editor) {{
+                editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                editor.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 return (editor.textContent || '').trim().length;
-            }
+            }}
             return 0;
-        })()
+        }})()
         """) or 0
 
         if staged_len > 0:
@@ -160,18 +162,18 @@ class SingleClickSendAction(AtomicAction):
         # 等待发送按钮解除禁用 (最多等待 8 秒，消除 Angular 脏检查与输入渲染时序差)，单次直接调用 sendBtn.click()
         start_wait = time.time()
         while time.time() - start_wait < 8.0:
-            click_info = cdp.eval("""
-            (() => {
-                const sendBtn = document.querySelector('button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]');
-                if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {
+            click_info = cdp.eval(f"""
+            (() => {{
+                const sendBtn = document.querySelector('{GeminiSelectors.SEND_BTN}');
+                if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {{
                     const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
-                    if (!label.includes('stop') && !label.includes('停止')) {
+                    if (!label.includes('stop') && !label.includes('停止')) {{
                         sendBtn.click();
-                        return { clicked: true };
-                    }
-                }
+                        return {{ clicked: true }};
+                    }}
+                }}
                 return null;
-            })()
+            }})()
             """)
             if click_info and click_info.get("clicked"):
                 return ActionResult(True, "发送按钮单次提交成功派发")
@@ -217,27 +219,27 @@ class AwaitStreamSettledAction(AtomicAction):
 
             state = cdp.eval(f"""
             (() => {{
-                const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop');
+                const stopBtn = document.querySelector('{GeminiSelectors.STOP_BTN}');
                 const hasStop = !!(stopBtn && stopBtn.offsetWidth > 0);
-                const sendBtn = document.querySelector('button[aria-label*="Send"]:not(.stop), gem-icon-button.send-button:not(.stop)');
+                const sendBtn = document.querySelector('{GeminiSelectors.SEND_BTN_NOT_STOP}');
                 const hasSend = !!(sendBtn && sendBtn.offsetWidth > 0 && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true');
-                const editor = document.querySelector('rich-textarea div.ql-editor') || document.querySelector('div[contenteditable="true"]');
+                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
                 const isEditorReady = !!(editor && (editor.getAttribute('contenteditable') === 'true' || editor.offsetWidth > 0));
-                const isStreamingDOM = !!document.querySelector('.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress');
+                const isStreamingDOM = !!document.querySelector('{GeminiSelectors.STREAMING_INDICATORS}');
 
                 const streamState = window.__testStreamState || {{}};
                 const lastCompleteTime = window.__geminiLastStreamComplete || 0;
                 const netCompleted = !!streamState.completed || (lastCompleteTime >= {turn_start_ms});
 
-                const allModels = Array.from(document.querySelectorAll('message-content.model-response-text, model-response, .model-response-text, structured-content-container.model-response-text'));
+                const allModels = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE_ALL}'));
                 const currCount = allModels.length;
                 const lastModel = currCount > 0 ? allModels[currCount - 1] : null;
                 const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
                 const lastSnippet = lastModel ? (lastModel.textContent || '').trim().slice(0, 150) : '';
-                const hasImages = lastModel ? (lastModel.querySelectorAll('img[src*="blob:"], img[src*="googleusercontent"], .image-container, img').length > 0) : false;
+                const hasImages = lastModel ? (lastModel.querySelectorAll('{GeminiSelectors.IMAGES}').length > 0) : false;
 
-                const retryBtn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
-                const toastEl = document.querySelector('toast-content, .toast, .error-message, [role="alert"]');
+                const retryBtn = document.querySelector('{GeminiSelectors.RETRY_BTN}');
+                const toastEl = document.querySelector('{GeminiSelectors.TOAST}');
 
                 return {{
                     hasStop,
@@ -346,20 +348,20 @@ class ClickNewChatAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         try:
-            cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
+            get_gateway().safe_navigate(cdp, "https://gemini.google.com/app")
             time.sleep(2.0)
-            return ActionResult(True, "已通过原生 Page.navigate 开启新会话")
+            return ActionResult(True, "已通过安全网关 safe_navigate 开启新会话")
         except Exception:
             pass
-        cdp.eval("""
-        (() => {
-            const newBtn = document.querySelector('a.side-nav-sparkle-button, a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]');
-            if (newBtn) {
+        cdp.eval(f"""
+        (() => {{
+            const newBtn = document.querySelector('{GeminiSelectors.NEW_CHAT_BTN}');
+            if (newBtn) {{
                 newBtn.click();
-            } else {
+            }} else {{
                 window.location.href = 'https://gemini.google.com/app';
-            }
-        })()
+            }}
+        }})()
         """)
         time.sleep(2.5)
         return ActionResult(True, "已点击开启新会话并加载就绪")
@@ -385,13 +387,9 @@ class NavigateChatAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         target_url = f"https://gemini.google.com/app/{self.chat_id}"
-        try:
-            cdp.call("Page.navigate", {"url": target_url})
+        if get_gateway().safe_navigate(cdp, target_url):
             time.sleep(2.0)
-            return ActionResult(True, f"已通过原生 Page.navigate 导航至会话: {self.chat_id}")
-        except Exception:
-            pass
-        cdp.eval(f"window.location.href = '{target_url}'")
+            return ActionResult(True, f"已通过安全网关 safe_navigate 导航至会话: {self.chat_id}")
         time.sleep(2.5)
         return ActionResult(True, f"已导航至会话: {self.chat_id}")
 
