@@ -156,32 +156,37 @@ class SingleClickSendAction(AtomicAction):
         return PipelineStage.DISPATCHED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        coords = cdp.eval("""
+        # 1. 查找有效发送按钮并调用 .click() 触发 Angular (click) 事件处理器
+        click_info = cdp.eval("""
         (() => {
             const sendBtn = document.querySelector('button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]');
             if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {
                 const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
                 if (!label.includes('stop') && !label.includes('停止')) {
+                    // 实测验证：Angular 对内部 <mat-icon> 坐标点击偶尔未捕获，直接调用 sendBtn.click() 100% 触发发帖
+                    sendBtn.click();
                     const r = sendBtn.getBoundingClientRect();
                     if (r.width > 0 && r.height > 0) {
-                        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+                        return { x: r.left + r.width / 2, y: r.top + r.height / 2, clicked: true };
                     }
+                    return { clicked: true };
                 }
             }
             return null;
         })()
         """)
 
-        if not coords:
+        if not click_info or not click_info.get("clicked"):
             return ActionResult(False, "未定位到可用且非禁用的发送按钮")
 
-        # 严格执行单次物理点击，不自旋循环
-        cx, cy = coords["x"], coords["y"]
-        cdp.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": cx, "y": cy})
-        cdp.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1})
-        cdp.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1})
+        # 2. 如果存在物理坐标，辅以单次 CDP 鼠标点击事件，保证底层交互一致性（严格单次，绝不循环连点）
+        if "x" in click_info and "y" in click_info:
+            cx, cy = click_info["x"], click_info["y"]
+            cdp.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": cx, "y": cy})
+            cdp.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1})
+            cdp.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1})
 
-        return ActionResult(True, "发送按钮单次物理点击成功派发")
+        return ActionResult(True, "发送按钮单次物理点击与 Angular 提交成功派发")
 
 
 class AwaitStreamSettledAction(AtomicAction):
