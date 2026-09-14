@@ -156,26 +156,29 @@ class SingleClickSendAction(AtomicAction):
         return PipelineStage.DISPATCHED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        # 严格执行唯一点击通道 (Single Channel of Truth)：直接调用 sendBtn.click() 触发 Angular (click) 处理器
-        # 绝对不附加任何 CDP 鼠标事件补发，彻底杜绝自点刚冒出的 Stop 按钮
-        click_info = cdp.eval("""
-        (() => {
-            const sendBtn = document.querySelector('button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]');
-            if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {
-                const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
-                if (!label.includes('stop') && !label.includes('停止')) {
-                    sendBtn.click();
-                    return { clicked: true };
+        # 严格执行唯一点击通道 (Single Channel of Truth)：
+        # 等待发送按钮解除禁用 (最多等待 8 秒，消除 Angular 脏检查与输入渲染时序差)，单次直接调用 sendBtn.click()
+        start_wait = time.time()
+        while time.time() - start_wait < 8.0:
+            click_info = cdp.eval("""
+            (() => {
+                const sendBtn = document.querySelector('button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]');
+                if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {
+                    const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
+                    if (!label.includes('stop') && !label.includes('停止')) {
+                        sendBtn.click();
+                        return { clicked: true };
+                    }
                 }
-            }
-            return null;
-        })()
-        """)
+                return null;
+            })()
+            """)
+            if click_info and click_info.get("clicked"):
+                return ActionResult(True, "发送按钮单次提交成功派发")
+            time.sleep(0.2)
 
-        if not click_info or not click_info.get("clicked"):
-            return ActionResult(False, "未定位到可用且非禁用的发送按钮")
+        return ActionResult(False, "未定位到可用且非禁用的发送按钮 (等待 8s 超时)")
 
-        return ActionResult(True, "发送按钮单次提交成功派发")
 
 
 class AwaitStreamSettledAction(AtomicAction):
