@@ -408,13 +408,17 @@ class CDPAssertions:
             for idx, sc in enumerate(expected_scenarios, 1):
                 raw_turns = sc.get("turns", [])
                 turns_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in raw_turns]
-                matched_file = None
+                best_file = None
+                best_match_count = 0
                 for mf in all_mds:
                     with open(mf, "r", encoding="utf-8", errors="ignore") as f:
                         txt = f.read()
-                    if any(t[:14] in txt for t in turns_clean if t):
-                        matched_file = mf
-                        break
+                    matches = sum(1 for t in turns_clean if t and t[:14] in txt)
+                    if matches > best_match_count:
+                        best_match_count = matches
+                        best_file = mf
+
+                matched_file = best_file
 
                 if not matched_file:
                     return False, f"场景 {idx} 《{sc.get('title')}》 未在解压文件中找到对应的对话 Markdown！", {}

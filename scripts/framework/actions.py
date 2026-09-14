@@ -33,7 +33,12 @@ from scripts.framework.gateway import get_gateway
 _SHARED_PIPELINE_EXECUTOR = SerialActionExecutor()
 
 
-class CDPActions:
+
+class ExtensionActions:
+    """
+    Universal Chrome Extension Options Page & Management Automation Primitives.
+    Independent of underlying AI platform; operates strictly on the extension UI.
+    """
     @staticmethod
     def reinstall_extension(port: int = 9222, repo_path: Optional[str] = None) -> Optional[str]:
         """通过 CDP Extensions 域指令彻底卸载并纯净重新安装插件"""
@@ -199,6 +204,259 @@ class CDPActions:
         finally:
             cdp.close()
 
+    @staticmethod
+    def search_workbench(cdp_opt, query: str, timeout: float = 3.0) -> int:
+        """在 Options 工作台搜索框输入检索内容并等待过滤生效，返回过滤后可见条目数"""
+        cdp_opt.eval(f"""
+        (() => {{
+            const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
+            if (!input) return -1;
+            input.focus();
+            input.value = {json.dumps(query)};
+            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        }})()
+        """)
+        # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
+        start = time.time()
+        total_items = cdp_opt.eval(f"""
+        (() => {{
+            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
+            return s ? s.getConversations().length : document.querySelectorAll('{WorkbenchSelectors.ITEM}').length;
+        }})()
+        """) or 0
+
+        while time.time() - start < timeout:
+            visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
+            if total_items > 1:
+                if query and visible_count < total_items:
+                    return visible_count
+                elif not query and visible_count >= total_items:
+                    return visible_count
+            else:
+                return visible_count
+            time.sleep(0.05)
+
+        return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
+
+    @staticmethod
+    def clear_search_workbench(cdp_opt, timeout: float = 3.0) -> int:
+        """清空 Options 工作台搜索框并等待完整列表恢复，返回恢复后的列表总数"""
+        cdp_opt.eval(f"""
+        (() => {{
+            const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
+            if (!input) return -1;
+            input.value = '';
+            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        }})()
+        """)
+        # 轮询等待搜索防抖及全量列表恢复
+        start = time.time()
+        target_total = cdp_opt.eval("""
+        (() => {
+            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
+            return s ? s.getConversations().length : 0;
+        })()
+        """) or 0
+
+        while time.time() - start < timeout:
+            visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
+            if target_total > 0 and visible_count >= target_total:
+                return visible_count
+            time.sleep(0.05)
+
+        return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
+
+    @staticmethod
+    def select_workbench_item(cdp_opt, chat_id: str, checked: bool = True) -> bool:
+        """精准操作指定 chatId 卡片的复选框勾选状态"""
+        item_sel = WorkbenchSelectors.item_by_chat_id(chat_id)
+        return bool(cdp_opt.eval(f"""
+        (() => {{
+            const item = document.querySelector('{item_sel}');
+            if (!item) return false;
+            const cb = item.querySelector('{WorkbenchSelectors.CHECKBOX}');
+            if (!cb) return false;
+            if (cb.checked !== {str(checked).lower()}) {{
+                cb.checked = {str(checked).lower()};
+                cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
+            return true;
+        }})()
+        """))
+
+    @staticmethod
+    def toggle_select_all(cdp_opt) -> int:
+        """点击全选按钮，返回勾选后的复选框总数"""
+        return cdp_opt.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_ALL}');
+            if (btn) btn.click();
+            return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
+        }})()
+        """) or 0
+
+    @staticmethod
+    def toggle_select_none(cdp_opt) -> int:
+        """点击取消全选按钮，返回勾选后的复选框总数"""
+        return cdp_opt.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_NONE}');
+            if (btn) btn.click();
+            return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
+        }})()
+        """) or 0
+
+    @staticmethod
+    def switch_workbench_language(cdp_opt, lang: str = "en") -> str:
+        """切换 Options 工作台语言 (en / zh)，等待异步本地化就绪并返回全选按钮文案"""
+        btn_id = 'labelLangEn' if lang == 'en' else 'labelLangZh'
+        expected_part = 'all' if lang == 'en' else '全选'
+        return cdp_opt.eval(f"""
+        (async () => {{
+            const label = document.getElementById('{btn_id}');
+            if (label) label.click();
+            for (let i = 0; i < 20; i++) {{
+                const btnAll = document.getElementById('btnSelectAll');
+                const txt = btnAll ? btnAll.textContent.trim() : '';
+                if (txt.toLowerCase().includes('{expected_part}')) {{
+                    return txt;
+                }}
+                await new Promise(r => setTimeout(r, 100));
+            }}
+            const btnAll = document.getElementById('btnSelectAll');
+            return btnAll ? btnAll.textContent.trim() : '';
+        }})()
+        """, await_promise=True) or ''
+
+    @staticmethod
+    def import_takeout_zip(cdp_opt, zip_path: str) -> Dict[str, Any]:
+        """向工作台导入预置 Takeout ZIP 样本"""
+        if not os.path.isfile(zip_path):
+            return {"success": False, "error": f"File not found: {zip_path}"}
+
+        with open(zip_path, "rb") as tf:
+            zip_b64 = base64.b64encode(tf.read()).decode("ascii")
+
+        return cdp_opt.eval(f"""
+        (async () => {{
+            try {{
+                const b64 = {json.dumps(zip_b64)};
+                const bin = atob(b64);
+                const arr = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+                const file = new File([arr], "{os.path.basename(zip_path)}", {{ type: "application/zip" }});
+                
+                const TC = typeof TakeoutController !== 'undefined' ? TakeoutController : window.TakeoutController;
+                if (!TC) return {{ error: "TakeoutController not loaded" }};
+
+                return await new Promise((resolve) => {{
+                    TC.handleTakeoutImport(file, {{
+                        onFinished: (result) => {{
+                            if (typeof window.__workbenchLoadStore === 'function') {{
+                                window.__workbenchLoadStore(true);
+                            }}
+                            resolve({{
+                                success: true,
+                                addedCount: result.addedCount,
+                                totalMediaCount: result.totalMediaCount
+                            }});
+                        }},
+                        onError: (err, msg) => resolve({{ error: msg || (err && err.message) || String(err) }})
+                    }});
+                }});
+            }} catch (e) {{
+                return {{ error: e.message }};
+            }}
+        }})()
+        """, await_promise=True) or {}
+
+    @staticmethod
+    def trigger_deep_scan(cdp_opt, max_wait: int = 90) -> bool:
+        """触发【全量拉取历史】(btnDeepScan) 并等待分页同步完成"""
+        cdp_opt.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_DEEP_SCAN}');
+            if (btn) btn.click();
+        }})()
+        """)
+        start = time.time()
+        while time.time() - start < max_wait:
+            time.sleep(1.0)
+            state = cdp_opt.eval(f"""
+            (() => {{
+                const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
+                const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
+                const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
+                return {{ isScan: isScan || (btn && btn.disabled) }};
+            }})()
+            """)
+            if not state or not state.get("isScan"):
+                return True
+        return False
+
+    @staticmethod
+    def trigger_export_zip(cdp_opt, output_dir: str, max_wait: int = 60) -> Optional[str]:
+        """确保启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
+        cdp_opt.eval(f"""
+        (() => {{
+            const skipCb = document.getElementById('skipExported');
+            if (skipCb && skipCb.checked) {{
+                skipCb.checked = false;
+                skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
+            const zipCb = document.getElementById('includeZip');
+            if (zipCb && !zipCb.checked) {{
+                zipCb.checked = true;
+                zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            }}
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
+            if (btn && !btn.disabled) btn.click();
+        }})()
+        """)
+        start_time = time.time()
+        downloaded_zip = None
+
+        while time.time() - start_time < max_wait:
+            time.sleep(1.5)
+            if os.path.isdir(output_dir):
+                for f in os.listdir(output_dir):
+                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                        fp = os.path.join(output_dir, f)
+                        if os.path.getmtime(fp) >= start_time - 3:
+                            downloaded_zip = fp
+                            break
+            if downloaded_zip:
+                break
+
+            sys_dl = os.path.expanduser("~/Downloads")
+            if os.path.isdir(sys_dl):
+                for f in os.listdir(sys_dl):
+                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                        fp = os.path.join(sys_dl, f)
+                        if os.path.getmtime(fp) >= start_time - 3:
+                            downloaded_zip = fp
+                            break
+            if downloaded_zip:
+                break
+
+        if downloaded_zip and os.path.expanduser("~/Downloads") in downloaded_zip:
+            dest_zip = os.path.join(output_dir, os.path.basename(downloaded_zip))
+            if os.path.abspath(downloaded_zip) != os.path.abspath(dest_zip):
+                import shutil
+                shutil.copy2(downloaded_zip, dest_zip)
+                downloaded_zip = dest_zip
+
+        return downloaded_zip
+
+
+class CDPActions(ExtensionActions):
+    """
+    Combined Actions Facade for Test Automation.
+    Inherits all ExtensionActions (workbench, tour, options, export)
+    and contains Gemini-specific web automation primitives.
+    """
     @staticmethod
     def wait_for_gemini_ready(cdp, max_wait: int = 30) -> bool:
         """等待 Gemini 页面输入框及核心 DOM 就绪"""
@@ -631,248 +889,3 @@ class CDPActions:
         time.sleep(2.0)
         return bool(confirm_click)
 
-    @staticmethod
-    def search_workbench(cdp_opt, query: str, timeout: float = 3.0) -> int:
-        """在 Options 工作台搜索框输入检索内容并等待过滤生效，返回过滤后可见条目数"""
-        cdp_opt.eval(f"""
-        (() => {{
-            const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
-            if (!input) return -1;
-            input.focus();
-            input.value = {json.dumps(query)};
-            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-        }})()
-        """)
-        # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
-        start = time.time()
-        total_items = cdp_opt.eval(f"""
-        (() => {{
-            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
-            return s ? s.getConversations().length : document.querySelectorAll('{WorkbenchSelectors.ITEM}').length;
-        }})()
-        """) or 0
-
-        while time.time() - start < timeout:
-            visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
-            if total_items > 1:
-                if query and visible_count < total_items:
-                    return visible_count
-                elif not query and visible_count >= total_items:
-                    return visible_count
-            else:
-                return visible_count
-            time.sleep(0.05)
-
-        return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
-
-    @staticmethod
-    def clear_search_workbench(cdp_opt, timeout: float = 3.0) -> int:
-        """清空 Options 工作台搜索框并等待完整列表恢复，返回恢复后的列表总数"""
-        cdp_opt.eval(f"""
-        (() => {{
-            const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
-            if (!input) return -1;
-            input.value = '';
-            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-        }})()
-        """)
-        # 轮询等待搜索防抖及全量列表恢复
-        start = time.time()
-        target_total = cdp_opt.eval("""
-        (() => {
-            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
-            return s ? s.getConversations().length : 0;
-        })()
-        """) or 0
-
-        while time.time() - start < timeout:
-            visible_count = cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
-            if target_total > 0 and visible_count >= target_total:
-                return visible_count
-            time.sleep(0.05)
-
-        return cdp_opt.eval(f"document.querySelectorAll('{WorkbenchSelectors.ITEM}').length") or 0
-
-    @staticmethod
-    def select_workbench_item(cdp_opt, chat_id: str, checked: bool = True) -> bool:
-        """精准操作指定 chatId 卡片的复选框勾选状态"""
-        item_sel = WorkbenchSelectors.item_by_chat_id(chat_id)
-        return bool(cdp_opt.eval(f"""
-        (() => {{
-            const item = document.querySelector('{item_sel}');
-            if (!item) return false;
-            const cb = item.querySelector('{WorkbenchSelectors.CHECKBOX}');
-            if (!cb) return false;
-            if (cb.checked !== {str(checked).lower()}) {{
-                cb.checked = {str(checked).lower()};
-                cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            }}
-            return true;
-        }})()
-        """))
-
-    @staticmethod
-    def toggle_select_all(cdp_opt) -> int:
-        """点击全选按钮，返回勾选后的复选框总数"""
-        return cdp_opt.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_ALL}');
-            if (btn) btn.click();
-            return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
-        }})()
-        """) or 0
-
-    @staticmethod
-    def toggle_select_none(cdp_opt) -> int:
-        """点击取消全选按钮，返回勾选后的复选框总数"""
-        return cdp_opt.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_SELECT_NONE}');
-            if (btn) btn.click();
-            return document.querySelectorAll('{WorkbenchSelectors.CHECKED_CHECKBOX}').length;
-        }})()
-        """) or 0
-
-    @staticmethod
-    def switch_workbench_language(cdp_opt, lang: str = "en") -> str:
-        """切换 Options 工作台语言 (en / zh)，等待异步本地化就绪并返回全选按钮文案"""
-        btn_id = 'labelLangEn' if lang == 'en' else 'labelLangZh'
-        expected_part = 'all' if lang == 'en' else '全选'
-        return cdp_opt.eval(f"""
-        (async () => {{
-            const label = document.getElementById('{btn_id}');
-            if (label) label.click();
-            for (let i = 0; i < 20; i++) {{
-                const btnAll = document.getElementById('btnSelectAll');
-                const txt = btnAll ? btnAll.textContent.trim() : '';
-                if (txt.toLowerCase().includes('{expected_part}')) {{
-                    return txt;
-                }}
-                await new Promise(r => setTimeout(r, 100));
-            }}
-            const btnAll = document.getElementById('btnSelectAll');
-            return btnAll ? btnAll.textContent.trim() : '';
-        }})()
-        """, await_promise=True) or ''
-
-    @staticmethod
-    def import_takeout_zip(cdp_opt, zip_path: str) -> Dict[str, Any]:
-        """向工作台导入预置 Takeout ZIP 样本"""
-        if not os.path.isfile(zip_path):
-            return {"success": False, "error": f"File not found: {zip_path}"}
-
-        with open(zip_path, "rb") as tf:
-            zip_b64 = base64.b64encode(tf.read()).decode("ascii")
-
-        return cdp_opt.eval(f"""
-        (async () => {{
-            try {{
-                const b64 = {json.dumps(zip_b64)};
-                const bin = atob(b64);
-                const arr = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-                const file = new File([arr], "{os.path.basename(zip_path)}", {{ type: "application/zip" }});
-                
-                const TC = typeof TakeoutController !== 'undefined' ? TakeoutController : window.TakeoutController;
-                if (!TC) return {{ error: "TakeoutController not loaded" }};
-
-                return await new Promise((resolve) => {{
-                    TC.handleTakeoutImport(file, {{
-                        onFinished: (result) => {{
-                            if (typeof window.__workbenchLoadStore === 'function') {{
-                                window.__workbenchLoadStore(true);
-                            }}
-                            resolve({{
-                                success: true,
-                                addedCount: result.addedCount,
-                                totalMediaCount: result.totalMediaCount
-                            }});
-                        }},
-                        onError: (err, msg) => resolve({{ error: msg || (err && err.message) || String(err) }})
-                    }});
-                }});
-            }} catch (e) {{
-                return {{ error: e.message }};
-            }}
-        }})()
-        """, await_promise=True) or {}
-
-    @staticmethod
-    def trigger_deep_scan(cdp_opt, max_wait: int = 90) -> bool:
-        """触发【全量拉取历史】(btnDeepScan) 并等待分页同步完成"""
-        cdp_opt.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_DEEP_SCAN}');
-            if (btn) btn.click();
-        }})()
-        """)
-        start = time.time()
-        while time.time() - start < max_wait:
-            time.sleep(1.0)
-            state = cdp_opt.eval(f"""
-            (() => {{
-                const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
-                const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
-                const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
-                return {{ isScan: isScan || (btn && btn.disabled) }};
-            }})()
-            """)
-            if not state or not state.get("isScan"):
-                return True
-        return False
-
-    @staticmethod
-    def trigger_export_zip(cdp_opt, output_dir: str, max_wait: int = 60) -> Optional[str]:
-        """确保启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
-        cdp_opt.eval(f"""
-        (() => {{
-            const skipCb = document.getElementById('skipExported');
-            if (skipCb && skipCb.checked) {{
-                skipCb.checked = false;
-                skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            }}
-            const zipCb = document.getElementById('includeZip');
-            if (zipCb && !zipCb.checked) {{
-                zipCb.checked = true;
-                zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            }}
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
-            if (btn && !btn.disabled) btn.click();
-        }})()
-        """)
-        start_time = time.time()
-        downloaded_zip = None
-
-        while time.time() - start_time < max_wait:
-            time.sleep(1.5)
-            if os.path.isdir(output_dir):
-                for f in os.listdir(output_dir):
-                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
-                        fp = os.path.join(output_dir, f)
-                        if os.path.getmtime(fp) >= start_time - 3:
-                            downloaded_zip = fp
-                            break
-            if downloaded_zip:
-                break
-
-            sys_dl = os.path.expanduser("~/Downloads")
-            if os.path.isdir(sys_dl):
-                for f in os.listdir(sys_dl):
-                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
-                        fp = os.path.join(sys_dl, f)
-                        if os.path.getmtime(fp) >= start_time - 3:
-                            downloaded_zip = fp
-                            break
-            if downloaded_zip:
-                break
-
-        if downloaded_zip and os.path.expanduser("~/Downloads") in downloaded_zip:
-            dest_zip = os.path.join(output_dir, os.path.basename(downloaded_zip))
-            if os.path.abspath(downloaded_zip) != os.path.abspath(dest_zip):
-                import shutil
-                shutil.copy2(downloaded_zip, dest_zip)
-                downloaded_zip = dest_zip
-
-        return downloaded_zip

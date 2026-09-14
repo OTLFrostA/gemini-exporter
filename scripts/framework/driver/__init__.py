@@ -1,14 +1,26 @@
 # scripts/framework/driver/__init__.py
 """
-High-Level Gemini Automation Driver and Chat Session Abstractions.
+High-Level Automation Driver and Chat Session Abstractions.
 Encapsulates all low-level CDP interactions, DOM selectors, atomic pipelines,
 session lifecycle transitions, and turn evaluations into clean, declarative APIs.
 """
 
-from .gemini_driver import GeminiDriver, GeminiChatSession, TurnResult
+from .platform_driver import (
+    ChatPlatformDriver,
+    TurnResult,
+    PlatformCapabilities
+)
+from .gemini_driver import (
+    GeminiPlatformDriver,
+    GeminiDriver,
+    GeminiChatSession
+)
 
 __all__ = [
+    "ChatPlatformDriver",
+    "TurnResult",
+    "PlatformCapabilities",
+    "GeminiPlatformDriver",
     "GeminiDriver",
-    "GeminiChatSession",
-    "TurnResult"
+    "GeminiChatSession"
 ]

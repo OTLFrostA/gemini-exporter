@@ -42,8 +42,9 @@ from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, ensure
 from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
-from scripts.framework.actions import CDPActions
+from scripts.framework.actions import ExtensionActions, CDPActions
 from scripts.framework.assertions import CDPAssertions
+from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
 from scripts.visual_agent import (
     VisionProvider,
     VisualAction,
@@ -55,38 +56,6 @@ from scripts.visual_agent import (
     SelfHealingEvent,
     VisualRisk
 )
-
-DESIGNATED_HISTORICAL_CHATS = [
-    {
-        "id": "1bd028d5c5b0c0e2",
-        "category": "AI 生成图片 (Imagen)",
-        "name": "火星宇航员猫咪（AI 生成图片 Imagen）",
-        "expected_snippets": ["astronaut cat"],
-        "expected_generated_images": 1,
-        "syntax_checks": ["image"]
-    },
-    {
-        "id": "1cea7e48cc166b57",
-        "category": "高质量技术代码块 (Python)",
-        "name": "Python日志与耗时装饰器设计（高质量技术代码块）",
-        "expected_snippets": ["Python", "def ", "functools"],
-        "syntax_checks": ["codeblock"]
-    },
-    {
-        "id": "7b29852ecae8344a",
-        "category": "Markdown 对比表格与量子理论",
-        "name": "贝尔不等式推导与物理意义（复杂表格与量子理论）",
-        "expected_snippets": ["贝尔不等式"],
-        "syntax_checks": ["table"]
-    },
-    {
-        "id": "f8ba969fe8c7d880",
-        "category": "长文本深度推演 (深空探测)",
-        "name": "韦伯望远镜深空探测重大发现（长文本科学报告）",
-        "expected_snippets": ["韦伯", "深空探测"],
-        "syntax_checks": []
-    }
-]
 
 
 class VisualTestingAgent:
@@ -499,41 +468,7 @@ class VisualTestingAgent:
         resolved_takeout = takeout_zip or os.path.abspath(os.path.join(self.repo_dir, "tests", "fixtures", "gemini_takeout_clean.zip"))
         if os.path.isfile(resolved_takeout):
             self.log(f"📥 正在执行 Takeout ZIP 样本离线导入: {os.path.basename(resolved_takeout)}...", "ACT")
-            with open(resolved_takeout, "rb") as tf:
-                zip_b64 = base64.b64encode(tf.read()).decode("ascii")
-
-            takeout_res = cdp.eval(f"""
-            (async () => {{
-                try {{
-                    const b64 = {json.dumps(zip_b64)};
-                    const bin = atob(b64);
-                    const arr = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-                    const file = new File([arr], "{os.path.basename(resolved_takeout)}", {{ type: "application/zip" }});
-                    
-                    const TC = typeof TakeoutController !== 'undefined' ? TakeoutController : window.TakeoutController;
-                    if (!TC) return {{ error: "TakeoutController not loaded" }};
-
-                    return await new Promise((resolve) => {{
-                        TC.handleTakeoutImport(file, {{
-                            onFinished: (result) => {{
-                                if (typeof window.__workbenchLoadStore === 'function') {{
-                                    window.__workbenchLoadStore(true);
-                                }}
-                                resolve({{
-                                    success: true,
-                                    addedCount: result.addedCount,
-                                    totalMediaCount: result.totalMediaCount
-                                }});
-                            }},
-                            onError: (err, msg) => resolve({{ error: msg || (err && err.message) || String(err) }})
-                        }});
-                    }});
-                }} catch (e) {{
-                    return {{ error: e.message }};
-                }}
-            }})()
-            """, await_promise=True)
+            takeout_res = ExtensionActions.import_takeout_zip(cdp, resolved_takeout)
 
             if isinstance(takeout_res, dict) and takeout_res.get("success"):
                 self.log(f"✓ Takeout 样本导入成功！已索引离线附件池: {takeout_res.get('totalMediaCount', 0)} 个资源", "PASS")
@@ -617,34 +552,13 @@ class VisualTestingAgent:
         self.capture_screen(cdp, "workbench_deep_scanned")
 
         # 2.1 校验 Takeout 临时标题是否权威晋级升级
-        upgraded_state = cdp.eval("""
-        (() => {
-            return new Promise((resolve) => {
-                chrome.storage.local.get(['gemini_conversations'], (data) => {
-                    const convs = data.gemini_conversations || [];
-                    const checkIds = ['1bd028d5c5b0c0e2', '1cea7e48cc166b57', '7b29852ecae8344a', 'f8ba969fe8c7d880'];
-                    const matched = convs.filter(c => checkIds.includes(c.id));
-                    resolve({
-                        matched: matched.map(c => ({
-                            id: c.id,
-                            title: c.title,
-                            source: c.titleSource,
-                            titles: c.titles || {}
-                        }))
-                    });
-                });
-            });
-        })()
-        """, await_promise=True)
-        upgraded_count = 0
-        for m in (upgraded_state.get("matched", []) if upgraded_state else []):
-            titles = m.get("titles", {})
-            if m.get("source") == "rpc" or "rpc" in titles:
-                upgraded_count += 1
-        if upgraded_count > 0:
-            self.log(f"✓ [标题晋级断言通过] 成功核实 {upgraded_count} 条 Takeout 历史会话权威升级为在线 RPC 标题！", "PASS")
+        check_ids = ['1bd028d5c5b0c0e2', '1cea7e48cc166b57', '7b29852ecae8344a', 'f8ba969fe8c7d880']
+        upgraded_ok, upgraded_msg, _ = CDPAssertions.assert_title_upgraded(cdp, check_ids)
+        if upgraded_ok:
+            self.log(f"✓ [标题晋级断言通过] {upgraded_msg}", "PASS")
+            self.scorecard.record_feature("Takeout标题升级", "历史合流", "PASS", 0.0, upgraded_msg)
         else:
-            self.log("ℹ️ 当前处于纯离线或未登录环境，Takeout 离线标题保持完整就绪", "INFO")
+            self.log(f"ℹ️ 当前处于纯离线或未登录环境，Takeout 离线标题保持完整就绪 ({upgraded_msg})", "INFO")
 
         # 3. 强制取消 skipExported 并强制启用 includeZip
         cdp.eval("""
@@ -928,44 +842,19 @@ class VisualTestingAgent:
         self.log(f"✓ 成功捕获导出的 ZIP 归档文件: {os.path.basename(downloaded_zip)} ({os.path.getsize(downloaded_zip)} bytes)", "PASS")
         self.capture_screen(cdp, "export_completed")
 
-        # 9. 解压与物理资产完整性深度断言
+        # 9. 解压与物理资产完整性深度断言 (4大黄金分类多模态特征规范断言)
         extract_dir = os.path.join(self.output_dir, "extracted_export")
-        if os.path.exists(extract_dir):
-            shutil.rmtree(extract_dir, ignore_errors=True)
-        os.makedirs(extract_dir, exist_ok=True)
-
-        with zipfile.ZipFile(downloaded_zip, "r") as zf:
-            zf.extractall(extract_dir)
-
-        # 检查 assets 目录
-        assets_found = []
-        for root, _, files in os.walk(extract_dir):
-            for f in files:
-                if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")):
-                    fpath = os.path.join(root, f)
-                    fsize = os.path.getsize(fpath)
-                    assets_found.append({"file": f, "path": fpath, "size": fsize})
-
-        self.log(f"📦 导出包内物理提取到的图片媒体资产总数: {len(assets_found)} 个", "INFO")
-        for a in assets_found:
-            if a["size"] > 0:
-                self.log(f"   ✓ 资产完整: {a['file']} ({a['size']} bytes)", "PASS")
-            else:
-                self.log(f"   ❌ 资产损坏 (0 字节): {a['file']}", "FAIL")
-
-        if len(assets_found) > 0:
-            self.log(f"✓ 多模态资产归档通过: 成功物理归档 {len(assets_found)} 个非空图片文件", "PASS")
-        else:
-            self.log("⚠️ 导出包内未检测到图片媒体文件", "WARN")
-
-        # 10. 执行全量多模态导出规范断言器 (ExportSpecificationAsserter - 4大黄金核心分类)
-        asserter = ExportSpecificationAsserter(extract_dir)
-        spec_ok = asserter.run_all_assertions(min_conversations=4, expected_golden_chats=DESIGNATED_HISTORICAL_CHATS)
+        spec_ok, spec_msg, _ = CDPAssertions.assert_exported_zip_spec(
+            zip_path=downloaded_zip,
+            extract_dir=extract_dir,
+            min_conversations=4,
+            expected_golden_chats=DESIGNATED_HISTORICAL_CHATS
+        )
 
         if spec_ok:
             self.log("🏆 导出 Markdown、Frontmatter、资产一致性与 4 大黄金分类多模态特征全维度规范断言 100% 完美通过！", "PASS")
         else:
-            self.log("❌ 导出规范断言器发现不合规项，请查看上述详细报告", "FAIL")
+            self.log(f"❌ 导出规范断言器发现不合规项: {spec_msg}", "FAIL")
 
         return spec_ok
 
