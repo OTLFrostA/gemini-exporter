@@ -73,9 +73,9 @@ class UpdatedBadgeDisplayCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             # 严格禁止任何直接写入 chrome.storage.local 的后门作弊！
-            # 真实断言：因之前 Chat 1 已真实导出落盘，且刚完成追加提问，
-            # 页面已通过真实事件将 Chat 1 提升至列表首位，并自然判定为已更新状态
-            time.sleep(1.0)
+            # 确保工作台处于无过滤全量展示状态，避免先前搜索残余隐藏目标项
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.5)
             order_ok, order_msg, _ = CDPAssertions.assert_realtime_order(cdp_opt, s1_id, s2_id)
             badge_ok, badge_msg, _ = CDPAssertions.assert_badge_status(cdp_opt, s1_id, "updated")
 

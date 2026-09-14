@@ -629,9 +629,9 @@ class CDPActions:
         return bool(confirm_click)
 
     @staticmethod
-    def search_workbench(cdp_opt, query: str) -> int:
-        """在 Options 工作台搜索框输入检索内容并触发过滤，返回过滤后可见条目数"""
-        return cdp_opt.eval(f"""
+    def search_workbench(cdp_opt, query: str, timeout: float = 3.0) -> int:
+        """在 Options 工作台搜索框输入检索内容并等待过滤生效，返回过滤后可见条目数"""
+        cdp_opt.eval(f"""
         (() => {{
             const input = document.getElementById('chatSearchInput') || document.getElementById('search');
             if (!input) return -1;
@@ -639,25 +639,58 @@ class CDPActions:
             input.value = {json.dumps(query)};
             input.dispatchEvent(new Event('input', {{ bubbles: true }}));
             input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-            const visible = Array.from(document.querySelectorAll('#list .item')).filter(el => el.style.display !== 'none');
-            return visible.length;
         }})()
+        """)
+        # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
+        start = time.time()
+        total_items = cdp_opt.eval("""
+        (() => {
+            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
+            return s ? s.getConversations().length : document.querySelectorAll('#list .item').length;
+        })()
         """) or 0
 
+        while time.time() - start < timeout:
+            visible_count = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+            if total_items > 1:
+                if query and visible_count < total_items:
+                    return visible_count
+                elif not query and visible_count >= total_items:
+                    return visible_count
+            else:
+                return visible_count
+            time.sleep(0.05)
+
+        return cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+
     @staticmethod
-    def clear_search_workbench(cdp_opt) -> int:
-        """清空 Options 工作台搜索框，返回恢复后的列表总数"""
-        return cdp_opt.eval("""
+    def clear_search_workbench(cdp_opt, timeout: float = 3.0) -> int:
+        """清空 Options 工作台搜索框并等待完整列表恢复，返回恢复后的列表总数"""
+        cdp_opt.eval("""
         (() => {
             const input = document.getElementById('chatSearchInput') || document.getElementById('search');
             if (!input) return -1;
             input.value = '';
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
-            const visible = Array.from(document.querySelectorAll('#list .item')).filter(el => el.style.display !== 'none');
-            return visible.length;
+        })()
+        """)
+        # 轮询等待搜索防抖及全量列表恢复
+        start = time.time()
+        target_total = cdp_opt.eval("""
+        (() => {
+            const s = window.ConversationsStore || (typeof ConversationsStore !== 'undefined' ? ConversationsStore : null);
+            return s ? s.getConversations().length : 0;
         })()
         """) or 0
+
+        while time.time() - start < timeout:
+            visible_count = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+            if target_total > 0 and visible_count >= target_total:
+                return visible_count
+            time.sleep(0.05)
+
+        return cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
 
     @staticmethod
     def select_workbench_item(cdp_opt, chat_id: str, checked: bool = True) -> bool:

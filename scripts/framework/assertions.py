@@ -218,40 +218,48 @@ class CDPAssertions:
         return True, f"Takeout 临时标题成功升级为 RPC 权威标题 (升级数: {upgraded_count}/{len(matched)})", status
 
     @staticmethod
-    def assert_search_filter(cdp_opt, query: str, expected_visible_min: int = 1, expected_visible_max: Optional[int] = None) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言搜索过滤后工作台列表可见项数量在预期区间内"""
-        vis_info = cdp_opt.eval(f"""
-        (() => {{
-            const input = document.getElementById('chatSearchInput') || document.getElementById('search');
-            const items = Array.from(document.querySelectorAll('#list .item'));
-            const visible = items.filter(el => el.style.display !== 'none');
-            const store = typeof ConversationsStore !== 'undefined' ? ConversationsStore : (window.ConversationsStore || null);
-            const defaultStore = typeof DefaultConversationsStore !== 'undefined' ? DefaultConversationsStore : (window.DefaultConversationsStore || null);
-            const s = store || defaultStore;
-            const totalStore = s ? s.getConversations().length : items.length;
-            return {{
-                query: input ? input.value : '',
-                totalCount: totalStore,
-                visibleCount: visible.length,
-                firstVisibleId: visible.length > 0 ? visible[0].dataset.chatId : null,
-                firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('.chat-title, .title')?.textContent || '') : ''
-            }};
-        }})()
-        """) or {}
+    def assert_search_filter(cdp_opt, query: str, expected_visible_min: int = 1, expected_visible_max: Optional[int] = None, timeout: float = 3.0) -> Tuple[bool, str, Dict[str, Any]]:
+        """断言搜索过滤后工作台列表可见项数量在预期区间内（带轮询等待渲染稳定）"""
+        start = time.time()
+        last_vis_info = {}
+        last_msg = ""
 
-        total = vis_info.get("totalCount", 0)
-        vis = vis_info.get("visibleCount", 0)
+        while time.time() - start < timeout:
+            vis_info = cdp_opt.eval(f"""
+            (() => {{
+                const input = document.getElementById('chatSearchInput') || document.getElementById('search');
+                const items = Array.from(document.querySelectorAll('#list .item'));
+                const visible = items.filter(el => el.style.display !== 'none');
+                const store = typeof ConversationsStore !== 'undefined' ? ConversationsStore : (window.ConversationsStore || null);
+                const defaultStore = typeof DefaultConversationsStore !== 'undefined' ? DefaultConversationsStore : (window.DefaultConversationsStore || null);
+                const s = store || defaultStore;
+                const totalStore = s ? s.getConversations().length : items.length;
+                return {{
+                    query: input ? input.value : '',
+                    totalCount: totalStore,
+                    visibleCount: visible.length,
+                    firstVisibleId: visible.length > 0 ? visible[0].dataset.chatId : null,
+                    firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('.chat-title, .title')?.textContent || '') : ''
+                }};
+            }})()
+            """) or {}
 
-        if vis < expected_visible_min:
-            return False, f"搜索过滤后可见项不足: {vis} < 预期最小 {expected_visible_min} (Query: '{query}')", vis_info
+            total = vis_info.get("totalCount", 0)
+            vis = vis_info.get("visibleCount", 0)
+            last_vis_info = vis_info
 
-        if expected_visible_max is not None and vis > expected_visible_max:
-            return False, f"搜索过滤后可见项超出: {vis} > 预期最大 {expected_visible_max} (Query: '{query}')", vis_info
+            if vis < expected_visible_min:
+                last_msg = f"搜索过滤后可见项不足: {vis} < 预期最小 {expected_visible_min} (Query: '{query}')"
+            elif expected_visible_max is not None and vis > expected_visible_max:
+                last_msg = f"搜索过滤后可见项超出: {vis} > 预期最大 {expected_visible_max} (Query: '{query}')"
+            elif total > 1 and vis >= total:
+                last_msg = f"搜索过滤未生效: 总数 {total} 与 可见数 {vis} 相同，未发生过滤收缩 (Query: '{query}')"
+            else:
+                return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 首项: {vis_info.get('firstVisibleTitle')[:20]})", vis_info
 
-        if total > 1 and vis >= total:
-            return False, f"搜索过滤未生效: 总数 {total} 与 可见数 {vis} 相同，未发生过滤收缩 (Query: '{query}')", vis_info
+            time.sleep(0.05)
 
-        return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 首项: {vis_info.get('firstVisibleTitle')[:20]})", vis_info
+        return False, last_msg, last_vis_info
 
     @staticmethod
     def assert_real_disk_live_save(
