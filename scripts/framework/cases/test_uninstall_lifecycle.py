@@ -46,11 +46,17 @@ class UninstallLifecycleCase(FeatureTestCase):
         try:
             # 1. 触发原生卸载
             cdp.call("Extensions.uninstall", {"id": curr_ext_id})
-            time.sleep(1.0)
 
-            # 2. 验证扩展已从浏览器中完全移除
-            new_check_id = get_extension_id(ctx.port)
-            if new_check_id and new_check_id == curr_ext_id:
+            # 2. 验证扩展已从浏览器中完全移除 (轮询最多 6 秒，消除异步靶标注销时序差)
+            uninstalled = False
+            for _ in range(12):
+                time.sleep(0.5)
+                new_check_id = get_extension_id(ctx.port)
+                if not new_check_id or new_check_id != curr_ext_id:
+                    uninstalled = True
+                    break
+
+            if not uninstalled:
                 return False, f"扩展卸载后仍然在浏览器中驻留: {curr_ext_id}", None
 
             print("   ✓ 扩展已成功彻底卸载，验证后台页面已注销")

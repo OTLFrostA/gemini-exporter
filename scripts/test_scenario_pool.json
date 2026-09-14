@@ -1,141 +1,5 @@
 [
   {
-    "id": "confidential_computing_enclave_attestation",
-    "domain": "confidential_computing_enclave",
-    "title": "机密计算与硬件飞地：Intel SGX / AMD SEV 远程证明与侧信道攻防",
-    "features": [
-      "code",
-      "math",
-      "tables",
-      "security_audit"
-    ],
-    "turns": [
-      "请对比机密计算领域两大主流硬件飞地技术：Intel SGX (Software Guard Extensions) 与 AMD SEV-SNP (Secure Encrypted Virtualization-Secure Nested Paging)。请以 Markdown 表格的形式，从隔离粒度（进程级 vs 虚拟机级）、内存加密机制（MEE 引擎 vs AES-XTS 硬件密钥）、页表管理权属（OS 托管 vs RMP 反向映射表）、远程证明信任根（Intel PCS vs AMD VCEK）以及物理侧信道暴露面等 5 个维度展开深度横向评测。",
-      "在基于 ECDSA 的非对称远程证明 (DCAP, Data Center Attestation Primitives) 流程中，飞地如何生成包含用户数据度量 (ReportData) 的 MRENCLAVE 证明报告？请详细推导 ReportData 绑定的密码学推导过程，并给出客户端验证 Enclave Quote 真实性与平台证书链 (PCK Cert Chain) 吊销状态 (TCB Recovery) 的数学与逻辑步骤。",
-      "请提供一段符合生产级机密计算规范的高性能 Rust 代码（基于 Linux /dev/sgx_enclave 或 sgx_urts 运行时），展示飞地外部不可信宿主 (Untrusted Host) 与飞地内部可信环境 (Trusted App) 通过 EENTER / EEXIT 指令安全传递入参的边界防护模型。代码需包含对传入指针的严格越界校验（防止 Pointer Poisoning 漏洞）以及内存清零零化 (Zeroize) 处理。",
-      "针对 Foreshadow (L1TF)、AEP (Asynchronous Enclave Exit) 劫持以及内存访问模式侧信道攻击，飞地代码如何实现无分支恒定时间 (Constant-Time) 与混淆内存访问 (Oblivious RAM, ORAM)？请用公式与伪代码阐述 Path ORAM 在硬件飞地环境下的读写复杂度与隐藏访问模式的数学证明。",
-      "请结合云原生机密容器 (Confidential Containers / Kata Containers) 的落地实践，给出一份机密计算基础设施在金融核心清结算场景中的生产部署安全检查清单，涵盖密钥代理服务 (Key Broker Service, KBS)、度量引导策略 (Measured Boot) 与硬件故障转移降级防范。"
-    ]
-  },
-  {
-    "id": "computational_geophysics_seismic_fwi",
-    "title": "计算地球物理：全波形反演 (FWI) 与地幔柱三维地震层析成像",
-    "domain": "computational_geophysics",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "physics"
-    ],
-    "description": "测试伴随状态法波动方程偏微分推导、吸收边界条件有限差分实现与反演算法对比",
-    "turns": [
-      "请详细阐述地震全波形反演（Full Waveform Inversion, FWI）的基本数学物理框架，写出非均匀声波介质中含震源项的二阶标量波动偏微分方程，并定义基于 L2 范数波场残差的目标泛函 $J(m)$。",
-      "借助伴随状态法（Adjoint-State Method）与拉格朗日乘子，详细推导速度模型参数 $v(x)$ 的目标函数梯度 $\\nabla_m J$，展示正演波场与伴随逆时残差波场在时间上的零延迟互相关卷积核（Sensitivity Kernel）。",
-      "使用 Python 与 NumPy 实现一个二维声波有限差分正演（FD）核心步进函数，包含完美匹配层（PML）边界衰减与震源雷克子波（Ricker Wavelet）注入代码。",
-      "分析全波形反演中由于低频缺失和初始模型偏差导致的周期跳跃（Cycle Skipping）问题，解释多尺度频率延拓（Multiscale Frequency Continuation）与包络反演如何避免陷入局部极小值。",
-      "使用 Markdown 表格横向对比传统射线走时层析成像（Ray-based Traveltime Tomography）、局部全波形反演（Local FWI）与基于贝叶斯推断的马尔可夫链蒙特卡洛（MCMC）全波形反演在深部分辨率、非线性反演度、初始模型依赖性与计算复杂度上的差异。"
-    ]
-  },
-  {
-    "id": "silicon_photonics_optical_computing",
-    "domain": "silicon_photonics_optical_computing",
-    "title": "神经形态硅光子芯片与全光存算一体矩阵架构",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试硅光 MZI 网格酉变换矩阵推导、光学乘加 (MAC) 物理仿真代码与微电子能效对照表",
-    "turns": [
-      "深入剖析马赫-曾德尔干涉仪 (MZI) 与硅基微环谐振腔 (MRR) 在构建光学模拟乘加运算 (Optical MAC) 网络时的物理干涉与相移调谐机理。",
-      "基于传输矩阵法 (Transfer Matrix Method, TMM)，推导单个 2x2 MZI 光开关单元的光电场转换酉矩阵 U(\\theta, \\phi)，并展示其如何通过 Reck 或 Clements 拓扑分解任意 N\\times N 酉矩阵。",
-      "使用 Python/NumPy 编写一个仿真类，模拟 4x4 Clements 拓扑 MZI 光子网格的光强前向传播过程，包含相位热漂移误差注入与奇异值分解 (SVD) 权重映射。",
-      "用 Markdown 表格对比相干光计算芯片、类脑神经形态芯片 (如 Loihi 2) 与先进 GPU Tensor Core 在算力密度 (TOPS/mm²)、能效比 (TOPS/W) 与单次矩阵乘法延迟 (ns) 上的理论与实测指标。",
-      "针对共封装光学 (Co-Packaged Optics, CPO) 在高密度光电异质集成中的热串扰与波长漂移问题，提出一套闭环片上光学锁相环 (OPLL) 补偿控制算法策略。"
-    ]
-  },
-  {
-    "id": "fusion_tokamak_plasma_magnetics",
-    "domain": "fusion_tokamak_plasma_magnetics",
-    "title": "托卡马克磁约束受控核聚变等离子体撕裂模与磁流体动力学稳定性",
-    "features": [
-      "latex",
-      "math",
-      "physics",
-      "code"
-    ],
-    "description": "测试 Grad-Shafranov 方程磁流体平衡推导、撕裂模电阻不稳定性判据与 Python 磁场位形模拟",
-    "turns": [
-      "在轴对称柱坐标系下，写出描述托卡马克磁约束等离子体二维磁流体动力学 (MHD) 平衡的 Grad-Shafranov 方程，并解释多极磁通函数 \\psi 与极向电流函数 I(\\psi) 的物理意义。",
-      "根据电阻磁流体动力学 (Resistive MHD) 理论，推导磁面重联 (Magnetic Reconnection) 与撕裂模 (Tearing Mode) 不稳定性的经典稳定性参数 \\Delta' 判据。",
-      "推导等离子体在极向磁场与环向磁场共同作用下的安全因子 q(r) 径向分布方程，阐明为什么当有理面 q=m/n (如 q=2/1) 出现时容易诱发大破裂 (Major Disruption)。",
-      "使用 Python 编写脚本，基于简化的螺线管近似计算并绘制托卡马克环形等离子体截面内的极向磁场与环向磁场矢量线，展示磁剪切 (Magnetic Shear) 的空间几何分布。",
-      "使用 Markdown 表格对比磁约束核聚变 (MCF) 中的托卡马克 (Tokamak)、仿星器 (Stellarator) 与场反转位形 (FRC) 在稳态运行能力、等离子体约束性能 (Beta 值) 及工程建造复杂度维度的优劣。"
-    ]
-  },
-  {
-    "id": "aerospace_hypersonic_scramjet_cfd",
-    "domain": "aerospace_hypersonic_scramjet_cfd",
-    "title": "高超声速超燃冲压发动机热流固耦合与激波边界层干扰",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code"
-    ],
-    "description": "测试可压缩 Navier-Stokes 控制方程推导、激波反射脱体判据与 Python 激波捕捉有限差分数值解",
-    "turns": [
-      "在马赫数 Ma > 6 的超声速流场中，给出守恒形式的三维可压缩雷诺平均 Navier-Stokes (RANS) 控制方程组，并解释其中的 Favre 质量平均应力张量与湍流马赫数对可压缩性耗散修正项。",
-      "推导超燃冲压发动机隔离段内激波/湍流边界层干扰 (Shock Wave / Boundary Layer Interaction, SWBLI) 诱发气流分离的自由相互作用理论 (Free Interaction Theory) 压力平台经验关系式。",
-      "使用 Python 编写脚本，基于一维 Roe 格式黎曼求解器 (Riemann Solver) 实现激波管 (Sod Shock Tube) 问题的一维欧拉方程高精度数值模拟，并可视化密度突变与接触间断。",
-      "针对超声速燃烧室内超细微秒级混合受限问题，分析横向超声速氢气/甲烷多股喷流在斜激波诱导涡破碎下的自燃热着火延迟机理与 Da 数 (Damköhler Number) 物理判据。",
-      "使用 Markdown 表格对比主动碳氢燃料再生冷却、发散冷却 (Transpiration Cooling) 与超高温超音速碳/碳 (C/C) 及碳/碳化硅 (C/SiC) 陶瓷基复合材料在超燃冲压发动机燃烧室热防护极限温度与结构质量代价指标。"
-    ]
-  },
-  {
-    "id": "graph_neural_networks_drug_discovery",
-    "domain": "graph_neural_networks_drug_discovery",
-    "title": "几何深度学习：等变图神经网络 (EGNN) 与小分子配体生成动力学",
-    "features": [
-      "code",
-      "math",
-      "latex",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 SE(3)/E(3) 旋转平移等变性数学证明、PyTorch Geometric 消息传递类实现与分子活性对比",
-    "turns": [
-      "在三维欧几里得几何空间中，严格证明 SE(3) 群旋转、平移以及反射操作下的 E(n)-等变图卷积网络 (EGNN) 节点坐标更新公式 x_i^{(l+1)} = x_i^{(l)} + \\sum_{j \\neq i} (x_i^{(l)} - x_j^{(l)}) \\phi_x(m_{ij}) 的等变性 (Equivariance)。",
-      "解释为什么在靶点口袋小分子对接与结合自由能 (\\Delta G_{bind}) 预测中，SE(3) 等变几何归纳偏置相比传统基于 2D 分子图的 GCN/GAT 能显著降低数据样本复杂度并提升跨空间构象泛化力。",
-      "使用 Python + PyTorch 实现一个带有等变坐标变换与自注意力边特征聚合机制的自定义 EGNN 层 (EGNNLayer)，包含前向传播与多维动量守恒边界保护。",
-      "设计一套基于扩散模型 (Equivariant Diffusion Model, EDM) 的受体口袋靶向从头药物分子三维原子坐标生成采样循环算法流程。",
-      "使用 Markdown 表格横向对比传统基于物理的分子对接算法 (如 AutoDock Vina)、经验打分函数与现代几何图深度学习打分网络 (如 EquiBind、TankBind) 在虚拟筛选富集因子 (EF1%)、单分子结合姿态平均 RMSD 与计算耗时维度的对比。"
-    ]
-  },
-  {
-    "id": "gravitational_wave_space_interferometer_lisa",
-    "domain": "gravitational_wave_space_interferometer_lisa",
-    "title": "空间引力波天文台：百万公里激光外差干涉与无拖曳控制",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math"
-    ],
-    "description": "测试 LISA 空间三体干涉编队生图 (Imagen)、时间延迟干涉 (TDI) 算法推导与激光相位噪声消除",
-    "turns": [
-      "请帮我生成一张图片：在日心轨道深空中，三艘相距 250 万公里的先进引力波空间探测飞船构成巨大的等边三角形编队。飞船之间互相发射金色与蓝色的超稳红外激光链路，背景是壮丽的银河系悬臂与深空星云，宏大科幻写实天文风格。",
-      "详细推导空间激光干涉引力波天文台 (如 LISA) 中的时间延迟干涉 (Time Delay Interferometry, TDI) 基础干涉仪合成算子 X(t)，解释其如何利用臂长对称抵消消除主要激光相位噪声 (Laser Phase Noise)。",
-      "请再帮我生成一张图片：飞船内部核心无拖曳控制系统 (Drag-Free Control) 的超纯净金铂合金测试质量球 (Test Mass) 特写，在静电悬浮电极笼中自由悬浮，微米级间隙透出淡紫色静电传感微光，微观高精仪器渲染。",
-      "推导超大质量双黑洞并合在空间毫赫兹 (mHz) 频段引力波应变振幅 h_{eff}(f) 的特征信噪比 (SNR) 积分表达式，分析其相比地面探测器在角分辨率与早期预警上的核心优势。",
-      "使用 Markdown 表格对比空间 LISA 天文台、地面下一代爱因斯坦望远镜 (ET) 与宇宙大爆炸探测器 (DECIGO) 在探测目标频段、主要天文波源类型、单向激光功率与干涉灵敏度极限指标。"
-    ]
-  },
-  {
     "id": "quantum_battery_energy_charging",
     "domain": "quantum_battery_energy_charging",
     "title": "量子电池：量子纠缠加速与 Dicke 超辐射充放电动力学",
@@ -195,48 +59,6 @@
     "description": "深入推演 Raft 共识协议在网络三向分区下的选举与复制安全性，包含最小化状态机实现、脑裂恢复与线性一致读对比。"
   },
   {
-    "id": "autonomous_driving_bev_spatial_temporal_fusion",
-    "title": "自动驾驶端到端架构：BEVFormer 纯视觉多相机环视感知识别与时序融合",
-    "domain": "autonomous_driving_perception",
-    "description": "深入推演自动驾驶 BEV (Bird-Eye-View) 感知架构，包含时空 Cross-Attention 数学公式、PyTorch 伪代码、3D 目标检测对比表格与 Imagen 鸟瞰语义生图。",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "code",
-      "math",
-      "latex",
-      "tables"
-    ],
-    "turns": [
-      "请系统推演自动驾驶纯视觉 BEV (Bird’s-Eye-View) 环视感知架构的核心原理。请用 LaTeX 公式形式化推导 2D 多相机图像特征到 3D BEV 空间的网格投影过程，重点阐述可变形注意力（Deformable Attention）的空间交叉注意力（Spatial Cross-Attention）计算方程。",
-      "请用 PyTorch 编写一个简明高效的 BEV 时序自注意力（Temporal Self-Attention）模块核心实现（包含历史帧 BEV 特征与当前帧基于自车运动 Ego-Motion 速度偏航角的坐标对齐插值与加权融合）。",
-      "请帮我生成一张图片：夜晚暴雨场景下，自动驾驶测试车通过 6 颗环视摄像头在车载激光雷达与多模态屏幕上投影出霓虹风格的高精度 3D 鸟瞰（BEV）语义网格图，包含车辆预测轨迹线与 3D 边界框，赛博朋克极简科幻风格。",
-      "请用 Markdown 对比表格系统梳理学术界三大经典视觉 BEV 方案（LSS/BEVDet、BEVFormer、StreamPETR）在相机内外参标定容错率、时序融合显存开销、FPS 帧率以及 nuScenes 3D 检测 mAP 上的核心差异与工业落地取舍。",
-      "在真实车载量产部署时，当遭遇某颗相机脏污遮挡或强逆光盲区时，时序 BEV 空间特征网络是如何通过卡尔曼滤波与历史特征保持航向估计鲁棒性的？请给出防御性自适应加权算法。"
-    ]
-  },
-  {
-    "id": "synthetic_biology_organoid_bioprinting",
-    "title": "合成生物与生物打印：类器官微流控芯片与血管化 3D 生物打印",
-    "domain": "synthetic_biology_and_bioprinting",
-    "description": "测试类器官 3D 生物打印微流控生图 (Imagen)、非牛顿流体流变学模拟与组织工程扩散瓶颈推演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "请帮我生成一张图片：在未来高等级无菌生物制造实验室内，一台超高精度的多喷头微流控 3D 生物打印机正在微米尺度上逐层构建仿生肝脏类器官的毛细血管网络结构，周围伴随生物水凝胶和微通道荧光标记，极富科技感与微观细节。",
-      "请设计一个 Markdown 表格，从生物相容性、剪切变稀流变特性、交联动力学机制与打印分辨率四个维度，横向对比海藻酸盐（Alginate）、明胶甲基丙烯酰基（GelMA）、胶原蛋白（Collagen）以及脱细胞细胞外基质（dECM）四种典型生物墨水（Bio-inks）。",
-      "请用 Python 编写一段紧凑的代码，使用 Poiseuille 流动模型与幂律流体（Power-Law Fluid）本构方程，数值模拟非牛顿流体生物墨水在圆柱形微喷嘴内的剪切速率（Shear Rate）与剪切应力分布，防止高剪切力导致细胞膜破裂失活。",
-      "请再帮我生成一张图片：共聚焦显微镜三维重构视野下，血管化神经类器官内部绿色荧光标记的神经元突触与红色荧光标记的内皮细胞微血管相互交织缠绕，呈现生机勃勃的微生理系统多细胞共培养结构。",
-      "深入解析在体外构建厘米级宏观实质组织器官时，缺乏层级化主动灌注灌流血管系统导致的核心区域氧气与营养输运极限（扩散极限 ~200μm 缺氧坏死），以及微流控芯片技术如何突破这一屏障。"
-    ]
-  },
-  {
     "id": "radio_astronomy_fast_radio_bursts",
     "title": "射电天文学与天体物理：快速射电暴 (FRB) 色散测度推演与宇宙学探针",
     "domain": "radio_astronomy_astrophysics",
@@ -273,26 +95,6 @@
       "请使用 Python 结合 numpy 实现一个基于递归分解或动态规划的简单对称矩阵 Hafnian 算法函数，附带小维度（如 4x4）矩阵的手动验算测试用例。",
       "用 Markdown 表格对比超导线路（如 Sycamore）、离子阱（如 Quantinuum）与光量子（如九章/Jiuzhang、Borealis）三大主流量子优越性实验路径在相干时间、门保真度、室温运行容忍度与容错纠错扩展性上的优劣势。",
       "分析光子损耗（Photon Loss）、模式不匹配（Mode Mismatch）以及暗计数（Dark Counts）等真实物理缺陷如何弱化光量子采样的计算复杂度下界，甚至导致经典张量网络（MPS/PEPS）能够在多项式时间内对其进行有效近似模拟。"
-    ]
-  },
-  {
-    "id": "neural_interface_optogenetics",
-    "title": "神经工程与光遗传学：闭环光电神经刺激与膜片钳突触动力学",
-    "domain": "neural_engineering_optogenetics",
-    "description": "测试石墨烯微电极阵列光遗传生图 (Imagen)、Hodgkin-Huxley 神经元方程数值仿真与脑机接口物理瓶颈推演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "请帮我生成一张图片：在神经工程前沿实验室中，一个微米级的柔性透明石墨烯神经微电极阵列正贴附在大脑皮层组织切片表面，伴随微纳光纤发射的脉冲蓝光精确激活视紫红质通道蛋白 (Channelrhodopsin-2)，呈现微观荧光钙信号激发的未来神经芯片科幻感细节。",
-      "请设计一个 Markdown 表格，对比 ChR2、eNpHR3.0、ArchT 与 GCaMP6s 四种光遗传学与钙成像工具在激发波长、离子传输选择性、时间响应动力学（tau_on / tau_off）与光毒性容忍阈值上的物理与生化参数。",
-      "请用 Python 编写一个基于 Hodgkin-Huxley 神经元方程的扩展数值仿真代码，在经典动作电位微分方程组中引入光致离子电流项 I_opt(t) = g_opt * O(t) * (V - E_opt)，并模拟特定频率蓝光方波照射下的脉冲发放频率响应。",
-      "请再帮我生成一张图片：高倍多光子激光扫描荧光显微镜视野下，小鼠皮层锥体神经元树突棘（Dendritic Spines）在光刺激下产生局部钙瞬变信号，呈现晶莹剔透的多色荧光发光点与精细神经树突分支结构。",
-      "深入推演全植入式无线无源脑机接口在长期颅内慢性驻留时所面临的生物相容性胶质瘢痕包裹（Glial Scarring）、电极阻抗退化与脑组织微运动位移三大硬件生物物理瓶颈。"
     ]
   },
   {
@@ -394,6 +196,200 @@
       "请使用 PyTorch 编写一个简明的 Spiking Self-Attention（脉冲自注意力）模块核心代码，要求 Query、Key、Value 与 Attention Map 均保持为事件驱动的二值脉冲（0 或 1），仅通过浮点数点乘替代经典的 Softmax 矩阵乘法以极大降低能耗。",
       "用 Markdown 表格对比传统人工神经网络（ANN / ViT）与脉冲 Transformer（Spike-Driven Transformer）在计算能耗（FLOPs vs SOPs, Synaptic Operations）、时延（Time Steps T）、推理吞吐量与边缘神经形态芯片（如 Intel Loihi 2、清华天机/Tianjic）兼容性上的量化表现。",
       "分析 ANN-to-SNN 直接量化转换方案与原生直接训练（Direct Training）方案在网络精度损失、时间步长度（Timesteps T）以及超深网络梯度消失/爆炸上的本质矛盾。"
+    ]
+  },
+  {
+    "id": "quantum_gravity_holographic_tensor_networks",
+    "domain": "quantum_gravity_holographic_tensor_networks",
+    "title": "量子引力与全息对偶：AdS/CFT 空间纠缠重构与 HaPPY 张量网络",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code"
+    ],
+    "description": "测试 Ryu-Takayanagi 纠缠熵公式推导、HaPPY 纠错全息张量网络构建与 Python 纠缠保真度模拟",
+    "turns": [
+      "在 AdS/CFT 全息对偶框架下，写出静态渐近 AdS 空间中静态边界区域 A 的 Ryu-Takayanagi 纠缠熵几何公式 S_A = \text{Area}(\\gamma_A) / (4G_N)，并推导其在 AdS_3/CFT_2 极限下与二维共形场论 Calabrese-Cardy 公式的精确对应。",
+      "详细推导纠缠楔形重构 (Entanglement Wedge Reconstruction) 与量子纠错码 (QEC) 的数学联系，解释为什么边界 CFT 的子系统纠错能力与体引力空间几何中的极小曲面位置具有一一对应关系。",
+      "使用 Python 编写脚本，基于张量收缩库模拟由 5 阶完美张量 (Perfect Tensor) 构成的 HaPPY 全息五边形张量网络，验证从边界擦除误差中重构中心体逻辑比特的恢复保真度 (Fidelity)。",
+      "推导引力黑洞信息佯谬中的纠缠岛 (Islands) 公式 S(R) = \text{minext}_I [S_{semi-cl}(R \\cup I) + \text{Area}(\\partial I)/(4G_N)]，解释其如何成功复现 Page 曲线并解决量子幺正性危机。",
+      "使用 Markdown 表格横向对比 Ryu-Takayanagi 极小曲面公式、HRT 协变全息熵公式与量子纠正 FLM/JLMS 扩展项的数学形式、对称性要求及适用物理时空背景。"
+    ]
+  },
+  {
+    "id": "euv_lithography_physics_plasma_source",
+    "domain": "euv_lithography_physics_plasma_source",
+    "title": "极紫外光刻机 (EUV) 物理光学与锡等离子体放电辐射极紫外光",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "code"
+    ],
+    "description": "测试高能激光脉冲冲击熔融锡液滴动力学、13.5nm 极紫外发射光谱推导、Imagen 生图与 Mo/Si 多层膜 Bragg 反射率数值计算",
+    "turns": [
+      "详细推导激光诱导等离子体 (LPP) EUV 光源中，高功率脉冲 CO2 激光冲击自由落体锡 (Sn) 液滴时，高电荷态锡离子 (Sn^{8+}-Sn^{14+}) 在 13.5nm 极紫外波段未分辨跃迁阵列 (UTA) 的能级跃迁与电离平衡动力学方程。",
+      "请生成一张超高分辨率、科幻感与工业硬科技兼备的 3D 渲染图：展现极紫外光刻机核心真空反应腔内部，一束脉冲红外高功率激光在真空中精准聚焦轰击一滴正在高速坠落的微米级熔融液态金属锡微滴，微滴瞬间被电离成极其璀璨耀眼的极紫外 13.5nm 蓝紫色等离子体火球，周围环绕着巨大的 Mo/Si 椭球多层反射收集镜，反射镜表面泛着流光溢彩的金属光泽，机械结构严丝合缝，科技细节极致丰富。",
+      "在电磁波多层介质反射理论框架下，使用麦克斯韦方程组与传输矩阵法 (Transfer Matrix Method, TMM)，推导 13.5nm EUV 光在包含 40-50 周期的钼/硅 (Mo/Si) 纳米级多层膜 Bragg 反射镜上的反射率 R 随入射角 \theta 和界面粗糙度 Debye-Waller 因子的解析表达式。",
+      "使用 Python 编写脚本，基于菲涅尔方程与薄膜干涉矩阵算法，数值计算 Mo/Si 周期双层膜 (d_Mo = 2.8nm, d_Si = 4.1nm) 在 12.5nm 至 14.5nm 波长范围内的理论反射光谱曲线，并打印峰值反射率与 FWHM 半高宽。",
+      "使用 Markdown 表格横向对比高数值孔径 (High-NA 0.55) EUV 光刻、低数值孔径 (0.33 NA) EUV、电子束直写 (EBDW) 与纳米压印 (NIL) 在分辨力极限 (k1 因子)、套刻精度 (Overlay)、焦深 (DOF) 以及每小时晶圆产出率 (WPH) 指标。"
+    ]
+  },
+  {
+    "id": "space_gravitational_wave_lisa_tdi",
+    "domain": "space_gravitational_wave_lisa_tdi",
+    "title": "空间引力波天线 LISA：激光干涉稳频与时间延迟干涉 (TDI) 算法",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "algorithms"
+    ],
+    "description": "测试 LISA 百万公里不等臂干涉仪激光相位噪声消除、Michelson-X/Sagnac TDI 算子推导与轨道呼吸效应分析",
+    "turns": [
+      "空间激光干涉引力波天文台 (LISA) 采用三颗航天器构成边长 2.5\times 10^6 km 的等边三角形编队。推导航天器轨道摄动引起的臂长不对称性 (\\Delta L \\sim 10^4 km) 如何导致激光器本征超频相位噪声 (Laser Phase Noise) 淹没应变信号 \\sim 10^{-21}，并阐明时间延迟干涉 (Time-Delay Interferometry, TDI) 的数学本质。",
+      "在时间延迟算子 D_{ij} s(t) = s(t - L_{ij}/c) 的代数框架下，严格推导第一代 Michelson-X 组合 TDI 伪干涉仪信号表达式 X(t)，并证明其如何完全对消主要激光器的一阶相位涨落 \\phi_1(t)。",
+      "针对三体星群轨道动力学引起的臂长随时间线性变化 (呼吸效应 \\dot{L}_{ij} \neq 0)，推导能够同时消除相对论 Sagnac 效应与一阶臂长变化率的时变第二代 TDI-2.0 组合算子 \u0007lpha(t) 与 X_{2.0}(t) 的对易性条件。",
+      "使用 Python 编写算法，基于代数张量表示，验证 TDI-1.0 与 TDI-2.0 X 组合在注入合成高斯白噪声与引力波连续正弦双星源信号后的激光相位噪声残余抑制比 (Noise Rejection Ratio)。",
+      "使用 Markdown 表格对比地面干涉仪 (LIGO/Virgo/KAGRA)、空间干涉仪 (LISA/太极/天琴) 与脉冲星计时阵列 (PTA) 在探测频段 (Hz)、臂长尺度、主要噪声源限制及目标天体物理引力波波源分类。"
+    ]
+  },
+  {
+    "id": "deep_sea_hydrothermal_extremophile_genomics",
+    "domain": "deep_sea_hydrothermal_extremophile_genomics",
+    "title": "深海热液喷口极端嗜极生物基因组学与无光合成化能自养代谢",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "description": "测试还原性三羧酸循环 (rTCA) 热力学吉布斯自由能推导、嗜热菌酶结构耐高温机理、深海 Imagen 渲染与宏基因组分箱算法",
+    "turns": [
+      "在热力学平衡体系中，推导深海黑烟囱热液喷口环境下，化能自养嗜热古菌利用硫化氢 (H2S) 氧化与还原性三羧酸循环 (rTCA / Arnon-Buchanan cycle) 进行无光固碳反应的净摩尔吉布斯自由能变 \\Delta G^\\circ(T, P)，并分析超临界高水压 (P > 25 MPa) 对反应自发性的影响。",
+      "请生成一张超高画质、具有国家地理和水下摄影大片质感的深海图像：展现 3000 米深海海底漆黑无光的寂静深渊中，一座巨大的黑色矿物热液喷口（黑烟囱）正不断喷涌出滚滚翻腾的矿物浓烟与极高温含硫矿物黑水，喷口周围附着着大片白垩色与朱红色的巨型深海管虫群落（Riftia pachyptila），几只幽白发光的深海白螃蟹和盲虾穿梭其间，深海科考潜水器的强光探照灯打在喷口上，照亮了如梦似幻的悬浮颗粒与热液矿物晶体。",
+      "分析嗜超高温古菌 (如 Pyrococcus furiosus) 中关键代谢酶在 100°C 以上仍然保持催化活性的生物物理与结构机理，详述离子键网络 (Salt bridges)、疏水核心紧密度、二硫键交联以及脯氨酸引入对多肽链构象熵的稳定效应。",
+      "使用 Python 编写脚本，基于四核苷酸频率 (Tetranucleotide Frequency) 与共丰度 (Differential Coverage) 矩阵，实现一个基础的无监督宏基因组重叠群 (Contig) K-means / 高斯混合模型聚类分箱 (Binning) 算法。",
+      "使用 Markdown 表格对比化能无光合成的六大固碳代谢途径（Calvin 循环、还原性 TCA 循环、Wood-Ljungdahl 途径、3-羟基丙酸双循环、二羧酸/4-羟基丁酸途径、还原性甘氨酸途径）在 ATP 能量消耗代价、关键限制性酶、氧气敏感性与代表性嗜极物种分类。"
+    ]
+  },
+  {
+    "id": "fusion_materials_plasma_wall_interaction",
+    "domain": "fusion_materials_plasma_wall_interaction",
+    "title": "受控磁约束聚变堆材料：等离子体第一壁相互作用与钨偏滤器损伤",
+    "features": [
+      "physics",
+      "tables",
+      "code",
+      "math"
+    ],
+    "description": "测试高通量氦/氢等离子体溅射刻蚀产额推导、分子动力学钨晶体离位损伤 (dpa) 与抗辐照退火数值分析",
+    "turns": [
+      "在托卡马克磁约束聚变装置偏滤器区域，推导由聚变边界等离子体刮削层 (Scrape-Off Layer, SOL) 输运而来的超高热负荷 q_\\parallel (高达 10-20 MW/m²) 在磁力线小倾角入射下的靶板热流沉积方程，并推导等离子体鞘层 (Plasma Sheath) 离子加速电势降 V_s。",
+      "推导出基于 Bohdansky 经验公式的高能氘/氚离子轰击多晶钨 (W) 表面时的物理溅射产额 Y(E, \theta) 解析关系式，并阐明自溅射雪崩发生临界靶板温度阈值。",
+      "针对聚变反应产物 \u0007lpha 粒子 (He) 注入钨基体内部诱发的高密度「钨绒毛」(Tungsten Fuzz) 纳米结构生长，从 He-空位缺陷复合、氦泡自捕获聚集与界面应力破裂机制阐述其微观动力学模型。",
+      "使用 Python 编写脚本，基于 Kinchin-Pease (NRT) 位移损伤模型，计算 14.1 MeV 聚变高能中子轰击纯钨结构材料产生的每原子离位损伤数 (Displacements Per Atom, dpa) 与初级击出原子 (PKA) 能量分布谱。",
+      "使用 Markdown 表格对比金属钨 (W)、碳化硅陶瓷复合材料 (SiC/SiC)、低活化铁素体/马氏体钢 (RAFM) 以及液态金属锂 (Liquid Li) 在聚变第一壁与偏滤器服役环境中的热导率、熔点、热应力疲劳极限、氚滞留量与抗中子活化性能。"
+    ]
+  },
+  {
+    "id": "atom_interferometry_quantum_gravimeter",
+    "domain": "atom_interferometry_quantum_gravimeter",
+    "title": "冷原子干涉量子陀螺仪与绝对重力仪精密物理测量",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "physics"
+    ],
+    "description": "测试拉曼光脉冲 \\pi/2-\\pi-\\pi/2 物质波分束与合束推导、重力加速度 g 相位调制公式与 Imagen 冷原子团腔渲染",
+    "turns": [
+      "在物质波量子光学框架下，推导采用对向传播受激拉曼光脉冲序列 (\\pi/2 - \\pi - \\pi/2) 构成的 Mach-Zehnder 冷原子干涉仪中，重力场加速度 g 与原子波包在自由落体演化时间 T 下产生的干涉相位差 \\Delta \\Phi = k_{eff} g T^2 的严格路径积分 (Path Integral) 表达式。",
+      "请生成一张极具现代物理科研质感与高科技精密的 3D 渲染概念图：展示一台尖端超高真空冷原子绝对重力仪与原子干涉仪的内部核心物理腔体，中心悬浮着一团被六束相交的反向传播红外激光精准冷却并捕获的发光冷铷原子团（呈现出幽静迷人的荧光蓝紫色光辉），上下方向贯穿两束超窄线宽的垂直拉曼激光束，真空腔室由高透光蓝宝石观察窗与无磁钛合金法兰构成，周围密布精密光学准直透镜组、磁屏蔽超导筒与激光稳频光纤阵列，科学与工程细节极尽真实严谨。",
+      "推导当冷原子干涉系统处于旋转参考系时，由 Sagnac 效应引起的旋转角速度 \\Omega 导致的干涉相位漂移 \\Delta \\Phi_{rot} = 2 k_{eff} \\cdot (v_0 \times \\Omega) T^2，并分析原子初速度分布色散带来的多普勒展宽退相干抑制方法。",
+      "推导大动量传递 (Large Momentum Transfer, LMT) 技术中布拉格脉冲 (Bragg diffraction) 或 Bloch 振荡如何将有效波矢由 2k 提升至 2Nk，从而实现干涉灵敏度 \\sim N 倍量子放大的物理机理与自发辐射损耗权衡。",
+      "使用 Markdown 表格对比冷原子绝对重力仪、超导相对重力仪、石英弹簧相对重力仪及激光陀螺仪在测量灵敏度 (\\mu Gal/\\sqrt{Hz})、长期零漂稳定性、动态响应带宽与野外便携化适应能力指标。"
+    ]
+  },
+  {
+    "id": "dna_nanotechnology_molecular_logic_gates",
+    "domain": "dna_nanotechnology_molecular_logic_gates",
+    "title": "DNA 纳米技术与链置换反应分子逻辑门动力学计算",
+    "features": [
+      "code",
+      "algorithms",
+      "tables",
+      "math"
+    ],
+    "description": "测试 Toehold 介导的 DNA 链置换 (TMSD) 自由能动力学推导、级联 AND/OR 逻辑门设计与 Python 常微分方程浓度动力学仿真",
+    "turns": [
+      "在核酸热力学最近邻模型 (Nearest-Neighbor Model) 下，推导 Toehold 介导的 DNA 链置换反应 (Toehold-Mediated Strand Displacement, TMSD) 的双分子置换反应速率常数 k_{obs} 与 Toehold 长度 (L 个碱基) 及结合自由能 \\Delta G^\\circ_{toehold} 的阿伦尼乌斯经验关系式。",
+      "设计一个无酶介入的全 DNA 链置换级联与门 (Two-input AND gate)，绘制由底物复合物 (Substrate)、辅助链 (Fuel) 与输入单链 (Inputs) 构成的置换反应反应机理式，并解释如何避免无输入信号时的非特异性漏反应 (Leakage)。",
+      "针对大规模 DNA 神经网络分子计算中的信号衰减与非线性阈值化问题，推导由自催化 (Autocatalytic amplifier) 与吸收反应构成的见证分子开关动力学微分方程组。",
+      "使用 Python 编写脚本，基于质量作用定律与 scipy.integrate.solve_ivp，对一个包含级联 AND-OR DNA 逻辑电路的物质浓度随时间动态演化进行常微分方程 (ODE) 数值求解，并可视化输出链荧光强度阶跃响应曲线。",
+      "使用 Markdown 表格横向对比 DNA 链置换分子计算、CRISPR-Cas 生物计算逻辑门、酶切级联系统与微流控液滴计算在时钟周期响应时间、扇出度 (Fan-out)、正交逻辑门数量与体外/体内运行兼容性。"
+    ]
+  },
+  {
+    "id": "subsurface_ocean_cryobot_astrobiology",
+    "domain": "subsurface_ocean_cryobot_astrobiology",
+    "title": "地外深空探测：木卫二/土卫二冰下海洋热钻潜水器与生命指征探测",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "code"
+    ],
+    "description": "测试热核裂变热融冰钻入 (Cryobot) 传热方程推导、高压冰壳相变热阻、Imagen 概念渲染与质谱仪生命生物标志物分析",
+    "turns": [
+      "在木卫二 (Europa) 极端严寒高压环境下，建立穿透 20-30 公里厚水冰外壳的核热动力融冰潜水器 (Cryobot) 一维非定常相变导热Stefan问题数学模型，推导融冰前缘推进速度 v_m 与热源功率密度 q、冰层环境温度 T(z) 及潜热 L_f 的解析关系式。",
+      "请生成一张极具国家地理深空探索大片质感与硬核科幻质感的 3D 渲染概念图：展现木星巨大引力条纹笼罩的木卫二（Europa）外冰层下方，一台巨大的圆柱形核动力融冰潜水探测器（Cryobot）正依靠前端炽热发光的赤红融热探头熔穿数公里厚的致密深蓝冰裂缝，探测器末端拖曳着闪烁微光的超导光纤通信缆线，探测器刚穿透冰底层进入冰下完全液态的黑暗外星海洋，机身多角度强光探照灯射向幽暗深海，映照出冰底奇特倒挂的冰晶钟乳石与可能存在的热液矿物羽流，极具科技视觉震撼力。",
+      "推导木卫二潮汐耗散加热产生的黏弹性流变学 Maxwell-Boltzmann 固态对流模型，分析冰-水界面处由柯克达尔效应与热液喷口羽流引发的高浓度硫酸镁与盐卤浓度梯度对潜水器声学浮力微调系统的冲击。",
+      "使用 Python 编写脚本，基于化学热力学平衡常数与摩尔质量守恒，模拟激光解吸正离子飞行时间质谱仪 (LD-TOF-MS) 在木卫二羽流微米级冰晶粒子中检测氨基酸对映体过量值 (Enantiomeric Excess, e.e.) 的生物标志物判据算法。",
+      "使用 Markdown 表格横向对比热融钻进型 (Cryobot)、机械旋转钻进型、等离子体水喷射钻进型以及气动冲击型地外冰层穿透探测方案在系统总质量 (kg)、热源功率需求 (kW)、地外行星保护防生物污染消毒指标及最大穿透深度极限。"
+    ]
+  },
+  {
+    "id": "micro_led_fluidic_self_assembly",
+    "domain": "micro_led_fluidic_self_assembly",
+    "title": "先进半导体显示：Micro-LED 巨量转移与流体自组装动力学",
+    "features": [
+      "tables",
+      "physics",
+      "code",
+      "math"
+    ],
+    "description": "测试毛细力与表面张力能量极小化推导、流体剪切力自对准动力学与转移良率可靠性分析",
+    "turns": [
+      "在微纳尺度流体介质中，推导微米级 Micro-LED 芯片 (尺寸 < 20 \\mu m) 依靠液体焊料微滴表面张力 \\gamma 与接触角 \theta 实现毛细自对准 (Capillary Self-Alignment) 的恢复力矩 \tau(\theta) 与横向恢复力 F_x(\\Delta x) 的热力学自由能极小化公式。",
+      "分析芯片在重力、流体粘性阻力 (Stokes 阻力) 与流体诱导毛细力三场耦合下的动力学二阶常微分方程，推导出确保捕获成功且无翻转错位的毛细数 (Capillary Number, Ca) 与雷诺数 (Reynolds Number, Re) 临界无量纲判据。",
+      "使用 Python 编写脚本，基于简化的表面自由能积分算法，数值计算当 Micro-LED 芯片相对于受体基板焊盘发生偏转角 \theta \\in [-30^\\circ, 30^\\circ] 时表面势能阱剖面，并绘制自组装对准恢复力随位移的非线性特性曲线。",
+      "分析高密度 Micro-LED 巨量转移过程中的关键物理缺陷成因，包括侧壁非辐射复合 (Shockley-Read-Hall) 诱发的内量子效率 (IQE) 骤降机理，以及原子层沉积 (ALD) 氧化铝钝化修复策略。",
+      "使用 Markdown 表格横向对比弹性印模印章转移 (PDMS Stamp)、流体自组装 (FSA)、激光选择性剥离释放 (LLO/LIFT) 以及滚轮静电吸附转移在每小时转移通量 (UPH)、对位精度 (\\mu m)、转移良率 (Nine-nines) 及设备制造资本开销。"
+    ]
+  },
+  {
+    "id": "bci_neuropixels_spike_sorting",
+    "domain": "bci_neuropixels_spike_sorting",
+    "title": "侵入式脑机接口：Neuropixels 超高密度电极阵列与神经脉冲分选算法",
+    "features": [
+      "code",
+      "algorithms",
+      "math",
+      "tables"
+    ],
+    "description": "测试电缆体积传导电位推导、Spike 动作电位探测、PCA 降维与实时脉冲聚类算法实现",
+    "turns": [
+      "在各向同性细胞外导电介质模型中，根据准静态麦克斯韦方程组推导神经元动作电位在胞外电极处产生的细胞外场电位 (Extracellular Field Potential, EFP) 的线源逼近 (Line Source Approximation, LSA) 积分公式，阐明高频脉冲 (Spike, 300-3000 Hz) 与局域场电位 (LFP, < 300 Hz) 的频域物理成因。",
+      "推导在 Neuropixels 2.0 探针（具有上千个微米级钛氮化钛记录位点）高密度阵列记录下，相邻电极通道间电信号串扰 (Spatial Crosstalk) 与漂移 (Brain Drift) 的空间连续白化与二阶非刚性运动配准数学变换模型。",
+      "使用 Python 编写脚本，实现一个完整的离线神经脉冲分选 (Spike Sorting) 核心流水线算法：包含 4 阶 Butterworth 带通滤波、基于中位数绝对偏差 (MAD) 的动态阈值动作电位事件触发、主成分分析 (PCA) 降维投影及高斯混合模型 (GMM) 聚类分群。",
+      "针对闭环神经调控 (Closed-loop Neuromodulation) 系统的实时超低延迟要求，分析基于神经脉冲放电率 (Firing Rate) 的卡尔曼滤波 (Kalman Filter) 与双向循环神经网络 (RNN) 在手部运动意图 (手速与三维轨迹坐标) 实时解码中的算法延迟与稳定性对比。",
+      "使用 Markdown 表格对比侵入式 Utah 硅微针阵列、Neuropixels 高密度探针、柔性血管内支架电极 (Stentrode) 以及微创皮层脑电 (ECoG) 在通道密度、信噪比 (SNR)、长期生物相容性/胶质瘢痕包裹寿命及临床手术侵入性等级。"
     ]
   }
 ]
