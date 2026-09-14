@@ -6,25 +6,12 @@ session lifecycle transitions, and turn evaluations into clean, declarative APIs
 """
 
 import time
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List, Union, Callable
 
 from scripts.framework.actions import CDPActions
 from scripts.framework.selectors import GeminiSelectors
 from scripts.framework.gateway import get_gateway
-
-
-@dataclass
-class TurnResult:
-    """Represents the outcome of a single conversational turn."""
-    success: bool
-    prompt: str
-    model_response: str = ""
-    has_images: bool = False
-    duration: float = 0.0
-    error: Optional[str] = None
-    chat_id: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+from .platform_driver import ChatPlatformDriver, TurnResult, PlatformCapabilities
 
 
 class GeminiChatSession:
@@ -33,7 +20,7 @@ class GeminiChatSession:
     Tracks conversation turns, identity, and lifecycle operations.
     """
 
-    def __init__(self, driver: "GeminiDriver", chat_id: Optional[str] = None, title: Optional[str] = None):
+    def __init__(self, driver: "GeminiPlatformDriver", chat_id: Optional[str] = None, title: Optional[str] = None):
         self.driver = driver
         self.chat_id = chat_id
         self.title = title
@@ -127,35 +114,52 @@ class GeminiChatSession:
         chat_id = self.chat_id or self.driver.get_current_chat_id()
         if not chat_id:
             return False
-        return CDPActions.delete_conversation_via_web(self.driver.cdp, chat_id)
+        return self.driver.delete_chat_via_web(chat_id, timeout=timeout)
 
     def get_title(self) -> str:
         """获取当前会话权威标题"""
-        t = CDPActions.get_current_chat_title(self.driver.cdp)
+        t = self.driver.get_current_chat_title()
         if t:
             self.title = t
         return self.title or ""
 
 
-class GeminiDriver:
+class GeminiPlatformDriver(ChatPlatformDriver):
     """
     High-Level Automation Driver for Google Gemini.
+    Implements ChatPlatformDriver contract for Gemini Web UI.
     Manages session lifecycle, model validation, and route switching.
     """
 
     def __init__(self, cdp: Any):
-        self.cdp = cdp
+        super().__init__(cdp)
         self.active_session: Optional[GeminiChatSession] = None
+
+    @property
+    def platform_id(self) -> str:
+        return "gemini"
+
+    @property
+    def capabilities(self) -> PlatformCapabilities:
+        return PlatformCapabilities(
+            platform_name="Google Gemini",
+            supports_model_selection=True,
+            supports_thinking_mode=True,
+            supports_image_generation=True,
+            supports_sidebar_deletion=True,
+            supports_stream_events=True,
+            base_url="https://gemini.google.com"
+        )
 
     def ensure_ready(self, timeout: float = 20.0) -> bool:
         """等待 Gemini 页面核心输入框与 DOM 挂载就绪"""
         return CDPActions.wait_for_gemini_ready(self.cdp, max_wait=int(timeout))
 
-    def ensure_model(self, target_model: str = "3.8 Flash", target_thinking: bool = True, force_menu_check: bool = False) -> bool:
+    def ensure_model(self, target_model: str = "3.8 Flash", target_thinking: bool = True, force_menu_check: bool = False, **kwargs) -> bool:
         """保证模型为 3.8 Flash 并开启深度思考"""
         return CDPActions.ensure_model_and_thinking(
             self.cdp,
-            target_model=target_model,
+            target_model=target_model or "3.8 Flash",
             target_thinking=target_thinking,
             force_menu_check=force_menu_check
         )
@@ -167,6 +171,32 @@ class GeminiDriver:
     def get_current_chat_title(self) -> Optional[str]:
         """提取当前对话标题"""
         return CDPActions.get_current_chat_title(self.cdp)
+
+    def send_turn(self, prompt: Union[str, Dict[str, Any]], max_wait: int = 300) -> TurnResult:
+        """发送一轮提问（若当前无活动 session 则自动初始化当前会话上下文）"""
+        if self.active_session is None:
+            curr_id = self.get_current_chat_id()
+            self.active_session = GeminiChatSession(driver=self, chat_id=curr_id)
+        return self.active_session.send_turn(prompt, max_wait=max_wait)
+
+    def delete_chat_via_web(self, chat_id: str, timeout: float = 15.0) -> bool:
+        """在侧边栏触发网页原生删除流程"""
+        return CDPActions.delete_conversation_via_web(self.cdp, chat_id)
+
+    def get_selectors(self) -> Dict[str, str]:
+        """返回 Gemini 平台的全部 DOM 选择器常量字典"""
+        return {
+            k: getattr(GeminiSelectors, k)
+            for k in dir(GeminiSelectors)
+            if not k.startswith("_") and isinstance(getattr(GeminiSelectors, k), str)
+        }
+
+    def get_pipeline_strategies(self) -> Dict[str, Callable]:
+        """返回 Gemini 流水线执行策略"""
+        return {
+            "send_turn": CDPActions.send_gemini_turn,
+            "wait_ready": CDPActions.wait_for_gemini_ready,
+        }
 
     def new_chat(self, timeout: float = 20.0) -> GeminiChatSession:
         """
@@ -233,3 +263,7 @@ class GeminiDriver:
         session = GeminiChatSession(driver=self, chat_id=chat_id_clean)
         self.active_session = session
         return session
+
+
+# 保持 100% 向后兼容别名
+GeminiDriver = GeminiPlatformDriver

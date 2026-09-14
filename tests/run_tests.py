@@ -821,6 +821,13 @@ def test_selectors_and_gateway_suite():
     assert res.returncode == 0, f"test_selectors_and_gateway.py failed: {res.stderr or res.stdout}"
     print("  ✓ Central Selectors Registry & SafeInteractionGateway test suite passed")
 
+def test_platform_driver_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_platform_driver.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_platform_driver.py failed: {res.stderr or res.stdout}"
+    print("  ✓ ChatPlatformDriver ABC & ExtensionActions test suite passed")
+
 test_json_files()
 test_manifest_structure()
 test_build_pipeline()
@@ -838,6 +845,7 @@ test_stage2_architecture_improvements()
 test_serial_pipeline_suite()
 test_gemini_driver_suite()
 test_selectors_and_gateway_suite()
+test_platform_driver_suite()
 test_javascript_syntax()
 test_javascript_unit_tests()
 

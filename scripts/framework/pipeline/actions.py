@@ -45,10 +45,12 @@ class AtomicAction(ABC):
 
 
 class AssertIdleAction(AtomicAction):
-    """硬核确保 Gemini 页面处于绝对空闲状态，严禁在前序流式未停时执行任何后续操作"""
+    """硬核确保页面处于绝对空闲状态，严禁在前序流式未停时执行任何后续操作"""
 
-    def __init__(self, max_wait: int = 45):
+    def __init__(self, max_wait: int = 45, stop_btn_selector: Optional[str] = None, streaming_indicators_selector: Optional[str] = None):
         self.max_wait = max_wait
+        self.stop_btn_selector = stop_btn_selector or GeminiSelectors.STOP_BTN
+        self.streaming_indicators_selector = streaming_indicators_selector or GeminiSelectors.STREAMING_INDICATORS
 
     @property
     def name(self) -> str:
@@ -67,8 +69,8 @@ class AssertIdleAction(AtomicAction):
         while time.time() - start < self.max_wait:
             busy = cdp.eval(f"""
             (() => {{
-                const stopBtn = document.querySelector('{GeminiSelectors.STOP_BTN}');
-                const isStreaming = !!document.querySelector('{GeminiSelectors.STREAMING_INDICATORS}');
+                const stopBtn = document.querySelector('{self.stop_btn_selector}');
+                const isStreaming = !!document.querySelector('{self.streaming_indicators_selector}');
                 return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
             }})()
             """)
@@ -82,8 +84,9 @@ class AssertIdleAction(AtomicAction):
 class StagePromptAction(AtomicAction):
     """原子化注入 Prompt 文本，彻底清空富文本框模型，坚决不触碰发送按钮"""
 
-    def __init__(self, prompt_text: str):
+    def __init__(self, prompt_text: str, editor_selector: Optional[str] = None):
         self.prompt_text = prompt_text
+        self.editor_selector = editor_selector or GeminiSelectors.EDITOR
 
     @property
     def name(self) -> str:
@@ -98,10 +101,10 @@ class StagePromptAction(AtomicAction):
         return PipelineStage.STAGED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        # 1. 彻底清空 Quill 编辑器并触发 input 事件
+        # 1. 彻底清空编辑器并触发 input 事件
         cdp.eval(f"""
         (() => {{
-            const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+            const editor = document.querySelector('{self.editor_selector}');
             if (editor) {{
                 editor.focus();
                 const sel = window.getSelection();
@@ -127,7 +130,7 @@ class StagePromptAction(AtomicAction):
         # 3. 分发 change/input 事件
         staged_len = cdp.eval(f"""
         (() => {{
-            const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+            const editor = document.querySelector('{self.editor_selector}');
             if (editor) {{
                 editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 editor.dispatchEvent(new Event('change', {{ bubbles: true }}));
@@ -145,6 +148,9 @@ class StagePromptAction(AtomicAction):
 class SingleClickSendAction(AtomicAction):
     """单次物理点击发送按钮 (Single-Click Guarantee)，绝对不进行多重连击重试循环"""
 
+    def __init__(self, send_btn_selector: Optional[str] = None):
+        self.send_btn_selector = send_btn_selector or GeminiSelectors.SEND_BTN
+
     @property
     def name(self) -> str:
         return "SingleClickSend"
@@ -159,12 +165,12 @@ class SingleClickSendAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         # 严格执行唯一点击通道 (Single Channel of Truth)：
-        # 等待发送按钮解除禁用 (最多等待 8 秒，消除 Angular 脏检查与输入渲染时序差)，单次直接调用 sendBtn.click()
+        # 等待发送按钮解除禁用 (最多等待 8 秒，消除 Angular/React 脏检查与输入渲染时序差)，单次直接调用 sendBtn.click()
         start_wait = time.time()
         while time.time() - start_wait < 8.0:
             click_info = cdp.eval(f"""
             (() => {{
-                const sendBtn = document.querySelector('{GeminiSelectors.SEND_BTN}');
+                const sendBtn = document.querySelector('{self.send_btn_selector}');
                 if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {{
                     const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
                     if (!label.includes('stop') && !label.includes('停止')) {{
@@ -334,6 +340,10 @@ class HumanCooldownAction(AtomicAction):
 class ClickNewChatAction(AtomicAction):
     """原子化新建会话"""
 
+    def __init__(self, new_chat_selector: Optional[str] = None, new_chat_url: str = "https://gemini.google.com/app"):
+        self.new_chat_selector = new_chat_selector or GeminiSelectors.NEW_CHAT_BTN
+        self.new_chat_url = new_chat_url
+
     @property
     def name(self) -> str:
         return "ClickNewChat"
@@ -348,18 +358,18 @@ class ClickNewChatAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         try:
-            get_gateway().safe_navigate(cdp, "https://gemini.google.com/app")
+            get_gateway().safe_navigate(cdp, self.new_chat_url)
             time.sleep(2.0)
             return ActionResult(True, "已通过安全网关 safe_navigate 开启新会话")
         except Exception:
             pass
         cdp.eval(f"""
         (() => {{
-            const newBtn = document.querySelector('{GeminiSelectors.NEW_CHAT_BTN}');
+            const newBtn = document.querySelector('{self.new_chat_selector}');
             if (newBtn) {{
                 newBtn.click();
             }} else {{
-                window.location.href = 'https://gemini.google.com/app';
+                window.location.href = '{self.new_chat_url}';
             }}
         }})()
         """)
@@ -370,8 +380,9 @@ class ClickNewChatAction(AtomicAction):
 class NavigateChatAction(AtomicAction):
     """原子化导航至指定会话"""
 
-    def __init__(self, chat_id: str):
+    def __init__(self, chat_id: str, url_template: str = "https://gemini.google.com/app/{chat_id}"):
         self.chat_id = str(chat_id).strip()
+        self.url_template = url_template
 
     @property
     def name(self) -> str:
@@ -386,7 +397,7 @@ class NavigateChatAction(AtomicAction):
         return PipelineStage.IDLE
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        target_url = f"https://gemini.google.com/app/{self.chat_id}"
+        target_url = self.url_template.format(chat_id=self.chat_id)
         if get_gateway().safe_navigate(cdp, target_url):
             time.sleep(2.0)
             return ActionResult(True, f"已通过安全网关 safe_navigate 导航至会话: {self.chat_id}")

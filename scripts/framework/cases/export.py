@@ -117,12 +117,10 @@ class ZipExportDownloadCase(FeatureTestCase):
             time.sleep(0.5)
 
             target_ids = []
-            target_titles = []
             target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
-            target_titles.extend([r.get("title", "") for r in ctx.chat_records if r.get("title")])
-
             target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-            target_titles.extend(["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"])
+
+            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"]
 
             check_res = cdp_opt.eval(f"""
             (() => {{

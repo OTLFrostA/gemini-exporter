@@ -1,79 +1,5 @@
 [
   {
-    "id": "cavity_qed_jaynes_cummings",
-    "domain": "quantum_optics_cavity_qed",
-    "title": "量子光学：腔量子电动力学 (Cavity QED) 与拉比振荡",
-    "features": [
-      "math",
-      "latex",
-      "differential_equations",
-      "code"
-    ],
-    "turns": [
-      "请写出 Jaynes-Cummings 模型的全量子哈密顿量，详细解释自由原子项、单模辐射场项与偶极相互作用项，并在旋转波近似 (RWA) 下推导其缀饰态 (Dressed States) 的本征能谱。",
-      "在零失谐 (Resonant) 条件下，若原子初始处于激发态且腔场处于真空态，请严格推导光子数在两能级原子与腔场之间周期性交换的真空拉比振荡 (Vacuum Rabi Oscillation) 概率公式。",
-      "使用 Python (NumPy/SciPy) 编写一个求解开放量子系统林德布拉德主方程 (Lindblad Master Equation) 的动力学演化脚本，模拟包含光子腔漏率 kappa 与原子自发辐射自衰减 gamma 时的退相干拉比振荡曲线。",
-      "详细阐述强耦合极限 (Strong Coupling Regime, g >> kappa, gamma) 在超导回路量子电动力学 (Circuit QED) 中的实验实现条件与 Purcell 效应的抑制机制。",
-      "对比解释光子阻塞效应 (Photon Blockade) 的能级非谐性机理，为什么非谐梯度的存在使得单光子透射后阻断了第二个同频率光子的注入？"
-    ]
-  },
-  {
-    "id": "metamaterials_photonic_crystal_waveguide",
-    "domain": "materials_science_metamaterials",
-    "title": "拓扑光子学：谷霍尔光子晶体波导与拓扑保护传输",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code"
-    ],
-    "turns": [
-      "请详细阐述蜂窝晶格光子晶体中狄拉克点 (Dirac Point) 的形成机制，并解释如何通过打破空间反演对称性 (Inversion Symmetry) 打开带隙，实现谷霍尔拓扑相变 (Valley Hall Topological Phase Transition)。",
-      "给出谷陈数 (Valley Chern Number) 的严格数学积分定义，并从贝里曲率 (Berry Curvature) 局域积聚的角度证明体-边对应关系 (Bulk-Boundary Correspondence)。",
-      "使用 Python (NumPy) 编写一个简化的平面波展开法 (PWE, Plane Wave Expansion) 脚本框架，计算一维周期性布拉格光栅的色散关系并绘制第一布里渊区内的禁带结构图。",
-      "详细推演在 60度 或 120度 尖锐拐角 (Sharp Bend) 传输时，谷拓扑边界态如何凭借赝自旋-谷锁定 (Pseudospin-Valley Locking) 抑制背向散射 (Backscattering) 实现无耗损拐弯传播。",
-      "分析片上拓扑光子集成芯片在面向量子光源单光子路由与超低功耗光互连时的关键制造公差容忍度与挑战。"
-    ]
-  },
-  {
-    "id": "zero_knowledge_succinct_stark",
-    "title": "密码学与前沿计算：ZK-STARK 多项式承诺与 FRI 协议代数推导",
-    "domain": "applied_cryptography_algebraic_geometry",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "algorithms"
-    ],
-    "description": "测试抗量子透明零知识证明 STARK、代数中间表示 AIR、FRI 折叠算法与 Python 紧凑原型",
-    "turns": [
-      "请详细推导 ZK-STARK 相较于 SNARK 在免信任设置（Transparent Setup）与抗量子性（Post-Quantum Security）上的本质数学优势，说明为何仅依赖对称加密哈希函数与仿射变换。",
-      "使用 LaTeX 公式详细推导出代数中间表示 (AIR, Algebraic Intermediate Representation) 中转移约束多项式（Transition Constraint Polynomials）与边界多项式（Boundary Polynomials）如何组合为单一多项式 P(X)。",
-      "请给出 FRI (Fast Reed-Solomon Interactive Oracle Proofs of Proximity) 协议的折叠步骤（Folding Step）核心算法推导，写出每一轮交互中度数折半的代数关系式。",
-      "请用 Python 编写一段干净紧凑的代码，演示 Reed-Solomon 编码与基于 Merkle Tree 的承诺构建过程，包含生成码字与计算根哈希的核心函数。",
-      "针对递归证明（Recursive STARKs）与 Halo2、Plonky2 等现代证明系统的折叠方案（Nova/HyperNova），分析其在区块链扩容 Rollup 场景下的验证耗时、证明体积与硬件加速（GPU/FPGA）并行度权衡。"
-    ]
-  },
-  {
-    "id": "quantum_error_correction_surface_code",
-    "title": "量子纠错与表面码：超导量子比特网格拓扑编织与探测器误差推导",
-    "domain": "quantum_error_correction_architecture",
-    "features": [
-      "math",
-      "latex",
-      "algorithms",
-      "physics"
-    ],
-    "description": "测试表面码拓扑算符 LaTeX 推导、最小权重完美匹配 MWPM 解码器对比与容错阈值定理分析",
-    "turns": [
-      "请详细推导表面码（Surface Code）相较于 Shor 码与 Steane 码的拓扑优势，说明为何二维最近邻量子比特耦合网格是超导量子处理器的黄金架构。",
-      "使用 LaTeX 公式写出表面码中 X-稳定子（Vertex Operator）与 Z-稳定子（Plaquette Operator）的本征值方程，并解释当单个物理比特发生相位翻转（Phase-flip）时稳定子测量结果（Syndrome）的代数响应关系。",
-      "针对最小权重完美匹配算法（MWPM, Minimum-Weight Perfect Matching）和现代并行的并查集解码器（Union-Find Decoder），给出在解码综合征（Syndrome Decoding）时的算法时间复杂度与假阳性抑制能力对比分析。",
-      "推导表面码逻辑量子比特的阈值定理（Fault-tolerant Threshold Theorem），给出物理错误率 p 低于多少时可以通过增加晶格尺寸 d 指数级压低逻辑错误率。",
-      "分析容错量子计算（FTQC）中魔术态蒸馏（Magic State Distillation）在实现非 Clifford 门（如 T 门）时的物理资源消耗瓶颈。"
-    ]
-  },
-  {
     "id": "confidential_computing_enclave_attestation",
     "domain": "confidential_computing_enclave",
     "title": "机密计算与硬件飞地：Intel SGX / AMD SEV 远程证明与侧信道攻防",
@@ -113,25 +39,6 @@
     ]
   },
   {
-    "id": "deep_sea_extremophile_biogeochemistry",
-    "domain": "deep_sea_extremophile_biogeochemistry",
-    "title": "深海热液喷口化能自养生态系统与极端环境嗜极微生物",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "tables"
-    ],
-    "description": "测试深海黑烟囱热液生图 (Imagen)、硫化物化能合成生化热力学推导与极端环境嗜极酶动力学表格",
-    "turns": [
-      "请帮我生成一张图片：在马里亚纳海沟 4000 米漆黑冰冷的海底，一台深潜器的明亮探照灯照亮了正在喷涌滚滚黑烟的巨大海底热液硫化物烟囱。烟囱周围簇生着鲜红色鳃丝的巨型管虫 (Riftia pachyptila) 与盲虾群落，海水呈现幽暗深邃的冷蓝色调，科学探索纪实摄影质感。",
-      "结合化学渗透假说 (Chemiosmotic Hypothesis)，详细分析热液喷口硫化氢 (H2S) 氧化驱动三磷酸腺苷 (ATP) 合成的跨膜质子势能梯度物理化学机制。",
-      "请再帮我生成一张图片：嗜热古菌 (Thermophile) 细胞膜脂质双分子层的微观分子结构示意图，展示其独特的甘油醚键 (Ether-linked lipids) 与二植烷基双层共价交联，阻断高温质子泄漏，微观科学渲染风格。",
-      "推导嗜极古菌逆向回旋酶 (Reverse Gyrase) 在引入正超螺旋 (Positive Supercoiling) 以防止双链 DNA 在超过 100 摄氏度下热变性解旋时的自由能变 \\Delta G = \\Delta H - T\\Delta S 热力学约束关系。",
-      "使用 Markdown 表格横向对比嗜热菌 (Thermus aquaticus)、嗜辐射奇球菌 (Deinococcus radiodurans) 与嗜盐古菌 (Halobacterium) 在蛋白质耐受机制、DNA 修复酶系统及工业生物催化应用中的核心差异。"
-    ]
-  },
-  {
     "id": "silicon_photonics_optical_computing",
     "domain": "silicon_photonics_optical_computing",
     "title": "神经形态硅光子芯片与全光存算一体矩阵架构",
@@ -167,26 +74,6 @@
       "推导等离子体在极向磁场与环向磁场共同作用下的安全因子 q(r) 径向分布方程，阐明为什么当有理面 q=m/n (如 q=2/1) 出现时容易诱发大破裂 (Major Disruption)。",
       "使用 Python 编写脚本，基于简化的螺线管近似计算并绘制托卡马克环形等离子体截面内的极向磁场与环向磁场矢量线，展示磁剪切 (Magnetic Shear) 的空间几何分布。",
       "使用 Markdown 表格对比磁约束核聚变 (MCF) 中的托卡马克 (Tokamak)、仿星器 (Stellarator) 与场反转位形 (FRC) 在稳态运行能力、等离子体约束性能 (Beta 值) 及工程建造复杂度维度的优劣。"
-    ]
-  },
-  {
-    "id": "quantum_teleportation_satellite_qkd",
-    "domain": "quantum_teleportation_satellite_qkd",
-    "title": "星地空间量子隐形传态与纠缠分发协议",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex"
-    ],
-    "description": "测试低轨量子保密通信卫星生图 (Imagen)、贝尔基联合测量态矢推导与 BB84 误码率公式",
-    "turns": [
-      "请帮我生成一张图片：在距离地球 500 公里的低地球轨道上，一颗先进的量子科学实验卫星正在飞掠夜半球边缘。卫星底部的高精度光轴瞄准光学望远镜正向地面乌鲁木齐与南山两个光学天文台分别发射极其细密耀眼的双色纠缠光子绿色激光束，地球弧线与深邃繁星璀璨，科幻写实大片质感。",
-      "在希尔伯特空间中，给出任意未知单量子比特态 |\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle 与贝尔态 |\\Phi^+\\rangle 构成的三体复合态展开式，详细推导在贝尔基联合测量 (BSM) 下四种坍缩结果对应的经典通信 Pauli 门幺正重构过程。",
-      "请再帮我生成一张图片：地面量子光学国家实验室内部超净光电实验台特写，双折射 BBO 晶体在紫外脉冲泵浦激光下自发参量下转换 (SPDC) 产生空间纠缠偏振光子对的光路轨迹，暗室荧光科考氛围。",
-      "写出空间诱骗态 BB84 协议在湍流大气信道衰减下，单光子计数率增益 Q_1 与单光子误码率 e_1 的严格数学解析式，并说明如何利用有限诱骗态强度边界估计下界保真度。",
-      "使用 Markdown 表格横向对比基于纠缠的 BBM92 协议、诱骗态 BB84 协议以及测量器件无关量子密钥分发 (MDI-QKD) 在抗探测器侧信道攻击、安全传输距离极限及密钥生成速率 (bps) 维度的核心差异。"
     ]
   },
   {
@@ -386,6 +273,127 @@
       "请使用 Python 结合 numpy 实现一个基于递归分解或动态规划的简单对称矩阵 Hafnian 算法函数，附带小维度（如 4x4）矩阵的手动验算测试用例。",
       "用 Markdown 表格对比超导线路（如 Sycamore）、离子阱（如 Quantinuum）与光量子（如九章/Jiuzhang、Borealis）三大主流量子优越性实验路径在相干时间、门保真度、室温运行容忍度与容错纠错扩展性上的优劣势。",
       "分析光子损耗（Photon Loss）、模式不匹配（Mode Mismatch）以及暗计数（Dark Counts）等真实物理缺陷如何弱化光量子采样的计算复杂度下界，甚至导致经典张量网络（MPS/PEPS）能够在多项式时间内对其进行有效近似模拟。"
+    ]
+  },
+  {
+    "id": "neural_interface_optogenetics",
+    "title": "神经工程与光遗传学：闭环光电神经刺激与膜片钳突触动力学",
+    "domain": "neural_engineering_optogenetics",
+    "description": "测试石墨烯微电极阵列光遗传生图 (Imagen)、Hodgkin-Huxley 神经元方程数值仿真与脑机接口物理瓶颈推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在神经工程前沿实验室中，一个微米级的柔性透明石墨烯神经微电极阵列正贴附在大脑皮层组织切片表面，伴随微纳光纤发射的脉冲蓝光精确激活视紫红质通道蛋白 (Channelrhodopsin-2)，呈现微观荧光钙信号激发的未来神经芯片科幻感细节。",
+      "请设计一个 Markdown 表格，对比 ChR2、eNpHR3.0、ArchT 与 GCaMP6s 四种光遗传学与钙成像工具在激发波长、离子传输选择性、时间响应动力学（tau_on / tau_off）与光毒性容忍阈值上的物理与生化参数。",
+      "请用 Python 编写一个基于 Hodgkin-Huxley 神经元方程的扩展数值仿真代码，在经典动作电位微分方程组中引入光致离子电流项 I_opt(t) = g_opt * O(t) * (V - E_opt)，并模拟特定频率蓝光方波照射下的脉冲发放频率响应。",
+      "请再帮我生成一张图片：高倍多光子激光扫描荧光显微镜视野下，小鼠皮层锥体神经元树突棘（Dendritic Spines）在光刺激下产生局部钙瞬变信号，呈现晶莹剔透的多色荧光发光点与精细神经树突分支结构。",
+      "深入推演全植入式无线无源脑机接口在长期颅内慢性驻留时所面临的生物相容性胶质瘢痕包裹（Glial Scarring）、电极阻抗退化与脑组织微运动位移三大硬件生物物理瓶颈。"
+    ]
+  },
+  {
+    "id": "atmospheric_climate_dynamics_navier_stokes",
+    "title": "大气动力学与气候推演：准地转多尺度涡旋与高阶谱分析",
+    "domain": "atmospheric_climate_dynamics",
+    "description": "测试准地转位涡方程推导、罗斯贝波频散关系、二维湍流伪谱方法求解器与气候模式横向对比",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "physics",
+      "differential_equations"
+    ],
+    "turns": [
+      "请从旋转坐标系下的不可压缩 Navier-Stokes 方程严格推导准地转位涡（Quasi-Geostrophic Potential Vorticity, QGPV）守恒方程 D_g q / Dt = 0，并给出罗斯贝数（Rossby number Ro << 1）与理查森数（Richardson number Ri）的尺度分析推导。",
+      "详述在大气中高纬度急流中，罗斯贝波（Rossby Waves）的频散关系 \\omega = U k - \\frac{\\beta k}{k^2 + l^2 + f_0^2 / (g H)} 如何引发天气尺度的经向阻塞高压（Blocking High）与极端冷空气倾泻。",
+      "请使用 Python 编写一段紧凑的高性能二维涡度方程谱方法（Pseudo-Spectral Method）求解器骨架，利用 FFT 对周期边界条件下的二维纳维-斯托克斯湍流衰减能谱进行时间步进积分。",
+      "用 Markdown 表格横向对比全球气候模式（如 ECMWF IFS、NOAA GFS、MPAS 与国产 CAS-ESM）在动力核心网格拓扑（高斯网格、二十面体六边形网格、立方球网格）、垂直坐标系（地形跟随 \\sigma 坐标与混合坐标）与次网格对流参数化方案上的架构取舍。",
+      "分析平流层准两年周期振荡（QBO）与厄尔尼诺-南方涛动（ENSO）的跨赤道远程遥相关物理机制，以及对东亚冬季风强弱异常的物理驱动路径。"
+    ]
+  },
+  {
+    "id": "superconducting_rf_cavities_accelerators",
+    "title": "高能粒子加速器：超导射频谐振腔 (SRF) 与尾场尾束相互作用",
+    "domain": "particle_accelerator_physics",
+    "description": "测试 BCS 理论推导纯铌射频腔品质因数、TM010 模式粒子相空间积分仿真与四大加速器工程参数对比",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "hardware"
+    ],
+    "turns": [
+      "请从麦克斯韦方程组与超导表面电阻 BCS 理论出发，详细推导出超导纯铌射频腔（SRF Cavity）的高频品质因数 Q_0 = G / R_s 与峰值磁场极限 B_peak < B_c1 之间的数学关系。",
+      "解释为什么当相对论带电粒子束团（Bunch）穿过超导腔加速间隙时会激发出短程与长程高阶尾场（Higher Order Modes, HOMs），并写出纵向与横向尾场函数对后续束团引发的强耦合束流不稳定度（如 BBU, Beam Breakup）的物理方程。",
+      "请用 Python 编写一段程序，利用 Runge-Kutta 积分算法计算相对论质子在驻波 TM010 模式超导腔加速电场 E_z(z, t) = E_0 \\cos(kz) \\sin(\\omega t + \\phi_0) 中的相空间运动轨迹，并绘制能量增益随注入相位 \\phi_0 的变化曲线。",
+      "设计 Markdown 表格对比欧洲 CERN 强子对撞机（LHC）、美国直线相干光源（LCLS-II）、中国高能同步辐射光源（HEPS）与未来环形对撞机（FCC-ee）在射频频率、工作温度（2K vs 4.5K）、加速梯度（MV/m）与连续波（CW）/脉冲模式的关键工程指标。",
+      "探讨采用超导薄膜技术（如铜基底镀纯铌薄膜或 Nb3Sn 金属间化合物）替代传统大块纯铌制造超导腔在将工作温度提升至 4.2K 液氦常压温区并突破材料热失控淬火（Quench）临界场上的物理机理与制备工艺难点。"
+    ]
+  },
+  {
+    "id": "synthetic_aperture_radar_interferometry",
+    "title": "雷达遥感与干涉测量：InSAR 差分相位解缠与地表形变反演",
+    "domain": "radar_remote_sensing_insar",
+    "description": "测试 SAR 卫星干涉条纹生图 (Imagen)、干涉几何推导、二维相位解缠算法实现与时序 InSAR 方案对比",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "math",
+      "latex"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在地球近地轨道上，一颗配备巨大展开式相控阵天线的合成孔径雷达（SAR）卫星正在向夜半球地表发射微波雷达波束，地表投影出色彩斑斓的 InSAR 双轨干涉干涉图条纹（Interferogram Fringes），覆盖正在缓慢沉降的活火山地貌，科技感十足的高清科学可视化图。",
+      "请从电磁波相位传播几何出发，推导出合成孔径雷达干涉相位公式 \\Delta \\phi = \\phi_{\\text{topo}} + \\phi_{\\text{def}} + \\phi_{\\text{atm}} + \\phi_{\\text{orbit}} + \\phi_{\\text{noise}}，并阐明为什么垂直基线（Perpendicular Baseline B_\\perp）对地形相位高度敏感而时间基线（Temporal Baseline）决定了相干性衰减。",
+      "请用 Python 编写一段紧凑的代码，实现基于枝切法（Goldstein Branch Cut）或最小费用流（Minimum Cost Flow, MCF）算法的二维干涉相位解缠（Phase Unwrapping）核心残差极点（Residue Points）识别函数。",
+      "请再帮我生成一张图片：地质科学家在工作站三维地理信息系统（GIS）界面前，审视着利用时序 PS-InSAR（永久散射体干涉）反演出的地表断层毫米级沉降速率热力图，屏幕映射出多色等高线与精确三维地形模型。",
+      "对比永久散射体（PS-InSAR）与短基线集（SBAS-InSAR）两大时序干涉技术在相干点密度提取、大气天顶延迟（ZTD）滤波去除以及非线性地表蠕变反演上的技术路径权衡。"
+    ]
+  },
+  {
+    "id": "superconducting_qubit_circuit_qed",
+    "title": "超导量子计算：Transmon 量子比特非线性与腔量子电动力学调控",
+    "domain": "superconducting_quantum_hardware",
+    "description": "测试约瑟夫森结非谐性推导、色散腔读取微扰展开、拉比振荡脉冲代码与主流芯片对比",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "physics"
+    ],
+    "turns": [
+      "请从约瑟夫森结的非线性电感势能 U = -E_J \\cos(\\phi) 出发，通过泰勒级数展开推导出 Transmon 量子比特的非谐性（Anharmonicity）公式 \\alpha = E_{12} - E_{01} \\approx -E_C，并解释为什么 Transmon 比 Cooper 对盒（CPB）对电荷噪声免疫指数级增强。",
+      "在色散近似（Dispersive Regime, |\\Delta| = |\\omega_q - \\omega_r| \\gg g）下，写出超导量子比特与共面波导谐振腔（CPW Resonator）耦合的有效哈密顿量 H_{\\text{eff}}，并推导读取腔色散频移量 \\chi = \\frac{g^2}{\\Delta} \\frac{\\alpha}{\\Delta + \\alpha}。",
+      "请使用 Python 编写一段基于 QuTiP 或纯 NumPy 的模拟代码，对驱动外场下的 Transmon 量子比特进行含时薛定谔方程数值求解，演示拉比振荡（Rabi Oscillation）与利用 DRAG（Derivative Removal by Adiabatic Gate）脉冲抑制泄漏至高能级 |2> 的脉冲波形对比。",
+      "用 Markdown 表格横向对比当前国际三大超导量子计算主流架构（IBM 砖块同心圆结、Google Sycamore 可调耦合器阵列、Rigetti 模块化芯片）在单比特门保真度、双比特门机制（CZ vs iSWAP vs cross-resonance）、串扰抑制与低温冷冻机布线复杂度上的优劣。",
+      "分析超导芯片中二能级系统（TLS, Two-Level Systems）介电损耗、非平衡准粒子（Quasiparticles）与宇宙射线介子击中对 Transmon 弛豫时间 T_1 和退相干时间 T_2^* 的物理衰减极限机制。"
+    ]
+  },
+  {
+    "id": "neuromorphic_spiking_transformer",
+    "title": "神经形态计算：脉冲神经网络 (SNN) 与 Spiking Transformer 架构",
+    "domain": "neuromorphic_computing_snn",
+    "description": "测试 LIF 膜电位微分方程离散化、替代梯度法推导、Spiking Self-Attention 代码实现与量化对比",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "请详细推演漏电积分发放（Leaky Integrate-and-Fire, LIF）神经元的膜电位动态微分方程，并写出一阶欧拉离散化更新公式 V[t] = \\tau V[t-1] + X[t] - S[t-1] V_{\\text{reset}}。",
+      "解释为什么尖峰阶跃函数的不可微性阻碍了经典梯度反向传播（Backpropagation），并详细介绍替代梯度法（Surrogate Gradient Method，如 ATan、FastSigmoid、Rectangle 替代函数）如何打通端到端时间反向传播（BPTT）。",
+      "请使用 PyTorch 编写一个简明的 Spiking Self-Attention（脉冲自注意力）模块核心代码，要求 Query、Key、Value 与 Attention Map 均保持为事件驱动的二值脉冲（0 或 1），仅通过浮点数点乘替代经典的 Softmax 矩阵乘法以极大降低能耗。",
+      "用 Markdown 表格对比传统人工神经网络（ANN / ViT）与脉冲 Transformer（Spike-Driven Transformer）在计算能耗（FLOPs vs SOPs, Synaptic Operations）、时延（Time Steps T）、推理吞吐量与边缘神经形态芯片（如 Intel Loihi 2、清华天机/Tianjic）兼容性上的量化表现。",
+      "分析 ANN-to-SNN 直接量化转换方案与原生直接训练（Direct Training）方案在网络精度损失、时间步长度（Timesteps T）以及超深网络梯度消失/爆炸上的本质矛盾。"
     ]
   }
 ]

@@ -586,5 +586,130 @@
     ],
     "consumed_at": "2026-09-14T15:20:57.425379",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "deep_sea_extremophile_biogeochemistry",
+    "domain": "deep_sea_extremophile_biogeochemistry",
+    "title": "深海热液喷口化能自养生态系统与极端环境嗜极微生物",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "tables"
+    ],
+    "description": "测试深海黑烟囱热液生图 (Imagen)、硫化物化能合成生化热力学推导与极端环境嗜极酶动力学表格",
+    "turns": [
+      "请帮我生成一张图片：在马里亚纳海沟 4000 米漆黑冰冷的海底，一台深潜器的明亮探照灯照亮了正在喷涌滚滚黑烟的巨大海底热液硫化物烟囱。烟囱周围簇生着鲜红色鳃丝的巨型管虫 (Riftia pachyptila) 与盲虾群落，海水呈现幽暗深邃的冷蓝色调，科学探索纪实摄影质感。",
+      "结合化学渗透假说 (Chemiosmotic Hypothesis)，详细分析热液喷口硫化氢 (H2S) 氧化驱动三磷酸腺苷 (ATP) 合成的跨膜质子势能梯度物理化学机制。",
+      "请再帮我生成一张图片：嗜热古菌 (Thermophile) 细胞膜脂质双分子层的微观分子结构示意图，展示其独特的甘油醚键 (Ether-linked lipids) 与二植烷基双层共价交联，阻断高温质子泄漏，微观科学渲染风格。",
+      "推导嗜极古菌逆向回旋酶 (Reverse Gyrase) 在引入正超螺旋 (Positive Supercoiling) 以防止双链 DNA 在超过 100 摄氏度下热变性解旋时的自由能变 \\Delta G = \\Delta H - T\\Delta S 热力学约束关系。",
+      "使用 Markdown 表格横向对比嗜热菌 (Thermus aquaticus)、嗜辐射奇球菌 (Deinococcus radiodurans) 与嗜盐古菌 (Halobacterium) 在蛋白质耐受机制、DNA 修复酶系统及工业生物催化应用中的核心差异。"
+    ],
+    "consumed_at": "2026-09-14T15:34:21.881519",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "cavity_qed_jaynes_cummings",
+    "domain": "quantum_optics_cavity_qed",
+    "title": "量子光学：腔量子电动力学 (Cavity QED) 与拉比振荡",
+    "features": [
+      "math",
+      "latex",
+      "differential_equations",
+      "code"
+    ],
+    "turns": [
+      "请写出 Jaynes-Cummings 模型的全量子哈密顿量，详细解释自由原子项、单模辐射场项与偶极相互作用项，并在旋转波近似 (RWA) 下推导其缀饰态 (Dressed States) 的本征能谱。",
+      "在零失谐 (Resonant) 条件下，若原子初始处于激发态且腔场处于真空态，请严格推导光子数在两能级原子与腔场之间周期性交换的真空拉比振荡 (Vacuum Rabi Oscillation) 概率公式。",
+      "使用 Python (NumPy/SciPy) 编写一个求解开放量子系统林德布拉德主方程 (Lindblad Master Equation) 的动力学演化脚本，模拟包含光子腔漏率 kappa 与原子自发辐射自衰减 gamma 时的退相干拉比振荡曲线。",
+      "详细阐述强耦合极限 (Strong Coupling Regime, g >> kappa, gamma) 在超导回路量子电动力学 (Circuit QED) 中的实验实现条件与 Purcell 效应的抑制机制。",
+      "对比解释光子阻塞效应 (Photon Blockade) 的能级非谐性机理，为什么非谐梯度的存在使得单光子透射后阻断了第二个同频率光子的注入？"
+    ],
+    "consumed_at": "2026-09-14T15:34:21.882461",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "metamaterials_photonic_crystal_waveguide",
+    "domain": "materials_science_metamaterials",
+    "title": "拓扑光子学：谷霍尔光子晶体波导与拓扑保护传输",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code"
+    ],
+    "turns": [
+      "请详细阐述蜂窝晶格光子晶体中狄拉克点 (Dirac Point) 的形成机制，并解释如何通过打破空间反演对称性 (Inversion Symmetry) 打开带隙，实现谷霍尔拓扑相变 (Valley Hall Topological Phase Transition)。",
+      "给出谷陈数 (Valley Chern Number) 的严格数学积分定义，并从贝里曲率 (Berry Curvature) 局域积聚的角度证明体-边对应关系 (Bulk-Boundary Correspondence)。",
+      "使用 Python (NumPy) 编写一个简化的平面波展开法 (PWE, Plane Wave Expansion) 脚本框架，计算一维周期性布拉格光栅的色散关系并绘制第一布里渊区内的禁带结构图。",
+      "详细推演在 60度 或 120度 尖锐拐角 (Sharp Bend) 传输时，谷拓扑边界态如何凭借赝自旋-谷锁定 (Pseudospin-Valley Locking) 抑制背向散射 (Backscattering) 实现无耗损拐弯传播。",
+      "分析片上拓扑光子集成芯片在面向量子光源单光子路由与超低功耗光互连时的关键制造公差容忍度与挑战。"
+    ],
+    "consumed_at": "2026-09-14T15:39:01.486882",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_teleportation_satellite_qkd",
+    "domain": "quantum_teleportation_satellite_qkd",
+    "title": "星地空间量子隐形传态与纠缠分发协议",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex"
+    ],
+    "description": "测试低轨量子保密通信卫星生图 (Imagen)、贝尔基联合测量态矢推导与 BB84 误码率公式",
+    "turns": [
+      "请帮我生成一张图片：在距离地球 500 公里的低地球轨道上，一颗先进的量子科学实验卫星正在飞掠夜半球边缘。卫星底部的高精度光轴瞄准光学望远镜正向地面乌鲁木齐与南山两个光学天文台分别发射极其细密耀眼的双色纠缠光子绿色激光束，地球弧线与深邃繁星璀璨，科幻写实大片质感。",
+      "在希尔伯特空间中，给出任意未知单量子比特态 |\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle 与贝尔态 |\\Phi^+\\rangle 构成的三体复合态展开式，详细推导在贝尔基联合测量 (BSM) 下四种坍缩结果对应的经典通信 Pauli 门幺正重构过程。",
+      "请再帮我生成一张图片：地面量子光学国家实验室内部超净光电实验台特写，双折射 BBO 晶体在紫外脉冲泵浦激光下自发参量下转换 (SPDC) 产生空间纠缠偏振光子对的光路轨迹，暗室荧光科考氛围。",
+      "写出空间诱骗态 BB84 协议在湍流大气信道衰减下，单光子计数率增益 Q_1 与单光子误码率 e_1 的严格数学解析式，并说明如何利用有限诱骗态强度边界估计下界保真度。",
+      "使用 Markdown 表格横向对比基于纠缠的 BBM92 协议、诱骗态 BB84 协议以及测量器件无关量子密钥分发 (MDI-QKD) 在抗探测器侧信道攻击、安全传输距离极限及密钥生成速率 (bps) 维度的核心差异。"
+    ],
+    "consumed_at": "2026-09-14T15:43:14.959050",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "zero_knowledge_succinct_stark",
+    "title": "密码学与前沿计算：ZK-STARK 多项式承诺与 FRI 协议代数推导",
+    "domain": "applied_cryptography_algebraic_geometry",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "algorithms"
+    ],
+    "description": "测试抗量子透明零知识证明 STARK、代数中间表示 AIR、FRI 折叠算法与 Python 紧凑原型",
+    "turns": [
+      "请详细推导 ZK-STARK 相较于 SNARK 在免信任设置（Transparent Setup）与抗量子性（Post-Quantum Security）上的本质数学优势，说明为何仅依赖对称加密哈希函数与仿射变换。",
+      "使用 LaTeX 公式详细推导出代数中间表示 (AIR, Algebraic Intermediate Representation) 中转移约束多项式（Transition Constraint Polynomials）与边界多项式（Boundary Polynomials）如何组合为单一多项式 P(X)。",
+      "请给出 FRI (Fast Reed-Solomon Interactive Oracle Proofs of Proximity) 协议的折叠步骤（Folding Step）核心算法推导，写出每一轮交互中度数折半的代数关系式。",
+      "请用 Python 编写一段干净紧凑的代码，演示 Reed-Solomon 编码与基于 Merkle Tree 的承诺构建过程，包含生成码字与计算根哈希的核心函数。",
+      "针对递归证明（Recursive STARKs）与 Halo2、Plonky2 等现代证明系统的折叠方案（Nova/HyperNova），分析其在区块链扩容 Rollup 场景下的验证耗时、证明体积与硬件加速（GPU/FPGA）并行度权衡。"
+    ],
+    "consumed_at": "2026-09-14T15:43:14.960892",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_error_correction_surface_code",
+    "title": "量子纠错与表面码：超导量子比特网格拓扑编织与探测器误差推导",
+    "domain": "quantum_error_correction_architecture",
+    "features": [
+      "math",
+      "latex",
+      "algorithms",
+      "physics"
+    ],
+    "description": "测试表面码拓扑算符 LaTeX 推导、最小权重完美匹配 MWPM 解码器对比与容错阈值定理分析",
+    "turns": [
+      "请详细推导表面码（Surface Code）相较于 Shor 码与 Steane 码的拓扑优势，说明为何二维最近邻量子比特耦合网格是超导量子处理器的黄金架构。",
+      "使用 LaTeX 公式写出表面码中 X-稳定子（Vertex Operator）与 Z-稳定子（Plaquette Operator）的本征值方程，并解释当单个物理比特发生相位翻转（Phase-flip）时稳定子测量结果（Syndrome）的代数响应关系。",
+      "针对最小权重完美匹配算法（MWPM, Minimum-Weight Perfect Matching）和现代并行的并查集解码器（Union-Find Decoder），给出在解码综合征（Syndrome Decoding）时的算法时间复杂度与假阳性抑制能力对比分析。",
+      "推导表面码逻辑量子比特的阈值定理（Fault-tolerant Threshold Theorem），给出物理错误率 p 低于多少时可以通过增加晶格尺寸 d 指数级压低逻辑错误率。",
+      "分析容错量子计算（FTQC）中魔术态蒸馏（Magic State Distillation）在实现非 Clifford 门（如 T 门）时的物理资源消耗瓶颈。"
+    ],
+    "consumed_at": "2026-09-14T15:48:16.594900",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]
