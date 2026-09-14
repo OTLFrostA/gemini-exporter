@@ -113,6 +113,13 @@ class TestContext:
             raise RuntimeError("Options 标签页不存在且无法创建")
         return CDPConnection(tab["webSocketDebuggerUrl"])
 
+    def get_gemini_driver(self, cdp: Optional[CDPConnection] = None):
+        """获取高层 Gemini 自动化驱动"""
+        from scripts.framework.driver import GeminiDriver
+        conn = cdp or self.connect_gemini()
+        return GeminiDriver(conn)
+
+
 
 class FeatureTestCase(ABC):
     def __init__(

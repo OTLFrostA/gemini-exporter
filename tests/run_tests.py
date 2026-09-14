@@ -824,6 +824,13 @@ def test_serial_pipeline_suite():
     assert res.returncode == 0, f"test_serial_pipeline.py failed: {res.stderr or res.stdout}"
     print("  ✓ Serial Action Pipeline & Single-Flight Executor verification passed")
 
+def test_gemini_driver_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_gemini_driver.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_gemini_driver.py failed: {res.stderr or res.stdout}"
+    print("  ✓ High-Level GeminiDriver & ChatSession test suite passed")
+
 test_json_files()
 test_manifest_structure()
 test_build_pipeline()
@@ -839,10 +846,12 @@ test_takeout_limit_modal_and_wall_detection()
 test_stage1_architecture_ssot_and_state_isolation()
 test_stage2_architecture_improvements()
 test_serial_pipeline_suite()
+test_gemini_driver_suite()
 test_javascript_syntax()
 test_javascript_unit_tests()
 
 print("=" * 60)
+
 print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
 print("=" * 60)
 

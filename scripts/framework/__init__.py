@@ -7,6 +7,7 @@ Provides declarative feature specifications, CDP action primitives, assertions, 
 from .features import Feature, FeatureDomain, FeatureRegistry, TestStatus, TestResult
 from .actions import CDPActions
 from .assertions import CDPAssertions
+from .driver import GeminiDriver, GeminiChatSession, TurnResult
 
 __all__ = [
     "Feature",
@@ -16,4 +17,8 @@ __all__ = [
     "TestResult",
     "CDPActions",
     "CDPAssertions",
+    "GeminiDriver",
+    "GeminiChatSession",
+    "TurnResult",
 ]
+
