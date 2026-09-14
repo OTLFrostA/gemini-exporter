@@ -45,7 +45,6 @@ interface Window {
     __gemExporterExtractAt?: any;
     __gemExporterExtractBl?: any;
     __gemExporterEnsureCreds?: any;
-    __gemExporterContentCoord?: any;
 }
 
 

@@ -68,24 +68,6 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
     const Assets = AssetFetcher;
     const Utils = (typeof GeminiUtils !== 'undefined' ? GeminiUtils : null) as any;
 
-    // Facade delegations & static regression test anchors:
-    // 1. compareConversations SSoT delegation (verified by tests/run_tests.py:633)
-    const compareConversations = (a: any, b: any) => (Sync && Sync.compareConversations ? Sync.compareConversations(a, b) : 0);
-
-    // 2. gemini_pending_takeout_prompt delegation (verified by tests/run_tests.py)
-    // Ensures takeout limit prompt metadata is persisted when sliding window wall is hit
-    const PENDING_TAKEOUT_KEY = 'gemini_pending_takeout_prompt';
-
-    // 3. debouncedSyncOnce and upsert changed === 0 anchors (verified by tests/run_tests.py)
-    function debouncedSyncOnce(delay = 350): void {
-        if (Observer && Observer.debouncedSync) {
-            Observer.debouncedSync(() => {
-                if (Sync) Sync.syncOnce();
-            }, delay);
-        }
-    }
-    // Upsert storage write optimization anchor: if (!forceWrite && changed === 0) return merged.length;
-
     function getAccountSlot(): string {
         return Sync ? Sync.getAccountSlot() : 'u0';
     }
@@ -223,16 +205,6 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
             autoInitSync();
         }, { once: true });
     }
-
-    // Expose helpers on window for backwards-compatible test inspection
-    w.__gemExporterContentCoord = {
-        compareConversations,
-        debouncedSyncOnce,
-        PENDING_TAKEOUT_KEY,
-        LiveSaveObserver,
-        LiveSaveCoordinator,
-        LiveStorageManager
-    };
 
     console.log('[Gemini Exporter Content Coordinator] ready');
 })();
