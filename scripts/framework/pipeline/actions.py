@@ -156,19 +156,15 @@ class SingleClickSendAction(AtomicAction):
         return PipelineStage.DISPATCHED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        # 1. 查找有效发送按钮并调用 .click() 触发 Angular (click) 事件处理器
+        # 严格执行唯一点击通道 (Single Channel of Truth)：直接调用 sendBtn.click() 触发 Angular (click) 处理器
+        # 绝对不附加任何 CDP 鼠标事件补发，彻底杜绝自点刚冒出的 Stop 按钮
         click_info = cdp.eval("""
         (() => {
             const sendBtn = document.querySelector('button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]');
             if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {
                 const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
                 if (!label.includes('stop') && !label.includes('停止')) {
-                    // 实测验证：Angular 对内部 <mat-icon> 坐标点击偶尔未捕获，直接调用 sendBtn.click() 100% 触发发帖
                     sendBtn.click();
-                    const r = sendBtn.getBoundingClientRect();
-                    if (r.width > 0 && r.height > 0) {
-                        return { x: r.left + r.width / 2, y: r.top + r.height / 2, clicked: true };
-                    }
                     return { clicked: true };
                 }
             }
@@ -179,21 +175,14 @@ class SingleClickSendAction(AtomicAction):
         if not click_info or not click_info.get("clicked"):
             return ActionResult(False, "未定位到可用且非禁用的发送按钮")
 
-        # 2. 如果存在物理坐标，辅以单次 CDP 鼠标点击事件，保证底层交互一致性（严格单次，绝不循环连点）
-        if "x" in click_info and "y" in click_info:
-            cx, cy = click_info["x"], click_info["y"]
-            cdp.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": cx, "y": cy})
-            cdp.call("Input.dispatchMouseEvent", {"type": "mousePressed", "x": cx, "y": cy, "button": "left", "clickCount": 1})
-            cdp.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": cx, "y": cy, "button": "left", "clickCount": 1})
-
-        return ActionResult(True, "发送按钮单次物理点击与 Angular 提交成功派发")
+        return ActionResult(True, "发送按钮单次提交成功派发")
 
 
 class AwaitStreamSettledAction(AtomicAction):
     """
     权威等待流式生成与落盘。
-    完全废除 3.2s 文本停顿假定！
     以扩展网络层真实捕获的 STREAM_COMPLETE 事件为主准绳，图片实体与 DOM 状态为辅助。
+    同时内建 Fail-Fast 即刻熔断：遇「You stopped this response」或卡片报错 1 秒内中止，绝不盲等 300 秒。
     """
 
     def __init__(self, timeout: int = 300, require_image: bool = False, turn_start_time: Optional[float] = None):
@@ -216,6 +205,8 @@ class AwaitStreamSettledAction(AtomicAction):
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         start_wait = time.time()
         turn_start_ms = int(self.turn_start_time * 1000)
+        last_seen_len = 0
+        stable_count = 0
 
         while time.time() - start_wait < self.timeout:
             time.sleep(1.0)
@@ -239,6 +230,7 @@ class AwaitStreamSettledAction(AtomicAction):
                 const currCount = allModels.length;
                 const lastModel = currCount > 0 ? allModels[currCount - 1] : null;
                 const lastLen = lastModel ? (lastModel.textContent || '').trim().length : 0;
+                const lastSnippet = lastModel ? (lastModel.textContent || '').trim().slice(0, 150) : '';
                 const hasImages = lastModel ? (lastModel.querySelectorAll('img[src*="blob:"], img[src*="googleusercontent"], .image-container, img').length > 0) : false;
 
                 const retryBtn = document.querySelector('button[aria-label*="Retry"], button[aria-label*="重试"]');
@@ -252,6 +244,7 @@ class AwaitStreamSettledAction(AtomicAction):
                     netCompleted,
                     currCount,
                     lastLen,
+                    lastSnippet,
                     hasImages,
                     hasRetry: !!retryBtn,
                     toast: toastEl ? toastEl.textContent.trim() : null
@@ -262,10 +255,17 @@ class AwaitStreamSettledAction(AtomicAction):
             if not state:
                 continue
 
-            # 异常熔断守护：若检测到报错或 Retry 按钮，严禁盲目自动点击重试，立即熔断！
+            # 异常熔断守护 1：若检测到报错 Toast 或 Retry 按钮，严禁盲目自动点击重试，立即熔断！
             if state.get("hasRetry") or state.get("toast"):
                 err_text = state.get("toast") or "页面弹出 Retry 重试按钮（服务遇到错误）"
                 return ActionResult(False, f"触发熔断停机 (绝不盲目狂点重试): {err_text}")
+
+            last_snippet = (state.get("lastSnippet") or "").lower()
+            # 异常熔断守护 2：若卡片内被掐死或打出报错提示，即刻熔断，绝不盲等 300 秒！
+            if "you stopped this response" in last_snippet or "你已停止此回复" in last_snippet:
+                return ActionResult(False, "检测到回复被异常中断掐死 (You stopped this response)")
+            if any(err_kw in last_snippet for err_kw in ["something went wrong", "无法生成图片", "i cannot generate", "unable to process"]):
+                return ActionResult(False, f"卡片内显示报错信息: {last_snippet[:60]}")
 
             has_stop = state.get("hasStop", False)
             has_send = state.get("hasSend", False)
@@ -275,15 +275,30 @@ class AwaitStreamSettledAction(AtomicAction):
             last_len = state.get("lastLen", 0)
             has_images = state.get("hasImages", False)
 
-            # 权威判断：必须网络层确证完成 + 页面 UI 已脱离忙碌态 + DOM 停止流式
+            # 权威判断 1：必须网络层确证完成 + 页面 UI 已脱离忙碌态 + DOM 停止流式
             if net_completed and not has_stop and (has_send or is_editor_ready) and not is_stream_dom:
                 if self.require_image:
                     if has_images or elapsed > 45:
                         time.sleep(1.0)
-                        return ActionResult(True, f"生图回复完成并落地 (耗时 {elapsed:.1f}s, 检测到图片实体)")
+                        return ActionResult(True, f"生图回复完成并落地 (网络确认, 耗时 {elapsed:.1f}s, 检测到图片实体)")
                 else:
                     time.sleep(0.5)
                     return ActionResult(True, f"流式回复权威完成 (网络事件确认, 耗时 {elapsed:.1f}s, 字符数: {last_len})")
+
+            # 严格安全兜底 2：在等待超过 15 秒后，若 Stop 消失且 UI 就绪，且图片落地或文本连续 4 次稳定
+            if not has_stop and (has_send or is_editor_ready) and not is_stream_dom and elapsed > 15:
+                if self.require_image and has_images:
+                    time.sleep(1.0)
+                    return ActionResult(True, f"生图回复完成并落地 (DOM 图片实体确认, 耗时 {elapsed:.1f}s)")
+                elif not self.require_image and last_len > 20:
+                    if last_len == last_seen_len:
+                        stable_count += 1
+                        if stable_count >= 4:
+                            time.sleep(0.5)
+                            return ActionResult(True, f"流式回复权威完成 (DOM 稳定确认, 耗时 {elapsed:.1f}s, 字符数: {last_len})")
+                    else:
+                        last_seen_len = last_len
+                        stable_count = 0
 
         return ActionResult(False, f"等待流式完成超时 ({self.timeout}s)")
 

@@ -36,21 +36,16 @@ class ContinuedChatPromotionCase(FeatureTestCase):
         print(f"\n   🔄 回访较早创建的会话 1 ({s1_id}) 进行追加提问...")
         cdp_g2 = ctx.connect_gemini()
         try:
-            cdp_g2.eval(f"location.href = 'https://gemini.google.com/app/{s1_id}'")
-            time.sleep(2.5)
-            try:
-                cdp_g2.reconnect()
-            except Exception:
-                pass
-            CDPActions.wait_for_gemini_ready(cdp_g2, max_wait=15)
+            driver = ctx.get_gemini_driver(cdp_g2)
+            session = driver.open_chat(s1_id, timeout=20.0)
 
             add_turn = "针对刚才深入探讨的系统架构设计，请再补充一条关于线上压测与容量规划的核心避坑建议，保持极简总结。"
             print(f"      ▶️ 追加提问: '{add_turn[:36]}...'")
-            ok_add, msg_add = CDPActions.send_gemini_turn(cdp_g2, add_turn, max_wait=120)
-            if ok_add:
+            turn_res = session.send_turn(add_turn, max_wait=120)
+            if turn_res.success:
                 ctx.chat_records[0]["turns"].append(add_turn)
                 return True, "老会话追加提问成功完成并触发 STREAM_COMPLETE", None
-            return False, f"追加提问失败: {msg_add}", None
+            return False, f"追加提问失败: {turn_res.error}", None
         finally:
             cdp_g2.close()
 
@@ -106,26 +101,22 @@ class EphemeralChatPruningCase(FeatureTestCase):
         cdp_gem_live = ctx.connect_gemini()
         cdp_opt = ctx.connect_options()
         try:
-            cdp_gem_live.eval("location.href = 'https://gemini.google.com/app'")
-            time.sleep(2.0)
-            try:
-                cdp_gem_live.reconnect()
-            except Exception:
-                pass
+            driver = ctx.get_gemini_driver(cdp_gem_live)
+            session = driver.new_chat(timeout=20.0)
 
             eph_query = ctx.provider.pop_ephemeral_query()
             print(f"   ▶️ 生成瞬态会话用于删除测试: '{eph_query[:30]}...'")
-            ok_eph, msg_eph = CDPActions.send_gemini_turn(cdp_gem_live, eph_query, max_wait=90)
-            if not ok_eph:
-                return False, f"瞬态会话发帖超时: {msg_eph}", None
+            turn_res = session.send_turn(eph_query, max_wait=90)
+            if not turn_res.success:
+                return False, f"瞬态会话发帖超时: {turn_res.error}", None
 
-            eph_chat_id = CDPActions.get_current_chat_id(cdp_gem_live)
+            eph_chat_id = session.chat_id or driver.get_current_chat_id()
             if not eph_chat_id:
                 return False, "未能获取瞬态会话 ID", None
 
             ctx.tracker.track(eph_chat_id)
             print(f"   🗑️ 成功生成瞬态会话 ({eph_chat_id})，在侧边栏触发网页原生删除...")
-            del_ok = CDPActions.delete_conversation_via_web(cdp_gem_live, eph_chat_id)
+            del_ok = session.delete_via_web()
             if del_ok:
                 ctx.tracker.mark_deleted(eph_chat_id)
 
@@ -136,3 +127,4 @@ class EphemeralChatPruningCase(FeatureTestCase):
         finally:
             cdp_gem_live.close()
             cdp_opt.close()
+
