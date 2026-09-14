@@ -287,7 +287,8 @@ declare global {
                 if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
 
                 // Thinking Process (Isolated with double blank lines for strict Markdown parsers)
-                const thoughts = ((m as any).thoughts || (m as any).thinking || '').trim();
+                const thoughtsRaw = (m as any).thoughts || (m as any).thinking || '';
+                const thoughts = (Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : String(thoughtsRaw)).trim();
                 if (thoughts) {
                     const thoughtSummary = isEn ? '🧠 Thinking Process' : '🧠 思考过程';
                     md += `<details>\n<summary>${thoughtSummary}</summary>\n\n${thoughts}\n\n</details>\n\n`;
@@ -363,7 +364,8 @@ declare global {
                 item.content = text;
             }
 
-            const thoughts = (m.thoughts || m.thinking || '').trim();
+            const thoughtsRaw = (m as any).thoughts || (m as any).thinking || '';
+            const thoughts = (Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : String(thoughtsRaw)).trim();
             if (thoughts) {
                 item.reasoning_content = thoughts;
             }

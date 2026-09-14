@@ -161,12 +161,66 @@ import { detectSlotFromUrl } from './pathUtils.js';
         }
     }
 
+    async function getAITab(providerIdOrPattern?: string, slot?: string): Promise<chrome.tabs.Tab | null> {
+        if (!providerIdOrPattern || providerIdOrPattern === 'gemini') {
+            return getGeminiTab(slot);
+        }
+        if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
+        let pattern = providerIdOrPattern;
+        if (providerIdOrPattern === 'chatgpt') {
+            pattern = 'https://chatgpt.com/*';
+        } else if (providerIdOrPattern === 'claude') {
+            pattern = 'https://claude.ai/*';
+        } else if (providerIdOrPattern === 'deepseek') {
+            pattern = 'https://chat.deepseek.com/*';
+        }
+        const tabs = await chrome.tabs.query({ url: pattern });
+        if (!tabs || !tabs.length) return null;
+        return tabs.find(t => t.active) || tabs[0];
+    }
+
+    async function sendToAITab(providerIdOrPattern: string, msg: any, slot?: string, timeoutMs?: number): Promise<any> {
+        if (!providerIdOrPattern || providerIdOrPattern === 'gemini') {
+            return sendToGeminiTab(msg, slot, timeoutMs);
+        }
+        if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
+            throw new Error('chrome.tabs API 不可用');
+        }
+        const tab = await getAITab(providerIdOrPattern, slot);
+        if (!tab || tab.id == null) {
+            throw new Error(`未找到 ${providerIdOrPattern} 标签页，请先在浏览器中打开对应页面`);
+        }
+        const timeout = timeoutMs || 25000;
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    reject(new Error(`与 ${providerIdOrPattern} 页面通信超时 (${timeout}ms)`));
+                }
+            }, timeout);
+            chrome.tabs.sendMessage(tab.id!, msg, (r) => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timer);
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message || ''));
+                    } else {
+                        resolve(r);
+                    }
+                }
+            });
+        });
+    }
+
 export {
     getGeminiTab,
     sendToGeminiTab,
     checkGeminiStatus,
     openGeminiPage,
-    reloadGeminiTab
+    reloadGeminiTab,
+    getAITab,
+    sendToAITab
 };
 
 export const TabService: TabServiceModule = {
@@ -174,7 +228,9 @@ export const TabService: TabServiceModule = {
     sendToGeminiTab,
     checkGeminiStatus,
     openGeminiPage,
-    reloadGeminiTab
+    reloadGeminiTab,
+    getAITab,
+    sendToAITab
 };
 
 if (typeof globalThis !== 'undefined' && !(globalThis as any).TabService) (globalThis as any).TabService = TabService;

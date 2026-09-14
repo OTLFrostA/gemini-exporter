@@ -19,6 +19,8 @@ export interface TabServiceModule {
     checkGeminiStatus(slot?: string): Promise<TabStatusResult>;
     openGeminiPage(): Promise<any>;
     reloadGeminiTab(tabId?: number): Promise<any>;
+    getAITab?(providerIdOrUrl?: string, slot?: string): Promise<chrome.tabs.Tab | null>;
+    sendToAITab?(providerIdOrUrl: string, msg: any, slot?: string, timeoutMs?: number): Promise<any>;
 }
 
 export type SupportedLang = 'zh' | 'en';
