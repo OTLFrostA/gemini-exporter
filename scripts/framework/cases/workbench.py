@@ -23,10 +23,8 @@ class SearchKeywordCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             CDPActions.search_workbench(cdp_opt, "Python")
-            time.sleep(0.4)
             filter_kw_ok, filter_kw_msg, details = CDPAssertions.assert_search_filter(cdp_opt, "Python", expected_visible_min=1)
             CDPActions.clear_search_workbench(cdp_opt)
-            time.sleep(0.3)
             if filter_kw_ok:
                 return True, "关键词过滤列表正常收缩并恢复", details
             return False, filter_kw_msg, details
@@ -52,7 +50,6 @@ class SearchIdCase(FeatureTestCase):
             ctx.shared_data["target_search_id"] = target_search_id
 
             CDPActions.search_workbench(cdp_opt, target_search_id)
-            time.sleep(0.4)
             filter_id_ok, filter_id_msg, details = CDPAssertions.assert_search_filter(cdp_opt, target_search_id, expected_visible_min=1, expected_visible_max=2)
             CDPActions.select_workbench_item(cdp_opt, target_search_id, True)
 
@@ -78,10 +75,7 @@ class SearchClearCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             target_search_id = ctx.shared_data.get("target_search_id", "1bd028d5c5b0c0e2")
-            CDPActions.clear_search_workbench(cdp_opt)
-            time.sleep(0.5)
-            # 等待搜索防抖 (100ms) 及虚拟列表 DOM 重新完整铺展
-            restored_count = cdp_opt.eval("document.querySelectorAll('#list .item').length") or 0
+            restored_count = CDPActions.clear_search_workbench(cdp_opt)
             is_still_checked = bool(cdp_opt.eval(f"""
             (() => {{
                 const item = document.querySelector('#list .item[data-chat-id="{target_search_id}"], #list .item[data-chat-id="c_{target_search_id}"]');

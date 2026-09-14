@@ -126,7 +126,7 @@ class ZipExportDownloadCase(FeatureTestCase):
 
             check_res = cdp_opt.eval(f"""
             (() => {{
-                const searchInput = document.getElementById('search');
+                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
                 if (searchInput && searchInput.value) {{
                     searchInput.value = '';
                     searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
