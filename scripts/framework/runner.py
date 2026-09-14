@@ -80,23 +80,20 @@ class FrameworkRunner:
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
         delay: int = 2,
-        takeout_zip: Optional[str] = None,
-        keep_chats: bool = False
+        takeout_zip: Optional[str] = None
     ):
         self.port = port
         self.output_dir = os.path.abspath(output_dir or os.path.join(os.path.dirname(__file__), "..", "..", "tests", "output", "live_export"))
         self.dataset = dataset
         self.delay = delay
         self.takeout_zip = takeout_zip or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tests", "fixtures", "gemini_takeout_clean.zip"))
-        self.keep_chats = keep_chats
 
         self.ctx = TestContext(
             port=self.port,
             output_dir=self.output_dir,
             dataset=self.dataset,
             delay=self.delay,
-            takeout_zip=self.takeout_zip,
-            keep_chats=self.keep_chats
+            takeout_zip=self.takeout_zip
         )
 
         # 向上兼容字段映射
@@ -118,21 +115,14 @@ class FrameworkRunner:
         return self.ctx.chat_records
 
     def run(self) -> bool:
-        """执行 DAG 特性依赖驱动测试，并在 finally 阶段自动执行生命周期回收"""
+        """执行 DAG 特性依赖驱动测试，并在 finally 阶段输出会话留存报告"""
         try:
             return self._execute_lifecycle()
         finally:
             try:
-                tabs = get_tabs(self.port)
-                gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
-                if gemini_tab:
-                    cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
-                    try:
-                        self.tracker.teardown(cdp_clean, keep_chats=self.keep_chats)
-                    finally:
-                        cdp_clean.close()
+                self.tracker.teardown()
             except Exception as e:
-                print(f"⚠️ [生命周期回收] Teardown 清理阶段异常: {e}")
+                print(f"⚠️ [生命周期管理] 异常: {e}")
 
     def _execute_lifecycle(self) -> bool:
         print("=" * 80)

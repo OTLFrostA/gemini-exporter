@@ -90,14 +90,13 @@ DESIGNATED_HISTORICAL_CHATS = [
 
 
 class VisualTestingAgent:
-    def __init__(self, port=CDP_DEFAULT_PORT, output_dir=None, ext_id=None, enable_ai_review=False, keep_chats=False):
+    def __init__(self, port=CDP_DEFAULT_PORT, output_dir=None, ext_id=None, enable_ai_review=False):
         self.port = port
         self.repo_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         self.output_dir = output_dir or os.path.join(self.repo_dir, "tests", "output", "visual_audit")
         os.makedirs(self.output_dir, exist_ok=True)
         self.ext_id = ext_id or ensure_extension_loaded(self.port, repo_path=self.repo_dir)
         self.enable_ai_review = enable_ai_review
-        self.keep_chats = keep_chats
         self.provider = OnlineScenarioProvider()
         self.tracker = SessionLifecycleTracker()
         self.snapshots = []
@@ -1130,8 +1129,8 @@ class VisualTestingAgent:
         self.scorecard.save()
 
 
-def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, takeout_zip=None, keep_chats=False):
-    agent = VisualTestingAgent(port=port, output_dir=output_dir, enable_ai_review=enable_ai_review, keep_chats=keep_chats)
+def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_review=False, takeout_zip=None):
+    agent = VisualTestingAgent(port=port, output_dir=output_dir, enable_ai_review=enable_ai_review)
     agent.log("🚀 启动 Gemini Exporter 纯视觉 AI 盲测与 UI 质检全流程实测...", "INFO")
 
     if not agent.ext_id:
@@ -1204,18 +1203,10 @@ def run_visual_agent_suite(port=CDP_DEFAULT_PORT, output_dir=None, enable_ai_rev
 
         return success
     finally:
-        # 全生命周期用完即焚自动回收
         try:
-            tabs = get_tabs(port)
-            gemini_tab = next((t for t in tabs if t.get("type") == "page" and is_gemini_url(t.get("url", ""))), None)
-            if gemini_tab:
-                cdp_clean = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
-                try:
-                    agent.tracker.teardown(cdp_clean, keep_chats=keep_chats)
-                finally:
-                    cdp_clean.close()
+            agent.tracker.teardown()
         except Exception as e:
-            agent.log(f"Teardown 清理异常: {e}", "WARN")
+            agent.log(f"会话留存报告异常: {e}", "WARN")
         cdp.close()
 
 
@@ -1225,7 +1216,6 @@ def main():
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory for visual reports and screenshots")
     parser.add_argument("--ai-review", action="store_true", help="Enable Gemini 2.0 Flash Multimodal UI Review (requires GEMINI_API_KEY)")
     parser.add_argument("--full", action="store_true", default=True, help="Full visual E2E export, asset verification and spec assertion (Default: True)")
-    parser.add_argument("--keep-chats", action="store_true", help="测试完成后豁免物理删除、保留线上生成的会话（默认 False，跑完即自动彻底删除清理）")
     parser.add_argument("--takeout-zip", default=None, help="Custom Takeout ZIP path for import testing")
     args = parser.parse_args()
 
@@ -1233,8 +1223,7 @@ def main():
         port=args.port,
         output_dir=args.output_dir,
         enable_ai_review=args.ai_review,
-        takeout_zip=args.takeout_zip,
-        keep_chats=args.keep_chats
+        takeout_zip=args.takeout_zip
     )
     sys.exit(0 if success else 1)
 

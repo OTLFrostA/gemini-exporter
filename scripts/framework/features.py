@@ -275,7 +275,11 @@ class FeatureRegistry:
                         status_icon = "⚠️ WARN"
                     elif r.status == TestStatus.SKIP:
                         status_icon = "⏭️ SKIP"
-                    duration_str = f"{r.duration_seconds:.1f}s"
+
+                    if r.duration_seconds >= 1.0:
+                        duration_str = f"{r.duration_seconds:.1f}s"
+                    else:
+                        duration_str = f"{int(r.duration_seconds * 1000)}ms"
                     msg = r.message
 
                 lines.append(f" {f.id:<34} | {f.name:<24} | {status_icon:<8} | {duration_str:<7} | {msg}")

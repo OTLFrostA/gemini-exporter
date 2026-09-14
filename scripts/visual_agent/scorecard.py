@@ -78,7 +78,9 @@ class VisualUXScorecard:
         lines.append("| :--- | :--- | :--- | :--- | :--- |")
         for f in self.features_explored:
             status_icon = "✅ PASS" if f["status"] == "PASS" else ("⚠️ WARN" if f["status"] == "WARN" else "❌ FAIL")
-            lines.append(f"| {f['name']} | {f['domain']} | {status_icon} | {f['duration']:.1f}s | {f['notes']} |")
+            dur = f.get("duration", 0.0)
+            dur_str = f"{dur:.1f}s" if dur >= 1.0 else f"{int(dur * 1000)}ms"
+            lines.append(f"| {f['name']} | {f['domain']} | {status_icon} | {dur_str} | {f['notes']} |")
 
         lines.append("\n## 2. 发现的潜在排版截断、文本溢出与视觉体验风险 (Visual & Layout Risks)")
         if not self.visual_risks:
