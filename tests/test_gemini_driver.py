@@ -125,6 +125,21 @@ class TestGeminiDriverSuite(unittest.TestCase):
             self.assertTrue(ok)
             mock_del.assert_called_once_with(cdp, "del_chat_1")
 
+    def test_get_current_chat_id_multi_source(self):
+        from scripts.framework.actions import CDPActions
+        cdp = MockCDP()
+
+        # Case 1: URL pathname match
+        cdp.eval_responses = ["abc1234567"]
+        cid1 = CDPActions.get_current_chat_id(cdp)
+        self.assertEqual(cid1, "abc1234567")
+
+        # Case 2: None returned if empty
+        cdp.eval_responses = [None]
+        cid2 = CDPActions.get_current_chat_id(cdp)
+        self.assertIsNone(cid2)
+
 
 if __name__ == "__main__":
     unittest.main()
+
