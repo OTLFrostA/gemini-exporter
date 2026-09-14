@@ -72,8 +72,7 @@ def run_live_chat_and_export(
     port=CDP_DEFAULT_PORT,
     output_dir=None,
     delay=2,
-    takeout_zip=None,
-    keep_chats=False
+    takeout_zip=None
 ):
     """
     执行全流程特性驱动测试。
@@ -84,8 +83,7 @@ def run_live_chat_and_export(
         output_dir=output_dir,
         dataset=dataset,
         delay=delay,
-        takeout_zip=takeout_zip,
-        keep_chats=keep_chats
+        takeout_zip=takeout_zip
     )
     return runner.run()
 
@@ -155,7 +153,6 @@ if __name__ == "__main__":
     parser.add_argument("--pool", action="store_true", help="从动态场景池中自动消费最新多模态场景（默认行为）")
     parser.add_argument("--dataset", default=None, help="自定义测试数据集 JSON 文件路径 (AI 协同模式下必须在 2 分钟之内新鲜生成)")
     parser.add_argument("--allow-stale-dataset", action="store_true", help="允许使用超过 2 分钟时效限制的历史数据集（供非 AI Agent 的人工本地调试使用）")
-    parser.add_argument("--keep-chats", action="store_true", help="测试完成后豁免物理删除、保留线上生成的会话（默认 False，跑完即自动彻底删除清理）")
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=6, help="轮次之间的人性化安全冷却秒数 (默认 6 秒，防机械发帖)")
@@ -180,8 +177,7 @@ if __name__ == "__main__":
                 port=args.port,
                 output_dir=args.output_dir,
                 delay=args.delay,
-                takeout_zip=args.takeout_zip,
-                keep_chats=args.keep_chats
+                takeout_zip=args.takeout_zip
             )
     except ProcessLockError as ple:
         print(ple)

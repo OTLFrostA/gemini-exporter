@@ -2,13 +2,13 @@
 """
 scripts/framework/lifecycle_tracker.py
 --------------------------------------
-Gemini Exporter 在线测试会话生命周期回收管理器 (SessionLifecycleTracker).
+Gemini Exporter 在线测试会话生命周期管理器 (SessionLifecycleTracker).
 
-核心铁律：
-1. 记录测试全过程中产生的所有在线会话 ID（无论正常完成还是中间异常熔断）；
-2. 践行“用一条删一条、跑完即焚 (Teardown Cleanup)”原则；
-3. 在测试结束（无论 PASS 或 FAIL）由 try...finally 自动触发物理删除，坚决杜绝测试会话污染用户个人账号侧边栏；
-4. 仅在显式传入 `--keep-chats` 时豁免删除以供人工排障。
+核心原则：
+1. 记录测试全过程中产生的所有在线会话 ID；
+2. 永久保留测试会话：绝不自动物理删除正常会话，沉淀真实历史数据以更好地模拟多会话用户使用场景；
+3. 瞬态自毁会话（feat_ephemeral_chat_pruning）由该用例在执行期自行触发网页端侧边栏删除，在此做状态登记；
+4. 在测试结束阶段统一输出会话留存报告，无需人工维护清理开关。
 """
 
 import sys
@@ -18,7 +18,7 @@ from typing import List, Set
 
 
 class SessionLifecycleTracker:
-    """在线会话生命周期追踪与自动回收器"""
+    """在线会话生命周期追踪与留存报告器"""
 
     def __init__(self):
         self._tracked_chat_ids: List[str] = []
@@ -35,37 +35,18 @@ class SessionLifecycleTracker:
         if chat_id:
             self._deleted_chat_ids.add(chat_id)
 
-    def teardown(self, cdp_gemini, keep_chats: bool = False) -> int:
+    def get_active_chats(self) -> List[str]:
+        """获取当前依然保留的有效会话 ID 列表"""
+        return [cid for cid in self._tracked_chat_ids if cid not in self._deleted_chat_ids]
+
+    def teardown(self, cdp_gemini=None, **kwargs) -> int:
         """
-        在测试执行器 finally 阶段统一执行自动回收。
-        遍历所有已登记且未被销毁的会话，通过网页端真实三点菜单逐一彻底删除。
+        在测试执行器 finally 阶段统一报告保留的在线会话。
+        完全废除自动删除逻辑，所有正常测试会话永久保留，用于持续模拟真实多会话环境。
         """
-        if keep_chats:
-            print(f"\n💡 [生命周期回收] 检测到 --keep-chats 标志，已豁免物理删除 (保留 {len(self._tracked_chat_ids)} 个测试会话以供人工审计)")
-            return 0
-
-        to_delete = [cid for cid in self._tracked_chat_ids if cid not in self._deleted_chat_ids]
-        if not to_delete:
-            print("\n🧹 [生命周期回收] 没有需要清理的残留测试会话，环境完全纯净。")
-            return 0
-
-        print(f"\n🧹 [生命周期回收] 启动全自动 Teardown 清理，正在物理销毁本次测试产生的 {len(to_delete)} 个在线会话...")
-        from scripts.framework.actions import CDPActions
-
-        success_count = 0
-        for cid in reversed(to_delete):
-            print(f"   🗑️ 正在物理销毁测试会话: [{cid}]...")
-            try:
-                ok = CDPActions.delete_conversation_via_web(cdp_gemini, cid)
-                if ok:
-                    success_count += 1
-                    self._deleted_chat_ids.add(cid)
-                    print(f"      ✓ 会话 [{cid}] 已彻底从云端账号销毁！")
-                else:
-                    print(f"      ⚠️ 网页端删除操作未完全响应 [{cid}]")
-            except Exception as e:
-                print(f"      ⚠️ 删除会话异常 [{cid}]: {e}")
-            time.sleep(1.0)
-
-        print(f"✨ [生命周期回收完成] 共彻底销毁 {success_count}/{len(to_delete)} 个在线测试会话，已恢复零污染干净环境！\n")
-        return success_count
+        active_chats = self.get_active_chats()
+        if active_chats:
+            print(f"\n💡 [测试会话保留] 本次测试创建的 {len(active_chats)} 个在线会话已完整保留 (IDs: {active_chats})，沉淀为真实用户历史环境。\n")
+        else:
+            print("\n💡 [测试会话保留] 本次测试无活跃保留会话。\n")
+        return len(active_chats)

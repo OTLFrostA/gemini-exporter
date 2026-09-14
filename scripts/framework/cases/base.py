@@ -31,15 +31,13 @@ class TestContext:
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
         delay: int = 6,
-        takeout_zip: Optional[str] = None,
-        keep_chats: bool = False
+        takeout_zip: Optional[str] = None
     ):
         self.port = port
         self.worktree_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         self.output_dir = os.path.abspath(output_dir or os.path.join(self.worktree_root, "tests", "output", "live_export"))
         self.delay = max(4, delay)
         self.takeout_zip = takeout_zip or os.path.abspath(os.path.join(self.worktree_root, "tests", "fixtures", "gemini_takeout_clean.zip"))
-        self.keep_chats = keep_chats
         self.start_time = time.time()
 
         self.provider = OnlineScenarioProvider()
@@ -245,10 +243,11 @@ class DAGRunner:
             status = TestStatus.PASS if success else TestStatus.FAIL
             ctx.registry.record_result(fid, status, duration, message, details)
 
+            dur_str = f"{duration:.1f}s" if duration >= 1.0 else f"{int(duration * 1000)}ms"
             if success:
-                print(f"   ✅ [{fid}] PASS (耗时 {duration:.1f}s): {message}")
+                print(f"   ✅ [{fid}] PASS (耗时 {dur_str}): {message}")
             else:
-                print(f"   ❌ [{fid}] FAIL (耗时 {duration:.1f}s): {message}")
+                print(f"   ❌ [{fid}] FAIL (耗时 {dur_str}): {message}")
 
         # 生成最终检验矩阵
         print("\n" + ctx.registry.generate_matrix_report())

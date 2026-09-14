@@ -588,33 +588,16 @@ def test_online_scenario_provider_and_lifecycle_tracker():
     tracker.track("chat_abc_1")  # duplicate
     assert len(tracker._tracked_chat_ids) == 2
 
-    # mark one deleted
+    # mark one deleted (e.g. from ephemeral deletion test)
     tracker.mark_deleted("chat_abc_1")
     assert "chat_abc_1" in tracker._deleted_chat_ids
 
-    # keep_chats = True should skip teardown
-    deleted = tracker.teardown(None, keep_chats=True)
-    assert deleted == 0
+    # active chats should be only chat_abc_2
+    assert tracker.get_active_chats() == ["chat_abc_2"]
 
-    # mock cdp to test teardown deletion
-    class MockCDP:
-        def __init__(self):
-            self.deleted_ids = []
-        def eval(self, script):
-            return {"x": 10, "y": 10}
-        def call(self, method, params=None):
-            return {}
-
-    mock_cdp = MockCDP()
-    from unittest.mock import patch
-    with patch("scripts.framework.actions.CDPActions.delete_conversation_via_web", return_value=True) as mock_del:
-        success = tracker.teardown(mock_cdp, keep_chats=False)
-        assert success == 1
-        assert "chat_abc_2" in tracker._deleted_chat_ids
-        mock_del.assert_called_once_with(mock_cdp, "chat_abc_2")
-
-    # second teardown should have nothing to delete
-    assert tracker.teardown(mock_cdp, keep_chats=False) == 0
+    # teardown retains active chats without deleting them
+    retained = tracker.teardown()
+    assert retained == 1
 
     print("  ✓ OnlineScenarioProvider & SessionLifecycleTracker unit tests passed")
 
