@@ -165,12 +165,15 @@ test('TabService - getAITab and sendToAITab integration', async () => {
         (global as any).chrome = {
             tabs: {
                 query: async ({ url }: { url: string }) => {
-                    if (url.includes('chatgpt.com')) {
-                        return [{ id: 101, url: 'https://chatgpt.com/c/test', active: true }];
-                    }
-                    if (url.includes('gemini.google.com')) {
-                        return [{ id: 202, url: 'https://gemini.google.com/app', active: true }];
-                    }
+                    try {
+                        const parsed = new URL(url.replace(/\*$/, ''));
+                        if (parsed.hostname === 'chatgpt.com') {
+                            return [{ id: 101, url: 'https://chatgpt.com/c/test', active: true }];
+                        }
+                        if (parsed.hostname === 'gemini.google.com') {
+                            return [{ id: 202, url: 'https://gemini.google.com/app', active: true }];
+                        }
+                    } catch {}
                     return [];
                 },
                 sendMessage: (_tabId: number, _msg: any, cb: (res: any) => void) => {

@@ -80,7 +80,19 @@ export class ProviderRegistryClass {
      */
     private matchPattern(pattern: string, url: string): boolean {
         if (pattern === url) return true;
-        if (pattern.endsWith('*')) {
+        try {
+            const parsedUrl = new URL(url);
+            if (pattern.startsWith('https://') || pattern.startsWith('http://')) {
+                const cleanPattern = pattern.endsWith('*') ? pattern.slice(0, -1) : pattern;
+                const parsedPattern = new URL(cleanPattern.endsWith('/') ? cleanPattern : cleanPattern + '/');
+                if (parsedUrl.origin === parsedPattern.origin) {
+                    return parsedUrl.pathname.startsWith(parsedPattern.pathname);
+                }
+            }
+        } catch {
+            // Fallback for non-standard patterns
+        }
+        if (pattern.endsWith('/*')) {
             const prefix = pattern.slice(0, -1);
             return url.startsWith(prefix);
         }
