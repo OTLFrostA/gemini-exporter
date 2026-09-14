@@ -215,21 +215,48 @@ class CDPActions:
 
     @staticmethod
     def get_current_chat_id(cdp) -> Optional[str]:
-        """从当前页面 URL 或 DOM 属性提取正在进行的对话 ID"""
+        """从当前页面 URL、网络流式状态、扩展 Hook 属性或侧边栏提取正在进行的对话 ID"""
         raw_id = cdp.eval("""
         (() => {
+            // 1. 从 URL pathname 提取
             const path = window.location.pathname || "";
             const parts = path.split("/app/");
             if (parts.length > 1) {
                 const cid = parts[1].split("?")[0].trim();
                 if (cid && cid.length >= 8) return cid;
             }
+            // 2. 从 DOM 显式属性提取
             const el = document.querySelector('[data-conversation-id], [data-chat-id]');
-            if (el) return el.getAttribute('data-conversation-id') || el.getAttribute('data-chat-id');
+            if (el) {
+                const attrId = el.getAttribute('data-conversation-id') || el.getAttribute('data-chat-id');
+                if (attrId && attrId.length >= 8) return attrId.trim();
+            }
+            // 3. 从扩展流式网络监听器捕获的会话 ID 提取
+            if (window.__testStreamState && window.__testStreamState.convId && window.__testStreamState.convId.length >= 8) {
+                return window.__testStreamState.convId;
+            }
+            if (window.__geminiActiveStreamConvId && window.__geminiActiveStreamConvId.length >= 8) {
+                return window.__geminiActiveStreamConvId;
+            }
+            // 4. 若页面上已存在对话气泡，则侧边栏首项即为当次会话
+            const hasBubbles = document.querySelectorAll('user-query, model-response').length > 0;
+            if (hasBubbles) {
+                const activeA = document.querySelector('gem-nav-list-item.selected a, a.is-active[href*="/app/"], [aria-current="page"][href*="/app/"]');
+                if (activeA) {
+                    const ap = (activeA.getAttribute('href') || '').split('/app/');
+                    if (ap.length > 1 && ap[1].length >= 8) return ap[1].split('?')[0].trim();
+                }
+                const firstA = document.querySelector('gem-nav-list-item a[href^="/app/"], nav a[href^="/app/"], a[href^="/app/"]');
+                if (firstA) {
+                    const fp = (firstA.getAttribute('href') || '').split('/app/');
+                    if (fp.length > 1 && fp[1].length >= 8) return fp[1].split('?')[0].trim();
+                }
+            }
             return null;
         })()
         """)
         return str(raw_id).strip() if raw_id else None
+
 
     @staticmethod
     def get_current_chat_title(cdp) -> Optional[str]:
@@ -494,10 +521,16 @@ class CDPActions:
 
     @staticmethod
     def click_new_chat(cdp) -> bool:
-        """点击开启新对话"""
+        """开启新对话 (优先通过 CDP 原生 Page.navigate 导航至 /app，保障物理清空残留气泡)"""
+        try:
+            cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
+            time.sleep(2.0)
+            return True
+        except Exception:
+            pass
         res = cdp.eval("""
         (() => {
-            const newBtn = document.querySelector('a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]');
+            const newBtn = document.querySelector('a.side-nav-sparkle-button, a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]');
             if (newBtn) {
                 newBtn.click();
                 return true;
@@ -508,6 +541,7 @@ class CDPActions:
         """)
         time.sleep(2.0)
         return bool(res)
+
 
     @staticmethod
     def delete_conversation_via_web(cdp_gemini, chat_id: str) -> bool:

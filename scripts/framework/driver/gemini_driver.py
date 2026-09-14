@@ -208,12 +208,13 @@ class GeminiDriver:
         chat_id_clean = str(chat_id).strip()
         curr_id = self.get_current_chat_id()
         if curr_id != chat_id_clean:
-            self.cdp.eval(f"window.location.href = 'https://gemini.google.com/app/{chat_id_clean}'")
-            time.sleep(2.0)
             try:
-                self.cdp.reconnect()
+                self.cdp.call("Page.navigate", {"url": f"https://gemini.google.com/app/{chat_id_clean}"})
+                time.sleep(2.0)
             except Exception:
-                pass
+                self.cdp.eval(f"window.location.href = 'https://gemini.google.com/app/{chat_id_clean}'")
+                time.sleep(2.0)
+
 
         start_t = time.time()
         while time.time() - start_t < timeout:

@@ -342,9 +342,15 @@ class ClickNewChatAction(AtomicAction):
         return PipelineStage.IDLE
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
+        try:
+            cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
+            time.sleep(2.0)
+            return ActionResult(True, "已通过原生 Page.navigate 开启新会话")
+        except Exception:
+            pass
         cdp.eval("""
         (() => {
-            const newBtn = document.querySelector('a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]');
+            const newBtn = document.querySelector('a.side-nav-sparkle-button, a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]');
             if (newBtn) {
                 newBtn.click();
             } else {
@@ -375,6 +381,14 @@ class NavigateChatAction(AtomicAction):
         return PipelineStage.IDLE
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        cdp.eval(f"window.location.href = 'https://gemini.google.com/app/{self.chat_id}'")
+        target_url = f"https://gemini.google.com/app/{self.chat_id}"
+        try:
+            cdp.call("Page.navigate", {"url": target_url})
+            time.sleep(2.0)
+            return ActionResult(True, f"已通过原生 Page.navigate 导航至会话: {self.chat_id}")
+        except Exception:
+            pass
+        cdp.eval(f"window.location.href = '{target_url}'")
         time.sleep(2.5)
         return ActionResult(True, f"已导航至会话: {self.chat_id}")
+
