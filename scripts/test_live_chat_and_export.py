@@ -29,6 +29,7 @@ from scripts.framework.features import FeatureRegistry, FeatureDomain, TestStatu
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions
 from scripts.framework.runner import FrameworkRunner, DEFAULT_SCENARIOS, DESIGNATED_HISTORICAL_CHATS
+from scripts.framework.pipeline import ProcessLock, ProcessLockError
 
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
@@ -157,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--keep-chats", action="store_true", help="测试完成后豁免物理删除、保留线上生成的会话（默认 False，跑完即自动彻底删除清理）")
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
-    parser.add_argument("--delay", type=int, default=2, help="轮次之间的间隔秒数")
+    parser.add_argument("--delay", type=int, default=6, help="轮次之间的人性化安全冷却秒数 (默认 6 秒，防机械发帖)")
     parser.add_argument("--takeout-zip", default=None, help="自定义预置 Takeout ZIP 样本路径")
     args = parser.parse_args()
 
@@ -172,12 +173,18 @@ if __name__ == "__main__":
             sys.exit(1)
         custom_dataset = result_or_err
 
-    success = run_live_chat_and_export(
-        dataset=custom_dataset,
-        port=args.port,
-        output_dir=args.output_dir,
-        delay=args.delay,
-        takeout_zip=args.takeout_zip,
-        keep_chats=args.keep_chats
-    )
+    try:
+        with ProcessLock():
+            success = run_live_chat_and_export(
+                dataset=custom_dataset,
+                port=args.port,
+                output_dir=args.output_dir,
+                delay=args.delay,
+                takeout_zip=args.takeout_zip,
+                keep_chats=args.keep_chats
+            )
+    except ProcessLockError as ple:
+        print(ple)
+        sys.exit(1)
+
     sys.exit(0 if success else 1)
