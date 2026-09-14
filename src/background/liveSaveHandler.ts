@@ -4,7 +4,6 @@ import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHan
 import { setLiveConfig } from '../core/storage/liveStorageManager.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
-import { GeminiUtils } from '../core/utils/utils.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { buildExportFileName } from '../core/utils/pathUtils.js';
 
@@ -70,23 +69,13 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             }
         }
 
-        const FsWriterCls = (typeof FsWriter !== 'undefined' && FsWriter)
-            ? ((FsWriter as any).FsWriter || FsWriter)
-            : null;
-        if (!FsWriterCls) {
-            return { ok: false, error: 'no_fswriter' };
-        }
-
-        const writer = new FsWriterCls(handle, 'gemini_export');
+        const writer = new FsWriter(handle, 'gemini_export');
         await writer.init();
 
         const targetFile = fileName || buildExportFileName(safeTitle, nid, 'md');
 
-        const FormatterCls = (typeof ChatFormatter !== 'undefined' && ChatFormatter)
-            ? ChatFormatter
-            : null;
-        const markdown = FormatterCls?.toMarkdown
-            ? FormatterCls.toMarkdown({ ...chat, title: safeTitle, id: nid })
+        const markdown = ChatFormatter?.toMarkdown
+            ? ChatFormatter.toMarkdown({ ...chat, title: safeTitle, id: nid })
             : `# ${safeTitle}\n\n${JSON.stringify(chat?.messages || [], null, 2)}`;
 
         await writer.writeFile('', targetFile, markdown);

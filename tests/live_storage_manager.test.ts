@@ -108,14 +108,6 @@ test('liveStorageManager - IDB mock, config persistence and dir handle delegatio
         const retrievedHandle = await LiveStorageManager.getLiveDirHandle();
         assert.ok(retrievedHandle);
         assert.strictEqual(retrievedHandle.name, 'MyNotes');
-
-        // 3. Verify conversation persistence stubs safely return empty/no-op without storing anything
-        const saveRes = await LiveStorageManager.saveLiveConversation({ id: 'c_stub', title: 'Stub', messages: [] });
-        assert.strictEqual(saveRes, false);
-        const getRes = await LiveStorageManager.getLiveConversation('c_stub');
-        assert.strictEqual(getRes, null);
-        const listRes = await LiveStorageManager.listLiveConversations();
-        assert.deepStrictEqual(listRes, []);
     } finally {
         (global as any).indexedDB = origIdb;
     }

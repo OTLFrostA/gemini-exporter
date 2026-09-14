@@ -15,6 +15,8 @@ import {
 import {
     isRealTitle,
     cleanTitle,
+    cleanZeroWidth,
+    isBrandPlaceholderTitle,
     unescapeHtml,
     stripHtmlTags,
     resolveTitle,
@@ -56,6 +58,8 @@ export {
     // Title
     isRealTitle,
     cleanTitle,
+    cleanZeroWidth,
+    isBrandPlaceholderTitle,
     unescapeHtml,
     stripHtmlTags,
     resolveTitle,
@@ -84,6 +88,8 @@ export interface GeminiUtilsModule {
     isDevMode: () => boolean;
     isRealTitle: (title?: string | null, id?: string | number) => boolean;
     cleanTitle: (rawTitle?: string | null) => string;
+    cleanZeroWidth: (t: any) => string;
+    isBrandPlaceholderTitle: (t: any) => boolean;
     unescapeHtml: (text?: string | null) => string;
     stripHtmlTags: (html?: string | null) => string;
     sanitizeFileName: (name?: string | null, fallback?: string) => string;
@@ -126,6 +132,8 @@ export const GeminiUtils: GeminiUtilsModule = {
     isDevMode,
     isRealTitle,
     cleanTitle,
+    cleanZeroWidth,
+    isBrandPlaceholderTitle,
     unescapeHtml,
     stripHtmlTags,
     sanitizeFileName,

@@ -72,33 +72,11 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
     // 1. compareConversations SSoT delegation (verified by tests/run_tests.py:633)
     const compareConversations = (a: any, b: any) => (Sync && Sync.compareConversations ? Sync.compareConversations(a, b) : 0);
 
-    // 2. gemini_pending_takeout_prompt delegation (verified by tests/run_tests.py:595)
+    // 2. gemini_pending_takeout_prompt delegation (verified by tests/run_tests.py)
     // Ensures takeout limit prompt metadata is persisted when sliding window wall is hit
     const PENDING_TAKEOUT_KEY = 'gemini_pending_takeout_prompt';
 
-    // 3. active client & abort anchors (verified by tests/regression_p0.test.js:140, 141)
-    function handleStopDeepScan(): void {
-        contentContext.abort();
-        window.__gemExporterAborted = true;
-        try {
-            window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort();
-        } catch {
-            /* intentional: best-effort cleanup */
-        }
-    }
-
-    // 4. detail message length check and DOM fallback log anchors (verified by tests/regression_p0.test.js:124, 125)
-    function validateDetailResponse(detail: any, cid: string): boolean {
-        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
-            return true;
-        }
-        if (w.__gemExporterDevMode) {
-            console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid);
-        }
-        return false;
-    }
-
-    // 5. debouncedSyncOnce and upsert changed === 0 anchors (verified by tests/run_tests.py:492, 493)
+    // 3. debouncedSyncOnce and upsert changed === 0 anchors (verified by tests/run_tests.py)
     function debouncedSyncOnce(delay = 350): void {
         if (Observer && Observer.debouncedSync) {
             Observer.debouncedSync(() => {
@@ -249,8 +227,6 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
     // Expose helpers on window for backwards-compatible test inspection
     w.__gemExporterContentCoord = {
         compareConversations,
-        handleStopDeepScan,
-        validateDetailResponse,
         debouncedSyncOnce,
         PENDING_TAKEOUT_KEY,
         LiveSaveObserver,

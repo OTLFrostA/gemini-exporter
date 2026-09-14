@@ -290,8 +290,5 @@ export const BadgeView = {
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).BadgeView = BadgeView;
 }
-if (typeof module !== 'undefined' && (module as any).exports) {
-    (module as any).exports = BadgeView;
-}
 
 export default BadgeView;

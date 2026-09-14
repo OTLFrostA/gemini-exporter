@@ -314,18 +314,18 @@ test('regression: export abort must broadcast cancelExport and listen to abortSi
 });
 
 test('regression: stop sync must sync window flag and active client', () => {
-    const clientContent = fs.readFileSync(path.join(__dirname, '../src/core/api/geminiClient.js'), 'utf8');
-    const contentContent = fs.readFileSync(path.join(__dirname, '../src/content/content.js'), 'utf8');
+    const clientContent = readSrc('../src/core/api/geminiClient.js');
+    const contentContent = readSrc('../src/content/content.js') + readSrc('../src/content/messageRouter.js') + readSrc('../src/content/contentContext.js');
     assert.ok(clientContent.includes('window.__gemExporterAborted') && clientContent.includes('isAborted'), 'gemini_client should check window abort flag');
     assert.ok(contentContent.includes('__gemExporterActiveClient'), 'content should store active client');
-    assert.ok(contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()'), 'stopDeepScan should abort active client');
+    assert.ok(contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()') || contentContent.includes('w.__gemExporterActiveClient && w.__gemExporterActiveClient.abort()'), 'stopDeepScan should abort active client');
 });
 
 test('regression: empty cloud response must be logged as error with debug', () => {
     const expContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
     assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
     assert.ok(expContent.includes('_debug') && expContent.includes('_raw'), 'failedChats should carry debug/raw');
-    const bgContent = readSrc('../src/background/background.js');
+    const bgContent = readSrc('../src/background/background.js') + readSrc('../src/background/batchFetcher.js');
     assert.ok(bgContent.includes('_debug'), 'background should preserve _raw debug');
 });
 
@@ -503,9 +503,10 @@ test('audit fix: isRealTitle fallback filters invalid titles properly', () => {
 
 test('regression: export_engine and options must scrub Google Gemini brand', () => {
     const expContent = readSrc('../src/core/engine/export/batchWorker.js');
+    const titleUtilsContent = readSrc('../src/core/utils/titleUtils.js');
     const optContent = readSrc('../src/ui/options/options.js');
-    assert.ok(expContent.includes('isBadBrand'), 'batchWorker should have isBadBrand scrub');
-    assert.ok(expContent.includes('Google\\s+)?(Gemini|Bard'), 'batchWorker should filter brand regex');
+    assert.ok(expContent.includes('isBadBrand') || expContent.includes('isBrandPlaceholderTitle'), 'batchWorker should have isBadBrand scrub');
+    assert.ok(expContent.includes('Google\\s+)?(Gemini|Bard') || titleUtilsContent.includes('Google\\s+)?(Gemini|Bard'), 'batchWorker/titleUtils should filter brand regex');
     assert.ok(optContent.includes('isBad'), 'options.js should scrub bad titles on load');
     assert.strictEqual(isRealTitle('Google Gemini', 'abc123'), false);
     assert.strictEqual(isRealTitle('Gemini', 'abc123'), false);
@@ -806,7 +807,7 @@ test('regression: dom_scraper must try live document before fetch shell', () => 
 });
 
 test('regression: content.js must fallback to DOM when batchexecute returns empty', () => {
-    const ctContent = fs.readFileSync(path.join(__dirname, '../src/content/content.js'), 'utf8');
+    const ctContent = readSrc('../src/content/content.js') + readSrc('../src/content/messageRouter.js');
     assert.ok(ctContent.includes('Array.isArray(detail.messages) && detail.messages.length > 0'), 'should check length>0 before success');
     assert.ok(ctContent.includes('batchexecute returned empty messages, fallback to DOM'), 'should warn and fallback');
 });

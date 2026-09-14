@@ -9,7 +9,7 @@ import { buildExportFileName } from '../core/utils/pathUtils.js';
 import { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
-import type { LiveConversationRecord, LiveSaveConfig } from '../types/liveSave.js';
+import type { LiveSaveConfig } from '../types/liveSave.js';
 
 export interface LiveSaveCoordinatorDeps {
     storageManager?: typeof LiveStorageManager;

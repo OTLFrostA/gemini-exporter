@@ -1,5 +1,5 @@
 // src/core/storage/liveStorageManager.ts - Live Auto-Save configuration and Directory Handle persistence
-import type { LiveConversationRecord, LiveSaveConfig } from '../../types/liveSave.js';
+import type { LiveSaveConfig } from '../../types/liveSave.js';
 import {
     getStoredDirHandle,
     saveStoredDirHandle,
@@ -14,29 +14,6 @@ export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
 
 const KEY_CONFIG = 'live_save_config';
 let _memConfig: LiveSaveConfig = { ...DEFAULT_LIVE_CONFIG };
-
-/**
- * @deprecated Legacy stub. Conversation text is no longer retained in browser storage.
- */
-export async function saveLiveConversation(_record: Partial<LiveConversationRecord> & { id: string }): Promise<boolean> {
-    return false;
-}
-
-export async function getLiveConversation(_id: string): Promise<LiveConversationRecord | null> {
-    return null;
-}
-
-export async function listLiveConversations(): Promise<LiveConversationRecord[]> {
-    return [];
-}
-
-export async function removeLiveConversation(_id: string): Promise<boolean> {
-    return true;
-}
-
-export async function clearLiveConversations(): Promise<boolean> {
-    return true;
-}
 
 export async function getLiveConfig(): Promise<LiveSaveConfig> {
     // 1. SSoT: chrome.storage.local is the canonical source shared across Content Script, Options, and Background
@@ -95,11 +72,6 @@ export async function clearLiveDirHandle(): Promise<boolean> {
 
 export const LiveStorageManager = {
     DEFAULT_LIVE_CONFIG,
-    saveLiveConversation,
-    getLiveConversation,
-    listLiveConversations,
-    removeLiveConversation,
-    clearLiveConversations,
     getLiveConfig,
     setLiveConfig,
     saveLiveDirHandle,

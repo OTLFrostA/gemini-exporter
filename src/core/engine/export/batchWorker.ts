@@ -59,7 +59,9 @@ import GeminiUtils, {
     unescapeHtml as utilsUnescapeHtml,
     stripHtmlTags as utilsStripHtmlTags,
     isRealTitle as utilsIsRealTitle,
-    resolveTitle as utilsResolveTitle
+    resolveTitle as utilsResolveTitle,
+    cleanZeroWidth as utilsCleanZeroWidth,
+    isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle
 } from "../../utils/utils.js";
 
 const normId = (id?: string | number | null): string => {
@@ -103,6 +105,22 @@ const resolveTitle = (chat?: any) => {
     }
     return utilsResolveTitle(chat);
 };
+
+const cleanZeroWidth = (t?: any): string => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.cleanZeroWidth) {
+        return (globalThis as any).GeminiUtils.cleanZeroWidth(t);
+    }
+    return utilsCleanZeroWidth(t);
+};
+
+const isBrandPlaceholderTitle = (t?: any): boolean => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.isBrandPlaceholderTitle) {
+        return (globalThis as any).GeminiUtils.isBrandPlaceholderTitle(t);
+    }
+    return utilsIsBrandPlaceholderTitle(t);
+};
+
+const isBadBrand = isBrandPlaceholderTitle;
 
     async function fetchChatDetail(
         requestedItem: any,
@@ -327,9 +345,9 @@ const resolveTitle = (chat?: any) => {
         // 3. Error or empty handling
         if (chat.error || chat._empty) {
             const isConfirmedDeleted = !!chat.isDeleted || !!chat._debug?.isNotFound || !!chat._debug?.domDebug?.isNotFound;
-            const cleanForLog = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
             const rawTitle = chat.title || nid;
-            const displayTitle = cleanForLog(rawTitle) && !/^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForLog(rawTitle)) ? cleanForLog(rawTitle) : nid;
+            const cleanedTitle = cleanZeroWidth(rawTitle);
+            const displayTitle = !isBrandPlaceholderTitle(rawTitle) && cleanedTitle ? cleanedTitle : nid;
             const debugInfo = chat._debug ? ` _debug=${String(chat._debug).slice(0, 200)}` : (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
             const errMsg = (isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）')) + debugInfo;
 
@@ -388,15 +406,13 @@ const resolveTitle = (chat?: any) => {
         let finalTitle = chat.title || listConversation?.title || chat.id;
 
         if (listConversation) {
-            const cleanForBad = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
-            const isBadBrand = (t: any) => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
             listConversation.titles = listConversation.titles || {};
             for (const [k, v] of Object.entries(listConversation.titles)) {
-                if (isBadBrand(v)) delete listConversation.titles[k];
+                if (isBrandPlaceholderTitle(v)) delete listConversation.titles[k];
             }
             if (chat.titles && typeof chat.titles === 'object') {
                 for (const [k, v] of Object.entries(chat.titles)) {
-                    if (isBadBrand(v)) delete chat.titles[k];
+                    if (isBrandPlaceholderTitle(v)) delete chat.titles[k];
                 }
                 Object.assign(listConversation.titles, chat.titles);
             }
@@ -404,7 +420,7 @@ const resolveTitle = (chat?: any) => {
                 listConversation.titles[chat.titleSource] = cleanTitle(chat.title);
             }
             const resolved = resolveTitle(listConversation);
-            const cleanResolved = String(resolved.title || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
+            const cleanResolved = cleanZeroWidth(resolved.title);
             if (resolved.title && /^(Google\s+)?(Gemini|Bard|Google\s+AI)$/i.test(cleanResolved)) {
                 if (typeof console !== 'undefined' && console.warn) {
                     console.warn('[Export] skip bad brand resolved title', nid, resolved.title);

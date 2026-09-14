@@ -58,7 +58,6 @@ declare global {
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
 
 const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
-const DEFAULT_RESEARCH_PROMPT_PREFIX_RE = RESEARCH_PROMPT_PREFIX_RE;
 
 
     function extractImageSelectionIndex(sourceUrl?: string | null): number | undefined {

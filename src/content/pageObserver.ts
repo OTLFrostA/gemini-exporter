@@ -132,8 +132,5 @@ export const PageObserver = {
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).PageObserver = PageObserver;
 }
-if (typeof module !== 'undefined' && (module as any).exports) {
-    (module as any).exports = PageObserver;
-}
 
 export default PageObserver;
