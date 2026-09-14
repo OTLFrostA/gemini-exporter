@@ -302,8 +302,5 @@ export const DomScraper = {
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).DomScraper = DomScraper;
 }
-if (typeof module !== 'undefined' && (module as any).exports) {
-    (module as any).exports = DomScraper;
-}
 
 export default DomScraper;

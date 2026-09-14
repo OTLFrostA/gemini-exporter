@@ -265,8 +265,5 @@ export const MessageBridge = {
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).MessageBridge = MessageBridge;
 }
-if (typeof module !== 'undefined' && (module as any).exports) {
-    (module as any).exports = MessageBridge;
-}
 
 export default MessageBridge;

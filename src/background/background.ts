@@ -19,7 +19,6 @@ import {
 } from './tabAction.js';
 import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
 import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
-import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 
@@ -47,13 +46,6 @@ export {
     FsWriter,
     ChatFormatter
 };
-
-// Backwards-compatible handle store aliases
-export const getStoredExportDirHandle = getStoredDirHandle;
-export const clearStoredExportDirHandle = clearStoredDirHandle;
-
-// Preserves _debug in failed chats via batchFetcher module
-export const PRESERVE_DEBUG_NOTE = '_debug';
 
 // 1. Initialize session storage access level for content script credentials
 initSessionAccessLevel();

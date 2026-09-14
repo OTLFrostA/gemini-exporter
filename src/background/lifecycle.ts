@@ -1,12 +1,8 @@
 // src/background/lifecycle.ts - Service Worker lifecycle, installation, and permissions management
 
-import { GeminiConstants } from '../core/utils/constants.js';
+import { FEEDBACK_URL } from '../core/utils/constants.js';
 
-export const FEEDBACK_URL = (typeof GeminiConstants !== 'undefined' && GeminiConstants.FEEDBACK_URL)
-    ? GeminiConstants.FEEDBACK_URL
-    : ((typeof (globalThis as any).GeminiConstants !== 'undefined' && (globalThis as any).GeminiConstants.FEEDBACK_URL)
-        ? (globalThis as any).GeminiConstants.FEEDBACK_URL
-        : 'https://tally.so/r/Y56ZBB');
+export { FEEDBACK_URL };
 
 /**
  * Configure chrome.storage.session access level so content scripts can access

@@ -15,6 +15,21 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
 export const TITLE_SOURCE_PRIORITY: string[] = ['rpc', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
 
 /**
+ * Strips zero-width characters and standard whitespace.
+ */
+export function cleanZeroWidth(t: any): string {
+    return String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
+}
+
+/**
+ * Checks if a title is an empty, generic brand placeholder or system account string.
+ */
+export function isBrandPlaceholderTitle(t: any): boolean {
+    if (!t) return true;
+    return /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanZeroWidth(t));
+}
+
+/**
  * Determine if a title is a real, meaningful conversation title
  * (not a placeholder, ID, or auto-generated default).
  */
@@ -184,6 +199,8 @@ export function compareConversations(a?: any, b?: any): number {
 export default {
     isRealTitle,
     cleanTitle,
+    cleanZeroWidth,
+    isBrandPlaceholderTitle,
     resolveTitle,
     setTitleBySource,
     getEffectiveTimestamp,

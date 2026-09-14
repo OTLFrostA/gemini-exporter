@@ -1,7 +1,7 @@
 // mergeUtils.ts - Conversation merging and deduplication utilities
 
 import { normId, isReservedRoute } from './pathUtils.js';
-import { cleanTitle, isRealTitle, resolveTitle, compareConversations } from './titleUtils.js';
+import { cleanTitle, isRealTitle, resolveTitle, compareConversations, isBrandPlaceholderTitle as isBadTitle } from './titleUtils.js';
 
 export interface MergeConversationOptions {
     isRpcSource?: boolean;
@@ -21,9 +21,6 @@ export interface DeduplicateResult {
     changedCount: number;
     hasDirtyTitles: boolean;
 }
-
-const cleanForBad = (t: any) => String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
-const isBadTitle = (t: any) => !t || /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanForBad(t));
 
 /**
  * SSoT: Merge an incoming conversation into an existing conversation.

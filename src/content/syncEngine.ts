@@ -468,8 +468,5 @@ export const SyncEngine = {
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).SyncEngine = SyncEngine;
 }
-if (typeof module !== 'undefined' && (module as any).exports) {
-    (module as any).exports = SyncEngine;
-}
 
 export default SyncEngine;

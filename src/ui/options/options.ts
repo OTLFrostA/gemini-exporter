@@ -75,12 +75,6 @@ export async function checkPendingTakeoutPrompt(): Promise<void> {
     if (OptionsTakeout && OptionsTakeout.checkPendingTakeoutPrompt) {
         return await OptionsTakeout.checkPendingTakeoutPrompt();
     }
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        const data = await chrome.storage.local.get(['gemini_pending_takeout_prompt']);
-        if (data && data.gemini_pending_takeout_prompt) {
-            await chrome.storage.local.remove('gemini_pending_takeout_prompt');
-        }
-    }
 }
 
 // 4. isTakeoutPromptCompleted check (verified by tests/run_tests.py)

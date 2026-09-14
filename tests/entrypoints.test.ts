@@ -38,7 +38,8 @@ test('Background - static contract and AST checks', () => {
     assert.ok(bgCode.includes('stopKeepAlive'), 'background must invoke and clean up keepalive');
 
     // Fallbacks and debug preserving
-    assert.ok(bgCode.includes('_debug'), 'background must preserve _debug in failed chats');
+    const batchFetcherCode = fs.existsSync(path.join(bgDir, 'batchFetcher.ts')) ? fs.readFileSync(path.join(bgDir, 'batchFetcher.ts'), 'utf8') : '';
+    assert.ok(bgCode.includes('_debug') || batchFetcherCode.includes('_debug'), 'background must preserve _debug in failed chats');
     assert.ok(bgCode.includes('Receiving end does not exist'), 'background must handle Receiving end');
     assert.ok(bgCode.includes('刷新 gemini.google.com'), 'background must hint refresh on connection error');
 });
@@ -184,10 +185,12 @@ test('Background - keepAlive lifecycle timer', () => {
 });
 
 test('Background - liveSaveViaHandle native handle persistence and non-intercepting fallback', () => {
+    const bgDir = path.join(__dirname, '../src/background');
     const bgCode = getBackgroundCode();
+    const liveSaveCode = fs.existsSync(path.join(bgDir, 'liveSaveHandler.ts')) ? fs.readFileSync(path.join(bgDir, 'liveSaveHandler.ts'), 'utf8') : '';
 
     assert.ok(bgCode.includes("msg.action === 'liveSaveViaHandle'"), 'background must handle liveSaveViaHandle action');
-    assert.ok(bgCode.includes('getStoredDirHandle') || bgCode.includes('getStoredExportDirHandle'), 'background must read export directory handle from IndexedDB');
+    assert.ok(bgCode.includes('getStoredDirHandle') || liveSaveCode.includes('getStoredDirHandle') || bgCode.includes('getStoredExportDirHandle'), 'background must read export directory handle from IndexedDB');
     assert.ok(bgCode.includes('FsWriter'), 'background must persist files via FsWriter');
     assert.ok(!bgCode.includes('unknown action: ${msg.action}'), 'background must not reject unknown actions synchronously');
 });

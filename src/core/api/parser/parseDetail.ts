@@ -553,9 +553,6 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
             if (finalSource !== "default" && cleanT) {
                 titlesMap[finalSource as keyof TitleSources] = cleanT;
             }
-            if (metaTitle) {
-                titlesMap.rpc = metaTitle;
-            }
 
             let _debug: any = null;
             if (!allMsgs.length) {

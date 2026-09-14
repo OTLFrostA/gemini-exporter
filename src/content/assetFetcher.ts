@@ -458,9 +458,6 @@ export const AssetFetcher = {
 if (typeof globalThis !== 'undefined') {
     (globalThis as any).AssetFetcher = AssetFetcher;
 }
-if (typeof module !== 'undefined' && (module as any).exports) {
-    (module as any).exports = AssetFetcher;
-}
 
 export default AssetFetcher;
 

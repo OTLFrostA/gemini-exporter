@@ -136,8 +136,6 @@ declare global {
                                 } else {
                                     unchangedStreak = 0;
                                 }
-                            } else if (!stored) {
-                                unchangedStreak = 0;
                             } else {
                                 unchangedStreak = 0;
                             }
