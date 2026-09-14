@@ -45,7 +45,12 @@ export class GeminiProvider implements AIProvider {
 
     matchesUrl(url: string): boolean {
         if (!url || typeof url !== 'string') return false;
-        return url.startsWith('https://gemini.google.com');
+        try {
+            const parsed = new URL(url);
+            return parsed.hostname === 'gemini.google.com' || parsed.hostname === 'bard.google.com';
+        } catch {
+            return false;
+        }
     }
 
     async checkReadiness(context?: any): Promise<ProviderReadiness> {

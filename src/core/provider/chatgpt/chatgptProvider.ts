@@ -163,7 +163,12 @@ export class ChatGPTProvider implements AIProvider {
 
     matchesUrl(url: string): boolean {
         if (!url || typeof url !== 'string') return false;
-        return url.startsWith('https://chatgpt.com') || url.startsWith('https://chat.openai.com');
+        try {
+            const parsed = new URL(url);
+            return parsed.hostname === 'chatgpt.com' || parsed.hostname === 'chat.openai.com';
+        } catch {
+            return false;
+        }
     }
 
     async checkReadiness(_context?: any): Promise<ProviderReadiness> {
