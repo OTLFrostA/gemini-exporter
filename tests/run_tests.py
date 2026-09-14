@@ -404,9 +404,17 @@ def test_content_badge_flicker_prevention():
     if os.path.exists(badge_js_path):
         with open(badge_js_path, "r", encoding="utf-8") as f:
             badge_js = f.read()
+    observer_ts = os.path.join(BASE_DIR, "src/content/pageObserver.ts")
+    observer_path = observer_ts if os.path.isfile(observer_ts) else os.path.join(BASE_DIR, "src/content/pageObserver.js")
+    with open(observer_path, "r", encoding="utf-8") as f:
+        observer_js = f.read()
+    sync_ts = os.path.join(BASE_DIR, "src/content/syncEngine.ts")
+    sync_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
+    with open(sync_path, "r", encoding="utf-8") as f:
+        sync_js = f.read()
     combined_js = js + badge_js
-    assert "debouncedSyncOnce" in js, "content.js should debounce syncOnce triggers"
-    assert re.search(r'changed\s*===?\s*0', js), "content.js upsertConversations should skip writes when changed === 0"
+    assert "debouncedSync" in observer_js, "pageObserver.js should debounce sync triggers"
+    assert re.search(r'changed\s*===?\s*0', sync_js), "syncEngine.js upsertConversations should skip writes when changed === 0"
     assert "textContent" in combined_js and "targetText" in combined_js, "badgeView/content.js updateBadge should guard textContent updates"
     assert "existing.isConnected" in combined_js or "isConnected" in combined_js, "badgeView/content.js ensureBadge should check isConnected"
     print("  ✓ Content badge flicker prevention verified")
@@ -675,12 +683,12 @@ def test_takeout_limit_modal_and_wall_detection():
     assert "gemini_pending_takeout_prompt" in options_code, "options.js should check gemini_pending_takeout_prompt"
     assert "checkPendingTakeoutPrompt" in options_code, "options.js should have checkPendingTakeoutPrompt"
 
-    # 5. Ensure content.js records gemini_pending_takeout_prompt when limit hit
-    content_ts = os.path.join(BASE_DIR, "src/content/content.ts")
-    content_js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/content/content.js")
-    with open(content_js_path, "r", encoding="utf-8") as f:
-        content_code = f.read()
-    assert "gemini_pending_takeout_prompt" in content_code, "content.js should persist gemini_pending_takeout_prompt"
+    # 5. Ensure syncEngine.js records gemini_pending_takeout_prompt when limit hit
+    sync_ts = os.path.join(BASE_DIR, "src/content/syncEngine.ts")
+    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
+    with open(sync_js_path, "r", encoding="utf-8") as f:
+        sync_code = f.read()
+    assert "gemini_pending_takeout_prompt" in sync_code, "syncEngine.js should persist gemini_pending_takeout_prompt"
 
     # 6. Ensure single-time tutorial prompt behavior (isTakeoutPromptCompleted & has_completed_takeout_prompt)
     storage_ts = os.path.join(BASE_DIR, "src/core/storage/storageService.ts")
@@ -726,12 +734,12 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "__slotTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
     assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
 
-    # 3. Verify SSoT compareConversations in content.js and options.js
-    content_ts = os.path.join(BASE_DIR, "src/content/content.ts")
-    content_js_path = content_ts if os.path.isfile(content_ts) else os.path.join(BASE_DIR, "src/content/content.js")
-    with open(content_js_path, "r", encoding="utf-8") as f:
-        content_code = f.read()
-    assert "compareConversations" in content_code, "content.js upsertConversations must use compareConversations SSoT"
+    # 3. Verify SSoT compareConversations in syncEngine.ts and options.js
+    sync_ts = os.path.join(BASE_DIR, "src/content/syncEngine.ts")
+    sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
+    with open(sync_js_path, "r", encoding="utf-8") as f:
+        sync_code = f.read()
+    assert "compareConversations" in sync_code, "syncEngine.js upsertConversations must use compareConversations SSoT"
 
     options_ts = os.path.join(BASE_DIR, "src/ui/options/options.ts")
     options_js_path = options_ts if os.path.isfile(options_ts) else os.path.join(BASE_DIR, "src/ui/options/options.js")
