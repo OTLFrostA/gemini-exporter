@@ -620,6 +620,12 @@ export const sanitizeZipPath = (p?: string | null): string =>
                     const listTitle = resolvedRes.listTitle;
                     chat.title = listTitle;
 
+                    const actualMsgCount = Array.isArray(chat.messages) ? chat.messages.length : (chat.messageCount || 0);
+                    if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
+                        listC.messageCount = actualMsgCount;
+                        convsNeedSave = true;
+                    }
+
                     const ChatFormatter = (globalThis as any).ChatFormatter;
                     const formatted = typeof ChatFormatter !== 'undefined' && ChatFormatter.formatContent
                         ? ChatFormatter.formatContent(chat, format)
@@ -737,7 +743,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
                                 title: listTitle,
                                 exportedAt: new Date().toISOString(),
                                 format: options.format || 'markdown',
-                                messageCount: chat.messageCount || chat.messages?.length || 0,
+                                messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
                                 chatTime: exportTs,
                                 status: 'ok'
                             };

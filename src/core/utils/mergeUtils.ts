@@ -1,7 +1,7 @@
 // mergeUtils.ts - Conversation merging and deduplication utilities
 
 import { normId, isReservedRoute } from './pathUtils.js';
-import { cleanTitle, isRealTitle, resolveTitle, compareConversations, isBrandPlaceholderTitle as isBadTitle } from './titleUtils.js';
+import { cleanTitle, isRealTitle, resolveTitle, compareConversations, isBrandPlaceholderTitle as isBadTitle, TITLE_TIER_RANK } from './titleUtils.js';
 
 export interface MergeConversationOptions {
     isRpcSource?: boolean;
@@ -34,12 +34,30 @@ export function mergeConversation(
     const id = normId(incoming?.id || old?.id || '');
     const mergedTitles: Record<string, string> = { ...(old?.titles || {}) };
 
+    // 0. Seed old title and source into mergedTitles if present
+    if (old && old.titleSource && old.title && !mergedTitles[old.titleSource]) {
+        const cleanOldT = cleanTitle(old.title);
+        if (cleanOldT && (isRealTitle(cleanOldT, id) || old.titleSource === 'takeout')) {
+            mergedTitles[old.titleSource] = cleanOldT;
+        }
+    } else if (old && old.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
+        const cleanOldT = cleanTitle(old.title);
+        if (cleanOldT && isRealTitle(cleanOldT, id)) {
+            mergedTitles.legacy = cleanOldT;
+        }
+    }
+
     // 1. Merge incoming.titles if provided
     if (incoming?.titles && typeof incoming.titles === 'object') {
         for (const [k, v] of Object.entries(incoming.titles)) {
             if (typeof v === 'string') {
                 const cleanV = cleanTitle(v);
                 if (cleanV && (isRealTitle(cleanV, id) || k === 'takeout')) {
+                    if (k === 'sniff' && mergedTitles.sniff && mergedTitles.sniff !== cleanV) {
+                        if (mergedTitles.sniff.startsWith(cleanV) && cleanV.length < mergedTitles.sniff.length) {
+                            continue;
+                        }
+                    }
                     mergedTitles[k] = cleanV;
                 }
             }
@@ -50,25 +68,21 @@ export function mergeConversation(
     if (incoming?.titleSource && incoming?.title) {
         const cleanT = cleanTitle(incoming.title);
         if (cleanT && (isRealTitle(cleanT, id) || incoming.titleSource === 'takeout')) {
-            mergedTitles[incoming.titleSource] = cleanT;
+            const inSrc = incoming.titleSource;
+            if (inSrc === 'sniff' && mergedTitles.sniff && mergedTitles.sniff !== cleanT) {
+                if (mergedTitles.sniff.startsWith(cleanT) && cleanT.length < mergedTitles.sniff.length) {
+                    // Do not overwrite longer sniff with truncated prefix
+                } else {
+                    mergedTitles.sniff = cleanT;
+                }
+            } else {
+                mergedTitles[inSrc] = cleanT;
+            }
         }
     } else if (incoming?.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
         const cleanT = cleanTitle(incoming.title);
         if (cleanT && isRealTitle(cleanT, id)) {
             mergedTitles.legacy = cleanT;
-        }
-    }
-
-    // 3. Preserve old title if real and not yet in titles
-    if (old && old.titleSource && old.title && !mergedTitles[old.titleSource]) {
-        const cleanOldT = cleanTitle(old.title);
-        if (cleanOldT && (isRealTitle(cleanOldT, id) || old.titleSource === 'takeout')) {
-            mergedTitles[old.titleSource] = cleanOldT;
-        }
-    } else if (old && old.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
-        const cleanOldT = cleanTitle(old.title);
-        if (cleanOldT && isRealTitle(cleanOldT, id)) {
-            mergedTitles.legacy = cleanOldT;
         }
     }
 

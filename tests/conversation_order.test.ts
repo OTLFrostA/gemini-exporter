@@ -349,5 +349,58 @@ test('Continuing old conversation - updates timestamp and elevates conversation 
     assert.strictEqual(updatedList[3].id, 'c_top3');
 });
 
+test('Title arbitration & non-downgrade CAS immunity - Takeout and DOM titles cannot be overwritten by truncated sniff', () => {
+    // 1. Existing Takeout conversation
+    const oldTakeout = {
+        id: 'c_tock_resy',
+        title: '预约平台混淆： Tock与Resy的区别',
+        titleSource: 'takeout',
+        titles: { takeout: '预约平台混淆： Tock与Resy的区别' },
+        updatedAt: 1000
+    };
+
+    // 2. Incoming sniff from detail RPC with truncated smartSummarizePrompt
+    const incomingSniff = {
+        id: 'tock_resy',
+        title: '预约平台混淆',
+        titleSource: 'sniff',
+        titles: { sniff: '预约平台混淆' },
+        updatedAt: 1000
+    };
+
+    const res1 = GeminiUtils.mergeConversation(oldTakeout, incomingSniff, { source: 'network-detail' });
+    assert.strictEqual(res1.merged.title, '预约平台混淆： Tock与Resy的区别', 'Takeout title must NOT be overwritten by truncated sniff title');
+    assert.strictEqual(res1.merged.titleSource, 'takeout');
+
+    // 3. Incoming DOM title upgrades Takeout title
+    const incomingDom = {
+        id: 'tock_resy',
+        title: '预约平台混淆： Tock与Resy的区别 (完整版)',
+        titleSource: 'dom',
+        titles: { dom: '预约平台混淆： Tock与Resy的区别 (完整版)' },
+        updatedAt: 1000
+    };
+    const res2 = GeminiUtils.mergeConversation(res1.merged, incomingDom, { source: 'dom-scrape' });
+    assert.strictEqual(res2.merged.title, '预约平台混淆： Tock与Resy的区别 (完整版)', 'DOM title must upgrade Takeout title');
+    assert.strictEqual(res2.merged.titleSource, 'dom');
+
+    // 4. Later incoming sniff still cannot downgrade DOM title
+    const res3 = GeminiUtils.mergeConversation(res2.merged, incomingSniff, { source: 'network-detail' });
+    assert.strictEqual(res3.merged.title, '预约平台混淆： Tock与Resy的区别 (完整版)', 'DOM title must NOT be downgraded by sniff');
+    assert.strictEqual(res3.merged.titleSource, 'dom');
+
+    // 5. Incoming authoritative RPC title upgrades DOM title
+    const incomingRpc = {
+        id: 'tock_resy',
+        title: '预约平台混淆： Tock与Resy的区别 (权威RPC)',
+        titleSource: 'rpc',
+        titles: { rpc: '预约平台混淆： Tock与Resy的区别 (权威RPC)' },
+        updatedAt: 1000
+    };
+    const res4 = GeminiUtils.mergeConversation(res3.merged, incomingRpc, { source: 'network-list' });
+    assert.strictEqual(res4.merged.title, '预约平台混淆： Tock与Resy的区别 (权威RPC)', 'RPC title must upgrade DOM title');
+    assert.strictEqual(res4.merged.titleSource, 'rpc');
+});
+
 
 

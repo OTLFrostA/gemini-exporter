@@ -81,15 +81,15 @@ export function extractActiveChatTitle(activeId: string): { title: string; sourc
         const t = cleanTitle(activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '');
         if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
     }
-    // 3. From first user query on the page (Tier: 'sniff')
+    // 3. From document.title only if it is a real title (Tier: 'dom')
+    if (document.title) {
+        const t = cleanTitle(document.title);
+        if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
+    }
+    // 4. From first user query on the page (Tier: 'sniff' fallback)
     const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
     if (firstUserQuery) {
         const t = cleanTitle((firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' '));
-        if (isRealTitle(t, activeId)) return { title: t, source: 'sniff' };
-    }
-    // 4. From document.title only if it is a real title (Tier: 'sniff')
-    if (document.title) {
-        const t = cleanTitle(document.title);
         if (isRealTitle(t, activeId)) return { title: t, source: 'sniff' };
     }
     return null;
