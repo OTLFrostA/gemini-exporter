@@ -553,190 +553,18 @@ class CDPActions(ExtensionActions):
 
     @staticmethod
     def ensure_model_and_thinking(cdp, target_model: str = "3.8 Flash", target_thinking: bool = True, force_menu_check: bool = False) -> bool:
-        """
-        严格校验并锁定 Gemini 模型与思考模式。
-        如果 target_model="3.8 Flash"，严格检查菜单中是否存在 3.8 Flash 选项。
-        如果 target_thinking=True，严格检查菜单中是否存在 Extended thinking (深度思考) 选项。
-        若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
-        """
-        for pass_idx in range(3):
-            status = cdp.eval(f"""
-            (() => {{
-                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                if (!btn) return null;
-                const text = (btn.textContent || '').trim();
-                const label = (btn.getAttribute('aria-label') || '').trim();
-                return {{ text, label, disabled: !!btn.disabled }};
-            }})()
-            """)
-            if not status:
-                time.sleep(0.5)
-                continue
-
-            full_desc = f"{status.get('label', '')} {status.get('text', '')}".lower()
-            is_lite = "flash-lite" in full_desc or "lite" in full_desc
-            has_model = ("flash" in full_desc and not is_lite) if "flash" in target_model.lower() else (target_model.lower() in full_desc)
-            has_thinking = ("extended" in full_desc or "thinking" in full_desc) if target_thinking else True
-
-            # 如果不强制打开菜单，且当前按钮已显示目标模式，则直接通过
-            if has_model and has_thinking and not force_menu_check:
-                return True
-
-            # 点击展开模式选择菜单以进行物理菜单项门禁校验与切换
-            opened = cdp.eval(f"""
-            (() => {{
-                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                if (btn && !btn.disabled) {{
-                    btn.click();
-                    return true;
-                }}
-                return false;
-            }})()
-            """)
-            if not opened:
-                time.sleep(0.5)
-                continue
-
-            time.sleep(0.5)
-
-            # 抓取菜单项并执行硬门禁断言
-            menu_info = cdp.eval(f"""
-            (() => {{
-                const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                if (!menu) return null;
-                const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                return items.map(el => ({{
-                    text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
-                    isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
-                }}));
-            }})()
-            """)
-
-            if not menu_info:
-                cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                raise RuntimeError("❌【测试安全门禁拦截】无法打开 Gemini 模型切换菜单，测试已主动终止！")
-
-            # 检查目标选项是否存在 (Fail-Fast 门禁)
-            if "3.8" in target_model.lower() and "flash" in target_model.lower():
-                has_target_model_opt = any(
-                    ("3.8" in it["text"].lower() and "flash" in it["text"].lower() and "lite" not in it["text"].lower())
-                    for it in menu_info
-                )
-                target_model_label = "3.8 Flash"
-            elif "flash" in target_model.lower():
-                has_target_model_opt = any(
-                    ("flash" in it["text"].lower() and "lite" not in it["text"].lower())
-                    for it in menu_info
-                )
-                target_model_label = "Flash"
-            else:
-                has_target_model_opt = any(target_model.lower() in it["text"].lower() for it in menu_info)
-                target_model_label = target_model
-
-            has_thinking_opt = any(
-                ("extended" in it["text"].lower() and "thinking" in it["text"].lower())
-                for it in menu_info
-            )
-
-            missing = []
-            if not has_target_model_opt:
-                missing.append(f"{target_model_label} 模型选项")
-            if target_thinking and not has_thinking_opt:
-                missing.append("Extended thinking (深度思考) 选项")
-
-            if missing:
-                cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                avail = [it["text"] for it in menu_info]
-                err_msg = f"❌【测试安全门禁拦截】当前 Gemini 页面中缺失必要能力: {' 和 '.join(missing)}！当前可用菜单项: {avail}。测试已被强制熔断终止，杜绝盲跑或使用非预期模型。"
-                print(f"\n🛑 {err_msg}\n")
-                raise RuntimeError(err_msg)
-
-            # 检查是否已全部处于选中状态
-            is_flash_selected = any(
-                ("3.8" in it["text"].lower() and "flash" in it["text"].lower() and "lite" not in it["text"].lower() and it["isSelected"])
-                for it in menu_info
-            )
-            is_thinking_selected = any(
-                ("extended" in it["text"].lower() and "thinking" in it["text"].lower() and it["isSelected"])
-                for it in menu_info
-            )
-
-            if is_flash_selected and is_thinking_selected:
-                # 两者均已激活，平稳关闭菜单
-                cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                time.sleep(0.3)
-                return True
-
-            # 若未选中，点击切换至目标模型与思考模式
-            if not is_flash_selected:
-                cdp.eval(f"""
-                (() => {{
-                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                    if (!menu) return;
-                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                    for (const el of items) {{
-                        const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('3.8 flash') || (t.includes('3.8') && t.includes('flash'))) {{
-                            el.click();
-                            return;
-                        }}
-                    }}
-                }})()
-                """)
-                time.sleep(0.5)
-
-            if not is_thinking_selected:
-                # 重新检查菜单是否仍开启，若关闭则重新打开
-                still_open = cdp.eval(f"!!document.querySelector('{GeminiSelectors.MODE_MENU}')")
-                if not still_open:
-                    cdp.eval(f"""
-                    (() => {{
-                        const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                        if (btn) btn.click();
-                    }})()
-                    """)
-                    time.sleep(0.5)
-
-                cdp.eval(f"""
-                (() => {{
-                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                    if (!menu) return;
-                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                    for (const el of items) {{
-                        const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('extended thinking') || (t.includes('extended') && t.includes('thinking'))) {{
-                            el.click();
-                            return;
-                        }}
-                    }}
-                }})()
-                """)
-                time.sleep(0.5)
-
-            # 确保关闭浮层
-            cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-            cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-            time.sleep(0.4)
-            # 完成一次物理校验和切换后，force_menu_check 视为完成
-            force_menu_check = False
-
-        final_status = cdp.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-            return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')).toLowerCase() : '';
-        }})()
-        """) or ""
-        if "flash" in final_status and ("extended" in final_status or "thinking" in final_status):
-            return True
-
-        raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + Extended thinking！当前状态: '{final_status}'。测试已被主动终止。")
+        """严格校验并锁定 Gemini 模型与思考模式 (委托至 GeminiPlatformDriver 权威实现)"""
+        from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
+        driver = GeminiPlatformDriver(cdp)
+        return driver.ensure_model(
+            target_model=target_model,
+            target_thinking=target_thinking,
+            force_menu_check=force_menu_check
+        )
 
     @staticmethod
     def send_gemini_turn(cdp, turn_input: Any, max_wait: int = 300) -> Tuple[bool, str]:
-        """向 Gemini 聚焦输入框、粘贴 Prompt、单次物理点击并以单飞串行流水线权威等待流式生成落地"""
+        """向 Gemini 聚焦输入框、粘贴 Prompt、单次物理点击并以单飞串行流水线权威等待流式生成落地 (受网关监控)"""
         if isinstance(turn_input, dict):
             prompt_text = turn_input.get("prompt", "")
         else:
@@ -748,17 +576,7 @@ class CDPActions(ExtensionActions):
 
         from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
         driver = GeminiPlatformDriver(cdp)
-        result = _SHARED_PIPELINE_EXECUTOR.execute_driver_turn(
-            ctx=None,
-            driver=driver,
-            prompt_text=prompt_text,
-            max_wait=max_wait,
-            is_image=is_image_gen,
-            cooldown_seconds=0.0
-        )
-        if result.success:
-            return True, f"流式生成权威落地 (单飞执行器完成, 耗时 {result.duration:.1f}s)"
-        return False, f"发帖流水线熔断: {result.error}"
+        return driver.execute_turn_pipeline(prompt_text, max_wait=max_wait, is_image=is_image_gen)
 
     @staticmethod
     def click_new_chat(cdp) -> bool:

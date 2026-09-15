@@ -8,7 +8,8 @@ session lifecycle transitions, and turn evaluations into clean, declarative APIs
 from .platform_driver import (
     ChatPlatformDriver,
     TurnResult,
-    PlatformCapabilities
+    PlatformCapabilities,
+    PlatformRegistry
 )
 from .gemini_driver import (
     GeminiPlatformDriver,
@@ -20,6 +21,7 @@ __all__ = [
     "ChatPlatformDriver",
     "TurnResult",
     "PlatformCapabilities",
+    "PlatformRegistry",
     "GeminiPlatformDriver",
     "GeminiDriver",
     "GeminiChatSession"

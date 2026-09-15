@@ -4,6 +4,7 @@ from .process_lock import ProcessLock, ProcessLockError
 from .actions import (
     AtomicAction,
     ActionResult,
+    UniversalInputAction,
     AssertIdleAction,
     StagePromptAction,
     SingleClickSendAction,
@@ -23,6 +24,7 @@ __all__ = [
     "ProcessLockError",
     "AtomicAction",
     "ActionResult",
+    "UniversalInputAction",
     "AssertIdleAction",
     "StagePromptAction",
     "SingleClickSendAction",

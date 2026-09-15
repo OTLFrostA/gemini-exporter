@@ -120,6 +120,44 @@ class TestSafeInteractionGatewaySuite(unittest.TestCase):
         g2 = get_gateway()
         self.assertIs(g1, g2)
 
+    def test_safe_send_turn_success_and_audit(self):
+        mock_cdp = MagicMock()
+        mock_cdp.eval.return_value = {"hasCaptcha": False, "hasAbuse": False}
+        send_fn = MagicMock(return_value=(True, "ok"))
+
+        res = self.gateway.safe_send_turn(mock_cdp, send_fn, "Hello Gemini", custom_cooldown=0.0)
+        self.assertEqual(res, (True, "ok"))
+        send_fn.assert_called_once_with(mock_cdp, "Hello Gemini")
+        self.assertTrue(any(e["action"] == "SEND_TURN" and e["status"] == "SUCCESS" for e in self.gateway.audit_log))
+
+    def test_safe_send_turn_circuit_breaker_on_captcha(self):
+        mock_cdp = MagicMock()
+        mock_cdp.eval.return_value = {"hasCaptcha": True, "hasAbuse": False}
+        send_fn = MagicMock()
+
+        from scripts.framework.gateway import CircuitBreakerError
+        with self.assertRaises(CircuitBreakerError):
+            self.gateway.safe_send_turn(mock_cdp, send_fn, "Trigger CAPTCHA", custom_cooldown=0.0)
+        send_fn.assert_not_called()
+
+    def test_safe_send_turn_circuit_breaker_on_quota_error(self):
+        mock_cdp = MagicMock()
+        mock_cdp.eval.return_value = {"hasCaptcha": False, "hasAbuse": False}
+        send_fn = MagicMock(return_value=(False, "HTTP 429 Too Many Requests: quota exceeded"))
+
+        from scripts.framework.gateway import CircuitBreakerError
+        with self.assertRaises(CircuitBreakerError):
+            self.gateway.safe_send_turn(mock_cdp, send_fn, "Spam turn", custom_cooldown=0.0)
+
+    def test_safe_delete_success_and_audit(self):
+        mock_cdp = MagicMock()
+        delete_fn = MagicMock(return_value=True)
+
+        res = self.gateway.safe_delete(mock_cdp, delete_fn, "c_123456", custom_cooldown=0.0)
+        self.assertTrue(res)
+        delete_fn.assert_called_once_with(mock_cdp, "c_123456")
+        self.assertTrue(any(e["action"] == "DELETE_CHAT" and e["target"] == "c_123456" for e in self.gateway.audit_log))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -117,9 +117,11 @@ class TestContext:
         conn = cdp or self.connect_gemini()
         return GeminiPlatformDriver(conn)
 
-    def get_platform_driver(self, cdp: Optional[CDPConnection] = None):
-        """获取当前配置的平台自动化驱动契约对象（当前默认返回 GeminiPlatformDriver）"""
-        return self.get_gemini_driver(cdp)
+    def get_platform_driver(self, cdp: Optional[CDPConnection] = None, platform_id: str = "gemini"):
+        """获取当前配置的平台自动化驱动契约对象 (通过 PlatformRegistry 动态发现与创建)"""
+        from scripts.framework.driver import PlatformRegistry
+        conn = cdp or self.connect_gemini()
+        return PlatformRegistry.create_driver(platform_id, conn)
 
 
 

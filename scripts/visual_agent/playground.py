@@ -33,8 +33,11 @@ from scripts.cdp_client import (
 from scripts.framework.pipeline.actions import (
     AwaitStreamSettledAction,
     AssertIdleAction,
-    StreamSettledConfig
+    StreamSettledConfig,
+    UniversalInputAction
 )
+from scripts.framework.selectors import WorkbenchSelectors
+from scripts.framework.gateway import get_gateway
 
 
 @dataclass
@@ -313,30 +316,22 @@ class VisualPlayground:
     ):
         """
         Hardware-level text input primitive:
-        1. Physically clicks (x, y) to gain focus if provided.
-        2. Optionally triggers Cmd+A / Ctrl+A + Backspace to clear existing input.
-        3. Inserts text via CDP Input.insertText at physical focus.
+        1. Physically clicks (x, y) to gain focus if coordinates provided.
+        2. If clear_first=True, deterministically clears the target element via Tier 2 UniversalInputAction
+           (with coordinate hit-testing) and physical KeyA / Backspace keystrokes.
+        3. Inserts text via Tier 2 UniversalInputAction and CDP Input.insertText at physical focus.
+        Note: To simply clear an input at (x, y), call input_text("", x=x, y=y, clear_first=True).
         """
+        px_x, px_y = self._to_pixel(x, y) if (x is not None and y is not None) else (None, None)
+        point = (px_x, px_y) if (px_x is not None and px_y is not None) else None
+
         if x is not None and y is not None:
             self.mouse_click(x, y, label="focus_for_input")
             time.sleep(0.1)
 
         if clear_first:
             try:
-                self.cdp.eval("""(() => {
-                    const el = document.activeElement;
-                    if (el) {
-                        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                            el.select();
-                        } else {
-                            const range = document.createRange();
-                            range.selectNodeContents(el);
-                            const sel = window.getSelection();
-                            sel.removeAllRanges();
-                            sel.addRange(range);
-                        }
-                    }
-                })()""")
+                UniversalInputAction.clear_target(self.cdp, point=point)
             except Exception:
                 pass
             is_mac = platform.system().lower() == "darwin"
@@ -372,7 +367,7 @@ class VisualPlayground:
 
         if text:
             if use_insert:
-                self.cdp.call("Input.insertText", {"text": text})
+                UniversalInputAction.insert_text(self.cdp, text, point=point)
             else:
                 for ch in text:
                     self.cdp.call("Input.dispatchKeyEvent", {"type": "char", "text": ch})
@@ -382,6 +377,9 @@ class VisualPlayground:
         self.history.append({
             "action": "input_text",
             "text": text,
+            "x": x,
+            "y": y,
+            "clear_first": clear_first,
             "timestamp": time.time()
         })
 
@@ -437,11 +435,11 @@ class VisualPlayground:
             start_wait = time.time()
 
             for _ in range(int(min(timeout, 60))):
-                status = self.cdp.eval("""
-                (() => {
-                    const btn = document.getElementById('btnExport');
-                    return { isRunning: btn && btn.disabled };
-                })()
+                status = self.cdp.eval(f"""
+                (() => {{
+                    const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
+                    return {{ isRunning: btn && btn.disabled }};
+                }})()
                 """)
                 if not status or not status.get("isRunning"):
                     break
@@ -537,9 +535,10 @@ class VisualPlayground:
                     pass
             clean_cid = None
             if norm_target == "gemini":
+                gateway = get_gateway()
                 if new_chat:
                     try:
-                        self.cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
+                        gateway.safe_navigate(self.cdp, "https://gemini.google.com/app")
                     except Exception:
                         pass
                 elif chat_id:
@@ -547,7 +546,7 @@ class VisualPlayground:
                     if clean_cid.startswith("c_"):
                         clean_cid = clean_cid[2:]
                     try:
-                        self.cdp.call("Page.navigate", {"url": f"https://gemini.google.com/app/{clean_cid}"})
+                        gateway.safe_navigate(self.cdp, f"https://gemini.google.com/app/{clean_cid}")
                     except Exception:
                         pass
             self._save_state(chat_id=clean_cid)
@@ -595,31 +594,19 @@ class VisualPlayground:
             except Exception:
                 pass
 
-        # 导航处理：全新对话 或 指定会话 ID
+        # 导航处理：全新对话 或 指定会话 ID (100% 复用 Tier 2 网关与平台驱动，绝无私有 DOM innerHTML 篡改)
         clean_cid = None
         if norm_target == "gemini":
+            from scripts.framework.actions import CDPActions
+            gateway = get_gateway()
+
             if new_chat:
                 try:
-                    self.cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
+                    gateway.safe_navigate(self.cdp, "https://gemini.google.com/app")
                 except Exception:
                     pass
-                time.sleep(1.5)
-                # 确定性等待输入框就绪并清空残留草稿
-                t0 = time.time()
-                while time.time() - t0 < timeout:
-                    ready = self.cdp.eval("""
-                    (() => {
-                        const editor = document.querySelector('rich-textarea, div[contenteditable="true"], .ql-editor');
-                        if (!editor) return false;
-                        const p = editor.querySelector('p') || editor;
-                        p.innerHTML = '<br>';
-                        editor.dispatchEvent(new Event('input', { bubbles: true }));
-                        return true;
-                    })()
-                    """)
-                    if ready:
-                        break
-                    time.sleep(0.4)
+                time.sleep(1.0)
+                CDPActions.wait_for_gemini_ready(self.cdp, max_wait=int(timeout))
             elif chat_id:
                 clean_cid = str(chat_id).strip()
                 if clean_cid.startswith("c_"):
@@ -628,23 +615,11 @@ class VisualPlayground:
                 curr_url = target_tab.get("url", "")
                 if clean_cid not in curr_url:
                     try:
-                        self.cdp.call("Page.navigate", {"url": target_url})
+                        gateway.safe_navigate(self.cdp, target_url)
                     except Exception:
                         pass
-                    time.sleep(1.5)
-
-                # 确定性等待输入框或对话树就绪
-                t0 = time.time()
-                while time.time() - t0 < timeout:
-                    ready = self.cdp.eval("""
-                    (() => {
-                        const editor = document.querySelector('rich-textarea, div[contenteditable="true"], .ql-editor');
-                        return !!editor;
-                    })()
-                    """)
-                    if ready:
-                        break
-                    time.sleep(0.4)
+                    time.sleep(1.0)
+                CDPActions.wait_for_gemini_ready(self.cdp, max_wait=int(timeout))
 
         self._setup_viewport()
         self._setup_download_behavior()

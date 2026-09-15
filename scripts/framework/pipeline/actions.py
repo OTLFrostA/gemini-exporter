@@ -81,6 +81,155 @@ class AssertIdleAction(AtomicAction):
         return ActionResult(False, f"页面在 {self.max_wait}s 内未能恢复空闲 (前序流式或任务尚未结束)")
 
 
+class UniversalInputAction:
+    """
+    Tier 2 基础设施：通用输入与清空原语。
+    支持物理坐标碰撞寻址 (document.elementFromPoint(x, y))、CSS 选择器或当前焦点元素。
+    无论目标是原生 <input>/<textarea> 还是复杂富文本框 (Quill / contenteditable)，
+    均执行确定性清空、CDP Input.insertText 插入及标准框架事件分发。
+    """
+
+    @staticmethod
+    def clear_target(
+        cdp: Any,
+        point: Optional[Tuple[int, int]] = None,
+        selector: Optional[str] = None
+    ) -> bool:
+        """
+        确定性清空目标元素。
+        优先使用 point=(px_x, px_y) 进行物理光标碰撞寻找可编辑容器。
+        """
+        if not cdp:
+            return False
+
+        px_x = point[0] if point and len(point) >= 2 else None
+        px_y = point[1] if point and len(point) >= 2 else None
+
+        res = cdp.eval(f"""
+        (() => {{
+            let target = null;
+            const px = {json.dumps(px_x)};
+            const py = {json.dumps(px_y)};
+            const sel = {json.dumps(selector)};
+
+            if (px !== null && py !== null) {{
+                const hit = document.elementFromPoint(px, py);
+                if (hit) {{
+                    target = hit.closest('input, textarea, [contenteditable="true"], rich-textarea, .ql-editor') || hit;
+                }}
+            }}
+
+            if (!target && sel) {{
+                target = document.querySelector(sel);
+            }}
+
+            if (!target) {{
+                target = document.activeElement;
+            }}
+
+            if (!target) return false;
+
+            target.focus();
+
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {{
+                target.value = '';
+                target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                target.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                return true;
+            }}
+
+            // 富文本 / ContentEditable / rich-textarea / Quill
+            const p = target.querySelector('p') || target;
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            const selection = window.getSelection();
+            if (selection) {{
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }}
+            try {{
+                document.execCommand('delete', false, null);
+            }} catch (e) {{}}
+
+            if ((target.textContent || '').trim().length > 0) {{
+                p.innerHTML = '<br>';
+            }}
+            target.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'deleteContentBackward' }}));
+            target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+            target.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            return true;
+        }})()
+        """)
+        return bool(res)
+
+    @staticmethod
+    def insert_text(
+        cdp: Any,
+        text: str,
+        point: Optional[Tuple[int, int]] = None,
+        selector: Optional[str] = None
+    ) -> bool:
+        """
+        在目标元素聚焦后，通过 CDP 原生 Input.insertText 插入文本并派发框架事件。
+        """
+        if not cdp:
+            return False
+
+        px_x = point[0] if point and len(point) >= 2 else None
+        px_y = point[1] if point and len(point) >= 2 else None
+
+        # 1. 物理寻址并上焦
+        cdp.eval(f"""
+        (() => {{
+            let target = null;
+            const px = {json.dumps(px_x)};
+            const py = {json.dumps(px_y)};
+            const sel = {json.dumps(selector)};
+
+            if (px !== null && py !== null) {{
+                const hit = document.elementFromPoint(px, py);
+                if (hit) {{
+                    target = hit.closest('input, textarea, [contenteditable="true"], rich-textarea, .ql-editor') || hit;
+                }}
+            }}
+
+            if (!target && sel) {{
+                target = document.querySelector(sel);
+            }}
+
+            if (!target) {{
+                target = document.activeElement;
+            }}
+
+            if (target) {{
+                target.focus();
+                return true;
+            }}
+            return false;
+        }})()
+        """)
+        time.sleep(0.05)
+
+        # 2. 原生 CDP insertText
+        if text:
+            cdp.call("Input.insertText", {"text": text})
+            time.sleep(0.05)
+
+        # 3. 派发 input 与 change 事件保证框架数据绑定感知
+        cdp.eval("""
+        (() => {
+            const el = document.activeElement;
+            if (el) {
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+            }
+            return false;
+        })()
+        """)
+        return True
+
+
 class StagePromptAction(AtomicAction):
     """原子化注入 Prompt 文本，彻底清空富文本框模型，坚决不触碰发送按钮"""
 
@@ -101,42 +250,19 @@ class StagePromptAction(AtomicAction):
         return PipelineStage.STAGED
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
-        # 1. 彻底清空编辑器并触发 input 事件
-        cdp.eval(f"""
-        (() => {{
-            const editor = document.querySelector('{self.editor_selector}');
-            if (editor) {{
-                editor.focus();
-                const sel = window.getSelection();
-                const range = document.createRange();
-                range.selectNodeContents(editor);
-                sel.removeAllRanges();
-                sel.addRange(range);
-                document.execCommand('delete', false, null);
-                if (editor.textContent.trim().length > 0) {{
-                    editor.innerHTML = '<p><br></p>';
-                    editor.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'deleteContentBackward' }}));
-                }}
-                editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
-            }}
-        }})()
-        """)
-        time.sleep(0.3)
+        # 1. 彻底清空目标编辑器
+        UniversalInputAction.clear_target(cdp, selector=self.editor_selector)
+        time.sleep(0.2)
 
-        # 2. 原生输入文本
-        cdp.call("Input.insertText", {"text": self.prompt_text})
-        time.sleep(0.3)
+        # 2. 原生输入文本并派发事件
+        UniversalInputAction.insert_text(cdp, self.prompt_text, selector=self.editor_selector)
+        time.sleep(0.2)
 
-        # 3. 分发 change/input 事件
+        # 3. 校验注入结果
         staged_len = cdp.eval(f"""
         (() => {{
             const editor = document.querySelector('{self.editor_selector}');
-            if (editor) {{
-                editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                editor.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                return (editor.textContent || '').trim().length;
-            }}
-            return 0;
+            return editor ? (editor.textContent || '').trim().length : 0;
         }})()
         """) or 0
 
