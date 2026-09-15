@@ -929,5 +929,71 @@
     ],
     "consumed_at": "2026-09-14T16:12:15.903225",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "synthetic_aperture_radar_interferometry",
+    "title": "雷达遥感与干涉测量：InSAR 差分相位解缠与地表形变反演",
+    "domain": "radar_remote_sensing_insar",
+    "description": "测试 SAR 卫星干涉条纹生图 (Imagen)、干涉几何推导、二维相位解缠算法实现与时序 InSAR 方案对比",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "math",
+      "latex"
+    ],
+    "turns": [
+      "请帮我生成一张图片：在地球近地轨道上，一颗配备巨大展开式相控阵天线的合成孔径雷达（SAR）卫星正在向夜半球地表发射微波雷达波束，地表投影出色彩斑斓的 InSAR 双轨干涉干涉图条纹（Interferogram Fringes），覆盖正在缓慢沉降的活火山地貌，科技感十足的高清科学可视化图。",
+      "请从电磁波相位传播几何出发，推导出合成孔径雷达干涉相位公式 \\Delta \\phi = \\phi_{\\text{topo}} + \\phi_{\\text{def}} + \\phi_{\\text{atm}} + \\phi_{\\text{orbit}} + \\phi_{\\text{noise}}，并阐明为什么垂直基线（Perpendicular Baseline B_\\perp）对地形相位高度敏感而时间基线（Temporal Baseline）决定了相干性衰减。",
+      "请用 Python 编写一段紧凑的代码，实现基于枝切法（Goldstein Branch Cut）或最小费用流（Minimum Cost Flow, MCF）算法的二维干涉相位解缠（Phase Unwrapping）核心残差极点（Residue Points）识别函数。",
+      "请再帮我生成一张图片：地质科学家在工作站三维地理信息系统（GIS）界面前，审视着利用时序 PS-InSAR（永久散射体干涉）反演出的地表断层毫米级沉降速率热力图，屏幕映射出多色等高线与精确三维地形模型。",
+      "对比永久散射体（PS-InSAR）与短基线集（SBAS-InSAR）两大时序干涉技术在相干点密度提取、大气天顶延迟（ZTD）滤波去除以及非线性地表蠕变反演上的技术路径权衡。"
+    ],
+    "consumed_at": "2026-09-14T21:01:56.102232",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_battery_energy_charging",
+    "domain": "quantum_battery_energy_charging",
+    "title": "量子电池：量子纠缠加速与 Dicke 超辐射充放电动力学",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code"
+    ],
+    "description": "测试开放量子系统 Lindblad 主方程推导、可提取功 (Ergotropy) 计算与 Python 充电动力量子态模拟",
+    "turns": [
+      "在开放量子系统框架下，给出由 N 个两能级量子比特构成的 Dicke 模型哈密顿量，并推导在全局相干驱动场作用下，量子电池最大充电功率 P_{max} 展现出的 \\mathcal{O}(N^2) 超广延 (Super-extensive) 量子加速特性。",
+      "结合量子热力学理论，推导量子态 \\rho 在幺正操作下能够提取的最大理论功——能容 (Ergotropy) 的严格数学定义 \\mathcal{E}(\\rho) = \\text{Tr}(\\rho H) - \\min_{U} \\text{Tr}(U\\rho U^\\dagger H)，并证明无源被动态 (Passive State) 判定条件。",
+      "使用 Python 编写脚本，基于简化的两比特纠缠辅助量子电池模型，模拟在共振微波腔驱动下电池内能与纠缠负度 (Negativity) 随时间的动力学演化，并可视化充放电效率曲线。",
+      "分析环境退相干 (Decoherence) 与自发辐射耗散在 Lindblad 超算子 \\mathcal{L}(\\rho) 描述下对量子电池能量自放电泄漏 (Self-discharge) 的抑制策略，阐明无退相干子空间 (Decoherence-Free Subspace) 的构造原理。",
+      "使用 Markdown 表格对比量子电池、微型固态超级电容器与原子自旋储能系统在能量密度 (J/m³)、功率密度 (W/kg)、充放电周期寿命及当前实验室物理实现方案。"
+    ],
+    "consumed_at": "2026-09-14T21:01:56.104781",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "neuromorphic_memristor_crossbar_spicing",
+    "domain": "neuromorphic_memristor_crossbar_spicing",
+    "title": "忆阻器交叉阵列模拟存内计算与非理想器件特性补偿",
+    "features": [
+      "code",
+      "math",
+      "tables",
+      "hardware",
+      "benchmarks"
+    ],
+    "description": "测试基尔霍夫定律交叉阵列矩阵乘推导、电导漂移/有限电导态 Python 补偿算法与器件对比表",
+    "turns": [
+      "基于基尔霍夫电流定律 (KCL) 与欧姆定律，详细推导 1T1R (一晶体管一忆阻器) 交叉阵列 (Crossbar Array) 实现单步模拟乘加 (In-Memory Analog MVM) 的物理电压输入与输出电流向量数学映射关系 I = G \\cdot V。",
+      "深入剖析金属氧化物忆阻器 (RRAM) 与相变存储器 (PCM) 在模拟存算一体应用中面临的 3 大核心非理想特性：非对称电导调制 (Asymmetric Non-linearity)、周期间电导波动 (Cycle-to-cycle variation) 与电阻漂移 (Resistance Drift)。",
+      "使用 Python 编写一个面向硬件感知训练 (Hardware-Aware Training) 的 PyTorch 自定义算子层，在前向传播矩阵乘中注入基于正态分布的对数电导噪声与器件阻态量化限制，并展示后向传播直通估计器 (STE)。",
+      "设计一套基于差分对 (Differential Pair) 结构的忆阻器阵列零点漂移在线背景自校准电路拓扑与脉冲重编程状态机控制流程。",
+      "使用 Markdown 表格横向对比氧空位氧化物 RRAM、硫族化合物相变存储器 PCM、自旋轨道力矩磁阻存储器 SOT-MRAM 与铁电场效应晶体管 FeFET 在编程耐久度 (Endurance)、多值存储级别 (Levels)、开关功耗及存内计算成熟度指标。"
+    ],
+    "consumed_at": "2026-09-14T21:07:54.125015",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

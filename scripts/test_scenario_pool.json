@@ -1,44 +1,5 @@
 [
   {
-    "id": "quantum_battery_energy_charging",
-    "domain": "quantum_battery_energy_charging",
-    "title": "量子电池：量子纠缠加速与 Dicke 超辐射充放电动力学",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code"
-    ],
-    "description": "测试开放量子系统 Lindblad 主方程推导、可提取功 (Ergotropy) 计算与 Python 充电动力量子态模拟",
-    "turns": [
-      "在开放量子系统框架下，给出由 N 个两能级量子比特构成的 Dicke 模型哈密顿量，并推导在全局相干驱动场作用下，量子电池最大充电功率 P_{max} 展现出的 \\mathcal{O}(N^2) 超广延 (Super-extensive) 量子加速特性。",
-      "结合量子热力学理论，推导量子态 \\rho 在幺正操作下能够提取的最大理论功——能容 (Ergotropy) 的严格数学定义 \\mathcal{E}(\\rho) = \\text{Tr}(\\rho H) - \\min_{U} \\text{Tr}(U\\rho U^\\dagger H)，并证明无源被动态 (Passive State) 判定条件。",
-      "使用 Python 编写脚本，基于简化的两比特纠缠辅助量子电池模型，模拟在共振微波腔驱动下电池内能与纠缠负度 (Negativity) 随时间的动力学演化，并可视化充放电效率曲线。",
-      "分析环境退相干 (Decoherence) 与自发辐射耗散在 Lindblad 超算子 \\mathcal{L}(\\rho) 描述下对量子电池能量自放电泄漏 (Self-discharge) 的抑制策略，阐明无退相干子空间 (Decoherence-Free Subspace) 的构造原理。",
-      "使用 Markdown 表格对比量子电池、微型固态超级电容器与原子自旋储能系统在能量密度 (J/m³)、功率密度 (W/kg)、充放电周期寿命及当前实验室物理实现方案。"
-    ]
-  },
-  {
-    "id": "neuromorphic_memristor_crossbar_spicing",
-    "domain": "neuromorphic_memristor_crossbar_spicing",
-    "title": "忆阻器交叉阵列模拟存内计算与非理想器件特性补偿",
-    "features": [
-      "code",
-      "math",
-      "tables",
-      "hardware",
-      "benchmarks"
-    ],
-    "description": "测试基尔霍夫定律交叉阵列矩阵乘推导、电导漂移/有限电导态 Python 补偿算法与器件对比表",
-    "turns": [
-      "基于基尔霍夫电流定律 (KCL) 与欧姆定律，详细推导 1T1R (一晶体管一忆阻器) 交叉阵列 (Crossbar Array) 实现单步模拟乘加 (In-Memory Analog MVM) 的物理电压输入与输出电流向量数学映射关系 I = G \\cdot V。",
-      "深入剖析金属氧化物忆阻器 (RRAM) 与相变存储器 (PCM) 在模拟存算一体应用中面临的 3 大核心非理想特性：非对称电导调制 (Asymmetric Non-linearity)、周期间电导波动 (Cycle-to-cycle variation) 与电阻漂移 (Resistance Drift)。",
-      "使用 Python 编写一个面向硬件感知训练 (Hardware-Aware Training) 的 PyTorch 自定义算子层，在前向传播矩阵乘中注入基于正态分布的对数电导噪声与器件阻态量化限制，并展示后向传播直通估计器 (STE)。",
-      "设计一套基于差分对 (Differential Pair) 结构的忆阻器阵列零点漂移在线背景自校准电路拓扑与脉冲重编程状态机控制流程。",
-      "使用 Markdown 表格横向对比氧空位氧化物 RRAM、硫族化合物相变存储器 PCM、自旋轨道力矩磁阻存储器 SOT-MRAM 与铁电场效应晶体管 FeFET 在编程耐久度 (Endurance)、多值存储级别 (Levels)、开关功耗及存内计算成熟度指标。"
-    ]
-  },
-  {
     "id": "distributed_raft_consensus_partition_healing",
     "domain": "distributed_consensus_and_storage",
     "features": [
@@ -135,27 +96,6 @@
       "请用 Python 编写一段程序，利用 Runge-Kutta 积分算法计算相对论质子在驻波 TM010 模式超导腔加速电场 E_z(z, t) = E_0 \\cos(kz) \\sin(\\omega t + \\phi_0) 中的相空间运动轨迹，并绘制能量增益随注入相位 \\phi_0 的变化曲线。",
       "设计 Markdown 表格对比欧洲 CERN 强子对撞机（LHC）、美国直线相干光源（LCLS-II）、中国高能同步辐射光源（HEPS）与未来环形对撞机（FCC-ee）在射频频率、工作温度（2K vs 4.5K）、加速梯度（MV/m）与连续波（CW）/脉冲模式的关键工程指标。",
       "探讨采用超导薄膜技术（如铜基底镀纯铌薄膜或 Nb3Sn 金属间化合物）替代传统大块纯铌制造超导腔在将工作温度提升至 4.2K 液氦常压温区并突破材料热失控淬火（Quench）临界场上的物理机理与制备工艺难点。"
-    ]
-  },
-  {
-    "id": "synthetic_aperture_radar_interferometry",
-    "title": "雷达遥感与干涉测量：InSAR 差分相位解缠与地表形变反演",
-    "domain": "radar_remote_sensing_insar",
-    "description": "测试 SAR 卫星干涉条纹生图 (Imagen)、干涉几何推导、二维相位解缠算法实现与时序 InSAR 方案对比",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "code",
-      "math",
-      "latex"
-    ],
-    "turns": [
-      "请帮我生成一张图片：在地球近地轨道上，一颗配备巨大展开式相控阵天线的合成孔径雷达（SAR）卫星正在向夜半球地表发射微波雷达波束，地表投影出色彩斑斓的 InSAR 双轨干涉干涉图条纹（Interferogram Fringes），覆盖正在缓慢沉降的活火山地貌，科技感十足的高清科学可视化图。",
-      "请从电磁波相位传播几何出发，推导出合成孔径雷达干涉相位公式 \\Delta \\phi = \\phi_{\\text{topo}} + \\phi_{\\text{def}} + \\phi_{\\text{atm}} + \\phi_{\\text{orbit}} + \\phi_{\\text{noise}}，并阐明为什么垂直基线（Perpendicular Baseline B_\\perp）对地形相位高度敏感而时间基线（Temporal Baseline）决定了相干性衰减。",
-      "请用 Python 编写一段紧凑的代码，实现基于枝切法（Goldstein Branch Cut）或最小费用流（Minimum Cost Flow, MCF）算法的二维干涉相位解缠（Phase Unwrapping）核心残差极点（Residue Points）识别函数。",
-      "请再帮我生成一张图片：地质科学家在工作站三维地理信息系统（GIS）界面前，审视着利用时序 PS-InSAR（永久散射体干涉）反演出的地表断层毫米级沉降速率热力图，屏幕映射出多色等高线与精确三维地形模型。",
-      "对比永久散射体（PS-InSAR）与短基线集（SBAS-InSAR）两大时序干涉技术在相干点密度提取、大气天顶延迟（ZTD）滤波去除以及非线性地表蠕变反演上的技术路径权衡。"
     ]
   },
   {
@@ -390,6 +330,67 @@
       "使用 Python 编写脚本，实现一个完整的离线神经脉冲分选 (Spike Sorting) 核心流水线算法：包含 4 阶 Butterworth 带通滤波、基于中位数绝对偏差 (MAD) 的动态阈值动作电位事件触发、主成分分析 (PCA) 降维投影及高斯混合模型 (GMM) 聚类分群。",
       "针对闭环神经调控 (Closed-loop Neuromodulation) 系统的实时超低延迟要求，分析基于神经脉冲放电率 (Firing Rate) 的卡尔曼滤波 (Kalman Filter) 与双向循环神经网络 (RNN) 在手部运动意图 (手速与三维轨迹坐标) 实时解码中的算法延迟与稳定性对比。",
       "使用 Markdown 表格对比侵入式 Utah 硅微针阵列、Neuropixels 高密度探针、柔性血管内支架电极 (Stentrode) 以及微创皮层脑电 (ECoG) 在通道密度、信噪比 (SNR)、长期生物相容性/胶质瘢痕包裹寿命及临床手术侵入性等级。"
+    ]
+  },
+  {
+    "id": "fusion_tokamak_mhd_stellarator",
+    "domain": "fusion_tokamak_mhd_stellarator",
+    "title": "受控磁约束聚变：托卡马克 Grad-Shafranov 平衡态与仿星器准对称场",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试理想 MHD 平衡方程推导、Solov'ev 极向磁通面解析解 Python 算法与聚变堆参数横向对比",
+    "turns": [
+      "从理想磁流体动力学 (Ideal MHD) 静态力平衡方程 \\nabla p = \\mathbf{J} \\times \\mathbf{B} 出发，在轴对称柱坐标系 (R, \\phi, Z) 下详细推导描述等离子体平衡态的二维非线性偏微分方程——Grad-Shafranov 方程：\\Delta^* \\psi = -\\mu_0 R^2 p'(\\psi) - F(\\psi)F'(\\psi)，阐明磁通函数 \\psi 的物理含义与椭圆型算子形式。",
+      "深入剖析托卡马克运行中面临的两大灾难性 MHD 不稳定性：大破裂 (Major Disruption) 与边缘局域模 (ELM, Edge Localized Mode)，推导有理面上撕裂模 (Tearing Mode) 磁岛增长速率，并给出共振磁扰动 (RMP) 线圈对 ELM 进行主动抑制的物理机制。",
+      "使用 Python 编写一个基于 Solov'ev 平衡假设的解析解数值计算脚本，在给定拉长比 (Elongation \\kappa) 与三角形变 (Triangularity \\delta) 几何约束下，求解等离子体最外闭合磁通面 (LCFS) 与内部极向磁通面等值线分布，并可视化输出核心参数。",
+      "对比先进仿星器 (如德国 Wendelstein 7-X) 与托卡马克在准螺旋对称性 (Quasi-helical Symmetry) 与准轴对称性 (Quasi-axisymmetric) 磁场构型下的新经典输运 (Neoclassical Transport)、自举电流 (Bootstrap Current) 及连续稳态运行能力差异。",
+      "使用 Markdown 表格横向对比国际热核聚变实验堆 ITER、中国聚变工程实验堆 CFETR、美国 Commonwealth Fusion Systems SPARC 高场托卡马克与德国 W7-X 仿星器在环形主磁场 B_0 (T)、等离子体电流 I_p (MA)、聚变增益 Q 目标及超导磁体技术路线。"
+    ]
+  },
+  {
+    "id": "metamaterial_nanophotonics_topological_optics",
+    "domain": "metamaterial_nanophotonics_topological_optics",
+    "title": "拓扑光子学与片上超构透镜：量子自旋霍尔效应与超表面相位调控",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试几何相位推导、光子晶体 Berry 曲率 Chern 数分析、TiO2 超表面 Python 仿真与 AI Imagen 宏观场图生成",
+    "turns": [
+      "基于几何相位 (Pancharatnam-Berry Phase) 理论，推导正交圆偏振光通过各向异性纳米柱 (Nanofin) 微结构时诱导的相位延迟 \\Phi(x, y) = \\pm 2\\theta(x, y) 数学关系，阐释超表面 (Metasurface) 超越传统几何折射透镜的全色散消除物理机制。",
+      "结合拓扑光子学 (Topological Photonics)，推导蜂窝晶格光子晶体在破缺空间反演对称性或时间反演对称性时，动量空间 Berry 曲率积分产生的 Chern 数与拓扑非平庸边缘态 (Topological Edge States) 鲁棒无散射传输特性。",
+      "使用 Python 编写时域有限差分 (FDTD) 网格剖分与平面波近场到远场变换 (Near-to-Far-Field Transformation) 算法，计算单个二氧化钛 (TiO2) 可见光超构透镜单元在 532 nm 波长下的电场幅度透射率与交叉偏振转化效率。",
+      "请帮我生成一张高科技感示意图片：超构透镜（Metalens）硅基芯片微观纳米柱阵列在激光激发下实现完美消色差光束聚焦的三维超分辨物理光场渲染图。",
+      "使用 Markdown 表格横向对比高阻硅太赫兹超表面、氮化镓 (GaN) 可见光超构透镜、硫系玻璃红外超表面与传统金刚石车削非球面透镜在数值孔径 (NA)、聚焦效率 (%)、工作带宽及微纳加工兼容性。"
+    ]
+  },
+  {
+    "id": "hypersonic_aerodynamics_aerothermodynamics",
+    "domain": "hypersonic_aerodynamics_aerothermodynamics",
+    "title": "高超声速高焓流动：化学非平衡离解激波层与气动热流预测",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试高焓激波 Rankine-Hugoniot 真实气体效应、Fay-Riddell 驻点热流推导与 Park 两温化学离解数值模拟",
+    "turns": [
+      "在高超声速飞行 (Mach > 5) 高焓激波层极端环境下，推导考虑氧气/氮气高温热离解与振动激发非平衡物理效应的一维正激波 Rankine-Hugoniot 跃变关系式，分析总温超过 3000K 时真实气体效应 (Real Gas Effects) 导致的激波脱体距离 (Shock Stand-off Distance) 压缩物理机理。",
+      "深入推导高超声速驻点气动热预测的经典 Fay-Riddell 封闭解公式，阐明完全催化壁 (Fully Catalytic Wall) 与完全非催化壁 (Non-catalytic Wall) 表面复合适化系数 \\gamma 对航天器防热大底 (TPS) 驻点传热率 q_s 的定量影响规律。",
+      "使用 Python 编写脚本，基于化学动力学反应速率常数 (Arrhenius 公式与 Park 两温模型)，数值求解正激波后滞止线上空气五组分 (O2, N2, O, N, NO) 离解复合反应随距离的非平衡化学弛豫演化过程。",
+      "剖析乘波体 (Waverider) 基于密切锥 (Osculating Cone) 理论的气动外形反设计几何构型流程，推导超声速气流在下表面激波贴体附着条件下的最大升阻比 (L/D) 极值设计准则。",
+      "使用 Markdown 表格横向对比碳/碳复合材料 (C/C)、碳化硅陶瓷基复合材料 (C/SiC)、超高温陶瓷 (ZrB2-SiC) 与烧蚀酚醛树脂基防热材料 (PICA) 在抗热震极限温度 (K)、抗氧化剥蚀速率、密度 (g/cm³) 及航天再入飞行器不同烧蚀驻点部位的应用优缺点。"
     ]
   }
 ]
