@@ -17,6 +17,7 @@ class VisualActionType(Enum):
     SCROLL = "SCROLL"
     WAIT = "WAIT"
     WAIT_ON = "WAIT_ON"
+    SWITCH_PAGE = "SWITCH_PAGE"
     KEY = "KEY"
     DONE = "DONE"
     FAIL = "FAIL"
@@ -29,6 +30,8 @@ class VisualAction:
     y: Optional[float] = None  # Normalized (0.0 - 1.0) or absolute pixel
     text: Optional[str] = None
     key: Optional[str] = None
+    target: Optional[str] = None
+    chat_id: Optional[str] = None
     condition: Optional[str] = None
     timeout: Optional[int] = None
     thought: Optional[str] = None

@@ -24,7 +24,7 @@ from scripts.visual_agent.playground import open_visual_playground
 def main():
     common_parser = argparse.ArgumentParser(add_help=False)
     common_parser.add_argument("--port", type=int, default=9222, help="CDP debug port (default: 9222)")
-    common_parser.add_argument("--target", type=str, default="options", choices=["options", "gemini"], help="Target page (default: options)")
+    common_parser.add_argument("--target", type=str, default=None, choices=["options", "gemini", "chat", "workbench"], help="Target page (default: auto-detect from active state)")
     common_parser.add_argument("--json", action="store_true", help="Output result in structured JSON format")
 
     parser = argparse.ArgumentParser(description="Gemini Exporter Visual Playground CLI", parents=[common_parser])
@@ -60,10 +60,15 @@ def main():
     p_wait.add_argument("--chat-id", type=str, default="", help="Chat ID for dom_pruned condition")
     p_wait.add_argument("--min-mtime", type=float, default=0.0, help="Min mtime for zip_downloaded condition")
 
-    # 6. reset
+    # 6. switch-page
+    p_switch = subparsers.add_parser("switch-page", help="Switch active page / tab and physically bring to front", parents=[common_parser])
+    p_switch.add_argument("--to", dest="switch_to", required=True, choices=["options", "gemini", "chat", "workbench"], help="Target page to switch to")
+    p_switch.add_argument("--chat", dest="chat_id", default=None, help="Optional Gemini conversation ID (e.g. c_xxx or xxx)")
+
+    # 7. reset
     p_reset = subparsers.add_parser("reset", help="Reset environment to initial state", parents=[common_parser])
 
-    # 7. evaluate-export
+    # 8. evaluate-export
     p_eval = subparsers.add_parser("evaluate-export", help="Evaluate exported ZIP file specification", parents=[common_parser])
     p_eval.add_argument("--zip", type=str, required=True, help="Path to ZIP file")
     p_eval.add_argument("--min", type=int, default=1, help="Expected minimum conversations")
@@ -144,13 +149,23 @@ def main():
             if not w_res.success:
                 sys.exit(2)
 
-        elif args.command == "reset":
-            playground.reset(target=args.target)
-            res = {"success": True, "action": "reset", "target": args.target}
+        elif args.command == "switch-page":
+            ok = playground.switch_page(target=args.switch_to, chat_id=args.chat_id)
+            res = {"success": ok, "action": "switch-page", "target": args.switch_to, "chat_id": args.chat_id}
             if args.json:
                 print(json.dumps(res, ensure_ascii=False))
             else:
-                print(f"🔄 环境已重置至 {args.target}")
+                cid_str = f" (会话: {args.chat_id})" if args.chat_id else ""
+                print(f"🔀 已成功切换活动标签页至: {args.switch_to}{cid_str}，并已物理前置激活")
+
+        elif args.command == "reset":
+            target = args.target or "options"
+            playground.reset(target=target)
+            res = {"success": True, "action": "reset", "target": target}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"🔄 环境已重置至 {target}")
 
         elif args.command == "evaluate-export":
             from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
