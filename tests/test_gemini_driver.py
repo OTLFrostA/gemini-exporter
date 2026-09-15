@@ -50,8 +50,8 @@ class TestGeminiDriverSuite(unittest.TestCase):
         driver = GeminiDriver(cdp)
         session = GeminiChatSession(driver, chat_id="chat_123")
 
-        # Mock send_gemini_turn returning success
-        with patch("scripts.framework.actions.CDPActions.send_gemini_turn", return_value=(True, "OK")):
+        # Mock execute_turn_pipeline returning success
+        with patch.object(driver, "execute_turn_pipeline", return_value=(True, "OK")):
             with patch.object(driver, "get_current_chat_id", return_value="chat_123"):
                 # Mock DOM evaluation for model response
                 cdp.eval_responses = [
@@ -75,7 +75,7 @@ class TestGeminiDriverSuite(unittest.TestCase):
         driver = GeminiDriver(cdp)
         session = GeminiChatSession(driver, chat_id="chat_fail")
 
-        with patch("scripts.framework.actions.CDPActions.send_gemini_turn", return_value=(False, "Detection circuit breaker tripped")):
+        with patch.object(driver, "execute_turn_pipeline", return_value=(False, "Detection circuit breaker tripped")):
             res = session.send_turn("Trigger fail")
             self.assertFalse(res.success)
             self.assertIn("circuit breaker", res.error)

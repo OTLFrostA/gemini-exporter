@@ -142,3 +142,24 @@ class ChatPlatformDriver(ABC):
     def get_pipeline_strategies(self) -> Dict[str, Callable]:
         """Optional pipeline atomic execution strategy hooks for this platform."""
         return {}
+
+
+class PlatformRegistry:
+    """平台驱动注册与发现工厂"""
+    _drivers: Dict[str, Any] = {}
+
+    @classmethod
+    def register(cls, platform_id: str, driver_cls: Any) -> None:
+        cls._drivers[platform_id.lower()] = driver_cls
+
+    @classmethod
+    def get_driver_class(cls, platform_id: str = "gemini") -> Optional[Any]:
+        return cls._drivers.get(platform_id.lower())
+
+    @classmethod
+    def create_driver(cls, platform_id: str, cdp: Any, **kwargs) -> ChatPlatformDriver:
+        driver_cls = cls.get_driver_class(platform_id)
+        if not driver_cls:
+            raise ValueError(f"未注册的平台驱动: '{platform_id}'。当前已注册: {list(cls._drivers.keys())}")
+        return driver_cls(cdp, **kwargs)
+
