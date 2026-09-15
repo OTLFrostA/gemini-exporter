@@ -362,9 +362,10 @@ class CDPAssertions:
     def assert_exported_zip_spec(
         zip_path: str,
         extract_dir: str,
-        min_conversations: int = 4,
+        min_conversations: int = 1,
         expected_golden_chats: Optional[List[Dict[str, Any]]] = None,
-        expected_scenarios: Optional[List[Dict[str, Any]]] = None
+        expected_scenarios: Optional[List[Dict[str, Any]]] = None,
+        chat_id: Optional[str] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """解压 ZIP 归档包，核实 100% 对话轮次物理落盘，严禁 0 字节附件，并运行 ExportSpecificationAsserter 规范断言"""
         if not os.path.isfile(zip_path):
@@ -443,9 +444,12 @@ class CDPAssertions:
             asserter = ExportSpecificationAsserter(extract_dir)
             spec_ok = asserter.run_all_assertions(
                 min_conversations=min_conversations,
-                expected_golden_chats=expected_golden_chats
+                expected_golden_chats=expected_golden_chats,
+                target_chat_id=chat_id
             )
             if not spec_ok:
-                return False, f"ExportSpecificationAsserter 规范断言失败 (错误数: {len(asserter.errors)})", {"errors": asserter.errors}
+                err_summary = f": {asserter.errors[0]}" if asserter.errors else ""
+                return False, f"ExportSpecificationAsserter 规范断言失败 (错误数: {len(asserter.errors)}){err_summary}", {"errors": asserter.errors}
 
-        return True, f"导出 ZIP 规范断言 100% 通过 (对话数: {len(all_mds)}, 0字节文件: 0, 场景全轮次命中: {len(scenario_results)})", {"md_count": len(all_mds)}
+        target_info = f", 目标会话命中: {chat_id}" if chat_id else ""
+        return True, f"导出 ZIP 规范断言 100% 通过 (对话数: {len(all_mds)}, 0字节文件: 0{target_info}, 场景全轮次命中: {len(scenario_results)})", {"md_count": len(all_mds)}

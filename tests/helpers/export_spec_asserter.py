@@ -36,7 +36,7 @@ class ExportSpecificationAsserter:
     def log_pass(self, file_name, msg):
         print(f"   [{file_name}] ✓ {msg}")
 
-    def run_all_assertions(self, min_conversations=1, expected_golden_chats=None):
+    def run_all_assertions(self, min_conversations=1, expected_golden_chats=None, target_chat_id=None):
         """执行全量规范级断言"""
         print("\n" + "=" * 70)
         print("🔍 启动导出规范确定性断言 (Export Specification Assertion)...")
@@ -56,7 +56,11 @@ class ExportSpecificationAsserter:
             self.assert_zero_noise(content, fname)
             self.assert_multimedia_assets(content, fname)
 
-        # 3. 固化已知黄金会话特征断言
+        # 3. 指定目标会话存在性核验 (针对单篇或指定会话导出)
+        if target_chat_id:
+            self.assert_target_conversation(target_chat_id)
+
+        # 4. 固化已知黄金会话特征断言 (针对全量历史回归)
         if expected_golden_chats:
             self.assert_golden_conversations(expected_golden_chats)
 
@@ -372,6 +376,37 @@ class ExportSpecificationAsserter:
                     self.log_error(matched_file, f"AI 生成图片文件过小 ({fsize} bytes): {ref}")
                 else:
                     self.log_pass(matched_file, f"AI 生成图片物理落地完整 ({os.path.basename(fpath)}, {fsize} bytes)")
+
+    def assert_target_conversation(self, target_chat_id: str):
+        """断言指定的会话 ID 在导出包中物理存在且对应文件已通过基础规范校验"""
+        print(f"\n[目标会话断言] 🎯 校验指定目标会话存在性 (Chat ID: {target_chat_id})")
+        raw_cid = str(target_chat_id).strip()
+        clean_cid = raw_cid[2:] if raw_cid.startswith("c_") else raw_cid
+
+        matched_file = None
+        for fpath in self.md_files:
+            fname = os.path.basename(fpath)
+            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+
+            if (clean_cid in fname or 
+                raw_cid in fname or
+                f'id: "{clean_cid}"' in content or 
+                f'id: "{raw_cid}"' in content or 
+                f"id: '{clean_cid}'" in content or 
+                f"id: '{raw_cid}'" in content or 
+                f"id: {clean_cid}" in content or 
+                f"id: {raw_cid}" in content or 
+                f"/app/{clean_cid}" in content):
+                matched_file = fname
+                break
+
+        if not matched_file:
+            self.log_error("TargetChat", f"未在导出包中找到指定目标会话 (Chat ID: {target_chat_id}) 对应的 Markdown 文件")
+            return None
+
+        self.log_pass(matched_file, f"指定目标会话成功命中物理文件: {matched_file}")
+        return matched_file
 
     def assert_golden_conversations(self, expected_golden_chats):
         """断言测试账号中已知特征对话的内容和结构"""

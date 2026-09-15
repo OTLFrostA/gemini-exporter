@@ -256,9 +256,11 @@ class AutonomousVisualAgent:
             elif action.action_type == VisualActionType.SWITCH_PAGE:
                 target = action.target or action.details.get("target", "gemini")
                 chat_id = action.chat_id or action.details.get("chat_id")
+                new_chat = bool(action.details.get("new_chat") or action.details.get("new"))
                 cid_str = f" (chat_id: {chat_id})" if chat_id else ""
-                self.log(f"Agent 主动切换活动页面 -> {target}{cid_str}", "ACT")
-                self.playground.switch_page(target=target, chat_id=chat_id)
+                new_str = " (new_chat)" if new_chat else ""
+                self.log(f"Agent 主动切换活动页面 -> {target}{new_str}{cid_str}", "ACT")
+                self.playground.switch_page(target=target, chat_id=chat_id, new_chat=new_chat)
 
             elif action.action_type == VisualActionType.WAIT:
                 time.sleep(1.0)

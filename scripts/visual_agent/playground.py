@@ -510,7 +510,8 @@ class VisualPlayground:
         target: str = "gemini",
         chat_id: Optional[str] = None,
         timeout: float = 20.0,
-        bring_to_front: bool = False
+        bring_to_front: bool = False,
+        new_chat: bool = False
     ) -> bool:
         """
         无缝切换活动标签页。
@@ -522,6 +523,7 @@ class VisualPlayground:
           - timeout: 等待页面或会话就绪的最大超时秒数。
           - bring_to_front: 是否将 Chrome 窗口物理前置激活 (Page.bringToFront)。默认为 False，
                             CDP 在后台直接静默操作标签页，彻底杜绝抢占 OS 桌面焦点。
+          - new_chat: 当 target 为 gemini 时，是否开启全新空白对话 (导航至 https://gemini.google.com/app 并清空输入框)。
         """
         norm_target = "gemini" if target.lower() in ("gemini", "chat") else "options"
 
@@ -534,14 +536,20 @@ class VisualPlayground:
                 except Exception:
                     pass
             clean_cid = None
-            if norm_target == "gemini" and chat_id:
-                clean_cid = str(chat_id).strip()
-                if clean_cid.startswith("c_"):
-                    clean_cid = clean_cid[2:]
-                try:
-                    self.cdp.call("Page.navigate", {"url": f"https://gemini.google.com/app/{clean_cid}"})
-                except Exception:
-                    pass
+            if norm_target == "gemini":
+                if new_chat:
+                    try:
+                        self.cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
+                    except Exception:
+                        pass
+                elif chat_id:
+                    clean_cid = str(chat_id).strip()
+                    if clean_cid.startswith("c_"):
+                        clean_cid = clean_cid[2:]
+                    try:
+                        self.cdp.call("Page.navigate", {"url": f"https://gemini.google.com/app/{clean_cid}"})
+                    except Exception:
+                        pass
             self._save_state(chat_id=clean_cid)
             return True
 
@@ -587,33 +595,56 @@ class VisualPlayground:
             except Exception:
                 pass
 
-        # 若指定了会话 ID，导航至对应会话并等待就绪
+        # 导航处理：全新对话 或 指定会话 ID
         clean_cid = None
-        if norm_target == "gemini" and chat_id:
-            clean_cid = str(chat_id).strip()
-            if clean_cid.startswith("c_"):
-                clean_cid = clean_cid[2:]
-            target_url = f"https://gemini.google.com/app/{clean_cid}"
-            curr_url = target_tab.get("url", "")
-            if clean_cid not in curr_url:
+        if norm_target == "gemini":
+            if new_chat:
                 try:
-                    self.cdp.call("Page.navigate", {"url": target_url})
+                    self.cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
                 except Exception:
                     pass
                 time.sleep(1.5)
+                # 确定性等待输入框就绪并清空残留草稿
+                t0 = time.time()
+                while time.time() - t0 < timeout:
+                    ready = self.cdp.eval("""
+                    (() => {
+                        const editor = document.querySelector('rich-textarea, div[contenteditable="true"], .ql-editor');
+                        if (!editor) return false;
+                        const p = editor.querySelector('p') || editor;
+                        p.innerHTML = '<br>';
+                        editor.dispatchEvent(new Event('input', { bubbles: true }));
+                        return true;
+                    })()
+                    """)
+                    if ready:
+                        break
+                    time.sleep(0.4)
+            elif chat_id:
+                clean_cid = str(chat_id).strip()
+                if clean_cid.startswith("c_"):
+                    clean_cid = clean_cid[2:]
+                target_url = f"https://gemini.google.com/app/{clean_cid}"
+                curr_url = target_tab.get("url", "")
+                if clean_cid not in curr_url:
+                    try:
+                        self.cdp.call("Page.navigate", {"url": target_url})
+                    except Exception:
+                        pass
+                    time.sleep(1.5)
 
-            # 确定性等待输入框或对话树就绪
-            t0 = time.time()
-            while time.time() - t0 < timeout:
-                ready = self.cdp.eval("""
-                (() => {
-                    const editor = document.querySelector('rich-textarea, div[contenteditable="true"], .ql-editor');
-                    return !!editor;
-                })()
-                """)
-                if ready:
-                    break
-                time.sleep(0.4)
+                # 确定性等待输入框或对话树就绪
+                t0 = time.time()
+                while time.time() - t0 < timeout:
+                    ready = self.cdp.eval("""
+                    (() => {
+                        const editor = document.querySelector('rich-textarea, div[contenteditable="true"], .ql-editor');
+                        return !!editor;
+                    })()
+                    """)
+                    if ready:
+                        break
+                    time.sleep(0.4)
 
         self._setup_viewport()
         self._setup_download_behavior()
@@ -632,8 +663,9 @@ class VisualPlayground:
     def evaluate_export(
         self,
         zip_path: str,
-        min_conversations: int = 4,
-        expected_golden_chats: Optional[List[Dict[str, Any]]] = None
+        min_conversations: int = 1,
+        expected_golden_chats: Optional[List[Dict[str, Any]]] = None,
+        chat_id: Optional[str] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """Run the comprehensive ExportSpecificationAsserter against a given exported ZIP file."""
         from scripts.framework.assertions import CDPAssertions
@@ -642,7 +674,8 @@ class VisualPlayground:
             zip_path=zip_path,
             extract_dir=extract_dir,
             min_conversations=min_conversations,
-            expected_golden_chats=expected_golden_chats
+            expected_golden_chats=expected_golden_chats,
+            chat_id=chat_id
         )
 
 
