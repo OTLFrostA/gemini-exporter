@@ -8,19 +8,18 @@ import type {
     AIProvider,
     ProviderCapabilities,
     ProviderReadiness,
-    ProviderListResult
+    ProviderPageResult,
+    ProviderConversationItem,
+    ProviderConversationDetail
 } from "../aiProvider.js";
 import { ProviderRegistry } from "../providerRegistry.js";
-import type { DetailParseResult } from "../../api/parser/parseDetail.js";
-import type { ConversationListItem } from "../../api/parser/parseList.js";
 import type { ChatMessage, Attachment } from "../../../types/conversation.js";
-import type { PaginationOptions } from "../../api/client/pagination.js";
 
 /**
  * Normalizes ChatGPT tree mapping structure into standard DetailParseResult.
  * Traverses from current_node backwards to root (or chronologically) to reconstruct the active conversation branch.
  */
-export function flattenChatGPTMapping(raw: any, conversationId?: string): DetailParseResult {
+export function flattenChatGPTMapping(raw: any, conversationId?: string): ProviderConversationDetail {
     if (!raw || typeof raw !== 'object') {
         throw new Error('Invalid ChatGPT conversation payload');
     }
@@ -176,7 +175,8 @@ export class ChatGPTProvider implements AIProvider {
             if (typeof fetch === 'undefined') {
                 return { ready: false, error: 'Network fetch is not available' };
             }
-            const res = await fetch('https://chatgpt.com/api/auth/session');
+            // P0-3 fix: session endpoint requires the user's login cookies.
+            const res = await fetch('https://chatgpt.com/api/auth/session', { credentials: 'include' });
             if (res.ok) {
                 const session = await res.json();
                 if (session && session.accessToken) {
@@ -198,11 +198,11 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    async listConversations(options?: PaginationOptions): Promise<ProviderListResult> {
+    async listConversations(options?: any): Promise<ProviderPageResult<ProviderConversationItem>> {
         const offset = 0;
         const limit = 28;
         const maxPages = options?.maxPages || 50;
-        const conversations: ConversationListItem[] = [];
+        const conversations: ProviderConversationItem[] = [];
 
         let currentOffset = offset;
         let hasMore = true;
@@ -214,7 +214,8 @@ export class ChatGPTProvider implements AIProvider {
             }
             pageCount++;
             const url = `https://chatgpt.com/backend-api/conversations?offset=${currentOffset}&limit=${limit}`;
-            const res = await fetch(url);
+            // P0-3 fix: conversation list requires the user's login cookies.
+            const res = await fetch(url, { credentials: 'include' });
             if (!res.ok) break;
 
             const data = await res.json();
@@ -227,14 +228,9 @@ export class ChatGPTProvider implements AIProvider {
                 conversations.push({
                     id: item.id,
                     title: item.title || 'Untitled',
-                    titleSource: 'api-list',
-                    titles: { rpc: item.title || 'Untitled' },
-                    createdAt: createdMs,
+                    url: `https://chatgpt.com/c/${item.id}`,
                     updatedAt: updatedMs,
-                    chatTime: updatedMs,
-                    timestamp: updatedMs,
-                    messageCount: 0,
-                    url: `https://chatgpt.com/c/${item.id}`
+                    createdAt: createdMs
                 });
             }
 
@@ -255,16 +251,18 @@ export class ChatGPTProvider implements AIProvider {
         }
 
         return {
-            conversations,
+            items: conversations,
             total: conversations.length,
             hasMore,
+            nextCursor: null,
             stoppedEarly: pageCount >= maxPages
         };
     }
 
-    async fetchConversationDetail(conversationId: string, _options?: any): Promise<DetailParseResult> {
+    async fetchConversationDetail(conversationId: string, _options?: any): Promise<ProviderConversationDetail> {
         const url = `https://chatgpt.com/backend-api/conversation/${conversationId}`;
-        const res = await fetch(url);
+        // P0-3 fix: conversation detail requires the user's login cookies.
+        const res = await fetch(url, { credentials: 'include' });
         if (!res.ok) {
             throw new Error(`Failed to fetch ChatGPT conversation ${conversationId}: HTTP ${res.status}`);
         }

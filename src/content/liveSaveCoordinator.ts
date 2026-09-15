@@ -6,7 +6,9 @@ import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { buildExportFileName } from '../core/utils/pathUtils.js';
-import { GeminiAPIClient } from '../core/api/geminiClient.js';
+import type { GeminiAPIClient } from '../core/api/geminiClient.js';
+import { ProviderRegistry } from '../core/provider/providerRegistry.js';
+import '../core/provider/index.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
@@ -47,8 +49,9 @@ function getUtils() {
     return _deps.utils || GeminiUtils;
 }
 
-function getClientClass() {
-    return typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : GeminiAPIClient;
+function resolveProvider() {
+    const url = (typeof location !== 'undefined' && location.href) || '';
+    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
 }
 
 function getBadge() {
@@ -89,12 +92,16 @@ export function init(deps: LiveSaveCoordinatorDeps = {}): void {
  */
 export async function resolveConversationDetail(cid: string): Promise<any> {
     const nid = String(cid).replace(/^c_/, '').trim();
-    const ClientClass = getClientClass();
+    // DI seam kept: an explicitly injected client class still uses the legacy
+    // construction path. Default now resolves through the provider registry.
+    const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
+    const provider = InjectedClass ? null : resolveProvider();
 
-    if (ClientClass) {
+    if (InjectedClass || provider) {
         try {
-            const client = new ClientClass();
-            const detail = await client.getConversationDetail(nid);
+            const detail = InjectedClass
+                ? await new InjectedClass().getConversationDetail(nid)
+                : await provider!.fetchConversationDetail(nid);
             if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                 return detail;
             }

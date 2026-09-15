@@ -7,13 +7,14 @@
 import type {
     AIProvider,
     ProviderCapabilities,
-    ProviderReadiness
+    ProviderReadiness,
+    ProviderPageResult,
+    ProviderConversationItem,
+    ProviderConversationDetail
 } from "../aiProvider.js";
 import { ProviderRegistry } from "../providerRegistry.js";
 import { GeminiAPIClient } from "../../api/geminiClient.js";
 import GeminiClientCredentialManager from "../../api/client/credentialManager.js";
-import type { PaginationOptions, PaginationResult } from "../../api/client/pagination.js";
-import type { DetailParseResult } from "../../api/parser/parseDetail.js";
 
 export class GeminiProvider implements AIProvider {
     readonly id = 'gemini';
@@ -77,15 +78,30 @@ export class GeminiProvider implements AIProvider {
         }
     }
 
-    async listConversations(options?: PaginationOptions): Promise<PaginationResult> {
+    async listConversations(options?: any): Promise<ProviderPageResult<ProviderConversationItem>> {
         const client = this.getClient();
-        return client.getAllConversations(options);
+        const result = await client.getAllConversations(options);
+        // Map the Gemini pagination result into the provider-neutral page shape.
+        // stoppedEarly=true means pagination gave up before exhausting, so more may exist.
+        return {
+            ...result,
+            items: result.conversations,
+            hasMore: !!result.stoppedEarly,
+            nextCursor: null,
+        };
     }
 
-    async fetchConversationDetail(conversationId: string, options?: any): Promise<DetailParseResult> {
+    async fetchConversationDetail(conversationId: string, options?: any): Promise<ProviderConversationDetail> {
         const client = this.getClient();
         const targetSid = options?.targetSid || options?.slot || null;
-        return client.getConversationDetail(conversationId, targetSid);
+        const detail = await client.getConversationDetail(conversationId, targetSid);
+        // Spread keeps every Gemini field; id/title/messages are guaranteed present.
+        return {
+            ...detail,
+            id: detail.id,
+            title: detail.title,
+            messages: detail.messages,
+        };
     }
 }
 

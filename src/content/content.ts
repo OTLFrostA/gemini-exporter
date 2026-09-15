@@ -29,7 +29,6 @@ import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { LiveStorageManager } from '../core/storage/liveStorageManager.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
-import { GeminiAPIClient } from '../core/api/geminiClient.js';
 
 (() => {
     'use strict';
@@ -125,7 +124,6 @@ import { GeminiAPIClient } from '../core/api/geminiClient.js';
             formatter: typeof ChatFormatter !== 'undefined' ? ChatFormatter : (w.ChatFormatter || null),
             fsWriterClass: typeof FsWriter !== 'undefined' ? FsWriter : (w.FsWriter || null),
             utils: Utils,
-            clientClass: typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : (w.GeminiAPIClient || null),
             badge: Badge
         });
 
