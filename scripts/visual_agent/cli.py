@@ -64,6 +64,7 @@ def main():
     p_switch = subparsers.add_parser("switch-page", help="Switch active page / tab silently in background", parents=[common_parser])
     p_switch.add_argument("--to", dest="switch_to", required=True, choices=["options", "gemini", "chat", "workbench"], help="Target page to switch to")
     p_switch.add_argument("--chat", dest="chat_id", default=None, help="Optional Gemini conversation ID (e.g. c_xxx or xxx)")
+    p_switch.add_argument("--new", action="store_true", help="Start a clean new conversation on Gemini (navigates to /app and resets input)")
     p_switch.add_argument("--bring-to-front", action="store_true", help="Physically bring Chrome window to OS front (may steal OS desktop focus)")
 
     # 7. reset
@@ -72,7 +73,9 @@ def main():
     # 8. evaluate-export
     p_eval = subparsers.add_parser("evaluate-export", help="Evaluate exported ZIP file specification", parents=[common_parser])
     p_eval.add_argument("--zip", type=str, required=True, help="Path to ZIP file")
-    p_eval.add_argument("--min", type=int, default=1, help="Expected minimum conversations")
+    p_eval.add_argument("--min", type=int, default=1, help="Expected minimum conversations (default: 1)")
+    p_eval.add_argument("--chat-id", type=str, default=None, help="Target conversation ID to assert presence and validity")
+    p_eval.add_argument("--require-golden", action="store_true", help="Assert presence and deep content of core test golden dataset")
 
     args = parser.parse_args()
 
@@ -151,14 +154,27 @@ def main():
                 sys.exit(2)
 
         elif args.command == "switch-page":
-            ok = playground.switch_page(target=args.switch_to, chat_id=args.chat_id, bring_to_front=args.bring_to_front)
-            res = {"success": ok, "action": "switch-page", "target": args.switch_to, "chat_id": args.chat_id, "bring_to_front": args.bring_to_front}
+            ok = playground.switch_page(
+                target=args.switch_to,
+                chat_id=args.chat_id,
+                bring_to_front=args.bring_to_front,
+                new_chat=args.new
+            )
+            res = {
+                "success": ok,
+                "action": "switch-page",
+                "target": args.switch_to,
+                "chat_id": args.chat_id,
+                "new_chat": args.new,
+                "bring_to_front": args.bring_to_front
+            }
             if args.json:
                 print(json.dumps(res, ensure_ascii=False))
             else:
                 cid_str = f" (会话: {args.chat_id})" if args.chat_id else ""
+                new_str = " (全新对话 /app)" if args.new else ""
                 front_str = "，并已前置激活窗口" if args.bring_to_front else " (后台静默，无焦点抢占)"
-                print(f"🔀 已成功切换活动标签页至: {args.switch_to}{cid_str}{front_str}")
+                print(f"🔀 已成功切换活动标签页至: {args.switch_to}{new_str}{cid_str}{front_str}")
 
         elif args.command == "reset":
             target = args.target or "options"
@@ -170,11 +186,15 @@ def main():
                 print(f"🔄 环境已重置至 {target}")
 
         elif args.command == "evaluate-export":
-            from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
+            golden_chats = None
+            if args.require_golden:
+                from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
+                golden_chats = DESIGNATED_HISTORICAL_CHATS
             ok, msg, details = playground.evaluate_export(
                 zip_path=args.zip,
                 min_conversations=args.min,
-                expected_golden_chats=DESIGNATED_HISTORICAL_CHATS
+                expected_golden_chats=golden_chats,
+                chat_id=args.chat_id
             )
             res = {"success": ok, "message": msg, "details": details}
             if args.json:

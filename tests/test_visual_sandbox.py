@@ -288,6 +288,16 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertEqual(tgt, "gemini")
         self.assertEqual(cid, "28a9d16ec6bf")
 
+    def test_switch_page_gemini_new_chat(self):
+        ok = self.sandbox.switch_page("gemini", new_chat=True)
+        self.assertTrue(ok)
+        self.assertEqual(self.sandbox.active_target, "gemini")
+        nav_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Page.navigate"]
+        self.assertTrue(any(c["params"]["url"] == "https://gemini.google.com/app" for c in nav_calls))
+        tgt, cid = VisualSandbox.load_active_target(self.temp_dir)
+        self.assertEqual(tgt, "gemini")
+        self.assertIsNone(cid)
+
     def test_agent_switch_page_action(self):
         provider = MockCustomVisionProvider([
             VisualAction(
@@ -302,6 +312,57 @@ class TestVisualQAAgent(unittest.TestCase):
         result = agent.run_objective("测试切换至指定会话")
         self.assertTrue(result.success)
         self.assertEqual(self.sandbox.active_target, "gemini")
+
+    def test_evaluate_export_targeted_chat_id(self):
+        import zipfile
+        zip_path = os.path.join(self.temp_dir, "test_export.zip")
+        md_content = """---
+title: "火星宇航员"
+id: "c_mars123456"
+url: "https://gemini.google.com/app/mars123456"
+date: "2026-09-15"
+updated: "2026-09-15"
+exported: "2026-09-15"
+tags:
+  - gemini-export
+---
+
+## 👤 你
+> ⏱️ 2026/09/15 10:00:00
+
+火星上有水吗？
+
+## 🤖 Gemini
+> ⏱️ 2026/09/15 10:00:02
+
+火星上发现了冰形态的水。
+"""
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("火星宇航员_123456.md", md_content)
+
+        # 1. Targeted check with matching chat_id passes
+        ok, msg, details = self.sandbox.evaluate_export(zip_path, min_conversations=1, chat_id="c_mars123456")
+        self.assertTrue(ok, msg)
+        self.assertIn("mars123456", msg)
+
+        # 2. Targeted check with non-matching chat_id fails
+        ok_fail, msg_fail, _ = self.sandbox.evaluate_export(zip_path, min_conversations=1, chat_id="c_other999")
+        self.assertFalse(ok_fail)
+        self.assertIn("未在导出包中找到指定目标会话", msg_fail)
+
+        # 3. Default evaluate (no golden required) passes
+        ok_gen, msg_gen, _ = self.sandbox.evaluate_export(zip_path, min_conversations=1)
+        self.assertTrue(ok_gen, msg_gen)
+
+        # 4. Requiring golden chats fails because our zip does not have them
+        from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
+        ok_golden, msg_golden, _ = self.sandbox.evaluate_export(
+            zip_path,
+            min_conversations=1,
+            expected_golden_chats=DESIGNATED_HISTORICAL_CHATS
+        )
+        self.assertFalse(ok_golden)
+        self.assertIn("GoldenCheck", msg_golden)
 
 
 if __name__ == "__main__":

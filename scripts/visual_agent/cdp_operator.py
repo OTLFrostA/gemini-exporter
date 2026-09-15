@@ -333,6 +333,7 @@ def cmd_assert_export(output_dir=None, min_conversations=4, port=CDP_DEFAULT_POR
 
     from tests.helpers.export_spec_asserter import ExportSpecificationAsserter
     from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
+    asserter = ExportSpecificationAsserter(extract_dir)
     spec_ok = asserter.run_all_assertions(min_conversations=min_conversations, expected_golden_chats=DESIGNATED_HISTORICAL_CHATS)
 
     print(json.dumps({
