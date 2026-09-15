@@ -243,14 +243,40 @@ class TestVisualQAAgent(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.temp_dir, "visual_audit_report.html")))
 
     def test_switch_page_options(self):
+        # 默认静默切换，绝不抢占操作系统焦点 (bring_to_front=False)
         ok = self.sandbox.switch_page("options")
         self.assertTrue(ok)
         self.assertEqual(self.sandbox.active_target, "options")
         methods = [c["method"] for c in self.mock_cdp.call_history]
-        self.assertIn("Page.bringToFront", methods)
+        self.assertNotIn("Page.bringToFront", methods)
         tgt, cid = VisualSandbox.load_active_target(self.temp_dir)
         self.assertEqual(tgt, "options")
         self.assertIsNone(cid)
+
+        # 显式传参 bring_to_front=True 时调用 Page.bringToFront
+        self.mock_cdp.call_history.clear()
+        ok2 = self.sandbox.switch_page("options", bring_to_front=True)
+        self.assertTrue(ok2)
+        methods2 = [c["method"] for c in self.mock_cdp.call_history]
+        self.assertIn("Page.bringToFront", methods2)
+
+    def test_to_pixel_retina_scaling(self):
+        # 默认情况 (MockCDP eval 返回 None 时回退到 self.width=1280, self.height=800)
+        px_x, px_y = self.sandbox._to_pixel(0.5, 0.5)
+        self.assertEqual(px_x, 640)
+        self.assertEqual(px_y, 400)
+
+        # 模拟 macOS Retina 屏幕 (DPR = 1.5, CSS innerWidth=853, innerHeight=533)
+        self.mock_cdp.eval_return = {"w": 853, "h": 533, "dpr": 1.5}
+        # 归一化输入测试: 0.873, 0.848 应精确缩放到 CSS 像素 (745, 452)
+        rx, ry = self.sandbox._to_pixel(0.873, 0.848)
+        self.assertEqual(rx, 745)
+        self.assertEqual(ry, 452)
+
+        # 绝对物理像素输入测试: 1117, 678 (超出 CSS 范围但在图像范围内) 应除以 DPR 转换为 CSS 像素
+        px_abs_x, px_abs_y = self.sandbox._to_pixel(1117, 678)
+        self.assertEqual(px_abs_x, 745)
+        self.assertEqual(px_abs_y, 452)
 
     def test_switch_page_gemini_with_chat_id(self):
         ok = self.sandbox.switch_page("gemini", chat_id="c_28a9d16ec6bf")

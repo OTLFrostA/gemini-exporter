@@ -61,9 +61,10 @@ def main():
     p_wait.add_argument("--min-mtime", type=float, default=0.0, help="Min mtime for zip_downloaded condition")
 
     # 6. switch-page
-    p_switch = subparsers.add_parser("switch-page", help="Switch active page / tab and physically bring to front", parents=[common_parser])
+    p_switch = subparsers.add_parser("switch-page", help="Switch active page / tab silently in background", parents=[common_parser])
     p_switch.add_argument("--to", dest="switch_to", required=True, choices=["options", "gemini", "chat", "workbench"], help="Target page to switch to")
     p_switch.add_argument("--chat", dest="chat_id", default=None, help="Optional Gemini conversation ID (e.g. c_xxx or xxx)")
+    p_switch.add_argument("--bring-to-front", action="store_true", help="Physically bring Chrome window to OS front (may steal OS desktop focus)")
 
     # 7. reset
     p_reset = subparsers.add_parser("reset", help="Reset environment to initial state", parents=[common_parser])
@@ -150,13 +151,14 @@ def main():
                 sys.exit(2)
 
         elif args.command == "switch-page":
-            ok = playground.switch_page(target=args.switch_to, chat_id=args.chat_id)
-            res = {"success": ok, "action": "switch-page", "target": args.switch_to, "chat_id": args.chat_id}
+            ok = playground.switch_page(target=args.switch_to, chat_id=args.chat_id, bring_to_front=args.bring_to_front)
+            res = {"success": ok, "action": "switch-page", "target": args.switch_to, "chat_id": args.chat_id, "bring_to_front": args.bring_to_front}
             if args.json:
                 print(json.dumps(res, ensure_ascii=False))
             else:
                 cid_str = f" (会话: {args.chat_id})" if args.chat_id else ""
-                print(f"🔀 已成功切换活动标签页至: {args.switch_to}{cid_str}，并已物理前置激活")
+                front_str = "，并已前置激活窗口" if args.bring_to_front else " (后台静默，无焦点抢占)"
+                print(f"🔀 已成功切换活动标签页至: {args.switch_to}{cid_str}{front_str}")
 
         elif args.command == "reset":
             target = args.target or "options"

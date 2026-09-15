@@ -168,15 +168,39 @@ class VisualPlayground:
         self.teardown()
 
     def _to_pixel(self, x: float, y: float) -> Tuple[int, int]:
-        """Convert normalized (0.0 - 1.0) coordinates to absolute pixels."""
+        """
+        Convert normalized (0.0 - 1.0) or absolute coordinates to CSS pixels for CDP Input dispatch.
+        Accurately scales by actual CSS layout viewport (window.innerWidth / innerHeight),
+        natively accommodating any display DPI / Retina scaling (DPR 1.0, 1.5, 2.0).
+        """
+        css_w = float(self.width)
+        css_h = float(self.height)
+        dpr = 1.0
+        try:
+            metrics = self.cdp.eval("({ w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio })")
+            if isinstance(metrics, dict):
+                css_w = float(metrics.get("w") or css_w)
+                css_h = float(metrics.get("h") or css_h)
+                dpr = float(metrics.get("dpr") or 1.0)
+        except Exception:
+            pass
+
         if 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0:
-            px_x = int(round(x * self.width))
-            px_y = int(round(y * self.height))
+            px_x = int(round(x * css_w))
+            px_y = int(round(y * css_h))
         else:
-            px_x = int(round(x))
-            px_y = int(round(y))
-        px_x = max(0, min(self.width, px_x))
-        px_y = max(0, min(self.height, px_y))
+            if x > css_w and dpr > 1.0:
+                px_x = int(round(x / dpr))
+            else:
+                px_x = int(round(x))
+
+            if y > css_h and dpr > 1.0:
+                px_y = int(round(y / dpr))
+            else:
+                px_y = int(round(y))
+
+        px_x = max(0, min(int(css_w), px_x))
+        px_y = max(0, min(int(css_h), px_y))
         return px_x, px_y
 
     def capture_screen(self, step_name: Optional[str] = None) -> ScreenObservation:
@@ -298,6 +322,23 @@ class VisualPlayground:
             time.sleep(0.1)
 
         if clear_first:
+            try:
+                self.cdp.eval("""(() => {
+                    const el = document.activeElement;
+                    if (el) {
+                        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                            el.select();
+                        } else {
+                            const range = document.createRange();
+                            range.selectNodeContents(el);
+                            const sel = window.getSelection();
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        }
+                    }
+                })()""")
+            except Exception:
+                pass
             is_mac = platform.system().lower() == "darwin"
             modifier = 4 if is_mac else 2
             self.cdp.call("Input.dispatchKeyEvent", {
@@ -468,25 +509,30 @@ class VisualPlayground:
         self,
         target: str = "gemini",
         chat_id: Optional[str] = None,
-        timeout: float = 20.0
+        timeout: float = 20.0,
+        bring_to_front: bool = False
     ) -> bool:
         """
-        无缝切换活动标签页并物理前置激活 (Page.bringToFront)。
+        无缝切换活动标签页。
         
         参数:
           - target: "options" (或 "workbench") | "gemini" (或 "chat")
           - chat_id: 可选。当 target 为 gemini 时，传入指定会话 ID (如 "c_28a9d..." 或 "28a9d...")，
                      将直接精准导航至 https://gemini.google.com/app/{chat_id_clean} 并等待输入框就绪。
+          - timeout: 等待页面或会话就绪的最大超时秒数。
+          - bring_to_front: 是否将 Chrome 窗口物理前置激活 (Page.bringToFront)。默认为 False，
+                            CDP 在后台直接静默操作标签页，彻底杜绝抢占 OS 桌面焦点。
         """
         norm_target = "gemini" if target.lower() in ("gemini", "chat") else "options"
 
         # 单元测试 / MockCDP 环境兼容处理
         if self._is_mock:
             self.active_target = norm_target
-            try:
-                self.cdp.call("Page.bringToFront")
-            except Exception:
-                pass
+            if bring_to_front:
+                try:
+                    self.cdp.call("Page.bringToFront")
+                except Exception:
+                    pass
             clean_cid = None
             if norm_target == "gemini" and chat_id:
                 clean_cid = str(chat_id).strip()
@@ -534,11 +580,12 @@ class VisualPlayground:
                 pass
             self.cdp = CDPConnection(target_ws)
 
-        # 物理置顶前置激活目标标签页
-        try:
-            self.cdp.call("Page.bringToFront")
-        except Exception:
-            pass
+        # 可选物理置顶前置激活目标标签页 (默认 False 避免抢占 macOS 桌面焦点)
+        if bring_to_front:
+            try:
+                self.cdp.call("Page.bringToFront")
+            except Exception:
+                pass
 
         # 若指定了会话 ID，导航至对应会话并等待就绪
         clean_cid = None
