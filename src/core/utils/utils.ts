@@ -24,6 +24,7 @@ import {
     getEffectiveTimestamp,
     compareConversations,
     TITLE_SOURCE_PRIORITY,
+    TITLE_TIER_RANK,
     type TitleResolution
 } from './titleUtils.js';
 import {
@@ -67,6 +68,7 @@ export {
     getEffectiveTimestamp,
     compareConversations,
     TITLE_SOURCE_PRIORITY,
+    TITLE_TIER_RANK,
     type TitleResolution,
     // Progress
     formatExportProgress,
@@ -109,6 +111,7 @@ export interface GeminiUtilsModule {
     mergeConversation: (existing: any, incoming: any, options?: MergeConversationOptions) => MergeConversationResult;
     deduplicateConversations: (list: any[], options?: MergeConversationOptions) => DeduplicateResult;
     TITLE_SOURCE_PRIORITY: string[];
+    TITLE_TIER_RANK: Record<string, number>;
     getErrorMessage: (err: unknown) => string;
 }
 
@@ -153,6 +156,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     mergeConversation,
     deduplicateConversations,
     TITLE_SOURCE_PRIORITY,
+    TITLE_TIER_RANK,
     getErrorMessage
 };
 

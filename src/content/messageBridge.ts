@@ -4,6 +4,7 @@ import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
+import { TITLE_TIER_RANK } from '../core/utils/titleUtils.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
@@ -94,10 +95,31 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 }
                             }
                         }
+                        let titlesObj = detailRes.titles || {};
+                        const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
+                        if (sourceTier === 'sniff') {
+                            try {
+                                const storageInst = Storage && typeof Storage.getConversations === 'function'
+                                    ? Storage
+                                    : (StorageService && typeof StorageService.getConversations === 'function' ? StorageService : null);
+                                const existingList = storageInst ? await storageInst.getConversations(targetSlot) : [];
+                                const existingConv = (existingList || []).find((c: any) => normId(c.id) === nid);
+                                if (existingConv && (isRealTitle ? isRealTitle(existingConv.title, nid) : true)) {
+                                    const exRank = TITLE_TIER_RANK[existingConv.titleSource || 'default'] ?? 0;
+                                    const sniffRank = TITLE_TIER_RANK.sniff ?? 20;
+                                    if (exRank >= sniffRank) {
+                                        title = existingConv.title;
+                                        sourceTier = existingConv.titleSource || 'dom';
+                                        titlesObj = { ...(existingConv.titles || {}) };
+                                    }
+                                }
+                            } catch (e) {
+                                if (contentContext.isDevMode()) console.debug('[MessageBridge] Storage check err', e);
+                            }
+                        }
+
                         if (isRealTitle(title, nid)) {
-                            const titlesObj = detailRes.titles || {};
                             titlesObj[sourceTier] = title;
-                            const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
                             await upsertConversations([{
                                 id: nid,
                                 title: title,

@@ -14,6 +14,15 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
 
 export const TITLE_SOURCE_PRIORITY: string[] = ['rpc', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
 
+export const TITLE_TIER_RANK: Record<string, number> = {
+    rpc: 50,
+    dom: 40,
+    takeout: 30,
+    sniff: 20,
+    legacy: 10,
+    default: 0
+};
+
 /**
  * Strips zero-width characters and standard whitespace.
  */
@@ -112,7 +121,7 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
             const raw = chat.titles[source];
             if (!raw) continue;
             const clean = cleanTitle(raw);
-            if (clean && isRealTitle(clean, id)) {
+            if (clean && (isRealTitle(clean, id) || (source === 'takeout' && !isBrandPlaceholderTitle(clean)))) {
                 return { title: clean, source: source };
             }
         }
@@ -205,5 +214,6 @@ export default {
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
-    TITLE_SOURCE_PRIORITY
+    TITLE_SOURCE_PRIORITY,
+    TITLE_TIER_RANK
 };

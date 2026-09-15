@@ -272,6 +272,20 @@ test('listView - checkIsUpdated correctly detects new dialogue and timestamps', 
 
     // 5. Exported conversation with subsequent messageCount increase
     assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 6 }, recSame), true);
+
+    // 6. Incomplete / truncated conversation where cloud metadata inflated messageCount (e.g. 2)
+    // but actual exported messages was 1, with export occurring strictly after last chat activity
+    const chatTs = 1700000000000;
+    const recNewer = {
+        exportedAt: new Date(chatTs + 86400000).toISOString(),
+        chatTime: chatTs,
+        messageCount: 1
+    };
+    // Must return false, breaking the infinite '已更新' loop!
+    assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs, messageCount: 2 }, recNewer), false);
+
+    // 7. But if subsequent user activity arrives after export (updatedAt advanced past exportedAt), must return true
+    assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs + 86400000 + 5000, messageCount: 2 }, recNewer), true);
 });
 
 test('listView - render displays Updated badge and auto-checks updated conversations', () => {

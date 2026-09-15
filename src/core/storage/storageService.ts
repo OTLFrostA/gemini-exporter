@@ -87,16 +87,16 @@ declare global {
         return ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
     }
 
-    async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
-        const { convKey } = getStorageKeys(slot);
-        await chrome.storage.local.set({ [convKey]: list || [] });
-    }
-
     let _convChain: Promise<any> = Promise.resolve();
     function withConversationLock<T>(fn: () => Promise<T>): Promise<T> {
         const p = _convChain.then(fn, fn);
         _convChain = p.then(() => {}, () => {});
         return p;
+    }
+
+    async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
+        const { convKey } = getStorageKeys(slot);
+        await chrome.storage.local.set({ [convKey]: list || [] });
     }
 
     async function removeConversation(slot: string | null | undefined, conversationId: string): Promise<boolean> {
