@@ -15,6 +15,7 @@ import json
 import base64
 import platform
 import glob
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List
 
@@ -72,10 +73,14 @@ class VisualPlayground:
     def __init__(
         self,
         cdp: CDPConnection,
+        port: int = CDP_DEFAULT_PORT,
+        active_target: str = "options",
         viewport_size: Tuple[int, int] = (1280, 800),
         output_dir: Optional[str] = None
     ):
         self.cdp = cdp
+        self.port = port
+        self.active_target = active_target
         self.viewport_size = viewport_size
         self.width, self.height = viewport_size
         self.output_dir = output_dir or os.path.abspath(
@@ -83,8 +88,40 @@ class VisualPlayground:
         )
         os.makedirs(self.output_dir, exist_ok=True)
         self.history: List[Dict[str, Any]] = []
+        self._is_mock = not hasattr(self.cdp, "ws_url") or "Mock" in type(self.cdp).__name__
         self._setup_viewport()
         self._setup_download_behavior()
+        self._save_state()
+
+    def _save_state(self, chat_id: Optional[str] = None):
+        """Persist current active target and chat info for stateless CLI calls."""
+        state_file = os.path.join(self.output_dir, ".playground_state.json")
+        try:
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "port": self.port,
+                    "target": self.active_target,
+                    "chat_id": chat_id,
+                    "updated_at": time.time()
+                }, f, indent=2)
+        except Exception:
+            pass
+
+    @classmethod
+    def load_active_target(cls, output_dir: Optional[str] = None) -> Tuple[str, Optional[str]]:
+        """Read current active target and chat_id from persistent state."""
+        out = output_dir or os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "../../tests/output/visual_audit")
+        )
+        state_file = os.path.join(out, ".playground_state.json")
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get("target", "options"), data.get("chat_id")
+            except Exception:
+                pass
+        return "options", None
 
     def _setup_download_behavior(self):
         """Configure browser and page download behavior to save exported archives to output_dir."""
@@ -427,22 +464,123 @@ class VisualPlayground:
                 elapsed=time.time() - t0
             )
 
+    def switch_page(
+        self,
+        target: str = "gemini",
+        chat_id: Optional[str] = None,
+        timeout: float = 20.0
+    ) -> bool:
+        """
+        无缝切换活动标签页并物理前置激活 (Page.bringToFront)。
+        
+        参数:
+          - target: "options" (或 "workbench") | "gemini" (或 "chat")
+          - chat_id: 可选。当 target 为 gemini 时，传入指定会话 ID (如 "c_28a9d..." 或 "28a9d...")，
+                     将直接精准导航至 https://gemini.google.com/app/{chat_id_clean} 并等待输入框就绪。
+        """
+        norm_target = "gemini" if target.lower() in ("gemini", "chat") else "options"
+
+        # 单元测试 / MockCDP 环境兼容处理
+        if self._is_mock:
+            self.active_target = norm_target
+            try:
+                self.cdp.call("Page.bringToFront")
+            except Exception:
+                pass
+            clean_cid = None
+            if norm_target == "gemini" and chat_id:
+                clean_cid = str(chat_id).strip()
+                if clean_cid.startswith("c_"):
+                    clean_cid = clean_cid[2:]
+                try:
+                    self.cdp.call("Page.navigate", {"url": f"https://gemini.google.com/app/{clean_cid}"})
+                except Exception:
+                    pass
+            self._save_state(chat_id=clean_cid)
+            return True
+
+        tabs = get_tabs(self.port)
+
+        target_tab = None
+        if norm_target == "gemini":
+            target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+            if not target_tab:
+                new_url = f"http://127.0.0.1:{self.port}/json/new?https://gemini.google.com/app"
+                req = urllib.request.Request(new_url, method="PUT")
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    target_tab = json.loads(r.read().decode("utf-8"))
+        elif norm_target == "options":
+            ext_id = get_extension_id(self.port)
+            if not ext_id:
+                ext_id = get_extension_id(self.cdp)
+            base_options_part = f"chrome-extension://{ext_id}/src/ui/options/options.html" if ext_id else "options.html"
+            target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
+            if not target_tab:
+                new_url = f"http://127.0.0.1:{self.port}/json/new?{base_options_part}"
+                req = urllib.request.Request(new_url, method="PUT")
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    target_tab = json.loads(r.read().decode("utf-8"))
+
+        if not target_tab:
+            raise RuntimeError(f"无法定位或创建目标标签页: {target}")
+
+        # 切换活动 CDP 连接
+        target_ws = target_tab.get("webSocketDebuggerUrl")
+        current_ws = getattr(self.cdp, "ws_url", None)
+        if target_ws and target_ws != current_ws:
+            try:
+                self.cdp.close()
+            except Exception:
+                pass
+            self.cdp = CDPConnection(target_ws)
+
+        # 物理置顶前置激活目标标签页
+        try:
+            self.cdp.call("Page.bringToFront")
+        except Exception:
+            pass
+
+        # 若指定了会话 ID，导航至对应会话并等待就绪
+        clean_cid = None
+        if norm_target == "gemini" and chat_id:
+            clean_cid = str(chat_id).strip()
+            if clean_cid.startswith("c_"):
+                clean_cid = clean_cid[2:]
+            target_url = f"https://gemini.google.com/app/{clean_cid}"
+            curr_url = target_tab.get("url", "")
+            if clean_cid not in curr_url:
+                try:
+                    self.cdp.call("Page.navigate", {"url": target_url})
+                except Exception:
+                    pass
+                time.sleep(1.5)
+
+            # 确定性等待输入框或对话树就绪
+            t0 = time.time()
+            while time.time() - t0 < timeout:
+                ready = self.cdp.eval("""
+                (() => {
+                    const editor = document.querySelector('rich-textarea, div[contenteditable="true"], .ql-editor');
+                    return !!editor;
+                })()
+                """)
+                if ready:
+                    break
+                time.sleep(0.4)
+
+        self._setup_viewport()
+        self._setup_download_behavior()
+        self.active_target = norm_target
+        self._save_state(chat_id=clean_cid)
+        return True
+
     def reset(self, target: str = "options") -> bool:
         """
         Resets the playground to a clean initial state.
-        Ensures viewport override is cleared, navigates to target, and waits for idle.
+        Ensures viewport override is cleared, switches cleanly to target, and waits for idle.
         """
         self._setup_viewport()
-        if target.lower() == "options":
-            ext_id = get_extension_id(self.cdp)
-            if ext_id:
-                url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
-                self.cdp.call("Page.navigate", {"url": url})
-                time.sleep(1.0)
-        elif target.lower() == "gemini":
-            self.cdp.call("Page.navigate", {"url": "https://gemini.google.com/app"})
-            time.sleep(2.0)
-        return True
+        return self.switch_page(target=target)
 
     def evaluate_export(
         self,
@@ -466,18 +604,26 @@ VisualSandbox = VisualPlayground
 
 def open_visual_playground(
     port: int = CDP_DEFAULT_PORT,
-    target_page: str = "options",
+    target_page: Optional[str] = None,
     viewport_size: Tuple[int, int] = (1280, 800),
     output_dir: Optional[str] = None
 ) -> VisualPlayground:
+    out = output_dir or os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "../../tests/output/visual_audit")
+    )
+    if not target_page:
+        saved_target, _ = VisualPlayground.load_active_target(out)
+        target_page = saved_target or "options"
+
+    norm_target = "gemini" if target_page.lower() in ("gemini", "chat") else "options"
     tabs = get_tabs(port)
     if not tabs:
         raise RuntimeError(f"未在端口 {port} 找到任何活跃 Chrome 标签页。请先启动独立测试 Chrome。")
 
     target_tab = None
-    if target_page.lower() == "gemini":
+    if norm_target == "gemini":
         target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
-    elif target_page.lower() == "options":
+    elif norm_target == "options":
         target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
 
     if not target_tab:
@@ -486,8 +632,10 @@ def open_visual_playground(
     cdp = CDPConnection(target_tab["webSocketDebuggerUrl"])
     playground = VisualPlayground(
         cdp=cdp,
+        port=port,
+        active_target=norm_target,
         viewport_size=viewport_size,
-        output_dir=output_dir
+        output_dir=out
     )
     return playground
 

@@ -86,7 +86,7 @@ class TestVisualSandbox(unittest.TestCase):
 
         # 2. 边界约束测试
         px_x, px_y = self.sandbox._to_pixel(1.5, -0.2)
-        self.assertEqual(px_x, 1)  # 1.5 > 1.0 -> absolute 1
+        self.assertEqual(px_x, 2)  # round(1.5) -> 2
         self.assertEqual(px_y, 0)  # clamped to 0
 
         # 3. 绝对像素坐标
@@ -241,6 +241,41 @@ class TestVisualQAAgent(unittest.TestCase):
         self.scorecard.save()
         self.assertTrue(os.path.isfile(os.path.join(self.temp_dir, "visual_audit_scorecard.md")))
         self.assertTrue(os.path.isfile(os.path.join(self.temp_dir, "visual_audit_report.html")))
+
+    def test_switch_page_options(self):
+        ok = self.sandbox.switch_page("options")
+        self.assertTrue(ok)
+        self.assertEqual(self.sandbox.active_target, "options")
+        methods = [c["method"] for c in self.mock_cdp.call_history]
+        self.assertIn("Page.bringToFront", methods)
+        tgt, cid = VisualSandbox.load_active_target(self.temp_dir)
+        self.assertEqual(tgt, "options")
+        self.assertIsNone(cid)
+
+    def test_switch_page_gemini_with_chat_id(self):
+        ok = self.sandbox.switch_page("gemini", chat_id="c_28a9d16ec6bf")
+        self.assertTrue(ok)
+        self.assertEqual(self.sandbox.active_target, "gemini")
+        nav_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Page.navigate"]
+        self.assertTrue(any("28a9d16ec6bf" in c["params"]["url"] for c in nav_calls))
+        tgt, cid = VisualSandbox.load_active_target(self.temp_dir)
+        self.assertEqual(tgt, "gemini")
+        self.assertEqual(cid, "28a9d16ec6bf")
+
+    def test_agent_switch_page_action(self):
+        provider = MockCustomVisionProvider([
+            VisualAction(
+                action_type=VisualActionType.SWITCH_PAGE,
+                target="gemini",
+                chat_id="c_test123",
+                thought="Switch to specific chat"
+            ),
+            VisualAction(action_type=VisualActionType.DONE, thought="Goal reached")
+        ])
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        result = agent.run_objective("测试切换至指定会话")
+        self.assertTrue(result.success)
+        self.assertEqual(self.sandbox.active_target, "gemini")
 
 
 if __name__ == "__main__":

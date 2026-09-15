@@ -253,6 +253,13 @@ class AutonomousVisualAgent:
                 if not wait_res.success:
                     self.log(f"沙盒等待超时失败: {wait_res.message}", "WARN")
 
+            elif action.action_type == VisualActionType.SWITCH_PAGE:
+                target = action.target or action.details.get("target", "gemini")
+                chat_id = action.chat_id or action.details.get("chat_id")
+                cid_str = f" (chat_id: {chat_id})" if chat_id else ""
+                self.log(f"Agent 主动切换活动页面 -> {target}{cid_str}", "ACT")
+                self.playground.switch_page(target=target, chat_id=chat_id)
+
             elif action.action_type == VisualActionType.WAIT:
                 time.sleep(1.0)
 
