@@ -211,3 +211,159 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
         'Logs should contain permission revocation warning'
     );
 });
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator: Fast Upfront Skip Filter
+// ---------------------------------------------------------------------------
+test('ExportOrchestrator - skip: true skips already exported up-to-date chats upfront and only fetches unexported/updated chats', async () => {
+    setupMockJSZip();
+    const orchestrator = new ExportOrchestrator();
+
+    const tExported = 1700000000000;
+    const conversations = [
+        { id: 'chat-new', title: 'New Conversation', timestamp: tExported },
+        { id: 'chat-updated', title: 'Updated Conversation', timestamp: tExported, updatedAt: tExported + 30000 },
+        { id: 'chat-synced', title: 'Synced Conversation', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-old', title: 'Old Synced Conversation', timestamp: tExported - 10000 }
+    ];
+
+    const exportedIds = {
+        'chat-updated': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported, title: 'Updated Conversation' },
+        'chat-synced': { exportedAt: new Date(tExported + 5000).toISOString(), chatTime: tExported, title: 'Synced Conversation' },
+        'chat-old': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported - 10000, title: 'Old Synced Conversation' }
+    };
+
+    const fetchedIds: string[] = [];
+    const mockWorker = {
+        fetchChatDetail: async (requestedItem: any) => {
+            fetchedIds.push(requestedItem.id);
+            return {
+                success: true,
+                chat: {
+                    id: requestedItem.id,
+                    title: requestedItem.title,
+                    messages: [{ role: 'user', content: 'test' }]
+                },
+                listTitle: requestedItem.title
+            };
+        }
+    };
+
+    const logs: string[] = [];
+    const result = await orchestrator.run({
+        selected: conversations,
+        format: 'markdown',
+        useZip: true,
+        skip: true,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker
+    }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(result.landedChats, 2, 'Only 2 chats (new and updated) should be exported');
+    assert.strictEqual(result.skipped, 2, '2 chats (synced and old) should be skipped upfront');
+    assert.deepStrictEqual(fetchedIds.sort(), ['chat-new', 'chat-updated'].sort(), 'Only new and updated chats should be fetched');
+    assert.ok(logs.some(l => (l.includes('Synced Conversation') || l.includes('chat-synced')) && l.includes('跳过')), 'Logs should report chat-synced skipped');
+    assert.ok(logs.some(l => (l.includes('Old Synced Conversation') || l.includes('chat-old')) && l.includes('跳过')), 'Logs should report chat-old skipped');
+});
+
+test('ExportOrchestrator - skip: true when all selected chats are up-to-date completes instantly without network calls or empty zip', async () => {
+    let zipGenerated = false;
+    (global as any).JSZip = class MockJSZipAllSkip {
+        files: Record<string, any> = {};
+        folder() { return { file: () => {} }; }
+        async generateAsync() {
+            zipGenerated = true;
+            return new Blob(['mock-zip'], { type: 'application/zip' });
+        }
+    };
+
+    const orchestrator = new ExportOrchestrator();
+
+    const tExported = 1700000000000;
+    const conversations = [
+        { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
+    ];
+
+    const exportedIds = {
+        'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
+        'chat-2': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 2' }
+    };
+
+    let fetchCalls = 0;
+    const mockWorker = {
+        fetchChatDetail: async () => {
+            fetchCalls++;
+            return { success: true };
+        }
+    };
+
+    const logs: string[] = [];
+    const result = await orchestrator.run({
+        selected: conversations,
+        format: 'markdown',
+        useZip: true,
+        skip: true,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker
+    }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(fetchCalls, 0, 'Zero network calls should be made when all chats are skipped upfront');
+    assert.strictEqual(result.landedChats, 0, 'Zero chats landed');
+    assert.strictEqual(result.skipped, 2, 'All 2 chats should be skipped');
+    assert.strictEqual(result.failedChats.length, 0, 'Zero failures');
+    assert.strictEqual(zipGenerated, false, 'No empty zip should be generated when all chats are skipped');
+    assert.ok(logs.some(l => l.includes('无需生成 ZIP')), 'Logs should confirm no zip generated');
+});
+
+test('ExportOrchestrator - skip: false exports all selected chats regardless of export records', async () => {
+    setupMockJSZip();
+    const orchestrator = new ExportOrchestrator();
+
+    const tExported = 1700000000000;
+    const conversations = [
+        { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
+        { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
+    ];
+
+    const exportedIds = {
+        'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
+        'chat-2': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 2' }
+    };
+
+    let fetchCalls = 0;
+    const mockWorker = {
+        fetchChatDetail: async (item: any) => {
+            fetchCalls++;
+            return {
+                success: true,
+                chat: { id: item.id, title: item.title, messages: [] },
+                listTitle: item.title
+            };
+        }
+    };
+
+    const result = await orchestrator.run({
+        selected: conversations,
+        format: 'markdown',
+        useZip: true,
+        skip: false,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker
+    });
+
+    assert.strictEqual(fetchCalls, 2, 'All chats should be fetched when skip is false');
+    assert.strictEqual(result.landedChats, 2, 'All chats should land');
+    assert.strictEqual(result.skipped, 0, 'Zero chats skipped');
+});
+

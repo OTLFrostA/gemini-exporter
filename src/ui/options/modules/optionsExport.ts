@@ -308,11 +308,41 @@ export async function startExportPipeline(
                 }
                 log(finishMsg, 'warn');
                 renderExportFailureBanner(failedList);
-            } else {
+            } else if (successCount === 0 && (result?.skipped || 0) > 0) {
+                const skippedCount = result.skipped;
                 if (typeof t === 'function') {
-                    const translated = t('exportSuccess', successCount);
-                    if (translated && translated !== 'exportSuccess') {
+                    const translated = t('exportSkippedAll', skippedCount);
+                    if (translated && translated !== 'exportSkippedAll') {
                         finishMsg = translated;
+                    }
+                }
+                if (!finishMsg) {
+                    const isEn = typeof getLang === 'function' && getLang() === 'en';
+                    finishMsg = isEn
+                        ? `Export completed: All ${skippedCount} selected conversations skipped (already exported and up-to-date).`
+                        : `导出完成：所选 ${skippedCount} 篇对话均已导出且无更新，已全部跳过。`;
+                }
+                log(finishMsg, 'info');
+                hideExportFailureBanner();
+            } else {
+                const skippedCount = result?.skipped || 0;
+                if (skippedCount > 0 && typeof t === 'function') {
+                    const translated = t('exportSuccessWithSkipped', successCount, skippedCount);
+                    if (translated && translated !== 'exportSuccessWithSkipped') {
+                        finishMsg = translated;
+                    }
+                }
+                if (!finishMsg) {
+                    const isEn = typeof getLang === 'function' && getLang() === 'en';
+                    if (skippedCount > 0) {
+                        finishMsg = isEn
+                            ? `Export completed! ${successCount} conversations exported, ${skippedCount} skipped.`
+                            : `导出完成！已导出 ${successCount} 篇对话，跳过 ${skippedCount} 篇已导出对话。`;
+                    } else if (typeof t === 'function') {
+                        const translated = t('exportSuccess', successCount);
+                        if (translated && translated !== 'exportSuccess') {
+                            finishMsg = translated;
+                        }
                     }
                 }
                 if (!finishMsg) {

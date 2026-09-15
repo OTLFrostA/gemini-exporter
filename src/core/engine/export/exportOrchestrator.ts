@@ -52,7 +52,8 @@ import GeminiUtils, {
     normId as utilsNormId,
     sanitizeRelativePath,
     buildExportFileName,
-    getErrorMessage
+    getErrorMessage,
+    checkIsUpdated as utilsCheckIsUpdated
 } from "../../utils/utils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
@@ -88,6 +89,9 @@ export const normId = (id?: string | number | null): string =>
 
 export const sanitizeZipPath = (p?: string | null): string =>
     ((globalThis as any).GeminiUtils?.sanitizeRelativePath || sanitizeRelativePath)(p, 'file');
+
+export const checkIsUpdated = (c: any, rec?: any): boolean =>
+    ((globalThis as any).GeminiUtils?.checkIsUpdated || utilsCheckIsUpdated)(c, rec);
 
     function toIso(v: any): string | null {
         if (!v) return null;
@@ -208,7 +212,9 @@ export const sanitizeZipPath = (p?: string | null): string =>
                 selected = [],
                 format = 'markdown',
                 useZip = true,
-                currentSlot = 'u0'
+                currentSlot = 'u0',
+                skip = false,
+                conversations = []
             } = options;
 
             if (!selected.length) {
@@ -222,14 +228,6 @@ export const sanitizeZipPath = (p?: string | null): string =>
             this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
-            const payloadIds = selected.map((s: any) => ({
-                id: s.id,
-                title: s.title,
-                url: s.url || s.href || `https://gemini.google.com/app/${s.id}`,
-                timestamp: s.timestamp,
-                lastSeen: s.lastSeen
-            }));
-
             const slot = currentSlot || 'u0';
             const Storage = (typeof (globalThis as any).StorageService !== 'undefined') ? (globalThis as any).StorageService : ((globalThis as any).StorageService || null);
             let curIds = Storage ? await Storage.getExportedIds(slot) : {};
@@ -238,14 +236,50 @@ export const sanitizeZipPath = (p?: string | null): string =>
                 const store = await chrome.storage.local.get([expKey]);
                 curIds = store[expKey] || {};
             }
+            if (options.exportedIds && typeof options.exportedIds === 'object') {
+                curIds = { ...curIds, ...options.exportedIds };
+            }
+
+            const payloadIds: any[] = [];
+            const skippedItems: any[] = [];
+
+            const utils = getUtils();
+            const checkUpdatedFn = (utils && typeof utils.checkIsUpdated === 'function')
+                ? utils.checkIsUpdated
+                : checkIsUpdated;
+
+            for (const s of selected) {
+                const sid = typeof s === 'string' ? s : s?.id;
+                const nid = normId(sid);
+                const itemPayload = {
+                    id: sid,
+                    title: s.title || sid,
+                    url: s.url || s.href || `https://gemini.google.com/app/${sid}`,
+                    timestamp: s.timestamp,
+                    lastSeen: s.lastSeen
+                };
+
+                if (skip) {
+                    const rec = curIds[sid] || curIds['c_' + nid] || curIds[nid] || null;
+                    if (rec) {
+                        const conv = (Array.isArray(conversations) ? conversations.find((c: any) => normId(c.id) === nid) : null) || (typeof s === 'object' ? s : null);
+                        const isUpdated = checkUpdatedFn(conv || itemPayload, rec);
+                        if (!isUpdated) {
+                            skippedItems.push(itemPayload);
+                            continue;
+                        }
+                    }
+                }
+                payloadIds.push(itemPayload);
+            }
 
             const recovery = getSessionRecovery();
             if (recovery && recovery.updateSessionStatus) {
                 await recovery.updateSessionStatus({
                     status: 'running',
                     slot,
-                    total: payloadIds.length,
-                    current: 0,
+                    total: selected.length,
+                    current: skippedItems.length,
                     format,
                     useZip,
                     startTime: Date.now()
@@ -254,6 +288,8 @@ export const sanitizeZipPath = (p?: string | null): string =>
 
             return {
                 payloadIds,
+                skippedItems,
+                totalSelected: selected.length,
                 slot,
                 Storage,
                 curIds,
@@ -410,7 +446,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
             const onItemExported = callbacks.onItemExported || (() => {});
 
             const session = await this._initSession(options, callbacks);
-            const { payloadIds, slot, Storage, curIds, abortSignal } = session;
+            const { payloadIds, skippedItems = [], totalSelected = options.selected?.length || 0, slot, Storage, curIds, abortSignal } = session;
 
             const {
                 format = 'markdown',
@@ -442,17 +478,26 @@ export const sanitizeZipPath = (p?: string | null): string =>
             let landedChats = 0;
             let failedChats: any[] = [];
             let failedAttachments: any[] = [];
-            let skipped = 0;
+            let skipped = skippedItems.length;
             let metaResults: any[] = [];
 
+            const totalChats = totalSelected || payloadIds.length;
             let currentExportTitle = '';
-            let currentExportIdx = 0;
+            let currentExportIdx = skipped;
+
+            const I18n = (globalThis as any).I18n;
+
+            for (const sItem of skippedItems) {
+                const sTitle = sItem.title || sItem.id;
+                onLog(typeof I18n !== 'undefined'
+                    ? (I18n.t('logExportSkippedAlreadyExported', sTitle) || `[${sTitle}] 跳过已导出内容 (无更新)`)
+                    : `[${sTitle}] 跳过已导出内容 (无更新)`, 'info');
+            }
 
             const updateProgress = (chatIdx?: number, chatTitle?: string) => {
                 if (typeof chatIdx === 'number') currentExportIdx = chatIdx;
                 if (typeof chatTitle === 'string' && chatTitle) currentExportTitle = chatTitle;
 
-                const totalChats = payloadIds.length;
                 const current = Math.min(currentExportIdx, totalChats);
                 let pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
 
@@ -474,7 +519,11 @@ export const sanitizeZipPath = (p?: string | null): string =>
                 });
             };
 
-            updateProgress(0, 'Preparing...');
+            if (payloadIds.length === 0) {
+                updateProgress(totalChats, typeof I18n !== 'undefined' ? I18n.t('exportSkippedAll', skipped) : 'All items skipped');
+            } else {
+                updateProgress(skipped, 'Preparing...');
+            }
 
             const attachmentQueue = new AsyncQueue();
             const MAX_CONCURRENT = 4;
@@ -525,7 +574,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
 
             const CONCURRENCY = Math.max(1, typeof options.concurrency === 'number' ? options.concurrency : 3);
             let nextIndex = 0;
-            let completedCount = 0;
+            let completedCount = skipped;
             let convsNeedSave = false;
 
             const exportWorker = async () => {
@@ -554,7 +603,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
 
                     while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
                         res = worker && worker.fetchChatDetail
-                            ? await worker.fetchChatDetail(requestedItem, currentIndex, payloadIds.length, currentSlot, skip, format, abortSignal)
+                            ? await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal)
                             : null;
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
@@ -785,7 +834,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
                         await recovery.updateSessionStatus({
                             status: 'running',
                             slot,
-                            total: payloadIds.length,
+                            total: totalChats,
                             current: completedCount,
                             lastChatId: chat.id,
                             lastChatTitle: listTitle,
@@ -799,7 +848,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
                                     gemini_last_export_session: {
                                         status: 'running',
                                         slot,
-                                        total: payloadIds.length,
+                                        total: totalChats,
                                         current: completedCount,
                                         lastChatId: chat.id,
                                         lastChatTitle: listTitle,
@@ -859,7 +908,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
                 if (recovery && recovery.buildSessionLogText) {
                     fullLogText = recovery.buildSessionLogText({
                         landedChats,
-                        totalChats: payloadIds.length,
+                        totalChats,
                         downloadedAssets,
                         totalAssets,
                         skipped,
@@ -873,7 +922,7 @@ export const sanitizeZipPath = (p?: string | null): string =>
                     exportedAt: new Date().toISOString(),
                     isDevMode,
                     summary: {
-                        total: payloadIds.length,
+                        total: totalChats,
                         landed: landedChats,
                         failed: failedChats.length,
                         skipped,
@@ -891,15 +940,21 @@ export const sanitizeZipPath = (p?: string | null): string =>
             }
 
             if (useZip) {
-                await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
+                if (landedChats === 0 && skipped > 0 && failedChats.length === 0) {
+                    onLog(typeof I18n !== 'undefined'
+                        ? (I18n.t('logExportSkippedAllNoZip') || '所选对话均已导出且无更新，已全部跳过，无需生成 ZIP。')
+                        : '所选对话均已导出且无更新，已全部跳过，无需生成 ZIP。', 'info');
+                } else {
+                    await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
+                }
             }
 
             if (recovery && recovery.updateSessionStatus) {
                 await recovery.updateSessionStatus({
                     status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
                     slot,
-                    total: payloadIds.length,
-                    current: landedChats,
+                    total: totalChats,
+                    current: landedChats + skipped,
                     failedCount: failedChats.length,
                     skipped
                 });
@@ -939,6 +994,7 @@ export const ExportOrchestratorModule: ExportOrchestratorModule = {
 (ExportOrchestratorModule as any).sanitizeFileName = sanitizeFileName;
 (ExportOrchestratorModule as any).sanitizeZipPath = sanitizeZipPath;
 (ExportOrchestratorModule as any).getExtensionVersion = getExtensionVersion;
+(ExportOrchestratorModule as any).checkIsUpdated = checkIsUpdated;
 (ExportOrchestratorModule as any).default = ExportOrchestratorModule;
 
 if (typeof globalThis !== 'undefined') {
