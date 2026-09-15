@@ -423,7 +423,10 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                                     let docTitle = metaItem.title || "";
                                     if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
                                         if (md) {
-                                            let hMatch = md.match(/^#\\s+(.+)$/m);
+                                            // P0-4 fix: was /^#\\s+(.+)$/m (double-escaped), which matches a
+                                            // literal backslash + "s" instead of whitespace and never matches
+                                            // a real "# Title" heading.
+                                            let hMatch = md.match(/^#\s+(.+)$/m);
                                             if (hMatch && hMatch[1].trim()) {
                                                 docTitle = hMatch[1].trim();
                                             }

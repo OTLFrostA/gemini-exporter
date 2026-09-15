@@ -15,7 +15,21 @@ import {
 import { $, getI18n } from '../uiCommon.js';
 
 const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
-const log = (_msg: string): void => {};
+// P0-5 fix: this used to be a no-op, silently swallowing every export failure.
+// Now it writes to the console and surfaces the message in the popup's #log panel.
+const log = (msg: string): void => {
+    try {
+        if (typeof console !== 'undefined') console.log('[GemExporter:popup]', msg);
+        const el = (typeof document !== 'undefined' ? document.getElementById('log') : null) as HTMLElement | null;
+        if (el) {
+            el.style.display = '';
+            const line = document.createElement('div');
+            line.textContent = msg;
+            el.appendChild(line);
+            el.scrollTop = el.scrollHeight;
+        }
+    } catch { /* logging must never break the popup itself */ }
+};
 
     function updateUiForTabState(isGemini: boolean): void {
         const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
