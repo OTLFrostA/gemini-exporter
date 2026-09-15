@@ -16,6 +16,8 @@ from .driver import (
     TurnResult
 )
 
+from .environment import TestEnvironment, EnvironmentContext
+
 __all__ = [
     "Feature",
     "FeatureDomain",
@@ -31,5 +33,8 @@ __all__ = [
     "GeminiDriver",
     "GeminiChatSession",
     "TurnResult",
+    "TestEnvironment",
+    "EnvironmentContext",
 ]
+
 

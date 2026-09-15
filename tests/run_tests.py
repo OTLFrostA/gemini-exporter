@@ -842,6 +842,13 @@ def test_visual_sandbox_suite():
     assert res.returncode == 0, f"test_visual_sandbox.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 3 Visual Sandbox & Autonomous QA Agent test suite passed")
 
+def test_framework_environment_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_framework_environment.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_framework_environment.py failed: {res.stderr or res.stdout}"
+    print("  ✓ Tier 2 TestEnvironment & Unified Lifecycle test suite passed")
+
 test_json_files()
 test_manifest_structure()
 test_build_pipeline()
@@ -862,6 +869,7 @@ test_selectors_and_gateway_suite()
 test_platform_driver_suite()
 test_pipeline_decoupling_suite()
 test_visual_sandbox_suite()
+test_framework_environment_suite()
 test_javascript_syntax()
 test_javascript_unit_tests()
 

@@ -75,11 +75,12 @@ class VisualPlayground:
 
     def __init__(
         self,
-        cdp: CDPConnection,
+        cdp: Any,
         port: int = CDP_DEFAULT_PORT,
         active_target: str = "options",
         viewport_size: Tuple[int, int] = (1280, 800),
-        output_dir: Optional[str] = None
+        output_dir: Optional[str] = None,
+        env: Optional[Any] = None
     ):
         self.cdp = cdp
         self.port = port
@@ -92,6 +93,17 @@ class VisualPlayground:
         os.makedirs(self.output_dir, exist_ok=True)
         self.history: List[Dict[str, Any]] = []
         self._is_mock = not hasattr(self.cdp, "ws_url") or "Mock" in type(self.cdp).__name__
+
+        if env is not None:
+            self.env = env
+        else:
+            from scripts.framework.environment import TestEnvironment
+            self.env = TestEnvironment(
+                port=self.port,
+                output_dir=self.output_dir,
+                viewport_size=self.viewport_size
+            )
+
         self._setup_viewport()
         self._setup_download_behavior()
         self._save_state()
@@ -128,26 +140,36 @@ class VisualPlayground:
 
     def _setup_download_behavior(self):
         """Configure browser and page download behavior to save exported archives to output_dir."""
-        try:
-            self.cdp.call("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": self.output_dir})
-        except Exception:
-            pass
+        if hasattr(self, "env") and self.env and not self._is_mock:
+            self.env.setup_download_behavior(output_dir=self.output_dir, cdp=self.cdp)
+        else:
+            try:
+                self.cdp.call("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": self.output_dir})
+            except Exception:
+                pass
 
     def _setup_viewport(self):
         """Force standardized physical viewport and remove scaling distortions."""
-        try:
-            self.cdp.call("Emulation.clearDeviceMetricsOverride")
-        except Exception:
-            pass
-        try:
-            self.cdp.call("Emulation.setDeviceMetricsOverride", {
-                "width": self.width,
-                "height": self.height,
-                "deviceScaleFactor": 1,
-                "mobile": False
-            })
-        except Exception:
-            pass
+        if hasattr(self, "env") and self.env and not self._is_mock:
+            self.env.setup_viewport(self.cdp, self.viewport_size)
+        else:
+            try:
+                self.cdp.call("Page.enable")
+            except Exception:
+                pass
+            try:
+                self.cdp.call("Emulation.clearDeviceMetricsOverride")
+            except Exception:
+                pass
+            try:
+                self.cdp.call("Emulation.setDeviceMetricsOverride", {
+                    "width": self.width,
+                    "height": self.height,
+                    "deviceScaleFactor": 1,
+                    "mobile": False
+                })
+            except Exception:
+                pass
 
     def teardown(self):
         """
@@ -155,14 +177,17 @@ class VisualPlayground:
         Explicitly clear any device metrics overrides to prevent viewport shrinkage bugs,
         and cleanly disconnect the CDP session.
         """
-        try:
-            self.cdp.call("Emulation.clearDeviceMetricsOverride")
-        except Exception:
-            pass
-        try:
-            self.cdp.close()
-        except Exception:
-            pass
+        if hasattr(self, "env") and self.env and not self._is_mock:
+            self.env.teardown(self.cdp)
+        else:
+            try:
+                self.cdp.call("Emulation.clearDeviceMetricsOverride")
+            except Exception:
+                pass
+            try:
+                self.cdp.close()
+            except Exception:
+                pass
 
     def __enter__(self):
         return self
@@ -552,27 +577,15 @@ class VisualPlayground:
             self._save_state(chat_id=clean_cid)
             return True
 
-        tabs = get_tabs(self.port)
-
-        target_tab = None
-        if norm_target == "gemini":
-            target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
-            if not target_tab:
-                new_url = f"http://127.0.0.1:{self.port}/json/new?https://gemini.google.com/app"
-                req = urllib.request.Request(new_url, method="PUT")
-                with urllib.request.urlopen(req, timeout=5) as r:
-                    target_tab = json.loads(r.read().decode("utf-8"))
-        elif norm_target == "options":
-            ext_id = get_extension_id(self.port)
-            if not ext_id:
-                ext_id = get_extension_id(self.cdp)
-            base_options_part = f"chrome-extension://{ext_id}/src/ui/options/options.html" if ext_id else "options.html"
-            target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
-            if not target_tab:
-                new_url = f"http://127.0.0.1:{self.port}/json/new?{base_options_part}"
-                req = urllib.request.Request(new_url, method="PUT")
-                with urllib.request.urlopen(req, timeout=5) as r:
-                    target_tab = json.loads(r.read().decode("utf-8"))
+        target_tab = self.env.ensure_tab(norm_target)
+        if not target_tab:
+            tabs = get_tabs(self.port)
+            if norm_target == "gemini":
+                target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+            elif norm_target == "options":
+                target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
+            if not target_tab and tabs:
+                target_tab = tabs[0]
 
         if not target_tab:
             raise RuntimeError(f"无法定位或创建目标标签页: {target}")
@@ -627,11 +640,23 @@ class VisualPlayground:
         self._save_state(chat_id=clean_cid)
         return True
 
-    def reset(self, target: str = "options") -> bool:
+    def reset(self, target: str = "options", reinstall: bool = False) -> bool:
         """
         Resets the playground to a clean initial state.
-        Ensures viewport override is cleared, switches cleanly to target, and waits for idle.
+        Supports optional extension reinstallation via Tier 2 TestEnvironment.
         """
+        norm_target = "gemini" if target.lower() in ("gemini", "chat") else "options"
+        if reinstall and hasattr(self, "env") and self.env and not self._is_mock:
+            self.env.init_environment(
+                reinstall=True,
+                target_pages=[norm_target],
+                active_target=norm_target,
+                reload_gemini=(norm_target == "gemini"),
+                setup_viewport=True,
+                setup_download=True
+            )
+            return self.switch_page(target=norm_target)
+
         self._setup_viewport()
         return self.switch_page(target=target)
 
@@ -663,18 +688,9 @@ def open_visual_playground(
     viewport_size: Tuple[int, int] = (1280, 800),
     output_dir: Optional[str] = None,
     reinstall: bool = False,
-    repo_path: Optional[str] = None
+    repo_path: Optional[str] = None,
+    env: Optional[Any] = None
 ) -> VisualPlayground:
-    if reinstall:
-        target_repo = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), "../.."))
-        from scripts.framework.actions import CDPActions
-        print(f"\n🔄 [Playground 步骤 0] 通过 CDP 原生卸载并纯净安装扩展: {target_repo}...")
-        reinstalled_id = CDPActions.reinstall_extension(port=port, repo_path=target_repo)
-        if not reinstalled_id:
-            raise RuntimeError(f"❌ 扩展卸载与纯净重装失败 (端口 {port})，无法初始化 Playground 靶场！")
-        time.sleep(1.0)
-        print(f"🧩 当前活跃扩展 ID: {reinstalled_id}")
-
     out = output_dir or os.path.abspath(
         os.path.join(os.path.dirname(__file__), "../../tests/output/visual_audit")
     )
@@ -683,18 +699,36 @@ def open_visual_playground(
         target_page = saved_target or "options"
 
     norm_target = "gemini" if target_page.lower() in ("gemini", "chat") else "options"
-    tabs = get_tabs(port)
-    if not tabs:
-        raise RuntimeError(f"未在端口 {port} 找到任何活跃 Chrome 标签页。请先启动独立测试 Chrome。")
+    target_repo = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), "../.."))
 
-    target_tab = None
-    if norm_target == "gemini":
-        target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
-    elif norm_target == "options":
-        target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
+    if env is None:
+        from scripts.framework.environment import TestEnvironment
+        env = TestEnvironment(
+            port=port,
+            output_dir=out,
+            viewport_size=viewport_size,
+            repo_path=target_repo
+        )
 
+    if reinstall:
+        print(f"\n🔄 [Playground 步骤 0] 通过 Tier 2 TestEnvironment 原生卸载并纯净安装扩展: {target_repo}...")
+        reinstalled_id = env.reinstall_extension()
+        if not reinstalled_id:
+            raise RuntimeError(f"❌ 扩展卸载与纯净重装失败 (端口 {port})，无法初始化 Playground 靶场！")
+        time.sleep(1.0)
+        print(f"🧩 当前活跃扩展 ID: {reinstalled_id}")
+
+    target_tab = env.ensure_tab(norm_target)
     if not target_tab:
-        target_tab = tabs[0]
+        tabs = get_tabs(port)
+        if not tabs:
+            raise RuntimeError(f"未在端口 {port} 找到任何活跃 Chrome 标签页。请先启动独立测试 Chrome。")
+        if norm_target == "gemini":
+            target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+        elif norm_target == "options":
+            target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
+        if not target_tab:
+            target_tab = tabs[0]
 
     cdp = CDPConnection(target_tab["webSocketDebuggerUrl"])
     playground = VisualPlayground(
@@ -702,7 +736,8 @@ def open_visual_playground(
         port=port,
         active_target=norm_target,
         viewport_size=viewport_size,
-        output_dir=out
+        output_dir=out,
+        env=env
     )
     return playground
 

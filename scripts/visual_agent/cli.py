@@ -89,8 +89,9 @@ def main():
 
     if args.command == "reinstall":
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-        from scripts.framework.actions import CDPActions
-        ext_id = CDPActions.reinstall_extension(port=args.port, repo_path=repo_root)
+        from scripts.framework.environment import TestEnvironment
+        env = TestEnvironment(port=args.port, repo_path=repo_root)
+        ext_id = env.reinstall_extension()
         if ext_id:
             res = {"success": True, "action": "reinstall", "extension_id": ext_id}
             if args.json:
@@ -201,17 +202,13 @@ def main():
 
         elif args.command == "reset":
             target = args.target or "options"
-            if getattr(args, "reinstall", False):
-                repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-                from scripts.framework.actions import CDPActions
-                CDPActions.reinstall_extension(port=args.port, repo_path=repo_root)
-                time.sleep(1.0)
-            playground.reset(target=target)
-            res = {"success": True, "action": "reset", "target": target, "reinstalled": getattr(args, "reinstall", False)}
+            reinstall = getattr(args, "reinstall", False)
+            playground.reset(target=target, reinstall=reinstall)
+            res = {"success": True, "action": "reset", "target": target, "reinstalled": reinstall}
             if args.json:
                 print(json.dumps(res, ensure_ascii=False))
             else:
-                reinstall_str = " (已执行纯净重装)" if getattr(args, "reinstall", False) else ""
+                reinstall_str = " (已执行纯净重装)" if reinstall else ""
                 print(f"🔄 环境已重置至 {target}{reinstall_str}")
 
         elif args.command == "evaluate-export":
