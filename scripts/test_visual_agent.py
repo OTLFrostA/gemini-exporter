@@ -35,7 +35,11 @@ DEFAULT_OBJECTIVES = [
 ]
 
 
-def run_playground_interactive_mode(port: int = CDP_DEFAULT_PORT, output_dir: str = None):
+def run_playground_interactive_mode(
+    port: int = CDP_DEFAULT_PORT,
+    output_dir: str = None,
+    reinstall: bool = False
+):
     """
     Launches the interactive Playground and displays the operational surface.
     """
@@ -43,7 +47,12 @@ def run_playground_interactive_mode(port: int = CDP_DEFAULT_PORT, output_dir: st
     print(" 🎮 Gemini Exporter — 视觉测试交互靶场已就绪 (Visual Playground)")
     print("=" * 65)
 
-    playground = open_visual_playground(port=port, target_page="options", output_dir=output_dir)
+    playground = open_visual_playground(
+        port=port,
+        target_page="options",
+        output_dir=output_dir,
+        reinstall=reinstall
+    )
     try:
         obs = playground.capture_screen("playground_ready")
         print(f" [👀 感知] 初始全景截屏已就绪: {obs.file_path} (视口: 1280x800)")
@@ -65,7 +74,8 @@ def run_autonomous_mode(
     goal: str,
     port: int = CDP_DEFAULT_PORT,
     output_dir: str = None,
-    max_steps: int = 25
+    max_steps: int = 25,
+    reinstall: bool = False
 ) -> bool:
     """
     Runs the AutonomousVisualAgent ReAct loop driven by Gemini 2.0 Flash multimodal model.
@@ -81,7 +91,12 @@ def run_autonomous_mode(
     print(f" 🎯 目标任务: {goal}")
     print("=" * 65)
 
-    playground = open_visual_playground(port=port, target_page="options", output_dir=output_dir)
+    playground = open_visual_playground(
+        port=port,
+        target_page="options",
+        output_dir=output_dir,
+        reinstall=reinstall
+    )
     scorecard = VisualUXScorecard(output_dir=playground.output_dir)
     provider = GeminiVisionProvider(api_key=api_key)
     agent = AutonomousVisualAgent(playground=playground, provider=provider, scorecard=scorecard)
@@ -94,7 +109,11 @@ def run_autonomous_mode(
         playground.teardown()
 
 
-def run_playground_smoke_verification(port: int = CDP_DEFAULT_PORT, output_dir: str = None) -> bool:
+def run_playground_smoke_verification(
+    port: int = CDP_DEFAULT_PORT,
+    output_dir: str = None,
+    reinstall: bool = False
+) -> bool:
     """
     Verifies all 5 physical primitives of VisualPlayground against live Chrome (port 9222).
     """
@@ -102,7 +121,12 @@ def run_playground_smoke_verification(port: int = CDP_DEFAULT_PORT, output_dir: 
     print(" 🔍 启动 VisualPlayground 物理沙盒基础原子原语自检...")
     print("=" * 65)
 
-    playground = open_visual_playground(port=port, target_page="options", output_dir=output_dir)
+    playground = open_visual_playground(
+        port=port,
+        target_page="options",
+        output_dir=output_dir,
+        reinstall=reinstall
+    )
     try:
         # 1. 截图感知
         obs = playground.capture_screen("smoke_test_init")
@@ -145,29 +169,19 @@ def main():
     parser.add_argument("--no-reinstall", action="store_true", help="跳过启动时的扩展卸载与纯净重装 (默认第一步强制纯净重装)")
     args = parser.parse_args()
 
-    # 默认第一步：扩展卸载与纯净重装 (与 Tier 2 生命周期步骤 0 严格对齐)
-    if not args.no_reinstall:
-        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        from scripts.framework.actions import CDPActions
-        print("\n🔄 [Tier 3 步骤 0] 通过 CDP 原生卸载并纯净安装当前工作区代码...")
-        ext_id = CDPActions.reinstall_extension(port=args.port, repo_path=repo_root)
-        if not ext_id:
-            print("❌ 扩展重装失败，终止运行！")
-            sys.exit(1)
-        time.sleep(1.0)
-        print(f"🧩 当前活跃扩展 ID: {ext_id}")
+    do_reinstall = not args.no_reinstall
 
     if args.playground:
-        success = run_playground_interactive_mode(port=args.port, output_dir=args.output_dir)
+        success = run_playground_interactive_mode(port=args.port, output_dir=args.output_dir, reinstall=do_reinstall)
     elif args.autonomous or args.goal:
         goal = args.goal or DEFAULT_OBJECTIVES[0]
-        success = run_autonomous_mode(goal=goal, port=args.port, output_dir=args.output_dir, max_steps=args.max_steps)
+        success = run_autonomous_mode(goal=goal, port=args.port, output_dir=args.output_dir, max_steps=args.max_steps, reinstall=do_reinstall)
     elif args.smoke:
-        success = run_playground_smoke_verification(port=args.port, output_dir=args.output_dir)
+        success = run_playground_smoke_verification(port=args.port, output_dir=args.output_dir, reinstall=do_reinstall)
     else:
         # 默认执行靶场物理原语就绪自检并打印交互入口
-        success = run_playground_smoke_verification(port=args.port, output_dir=args.output_dir)
-        run_playground_interactive_mode(port=args.port, output_dir=args.output_dir)
+        success = run_playground_smoke_verification(port=args.port, output_dir=args.output_dir, reinstall=do_reinstall)
+        run_playground_interactive_mode(port=args.port, output_dir=args.output_dir, reinstall=False)
 
     sys.exit(0 if success else 1)
 

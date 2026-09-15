@@ -17,6 +17,7 @@ from scripts.framework.features import Feature, FeatureDomain, FeatureRegistry, 
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 from scripts.framework.lifecycle_tracker import SessionLifecycleTracker
 from scripts.framework.pipeline import SerialActionExecutor
+from scripts.framework.environment import TestEnvironment
 
 try:
     from scripts.cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url, is_gemini_url
@@ -45,6 +46,12 @@ class TestContext:
         self.registry = FeatureRegistry()
         self.executor = SerialActionExecutor()
 
+        self.env = TestEnvironment(
+            port=self.port,
+            output_dir=self.output_dir,
+            repo_path=self.worktree_root
+        )
+
         if isinstance(dataset, dict) and "scenarios" in dataset:
             self.scenarios = dataset["scenarios"]
         elif isinstance(dataset, list) and dataset:
@@ -55,61 +62,38 @@ class TestContext:
             sc_text = self.provider.pop_scenario(min_turns=2)
             self.scenarios = [sc_img, sc_text]
 
-        self.ext_id: Optional[str] = None
+        self._ext_id: Optional[str] = None
         self.chat_records: List[Dict[str, Any]] = []
         self.shared_data: Dict[str, Any] = {}
         os.makedirs(self.output_dir, exist_ok=True)
 
+    @property
+    def ext_id(self) -> Optional[str]:
+        return self.env.ext_id or self._ext_id
+
+    @ext_id.setter
+    def ext_id(self, val: Optional[str]):
+        self._ext_id = val
+        if hasattr(self, "env") and self.env:
+            self.env.ext_id = val
+
     def get_gemini_tab(self) -> Optional[Dict[str, Any]]:
-        tabs = get_tabs(self.port)
-        return next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+        return self.env.get_gemini_tab()
 
     def ensure_gemini_tab(self) -> Optional[Dict[str, Any]]:
-        tab = self.get_gemini_tab()
-        if not tab:
-            try:
-                req = urllib.request.Request(f"http://127.0.0.1:{self.port}/json/new?https://gemini.google.com/app", method="PUT")
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    tab = json.loads(resp.read().decode())
-                    time.sleep(3.0)
-            except Exception as e:
-                print(f"   ⚠️ 自动创建 Gemini 标签页异常: {e}")
-        return tab or self.get_gemini_tab()
+        return self.env.ensure_gemini_tab()
 
     def get_options_tab(self) -> Optional[Dict[str, Any]]:
-        if not self.ext_id:
-            return None
-        options_url = f"chrome-extension://{self.ext_id}/src/ui/options/options.html"
-        tabs = get_tabs(self.port)
-        return next((t for t in tabs if options_url in t.get("url", "")), None)
+        return self.env.get_options_tab()
 
     def ensure_options_tab(self) -> Optional[Dict[str, Any]]:
-        if not self.ext_id:
-            return None
-        tab = self.get_options_tab()
-        if not tab:
-            options_url = f"chrome-extension://{self.ext_id}/src/ui/options/options.html"
-            new_url = f"http://127.0.0.1:{self.port}/json/new?{options_url}"
-            try:
-                req = urllib.request.Request(new_url, method="PUT")
-                with urllib.request.urlopen(req, timeout=5) as r:
-                    tab = json.loads(r.read().decode("utf-8"))
-                    time.sleep(1.0)
-            except Exception as e:
-                print(f"   ⚠️ 自动打开 Options 标签页异常: {e}")
-        return tab or self.get_options_tab()
+        return self.env.ensure_options_tab()
 
     def connect_gemini(self) -> CDPConnection:
-        tab = self.ensure_gemini_tab()
-        if not tab:
-            raise RuntimeError("Gemini 标签页不存在且无法创建")
-        return CDPConnection(tab["webSocketDebuggerUrl"])
+        return self.env.connect_gemini()
 
     def connect_options(self) -> CDPConnection:
-        tab = self.ensure_options_tab()
-        if not tab:
-            raise RuntimeError("Options 标签页不存在且无法创建")
-        return CDPConnection(tab["webSocketDebuggerUrl"])
+        return self.env.connect_options()
 
     def get_gemini_driver(self, cdp: Optional[CDPConnection] = None):
         """获取高层 Gemini 自动化驱动"""

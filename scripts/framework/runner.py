@@ -131,44 +131,22 @@ class FrameworkRunner:
         print(f"🌐 Chrome 调试端口: 127.0.0.1:{self.port}")
         print("=" * 80)
 
-        # 步骤 0：扩展卸载与纯净重装
-        print("\n🔄 [步骤 0] 通过 CDP 原生卸载并纯净安装当前工作区代码...")
-        self.ext_id = CDPActions.reinstall_extension(self.port, repo_path=self.ctx.worktree_root)
+        # 步骤 0：统一环境初始化 (扩展卸载重装、标签页确保、Gemini 刷新、下载落盘)
+        print("\n🔄 [步骤 0] 通过 TestEnvironment 纯净重装扩展并标准化测试环境...")
+        env_ctx = self.ctx.env.init_environment(
+            reinstall=True,
+            target_pages=("gemini", "options"),
+            reload_gemini=True,
+            setup_download=True
+        )
+        self.ext_id = env_ctx.ext_id
+        self.ctx.ext_id = env_ctx.ext_id
         if not self.ext_id:
             print("❌ 扩展安装失败，终止运行！")
             return False
-        time.sleep(1.0)
-        print(f"🧩 当前活跃扩展 ID: {self.ext_id}")
-
-        # 准备 Gemini 标签页
-        gemini_tab = self.ctx.ensure_gemini_tab()
-        if not gemini_tab:
+        if not env_ctx.gemini_tab:
             print("❌ 未在 Chrome 中找到或创建 gemini.google.com 页面，请先启动测试浏览器！")
             return False
-
-        print("   🔄 刷新 Gemini 页面以注入最新 Content Scripts...")
-        cdp_g = CDPConnection(gemini_tab["webSocketDebuggerUrl"])
-        try:
-            cdp_g.eval("location.reload()")
-        except Exception:
-            pass
-        finally:
-            cdp_g.close()
-        time.sleep(2.0)
-
-        # 允许全局下载落盘行为
-        browser_ws = get_browser_ws_url(self.port)
-        if browser_ws:
-            try:
-                b_cdp = CDPConnection(browser_ws)
-                b_cdp.call("Browser.setDownloadBehavior", {
-                    "behavior": "allow",
-                    "downloadPath": self.output_dir,
-                    "eventsEnabled": True
-                })
-                b_cdp.close()
-            except Exception:
-                pass
 
         # 组装 DAG 调度器
         dag = DAGRunner()
