@@ -1,5 +1,6 @@
 // retryPolicy.ts - Centralized HTTP 400 XSRF recovery, 401 cleanup, and 429 backoff policy
 import type { GeminiClientCredentialManagerModule } from "./credentialManager.js";
+import { calculateBackoff } from "../../engine/export/rateLimiter.js";
 
 export interface Http400Params {
     resp: { status: number; [key: string]: any };
@@ -133,11 +134,19 @@ declare global {
         if (resp.status !== 429 || retryCount >= maxRetries) return { shouldRetry: false };
 
         const retryAfter = resp.headers?.get ? resp.headers.get("retry-after") : null;
-        let delayMs = Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+        // Single canonical backoff formula (see rateLimiter.calculateBackoff);
+        // Retry-After is honored via options and may exceed the 30s cap.
+        let retryAfterMs: number | undefined;
         if (retryAfter) {
             const s = parseInt(retryAfter, 10);
-            if (!isNaN(s) && s > 0) delayMs = Math.max(delayMs, s * 1000);
+            if (!isNaN(s) && s > 0) retryAfterMs = s * 1000;
         }
+        const delayMs = calculateBackoff(retryCount, {
+            initialDelayMs: 2000,
+            maxDelayMs: 30000,
+            jitterMs: 1000,
+            retryAfterMs,
+        });
 
         console.warn(`[Gemini Exporter Client] ${label} 429 rate limited, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
         await new Promise(r => setTimeout(r, delayMs));

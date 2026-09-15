@@ -5,6 +5,7 @@ import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
+import { isRateLimited } from '../core/engine/export/rateLimiter.js';
 
 export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
@@ -62,10 +63,7 @@ export function init({
                     });
                 } catch (e: unknown) {
                     const errStr = getErrorMessage(e);
-                    const isLimit = errStr.includes('BardErrorInfo')
-                        || errStr.includes('1096')
-                        || errStr.includes('429')
-                        || /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(errStr);
+                    const isLimit = isRateLimited({ success: false, error: errStr });
                     sendResponse({ success: false, error: errStr, hitGoogleLimit: isLimit });
                 }
             })();

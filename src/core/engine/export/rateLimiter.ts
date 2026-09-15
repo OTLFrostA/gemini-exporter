@@ -5,6 +5,12 @@ export interface RateLimiterOptions {
     initialDelayMs?: number;
     maxDelayMs?: number;
     jitterMs?: number;
+    /**
+     * Honor a server-sent Retry-After: the computed delay is raised to at
+     * least this value (may exceed maxDelayMs, matching previous behavior
+     * in retryPolicy.handleHttp429).
+     */
+    retryAfterMs?: number;
 }
 
 export interface RateLimitModule {
@@ -15,13 +21,20 @@ export interface RateLimitModule {
 
 /**
  * Check if a response result indicates rate limit (HTTP 429 or quota exceeded).
+ *
+ * Canonical predicate for the whole codebase: previously inlined variants
+ * lived in exportOrchestrator.ts, types/errors.ts (GeminiRpcError) and
+ * content/messageRouter.ts (BardErrorInfo / 1096 / resource_exhausted).
+ * All call sites now converge here so the semantics cannot drift again.
  */
 export function isRateLimited(res: any): boolean {
     if (!res) return false;
     if (res.success) return false;
     if (res.status === 429) return true;
     const err = String(res.error || '');
-    return /429|rate\s*limit|quota|too\s*many\s*requests/i.test(err);
+    if (/429|rate\s*limit|quota|too\s*many\s*requests|resource_exhausted/i.test(err)) return true;
+    // Legacy variants previously inlined in content/messageRouter.ts
+    return err.includes('BardErrorInfo') || err.includes('1096');
 }
 
 /**
@@ -32,7 +45,12 @@ export function calculateBackoff(retryCount: number, options?: RateLimiterOption
     const max = options?.maxDelayMs ?? 30000;
     const jitter = options?.jitterMs ?? 1000;
     const delay = initial * Math.pow(2, retryCount) + Math.floor(Math.random() * jitter);
-    return Math.min(max, delay);
+    const capped = Math.min(max, delay);
+    const retryAfterMs = options?.retryAfterMs;
+    if (typeof retryAfterMs === 'number' && retryAfterMs > 0) {
+        return Math.max(capped, retryAfterMs);
+    }
+    return capped;
 }
 
 /**

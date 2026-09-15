@@ -2,10 +2,8 @@
 
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig } from '../core/storage/liveStorageManager.js';
-import { FsWriter } from '../core/engine/writers/fsWriter.js';
-import { ChatFormatter } from '../core/engine/chatFormatter.js';
+import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { buildExportFileName } from '../core/utils/pathUtils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
     try {
@@ -69,16 +67,17 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             }
         }
 
-        const writer = new FsWriter(handle, 'gemini_export');
-        await writer.init();
+        // Shared live-save writer: filename format + markdown formatting + write.
+        // (Permission checks, dir probing, asset loop and export-record
+        // bookkeeping stay here - they are background-side orchestration.)
+        const writer = await createLiveSaveWriter(handle);
 
-        const targetFile = fileName || buildExportFileName(safeTitle, nid, 'md');
-
-        const markdown = ChatFormatter?.toMarkdown
-            ? ChatFormatter.toMarkdown({ ...chat, title: safeTitle, id: nid })
-            : `# ${safeTitle}\n\n${JSON.stringify(chat?.messages || [], null, 2)}`;
-
-        await writer.writeFile('', targetFile, markdown);
+        const targetFile = await writeLiveSaveMarkdown(
+            writer,
+            { chat, safeTitle, nid },
+            {},
+            { fileName }
+        );
 
         if (Array.isArray(assets) && assets.length > 0) {
             for (const asset of assets) {
