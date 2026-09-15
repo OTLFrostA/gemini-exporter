@@ -381,6 +381,21 @@ class ExtensionActions:
             if (btn) btn.click();
         }})()
         """)
+        # 1. 确保等待扫描进入启动状态 (最多 3 秒)
+        for _ in range(6):
+            time.sleep(0.5)
+            state = cdp_opt.eval(f"""
+            (() => {{
+                const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
+                const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
+                const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
+                return {{ isScan: Boolean(isScan || (btn && btn.disabled)) }};
+            }})()
+            """)
+            if state and state.get("isScan"):
+                break
+
+        # 2. 阻塞等待扫描彻底结束并恢复工作台可用
         start = time.time()
         while time.time() - start < max_wait:
             time.sleep(1.0)
@@ -389,10 +404,11 @@ class ExtensionActions:
                 const sc = typeof SyncCtrl !== 'undefined' ? SyncCtrl : (typeof SyncController !== 'undefined' ? SyncController : null);
                 const isScan = sc && (sc.isScanning ? sc.isScanning() : (sc.isRunning ? sc.isRunning() : false));
                 const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
-                return {{ isScan: isScan || (btn && btn.disabled) }};
+                return {{ isScan: Boolean(isScan || (btn && btn.disabled)) }};
             }})()
             """)
             if not state or not state.get("isScan"):
+                time.sleep(1.0)
                 return True
         return False
 

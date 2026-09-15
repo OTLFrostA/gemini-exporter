@@ -48,9 +48,10 @@ Determine the single best physical mouse or keyboard action to fulfill the instr
 Return ONLY a JSON object formatted exactly as:
 {{
   "thought": "brief explanation of what you see and what you will do",
-  "action": "CLICK" | "TYPE" | "SCROLL" | "WAIT" | "DONE",
-  "box_2d": [ymin, xmin, ymax, xmax], // 0 to 1000 normalized coordinates for CLICK
-  "text": "text to type if action is TYPE"
+  "action": "CLICK" | "TYPE" | "PASTE" | "CLEAR" | "WAIT_ON" | "WAIT" | "DONE",
+  "box_2d": [ymin, xmin, ymax, xmax], // 0 to 1000 normalized coordinates for CLICK / TYPE target
+  "text": "text to type or paste",
+  "condition": "stream_settled" | "zip_downloaded" | "ui_idle" // condition for WAIT_ON
 }}
 """
 
@@ -94,22 +95,42 @@ Return ONLY a JSON object formatted exactly as:
                 thought = parsed.get("thought", "")
                 box = parsed.get("box_2d")
 
-                if action_str == "CLICK" and box and len(box) == 4:
+                norm_x, norm_y = None, None
+                if box and len(box) == 4:
                     ymin, xmin, ymax, xmax = box
-                    # 转换 0-1000 至 0.0 - 1.0 归一化中心点
                     norm_x = ((xmin + xmax) / 2.0) / 1000.0
                     norm_y = ((ymin + ymax) / 2.0) / 1000.0
+
+                if action_str == "CLICK":
                     return VisualAction(
                         action_type=VisualActionType.CLICK,
+                        x=norm_x or 0.5,
+                        y=norm_y or 0.5,
+                        thought=thought,
+                        details={"box_2d": box} if box else {}
+                    )
+                elif action_str in ("TYPE", "PASTE"):
+                    act_type = VisualActionType.PASTE if action_str == "PASTE" else VisualActionType.TYPE
+                    return VisualAction(
+                        action_type=act_type,
                         x=norm_x,
                         y=norm_y,
-                        thought=thought,
-                        details={"box_2d": box}
-                    )
-                elif action_str == "TYPE":
-                    return VisualAction(
-                        action_type=VisualActionType.TYPE,
                         text=parsed.get("text", ""),
+                        thought=thought
+                    )
+                elif action_str == "CLEAR":
+                    return VisualAction(
+                        action_type=VisualActionType.CLEAR,
+                        x=norm_x,
+                        y=norm_y,
+                        thought=thought
+                    )
+                elif action_str == "WAIT_ON":
+                    cond = parsed.get("condition", "stream_settled")
+                    return VisualAction(
+                        action_type=VisualActionType.WAIT_ON,
+                        condition=cond,
+                        timeout=parsed.get("timeout", 300),
                         thought=thought
                     )
                 elif action_str == "DONE":

@@ -373,6 +373,9 @@ class CDPAssertions:
         if os.path.getsize(zip_path) == 0:
             return False, f"导出的 ZIP 文件为 0 字节非法文件: {zip_path}", {}
 
+        if os.path.exists(extract_dir):
+            import shutil
+            shutil.rmtree(extract_dir, ignore_errors=True)
         os.makedirs(extract_dir, exist_ok=True)
         with zipfile.ZipFile(zip_path, 'r') as zf:
             zf.extractall(extract_dir)

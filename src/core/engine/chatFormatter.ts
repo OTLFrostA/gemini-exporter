@@ -114,7 +114,7 @@ declare global {
      */
     function convertHtmlToMarkdown(html?: string | null): string {
         if (!html || typeof html !== 'string') return html || '';
-        if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i)[\s>]/i.test(html)) return html;
+        if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table)[\s>]/i.test(html)) return html;
 
         let res = html;
         // 1. Convert <pre><code> blocks
@@ -128,18 +128,54 @@ declare global {
         });
         // 3. Headings
         res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
-        // 4. Paragraphs and breaks
+        // 4. Bold & italic
+        res = res.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
+        res = res.replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
+        // 5. Tables
+        res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match, tableContent) => {
+            const rows: string[] = [];
+            const trMatches = tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
+            let isFirstRow = true;
+            let colCount = 0;
+
+            for (const trMatch of trMatches) {
+                const trContent = trMatch[1];
+                const cells: string[] = [];
+                const cellMatches = trContent.matchAll(/<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi);
+                for (const cMatch of cellMatches) {
+                    let cell = cMatch[1];
+                    cell = cell.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1<br>');
+                    cell = cell.replace(/<br\s*\/?>/gi, '__TABLE_BR__');
+                    cell = cell.replace(/<[^>]+>/g, '');
+                    cell = unescapeHtml(cell);
+                    cell = cell.replace(/\r?\n/g, ' ').trim();
+                    cell = cell.replace(/\\\|/g, '__ESCAPED_PIPE__').replace(/\|/g, '\\|').replace(/__ESCAPED_PIPE__/g, '\\|');
+                    cells.push(cell);
+                }
+                if (cells.length === 0) continue;
+                if (isFirstRow) {
+                    colCount = cells.length;
+                    rows.push('| ' + cells.join(' | ') + ' |');
+                    rows.push('| ' + new Array(colCount).fill('---').join(' | ') + ' |');
+                    isFirstRow = false;
+                } else {
+                    while (cells.length < colCount) cells.push('');
+                    rows.push('| ' + cells.slice(0, colCount).join(' | ') + ' |');
+                }
+            }
+            return rows.length > 0 ? '\n\n' + rows.join('\n') + '\n\n' : '';
+        });
+        // 6. Paragraphs and breaks
         res = res.replace(/<br\s*\/?>/gi, '\n');
         res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
-        // 5. Bold & italic
-        res = res.replace(/<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi, '**$1**');
-        res = res.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, '*$1*');
-        // 6. Strip any other HTML tags repeatedly to remove nested tags
+        // 7. Strip any other HTML tags repeatedly to remove nested tags
         let prev = '';
         do {
             prev = res;
             res = res.replace(/<[^>]+>/g, '');
         } while (res !== prev);
+        // 8. Restore table line breaks
+        res = res.replace(/__TABLE_BR__/g, '<br>');
         return res;
     }
 

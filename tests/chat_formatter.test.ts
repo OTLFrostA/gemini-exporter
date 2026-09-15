@@ -66,6 +66,15 @@ test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () 
     assert.strictEqual(fenceCount % 2, 0, 'Code fence backticks must be properly paired');
 });
 
+test('chat_formatter - convertHtmlToMarkdown converts html tables to GFM tables', () => {
+    const tableHtml = '<table><thead><tr><th align="left">维度</th><th align="left">经典</th><th align="left">量子</th></tr></thead><tbody><tr><td>状态</td><td>0 或 1</td><td>叠加态<br>|psi></td></tr></tbody></table>';
+    const md = ChatFormatter.convertHtmlToMarkdown(tableHtml);
+    assert.ok(md.includes('| 维度 | 经典 | 量子 |'), 'Table header should be converted');
+    assert.ok(md.includes('| --- | --- | --- |'), 'Table separator should be present');
+    assert.ok(md.includes('| 状态 | 0 或 1 | 叠加态<br>\\|psi> |'), 'Table cells with pipe and br should be properly formatted');
+    assert.ok(/\|\s*:?-{3,}:?\s*\|/.test(md), 'Matches table markdown regex');
+});
+
 test('chat_formatter - adjustHeadingHierarchy shifts headings outside code blocks', () => {
     const md = '# Title\n## Subtitle\n```\n# Not a heading\n```\n### Inner';
     const shifted = ChatFormatter.adjustHeadingHierarchy(md, 2);

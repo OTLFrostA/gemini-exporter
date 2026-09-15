@@ -12,8 +12,11 @@ from typing import List, Dict, Optional, Any, Tuple
 class VisualActionType(Enum):
     CLICK = "CLICK"
     TYPE = "TYPE"
+    PASTE = "PASTE"
+    CLEAR = "CLEAR"
     SCROLL = "SCROLL"
     WAIT = "WAIT"
+    WAIT_ON = "WAIT_ON"
     KEY = "KEY"
     DONE = "DONE"
     FAIL = "FAIL"
@@ -26,6 +29,8 @@ class VisualAction:
     y: Optional[float] = None  # Normalized (0.0 - 1.0) or absolute pixel
     text: Optional[str] = None
     key: Optional[str] = None
+    condition: Optional[str] = None
+    timeout: Optional[int] = None
     thought: Optional[str] = None
     confidence: float = 1.0
     details: Dict[str, Any] = field(default_factory=dict)
