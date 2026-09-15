@@ -14,14 +14,18 @@ import {
     deduplicateConversations
 } from '../core/utils/utils.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
-import { GeminiAPIClient } from '../core/api/geminiClient.js';
+import { ProviderRegistry } from '../core/provider/providerRegistry.js';
+import '../core/provider/index.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
 
 const getStorage = () => (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
 const getProtocol = () => (typeof (globalThis as any).GeminiProtocol !== 'undefined' ? (globalThis as any).GeminiProtocol : GeminiProtocol);
-const getApiClientClass = () => (typeof (globalThis as any).GeminiAPIClient !== 'undefined' ? (globalThis as any).GeminiAPIClient : GeminiAPIClient);
+const resolveProvider = () => {
+    const url = (typeof location !== 'undefined' && location.href) || '';
+    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
+};
 
 export {
     cleanTitle,
@@ -109,10 +113,9 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
                 return;
             }
 
-            const ClientClass = getApiClientClass();
-            if (!ClientClass) return;
-            const client = new ClientClass();
-            const d = await client.getConversationDetail(activeId);
+            const provider = resolveProvider();
+            if (!provider) return;
+            const d = await provider.fetchConversationDetail(activeId);
             if (d && d.id) {
                 const nid = String(d.id).replace(/^c_/, '').trim();
                 const targetTs = d.updatedAt || d.timestamp || null;
@@ -328,10 +331,13 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
 
     try {
         document.getElementById('geminiExportBadge')?.classList.add('syncing');
-        const ClientClass = getApiClientClass();
-        if (!ClientClass) return null;
-        const client = new ClientClass();
-        contentContext.setActiveClient(client);
+        const provider = resolveProvider();
+        if (!provider) return null;
+        // The provider owns the request lifecycle now; ActiveClientContract is
+        // all-optional so this stays type-safe. Cancel still terminates the
+        // scan: messageRouter sets window.__gemExporterAborted on stop, which
+        // the pagination loop checks every page.
+        contentContext.setActiveClient(provider);
         contentContext.setAborted(false);
 
         const slot = getAccountSlot();
@@ -345,7 +351,12 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
         const effectiveMaxPages = forceOpts?.maxPages || (useIncremental ? 2 : 2000);
 
         let saveQueue = Promise.resolve<any>(0);
-        const all = await client.getAllConversations(effectiveMaxPages, (prog: any) => {
+        // Typed as any: the registered Gemini provider spreads the full pagination
+        // result (conversations/hitGoogleLimit/diagnostics) into the page shape
+        // at runtime; the provider-neutral declared type is still stabilizing.
+        const all: any = await provider.listConversations({
+            maxPages: effectiveMaxPages,
+            onProgress: (prog: any) => {
             const badge = document.getElementById('geminiExportBadgeText');
             if (badge) {
                 if (prog.stoppedEarly) badge.textContent = `已同步 ${prog.total} 条 ✓`;
@@ -369,7 +380,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
             if (prog.batch && prog.batch.length) {
                 saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute', true));
             }
-        }, null, {
+            },
+            targetSid: null,
             existingMap: beforeMap,
             incremental: useIncremental,
             unchangedThreshold: 5

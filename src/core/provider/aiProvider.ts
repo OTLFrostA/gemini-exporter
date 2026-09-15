@@ -5,21 +5,51 @@
  * and fetching conversations across heterogeneous AI platforms (Gemini, ChatGPT, Claude, DeepSeek, etc.).
  */
 import type { Conversation, ChatMessage, Attachment, TitleSources } from "../../types/conversation.js";
-import type { ConversationListItem } from "../api/parser/parseList.js";
-import type { DetailParseResult } from "../api/parser/parseDetail.js";
-import type { PaginationOptions, PaginationResult, PaginationProgressInfo } from "../api/client/pagination.js";
 
 export type {
     Conversation,
     ChatMessage,
     Attachment,
-    TitleSources,
-    ConversationListItem,
-    DetailParseResult,
-    PaginationOptions,
-    PaginationResult,
-    PaginationProgressInfo
+    TitleSources
 };
+
+/**
+ * Provider-neutral conversation list item.
+ * Providers map their platform-specific list payloads into this shape;
+ * extra platform fields are allowed via the index signature.
+ */
+export interface ProviderConversationItem {
+    id: string;
+    title: string;
+    url?: string;
+    updatedAt?: number | string;
+    [key: string]: any;
+}
+
+/**
+ * Provider-neutral conversation detail.
+ * Providers map their platform-specific detail payloads into this shape;
+ * extra platform fields are allowed via the index signature.
+ */
+export interface ProviderConversationDetail {
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    url?: string;
+    [key: string]: any;
+}
+
+/**
+ * Provider-neutral paginated result.
+ */
+export interface ProviderPageResult<T> {
+    items: T[];
+    total?: number;
+    hasMore?: boolean;
+    nextCursor?: string | null;
+    stoppedEarly?: boolean;
+    diagnostics?: any;
+}
 
 export interface ProviderCapabilities {
     supportsRealtimeSniffing: boolean;
@@ -36,16 +66,6 @@ export interface ProviderReadiness {
     error?: string;
 }
 
-export interface ProviderListResult {
-    conversations: ConversationListItem[];
-    total: number;
-    stoppedEarly?: boolean;
-    hasMore?: boolean;
-    nextCursor?: string | null;
-    diagnostics?: any;
-    [key: string]: any;
-}
-
 export interface AIProvider {
     readonly id: string;
     readonly name: string;
@@ -56,10 +76,10 @@ export interface AIProvider {
     checkReadiness(context?: any): Promise<ProviderReadiness>;
 
     // List conversations with pagination, incremental detection, and progress callbacks
-    listConversations(options?: PaginationOptions): Promise<PaginationResult | ProviderListResult>;
+    listConversations(options?: any): Promise<ProviderPageResult<ProviderConversationItem>>;
 
-    // Fetch conversation detail normalized to the standard DetailParseResult / Conversation model
-    fetchConversationDetail(conversationId: string, options?: any): Promise<DetailParseResult>;
+    // Fetch conversation detail normalized to the provider-neutral detail model
+    fetchConversationDetail(conversationId: string, options?: any): Promise<ProviderConversationDetail>;
 
     // Match whether this provider handles a specific URL
     matchesUrl(url: string): boolean;

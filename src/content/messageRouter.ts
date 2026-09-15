@@ -6,6 +6,13 @@ import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
+import { ProviderRegistry } from '../core/provider/providerRegistry.js';
+import '../core/provider/index.js';
+
+const resolveProvider = () => {
+    const url = (typeof location !== 'undefined' && location.href) || '';
+    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
+};
 
 export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
@@ -134,10 +141,9 @@ export function init({
 
                 let batchexecuteEmptyDebug: any = null;
                 try {
-                    const ClientClass = (typeof GeminiAPIClient !== 'undefined' ? GeminiAPIClient : null) as any;
-                    if (ClientClass) {
-                        const client = new ClientClass();
-                        const detail = await client.getConversationDetail(cid, msg.targetSid || null);
+                    const provider = resolveProvider();
+                    if (provider) {
+                        const detail = await provider.fetchConversationDetail(cid, { targetSid: msg.targetSid || null });
                         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                             await persistDetailTitle(detail);
                             sendResponse({ success: true, data: detail, source: 'batchexecute' });

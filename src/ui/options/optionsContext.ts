@@ -14,7 +14,8 @@ import { LiveStorageManager } from '../../core/storage/liveStorageManager.js';
 import { GeminiUtils } from '../../core/utils/utils.js';
 import { GeminiConstants } from '../../core/utils/constants.js';
 import { GeminiProtocol } from '../../core/protocol/protocol.js';
-import { GeminiAPIClient } from '../../core/api/geminiClient.js';
+import { ProviderRegistry } from '../../core/provider/providerRegistry.js';
+import '../../core/provider/index.js';
 import { TabService } from '../../core/utils/tabService.js';
 import { TakeoutEngine } from '../../core/engine/takeoutEngine.js';
 import { TourGuide } from '../tour/tourGuide.js';
@@ -48,7 +49,15 @@ export const getLiveStorage = () => (typeof (globalThis as any).LiveStorageManag
 export const getUtils = () => (typeof (globalThis as any).GeminiUtils !== 'undefined' ? (globalThis as any).GeminiUtils : GeminiUtils);
 export const getConstants = () => (typeof (globalThis as any).GeminiConstants !== 'undefined' ? (globalThis as any).GeminiConstants : GeminiConstants);
 export const getProtocol = () => (typeof (globalThis as any).GeminiProtocol !== 'undefined' ? (globalThis as any).GeminiProtocol : GeminiProtocol);
-export const getApiClient = () => (typeof (globalThis as any).GeminiAPIClient !== 'undefined' ? (globalThis as any).GeminiAPIClient : GeminiAPIClient);
+const resolveProvider = () => {
+    const url = (typeof location !== 'undefined' && location.href) || '';
+    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
+};
+// NOTE: the legacy `(globalThis as any).GeminiAPIClient` primary was intentionally
+// dropped: geminiClient self-registers on globalThis whenever it loads (including
+// transitively via the provider chain above), so keeping it as primary would
+// silently bypass the registry and the provider wiring would never take effect.
+export const getApiClient = () => resolveProvider();
 export const getTabService = () => (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService : TabService);
 export const getTakeoutEngine = () => (typeof (globalThis as any).TakeoutEngine !== 'undefined' ? (globalThis as any).TakeoutEngine : TakeoutEngine);
 export const getTour = () => (typeof (globalThis as any).TourGuide !== 'undefined' ? (globalThis as any).TourGuide : TourGuide);
