@@ -38,6 +38,7 @@ class GeminiSelectors:
     NAV_ITEM: str = 'gem-nav-list-item'
     NAV_ITEM_ACTIVE: str = 'gem-nav-list-item.selected a, a.is-active[href*="/app/"], [aria-current="page"][href*="/app/"]'
     NEW_CHAT_BTN: str = 'a.side-nav-sparkle-button, a[href="/app"], [aria-label*="New chat"], [aria-label*="新会话"], [data-test-id="new-chat-button"]'
+    OPEN_SIDEBAR_BTN: str = 'button[aria-label*="Open sidebar"], button[aria-label*="展开侧边栏"], button[aria-label*="Main menu"], button[data-test-id="side-nav-button"]'
     MORE_OPTIONS_BTN: str = 'button[aria-label*="More options"], button[aria-label*="更多选项"]'
     DELETE_ITEM_BTN: str = 'button[data-test-id="delete-button"], [role="menuitem"][data-test-id*="delete"], [role="menuitem"]:has(.delete-icon)'
 
