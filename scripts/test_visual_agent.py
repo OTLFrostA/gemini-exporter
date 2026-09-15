@@ -149,6 +149,8 @@ def main():
     elif args.autonomous or args.goal:
         goal = args.goal or DEFAULT_OBJECTIVES[0]
         success = run_autonomous_mode(goal=goal, port=args.port, output_dir=args.output_dir, max_steps=args.max_steps)
+    elif args.smoke:
+        success = run_playground_smoke_verification(port=args.port, output_dir=args.output_dir)
     else:
         # 默认执行靶场物理原语就绪自检并打印交互入口
         success = run_playground_smoke_verification(port=args.port, output_dir=args.output_dir)
