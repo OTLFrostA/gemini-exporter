@@ -37,6 +37,26 @@ class HeuristicVisionProvider(VisionProvider):
                     thought=f"视觉定位到目标 '{target_key}' 位于 ({coords.get('x')}, {coords.get('y')})"
                 )
 
+        # 匹配阻塞等待指令
+        if "wait_on" in inst_lower or "等待流式" in inst_lower or "等待回复" in inst_lower:
+            return VisualAction(
+                action_type=VisualActionType.WAIT_ON,
+                condition="stream_settled",
+                thought="主动挂起等待底层流式生成完成"
+            )
+        if "等待导出" in inst_lower or "等待zip" in inst_lower or "等待下载" in inst_lower:
+            return VisualAction(
+                action_type=VisualActionType.WAIT_ON,
+                condition="zip_downloaded",
+                thought="主动挂起等待 ZIP 导出落盘"
+            )
+        if "等待空闲" in inst_lower or "wait_idle" in inst_lower:
+            return VisualAction(
+                action_type=VisualActionType.WAIT_ON,
+                condition="ui_idle",
+                thought="主动挂起等待页面 UI 进入空闲状态"
+            )
+
         # 默认完成或等待
         if "wait" in inst_lower or "等待" in inst_lower:
             return VisualAction(action_type=VisualActionType.WAIT, thought="等待界面渲染完成")
