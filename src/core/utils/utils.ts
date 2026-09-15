@@ -23,6 +23,7 @@ import {
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
+    checkIsUpdated,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     type TitleResolution
@@ -67,6 +68,7 @@ export {
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
+    checkIsUpdated,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     type TitleResolution,
@@ -107,6 +109,7 @@ export interface GeminiUtilsModule {
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
+    checkIsUpdated: (c: any, rec?: any) => boolean;
     formatExportProgress: (progress?: ExportProgressInput | number | null, txt?: string, isEn?: boolean) => ExportProgressFormatted;
     mergeConversation: (existing: any, incoming: any, options?: MergeConversationOptions) => MergeConversationResult;
     deduplicateConversations: (list: any[], options?: MergeConversationOptions) => DeduplicateResult;
@@ -152,6 +155,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
+    checkIsUpdated,
     formatExportProgress,
     mergeConversation,
     deduplicateConversations,

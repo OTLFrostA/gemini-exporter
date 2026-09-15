@@ -6,7 +6,8 @@ import GeminiUtils, {
     isRealTitle as utilsIsRealTitle,
     cleanTitle as utilsCleanTitle,
     resolveTitle as utilsResolveTitle,
-    getEffectiveTimestamp as utilsGetEffectiveTimestamp
+    getEffectiveTimestamp as utilsGetEffectiveTimestamp,
+    checkIsUpdated as utilsCheckIsUpdated
 } from '../../core/utils/utils.js';
 import { $, t } from '../uiCommon.js';
 
@@ -23,38 +24,9 @@ export const getEffectiveTimestamp = (chat?: any): number =>
     (globalThis as any).GeminiUtils?.getEffectiveTimestamp ? (globalThis as any).GeminiUtils.getEffectiveTimestamp(chat) : utilsGetEffectiveTimestamp(chat);
 
 export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
-    if (!c || !rec) return false;
-    try {
-        const cTs = getEffectiveTimestamp(c);
-        const rTs = rec.exportedAt ? (typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : Number(rec.exportedAt)) : 0;
-        const rChatTime = (rec as any).chatTime ? (typeof (rec as any).chatTime === 'string' ? new Date((rec as any).chatTime).getTime() : Number((rec as any).chatTime)) : 0;
-
-        // 1. Timestamp check with a 2000ms grace buffer for clock skew / write latency:
-        // If chat timestamp advanced in Gemini past the export time or recorded chat time, it is updated.
-        if (cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
-            return true;
-        }
-        if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
-            return true;
-        }
-
-        // 2. Export freshness lock: if the export finished strictly AFTER the conversation's last activity,
-        // the conversation content cannot be newer than the export.
-        // Suppress messageCount discrepancies caused by cloud metadata inflating turn slots.
-        if (rTs > 0 && cTs > 0 && rTs >= cTs + 2000) {
-            return false;
-        }
-
-        // 3. Fallback: message count increase when timestamps are absent or contemporaneous
-        const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
-        const recMsgCount = (rec as any).messageCount || 0;
-        if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
-            return true;
-        }
-    } catch {
-        /* intentional */
-    }
-    return false;
+    return (globalThis as any).GeminiUtils?.checkIsUpdated
+        ? (globalThis as any).GeminiUtils.checkIsUpdated(c, rec)
+        : utilsCheckIsUpdated(c, rec);
 }
 
 function escapeHtml(str?: string | null): string {
