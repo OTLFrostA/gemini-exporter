@@ -58,7 +58,7 @@ import GeminiUtils, {
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
-import rateLimitModule, { RateLimitManager, type RateLimitModule } from "./rateLimiter.js";
+import rateLimitModule, { RateLimitManager, isRateLimited, calculateBackoff, type RateLimitModule } from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
 import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
@@ -610,12 +610,12 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
 
                         const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
                             ? this.rateLimiter.isRateLimited(res)
-                            : (res && !res.success && (res.status === 429 || /429|rate\s*limit|quota|too\s*many\s*requests/i.test(res?.error || '')));
+                            : isRateLimited(res);
 
                         if (isLimited && retryCount < maxRateLimitRetries) {
                             const delayMs = (this.rateLimiter && typeof this.rateLimiter.calculateBackoff === 'function')
                                 ? this.rateLimiter.calculateBackoff(retryCount)
-                                : Math.min(30000, 2000 * Math.pow(2, retryCount) + Math.floor(Math.random() * 1000));
+                                : calculateBackoff(retryCount);
                             if (this.rateLimiter && typeof this.rateLimiter.recordRateLimit === 'function') {
                                 this.rateLimiter.recordRateLimit(delayMs);
                             } else {

@@ -9,6 +9,7 @@ import { buildExportFileName } from '../core/utils/pathUtils.js';
 import { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
+import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import type { LiveSaveConfig } from '../types/liveSave.js';
 
 export interface LiveSaveCoordinatorDeps {
@@ -496,28 +497,22 @@ async function writeConversationToDisk(
     dirHandle: any,
     config: LiveSaveConfig
 ): Promise<void> {
-    const WriterCls = getFsWriterClass();
     const Utils = getUtils();
-    const Formatter = getFormatter();
 
-    // Use gemini_export folder consistently with manual folder export
-    const writer = new WriterCls(dirHandle, 'gemini_export');
-    await writer.init();
+    // Shared writer setup (see core/engine/liveSaveWriter.ts)
+    const writer = await createLiveSaveWriter(dirHandle, { fsWriterClass: getFsWriterClass() });
 
     // 1. Process and save multimodal image assets to assets/ if enabled
     if (config.includeAssets !== false) {
         await processAndSaveImages(chat, nid, writer);
     }
 
-    // 2. Target filename format: CleanTitle_Cid6.md (consistent with manual export)
-    const fileName = (Utils?.buildExportFileName || buildExportFileName)(safeTitle, nid, 'md');
-
-    // 3. Format content with full YAML frontmatter & markdown standards
-    const markdown = Formatter?.toMarkdown
-        ? Formatter.toMarkdown({ ...chat, title: safeTitle, id: nid })
-        : `# ${safeTitle}\n\n${JSON.stringify(chat.messages, null, 2)}`;
-
-    await writer.writeFile('', fileName, markdown);
+    // 2-3. Shared: filename format + markdown formatting + write file
+    await writeLiveSaveMarkdown(
+        writer,
+        { chat, safeTitle, nid },
+        { formatter: getFormatter(), buildFileName: Utils?.buildExportFileName || buildExportFileName }
+    );
 }
 
 export function isCurrentlySaving(): boolean {
