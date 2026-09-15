@@ -66,13 +66,15 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       expect(nextBtnBox).not.toBeNull();
 
       if (nextBtnBox) {
-        const clickX = nextBtnBox.x + nextBtnBox.width / 2;
-        const clickY = nextBtnBox.y + nextBtnBox.height / 2;
-
-        const hitTestTag = await page.evaluate(({ x, y }) => {
-          const hit = document.elementFromPoint(x, y);
+        const hitTestTag = await page.evaluate(() => {
+          const btn = document.querySelector('#tourNextBtn');
+          if (!btn) return null;
+          const r = btn.getBoundingClientRect();
+          const clickX = r.left + r.width / 2;
+          const clickY = r.top + r.height / 2;
+          const hit = document.elementFromPoint(clickX, clickY);
           return hit ? hit.tagName.toLowerCase() + (hit.id ? '#' + hit.id : '') : null;
-        }, { x: clickX, y: clickY });
+        });
 
         // Must hit the button itself or text/span inside it
         expect(hitTestTag).toMatch(/^(button#tournextbtn|span|div)/i);
