@@ -210,6 +210,14 @@ class FeatureRegistry:
             critical=True,
             prerequisites=["feat_zip_export_download"]
         ))
+        self.register(Feature(
+            id="feat_fast_skip_exported",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="跳过已导出会话前置极速过滤",
+            description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
+            critical=True,
+            prerequisites=["feat_multimodal_spec_assertion"]
+        ))
 
     def register(self, feature: Feature):
         self._features[feature.id] = feature

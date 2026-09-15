@@ -4,7 +4,7 @@ scripts/test_live_chat_and_export.py
 ------------------------------------
 Gemini Exporter 全流程特性驱动测试入口 (Feature-Driven Live Chat & Export Test).
 基于 scripts/framework 模块化测试框架：
-- 声明式 18 大功能特性 (FeatureRegistry) 跨 5 大生命周期领域
+- 声明式 19 大功能特性 (FeatureRegistry) 跨 5 大生命周期领域
 - CDP 操作原语 (CDPActions) 与 规范级严格断言 (CDPAssertions)
 - 自动化执行编排器 (FrameworkRunner)
 - 磁盘实时保存严格核验 (严禁 0 字节图片与对话)
@@ -76,7 +76,7 @@ def run_live_chat_and_export(
 ):
     """
     执行全流程特性驱动测试。
-    实例化 FrameworkRunner 并执行 5 大领域 18 项功能特性全闭环验证。
+    实例化 FrameworkRunner 并执行 5 大领域 19 项功能特性全闭环验证。
     """
     runner = FrameworkRunner(
         port=port,
