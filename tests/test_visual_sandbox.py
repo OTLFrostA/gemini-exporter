@@ -11,6 +11,7 @@ import time
 import base64
 import tempfile
 import unittest
+from unittest.mock import patch
 from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -363,6 +364,19 @@ tags:
         )
         self.assertFalse(ok_golden)
         self.assertIn("GoldenCheck", msg_golden)
+
+    @patch("scripts.framework.actions.CDPActions.reinstall_extension")
+    @patch("scripts.visual_agent.playground.get_tabs")
+    @patch("scripts.visual_agent.playground.CDPConnection")
+    def test_open_visual_playground_reinstall(self, mock_conn, mock_tabs, mock_reinstall):
+        from scripts.visual_agent.playground import open_visual_playground
+        mock_reinstall.return_value = "new_mock_ext_id"
+        mock_tabs.return_value = [{"url": "options.html", "webSocketDebuggerUrl": "ws://mock"}]
+        mock_conn.return_value = self.mock_cdp
+
+        pg = open_visual_playground(port=9222, target_page="options", reinstall=True)
+        mock_reinstall.assert_called_once()
+        self.assertIsNotNone(pg)
 
 
 if __name__ == "__main__":

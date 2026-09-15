@@ -69,8 +69,12 @@ def main():
 
     # 7. reset
     p_reset = subparsers.add_parser("reset", help="Reset environment to initial state", parents=[common_parser])
+    p_reset.add_argument("--reinstall", action="store_true", help="Also cleanly reinstall extension from workspace")
 
-    # 8. evaluate-export
+    # 8. reinstall
+    p_reinstall = subparsers.add_parser("reinstall", help="Cleanly reinstall extension from current workspace", parents=[common_parser])
+
+    # 9. evaluate-export
     p_eval = subparsers.add_parser("evaluate-export", help="Evaluate exported ZIP file specification", parents=[common_parser])
     p_eval.add_argument("--zip", type=str, required=True, help="Path to ZIP file")
     p_eval.add_argument("--min", type=int, default=1, help="Expected minimum conversations (default: 1)")
@@ -82,6 +86,25 @@ def main():
     if not args.command:
         parser.print_help()
         sys.exit(1)
+
+    if args.command == "reinstall":
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+        from scripts.framework.actions import CDPActions
+        ext_id = CDPActions.reinstall_extension(port=args.port, repo_path=repo_root)
+        if ext_id:
+            res = {"success": True, "action": "reinstall", "extension_id": ext_id}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"✅ 扩展已成功纯净重装！Extension ID: {ext_id}")
+            sys.exit(0)
+        else:
+            res = {"success": False, "error": "Reinstall failed"}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print("❌ 扩展重装失败！")
+            sys.exit(1)
 
     try:
         playground = open_visual_playground(port=args.port, target_page=args.target)
@@ -178,12 +201,18 @@ def main():
 
         elif args.command == "reset":
             target = args.target or "options"
+            if getattr(args, "reinstall", False):
+                repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+                from scripts.framework.actions import CDPActions
+                CDPActions.reinstall_extension(port=args.port, repo_path=repo_root)
+                time.sleep(1.0)
             playground.reset(target=target)
-            res = {"success": True, "action": "reset", "target": target}
+            res = {"success": True, "action": "reset", "target": target, "reinstalled": getattr(args, "reinstall", False)}
             if args.json:
                 print(json.dumps(res, ensure_ascii=False))
             else:
-                print(f"🔄 环境已重置至 {target}")
+                reinstall_str = " (已执行纯净重装)" if getattr(args, "reinstall", False) else ""
+                print(f"🔄 环境已重置至 {target}{reinstall_str}")
 
         elif args.command == "evaluate-export":
             golden_chats = None

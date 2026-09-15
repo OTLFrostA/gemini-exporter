@@ -142,7 +142,20 @@ def main():
     parser.add_argument("--goal", type=str, default=None, help="Custom natural language goal for autonomous agent")
     parser.add_argument("--max-steps", type=int, default=25, help="Max steps for autonomous loop")
     parser.add_argument("--smoke", action="store_true", help="Run playground physical primitives smoke check")
+    parser.add_argument("--no-reinstall", action="store_true", help="跳过启动时的扩展卸载与纯净重装 (默认第一步强制纯净重装)")
     args = parser.parse_args()
+
+    # 默认第一步：扩展卸载与纯净重装 (与 Tier 2 生命周期步骤 0 严格对齐)
+    if not args.no_reinstall:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        from scripts.framework.actions import CDPActions
+        print("\n🔄 [Tier 3 步骤 0] 通过 CDP 原生卸载并纯净安装当前工作区代码...")
+        ext_id = CDPActions.reinstall_extension(port=args.port, repo_path=repo_root)
+        if not ext_id:
+            print("❌ 扩展重装失败，终止运行！")
+            sys.exit(1)
+        time.sleep(1.0)
+        print(f"🧩 当前活跃扩展 ID: {ext_id}")
 
     if args.playground:
         success = run_playground_interactive_mode(port=args.port, output_dir=args.output_dir)

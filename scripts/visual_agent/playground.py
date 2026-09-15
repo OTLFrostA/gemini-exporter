@@ -661,8 +661,20 @@ def open_visual_playground(
     port: int = CDP_DEFAULT_PORT,
     target_page: Optional[str] = None,
     viewport_size: Tuple[int, int] = (1280, 800),
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
+    reinstall: bool = False,
+    repo_path: Optional[str] = None
 ) -> VisualPlayground:
+    if reinstall:
+        target_repo = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), "../.."))
+        from scripts.framework.actions import CDPActions
+        print(f"\n🔄 [Playground 步骤 0] 通过 CDP 原生卸载并纯净安装扩展: {target_repo}...")
+        reinstalled_id = CDPActions.reinstall_extension(port=port, repo_path=target_repo)
+        if not reinstalled_id:
+            raise RuntimeError(f"❌ 扩展卸载与纯净重装失败 (端口 {port})，无法初始化 Playground 靶场！")
+        time.sleep(1.0)
+        print(f"🧩 当前活跃扩展 ID: {reinstalled_id}")
+
     out = output_dir or os.path.abspath(
         os.path.join(os.path.dirname(__file__), "../../tests/output/visual_audit")
     )
