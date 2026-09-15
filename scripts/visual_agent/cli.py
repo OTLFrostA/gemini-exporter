@@ -1,0 +1,176 @@
+# scripts/visual_agent/cli.py
+"""
+Gemini Exporter — Visual Playground CLI Interface.
+Enables any AI Agent or human operator to interact directly with the Visual Playground:
+- screenshot: capture current viewport
+- click: dispatch hardware mouse click at normalized (x, y)
+- type: dispatch hardware keyboard input at (x, y)
+- scroll: dispatch hardware wheel scroll
+- wait-on: blocking deterministic wait (stream_settled, zip_downloaded, ui_idle, dom_pruned)
+- reset: reset environment to initial state
+- evaluate-export: verify exported ZIP against specification
+"""
+
+import os
+import sys
+import argparse
+import json
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from scripts.visual_agent.playground import open_visual_playground
+
+
+def main():
+    common_parser = argparse.ArgumentParser(add_help=False)
+    common_parser.add_argument("--port", type=int, default=9222, help="CDP debug port (default: 9222)")
+    common_parser.add_argument("--target", type=str, default="options", choices=["options", "gemini"], help="Target page (default: options)")
+    common_parser.add_argument("--json", action="store_true", help="Output result in structured JSON format")
+
+    parser = argparse.ArgumentParser(description="Gemini Exporter Visual Playground CLI", parents=[common_parser])
+    subparsers = parser.add_subparsers(dest="command", help="Playground command")
+
+    # 1. screenshot
+    p_shot = subparsers.add_parser("screenshot", help="Capture screen", parents=[common_parser])
+    p_shot.add_argument("--name", type=str, default=None, help="Optional step name for the screenshot")
+
+    # 2. click
+    p_click = subparsers.add_parser("click", help="Physical mouse click", parents=[common_parser])
+    p_click.add_argument("--x", type=float, required=True, help="Normalized X coordinate (0.0 - 1.0)")
+    p_click.add_argument("--y", type=float, required=True, help="Normalized Y coordinate (0.0 - 1.0)")
+    p_click.add_argument("--button", type=str, default="left", choices=["left", "right"], help="Mouse button")
+
+    # 3. type
+    p_type = subparsers.add_parser("type", help="Physical keyboard input", parents=[common_parser])
+    p_type.add_argument("--text", type=str, required=True, help="Text to type")
+    p_type.add_argument("--x", type=float, default=None, help="Optional click X to focus")
+    p_type.add_argument("--y", type=float, default=None, help="Optional click Y to focus")
+    p_type.add_argument("--no-clear", action="store_true", help="Do not clear existing input first")
+
+    # 4. scroll
+    p_scroll = subparsers.add_parser("scroll", help="Physical mouse wheel", parents=[common_parser])
+    p_scroll.add_argument("--delta", type=int, default=300, help="Scroll delta Y in pixels")
+    p_scroll.add_argument("--x", type=float, default=0.5, help="Normalized X coordinate (default: 0.5)")
+    p_scroll.add_argument("--y", type=float, default=0.5, help="Normalized Y coordinate (default: 0.5)")
+
+    # 5. wait-on
+    p_wait = subparsers.add_parser("wait-on", help="Deterministic blocking wait", parents=[common_parser])
+    p_wait.add_argument("--condition", type=str, required=True, help="Condition to await: stream_settled, zip_downloaded, ui_idle, dom_pruned")
+    p_wait.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
+    p_wait.add_argument("--chat-id", type=str, default="", help="Chat ID for dom_pruned condition")
+    p_wait.add_argument("--min-mtime", type=float, default=0.0, help="Min mtime for zip_downloaded condition")
+
+    # 6. reset
+    p_reset = subparsers.add_parser("reset", help="Reset environment to initial state", parents=[common_parser])
+
+    # 7. evaluate-export
+    p_eval = subparsers.add_parser("evaluate-export", help="Evaluate exported ZIP file specification", parents=[common_parser])
+    p_eval.add_argument("--zip", type=str, required=True, help="Path to ZIP file")
+    p_eval.add_argument("--min", type=int, default=1, help="Expected minimum conversations")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    try:
+        playground = open_visual_playground(port=args.port, target_page=args.target)
+    except Exception as e:
+        res = {"success": False, "error": str(e)}
+        if args.json:
+            print(json.dumps(res, ensure_ascii=False))
+        else:
+            print(f"❌ 无法连接 Visual Playground: {e}")
+        sys.exit(1)
+
+    try:
+        if args.command == "screenshot":
+            obs = playground.capture_screen(args.name)
+            res = {
+                "success": True,
+                "file_path": obs.file_path,
+                "viewport": list(obs.viewport),
+                "timestamp": obs.timestamp
+            }
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"📸 截屏成功: {obs.file_path}")
+
+        elif args.command == "click":
+            playground.mouse_click(args.x, args.y, button=args.button)
+            res = {"success": True, "action": "click", "x": args.x, "y": args.y}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"🖱️ 点击成功 -> ({args.x:.3f}, {args.y:.3f})")
+
+        elif args.command == "type":
+            playground.input_text(args.text, x=args.x, y=args.y, clear_first=not args.no_clear)
+            res = {"success": True, "action": "type", "text": args.text}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"⌨️ 键入成功 -> '{args.text}'")
+
+        elif args.command == "scroll":
+            playground.mouse_scroll(args.delta, x=args.x, y=args.y)
+            res = {"success": True, "action": "scroll", "delta": args.delta}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"📜 滚轮成功 -> deltaY: {args.delta}")
+
+        elif args.command == "wait-on":
+            extra = {}
+            if args.chat_id:
+                extra["chat_id"] = args.chat_id
+            if args.min_mtime:
+                extra["min_mtime"] = args.min_mtime
+            w_res = playground.wait_on(args.condition, timeout=args.timeout, **extra)
+            res = {
+                "success": w_res.success,
+                "condition": args.condition,
+                "message": w_res.message,
+                "elapsed": w_res.elapsed,
+                "data": w_res.data
+            }
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                tag = "✓" if w_res.success else "❌"
+                print(f"{tag} wait_on('{args.condition}'): {w_res.message} (耗时: {w_res.elapsed:.1f}s)")
+            if not w_res.success:
+                sys.exit(2)
+
+        elif args.command == "reset":
+            playground.reset(target=args.target)
+            res = {"success": True, "action": "reset", "target": args.target}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                print(f"🔄 环境已重置至 {args.target}")
+
+        elif args.command == "evaluate-export":
+            from scripts.framework.cases.export import DESIGNATED_HISTORICAL_CHATS
+            ok, msg, details = playground.evaluate_export(
+                zip_path=args.zip,
+                min_conversations=args.min,
+                expected_golden_chats=DESIGNATED_HISTORICAL_CHATS
+            )
+            res = {"success": ok, "message": msg, "details": details}
+            if args.json:
+                print(json.dumps(res, ensure_ascii=False))
+            else:
+                tag = "✓" if ok else "❌"
+                print(f"{tag} 导出断言: {msg}")
+            if not ok:
+                sys.exit(3)
+
+    finally:
+        playground.teardown()
+
+
+if __name__ == "__main__":
+    main()
