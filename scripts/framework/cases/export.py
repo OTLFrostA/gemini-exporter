@@ -206,3 +206,158 @@ class MultimodalSpecCase(FeatureTestCase):
         if spec_ok:
             return True, spec_msg, spec_data
         return False, spec_msg, spec_data
+
+
+class FastSkipExportedCase(FeatureTestCase):
+    def __init__(self):
+        super().__init__(
+            feature_id="feat_fast_skip_exported",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="跳过已导出会话前置极速过滤",
+            description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
+            critical=True,
+            prerequisites=["feat_multimodal_spec_assertion"]
+        )
+
+    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        cdp_opt = ctx.connect_options()
+        try:
+            # 确保清空搜索框
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.5)
+
+            # 步骤 1：全量跳过与防空 ZIP 保护断言 (All-Skip Fast Path)
+            target_ids = []
+            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
+            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
+            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"]
+
+            select_res = cdp_opt.eval(f"""
+            (() => {{
+                const selectNone = document.getElementById('btnSelectNone');
+                if (selectNone) selectNone.click();
+                const targetIds = {json.dumps(target_ids)};
+                const targetTitles = {json.dumps(target_titles)};
+                const items = Array.from(document.querySelectorAll('#list .item'));
+                let checkedCount = 0;
+                items.forEach(item => {{
+                    const cid = item.dataset.chatId;
+                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
+                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
+                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
+                    if (matchId || matchTitle) {{
+                        const cb = item.querySelector('input[type=checkbox]');
+                        if (cb && !cb.checked) {{
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            checkedCount++;
+                        }}
+                    }}
+                }});
+                const skipCb = document.getElementById('skipExported');
+                if (skipCb && !skipCb.checked) {{
+                    skipCb.checked = true;
+                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                const zipCb = document.getElementById('includeZip');
+                if (zipCb && !zipCb.checked) {{
+                    zipCb.checked = true;
+                    zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                return {{ checkedCount }};
+            }})()
+            """) or {}
+
+            checked_count = select_res.get("checkedCount", 0)
+            if checked_count < 6:
+                return False, f"未能在工作台中勾选足够的已导出会话: {checked_count} < 6", select_res
+
+            # 触发导出前记录时间戳与当前输出目录文件列表
+            start_t = time.time()
+            existing_files = set(os.listdir(ctx.output_dir)) if os.path.isdir(ctx.output_dir) else set()
+
+            # 点击导出
+            cdp_opt.eval(f"document.querySelector('{WorkbenchSelectors.BTN_EXPORT}')?.click();")
+
+            # 等待极速跳过完成（至多 6 秒，正常情况下在 0.5s 之内瞬间完成）
+            completed = False
+            skip_log_found = False
+            finish_msg = ""
+            for _ in range(12):
+                time.sleep(0.5)
+                status_info = cdp_opt.eval("""
+                (() => {
+                    const progText = document.getElementById('progText')?.textContent || '';
+                    const logArea = document.getElementById('logArea')?.textContent || '';
+                    const btn = document.querySelector('button#btnExport');
+                    const isBusy = btn && btn.disabled;
+                    return {
+                        progText,
+                        hasSkipLog: logArea.includes('跳过') || logArea.includes('skipped') || logArea.includes('无需生成 ZIP'),
+                        isBusy: Boolean(isBusy)
+                    };
+                })()
+                """) or {}
+                if status_info.get("hasSkipLog"):
+                    skip_log_found = True
+                if not status_info.get("isBusy") and status_info.get("hasSkipLog"):
+                    completed = True
+                    finish_msg = status_info.get("progText", "")
+                    break
+
+            all_skip_duration = time.time() - start_t
+            if not completed or not skip_log_found:
+                return False, f"全量已导出会话未在预期时间内瞬间跳过: duration={all_skip_duration:.2f}s, msg={finish_msg}", None
+
+            # 检查输出目录，验证没有生成新的空 ZIP 文件 (防空 ZIP 保护)
+            current_files = set(os.listdir(ctx.output_dir)) if os.path.isdir(ctx.output_dir) else set()
+            new_zips = [f for f in (current_files - existing_files) if f.endswith(".zip")]
+            if new_zips:
+                return False, f"全量跳过时异常生成了无内容 ZIP 包: {new_zips}", None
+
+            # 步骤 2：部分跳过与分流导出断言 (Partial Skip + Export)
+            partial_prep = cdp_opt.eval("""
+            (() => {
+                const selectNone = document.getElementById('btnSelectNone');
+                if (selectNone) selectNone.click();
+                const items = Array.from(document.querySelectorAll('#list .item'));
+                let unexportedItem = null;
+                let exportedItem = null;
+                for (const it of items) {
+                    const hasExportedBadge = it.querySelector('.badge-exported');
+                    if (hasExportedBadge && !exportedItem) {
+                        exportedItem = it;
+                    } else if (!hasExportedBadge && !unexportedItem) {
+                        unexportedItem = it;
+                    }
+                    if (exportedItem && unexportedItem) break;
+                }
+                if (exportedItem) {
+                    const cb = exportedItem.querySelector('input[type=checkbox]');
+                    if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+                if (unexportedItem) {
+                    const cb = unexportedItem.querySelector('input[type=checkbox]');
+                    if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+                return {
+                    hasExported: Boolean(exportedItem),
+                    hasUnexported: Boolean(unexportedItem),
+                    exportedTitle: exportedItem?.querySelector('.chat-title')?.textContent || '',
+                    unexportedTitle: unexportedItem?.querySelector('.chat-title')?.textContent || ''
+                };
+            })()
+            """) or {}
+
+            if partial_prep.get("hasExported") and partial_prep.get("hasUnexported"):
+                partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30)
+                if not partial_zip or not os.path.isfile(partial_zip):
+                    return False, "部分跳过导出时未能成功生成未导出会话的 ZIP 包", partial_prep
+
+            return True, f"已导出会话前置极速过滤与防空 ZIP 保护验证通过 (全量跳过耗时 {all_skip_duration:.2f}s，防空 ZIP 生效)", {
+                "all_skip_duration": all_skip_duration,
+                "finish_msg": finish_msg,
+                "partial_prep": partial_prep
+            }
+        finally:
+            cdp_opt.close()

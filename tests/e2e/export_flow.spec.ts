@@ -99,5 +99,70 @@ test.describe('Export Workflow & State Update', () => {
     expect(storageData.exportedIds['exp_chat_001']).toBeTruthy();
     expect(storageData.exportedIds['exp_chat_001'].title).toBe('深度学习神经网络实践');
   });
+
+  test('should fast-skip already exported items without generating empty zip', async ({ context, extensionId }) => {
+    // 1. Open Workbench Options page
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Seed test conversation and mark it already exported in exportedIds
+    await page.evaluate(async () => {
+      const mockConvs = [
+        { id: 'exp_chat_skip_001', title: '跳过测试会话', timestamp: 1700000000000 }
+      ];
+      await chrome.storage.local.set({
+        gemini_conversations: mockConvs,
+        gemini_export_zip: true,
+        exportedIds: {
+          'exp_chat_skip_001': {
+            exportedAt: 1700000000000,
+            title: '跳过测试会话'
+          }
+        }
+      });
+      if (typeof (window as any).__workbenchLoadStore === 'function') {
+        await (window as any).__workbenchLoadStore(true);
+      }
+    });
+
+    const item = page.locator('[data-chat-id="exp_chat_skip_001"]');
+    await expect(item).toBeVisible();
+
+    // Select the conversation
+    await page.click('#btnSelectAll');
+    await expect(page.locator('#list input[type=checkbox]:checked')).toHaveCount(1);
+
+    // Ensure skipExported is checked
+    const skipCheckbox = page.locator('#skipExported');
+    if (!(await skipCheckbox.isChecked())) {
+      await skipCheckbox.check();
+    }
+
+    // Ensure includeZip is checked
+    const zipCheckbox = page.locator('#includeZip');
+    if (!(await zipCheckbox.isChecked())) {
+      await zipCheckbox.check();
+    }
+
+    // Listen to download event to assert NO download occurs
+    let downloadTriggered = false;
+    page.on('download', () => {
+      downloadTriggered = true;
+    });
+
+    // Click Export
+    await page.click('#btnExport');
+
+    // Verify fast-skip log and notification in progress area
+    await expect(page.locator('#logArea, #progText')).toContainText(/(跳过|skipped|无需生成 ZIP)/);
+
+    // Verify export button becomes active again quickly (not stuck in disabled state)
+    await expect(page.locator('#btnExport')).toBeEnabled();
+
+    // Assert that no empty zip download was triggered
+    expect(downloadTriggered).toBe(false);
+  });
 });
+
 

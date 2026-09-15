@@ -4,7 +4,7 @@ from .chat import InpageBadgeCase, ChatGenerationCase, ImagenMultimodalCase
 from .lifecycle import ContinuedChatPromotionCase, UpdatedBadgeDisplayCase, EphemeralChatPruningCase
 from .takeout import TakeoutZipImportCase, DeepScanPaginationCase, AuthoritativeTitleUpgradeCase
 from .workbench import SearchKeywordCase, SearchIdCase, SearchClearCase, SelectionControlsCase, LanguageToggleCase
-from .export import LiveDiskAutoSaveCase, ZipExportDownloadCase, MultimodalSpecCase, DESIGNATED_HISTORICAL_CHATS
+from .export import LiveDiskAutoSaveCase, ZipExportDownloadCase, MultimodalSpecCase, FastSkipExportedCase, DESIGNATED_HISTORICAL_CHATS
 from .test_uninstall_lifecycle import UninstallLifecycleCase
 
 __all__ = [
@@ -30,5 +30,6 @@ __all__ = [
     "LiveDiskAutoSaveCase",
     "ZipExportDownloadCase",
     "MultimodalSpecCase",
+    "FastSkipExportedCase",
     "DESIGNATED_HISTORICAL_CHATS",
 ]

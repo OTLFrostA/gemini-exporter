@@ -38,6 +38,7 @@ from scripts.framework.cases import (
     LiveDiskAutoSaveCase,
     ZipExportDownloadCase,
     MultimodalSpecCase,
+    FastSkipExportedCase,
     DESIGNATED_HISTORICAL_CHATS
 )
 
@@ -168,6 +169,7 @@ class FrameworkRunner:
         dag.register(LiveDiskAutoSaveCase())
         dag.register(ZipExportDownloadCase())
         dag.register(MultimodalSpecCase())
+        dag.register(FastSkipExportedCase())
         dag.register(UninstallLifecycleCase())
 
         # 执行调度
