@@ -242,8 +242,15 @@ declare global {
 
         const safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
         const safeYamlTitle = safeTitleClean.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const createdIso = (chat.createdAt || chat.timestamp || chat.updatedAt) ? new Date(chat.createdAt || chat.timestamp || chat.updatedAt).toISOString() : new Date().toISOString();
-        const updatedIso = (chat.updatedAt || chat.timestamp || chat.createdAt) ? new Date(chat.updatedAt || chat.timestamp || chat.createdAt).toISOString() : createdIso;
+        // P0-7 fix: invalid date values (e.g. "not-a-date") used to throw
+        // RangeError: Invalid time value from toISOString(). Fall back gracefully.
+        const toSafeIso = (v: any, fallback: string): string => {
+            if (!v) return fallback;
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? fallback : d.toISOString();
+        };
+        const createdIso = toSafeIso(chat.createdAt || chat.timestamp || chat.updatedAt, new Date().toISOString());
+        const updatedIso = toSafeIso(chat.updatedAt || chat.timestamp || chat.createdAt, createdIso);
         const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${String(chat.id).replace(/^c_/, '')}` : '');
 
         // 1. YAML Frontmatter (Obsidian Properties / Notion Database / Logseq)

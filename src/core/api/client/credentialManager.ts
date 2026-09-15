@@ -174,10 +174,12 @@ function getProtocol(): GeminiProtocolModule {
             try {
                 const storage = getCredStorage();
                 if (storage) {
+                    // P0-2 fix: merge the backfilled entry into the existing map instead of
+                    // overwriting the whole map — a single account missing `at` must never
+                    // drop the credentials of the other accounts.
+                    map[sid] = entry;
                     await storage.set({
-                        gemini_credentials_map: {
-                            [sid]: entry
-                        },
+                        gemini_credentials_map: map,
                         gemini_credentials: {
                             at: pageAt,
                             sid
