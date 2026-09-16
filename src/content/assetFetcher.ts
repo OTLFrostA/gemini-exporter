@@ -171,6 +171,12 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
                     reasons.push(`${u} -> empty blob`);
                     continue;
                 }
+                // P1-027: enforce the base64 size cap BEFORE toDataUrl — the
+                // FileReader pass roughly doubles memory for large blobs.
+                if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                    reasons.push(`${u} -> asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`);
+                    continue;
+                }
                 const dataUrl = await toDataUrl(blob);
                 sendResponse({
                     success: true,
@@ -234,6 +240,12 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                 const blob = await res.blob();
                 if (!blob || blob.size === 0) {
                     lastErr = 'empty blob';
+                    continue;
+                }
+                // P1-027: enforce the base64 size cap BEFORE toDataUrl — the
+                // FileReader pass roughly doubles memory for large blobs.
+                if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                    lastErr = `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`;
                     continue;
                 }
                 if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {

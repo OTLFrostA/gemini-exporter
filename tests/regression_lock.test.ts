@@ -268,7 +268,8 @@ test('p0-lock: staged image asset finalizes exactly once via the queue (no dupli
 });
 
 test('Bug repro - pendingAssets leak on asset failure blocks finalize', () => {
-    const code = readSrc('../src/core/engine/export/exportOrchestrator.js');
+    // P1 split: per-chat asset bookkeeping moved exportOrchestrator.ts -> chatExporter.ts
+    const code = readSrc('../src/core/engine/export/chatExporter.js');
     const failureBlocks = [...code.matchAll(/chatFailedAssetsSet\.add\(nid\)[\s\S]{0,300}pendingAssetsPerChat/g)];
     assert.ok(failureBlocks.length >= 1, 'failure branch should also decrement pendingAssetsPerChat, but currently does not (pending leak)');
 });
@@ -286,13 +287,15 @@ test('regression: export_engine sanitizeZipPath must sanitize .. and preserve se
 });
 
 test('regression: export_engine must throw on batchDirHandle creation failure instead of fallback', () => {
-    const content = readSrc('../src/core/engine/export/exportOrchestrator.js');
+    // P1 split: writer init moved exportOrchestrator.ts -> exportWriter.ts
+    const content = readSrc('../src/core/engine/export/exportWriter.js');
     assert.ok(content.includes('throw new Error(`无法创建导出子目录') || content.includes('throw new ExportPipelineError(`无法创建导出子目录'), 'should throw on directory creation failure');
     assert.ok(!content.includes('batchDirHandle = dirHandle;') || content.includes('throw new Error') || content.includes('throw new ExportPipelineError'), 'should not silently fallback to root dirHandle');
 });
 
 test('regression: export_engine failedChats must store detailed objects with error', () => {
-    const orchContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
+    // P1 split: per-chat pipeline moved exportOrchestrator.ts -> chatExporter.ts
+    const orchContent = readSrc('../src/core/engine/export/chatExporter.js');
     const recContent = readSrc('../src/core/engine/export/sessionRecovery.js');
     assert.ok(orchContent.includes('failedChats.push({ id:'), 'failedChats should push detailed objects');
     assert.ok(orchContent.includes("failedChats.push({ id: c.id, title:") || orchContent.includes("failedChats.push({ id: chat.id"), 'failedChats push should include title and error');
@@ -308,7 +311,14 @@ test('regression: export_engine getExtensionVersion should be exported and read 
 test('regression: export abort must broadcast cancelExport and listen to abortSignal', () => {
     const expContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
     assert.ok(expContent.includes("action: 'cancelExport'"), 'export_engine abort must broadcast cancelExport');
-    assert.ok(expContent.includes('abortSignal.addEventListener'), 'export_engine fetchBatch must listen to abortSignal');
+    // P1 split: abort wiring moved exportOrchestrator.ts -> asyncQueue.ts (pop)
+    // and batchWorker.ts (fetchChatDetail)
+    const queueContent = readSrc('../src/core/engine/export/asyncQueue.js');
+    const workerContent = readSrc('../src/core/engine/export/batchWorker.js');
+    assert.ok(
+        expContent.includes('abortSignal.addEventListener') || queueContent.includes('abortSignal.addEventListener') || workerContent.includes('abortSignal.addEventListener'),
+        'export pipeline must listen to abortSignal'
+    );
     const ctrlContent = readSrc('../src/ui/controllers/exportController.js');
     assert.ok(ctrlContent.includes("action: 'cancelExport'"), 'exportController abort must broadcast cancelExport');
 });
@@ -322,7 +332,8 @@ test('regression: stop sync must sync window flag and active client', () => {
 });
 
 test('regression: empty cloud response must be logged as error with debug', () => {
-    const expContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
+    // P1 split: per-chat pipeline moved exportOrchestrator.ts -> chatExporter.ts
+    const expContent = readSrc('../src/core/engine/export/chatExporter.js');
     assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
     assert.ok(expContent.includes('_debug') && expContent.includes('_raw'), 'failedChats should carry debug/raw');
     const bgContent = readSrc('../src/background/background.js') + readSrc('../src/background/batchFetcher.js');

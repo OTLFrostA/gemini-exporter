@@ -420,41 +420,92 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
                 console.warn('[GemExporter:storage] Storage operation failed:', e);
             }
 
-            Dialogs.showDirectWritePrompt(
-                selected.length,
-                async () => {
-                    try {
-                        let newHandle: any = null;
-                        if (DirHandle) {
-                            newHandle = await DirHandle.requestDirHandle();
-                            const dirLabel = $('dirLabel');
-                            if (dirLabel) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', newHandle.name) : `已选目录: ${newHandle.name}`;
-                            log(typeof t === 'function' ? t('logFolderSelected', newHandle.name) : `已选择保存目录: ${newHandle.name}`);
-                            const liveStorage = getLiveStorage();
-                            if (liveStorage && typeof liveStorage.setLiveConfig === 'function') {
-                                await liveStorage.setLiveConfig({ dirName: newHandle.name });
-                            }
-                        }
-                        const zipCh = $('includeZip') as HTMLInputElement | null;
-                        if (zipCh) {
-                            zipCh.checked = false;
-                            updateZipUi();
-                            try {
-                                await chrome.storage.local.set({ gemini_export_zip: false });
-                            } catch (e) {
-                                console.warn('[GemExporter:storage] Storage operation failed:', e);
-                            }
-                        }
-                        await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
-                    } catch (err: unknown) {
-                        const errMsg = getErrorMessage(err);
-                        log(typeof t === 'function' ? t('dirCancelled', errMsg) : `未选择导出目录: ${errMsg}`, 'warn');
-                    }
-                },
-                async () => {
-                    await startExportPipeline(selected, format, skip, includeIndex, includeAssets, true, null);
+            // P1-022: hold the export mutex until the user actually decides.
+            // showDirectWritePrompt is fire-and-forget (returns void) and its
+            // Escape / X-close paths invoke NEITHER callback, so wrap both
+            // callbacks in a decision promise and also settle when the modal
+            // is hidden without a decision — otherwise _isExporting could be
+            // released while the dialog is still open, or locked forever.
+            let resolveDecision: (() => void) | null = null;
+            const decisionPromise = new Promise<void>((resolve) => { resolveDecision = resolve; });
+            const settleDecision = () => {
+                if (resolveDecision) {
+                    const r = resolveDecision;
+                    resolveDecision = null;
+                    r();
                 }
-            );
+            };
+            let modalObserver: MutationObserver | null = null;
+            let modalEl: HTMLElement | null = null;
+            try {
+                modalEl = typeof document !== 'undefined' ? document.getElementById('directWriteModal') : null;
+                if (modalEl && typeof MutationObserver !== 'undefined') {
+                    modalObserver = new MutationObserver(() => {
+                        if (modalEl && modalEl.style.display === 'none') settleDecision();
+                    });
+                    modalObserver.observe(modalEl, { attributes: true, attributeFilter: ['style'] });
+                }
+            } catch (e) {
+                console.warn('[GemExporter:storage] Storage operation failed:', e);
+            }
+
+            try {
+                Dialogs.showDirectWritePrompt(
+                    selected.length,
+                    async () => {
+                        try {
+                            let newHandle: any = null;
+                            if (DirHandle) {
+                                newHandle = await DirHandle.requestDirHandle();
+                                const dirLabel = $('dirLabel');
+                                if (dirLabel) dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', newHandle.name) : `已选目录: ${newHandle.name}`;
+                                log(typeof t === 'function' ? t('logFolderSelected', newHandle.name) : `已选择保存目录: ${newHandle.name}`);
+                                const liveStorage = getLiveStorage();
+                                if (liveStorage && typeof liveStorage.setLiveConfig === 'function') {
+                                    await liveStorage.setLiveConfig({ dirName: newHandle.name });
+                                }
+                            }
+                            const zipCh = $('includeZip') as HTMLInputElement | null;
+                            if (zipCh) {
+                                zipCh.checked = false;
+                                updateZipUi();
+                                try {
+                                    await chrome.storage.local.set({ gemini_export_zip: false });
+                                } catch (e) {
+                                    console.warn('[GemExporter:storage] Storage operation failed:', e);
+                                }
+                            }
+                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
+                        } catch (err: unknown) {
+                            const errMsg = getErrorMessage(err);
+                            log(typeof t === 'function' ? t('dirCancelled', errMsg) : `未选择导出目录: ${errMsg}`, 'warn');
+                        } finally {
+                            settleDecision();
+                        }
+                    },
+                    async () => {
+                        try {
+                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, true, null);
+                        } catch (err: unknown) {
+                            const errMsg = getErrorMessage(err);
+                            log(typeof t === 'function' ? t('exportFailed', errMsg) : `导出失败: ${errMsg}`, 'error');
+                        } finally {
+                            settleDecision();
+                        }
+                    }
+                );
+            } catch (promptErr) {
+                settleDecision();
+                throw promptErr;
+            }
+            // If the prompt never actually showed (missing modal / early
+            // return), don't wait forever.
+            if (!modalEl || modalEl.style.display === 'none') settleDecision();
+            try {
+                await decisionPromise;
+            } finally {
+                if (modalObserver) modalObserver.disconnect();
+            }
             return;
         }
     }

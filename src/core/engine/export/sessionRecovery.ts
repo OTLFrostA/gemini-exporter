@@ -230,6 +230,28 @@ export function getExtensionVersion(customVersion?: string): string {
         const rec = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
         if (!rec || (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid))) return false;
 
+        // P1-014: persist the export record FIRST. In-memory bookkeeping
+        // (finalizedChatsSet / curIds / exportedIds) is only mutated after the
+        // write succeeds, so a failed write can never be misread as "done".
+        try {
+            if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
+                await storageAdapter.saveExportRecord(slot, targetId, rec);
+            } else if (storageAdapter && typeof storageAdapter.set === 'function') {
+                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                await storageAdapter.set({ [expKey]: { ...(curIds || {}), [targetId]: rec, [targetNid]: rec, ['c_' + targetNid]: rec } });
+            } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                await chrome.storage.local.set({ [expKey]: { ...(curIds || {}), [targetId]: rec, [targetNid]: rec, ['c_' + targetNid]: rec } });
+            }
+        } catch (e) {
+            // P1-014: propagate the failure — the caller marks the chat as
+            // failed/retryable instead of silently recording success.
+            if (typeof console !== 'undefined' && console.error) {
+                console.error('[GemExporter:sessionRecovery.ts] saveExportRecord failed for', targetId, e);
+            }
+            throw e;
+        }
+
         if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
 
         if (curIds) {
@@ -244,22 +266,6 @@ export function getExtensionVersion(customVersion?: string): string {
         }
 
         try {
-            if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
-                await storageAdapter.saveExportRecord(slot, targetId, rec);
-            } else if (storageAdapter && typeof storageAdapter.set === 'function') {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                await storageAdapter.set({ [expKey]: curIds });
-            } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                await chrome.storage.local.set({ [expKey]: curIds });
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.ts] saveExportRecord error', e);
-            }
-        }
-
-        try {
             onItemExported(targetId, rec);
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) {
@@ -269,24 +275,34 @@ export function getExtensionVersion(customVersion?: string): string {
         return true;
     }
 
+    // P1-015: serialize session-status read-modify-writes through a module
+    // level chain so concurrent updateSessionStatus calls cannot clobber
+    // each other (the old code did independent get-modify-set per call).
+    let sessionStatusWriteChain: Promise<void> = Promise.resolve();
+
     async function updateSessionStatus(patch: any): Promise<void> {
-        try {
-            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const data: any = await chrome.storage.local.get(['gemini_last_export_session']);
-                const current = data?.gemini_last_export_session || {};
-                await chrome.storage.local.set({
-                    gemini_last_export_session: {
-                        ...current,
-                        ...patch,
-                        updatedAt: Date.now()
-                    }
-                });
+        const task = sessionStatusWriteChain.then(async () => {
+            try {
+                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                    const data: any = await chrome.storage.local.get(['gemini_last_export_session']);
+                    const current = data?.gemini_last_export_session || {};
+                    await chrome.storage.local.set({
+                        gemini_last_export_session: {
+                            ...current,
+                            ...patch,
+                            updatedAt: Date.now()
+                        }
+                    });
+                }
+            } catch (e) {
+                if (typeof console !== 'undefined' && console.error) {
+                    console.error('[GemExporter:sessionRecovery.ts] updateSessionStatus error', e);
+                }
             }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.ts] updateSessionStatus error', e);
-            }
-        }
+        });
+        // Keep the chain alive for later writers regardless of outcome.
+        sessionStatusWriteChain = task.then(() => undefined, () => undefined);
+        return task;
     }
 
 export {

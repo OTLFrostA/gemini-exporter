@@ -142,7 +142,29 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
     }, 200);
 }
 
+// P1-024: bound the debounce map so it cannot grow without limit over a
+// long-lived page session. Oldest entries (by insertion order) are evicted
+// past the cap; entries older than the TTL are dropped opportunistically.
 const __lastTouchedMap = new Map<string, number>();
+const LAST_TOUCHED_MAX_ENTRIES = 2000;
+const LAST_TOUCHED_TTL_MS = 30 * 60 * 1000;
+
+function pruneLastTouchedMap(now: number): void {
+    if (__lastTouchedMap.size > LAST_TOUCHED_MAX_ENTRIES) {
+        const overflow = __lastTouchedMap.size - LAST_TOUCHED_MAX_ENTRIES;
+        const it = __lastTouchedMap.keys();
+        for (let i = 0; i < overflow; i++) {
+            const k = it.next();
+            if (k.done) break;
+            __lastTouchedMap.delete(k.value);
+        }
+    } else if (__lastTouchedMap.size > LAST_TOUCHED_MAX_ENTRIES / 2) {
+        const cutoff = now - LAST_TOUCHED_TTL_MS;
+        for (const [k, v] of __lastTouchedMap) {
+            if (v < cutoff) __lastTouchedMap.delete(k);
+        }
+    }
+}
 
 export async function touchActiveConversation(
     cid: string,
@@ -159,6 +181,7 @@ export async function touchActiveConversation(
         return 0;
     }
     __lastTouchedMap.set(nid, now);
+    pruneLastTouchedMap(now);
 
     const targetSlot = slot || getAccountSlot();
     const activeTitleObj = extractActiveChatTitle(nid);
