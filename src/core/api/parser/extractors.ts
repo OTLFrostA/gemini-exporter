@@ -89,6 +89,7 @@ declare global {
 
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
+import { payloadToMs, extractInnerPayload } from "./payload.js";
 
 /**
  * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
@@ -515,26 +516,28 @@ import { GeminiProtocol } from "../../protocol/protocol.js";
         const listRpc = protocol ? protocol.RPCS.LIST : "MaZiqc";
         const legacyListRpc = protocol ? protocol.RPCS.LEGACY_LIST : "hXcbkd";
 
-        for (let item of top) {
-            if (Array.isArray(item) && item[0] === wrb && (item[1] === listRpc || item[1] === legacyListRpc) && typeof item[2] === "string") {
-                try {
-                    let metaInner = JSON.parse(item[2]);
-                    let list = Array.isArray(metaInner?.[1]) ? metaInner[1] : (Array.isArray(metaInner?.[2]) ? metaInner[2] : (Array.isArray(metaInner?.[0]) ? metaInner[0] : []));
-                    for (let entry of list) {
-                        if (Array.isArray(entry)) {
-                            let id = entry[0];
-                            let rawTitle = entry[1];
-                            let nid = normId(id);
-                            if (!targetNid || !nid || nid === targetNid) {
-                                let cleanT = cleanTitle(rawTitle);
-                                if (isRealTitle(cleanT, nid || targetNid)) {
-                                    return cleanT;
-                                }
+        const { inner: metaInner } = extractInnerPayload(top, {
+            wrb,
+            rpcId: [listRpc, legacyListRpc]
+        });
+
+        if (metaInner) {
+            try {
+                let list = Array.isArray(metaInner?.[1]) ? metaInner[1] : (Array.isArray(metaInner?.[2]) ? metaInner[2] : (Array.isArray(metaInner?.[0]) ? metaInner[0] : []));
+                for (let entry of list) {
+                    if (Array.isArray(entry)) {
+                        let id = entry[0];
+                        let rawTitle = entry[1];
+                        let nid = normId(id);
+                        if (!targetNid || !nid || nid === targetNid) {
+                            let cleanT = cleanTitle(rawTitle);
+                            if (isRealTitle(cleanT, nid || targetNid)) {
+                                return cleanT;
                             }
                         }
                     }
-                } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:extractors.ts]", e); }
-            }
+                }
+            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:extractors.ts]", e); }
         }
         return null;
     }
@@ -543,13 +546,8 @@ import { GeminiProtocol } from "../../protocol/protocol.js";
         if (!Array.isArray(turnData)) return null;
         let candidates = [turnData[4], turnData[5], turnData[turnData.length - 1]];
         for (let candidate of candidates) {
-            if (Array.isArray(candidate) && typeof candidate[0] === "number" && candidate[0] > 1e9) {
-                let val = candidate[0];
-                if (val > 1e11) return Math.round(val);
-                let timestampSec = val;
-                let timestampNano = typeof candidate[1] === "number" ? candidate[1] : 0;
-                return 1000 * timestampSec + Math.floor(timestampNano / 1e6);
-            }
+            let ms = payloadToMs(candidate);
+            if (ms !== null) return ms;
         }
         return null;
     }

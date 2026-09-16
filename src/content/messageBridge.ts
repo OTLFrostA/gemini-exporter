@@ -4,7 +4,7 @@ import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
-import { TITLE_TIER_RANK } from '../core/utils/titleUtils.js';
+import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
@@ -86,13 +86,10 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         let title = cleanTitle(detailRes.title);
                         let sourceTier = detailRes.titleSource || 'rpc';
                         if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
-                            const firstUser = detailRes.messages.find((m: any) => m.role === 'user' && m.content && m.content.trim());
-                            if (firstUser) {
-                                const candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
-                                if (isRealTitle(candidate, nid)) {
-                                    title = candidate;
-                                    sourceTier = 'sniff';
-                                }
+                            const sniffed = resolveDetailTitle(detailRes.messages, nid);
+                            if (sniffed) {
+                                title = sniffed.title;
+                                sourceTier = sniffed.source;
                             }
                         }
                         let titlesObj = detailRes.titles || {};
