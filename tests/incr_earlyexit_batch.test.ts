@@ -40,7 +40,9 @@ test('增量早退时，触发页的新增/变化会话必须经由 batch 交付
     for (let i = 0; i < 40; i++) {
         const ts = NOW - (i + 10) * 3600000;
         const r = mergeConversation(null, listItem(`conv${i}`, ts, `Title ${i}`), {
-            source: 'network-list',
+            // 'batchexecute' = 列表扫描，盖 'scan' 戳（5 连击唯一认可）；
+            // 'network-list'（嗅探）盖 'sniff' 戳，不能计入早退。
+            source: 'batchexecute',
             isRpcSource: true,
         });
         stored.push(r.merged);
@@ -101,7 +103,9 @@ test('增量早退本身不受影响：无变化时仍在第 1 页停止', async
     for (let i = 0; i < 40; i++) {
         const ts = NOW - (i + 10) * 3600000;
         const r = mergeConversation(null, listItem(`conv${i}`, ts, `Title ${i}`), {
-            source: 'network-list',
+            // 'batchexecute' = 列表扫描，盖 'scan' 戳（5 连击唯一认可）；
+            // 'network-list'（嗅探）盖 'sniff' 戳，不能计入早退。
+            source: 'batchexecute',
             isRpcSource: true,
         });
         stored.push(r.merged);

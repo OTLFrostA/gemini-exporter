@@ -64,7 +64,10 @@ function storedFixtures(count: number): any[] {
     for (let i = 0; i < count; i++) {
         const ts = NOW - (i + 200) * 3600000;
         const r = mergeConversation(null, listItem(`old${i}`, ts, `Old ${i}`), {
-            source: 'network-list',
+            // 必须是 'batchexecute'（列表扫描）：该源盖 'scan' 戳，是 5 连击唯一认可
+            // 的出身。'network-list'（嗅探）现在盖 'sniff' 戳——时间戳值相同但不能
+            // 证明尾巴被扫过，用它构造"已扫描"基线会掩盖新安装静默截断 bug。
+            source: 'batchexecute',
             isRpcSource: true,
         });
         stored.push(r.merged);
