@@ -184,12 +184,14 @@ def test_javascript_unit_tests(target_tests=None):
     # Preload files for mock fs in JSC
     file_map = {}
     for root, dirs, files in os.walk(BASE_DIR):
-        if any(x in root for x in ["node_modules", ".git", "playwright", "dist"]):
+        # Prune build outputs, test results and artifacts
+        dirs[:] = [d for d in dirs if d not in ["node_modules", ".git", "playwright", "dist", "output", "test-results", "playwright-report"]]
+        if any(x in root for x in ["node_modules", ".git", "playwright", "dist", "tests/output", "tests\\output", "test-results", "playwright-report"]):
             continue
         for f in files:
             if f.endswith((".js", ".html", ".json", ".md")):
                 p = os.path.join(root, f)
-                with open(p, "r", encoding="utf-8") as fp:
+                with open(p, "r", encoding="utf-8", errors="replace") as fp:
                     content = fp.read()
                     file_map[os.path.normpath(p)] = content
 
