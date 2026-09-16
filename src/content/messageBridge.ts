@@ -232,13 +232,13 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 if (typeof (_deps as any)?.touchActiveConversation === 'function') {
                     await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
                 } else if (typeof upsertConversations === 'function') {
-                    const now = Date.now();
+                    // SSOT timestamp authority: no client-clock timestamp here;
+                    // timestamp/updatedAt are server-authoritative (see
+                    // touchActiveConversation in syncEngine.ts).
                     await upsertConversations([{
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
-                        timestamp: now,
-                        updatedAt: now,
                         sidebarIndex: 0
                     }], 'stream-start', true, targetSlot);
                 }
@@ -267,13 +267,13 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 if (typeof (_deps as any)?.touchActiveConversation === 'function') {
                     await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
                 } else if (typeof upsertConversations === 'function') {
-                    const now = Date.now();
+                    // SSOT timestamp authority: no client-clock timestamp here;
+                    // timestamp/updatedAt are server-authoritative (see
+                    // touchActiveConversation in syncEngine.ts).
                     const item: any = {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
-                        timestamp: now,
-                        updatedAt: now,
                         sidebarIndex: 0
                     };
                     if (typeof (_deps as any)?.extractActiveChatTitle === 'function') {
