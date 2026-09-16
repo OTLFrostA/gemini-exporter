@@ -166,7 +166,8 @@ const pagination = GeminiClientPagination;
                     });
                 }
 
-                throw new Error(`HTTP ${resp.status} :: ${snippet} sid:${cred.sid?.slice(0,6)} atLen:${cred.at?.length} bl:${cred.bl?.slice(0,12)}`);
+                // P1-007: diagnostics carry lengths/presence only — never credential prefixes.
+                throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${cred.sid?.length ?? 0} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
             let txt = await resp.text();
             return getParser().parseList(txt);
