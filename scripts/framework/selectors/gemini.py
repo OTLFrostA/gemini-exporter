@@ -77,6 +77,7 @@ class WorkbenchSelectors:
     BTN_SELECT_NONE: str = '#btnSelectNone'
     BTN_DEEP_SCAN: str = '#btnDeepScan'
     BTN_EXPORT: str = '#btnExport'
+    LOG: str = '#log'
 
     TOUR_POPOVER: str = '.tour-popover'
     TOUR_BADGE: str = '.tour-step-badge'

@@ -175,6 +175,9 @@ export function updateBadge(
         if (typeof mergedLen === 'number' && mergedLen >= 0) {
             __lastKnownCount = mergedLen;
         }
+        if (__liveSaveTimer || __liveSaveWarningTimer || badge?.classList?.contains?.('live-saved') || badge?.classList?.contains?.('live-save-warning')) {
+            return;
+        }
         const zh = opts.isZh ? opts.isZh() : true;
         let targetText = '';
         if (overrideText) {

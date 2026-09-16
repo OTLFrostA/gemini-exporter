@@ -413,14 +413,17 @@ class ExtensionActions:
         return False
 
     @staticmethod
-    def trigger_export_zip(cdp_opt, output_dir: str, max_wait: int = 60) -> Optional[str]:
+    def trigger_export_zip(cdp_opt, output_dir: str, max_wait: int = 60, skip_exported: Optional[bool] = False) -> Optional[str]:
         """确保启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
         cdp_opt.eval(f"""
         (() => {{
             const skipCb = document.getElementById('skipExported');
-            if (skipCb && skipCb.checked) {{
-                skipCb.checked = false;
-                skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            if (skipCb) {{
+                const shouldSkip = {json.dumps(skip_exported)};
+                if (shouldSkip !== null && skipCb.checked !== shouldSkip) {{
+                    skipCb.checked = shouldSkip;
+                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
             }}
             const zipCb = document.getElementById('includeZip');
             if (zipCb && !zipCb.checked) {{

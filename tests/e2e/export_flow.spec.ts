@@ -155,7 +155,7 @@ test.describe('Export Workflow & State Update', () => {
     await page.click('#btnExport');
 
     // Verify fast-skip log and notification in progress area
-    await expect(page.locator('#logArea, #progText')).toContainText(/(跳过|skipped|无需生成 ZIP)/);
+    await expect(page.locator('#progText')).toContainText(/(跳过|skipped|无需生成 ZIP)/);
 
     // Verify export button becomes active again quickly (not stuck in disabled state)
     await expect(page.locator('#btnExport')).toBeEnabled();
