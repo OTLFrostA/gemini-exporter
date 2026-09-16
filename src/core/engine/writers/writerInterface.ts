@@ -1,10 +1,14 @@
 // src/core/engine/writers/writerInterface.ts - Unified export writer contract and factory (Phase 2c)
 
+export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
+
 export interface IExportWriter {
-    writeFile(relativePath: string, content: any, options?: any): Promise<string> | string;
-    generateBlob?(): Promise<Blob>;
+    writeFile(relativePath: string, content: WriteFileContent, options?: any): Promise<string> | string;
+    writeFile(subDirPath: string, fileName: string, content: WriteFileContent): Promise<string> | string;
+    generateBlob?(onUpdate?: (pct: number) => void): Promise<Blob>;
     close?(): Promise<void>;
     getTotalBytes?(): number;
+    init?(): Promise<any>;
     [key: string]: any;
 }
 

@@ -10,6 +10,7 @@ import GeminiUtils, {
     checkIsUpdated as utilsCheckIsUpdated
 } from '../../core/utils/utils.js';
 import { $, t } from '../uiCommon.js';
+import { normId } from '../../core/utils/pathUtils.js';
 
 export const isRealTitle = (title?: string | null, id?: string | null): boolean =>
     (globalThis as any).GeminiUtils?.isRealTitle ? (globalThis as any).GeminiUtils.isRealTitle(title, id) : utilsIsRealTitle(title, id || undefined);
@@ -114,7 +115,7 @@ export function render(
 
     filtered.forEach((c) => {
         const origIdx = idxMap.get(c as object) ?? -1;
-        const nid = String(c.id || '').replace(/^c_/, '');
+        const nid = normId(c.id);
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
         const isUpdated = checkIsUpdated(c, rec);
         let isChecked = false;
@@ -183,7 +184,7 @@ export function render(
 
 export function updateItemExportStatus(chatId: string, exportRecord?: ExportRecord | null): void {
     if (!chatId || typeof document === 'undefined') return;
-    const nid = String(chatId).replace(/^c_/, '');
+    const nid = normId(chatId);
     const item = (document.querySelector && (
         document.querySelector(`#list .item[data-chat-id="${nid}"]`)
         || document.querySelector(`.item[data-chat-id="${nid}"]`)
@@ -238,7 +239,7 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
         const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) {
-            const found = convs.find(c => c.id === chatId || String(c.id).replace(/^c_/, '') === String(chatId).replace(/^c_/, ''));
+            const found = convs.find(c => normId(c.id) === normId(chatId));
             if (found) {
                 selected.push(found);
                 return;
@@ -290,7 +291,7 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
             (cb as HTMLInputElement).checked = false;
             return;
         }
-        const nid = String(c.id || '').replace(/^c_/, '');
+        const nid = normId(c.id);
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
         (cb as HTMLInputElement).checked = !rec;
     });
@@ -308,7 +309,7 @@ export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: 
             (cb as HTMLInputElement).checked = false;
             return;
         }
-        const nid = String(c.id || '').replace(/^c_/, '');
+        const nid = normId(c.id);
         const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
         (cb as HTMLInputElement).checked = checkIsUpdated(c, rec);
     });
@@ -317,10 +318,10 @@ export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: 
 
 export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
     if (typeof document === 'undefined') return;
-    const idSet = new Set(Array.from(targetIds).map(id => String(id).replace(/^c_/, '')));
+    const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
         const item = cb.closest('.item') as HTMLElement | null;
-        const chatId = item?.dataset?.chatId ? String(item.dataset.chatId).replace(/^c_/, '') : '';
+        const chatId = normId(item?.dataset?.chatId);
         (cb as HTMLInputElement).checked = !!chatId && idSet.has(chatId);
     });
     updateStat(conversations || currentConversationsRef);

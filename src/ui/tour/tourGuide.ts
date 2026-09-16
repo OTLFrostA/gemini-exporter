@@ -18,6 +18,7 @@ import TabService from '../../core/utils/tabService.js';
 import { t } from '../uiCommon.js';
 import { STEPS } from './tourSteps.js';
 import { positionElements as positionTourElements } from './tourPosition.js';
+import { getExtensionVersion } from '../../core/utils/constants.js';
 export { STEPS } from './tourSteps.js';
 
 const getStorage = () => (globalThis as any).StorageService || StorageService;
@@ -381,7 +382,7 @@ export async function finishTour(): Promise<void> {
             await storage.setTourCompleted(true);
         }
         if (storage.setLastSeenFeatureVersion) {
-            const currentVer = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+            const currentVer = getExtensionVersion();
             await storage.setLastSeenFeatureVersion(currentVer);
         }
     }

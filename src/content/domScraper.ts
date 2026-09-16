@@ -1,7 +1,7 @@
 // src/content/domScraper.ts - DOM fallback parser and conversation list scroller
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
-import { isReservedRoute } from '../core/utils/pathUtils.js';
+import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
 
 export { isReservedRoute };
 
@@ -183,7 +183,7 @@ export async function contentFetchChatDetail(id: string): Promise<any> {
     let parsed = parseDoc(doc, id, url);
     if (!parsed.messages.length) {
         try {
-            const cleanId = String(id).replace(/^c_/, '');
+            const cleanId = normId(id);
             if (typeof location !== 'undefined' && (location.pathname.includes(cleanId) || location.href.includes(cleanId))) {
                 const liveFallback = parseDoc(document, id, location.href);
                 if (liveFallback.messages.length) {
@@ -222,7 +222,7 @@ export function getConversationLinks(): any[] {
         const href = (a as HTMLAnchorElement).href || a.getAttribute('href') || '';
         const m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
         if (m) {
-            const id = m[2].replace(/^c_/, '');
+            const id = normId(m[2]);
             if (isReservedRoute(id)) continue;
             const rawTitle = (a.querySelector('.title, [class*="title"]')?.textContent || a.textContent || '').trim();
             const title = cleanTitle(rawTitle);

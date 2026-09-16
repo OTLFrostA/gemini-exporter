@@ -23,6 +23,7 @@ import {
     compareConversations
 } from '../../../core/utils/utils.js';
 import { SessionStore } from '../../../core/storage/sessionStore.js';
+import { getExtensionVersion } from '../../../core/utils/constants.js';
 
 export { normId, cleanTitle, isRealTitle, resolveTitle, compareConversations };
 export const getEffectiveTime = getEffectiveTimestamp;
@@ -221,7 +222,7 @@ function initHeaderVersion(): void {
     const verEl = $('ver');
     if (verEl) {
         try {
-            verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3'));
+            verEl.textContent = 'v' + getExtensionVersion();
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:optionsInit]', e);
         }

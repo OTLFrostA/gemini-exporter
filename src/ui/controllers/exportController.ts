@@ -2,6 +2,7 @@ import type { ExportControllerContract } from '../../types/ui.js';
 import ExportEngine from '../../core/engine/exportEngine.js';
 import { ProgressView } from '../views/progressView.js';
 import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
+import { normId } from '../../core/utils/pathUtils.js';
 
 const getExportEngineClass = (): any => {
     if (typeof (globalThis as any).ExportEngine !== 'undefined') {
@@ -15,12 +16,12 @@ let exportRunning = false;
 
 export function estimateMemoryUsage(selected: any[], conversations: any[]): number {
     if (!Array.isArray(selected) || !selected.length) return 0;
-    const convMap = new Map<string, any>((conversations || []).map((c: any) => [c.id?.replace(/^c_/, ''), c]));
+    const convMap = new Map<string, any>((conversations || []).map((c: any) => [normId(c?.id), c]));
     let totalAttachments = 0;
     let totalMessages = 0;
     for (const item of selected) {
         const rawId = typeof item === 'string' ? item : item?.id;
-        const norm = rawId ? String(rawId).replace(/^c_/, '') : '';
+        const norm = normId(rawId);
         const conv = (norm ? convMap.get(norm) : null) || (typeof item === 'object' ? item : null);
         if (conv) {
             totalAttachments += (conv.attachmentCount || conv.attachments?.length || 0);

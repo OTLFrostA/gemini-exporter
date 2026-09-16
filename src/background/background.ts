@@ -21,6 +21,7 @@ import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandl
 import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
+import { getExtensionVersion } from '../core/utils/constants.js';
 
 // Re-export modular components for architectural backward-compatibility and diagnostic inspection
 export {
@@ -123,7 +124,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'ping') {
-        const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.5.0');
+        const ver = getExtensionVersion();
         sendResponse({
             ok: true,
             version: ver,

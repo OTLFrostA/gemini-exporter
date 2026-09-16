@@ -5,7 +5,9 @@ import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils, getErrorMessage, resolveDetailTitle as defaultResolveDetailTitle } from '../core/utils/utils.js';
+import { normId } from '../core/utils/pathUtils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
+import { getExtensionVersion } from '../core/utils/constants.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
 
@@ -44,7 +46,7 @@ export function init({
 
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.action === 'ping') {
-            const ver = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3');
+            const ver = getExtensionVersion();
             sendResponse({
                 ok: true,
                 version: ver,
@@ -110,7 +112,6 @@ export function init({
             (async () => {
                 async function persistDetailTitle(chatObj: any): Promise<void> {
                     if (!chatObj) return;
-                    const normId = (id: string) => String(id || '').replace(/^c_/, '').trim();
                     const nid = normId(cid || chatObj.id);
                     chatObj.title = cleanTitle(chatObj.title);
                     let detectedSource = chatObj.titleSource || 'rpc';

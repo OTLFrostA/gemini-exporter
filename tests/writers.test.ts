@@ -165,3 +165,21 @@ test('fsWriter - rejects invalid or empty plain object content before touching f
     assert.strictEqual(okName, 'valid.txt');
     assert.strictEqual(fileHandleCreated, true);
 });
+
+test('zipWriter - supports 3-argument (subDir, fileName, content) signature matching IExportWriter', () => {
+    (global as any).JSZip = class MockJSZip {
+        files: Record<string, any> = {};
+        constructor() { this.files = {}; }
+        folder(_name: string) {
+            return {
+                file: (path: string, content: any) => { this.files[path] = content; }
+            };
+        }
+        async generateAsync() { return new Blob(['']); }
+    };
+
+    const writer = new ZipWriter('my_export');
+    const path = writer.writeFile('assets', 'img.png', 'fake_data');
+    assert.strictEqual(path, 'assets/img.png');
+    assert.strictEqual(writer.getTotalBytes(), 9);
+});
