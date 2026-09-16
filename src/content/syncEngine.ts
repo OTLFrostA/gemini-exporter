@@ -347,28 +347,27 @@ export async function syncOnce(): Promise<number> {
 }
 
 /**
- * 决定本次会话列表同步用增量还是全量。
+ * 决定本次会话列表同步用增量还是全量 —— 还原为增量最根本的语义。
  *
- * 增量同步只在已有基线数据时有意义：新安装（本地为空/极少）时若强制增量，
- * 会静默截断到 2 页并上报"完成"，导致大部分历史永远不出现。此时必须回退
- * 到全量 —— 这也是无强制选项时自动路径本来的判定。因此 forceIncremental
- * 不得绕过基线检查。
+ * 增量 = 从新往旧连续扫描，直到连续 5 条会话的服务端时间戳都没变化就停
+ * （早退逻辑在 pagination.getAllConversations 里实现）。
+ *
+ * 不再做基线预判：无基线时所有条目都会被判"有变化"，扫描自然走到服务端
+ * 尽头才停，等价于一次全量 —— 用条数 proxy 时间戳存在性的基线检查是多余的。
+ * 也不再给增量设单独的小页数上限：上限只防死循环（服务端游标异常导致永不
+ * 收敛），与全量取同一上限，正常流程永远碰不到。
  */
 export function resolveListSyncMode(
-    beforeCount: number,
-    forceOpts?: { forceFull?: boolean; forceIncremental?: boolean; maxPages?: number }
+    forceOpts?: { forceFull?: boolean; maxPages?: number }
 ): { useIncremental: boolean; maxPages: number } {
-    const hasBaseline = beforeCount > 30;
-    let useIncremental = hasBaseline;
-    if (forceOpts?.forceFull) useIncremental = false;
-    if (forceOpts?.forceIncremental && hasBaseline) useIncremental = true;
+    const useIncremental = !forceOpts?.forceFull;
     return {
         useIncremental,
-        maxPages: forceOpts?.maxPages || (useIncremental ? 2 : 2000),
+        maxPages: forceOpts?.maxPages || 2000,
     };
 }
 
-export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; forceIncremental?: boolean; maxPages?: number }): Promise<any> {
+export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; maxPages?: number }): Promise<any> {
     if (contentContext.getDeepScanPromise()) return null;
 
     let _resolve: (() => void) | undefined;
@@ -390,7 +389,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
         const Storage = getStorage();
         const beforeList = Storage ? await Storage.getConversations(slot) : [];
         const beforeMap = new Map(beforeList.map((c: any) => [c.id, c]));
-        const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(beforeList.length, forceOpts);
+        const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
 
         let saveQueue = Promise.resolve<any>(0);
         // Typed as any: the registered Gemini provider spreads the full pagination
@@ -429,12 +428,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
             unchangedThreshold: 5
         });
         await saveQueue;
-
-        // 把实际执行的模式带给调用方：无基线时"增量"会回退为全量，
-        // UI 必须按实际模式上报，不能谎称"增量同步完成"。
-        if (all && typeof all === 'object') {
-            (all as any).syncMode = useIncremental ? 'incremental' : 'full';
-        }
 
         if (all && all.diagnostics) {
             try {
