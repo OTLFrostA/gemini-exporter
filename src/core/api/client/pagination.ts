@@ -245,11 +245,14 @@ declare global {
         do {
             let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
+            const cleanConvId = String(conversationId).replace(/^c_/, "");
             const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: any) => {
                 const mid = m ? m.id : null;
                 if (mid === null || mid === undefined || mid === '') return true;
-                if (seenMsgIds.has(String(mid))) return false;
-                seenMsgIds.add(String(mid));
+                const midStr = String(mid);
+                if (midStr.replace(/^c_/, "") === cleanConvId) return true;
+                if (seenMsgIds.has(midStr)) return false;
+                seenMsgIds.add(midStr);
                 return true;
             });
             msgs = [...fresh, ...msgs];

@@ -344,8 +344,16 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                     return true;
                 });
                 if (uText || uImgs.length || uFiles.length) {
+                    let userMsgId = "";
+                    if (Array.isArray(turn?.[0])) {
+                        userMsgId = turn[0].find((x: any) => typeof x === "string" && x.startsWith("r_"))
+                            || (typeof turn[0][1] === "string" ? turn[0][1] : "")
+                            || (typeof turn[0][0] === "string" ? turn[0][0] : "");
+                    } else if (typeof turn?.[0] === "string") {
+                        userMsgId = turn[0];
+                    }
                     msgs.push({
-                        id: turn?.[0]?.[0] || "",
+                        id: userMsgId,
                         role: "user",
                         content: uText,
                         timestamp: ts,
@@ -462,7 +470,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                         }
                         if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({
-                                id: candidateId || turn?.[0]?.[0] || "",
+                                id: candidateId || (Array.isArray(turn?.[0]) ? (turn[0].find((x: any) => typeof x === "string" && (x.startsWith("rc_") || x.startsWith("r_"))) || turn[0][1] || turn[0][0]) : turn?.[0]) || "",
                                 role: "model",
                                 content: responseText || "",
                                 thoughts: thoughts || void 0,

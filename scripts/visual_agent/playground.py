@@ -581,9 +581,9 @@ class VisualPlayground:
         if not target_tab:
             tabs = get_tabs(self.port)
             if norm_target == "gemini":
-                target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+                target_tab = next((t for t in tabs if t.get("type", "page") == "page" and is_gemini_url(t.get("url", ""))), None)
             elif norm_target == "options":
-                target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
+                target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
             if not target_tab and tabs:
                 target_tab = tabs[0]
 
@@ -724,9 +724,9 @@ def open_visual_playground(
         if not tabs:
             raise RuntimeError(f"未在端口 {port} 找到任何活跃 Chrome 标签页。请先启动独立测试 Chrome。")
         if norm_target == "gemini":
-            target_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+            target_tab = next((t for t in tabs if t.get("type", "page") == "page" and is_gemini_url(t.get("url", ""))), None)
         elif norm_target == "options":
-            target_tab = next((t for t in tabs if "options.html" in t.get("url", "")), None)
+            target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
         if not target_tab:
             target_tab = tabs[0]
 

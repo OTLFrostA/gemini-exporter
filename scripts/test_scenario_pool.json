@@ -1,25 +1,5 @@
 [
   {
-    "id": "distributed_raft_consensus_partition_healing",
-    "domain": "distributed_consensus_and_storage",
-    "features": [
-      "code",
-      "math",
-      "latex",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "请系统推演 Raft 分布式共识协议在面临网络三向分区（Split-Brain）时的状态机安全保证。请用 LaTeX 公式形式化定义选举超时时间约束与 Leader 租约有效期。",
-      "请用 Python 编写一个最小化可运行的 Raft 节点状态机（包含 Follower/Candidate/Leader 状态转移、Term 任期自增与 AppendEntries RPC 请求处理）。",
-      "当发生多数派网络分区（Partition A: 3节点, Partition B: 2节点）时，请用 Markdown 对比表格列出两个分区在接收写入请求时的状态机提交响应（Commit Index 推进、未提交日志截断与客户端超时行为）。",
-      "当网络分区恢复愈合时，低任期旧 Leader 是如何通过高任期的心跳 RPC 降级为 Follower 并由状态机对齐日志的？请写出详细日志复制校验算法。",
-      "请总结 Raft 与 Multi-Paxos 在强一致性线性一致读（Linearizable Read）实现机制（如 ReadIndex 与 Lease Read）上的核心性能与实现复杂度对比。"
-    ],
-    "title": "分布式系统与实时流计算：基于 Raft 共识引擎的状态机复制与网络分区自愈",
-    "description": "深入推演 Raft 共识协议在网络三向分区下的选举与复制安全性，包含最小化状态机实现、脑裂恢复与线性一致读对比。"
-  },
-  {
     "id": "radio_astronomy_fast_radio_bursts",
     "title": "射电天文学与天体物理：快速射电暴 (FRB) 色散测度推演与宇宙学探针",
     "domain": "radio_astronomy_astrophysics",
@@ -155,26 +135,6 @@
       "使用 Python 编写脚本，基于张量收缩库模拟由 5 阶完美张量 (Perfect Tensor) 构成的 HaPPY 全息五边形张量网络，验证从边界擦除误差中重构中心体逻辑比特的恢复保真度 (Fidelity)。",
       "推导引力黑洞信息佯谬中的纠缠岛 (Islands) 公式 S(R) = \text{minext}_I [S_{semi-cl}(R \\cup I) + \text{Area}(\\partial I)/(4G_N)]，解释其如何成功复现 Page 曲线并解决量子幺正性危机。",
       "使用 Markdown 表格横向对比 Ryu-Takayanagi 极小曲面公式、HRT 协变全息熵公式与量子纠正 FLM/JLMS 扩展项的数学形式、对称性要求及适用物理时空背景。"
-    ]
-  },
-  {
-    "id": "euv_lithography_physics_plasma_source",
-    "domain": "euv_lithography_physics_plasma_source",
-    "title": "极紫外光刻机 (EUV) 物理光学与锡等离子体放电辐射极紫外光",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "code"
-    ],
-    "description": "测试高能激光脉冲冲击熔融锡液滴动力学、13.5nm 极紫外发射光谱推导、Imagen 生图与 Mo/Si 多层膜 Bragg 反射率数值计算",
-    "turns": [
-      "详细推导激光诱导等离子体 (LPP) EUV 光源中，高功率脉冲 CO2 激光冲击自由落体锡 (Sn) 液滴时，高电荷态锡离子 (Sn^{8+}-Sn^{14+}) 在 13.5nm 极紫外波段未分辨跃迁阵列 (UTA) 的能级跃迁与电离平衡动力学方程。",
-      "请生成一张超高分辨率、科幻感与工业硬科技兼备的 3D 渲染图：展现极紫外光刻机核心真空反应腔内部，一束脉冲红外高功率激光在真空中精准聚焦轰击一滴正在高速坠落的微米级熔融液态金属锡微滴，微滴瞬间被电离成极其璀璨耀眼的极紫外 13.5nm 蓝紫色等离子体火球，周围环绕着巨大的 Mo/Si 椭球多层反射收集镜，反射镜表面泛着流光溢彩的金属光泽，机械结构严丝合缝，科技细节极致丰富。",
-      "在电磁波多层介质反射理论框架下，使用麦克斯韦方程组与传输矩阵法 (Transfer Matrix Method, TMM)，推导 13.5nm EUV 光在包含 40-50 周期的钼/硅 (Mo/Si) 纳米级多层膜 Bragg 反射镜上的反射率 R 随入射角 \theta 和界面粗糙度 Debye-Waller 因子的解析表达式。",
-      "使用 Python 编写脚本，基于菲涅尔方程与薄膜干涉矩阵算法，数值计算 Mo/Si 周期双层膜 (d_Mo = 2.8nm, d_Si = 4.1nm) 在 12.5nm 至 14.5nm 波长范围内的理论反射光谱曲线，并打印峰值反射率与 FWHM 半高宽。",
-      "使用 Markdown 表格横向对比高数值孔径 (High-NA 0.55) EUV 光刻、低数值孔径 (0.33 NA) EUV、电子束直写 (EBDW) 与纳米压印 (NIL) 在分辨力极限 (k1 因子)、套刻精度 (Overlay)、焦深 (DOF) 以及每小时晶圆产出率 (WPH) 指标。"
     ]
   },
   {
@@ -391,6 +351,48 @@
       "使用 Python 编写脚本，基于化学动力学反应速率常数 (Arrhenius 公式与 Park 两温模型)，数值求解正激波后滞止线上空气五组分 (O2, N2, O, N, NO) 离解复合反应随距离的非平衡化学弛豫演化过程。",
       "剖析乘波体 (Waverider) 基于密切锥 (Osculating Cone) 理论的气动外形反设计几何构型流程，推导超声速气流在下表面激波贴体附着条件下的最大升阻比 (L/D) 极值设计准则。",
       "使用 Markdown 表格横向对比碳/碳复合材料 (C/C)、碳化硅陶瓷基复合材料 (C/SiC)、超高温陶瓷 (ZrB2-SiC) 与烧蚀酚醛树脂基防热材料 (PICA) 在抗热震极限温度 (K)、抗氧化剥蚀速率、密度 (g/cm³) 及航天再入飞行器不同烧蚀驻点部位的应用优缺点。"
+    ]
+  },
+  {
+    "id": "spacecraft_hall_thruster_plasma_plume",
+    "domain": "spacecraft_electric_propulsion_plasma",
+    "title": "深空离子电推进：霍尔推力器 (Hall Thruster) 阳极层等离子体放电与粒子网格 (PIC-MCC) 仿真",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "code",
+      "tables",
+      "latex"
+    ],
+    "description": "测试交叉电磁场中反常电子输运、玻姆扩散方程推导、一维 PIC-MCC 粒子网格 Python 模拟、AI Imagen 霍尔推力器发光羽流渲染图与电推进对比表格",
+    "turns": [
+      "在外加正交径向磁场 B_r 与轴向电场 E_z 构型的霍尔推力器环形放电通道中，推导电子方位角 E x B 闭合漂移运动与反常轴向电子输运 (Anomalous Electron Transport) 机制。推导经典电子迁移率公式 \\mu_e = \frac{e}{m_e \nu_m} \frac{1}{1 + \\omega_{ce}^2/\nu_m^2}，并阐明当霍尔参数 \\Omega_e = \\omega_{ce}/\nu_m \\gg 1 时，为什么传统碰撞经典扩散无法解释实测的阳极电流，需要引入玻姆扩散 (Bohm Diffusion) 系数 D_B \u0007pprox \frac{k_B T_e}{16 e B} 或电子回旋漂移不稳定性 (ECDI) 诱导的微观湍流电场涨落。",
+      "推导氙气 (Xe) 等离子体在加速通道内的电离动力学平衡与声速鞘层 Bohm 判据。形式化给出中性推进剂气体从阳极喷入后，一维轴向连续性方程与动量方程下离子加速电位降 \\Delta \\Phi \u0007pprox V_d 产生的推力 F = \\dot{m}_i v_i = \\dot{m}_i \\sqrt{2 e V_d / M_{\text{Xe}}} 及阳极比冲 (Specific Impulse) I_{\text{sp}} = \frac{v_i}{g_0} 的理论上限，并详细分解发散损耗、多价离子与推进剂利用率损失项。",
+      "使用 Python 编写一个一维静电粒子网格 (PIC-MCC, Particle-in-Cell with Monte Carlo Collisions) 核心算法模块框架，实现：1) 网格电荷密度云内插 (CIC, Cloud-in-Cell) 映射；2) Poisson 方程有限差分直接求解获得静电场；3) 改进型 Boris 算法或 Leap-frog 粒子推移步进推进；4) 电子与中性氙原子发生弹性碰撞与电子碰撞电离 (Ionization) 的 Monte Carlo 随机抽样与新宏粒子生成。",
+      "请生成一张超高清、硬核工业科幻质感的 3D 渲染图：展现一具正在地面大型地外真空模拟舱中全力点火测试的高功率霍尔电推进推力器（Hall Effect Thruster）。画面聚焦于环形陶瓷放电腔口，喷射出炫目明亮且纯净的高温蓝紫色氙离子等离子体空心圆锥羽流（Plasma Plume），周围布置着精密的碳纤维网格探针架、冷却管路、真空腔内壁吸附冷板与仪器反光，充满极致的深空探索工程细节与电磁等离子体光影质感。",
+      "使用 Markdown 表格横向对比霍尔推力器 (Hall Thruster)、栅格离子推力器 (Gridded Ion Thruster)、磁等离子体动力推力器 (MPD) 与脉冲等离子体推力器 (PPT) 在工作工质（如氙气 Xe、氪气 Kr、碘 I2）、比冲区间 (s)、推力范围 (mN ~ N)、推功比 (mN/kW) 及在近地轨道巨型星座轨道维持与深空星际采样返回任务中的工程选型优势与制约因素。"
+    ]
+  },
+  {
+    "id": "synthetic_biology_crispr_base_editing",
+    "domain": "synthetic_biology_gene_editing_kinetics",
+    "title": "合成生物学与精准基因编辑：CRISPR-Cas12a反式切割动力学与碱基编辑突变频谱推演",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 Cas12a R-loop 形成自由能动力学推导、非特异反式切割 (Trans-cleavage) Michaelis-Menten 方程、胞嘧啶碱基编辑器 (CBE) 脱氨基动力学 Python 仿真与高通量基因编辑系统对比",
+    "turns": [
+      "在 CRISPR-Cas12a (Cpf1) 效应蛋白识别靶标双链 DNA (dsDNA) 的过程中，详细推导前间隔序列邻近基序 (PAM, 5'-TTTV-3') 结合、DNA 双链局部解旋以及 guide RNA (crRNA) 介导的 R-loop 气泡成核与延伸的热力学与动力学自由能景观。用一维随机游走与微观可逆马尔可夫链状态转移矩阵形式化描述 R-loop 构象锁死与靶标链切割 (Target Strand Cleavage) 的速率限制步骤。",
+      "深入推导 Cas12a 活化后诱发的非特异性单链 DNA (ssDNA) 反式切割 (Collateral / Trans-cleavage) 酶促动力学模型。结合米氏方程 (Michaelis-Menten Kinetics) 扩展推导荧光报告探针裂解速率 d[F]/dt = (k_{cat} [Cas12a*] [S]) / (K_m + [S])，推导其在 SHERLOCK / DETECTR 等超灵敏分子核酸即时检测 (POCT) 体系中检出限 (LOD) 与信号信噪比 (SNR) 的极限灵敏度时间微分方程。",
+      "使用 Python 编写一个基于常微分方程数值积分算法的脚本，模拟胞嘧啶碱基编辑器 (CBE, 例如结合 APOBEC1 脱氨酶与 nCas9) 在特定编辑窗口 (如 Protospacer 第 4-8 位碱基) 内对靶向胞嘧啶 (C) 转化为尿嘧啶 (U) 以及可能发生的非目标旁观者编辑 (Bystander Editing) 的瞬态反应速率与产物百分比分布，打印编辑效率与纯度指标。",
+      "针对先导编辑器 (Prime Editing, PE) 系统的逆转录酶介导编辑机制，形式化推导先导编辑 guide RNA (pegRNA) 的引物结合位点 (PBS) 长度与逆转录模板 (RTT) 长度对 R-loop 稳定性、3' 悬垂链退火杂交竞争以及目标序列整合成功率的数学关联模型，总结最优 pegRNA 序列热力学校验设计准则。",
+      "使用 Markdown 表格横向对比标准 SpCas9 双链断裂系统 (NHEJ/HDR)、胞嘧啶碱基编辑器 (CBE)、腺嘌呤碱基编辑器 (ABE)、先导编辑器 (Prime Editor 2/3) 以及新型 RNA 靶向 Cas13 系统在编辑产物纯度、双链断裂 (DSB) 依赖性、插入/缺失突变率 (Indel %)、全基因组脱靶 (Off-target) 风险、递送尺寸载荷 (AAV 包裹兼容性) 维度的关键参数指标。"
     ]
   }
 ]

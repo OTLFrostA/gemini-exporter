@@ -72,8 +72,9 @@ class TestFrameworkEnvironment(unittest.TestCase):
     @patch("scripts.framework.environment.get_tabs")
     def test_tab_discovery(self, mock_get_tabs):
         mock_get_tabs.return_value = [
-            {"url": "https://gemini.google.com/app", "webSocketDebuggerUrl": "ws://mock/gemini"},
-            {"url": "chrome-extension://test_id/src/ui/options/options.html", "webSocketDebuggerUrl": "ws://mock/options"}
+            {"type": "webview", "url": "https://gemini.google.com/glic?hl=zh-CN", "webSocketDebuggerUrl": "ws://mock/glic"},
+            {"type": "page", "url": "https://gemini.google.com/app", "webSocketDebuggerUrl": "ws://mock/gemini"},
+            {"type": "page", "url": "chrome-extension://test_id/src/ui/options/options.html", "webSocketDebuggerUrl": "ws://mock/options"}
         ]
         self.env.ext_id = "test_id"
 
