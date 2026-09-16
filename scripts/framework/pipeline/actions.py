@@ -220,8 +220,13 @@ class UniversalInputAction:
         (() => {
             const el = document.activeElement;
             if (el) {
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
+                el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                const rich = el.closest('rich-textarea');
+                if (rich) {
+                    rich.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                    rich.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                }
                 return true;
             }
             return false;
@@ -274,8 +279,9 @@ class StagePromptAction(AtomicAction):
 class SingleClickSendAction(AtomicAction):
     """单次物理点击发送按钮 (Single-Click Guarantee)，绝对不进行多重连击重试循环"""
 
-    def __init__(self, send_btn_selector: Optional[str] = None):
+    def __init__(self, send_btn_selector: Optional[str] = None, timeout: float = 15.0):
         self.send_btn_selector = send_btn_selector or GeminiSelectors.SEND_BTN
+        self.timeout = timeout
 
     @property
     def name(self) -> str:
@@ -291,17 +297,37 @@ class SingleClickSendAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         # 严格执行唯一点击通道 (Single Channel of Truth)：
-        # 等待发送按钮解除禁用 (最多等待 8 秒，消除 Angular/React 脏检查与输入渲染时序差)，单次直接调用 sendBtn.click()
+        # 遍历所有候选发送按钮，等待解除禁用并完成单次派发 (最多等待 15 秒，消除 Angular/React 脏检查与输入渲染时序差)
         start_wait = time.time()
-        while time.time() - start_wait < 8.0:
+        while time.time() - start_wait < self.timeout:
             click_info = cdp.eval(f"""
             (() => {{
-                const sendBtn = document.querySelector('{self.send_btn_selector}');
-                if (sendBtn && !sendBtn.closest('.stop') && !sendBtn.disabled && sendBtn.getAttribute('aria-disabled') !== 'true') {{
+                const btns = Array.from(document.querySelectorAll('{self.send_btn_selector}'));
+                for (const sendBtn of btns) {{
+                    if (!sendBtn || sendBtn.disabled || sendBtn.getAttribute('aria-disabled') === 'true') {{
+                        continue;
+                    }}
+                    if (sendBtn.closest('.stop')) {{
+                        continue;
+                    }}
+                    const parentGem = sendBtn.closest('gem-icon-button');
+                    if (parentGem && (parentGem.getAttribute('aria-disabled') === 'true' || parentGem.classList.contains('stop'))) {{
+                        continue;
+                    }}
                     const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
                     if (!label.includes('stop') && !label.includes('停止')) {{
                         sendBtn.click();
                         return {{ clicked: true }};
+                    }}
+                }}
+
+                // 若超过 2 秒仍未检出可用发送按钮，主动对输入容器派发 input/change 事件以唤醒 Angular 脏检查
+                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+                if (editor) {{
+                    editor.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                    const rich = editor.closest('rich-textarea');
+                    if (rich) {{
+                        rich.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
                     }}
                 }}
                 return null;
@@ -309,9 +335,9 @@ class SingleClickSendAction(AtomicAction):
             """)
             if click_info and click_info.get("clicked"):
                 return ActionResult(True, "发送按钮单次提交成功派发")
-            time.sleep(0.2)
+            time.sleep(0.25)
 
-        return ActionResult(False, "未定位到可用且非禁用的发送按钮 (等待 8s 超时)")
+        return ActionResult(False, f"未定位到可用且非禁用的发送按钮 (等待 {int(self.timeout)}s 超时)")
 
 
 
