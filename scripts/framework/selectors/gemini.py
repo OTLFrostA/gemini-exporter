@@ -11,7 +11,7 @@ class GeminiSelectors:
 
     # ─── 输入与发帖区域 ───
     EDITOR: str = 'rich-textarea div.ql-editor, div[contenteditable="true"]'
-    SEND_BTN: str = 'button[aria-label="Send message"], gem-icon-button.send-button.submit button, button[aria-label*="发送"]'
+    SEND_BTN: str = 'button[aria-label*="Send" i], button[aria-label*="发送"], gem-icon-button.send-button button, button.send-button'
     SEND_BTN_NOT_STOP: str = 'button[aria-label*="Send"]:not(.stop), gem-icon-button.send-button:not(.stop)'
     STOP_BTN: str = 'button[aria-label*="Stop"], button[aria-label*="停止"], .send-button.stop'
 
