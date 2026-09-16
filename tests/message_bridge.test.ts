@@ -193,7 +193,7 @@ test('messageBridge - touches active conversation and updates timestamp on strea
     assert.strictEqual(touchedCalls[1].options?.source, 'stream-complete');
 });
 
-test('messageBridge - fallback to upsertConversations with updated timestamp when touchActiveConversation omitted', async () => {
+test('messageBridge - fallback to upsertConversations without client timestamp when touchActiveConversation omitted', async () => {
     let upsertedItems: any[] = [];
     let upsertedSource = '';
     let upsertedForceWrite = false;
@@ -210,22 +210,22 @@ test('messageBridge - fallback to upsertConversations with updated timestamp whe
         extractActiveChatTitle: (_id: string) => ({ title: 'Updated In-Page Title', source: 'dom' })
     });
 
-    const before = Date.now();
     await api.handleWindowMessage({
         data: {
             type: 'GEMINI_STREAM_GENERATE_COMPLETE',
             payload: { id: 'c_active_fallback', slot: 'u0' }
         }
     });
-    const after = Date.now();
 
     assert.strictEqual(upsertedItems.length, 1);
     assert.strictEqual(upsertedItems[0].id, 'active_fallback');
     assert.strictEqual(upsertedItems[0].title, 'Updated In-Page Title');
     assert.strictEqual(upsertedItems[0].titleSource, 'dom');
     assert.strictEqual(upsertedItems[0].sidebarIndex, 0);
-    assert.ok(upsertedItems[0].updatedAt >= before && upsertedItems[0].updatedAt <= after, 'updatedAt must be fresh timestamp');
-    assert.ok(upsertedItems[0].timestamp >= before && upsertedItems[0].timestamp <= after, 'timestamp must be fresh timestamp');
+    // SSOT timestamp authority: the fallback must NOT stamp the client clock;
+    // timestamp/updatedAt are server-authoritative and arrive via list sync.
+    assert.strictEqual(upsertedItems[0].updatedAt, undefined, 'updatedAt must not be client-stamped');
+    assert.strictEqual(upsertedItems[0].timestamp, undefined, 'timestamp must not be client-stamped');
     assert.strictEqual(upsertedSource, 'stream-complete');
     assert.strictEqual(upsertedForceWrite, true, 'forceWrite must be true to ensure persistence');
     assert.strictEqual(upsertedSlot, 'u0');

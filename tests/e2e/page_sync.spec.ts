@@ -269,7 +269,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     expect(Math.abs(reloadedBox!.y - movedBox!.y)).toBeLessThanOrEqual(5);
   });
 
-  test('should update active conversation timestamp and re-order to top when stream completes', async ({ context, extensionId }) => {
+  test('should re-order active conversation to top via lastActiveAt without touching server timestamps when stream completes', async ({ context, extensionId }) => {
     // 1. Seed options workbench with an older chat and a newer chat
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
@@ -330,14 +330,17 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     await expect(optionsPage.locator('#list .item').nth(0)).toContainText('原本沉在底部的老对话', { timeout: 4000 });
     await expect(optionsPage.locator('#list .item').nth(1)).toContainText('原本排第一的新对话');
 
-    // 5. Verify storage persistence: historical_old_111 updatedAt was bumped and createdAt preserved
+    // 5. Verify storage persistence: SSOT timestamp authority — the touch must
+    // NOT rewrite timestamp/updatedAt with the client clock; the bump-to-top
+    // comes from the client-observed lastActiveAt display signal instead.
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['gemini_conversations']);
     }) as Record<string, any>;
     const oldChatInStorage = (storageData.gemini_conversations || []).find((c: any) => c.id === 'historical_old_111');
     expect(oldChatInStorage).toBeTruthy();
-    expect(oldChatInStorage.updatedAt).toBeGreaterThan(1700000000000);
-    expect(oldChatInStorage.timestamp).toBeGreaterThan(1700000000000);
+    expect(oldChatInStorage.updatedAt).toBe(1600000000000);
+    expect(oldChatInStorage.timestamp).toBe(1600000000000);
+    expect(oldChatInStorage.lastActiveAt).toBeGreaterThan(1700000000000);
     expect(oldChatInStorage.createdAt).toBe(1590000000000);
   });
 });

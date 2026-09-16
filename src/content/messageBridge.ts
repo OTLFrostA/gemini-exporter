@@ -232,14 +232,18 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 if (typeof (_deps as any)?.touchActiveConversation === 'function') {
                     await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
                 } else if (typeof upsertConversations === 'function') {
+                    // SSOT timestamp authority: no client-clock timestamp here;
+                    // timestamp/updatedAt are server-authoritative (see
+                    // touchActiveConversation in syncEngine.ts). lastActiveAt
+                    // carries the client-observed interaction for display
+                    // recency (bump-to-top) only.
                     const now = Date.now();
                     await upsertConversations([{
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
-                        timestamp: now,
-                        updatedAt: now,
-                        sidebarIndex: 0
+                        sidebarIndex: 0,
+                        lastActiveAt: now
                     }], 'stream-start', true, targetSlot);
                 }
             } catch (err) {
@@ -267,14 +271,18 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 if (typeof (_deps as any)?.touchActiveConversation === 'function') {
                     await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
                 } else if (typeof upsertConversations === 'function') {
+                    // SSOT timestamp authority: no client-clock timestamp here;
+                    // timestamp/updatedAt are server-authoritative (see
+                    // touchActiveConversation in syncEngine.ts). lastActiveAt
+                    // carries the client-observed interaction for display
+                    // recency (bump-to-top) only.
                     const now = Date.now();
                     const item: any = {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
-                        timestamp: now,
-                        updatedAt: now,
-                        sidebarIndex: 0
+                        sidebarIndex: 0,
+                        lastActiveAt: now
                     };
                     if (typeof (_deps as any)?.extractActiveChatTitle === 'function') {
                         const titleObj = (_deps as any).extractActiveChatTitle(nid);

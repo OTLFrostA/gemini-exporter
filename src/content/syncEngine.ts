@@ -187,13 +187,22 @@ export async function touchActiveConversation(
     const targetSlot = slot || getAccountSlot();
     const activeTitleObj = extractActiveChatTitle(nid);
 
+    // SSOT timestamp authority: timestamp/updatedAt are server-authoritative and
+    // are only ever written from RPC/list/detail data. A touch must NOT stamp the
+    // client clock here: merge is Math.max-monotonic, so a client-ahead clock
+    // would permanently poison the record and no later server timestamp could
+    // repair it. Touch updates recency signals only (sidebarIndex/lastSeen);
+    // the next list sync brings the real server timestamp.
+    // Display recency (bump-to-top) is carried separately by lastActiveAt, a
+    // client-observed interaction marker consumed ONLY by the list sort
+    // (compareConversations). It never feeds getEffectiveTimestamp, so the
+    // scan watermark and export-staleness checks keep seeing server time.
     const item: any = {
         id: nid,
         url: `https://gemini.google.com/app/${nid}`,
         href: `https://gemini.google.com/app/${nid}`,
-        timestamp: now,
-        updatedAt: now,
-        sidebarIndex: 0
+        sidebarIndex: 0,
+        lastActiveAt: now
     };
 
     if (activeTitleObj && activeTitleObj.title && isRealTitle(activeTitleObj.title, nid)) {
