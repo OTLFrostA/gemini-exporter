@@ -236,6 +236,9 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                     lastErr = 'empty blob';
                     continue;
                 }
+                // P1-027: the 50MB cap guards only the base64 (toDataUrl) path —
+                // the arrayBuffer path above does not double memory, so large
+                // assets are allowed through when the caller prefers buffers.
                 if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
                     try {
                         const dataBuffer = await blob.arrayBuffer();
@@ -252,6 +255,12 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                     } catch (e) {
                         if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                     }
+                }
+                // P1-027: cap applies to the base64 path only (FileReader roughly
+                // doubles memory); buffer path above is exempt.
+                if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                    lastErr = `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`;
+                    continue;
                 }
                 const dataUrl = await toDataUrl(blob);
                 sendResponse({
@@ -303,13 +312,7 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                 const isTextResponse = ct.startsWith('text/plain') || ct.startsWith('text/html');
                 if (!isGg || !isTextResponse) {
                     const blob = await r.blob();
-                    if (blob.size > MAX_BASE64_BLOB_SIZE) {
-                        sendResponse({
-                            success: false,
-                            error: `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`
-                        });
-                        return;
-                    } else if (blob.size > 0 && (!isTextResponse || blob.size > 2000)) {
+                    if (blob.size > 0 && (!isTextResponse || blob.size > 2000)) {
                         if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
                             try {
                                 const dataBuffer = await blob.arrayBuffer();
@@ -323,6 +326,14 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                             } catch (e) {
                                 if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                             }
+                        }
+                        // P1-027: cap applies to the base64 path only.
+                        if (blob.size > MAX_BASE64_BLOB_SIZE) {
+                            sendResponse({
+                                success: false,
+                                error: `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`
+                            });
+                            return;
                         }
                         const dataUrl = await toDataUrl(blob);
                         sendResponse({

@@ -427,12 +427,15 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
 
     if (targets.size === 0) return [];
 
-    // 2. Concurrently fetch and persist images
+    // 2. Fetch and persist images with bounded concurrency.
+    // P1-029: the old unbounded Promise.allSettled over every image target
+    // could fire dozens of simultaneous fetches on image-heavy chats.
+    const IMAGE_FETCH_CONCURRENCY = 4;
     const targetList = Array.from(targets.values());
     const fetcher = getAssetFetcher();
     const collectedAssets: Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }> = [];
 
-    await Promise.allSettled(targetList.map(async (target) => {
+    const processOneTarget = async (target: any): Promise<void> => {
         try {
             const res = await (fetcher && typeof fetcher.fetchImageBuffer === 'function'
                 ? fetcher.fetchImageBuffer(target.url, 12000)
@@ -468,7 +471,22 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
                 console.warn('[LiveSaveCoordinator] Error saving image asset:', target.url, err);
             }
         }
-    }));
+    };
+
+    {
+        let next = 0;
+        const workers: Promise<void>[] = [];
+        const workerCount = Math.min(IMAGE_FETCH_CONCURRENCY, targetList.length);
+        for (let w = 0; w < workerCount; w++) {
+            workers.push((async () => {
+                while (next < targetList.length) {
+                    const target = targetList[next++];
+                    await processOneTarget(target);
+                }
+            })());
+        }
+        await Promise.allSettled(workers);
+    }
 
     // 3. Rewrite in-memory conversation references for successfully saved assets
     const savedMap = new Map<string, string>();
