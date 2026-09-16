@@ -107,7 +107,16 @@ export async function parseTakeoutZip(
     // S-4 Memory Guardrail: check uncompressed size before loading full text into memory
     const MAX_HTML_UNCOMPRESSED_SIZE = 250 * 1024 * 1024; // 250MB threshold
     const uncompressedSize = activityFile._data?.uncompressedSize;
-    if (typeof uncompressedSize === 'number' && uncompressedSize > MAX_HTML_UNCOMPRESSED_SIZE) {
+    // P1-114(c) fail-closed: the old code skipped the check entirely when
+    // uncompressedSize was unknown (fail-open). Refuse instead of loading an
+    // unverifiable multi-hundred-MB string into the tab.
+    if (typeof uncompressedSize !== 'number') {
+        const errNoSize = (i18nInstance && typeof i18nInstance.t === 'function')
+            ? i18nInstance.t('takeoutHtmlSizeUnknown')
+            : '无法确认 Takeout 活动记录的解压体积，已中止以防内存溢出。';
+        throw new TakeoutParseError(errNoSize, false, activityFile.name);
+    }
+    if (uncompressedSize > MAX_HTML_UNCOMPRESSED_SIZE) {
         const sizeMb = (uncompressedSize / 1024 / 1024).toFixed(1);
         const limitMb = (MAX_HTML_UNCOMPRESSED_SIZE / 1024 / 1024).toFixed(0);
         const err = (i18nInstance && typeof i18nInstance.t === 'function')

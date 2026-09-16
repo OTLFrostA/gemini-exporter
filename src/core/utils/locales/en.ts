@@ -241,6 +241,7 @@ const __enFactory = (): LocaleDictionary => {
             takeoutFormatChanged: "Takeout archive format unrecognized; Google structure may have changed.",
             syncFinishedWithLimit: "Fetched ~{0} chats (reached Google web limit ~600). Recommend importing older history via Google Takeout.",
             takeoutHtmlTooLarge: "Takeout activity file (MyActivity.html) is too large ({0}MB), exceeding {1}MB memory safety limit. To avoid browser tab crashes, consider exporting from Google Takeout by date ranges.",
+            takeoutHtmlSizeUnknown: "Cannot determine the uncompressed size of the Takeout activity file (MyActivity.html); import refused to prevent a memory overflow.",
             exportLargeMemoryWarn: "Current export contains significant media assets (~{0}MB). ZIP mode buffers all data in memory; consider switching to Folder Direct Write to avoid memory pressure.",
             chatgptTitleFallback: "ChatGPT Conversation",
             chatgptUntitled: "Untitled",
