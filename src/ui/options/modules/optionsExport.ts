@@ -213,9 +213,11 @@ export async function startExportPipeline(
                     : ((titleOrRecord && typeof titleOrRecord === 'object') ? titleOrRecord : null);
                 if (Store && exportRecord) {
                     const cur = Store.getExportedIds();
-                    cur[chatId] = exportRecord;
-                    cur['c_' + normId(chatId)] = exportRecord;
-                    cur[normId(chatId)] = exportRecord;
+                    // P1-045 follow-up: single canonical key in memory as well;
+                    // readers (getExportedRecord / listView / skip-check) resolve
+                    // the historical aliases, so no migration is needed.
+                    const ck = normId(chatId);
+                    if (ck) cur[ck] = exportRecord;
                     Store.setExportedIds(cur);
                     const cSlot = Store.getCurrentSlot()!;
                     await Store!.saveExportedIds(cSlot, cur);
