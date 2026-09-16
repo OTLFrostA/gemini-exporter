@@ -219,6 +219,28 @@ export { EXT_VERSION, getExtensionVersion };
         const rec = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
         if (!rec || (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid))) return false;
 
+        // P1-014: persist the export record FIRST. In-memory bookkeeping
+        // (finalizedChatsSet / curIds / exportedIds) is only mutated after the
+        // write succeeds, so a failed write can never be misread as "done".
+        try {
+            if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
+                await storageAdapter.saveExportRecord(slot, targetId, rec);
+            } else if (storageAdapter && typeof storageAdapter.set === 'function') {
+                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                await storageAdapter.set({ [expKey]: { ...(curIds || {}), [targetId]: rec, [targetNid]: rec, ['c_' + targetNid]: rec } });
+            } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                await chrome.storage.local.set({ [expKey]: { ...(curIds || {}), [targetId]: rec, [targetNid]: rec, ['c_' + targetNid]: rec } });
+            }
+        } catch (e) {
+            // P1-014: propagate the failure — the caller marks the chat as
+            // failed/retryable instead of silently recording success.
+            if (typeof console !== 'undefined' && console.error) {
+                console.error('[GemExporter:sessionRecovery.ts] saveExportRecord failed for', targetId, e);
+            }
+            throw e;
+        }
+
         if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
 
         if (curIds) {
@@ -233,22 +255,6 @@ export { EXT_VERSION, getExtensionVersion };
         }
 
         try {
-            if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
-                await storageAdapter.saveExportRecord(slot, targetId, rec);
-            } else if (storageAdapter && typeof storageAdapter.set === 'function') {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                await storageAdapter.set({ [expKey]: curIds });
-            } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                await chrome.storage.local.set({ [expKey]: curIds });
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.ts] saveExportRecord error', e);
-            }
-        }
-
-        try {
             onItemExported(targetId, rec);
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) {
@@ -258,8 +264,17 @@ export { EXT_VERSION, getExtensionVersion };
         return true;
     }
 
+    // P1-015: serialize session-status writes through a module-level chain
+    // so concurrent updateSessionStatus calls cannot interleave their
+    // read-modify-write cycles and clobber each other.
+    let sessionStatusWriteChain: Promise<void> = Promise.resolve();
+
     async function updateSessionStatus(patch: any): Promise<void> {
-        await SessionStore.updateSession(patch);
+        const task = sessionStatusWriteChain.then(() => SessionStore.updateSession(patch));
+        // Keep the chain alive even if this write fails; the caller still
+        // observes the rejection via `task`.
+        sessionStatusWriteChain = task.then(() => undefined, () => undefined);
+        await task;
     }
 
 export {

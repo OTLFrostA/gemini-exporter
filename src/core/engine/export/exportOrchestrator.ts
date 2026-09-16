@@ -484,6 +484,27 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                         await task();
                     } catch (e) {
                         if (abortSignal && abortSignal.aborted) break;
+                        // P1-016: a task that throws must not swallow the exception NOR
+                        // leak pendingAssetsPerChat — decrement and record via __assetMeta.
+                        const meta = (task as any)?.__assetMeta || null;
+                        if (meta) {
+                            const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
+                            chatFailedAssetsSet.add(meta.nid);
+                            failedAttachments.push({
+                                chatId: meta.chatId,
+                                chatTitle: meta.listTitle,
+                                file: meta.fileName,
+                                error: errMsg || 'asset task threw'
+                            });
+                            onLog(`[${meta.listTitle || meta.chatId}] 附件任务异常，已记为失败: ${errMsg}`, 'warn');
+                            const left = (pendingAssetsPerChat.get(meta.nid) || 1) - 1;
+                            pendingAssetsPerChat.set(meta.nid, left);
+                            if (left === 0) {
+                                try { await finalizeChatExport(meta.chatId); } catch (_) { /* intentional */ }
+                            }
+                        } else if (typeof console !== 'undefined' && console.warn) {
+                            console.warn('[GemExporter:exportOrchestrator.ts] attachment task threw without metadata', e);
+                        }
                     }
                 }
             };
@@ -537,287 +558,283 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                     const requestedItem = payloadIds[currentIndex];
                     if (!requestedItem) break;
 
-                    const nid = normId(requestedItem.id);
-                    let res: any = null;
-                    let retryCount = 0;
-                    const maxRateLimitRetries = 3;
+                    // P1-011: per-chat error isolation — one bad chat must never kill the run.
+                    try {
+                        const nid = normId(requestedItem.id);
+                        let res: any = null;
+                        let retryCount = 0;
+                        const maxRateLimitRetries = 3;
 
-                    const I18n = (globalThis as any).I18n;
+                        const I18n = (globalThis as any).I18n;
 
-                    while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                        res = worker && worker.fetchChatDetail
-                            ? await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal)
-                            : null;
+                        while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
+                            res = worker && worker.fetchChatDetail
+                                ? await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal)
+                                : null;
+
+                            if (this.aborted || (abortSignal && abortSignal.aborted)) break;
+
+                            const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
+                                ? this.rateLimiter.isRateLimited(res)
+                                : isRateLimited(res);
+
+                            if (isLimited && retryCount < maxRateLimitRetries) {
+                                const delayMs = (this.rateLimiter && typeof this.rateLimiter.calculateBackoff === 'function')
+                                    ? this.rateLimiter.calculateBackoff(retryCount)
+                                    : calculateBackoff(retryCount);
+                                if (this.rateLimiter && typeof this.rateLimiter.recordRateLimit === 'function') {
+                                    this.rateLimiter.recordRateLimit(delayMs);
+                                } else {
+                                    this.rateLimitCooldownUntil = Date.now() + delayMs;
+                                }
+                                onLog(typeof I18n !== 'undefined'
+                                    ? I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1))
+                                    : `[${requestedItem.title || nid}] ⚠️ 触发 Google 限频 (429)，退避等待 ${(delayMs / 1000).toFixed(1)} 秒后重试...`, 'warn');
+                                await new Promise(r => setTimeout(r, delayMs));
+                                retryCount++;
+                                continue;
+                            }
+                            break;
+                        }
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
-                        const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
-                            ? this.rateLimiter.isRateLimited(res)
-                            : isRateLimited(res);
-
-                        if (isLimited && retryCount < maxRateLimitRetries) {
-                            const delayMs = (this.rateLimiter && typeof this.rateLimiter.calculateBackoff === 'function')
-                                ? this.rateLimiter.calculateBackoff(retryCount)
-                                : calculateBackoff(retryCount);
-                            if (this.rateLimiter && typeof this.rateLimiter.recordRateLimit === 'function') {
-                                this.rateLimiter.recordRateLimit(delayMs);
-                            } else {
-                                this.rateLimitCooldownUntil = Date.now() + delayMs;
-                            }
-                            onLog(typeof I18n !== 'undefined'
-                                ? I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1))
-                                : `[${requestedItem.title || nid}] ⚠️ 触发 Google 限频 (429)，退避等待 ${(delayMs / 1000).toFixed(1)} 秒后重试...`, 'warn');
-                            await new Promise(r => setTimeout(r, delayMs));
-                            retryCount++;
+                        if (!res || !res.success) {
+                            const fetchErr = res ? res.error : 'unknown';
+                            onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', fetchErr) : `抓取对话失败: ${fetchErr}`, 'warn');
+                            failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
+                            onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr) : `[${requestedItem.title || requestedItem.id}] 导出跳过: ${fetchErr}`, 'warn');
+                            completedCount++;
+                            updateProgress(completedCount, requestedItem.title || requestedItem.id);
                             continue;
                         }
-                        break;
-                    }
 
-                    if (this.aborted || (abortSignal && abortSignal.aborted)) break;
+                        skipped += (res.skipped || 0);
+                        const chunkResults = res.results || (res.chat ? [res.chat] : []);
+                        let chat = chunkResults[0] || { id: nid, title: requestedItem.title };
+                        chat.id = nid;
 
-                    if (!res || !res.success) {
-                        const fetchErr = res ? res.error : 'unknown';
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', fetchErr) : `抓取对话失败: ${fetchErr}`, 'warn');
-                        failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr) : `[${requestedItem.title || requestedItem.id}] 导出跳过: ${fetchErr}`, 'warn');
-                        completedCount++;
-                        updateProgress(completedCount, requestedItem.title || requestedItem.id);
-                        continue;
-                    }
+                        const listC = conversations.find((c: any) => normId(c.id) === nid) || null;
+                        const resolvedRes = worker && worker.resolveChat
+                            ? await worker.resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
+                            : { chat, listTitle: chat.title, displayTitle: chat.title, isError: false, errMsg: null, isConfirmedDeleted: false, convsNeedSave: false };
 
-                    skipped += (res.skipped || 0);
-                    const chunkResults = res.results || (res.chat ? [res.chat] : []);
-                    let chat = chunkResults[0] || { id: nid, title: requestedItem.title };
-                    chat.id = nid;
-
-                    const listC = conversations.find((c: any) => normId(c.id) === nid) || null;
-                    const resolvedRes = worker && worker.resolveChat
-                        ? await worker.resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
-                        : { chat, listTitle: chat.title, displayTitle: chat.title, isError: false, errMsg: null, isConfirmedDeleted: false, convsNeedSave: false };
-
-                    if (resolvedRes.isError) {
-                        failedChats.push({ id: chat.id || nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chat._debug || null, raw: chat._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
-                        if (typeof console !== 'undefined' && console.warn) {
-                            console.warn('[Gemini Exporter] export empty detail', nid, resolvedRes.errMsg, 'chat keys', Object.keys(chat || {}));
+                        if (resolvedRes.isError) {
+                            failedChats.push({ id: chat.id || nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chat._debug || null, raw: chat._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
+                            if (typeof console !== 'undefined' && console.warn) {
+                                console.warn('[Gemini Exporter] export empty detail', nid, resolvedRes.errMsg, 'chat keys', Object.keys(chat || {}));
+                            }
+                            completedCount++;
+                            updateProgress(completedCount, resolvedRes.displayTitle);
+                            continue;
                         }
-                        completedCount++;
-                        updateProgress(completedCount, resolvedRes.displayTitle);
-                        continue;
-                    }
 
-                    chat = resolvedRes.chat || chat;
-                    const listTitle = resolvedRes.listTitle;
-                    chat.title = listTitle;
+                        chat = resolvedRes.chat || chat;
+                        const listTitle = resolvedRes.listTitle;
+                        chat.title = listTitle;
 
-                    const actualMsgCount = Array.isArray(chat.messages) ? chat.messages.length : (chat.messageCount || 0);
-                    let needUpdateStorage = !!resolvedRes.convsNeedSave;
-                    if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
-                        listC.messageCount = actualMsgCount;
-                        needUpdateStorage = true;
-                    }
+                        const actualMsgCount = Array.isArray(chat.messages) ? chat.messages.length : (chat.messageCount || 0);
+                        let needUpdateStorage = !!resolvedRes.convsNeedSave;
+                        if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
+                            listC.messageCount = actualMsgCount;
+                            needUpdateStorage = true;
+                        }
 
-                    if (needUpdateStorage) {
-                        const storageService = Storage || (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : null);
-                        if (storageService && typeof storageService.updateConversation === 'function') {
-                            try {
-                                await storageService.updateConversation(currentSlot, nid, (existing: any) => {
-                                    if (listC) {
-                                        if (listC.title) existing.title = listC.title;
-                                        if (listC.titleSource) existing.titleSource = listC.titleSource;
-                                        if (listC.titles) existing.titles = { ...(existing.titles || {}), ...listC.titles };
-                                        if (listC.messageCount) existing.messageCount = listC.messageCount;
+                        if (needUpdateStorage) {
+                            const storageService = Storage || (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : null);
+                            if (storageService && typeof storageService.updateConversation === 'function') {
+                                try {
+                                    await storageService.updateConversation(currentSlot, nid, (existing: any) => {
+                                        if (listC) {
+                                            if (listC.title) existing.title = listC.title;
+                                            if (listC.titleSource) existing.titleSource = listC.titleSource;
+                                            if (listC.titles) existing.titles = { ...(existing.titles || {}), ...listC.titles };
+                                            if (listC.messageCount) existing.messageCount = listC.messageCount;
+                                        }
+                                        return existing;
+                                    });
+                                } catch (err) {
+                                    if (typeof console !== 'undefined' && console.warn) {
+                                        console.warn('[Gemini Exporter] atomic updateConversation failed for', nid, err);
                                     }
-                                    return existing;
-                                });
-                            } catch (err) {
-                                if (typeof console !== 'undefined' && console.warn) {
-                                    console.warn('[Gemini Exporter] atomic updateConversation failed for', nid, err);
                                 }
                             }
                         }
-                    }
 
-                    const ChatFormatter = (globalThis as any).ChatFormatter;
-                    const formatted = typeof ChatFormatter !== 'undefined' && ChatFormatter.formatContent
-                        ? ChatFormatter.formatContent(chat, format)
-                        : { content: JSON.stringify(chat, null, 2), ext: 'json' };
+                        const ChatFormatter = (globalThis as any).ChatFormatter;
+                        const formatted = typeof ChatFormatter !== 'undefined' && ChatFormatter.formatContent
+                            ? ChatFormatter.formatContent(chat, format)
+                            : { content: JSON.stringify(chat, null, 2), ext: 'json' };
 
-                    const content = formatted.content;
-                    const ext = formatted.ext;
-                    const safeBase = sanitizeFileName(listTitle, chat.id);
-                    // P1-102/103/104 compat: in direct-write mode, probe for a
-                    // legacy-rule filename on disk and reuse it, so upgrading
-                    // doesn't orphan the previously exported file with a
-                    // second, renamed copy. ZIP mode always starts from a fresh
-                    // archive, so no probing is needed there.
-                    const resolveName = (globalThis as any).GeminiUtils?.resolveExportFileName || utilsResolveExportFileName;
-                    const fileName = useZip
-                        ? buildExportFileName(listTitle, chat.id, ext)
-                        : await resolveName(listTitle, chat.id, ext, async (n: string) => {
-                            try {
-                                if (!batchDirHandle || typeof batchDirHandle.getFileHandle !== 'function') return false;
-                                await batchDirHandle.getFileHandle(n, { create: false });
-                                return true;
-                            } catch {
-                                return false;
-                            }
-                        });
+                        const content = formatted.content;
+                        const ext = formatted.ext;
+                        const safeBase = sanitizeFileName(listTitle, chat.id);
+                        // P1-102/103/104 compat: in direct-write mode, probe for a
+                        // legacy-rule filename on disk and reuse it, so upgrading
+                        // doesn't orphan the previously exported file with a
+                        // second, renamed copy. ZIP mode always starts from a fresh
+                        // archive, so no probing is needed there.
+                        const resolveName = (globalThis as any).GeminiUtils?.resolveExportFileName || utilsResolveExportFileName;
+                        const fileName = useZip
+                            ? buildExportFileName(listTitle, chat.id, ext)
+                            : await resolveName(listTitle, chat.id, ext, async (n: string) => {
+                                try {
+                                    if (!batchDirHandle || typeof batchDirHandle.getFileHandle !== 'function') return false;
+                                    await batchDirHandle.getFileHandle(n, { create: false });
+                                    return true;
+                                } catch {
+                                    return false;
+                                }
+                            });
 
-                    const writeOk = await writeFileDirect(fileName, content);
+                        const writeOk = await writeFileDirect(fileName, content);
 
-                    let queuedAssetsForThisChat = 0;
-                    const chatAssetTasks: (() => Promise<void>)[] = [];
-                    const queueAsset = (item: any, isImage: boolean) => {
-                        totalAssets++;
-                        queuedAssetsForThisChat++;
-                        updateProgress();
-                        chatAssetTasks.push(async () => {
-                            let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
-                            if (assetPipeline) {
-                                assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle });
-                            }
-                            if (assetRes.saved) {
-                                downloadedAssets++;
-                                updateProgress();
-                                const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                pendingAssetsPerChat.set(nid, left);
-                                if (left === 0) finalizeChatExport(chat.id);
-                            } else {
-                                chatFailedAssetsSet.add(nid);
-                                failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired' });
-                                const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
-                                const fallbackMsg = isImage
-                                    ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
-                                    : `[${chat.title || chat.id}] 附件获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`;
-                                onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired') : fallbackMsg, 'warn');
-                                const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                pendingAssetsPerChat.set(nid, left);
-                                if (left === 0) finalizeChatExport(chat.id);
-                            }
-                        });
-                    };
+                        let queuedAssetsForThisChat = 0;
+                        const chatAssetTasks: (() => Promise<void>)[] = [];
+                        const queueAsset = (item: any, isImage: boolean) => {
+                            totalAssets++;
+                            queuedAssetsForThisChat++;
+                            updateProgress();
+                            const assetTask = async () => {
+                                let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                                if (assetPipeline) {
+                                    assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle });
+                                }
+                                if (assetRes.saved) {
+                                    downloadedAssets++;
+                                    updateProgress();
+                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                    pendingAssetsPerChat.set(nid, left);
+                                    if (left === 0) await finalizeChatExport(chat.id);
+                                } else {
+                                    chatFailedAssetsSet.add(nid);
+                                    failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired' });
+                                    const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
+                                    const fallbackMsg = isImage
+                                        ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
+                                        : `[${chat.title || chat.id}] 附件获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`;
+                                    onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired') : fallbackMsg, 'warn');
+                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                    pendingAssetsPerChat.set(nid, left);
+                                    if (left === 0) await finalizeChatExport(chat.id);
+                                }
+                            };
+                            // P1-016: consumer safety-net metadata — if the task itself throws,
+                            // the consumer still decrements pendingAssetsPerChat and records it.
+                            (assetTask as any).__assetMeta = { nid, chatId: chat.id, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                            chatAssetTasks.push(assetTask);
+                        };
 
-                    if (includeAssets && chat.messages && writeOk) {
-                        for (const m of chat.messages) {
-                            if (m.attachments && m.attachments.length) {
-                                for (const att of m.attachments) {
-                                    if (att.type === 'image') {
-                                        if (!m.images || !m.images.some((im: any) => im.localName === att.localName || im.url === att.url || im.fileName === att.fileName)) {
-                                            queueAsset(att, true);
-                                        }
-                                        continue;
-                                    }
-                                    if (att.type !== 'file') continue;
-                                    if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
-                                    if (att.contentMarkdown) {
-                                        if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
+                        if (includeAssets && chat.messages && writeOk) {
+                            for (const m of chat.messages) {
+                                if (m.attachments && m.attachments.length) {
+                                    for (const att of m.attachments) {
+                                        if (att.type === 'image') {
+                                            if (!m.images || !m.images.some((im: any) => im.localName === att.localName || im.url === att.url || im.fileName === att.fileName)) {
+                                                queueAsset(att, true);
+                                            }
                                             continue;
                                         }
-                                        if (useZip) {
-                                            try {
-                                                await writeFileDirect(att.localName, att.contentMarkdown);
-                                                totalAssets++;
-                                                downloadedAssets++;
-                                                updateProgress();
-                                            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
-                                        } else {
-                                            totalAssets++;
-                                            queuedAssetsForThisChat++;
-                                            updateProgress();
-                                            chatAssetTasks.push(async () => {
-                                                const ok = await writeFileDirect(att.localName || `${safeBase}_${shortId(chat.id)}.md`, att.contentMarkdown);
-                                                if (ok) {
+                                        if (att.type !== 'file') continue;
+                                        if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
+                                        if (att.contentMarkdown) {
+                                            if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
+                                                continue;
+                                            }
+                                            if (useZip) {
+                                                try {
+                                                    await writeFileDirect(att.localName, att.contentMarkdown);
+                                                    totalAssets++;
                                                     downloadedAssets++;
                                                     updateProgress();
-                                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                                    pendingAssetsPerChat.set(nid, left);
-                                                    if (left === 0) finalizeChatExport(chat.id);
-                                                } else {
-                                                    chatFailedAssetsSet.add(nid);
-                                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                                    pendingAssetsPerChat.set(nid, left);
-                                                    if (left === 0) finalizeChatExport(chat.id);
-                                                }
-                                            });
+                                                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+                                            } else {
+                                                totalAssets++;
+                                                queuedAssetsForThisChat++;
+                                                updateProgress();
+                                                const mdTask = async () => {
+                                                    const ok = await writeFileDirect(att.localName || `${safeBase}_${shortId(chat.id)}.md`, att.contentMarkdown);
+                                                    if (ok) {
+                                                        downloadedAssets++;
+                                                        updateProgress();
+                                                        const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                                        pendingAssetsPerChat.set(nid, left);
+                                                        if (left === 0) await finalizeChatExport(chat.id);
+                                                    } else {
+                                                        chatFailedAssetsSet.add(nid);
+                                                        const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                                        pendingAssetsPerChat.set(nid, left);
+                                                        if (left === 0) await finalizeChatExport(chat.id);
+                                                    }
+                                                };
+                                                (mdTask as any).__assetMeta = { nid, chatId: chat.id, listTitle, fileName: att.localName || 'doc.md' };
+                                                chatAssetTasks.push(mdTask);
+                                            }
+                                            continue;
                                         }
-                                        continue;
+
+                                        queueAsset(att, false);
                                     }
-
-                                    queueAsset(att, false);
                                 }
-                            }
 
-                            if (m.images && m.images.length) {
-                                for (const img of m.images) {
-                                    queueAsset(img, true);
+                                if (m.images && m.images.length) {
+                                    for (const img of m.images) {
+                                        queueAsset(img, true);
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    if (writeOk) {
-                        landedChats++;
-                        onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
-                        if (!chat.error && !chat._empty) {
-                            let exportTs = listC?.timestamp || chat.timestamp || Date.now();
-                            if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
-                            const record = {
+                        if (writeOk) {
+                            landedChats++;
+                            onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
+                            if (!chat.error && !chat._empty) {
+                                let exportTs = listC?.timestamp || chat.timestamp || Date.now();
+                                if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
+                                const record = {
+                                    title: listTitle,
+                                    exportedAt: new Date().toISOString(),
+                                    format: options.format || 'markdown',
+                                    messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
+                                    chatTime: exportTs,
+                                    status: 'ok'
+                                };
+                                chatRecordsMap.set(nid, record);
+                                if (queuedAssetsForThisChat === 0) {
+                                    await finalizeChatExport(chat.id);
+                                } else {
+                                    pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
+                                    for (const task of chatAssetTasks) {
+                                        attachmentQueue.push(task);
+                                    }
+                                }
+                            }
+                        } else {
+                            const failReason = this.aborted ? 'Aborted due to permission revocation' : 'File write failed';
+                            failedChats.push({
+                                id: chat.id || nid,
                                 title: listTitle,
-                                exportedAt: new Date().toISOString(),
-                                format: options.format || 'markdown',
-                                messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
-                                chatTime: exportTs,
-                                status: 'ok'
-                            };
-                            chatRecordsMap.set(nid, record);
-                            if (queuedAssetsForThisChat === 0) {
-                                finalizeChatExport(chat.id);
-                            } else {
-                                pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
-                                for (const task of chatAssetTasks) {
-                                    attachmentQueue.push(task);
-                                }
-                            }
+                                error: failReason
+                            });
                         }
-                    } else {
-                        const failReason = this.aborted ? 'Aborted due to permission revocation' : 'File write failed';
-                        failedChats.push({
-                            id: chat.id || nid,
+
+                        metaResults.push({
+                            id: chat.id,
                             title: listTitle,
-                            error: failReason
+                            url: chat.url || `https://gemini.google.com/app/${chat.id}`,
+                            createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
+                            updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
+                            messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
+                            attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
+                            exportFile: fileName,
+                            status: writeOk ? 'success' : 'failed'
                         });
-                    }
 
-                    metaResults.push({
-                        id: chat.id,
-                        title: listTitle,
-                        url: chat.url || `https://gemini.google.com/app/${chat.id}`,
-                        createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
-                        updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
-                        messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
-                        attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
-                        exportFile: fileName,
-                        status: writeOk ? 'success' : 'failed'
-                    });
+                        completedCount++;
+                        updateProgress(completedCount, listTitle);
 
-                    completedCount++;
-                    updateProgress(completedCount, listTitle);
-
-                    if (recovery && recovery.updateSessionStatus) {
-                        await recovery.updateSessionStatus({
-                            status: 'running',
-                            slot,
-                            total: totalChats,
-                            current: completedCount,
-                            lastChatId: chat.id,
-                            lastChatTitle: listTitle,
-                            format,
-                            useZip
-                        });
-                    } else {
-                        try {
-                            await SessionStore.setSession({
+                        if (recovery && recovery.updateSessionStatus) {
+                            await recovery.updateSessionStatus({
                                 status: 'running',
                                 slot,
                                 total: totalChats,
@@ -827,7 +844,32 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                                 format,
                                 useZip
                             });
-                        } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+                        } else {
+                            try {
+                                await SessionStore.setSession({
+                                    status: 'running',
+                                    slot,
+                                    total: totalChats,
+                                    current: completedCount,
+                                    lastChatId: chat.id,
+                                    lastChatTitle: listTitle,
+                                    format,
+                                    useZip
+                                });
+                            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+                        }
+                    } catch (e) {
+                        // P1-011: record the failed chat and continue with the next one.
+                        const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
+                        const failId = requestedItem.id || 'unknown';
+                        const title = requestedItem.title || failId;
+                        onLog(`[${title}] export failed, skipped: ${errMsg}`, 'error');
+                        if (typeof console !== 'undefined' && console.warn) {
+                            console.warn('[GemExporter:exportOrchestrator.ts] per-chat export failed for', failId, e);
+                        }
+                        failedChats.push({ id: failId, title, error: errMsg });
+                        completedCount++;
+                        try { updateProgress(completedCount, title); } catch (_) { /* intentional */ }
                     }
                 }
             };
@@ -837,7 +879,14 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
             for (let w = 0; w < workerCount; w++) {
                 exportWorkers.push(exportWorker());
             }
-            await Promise.all(exportWorkers);
+            try {
+                await Promise.all(exportWorkers);
+            } catch (e) {
+                // P1-011: exportWorker never throws per-chat errors (caught above),
+                // but a scheduler-level failure must be visible rather than vanish.
+                onLog(`导出调度异常: ${typeof e === 'object' && e !== null && 'message' in (e as any) ? (e as any).message : String(e)}`, 'error');
+                throw e;
+            }
 
             attachmentQueue.close();
             try {
