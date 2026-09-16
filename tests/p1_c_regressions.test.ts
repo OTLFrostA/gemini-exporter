@@ -250,7 +250,9 @@ test('p1c - fetchBatch: 429 退避睡眠可被取消中断（不再睡满整个 
         const elapsed = Date.now() - t0;
         // 修复前：裸 sleep 2-3s（首轮）且循环继续，最长可达 ~56s；修复后 300ms 左右即退出
         assert.ok(elapsed < 1500, `cancel during 429 backoff should be fast (took ${elapsed}ms)`);
-        assert.ok(portRes && portRes.success === true, 'should still report completion');
+        // P1-019 统一语义：取消绝不能报 success:true（与 B组 batchFetcher 合并）
+        assert.ok(portRes && portRes.success === false, 'aborted batch must not report success');
+        assert.strictEqual(portRes.aborted, true, 'abort flag must be propagated');
         assert.strictEqual((portRes.results || []).length, 0, 'no bogus error entries after cancel');
     } finally {
         abortMgr.clearAllAborts();
@@ -271,7 +273,9 @@ test('p1c - fetchBatch: 在途 tab 消息期间取消也生效（不等 25s tab 
         await p;
         const elapsed = Date.now() - t0;
         assert.ok(elapsed < 2000, `cancel during in-flight tab message should be fast (took ${elapsed}ms)`);
-        assert.ok(portRes && portRes.success === true);
+        // P1-019 统一语义：取消报 success:false + aborted:true
+        assert.ok(portRes && portRes.success === false, 'aborted batch must not report success');
+        assert.strictEqual(portRes.aborted, true, 'abort flag must be propagated');
     } finally {
         abortMgr.clearAllAborts();
     }
