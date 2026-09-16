@@ -30,7 +30,7 @@ TEST_TITLE_KEYWORDS = [
 
 def cleanup_orphan_chats(port=9222):
     tabs = get_tabs(port)
-    gemini_tab = next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+    gemini_tab = next((t for t in tabs if t.get("type", "page") == "page" and is_gemini_url(t.get("url", ""))), None)
     if not gemini_tab:
         print("❌ 未在 127.0.0.1:9222 中找到 gemini.google.com 页面！")
         return 0

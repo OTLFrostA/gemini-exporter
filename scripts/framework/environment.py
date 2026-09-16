@@ -98,7 +98,7 @@ class TestEnvironment:
 
     def get_gemini_tab(self) -> Optional[Dict[str, Any]]:
         tabs = self.get_tabs()
-        return next((t for t in tabs if is_gemini_url(t.get("url", ""))), None)
+        return next((t for t in tabs if t.get("type", "page") == "page" and is_gemini_url(t.get("url", ""))), None)
 
     def ensure_gemini_tab(self) -> Optional[Dict[str, Any]]:
         """发现或幂等创建 Gemini Web 标签页"""
@@ -119,10 +119,10 @@ class TestEnvironment:
         tabs = self.get_tabs()
         if ext_id:
             options_url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
-            tab = next((t for t in tabs if options_url in t.get("url", "")), None)
+            tab = next((t for t in tabs if t.get("type", "page") == "page" and options_url in t.get("url", "")), None)
             if tab:
                 return tab
-        return next((t for t in tabs if "options.html" in t.get("url", "")), None)
+        return next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
 
     def ensure_options_tab(self) -> Optional[Dict[str, Any]]:
         """发现或幂等创建 Options 导出工作台标签页"""

@@ -22,12 +22,17 @@ CDP_DEFAULT_PORT = 9222
 
 
 def is_gemini_url(url: str) -> bool:
-    """严格校验 URL 主机名是否为 Gemini 官方站点，杜绝不安全子串匹配"""
+    """严格校验 URL 主机名是否为 Gemini 官方站点，杜绝不安全子串匹配，并排除内置 glic 侧边栏浮窗"""
     if not url or not isinstance(url, str):
         return False
     try:
         parsed = urllib.parse.urlsplit(url)
-        return parsed.hostname in ("gemini.google.com", "bard.google.com")
+        if parsed.hostname not in ("gemini.google.com", "bard.google.com"):
+            return False
+        # 排除 Chrome 侧边栏/系统内置 glic 浮窗 (webview / chrome://glic)
+        if parsed.path.startswith("/glic"):
+            return False
+        return True
     except Exception:
         return False
 
@@ -197,7 +202,7 @@ def get_extension_id(port=CDP_DEFAULT_PORT):
                 return ext
 
     for t in tabs:
-        if is_gemini_url(t.get("url", "")):
+        if t.get("type", "page") == "page" and is_gemini_url(t.get("url", "")):
             cdp = CDPConnection(t["webSocketDebuggerUrl"])
             try:
                 eid = cdp.eval("typeof chrome !== 'undefined' && chrome.runtime ? chrome.runtime.id : null")

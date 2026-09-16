@@ -995,5 +995,49 @@
     ],
     "consumed_at": "2026-09-14T21:07:54.125015",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "euv_lithography_physics_plasma_source",
+    "domain": "euv_lithography_physics_plasma_source",
+    "title": "极紫外光刻机 (EUV) 物理光学与锡等离子体放电辐射极紫外光",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "code"
+    ],
+    "description": "测试高能激光脉冲冲击熔融锡液滴动力学、13.5nm 极紫外发射光谱推导、Imagen 生图与 Mo/Si 多层膜 Bragg 反射率数值计算",
+    "turns": [
+      "详细推导激光诱导等离子体 (LPP) EUV 光源中，高功率脉冲 CO2 激光冲击自由落体锡 (Sn) 液滴时，高电荷态锡离子 (Sn^{8+}-Sn^{14+}) 在 13.5nm 极紫外波段未分辨跃迁阵列 (UTA) 的能级跃迁与电离平衡动力学方程。",
+      "请生成一张超高分辨率、科幻感与工业硬科技兼备的 3D 渲染图：展现极紫外光刻机核心真空反应腔内部，一束脉冲红外高功率激光在真空中精准聚焦轰击一滴正在高速坠落的微米级熔融液态金属锡微滴，微滴瞬间被电离成极其璀璨耀眼的极紫外 13.5nm 蓝紫色等离子体火球，周围环绕着巨大的 Mo/Si 椭球多层反射收集镜，反射镜表面泛着流光溢彩的金属光泽，机械结构严丝合缝，科技细节极致丰富。",
+      "在电磁波多层介质反射理论框架下，使用麦克斯韦方程组与传输矩阵法 (Transfer Matrix Method, TMM)，推导 13.5nm EUV 光在包含 40-50 周期的钼/硅 (Mo/Si) 纳米级多层膜 Bragg 反射镜上的反射率 R 随入射角 \theta 和界面粗糙度 Debye-Waller 因子的解析表达式。",
+      "使用 Python 编写脚本，基于菲涅尔方程与薄膜干涉矩阵算法，数值计算 Mo/Si 周期双层膜 (d_Mo = 2.8nm, d_Si = 4.1nm) 在 12.5nm 至 14.5nm 波长范围内的理论反射光谱曲线，并打印峰值反射率与 FWHM 半高宽。",
+      "使用 Markdown 表格横向对比高数值孔径 (High-NA 0.55) EUV 光刻、低数值孔径 (0.33 NA) EUV、电子束直写 (EBDW) 与纳米压印 (NIL) 在分辨力极限 (k1 因子)、套刻精度 (Overlay)、焦深 (DOF) 以及每小时晶圆产出率 (WPH) 指标。"
+    ],
+    "consumed_at": "2026-09-15T23:48:37.574130",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "distributed_raft_consensus_partition_healing",
+    "domain": "distributed_consensus_and_storage",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "请系统推演 Raft 分布式共识协议在面临网络三向分区（Split-Brain）时的状态机安全保证。请用 LaTeX 公式形式化定义选举超时时间约束与 Leader 租约有效期。",
+      "请用 Python 编写一个最小化可运行的 Raft 节点状态机（包含 Follower/Candidate/Leader 状态转移、Term 任期自增与 AppendEntries RPC 请求处理）。",
+      "当发生多数派网络分区（Partition A: 3节点, Partition B: 2节点）时，请用 Markdown 对比表格列出两个分区在接收写入请求时的状态机提交响应（Commit Index 推进、未提交日志截断与客户端超时行为）。",
+      "当网络分区恢复愈合时，低任期旧 Leader 是如何通过高任期的心跳 RPC 降级为 Follower 并由状态机对齐日志的？请写出详细日志复制校验算法。",
+      "请总结 Raft 与 Multi-Paxos 在强一致性线性一致读（Linearizable Read）实现机制（如 ReadIndex 与 Lease Read）上的核心性能与实现复杂度对比。"
+    ],
+    "title": "分布式系统与实时流计算：基于 Raft 共识引擎的状态机复制与网络分区自愈",
+    "description": "深入推演 Raft 共识协议在网络三向分区下的选举与复制安全性，包含最小化状态机实现、脑裂恢复与线性一致读对比。",
+    "consumed_at": "2026-09-15T23:48:37.575209",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]
