@@ -51,9 +51,14 @@ test('perf - geminiClient 429 backoff retries and recovers on transient rate lim
         assert.strictEqual(callCount, 3, 'should have retried twice and succeeded on 3rd attempt');
         assert.ok(res.conversations && res.conversations.length === 1, 'should have parsed conversations successfully');
         assert.strictEqual(res.conversations[0].id, 'conv123');
-        assert.strictEqual(recordedDelays.length, 2, 'should have delayed twice');
-        assert.ok(recordedDelays[0] >= 2000, 'first delay should be >= 2000ms');
-        assert.ok(recordedDelays[1] >= 4000, 'second delay should be >= 4000ms');
+        // P1-035: getConversationList now sets a 15s timeoutMs per request, so each
+        // postBatchexecute arms one 15000ms timeout timer alongside the backoff sleeps.
+        const timeoutTimers = recordedDelays.filter(d => d === 15000);
+        assert.strictEqual(timeoutTimers.length, 3, 'each list request should arm a 15s timeout (P1-035)');
+        const backoffDelays = recordedDelays.filter(d => d !== 15000);
+        assert.strictEqual(backoffDelays.length, 2, 'should have delayed twice for 429 backoff');
+        assert.ok(backoffDelays[0] >= 2000, 'first delay should be >= 2000ms');
+        assert.ok(backoffDelays[1] >= 4000, 'second delay should be >= 4000ms');
     } finally {
         (global as any).fetch = originalFetch;
         (global as any).setTimeout = originalSetTimeout;
