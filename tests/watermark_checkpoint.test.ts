@@ -327,3 +327,60 @@ test('8. Force full scan ignores watermark checkpoint and recalibrates baseline 
     assert.strictEqual(endRes.newWatermark, 1700000900000, 'Baseline recalibrated to new Page 1 max');
     assert.strictEqual(ctx.getCheckpoint(), 1700000900000);
 });
+
+test('9. Deadzone Prevention - 35 conversations updated within 60s of checkpoint must NOT early stop on Page 1', async () => {
+    // Checkpoint at T_cp = 1700000000000
+    const CHECKPOINT = 1700000000000;
+    const ctx = mockStorageContext(CHECKPOINT);
+    SyncEngine.resetSessionSlice();
+
+    // 35 conversations updated within (CHECKPOINT, CHECKPOINT + 50s]:
+    // Page 1: 30 items, timestamps range from CHECKPOINT + 50s down to CHECKPOINT + 10s (min = CHECKPOINT + 10s)
+    const page1Items = [];
+    for (let i = 0; i < 30; i++) {
+        // i = 0 -> CHECKPOINT + 50000; i = 29 -> CHECKPOINT + 10000
+        const ts = CHECKPOINT + 50000 - i * 1379;
+        page1Items.push(makeItem(`chat_dense_p1_${i}`, ts));
+    }
+    const page1Min = Math.min(...page1Items.map(c => c.timestamp));
+    assert.ok(page1Min > CHECKPOINT, 'Page 1 min is strictly above checkpoint');
+    assert.ok(page1Min < CHECKPOINT + 60000, 'Page 1 min falls inside the former 60s deadzone');
+
+    // Ingest Page 1: MUST NOT trigger reachedWatermark because min > CHECKPOINT!
+    const p1Res = await SyncEngine.ingestListBatch(page1Items, 'batchexecute', { isPage1: true });
+    assert.strictEqual(p1Res.reachedWatermark, false, 'Page 1 MUST NOT report reachedWatermark; there are remaining items in Page 2');
+    assert.strictEqual(ctx.getCheckpoint(), CHECKPOINT, 'Watermark MUST NOT advance on Page 1');
+
+    // Page 2: 5 items, timestamps range from CHECKPOINT + 8s down to CHECKPOINT (or slightly below)
+    const page2Items = [
+        makeItem('chat_dense_p2_0', CHECKPOINT + 8000),
+        makeItem('chat_dense_p2_1', CHECKPOINT + 5000),
+        makeItem('chat_dense_p2_2', CHECKPOINT + 2000),
+        makeItem('chat_dense_p2_3', CHECKPOINT),
+        makeItem('chat_dense_p2_4', CHECKPOINT - 10000)
+    ];
+
+    // Ingest Page 2: min <= CHECKPOINT, now chain touches checkpoint!
+    const p2Res = await SyncEngine.ingestListBatch(page2Items, 'batchexecute', { isPage1: false });
+    assert.strictEqual(p2Res.reachedWatermark, true, 'Page 2 touches checkpoint, safely stops');
+    assert.strictEqual(p2Res.newWatermark, page1Items[0].timestamp, 'Watermark advances to Page 1 head');
+    assert.strictEqual(ctx.getCheckpoint(), page1Items[0].timestamp, 'Storage checkpoint updated to Page 1 head');
+
+    // Verify all 35 conversations were saved into storage
+    assert.strictEqual(ctx.getSavedList().length, 35, 'All 35 conversations ingested without silent loss');
+});
+
+test('10. Empty account baseline - Natural completion of full scan on 0 conversations anchors baseline', async () => {
+    const ctx = mockStorageContext(null);
+    SyncEngine.resetSessionSlice();
+
+    // Account with 0 conversations completes full scan
+    const beforeNow = Date.now();
+    const res = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true });
+    const afterNow = Date.now();
+
+    assert.strictEqual(res.establishedBaseline, true);
+    assert.ok(typeof res.newWatermark === 'number' && res.newWatermark >= beforeNow && res.newWatermark <= afterNow);
+    assert.strictEqual(ctx.getCheckpoint(), res.newWatermark);
+});
+
