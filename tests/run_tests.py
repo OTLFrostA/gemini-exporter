@@ -860,6 +860,13 @@ def test_framework_environment_suite():
     assert res.returncode == 0, f"test_framework_environment.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 TestEnvironment & Unified Lifecycle test suite passed")
 
+def test_dag_subgraph_suite():
+    import subprocess
+    cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_dag_subgraph.py")]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0, f"test_dag_subgraph.py failed: {res.stderr or res.stdout}"
+    print("  ✓ Tier 2 Declarative DAG Scheduling & Subgraph Pruning test suite passed")
+
 def run_all():
     import argparse
     import glob
@@ -946,6 +953,8 @@ def run_all():
                     test_selectors_and_gateway_suite()
                 if any("env" in f for f in affected):
                     test_framework_environment_suite()
+                if any(x in f for f in affected for x in ["framework", "dag", "cases"]):
+                    test_dag_subgraph_suite()
 
                 test_javascript_syntax()
                 test_javascript_unit_tests(target_tests=result.target_unit_tests)
@@ -978,6 +987,7 @@ def run_all():
     test_pipeline_decoupling_suite()
     test_visual_sandbox_suite()
     test_framework_environment_suite()
+    test_dag_subgraph_suite()
     test_javascript_syntax()
     test_javascript_unit_tests()
 

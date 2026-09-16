@@ -104,7 +104,6 @@ class ZipExportDownloadCase(FeatureTestCase):
             description="点击【导出选中 -> ZIP】主按钮，进度条视觉反馈，下载落盘并校验文件非空",
             critical=True,
             prerequisites=[
-                "feat_chat_generation",
                 "feat_search_clear_restore",
                 "feat_authoritative_title_upgrade"
             ]
@@ -162,7 +161,7 @@ class ZipExportDownloadCase(FeatureTestCase):
             time.sleep(0.5)
 
             checked_count = check_res.get("checkedCount", 0)
-            expected_min_checked = 6
+            expected_min_checked = 6 if ctx.chat_records else 4
             if checked_count < expected_min_checked:
                 return False, f"工作台勾选数不足: 实际 {checked_count} < 预期 {expected_min_checked}", check_res
 
@@ -194,12 +193,13 @@ class MultimodalSpecCase(FeatureTestCase):
 
         extract_dir = os.path.join(ctx.output_dir, "extracted_verify_" + str(int(time.time())))
         golden_chats = [dict(c) for c in DESIGNATED_HISTORICAL_CHATS]
-        expected_scenarios = ctx.scenarios[:2]
+        expected_scenarios = ctx.scenarios[:2] if ctx.chat_records else []
+        min_conversations = 6 if ctx.chat_records else 4
 
         spec_ok, spec_msg, spec_data = CDPAssertions.assert_exported_zip_spec(
             zip_path=downloaded_zip,
             extract_dir=extract_dir,
-            min_conversations=6,
+            min_conversations=min_conversations,
             expected_golden_chats=golden_chats,
             expected_scenarios=expected_scenarios
         )

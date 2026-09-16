@@ -146,14 +146,16 @@ class FeatureRegistry:
             domain=FeatureDomain.WORKBENCH,
             name="按会话 ID 搜索与精准勾选",
             description="在工作台搜索框输入目标会话 ID，列表即时过滤收缩只剩该项，并进行精准勾选",
-            critical=True
+            critical=True,
+            prerequisites=["feat_takeout_zip_import"]
         ))
         self.register(Feature(
             id="feat_search_filter_by_keyword",
             domain=FeatureDomain.WORKBENCH,
             name="按标题关键词实时过滤",
             description="在工作台搜索框输入关键词（如 Python/量子），列表即时收缩为对应匹配项集合",
-            critical=True
+            critical=True,
+            prerequisites=["feat_takeout_zip_import"]
         ))
         self.register(Feature(
             id="feat_search_clear_restore",
@@ -168,14 +170,16 @@ class FeatureRegistry:
             domain=FeatureDomain.WORKBENCH,
             name="全选 / 取消全选联动控制",
             description="点击【全选】与【取消全选】按钮，底部已勾选计数精准联动 (0 -> N -> 0)",
-            critical=True
+            critical=True,
+            prerequisites=["feat_takeout_zip_import"]
         ))
         self.register(Feature(
             id="feat_language_toggle",
             domain=FeatureDomain.WORKBENCH,
             name="中英文语言切换与状态驻留",
             description="切换至 English 再切回中文，界面文案正确切换且已勾选状态完整保持",
-            critical=False
+            critical=False,
+            prerequisites=["feat_takeout_zip_import"]
         ))
         self.register(Feature(
             id="feat_tour_guide_interactive",

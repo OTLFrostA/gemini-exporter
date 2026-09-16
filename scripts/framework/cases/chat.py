@@ -58,8 +58,9 @@ class ChatGenerationCase(FeatureTestCase):
 
             imagen_found = False
 
-            for chat_idx in range(2):
-                sc = ctx.scenarios[chat_idx]
+            scenarios = ctx.ensure_scenarios()
+            for chat_idx in range(min(2, len(scenarios))):
+                sc = scenarios[chat_idx]
                 sc_title = sc.get("title", f"会话 {chat_idx + 1}")
                 turns = sc.get("turns", [])
                 prompts_clean = [t.get("prompt", "") if isinstance(t, dict) else str(t) for t in turns]
