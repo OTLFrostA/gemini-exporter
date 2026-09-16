@@ -7,6 +7,7 @@
 
 import {
     normId as utilsNormId,
+    shortScope as utilsShortScope,
     stripHtmlTags as utilsStripHtmlTags
 } from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
@@ -295,7 +296,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     docMd = `# ${docTitle}\n\n${docMd.trim()}`;
                 }
                 const primaryCleanId = foundIds[0] || 'takeout';
-                const shortScope = primaryCleanId.length >= 6 ? `${primaryCleanId.slice(-6)}_` : '';
+                const shortScope = utilsShortScope(primaryCleanId);
                 const safeDocTitle = docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
                 const localName = `files/${shortScope}${safeDocTitle}.md`;
 

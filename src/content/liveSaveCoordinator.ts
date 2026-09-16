@@ -5,7 +5,7 @@ import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
-import { buildExportFileName } from '../core/utils/pathUtils.js';
+import { buildExportFileName, shortId } from '../core/utils/pathUtils.js';
 import type { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
@@ -328,7 +328,7 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
     if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return [];
 
     const Utils = getUtils();
-    const cid6 = nid.slice(-6);
+    const cid6 = Utils?.shortId ? Utils.shortId(nid) : shortId(nid);
     const targets = new Map<string, ImageDownloadTarget>();
 
     let imgCounter = 0;

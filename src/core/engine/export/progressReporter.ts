@@ -1,6 +1,7 @@
 // progressReporter.ts - Progress calculation, logging callbacks, and session state persistence
 
 import type { ExportProgressMessage } from '../../../types/index.js';
+import { SessionStore } from '../../storage/sessionStore.js';
 
 export interface ProgressReporterOptions {
     totalChats?: number;
@@ -31,20 +32,7 @@ function calculateProgress(current: number, total: number, downloadedAssets: num
 }
 
 async function updateStorageSession(sessionData: any): Promise<void> {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            await chrome.storage.local.set({
-                gemini_last_export_session: {
-                    ...sessionData,
-                    updatedAt: Date.now()
-                }
-            });
-        }
-    } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) {
-            console.debug('[GemExporter:progressReporter.js]', e);
-        }
-    }
+    await SessionStore.updateSession(sessionData);
 }
 
 class ProgressReporter {

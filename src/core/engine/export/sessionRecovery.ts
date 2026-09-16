@@ -54,6 +54,7 @@ declare global {
 }
 
 import { normId as utilsNormId } from "../../utils/utils.js";
+import { SessionStore } from "../../storage/sessionStore.js";
 
 const normId = (id?: string | number | null): string => {
     if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.normId) {
@@ -270,23 +271,7 @@ export function getExtensionVersion(customVersion?: string): string {
     }
 
     async function updateSessionStatus(patch: any): Promise<void> {
-        try {
-            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const data: any = await chrome.storage.local.get(['gemini_last_export_session']);
-                const current = data?.gemini_last_export_session || {};
-                await chrome.storage.local.set({
-                    gemini_last_export_session: {
-                        ...current,
-                        ...patch,
-                        updatedAt: Date.now()
-                    }
-                });
-            }
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.ts] updateSessionStatus error', e);
-            }
-        }
+        await SessionStore.updateSession(patch);
     }
 
 export {

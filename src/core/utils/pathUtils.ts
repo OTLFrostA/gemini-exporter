@@ -100,19 +100,38 @@ export function extractConversationIdFromUrl(urlOrPath?: string | null): string 
 }
 
 /**
+ * Generates canonical 6-character short identifier for conversations/documents.
+ * Falls back gracefully for shorter IDs or missing inputs.
+ */
+export function shortId(id?: string | number | null): string {
+    const nid = normId(id);
+    return nid.length >= 6 ? nid.slice(-6) : (nid || 'chat');
+}
+
+/**
+ * Generates canonical asset/sub-resource short scope prefix (e.g. "123456_").
+ * Returns empty string if no valid ID provided.
+ */
+export function shortScope(id?: string | number | null): string {
+    const nid = normId(id);
+    return nid ? `${shortId(nid)}_` : '';
+}
+
+/**
  * Unified target export filename generator (e.g. Title_123456.md).
  * Guarantees 100% naming consistency across manual export, batch export, live save, and popup quick export.
  */
 export function buildExportFileName(title?: string | null, id?: string | null, ext: string = 'md'): string {
     const safeTitle = sanitizeFileName(title || 'untitled');
-    const nid = normId(id);
-    const cid6 = nid.length >= 6 ? nid.slice(-6) : (nid || 'chat');
+    const cid6 = shortId(id);
     const cleanExt = ext.replace(/^\.+/, '') || 'md';
     return `${safeTitle}_${cid6}.${cleanExt}`;
 }
 
 export default {
     normId,
+    shortId,
+    shortScope,
     isReservedRoute,
     RESERVED_ROUTES,
     sanitizeFileName,
