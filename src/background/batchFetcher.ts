@@ -104,11 +104,17 @@ export async function fetchBatch(
             }).catch(() => {});
         }
 
+        // P1-019: never present partial results as a full success. When the
+        // loop broke early on abort, report aborted explicitly so the caller
+        // stops instead of processing an incomplete batch as complete.
+        const wasAborted = isSlotAborted(slot);
         if (portSendResponse) {
             portSendResponse({
-                success: true,
+                success: !wasAborted,
+                aborted: wasAborted,
                 results,
-                skipped: 0
+                skipped: 0,
+                ...(wasAborted ? { error: 'aborted' } : {})
             });
         }
     } finally {

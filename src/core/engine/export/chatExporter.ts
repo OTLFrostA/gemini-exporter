@@ -15,7 +15,7 @@ import {
     buildExportFileName as utilsBuildExportFileName,
     getErrorMessage as utilsGetErrorMessage
 } from '../../utils/utils.js';
-import { isRateLimited, calculateBackoff } from './rateLimiter.js';
+import { isRateLimited, calculateBackoff, abortableSleep, RateLimitManager } from './rateLimiter.js';
 
 const normId = (id?: string | number | null): string =>
     ((globalThis as any).GeminiUtils?.normId || utilsNormId)(id);
@@ -99,7 +99,7 @@ export interface ChatExportContext {
     worker: any;
     assetPipeline: any;
     attachmentQueue: AsyncQueue;
-    rateLimiter: any;
+    rateLimiter: RateLimitManager | null;
     folder: any;
     writeFileDirect: (localName: string, data: any) => Promise<boolean>;
     abortSignal: AbortSignal | null;
@@ -158,14 +158,15 @@ export async function exportSingleChat(
                 ctx.onLog(typeof I18n !== 'undefined'
                     ? I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1))
                     : `[${requestedItem.title || nid}] ⚠️ 触发 Google 限频 (429)，退避等待 ${(delayMs / 1000).toFixed(1)} 秒后重试...`, 'warn');
-                await new Promise(r => setTimeout(r, delayMs));
+                // P1-036: 429 退避等待可被取消中断；中断后跳出重试循环且不记为失败
+                if (await abortableSleep(delayMs, ctx.abortSignal)) break;
                 retryCount++;
                 continue;
             }
             break;
         }
 
-        if (ctx.isAborted()) return;
+        if (ctx.isAborted() || (ctx.abortSignal && ctx.abortSignal.aborted)) return;
 
         if (!res || !res.success) {
             const fetchErr = res ? (res.error || (res.aborted ? 'aborted' : 'unknown')) : 'unknown';

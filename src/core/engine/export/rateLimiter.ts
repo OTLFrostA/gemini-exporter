@@ -24,6 +24,7 @@ export interface RateLimitModule {
     isRateLimited: (res: any) => boolean;
     calculateBackoff: (retryCount: number, options?: RateLimiterOptions) => number;
     withRateLimitRetry: <T>(operation: () => Promise<T>, options?: RetryOptions) => Promise<T>;
+    abortableSleep: (ms: number, signal?: AbortSignal | null) => Promise<boolean>;
 }
 
 /**
@@ -119,6 +120,32 @@ export async function withRateLimitRetry<T>(
 }
 
 /**
+ * Sleep that can be cut short by an AbortSignal.
+ * Resolves true when the wait was cut short by abort, false when the full
+ * duration elapsed.
+ *
+ * Note: retryPolicy.ts ships its own copy (interruptibleSleep). It is not
+ * imported here on purpose: retryPolicy already imports calculateBackoff
+ * from this module, so importing back would create an import cycle.
+ */
+export function abortableSleep(ms: number, signal?: AbortSignal | null): Promise<boolean> {
+    if (ms <= 0) return Promise.resolve(!!(signal && signal.aborted));
+    if (!signal) return new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms));
+    if (signal.aborted) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => {
+            signal.removeEventListener('abort', onAbort);
+            resolve(false);
+        }, ms);
+        const onAbort = () => {
+            clearTimeout(timer);
+            signal.removeEventListener('abort', onAbort);
+            resolve(true);
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
+}
+/**
  * RateLimitManager - Manages circuit cooldown, retry counts, and backoff for batch export workers.
  */
 export class RateLimitManager {
@@ -140,11 +167,12 @@ export class RateLimitManager {
         return isRateLimited(res);
     }
 
-    calculateBackoff(retryCount: number): number {
+    calculateBackoff(retryCount: number, options?: RateLimiterOptions): number {
         return calculateBackoff(retryCount, {
             initialDelayMs: this.initialDelayMs,
             maxDelayMs: this.maxDelayMs,
-            jitterMs: this.jitterMs
+            jitterMs: this.jitterMs,
+            ...(options?.retryAfterMs != null ? { retryAfterMs: options.retryAfterMs } : {})
         });
     }
 
@@ -152,14 +180,29 @@ export class RateLimitManager {
         this.rateLimitCooldownUntil = Date.now() + delayMs;
     }
 
-    async waitForCooldown(abortSignal?: AbortSignal | null): Promise<boolean> {
+    /**
+     * Wait until the shared cooldown expires.
+     *
+     * P1-036: the wait is abort-interruptible — a cancel during cooldown
+     * returns false immediately instead of sleeping the full window.
+     * P1-037: after a shared cooldown expires, each waiter adds a small
+     * random stagger so concurrent workers don't wake up in lockstep and
+     * re-trigger 429 together (thundering herd).
+     *
+     * @returns true when the cooldown fully elapsed, false when aborted.
+     */
+    async waitForCooldown(abortSignal?: AbortSignal | null, staggerMs: number = 1000): Promise<boolean> {
         if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
             const waitMs = Math.max(0, this.rateLimitCooldownUntil - Date.now());
             if (waitMs > 0) {
-                await new Promise(r => setTimeout(r, waitMs));
-                if (abortSignal && abortSignal.aborted) return false;
+                if (await abortableSleep(waitMs, abortSignal)) return false;
+            }
+            const stagger = Math.floor(Math.random() * Math.max(0, staggerMs));
+            if (stagger > 0) {
+                if (await abortableSleep(stagger, abortSignal)) return false;
             }
         }
+        if (abortSignal && abortSignal.aborted) return false;
         return true;
     }
 
@@ -177,12 +220,14 @@ export const rateLimitModule: RateLimitModule = {
     RateLimitManager,
     isRateLimited,
     calculateBackoff,
-    withRateLimitRetry
+    withRateLimitRetry,
+    abortableSleep
 };
 
 (rateLimitModule as any).RateLimitManager = RateLimitManager;
 (rateLimitModule as any).RateLimitModule = rateLimitModule;
 (rateLimitModule as any).withRateLimitRetry = withRateLimitRetry;
+(rateLimitModule as any).abortableSleep = abortableSleep;
 (rateLimitModule as any).default = rateLimitModule;
 
 if (typeof globalThis !== 'undefined') {

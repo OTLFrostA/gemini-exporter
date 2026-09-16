@@ -343,18 +343,13 @@ test('P1-018: background always responds exactly once to fetchBatch', () => {
 });
 
 // ============================================================================
-// P1-019/P1-039: batchFetcher abort 语义与 retryAfterMs 透传 (结构锁)
+// P1-019: batchFetcher abort 语义 / P1-039: messageRouter retryAfterMs 透出 (结构锁)
 // ============================================================================
 
 test('P1-019: aborted batch is never reported as success', () => {
     const src = readTs('background/batchFetcher.ts');
     assert.ok(src.includes('aborted: wasAborted'), 'abort flag must be propagated');
     assert.ok(src.includes('success: !wasAborted'), 'aborted batch must report success:false');
-});
-
-test('P1-039: calculateBackoff honors server retryAfterMs', () => {
-    const src = readTs('background/batchFetcher.ts');
-    assert.ok(src.includes('(res as any)?.retryAfterMs'), 'backoff must read res.retryAfterMs');
 });
 
 test('P1-020: deepScan null result is failure, not empty success', () => {

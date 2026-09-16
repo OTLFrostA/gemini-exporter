@@ -34,6 +34,7 @@ import {
     type ChatExportContext,
     type ChatExportState
 } from './chatExporter.js';
+import { RateLimitManager } from './rateLimiter.js';
 import type { ExportCallbacks, ExportOptions, ExportResult } from './exportTypes.js';
 
 // Re-export the shared contracts so existing import sites
@@ -86,7 +87,7 @@ export class ExportOrchestrator {
     callbacks: ExportCallbacks;
     aborted: boolean;
     _isExporting: boolean;
-    rateLimiter: any;
+    rateLimiter: RateLimitManager | null;
     private _rateLimitCooldownUntil: number;
     private _abortController: AbortController | null;
 
@@ -328,11 +329,10 @@ export class ExportOrchestrator {
         const exportWorker = async () => {
             while (nextIndex < payloadIds.length && !isAborted()) {
                 if (this.rateLimiter && typeof this.rateLimiter.waitForCooldown === 'function') {
-                    await this.rateLimiter.waitForCooldown(abortSignal);
-                } else if (this._rateLimitCooldownUntil && Date.now() < this._rateLimitCooldownUntil) {
-                    const wait = this._rateLimitCooldownUntil - Date.now();
-                    onLog(`等待限频冷却 ${(wait / 1000).toFixed(0)}s...`, 'warn');
-                    await new Promise(r => setTimeout(r, wait));
+                    // P1-036/037: cooldown 等待可中断（返回 false 即取消），到期后
+                    // 各 worker 错峰唤醒；返回 false 直接跳出，不再继续派发任务。
+                    const cooldownOk = await this.rateLimiter.waitForCooldown(abortSignal);
+                    if (!cooldownOk) break;
                 }
                 if (isAborted()) break;
                 const currentIndex = nextIndex++;
@@ -404,8 +404,9 @@ export class ExportOrchestrator {
         }
 
         // ---- Session recovery ----
+        // P1-015 fix: never overwrite an 'aborted' terminal state with 'completed'.
         await updateSessionStatus({
-            status: 'completed',
+            status: this.aborted ? 'aborted' : (state.failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
             slot,
             total: totalChats,
             current: state.completedCount,
