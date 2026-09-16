@@ -159,13 +159,22 @@ export function init({
                     if (!isRealTitle(chatObj.title, nid)) return;
                     const slot = msg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                     try {
-                        if (Storage) {
-                            const list = await Storage.getConversations(slot);
-                            const item = list.find((c: any) => normId(c.id) === nid);
-                            if (item) {
+                        // SSOT: single-item title update runs inside the cross-tab
+                        // conversation lock via updateConversation. The old shape
+                        // (read list outside the lock, mutate, blind setConversations)
+                        // could clobber a concurrent tab's sync (lost update), and
+                        // bypassed nothing here since setTitleBySource already
+                        // arbitrates through the title tiers.
+                        if (Storage && typeof Storage.updateConversation === 'function') {
+                            await Storage.updateConversation(slot, nid, (current: any) => {
+                                if (!current) return null;
+                                const item = { ...current, titles: { ...(current.titles || {}) } };
+                                const beforeTitle = item.title;
+                                const beforeSource = item.titleSource;
                                 setTitleBySource(item, detectedSource, chatObj.title);
-                                await Storage.setConversations(slot, list);
-                            }
+                                if (item.title === beforeTitle && item.titleSource === beforeSource) return null;
+                                return { title: item.title, titleSource: item.titleSource, titles: item.titles };
+                            });
                         }
                     } catch (err) {
                         console.warn('[Gemini Exporter] persistDetailTitle error', err);
