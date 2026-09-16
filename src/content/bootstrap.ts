@@ -1,5 +1,9 @@
 // src/content/bootstrap.ts - Credential bootstrap for ISOLATED world
 import { CrossWorldEvents, type GeminiProtocolModule } from '../core/protocol/protocol.js';
+import { STORAGE_KEYS } from '../core/utils/constants.js';
+
+const SK_CRED_MAP = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS_MAP : 'gemini_credentials_map';
+const SK_CRED = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS : 'gemini_credentials';
 
 const Proto: GeminiProtocolModule = ((typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : ((typeof window !== 'undefined' && (window as any).GeminiProtocol) || null)) as any);
 
@@ -133,26 +137,26 @@ export async function loadCredentialsMap(): Promise<Record<string, any>> {
     if (!storage) return {};
     let mapObj: any = {};
     try {
-        mapObj = await storage.get(['gemini_credentials_map']);
+        mapObj = await storage.get([SK_CRED_MAP]);
     } catch (e: any) {
         if (String(e?.message || e).includes('not allowed')) {
             sessionAccessFailed = true;
             storage = chrome.storage.local;
             if (storage) {
-                mapObj = await storage.get(['gemini_credentials_map']);
+                mapObj = await storage.get([SK_CRED_MAP]);
             }
         } else {
             throw e;
         }
     }
-    let map = mapObj.gemini_credentials_map || {};
+    let map = mapObj[SK_CRED_MAP] || {};
     if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
         try {
-            const localObj = await chrome.storage.local.get(['gemini_credentials_map']);
-            if (localObj && localObj.gemini_credentials_map) {
-                map = localObj.gemini_credentials_map;
-                await storage.set({ gemini_credentials_map: map });
-                await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+            const localObj = await chrome.storage.local.get([SK_CRED_MAP]);
+            if (localObj && localObj[SK_CRED_MAP]) {
+                map = localObj[SK_CRED_MAP];
+                await storage.set({ [SK_CRED_MAP]: map });
+                await chrome.storage.local.remove([SK_CRED_MAP, SK_CRED]);
             }
         } catch {
             /* intentional: storage migration fallback */
@@ -164,8 +168,8 @@ export async function loadCredentialsMap(): Promise<Record<string, any>> {
 export async function saveCredentials(map: Record<string, any>, cred?: any): Promise<void> {
     let storage = getCredStorage();
     if (!storage) return;
-    const toSave: Record<string, any> = { gemini_credentials_map: map };
-    if (cred) toSave.gemini_credentials = cred;
+    const toSave: Record<string, any> = { [SK_CRED_MAP]: map };
+    if (cred) toSave[SK_CRED] = cred;
     try {
         await storage.set(toSave);
     } catch (e: any) {
@@ -181,7 +185,7 @@ export async function saveCredentials(map: Record<string, any>, cred?: any): Pro
     }
     if (storage !== chrome.storage.local && chrome.storage.local) {
         try {
-            await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+            await chrome.storage.local.remove([SK_CRED_MAP, SK_CRED]);
         } catch {
             /* intentional: local purge fallback */
         }

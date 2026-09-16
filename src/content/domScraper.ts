@@ -1,6 +1,9 @@
 // src/content/domScraper.ts - DOM fallback parser and conversation list scroller
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
+import { isReservedRoute } from '../core/utils/pathUtils.js';
+
+export { isReservedRoute };
 
 function cleanText(t?: string | null): string {
     return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
@@ -209,17 +212,6 @@ export function getScrollContainer(): HTMLElement | null {
         if (el) return el;
     }
     return null;
-}
-
-const RESERVED_ROUTES = new Set([
-    'download', 'settings', 'prompts', 'archive', 'trash', 'share',
-    'activity', 'help', 'feedback', 'gems', 'explore', 'privacy', 'terms', 'updates', 'faq'
-]);
-
-export function isReservedRoute(id?: string | null): boolean {
-    if (!id || typeof id !== 'string') return false;
-    const clean = id.replace(/^c_/, '').trim().toLowerCase();
-    return RESERVED_ROUTES.has(clean);
 }
 
 export function getConversationLinks(): any[] {

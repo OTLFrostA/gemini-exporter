@@ -12,8 +12,10 @@ import {
     isGeminiUrl,
     detectSlotFromUrl,
     extractConversationIdFromUrl,
-    buildExportFileName
+    buildExportFileName,
+    isVersionGreater
 } from './pathUtils.js';
+
 import {
     isRealTitle,
     cleanTitle,
@@ -62,7 +64,9 @@ export {
     detectSlotFromUrl,
     extractConversationIdFromUrl,
     buildExportFileName,
+    isVersionGreater,
     // Title
+
     isRealTitle,
     cleanTitle,
     cleanZeroWidth,
@@ -113,7 +117,9 @@ export interface GeminiUtilsModule {
     detectSlotFromUrl: (urlOrPath?: string | null) => string;
     extractConversationIdFromUrl: (urlOrPath?: string | null) => string | null;
     buildExportFileName: (title?: string | null, id?: string | null, ext?: string) => string;
+    isVersionGreater: (v1?: string | null, v2?: string | null) => boolean;
     resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
+
     resolveDetailTitle: (messages: any[] | null | undefined, convId?: string | number) => { title: string; source: 'sniff' } | null;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
@@ -162,7 +168,9 @@ export const GeminiUtils: GeminiUtilsModule = {
     detectSlotFromUrl,
     extractConversationIdFromUrl,
     buildExportFileName,
+    isVersionGreater,
     resolveTitle,
+
     resolveDetailTitle,
     setTitleBySource,
     getEffectiveTimestamp,

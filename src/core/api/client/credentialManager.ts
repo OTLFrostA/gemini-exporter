@@ -1,5 +1,6 @@
 import GeminiProtocol, { GeminiProtocolModule, TOKEN_PATTERNS, TOKENS, BL_FALLBACK } from "../../protocol/protocol.js";
 import { detectSlotFromUrl } from "../../utils/pathUtils.js";
+import { STORAGE_KEYS } from "../../utils/constants.js";
 
 export interface GeminiCredentials {
     sid: string;
@@ -119,11 +120,12 @@ function getProtocol(): GeminiProtocolModule {
     }
 
     function normalizeLegacySingleCred(s: any, map: GeminiCredentialsMap): void {
-        if (s?.gemini_credentials?.sid && !map[s.gemini_credentials.sid]) {
-            map[s.gemini_credentials.sid] = {
-                at: s.gemini_credentials.at || "",
-                bl: s.gemini_credentials.bl || getProtocol().BL_FALLBACK,
-                sid: s.gemini_credentials.sid,
+        const legacy = s?.[STORAGE_KEYS.CREDENTIALS];
+        if (legacy?.sid && !map[legacy.sid]) {
+            map[legacy.sid] = {
+                at: legacy.at || "",
+                bl: legacy.bl || getProtocol().BL_FALLBACK,
+                sid: legacy.sid,
                 accountSlot: "default",
                 lastUsed: Date.now()
             };
@@ -134,18 +136,18 @@ function getProtocol(): GeminiProtocolModule {
         const storage = getCredStorage();
         if (!storage) return {};
         try {
-            let s: any = await storage.get(["gemini_credentials_map", "gemini_credentials"]);
-            let map: GeminiCredentialsMap = s.gemini_credentials_map || {};
+            let s: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+            let map: GeminiCredentialsMap = s[STORAGE_KEYS.CREDENTIALS_MAP] || {};
             normalizeLegacySingleCred(s, map);
             if (Object.keys(map).length === 0 && typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
                 try {
-                    let localS: any = await chrome.storage.local.get(["gemini_credentials_map", "gemini_credentials"]);
-                    let localMap: GeminiCredentialsMap = localS.gemini_credentials_map || {};
+                    let localS: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                    let localMap: GeminiCredentialsMap = localS[STORAGE_KEYS.CREDENTIALS_MAP] || {};
                     normalizeLegacySingleCred(localS, localMap);
                     if (Object.keys(localMap).length > 0) {
                         map = localMap;
-                        await storage.set({ gemini_credentials_map: map });
-                        await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+                        await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                     }
                 } catch { /* intentional: migration fallback */ }
             }
@@ -179,14 +181,14 @@ function getProtocol(): GeminiProtocolModule {
                     // drop the credentials of the other accounts.
                     map[sid] = entry;
                     await storage.set({
-                        gemini_credentials_map: map,
-                        gemini_credentials: {
+                        [STORAGE_KEYS.CREDENTIALS_MAP]: map,
+                        [STORAGE_KEYS.CREDENTIALS]: {
                             at: pageAt,
                             sid
                         }
                     });
                     if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                        await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                        await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                     }
                 }
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }

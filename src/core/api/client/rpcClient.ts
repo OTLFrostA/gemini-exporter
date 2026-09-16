@@ -31,6 +31,7 @@ declare global {
 import { GeminiProtocol } from "../../protocol/protocol.js";
 import { GeminiUtils } from "../../utils/utils.js";
 import { GeminiResponseParserClass } from "../geminiParser.js";
+import { generateFallbackSid } from "./credentialManager.js";
 
 function getProtocol(): GeminiProtocolModule {
     return GeminiProtocol;
@@ -53,10 +54,6 @@ function getParser(): any {
             return `https://gemini.google.com${t}/_/BardChatUi/data/batchexecute`;
         }
         return GEMINI_API_URL;
-    }
-
-    function generateFallbackSid(): string {
-        return String(Math.floor(Math.random() * 1e19));
     }
 
     /**

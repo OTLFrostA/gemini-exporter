@@ -66,17 +66,8 @@ import { createWriter } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 import { shortId } from "../../utils/pathUtils.js";
 
-export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3';
-export function getExtensionVersion(): string {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
-            return chrome.runtime.getManifest().version || EXT_VERSION;
-        }
-    } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e);
-    }
-    return EXT_VERSION;
-}
+import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
+export { EXT_VERSION, getExtensionVersion };
 
 const getUtils = (): GeminiUtilsModule | null => (globalThis as any).GeminiUtils || GeminiUtils;
 const getProgressReporter = (): any => (globalThis as any).ProgressReporter || progressReporterModule;
