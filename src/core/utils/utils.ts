@@ -13,6 +13,9 @@ import {
     detectSlotFromUrl,
     extractConversationIdFromUrl,
     buildExportFileName,
+    sanitizeFileNameLegacy,
+    buildExportFileNameLegacy,
+    resolveExportFileName,
     isVersionGreater
 } from './pathUtils.js';
 
@@ -26,6 +29,7 @@ import {
     resolveTitle,
     resolveDetailTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
@@ -64,6 +68,9 @@ export {
     detectSlotFromUrl,
     extractConversationIdFromUrl,
     buildExportFileName,
+    sanitizeFileNameLegacy,
+    buildExportFileNameLegacy,
+    resolveExportFileName,
     isVersionGreater,
     // Title
 
@@ -76,6 +83,7 @@ export {
     resolveTitle,
     resolveDetailTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
@@ -117,11 +125,15 @@ export interface GeminiUtilsModule {
     detectSlotFromUrl: (urlOrPath?: string | null) => string;
     extractConversationIdFromUrl: (urlOrPath?: string | null) => string | null;
     buildExportFileName: (title?: string | null, id?: string | null, ext?: string) => string;
+    sanitizeFileNameLegacy: (name?: string | null, fallback?: string) => string;
+    buildExportFileNameLegacy: (title?: string | null, id?: string | null, ext?: string) => string;
+    resolveExportFileName: (title?: string | null, id?: string | null, ext?: string, exists?: (name: string) => boolean | Promise<boolean>) => Promise<string>;
     isVersionGreater: (v1?: string | null, v2?: string | null) => boolean;
     resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
 
     resolveDetailTitle: (messages: any[] | null | undefined, convId?: string | number) => { title: string; source: 'sniff' } | null;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
+    toTimestampMs: (raw: any) => number | null;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
     checkIsUpdated: (c: any, rec?: any) => boolean;
@@ -168,11 +180,15 @@ export const GeminiUtils: GeminiUtilsModule = {
     detectSlotFromUrl,
     extractConversationIdFromUrl,
     buildExportFileName,
+    sanitizeFileNameLegacy,
+    buildExportFileNameLegacy,
+    resolveExportFileName,
     isVersionGreater,
     resolveTitle,
 
     resolveDetailTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
