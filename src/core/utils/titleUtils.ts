@@ -244,12 +244,31 @@ export function checkIsUpdated(c: any, rec?: any): boolean {
     return false;
 }
 
+/**
+ * Sniffs conversation title from the first user message if current title is missing or generic.
+ */
+export function resolveDetailTitle(
+    messages: any[] | null | undefined,
+    convId?: string | number
+): { title: string; source: 'sniff' } | null {
+    if (!Array.isArray(messages)) return null;
+    const firstUser = messages.find(m => m && m.role === 'user' && m.content && String(m.content).trim());
+    if (!firstUser) return null;
+    const rawContent = String(firstUser.content).trim().slice(0, 60).replace(/\n+/g, ' ');
+    const candidate = cleanTitle(rawContent);
+    if (isRealTitle(candidate, convId)) {
+        return { title: candidate, source: 'sniff' };
+    }
+    return null;
+}
+
 export default {
     isRealTitle,
     cleanTitle,
     cleanZeroWidth,
     isBrandPlaceholderTitle,
     resolveTitle,
+    resolveDetailTitle,
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
@@ -257,3 +276,4 @@ export default {
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK
 };
+

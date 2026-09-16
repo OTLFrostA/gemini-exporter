@@ -4,7 +4,7 @@ import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { GeminiUtils, getErrorMessage } from '../core/utils/utils.js';
+import { GeminiUtils, getErrorMessage, resolveDetailTitle as defaultResolveDetailTitle } from '../core/utils/utils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
@@ -38,6 +38,7 @@ export function init({
     const cleanTitle = (t?: string | null) => (Utils?.cleanTitle ? Utils.cleanTitle(t || '') : (t || '').trim());
     const isRealTitle = (t?: string | null, id?: string) => (Utils?.isRealTitle ? Utils.isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
     const setTitleBySource = (it: any, src: string, val: string) => (Utils?.setTitleBySource ? Utils.setTitleBySource(it, src, val) : ((it.titles = it.titles || {})[src] = val));
+    const resolveDetailTitle = (msgs: any[], id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
 
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
@@ -114,13 +115,10 @@ export function init({
                     chatObj.title = cleanTitle(chatObj.title);
                     let detectedSource = chatObj.titleSource || 'rpc';
                     if (!isRealTitle(chatObj.title, nid) && Array.isArray(chatObj.messages)) {
-                        const firstUser = chatObj.messages.find((m: any) => m.role === 'user' && m.content && m.content.trim());
-                        if (firstUser) {
-                            const candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, ' '));
-                            if (isRealTitle(candidate, nid)) {
-                                chatObj.title = candidate;
-                                detectedSource = 'sniff';
-                            }
+                        const sniffed = resolveDetailTitle(chatObj.messages, nid);
+                        if (sniffed) {
+                            chatObj.title = sniffed.title;
+                            detectedSource = sniffed.source;
                         }
                     }
                     if (!isRealTitle(chatObj.title, nid)) return;

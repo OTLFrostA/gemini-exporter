@@ -67,6 +67,8 @@ import {
 } from "./attachments.js";
 import GeminiProtocol, { WRB, RPCS } from "../../protocol/protocol.js";
 import GeminiUtils from "../../utils/utils.js";
+import { extractInnerPayload } from "./payload.js";
+import { resolveDetailTitle } from "../../utils/titleUtils.js";
 
 function getExtractors(): any {
     return {
@@ -226,45 +228,17 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
             }
 
             let schemaDriftWarnings: string[] = [];
-            let innerStr: string | null = null;
-            if (Array.isArray(top)) {
-                let foundStandardWrb = false;
-                for (let item of top) {
-                    if (Array.isArray(item) && item[0] === wrb && item[1] === detailRpc && typeof item[2] === "string") {
-                        innerStr = item[2];
-                        foundStandardWrb = true;
-                        break;
-                    }
-                }
-                if (!innerStr) {
-                    for (let item of top) {
-                        if (Array.isArray(item) && typeof item[2] === "string" && (item[2].includes("c_") || item[2].includes("rc_") || item[2].startsWith("[["))) {
-                            innerStr = item[2];
-                            break;
-                        }
-                    }
-                    if (top.length > 0 && !foundStandardWrb && innerStr) {
-                        schemaDriftWarnings.push(`Envelope drift: batchexecute response missing standard WRB detail RPC header [${wrb}, ${detailRpc}], fell back to heuristic payload discovery`);
-                    }
-                }
+            const { inner: extractedInner, innerStr, isStandardWrb } = extractInnerPayload(top, {
+                wrb,
+                rpcId: detailRpc,
+                heuristicFilter: s => s.includes("c_") || s.includes("rc_") || s.startsWith("[[")
+            });
+
+            if (Array.isArray(top) && top.length > 0 && !isStandardWrb && innerStr) {
+                schemaDriftWarnings.push(`Envelope drift: batchexecute response missing standard WRB detail RPC header [${wrb}, ${detailRpc}], fell back to heuristic payload discovery`);
             }
 
-            let inner: any = null;
-            if (innerStr) {
-                try {
-                    inner = JSON.parse(innerStr);
-                } catch { /* intentional: parse chunk candidate fallback */ }
-            }
-            if (!inner && Array.isArray(top)) {
-                for (let item of top) {
-                    if (typeof item === "string" && item.startsWith("[[")) {
-                        try {
-                            inner = JSON.parse(item);
-                        } catch { /* intentional: parse chunk candidate fallback */ }
-                    }
-                    if (inner) break;
-                }
-            }
+            let inner: any = extractedInner;
             if (!inner) throw new Error("invalid");
 
             let turns: any[] | null = null;
@@ -537,13 +511,10 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
             let isReal = isRealTitle(cleanT, convId);
             let finalSource = metaTitle ? "rpc" : (isReal ? titleObj.source : "default");
             if (!isReal && !metaTitle) {
-                let firstUser = allMsgs.find(m => m.role === "user" && m.content && m.content.trim());
-                if (firstUser) {
-                    let candidate = cleanTitle(firstUser.content.trim().slice(0, 60).replace(/\n+/g, " "));
-                    if (isRealTitle(candidate, convId)) {
-                        cleanT = candidate;
-                        finalSource = "sniff";
-                    }
+                const sniffed = resolveDetailTitle(allMsgs, convId);
+                if (sniffed) {
+                    cleanT = sniffed.title;
+                    finalSource = sniffed.source;
                 }
             }
             const titlesMap: TitleSources = {};

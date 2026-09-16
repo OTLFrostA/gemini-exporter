@@ -20,6 +20,7 @@ import {
     unescapeHtml,
     stripHtmlTags,
     resolveTitle,
+    resolveDetailTitle,
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
@@ -65,6 +66,7 @@ export {
     unescapeHtml,
     stripHtmlTags,
     resolveTitle,
+    resolveDetailTitle,
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,
@@ -106,6 +108,7 @@ export interface GeminiUtilsModule {
     extractConversationIdFromUrl: (urlOrPath?: string | null) => string | null;
     buildExportFileName: (title?: string | null, id?: string | null, ext?: string) => string;
     resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
+    resolveDetailTitle: (messages: any[] | null | undefined, convId?: string | number) => { title: string; source: 'sniff' } | null;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
@@ -152,6 +155,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     extractConversationIdFromUrl,
     buildExportFileName,
     resolveTitle,
+    resolveDetailTitle,
     setTitleBySource,
     getEffectiveTimestamp,
     compareConversations,

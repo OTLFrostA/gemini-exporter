@@ -34,6 +34,7 @@ declare global {
 
 import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
+import { payloadToMs, extractInnerPayload } from "./payload.js";
 
 const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
 
@@ -59,13 +60,8 @@ function getProtocol(): any {
         const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
 
         // 1. Primary candidate: index 5 (Google official server updatedAt [sec, nano])
-        const primary = item[listItemSchema.TIMESTAMP];
-        if (Array.isArray(primary) && typeof primary[0] === "number" && primary[0] > 1e9) {
-            return Math.round(primary[0] * 1000 + Math.floor((primary[1] || 0) / 1e6));
-        }
-        if (typeof primary === "number" && primary > 1e9) {
-            return primary > 1e11 ? Math.round(primary) : Math.round(primary * 1000);
-        }
+        const primary = payloadToMs(item[listItemSchema.TIMESTAMP]);
+        if (primary !== null) return primary;
 
         // 2. Secondary candidates: index 2, 3, 4
         const alts = [
@@ -74,19 +70,16 @@ function getProtocol(): any {
             item[listItemSchema.COUNT_ALT1]
         ];
         for (const cand of alts) {
-            if (Array.isArray(cand) && typeof cand[0] === "number" && cand[0] > 1e9) {
-                return Math.round(cand[0] * 1000 + Math.floor((cand[1] || 0) / 1e6));
-            }
-            if (typeof cand === "number" && cand > 1e9) {
-                return cand > 1e11 ? Math.round(cand) : Math.round(cand * 1000);
-            }
+            const ms = payloadToMs(cand);
+            if (ms !== null) return ms;
         }
 
         // 3. Fallback: scan any element matching [seconds, nanos]
         for (let i = 0; i < item.length; i++) {
             const val = item[i];
-            if (Array.isArray(val) && typeof val[0] === "number" && val[0] > 1e9 && val.length <= 4) {
-                return Math.round(val[0] * 1000 + Math.floor((val[1] || 0) / 1e6));
+            if (Array.isArray(val) && val.length <= 4) {
+                const ms = payloadToMs(val);
+                if (ms !== null) return ms;
             }
         }
         return null;
@@ -95,40 +88,17 @@ function getProtocol(): any {
     function parseList(text: string): ListParseResult {
         try {
             let top = robustFirstPayload(text);
-            let innerStr: string | null = null;
             const protocol = getProtocol();
             const wrb = protocol.WRB || "wrb.fr";
             const listRpc = protocol.RPCS ? protocol.RPCS.LIST : "MaZiqc";
 
-            if (Array.isArray(top)) {
-                for (let item of top) {
-                    if (Array.isArray(item) && item[0] === wrb && item[1] === listRpc && typeof item[2] === "string") {
-                        innerStr = item[2];
-                        break;
-                    }
-                }
-                if (!innerStr) {
-                    for (let item of top) {
-                        if (Array.isArray(item) && typeof item[2] === "string" && (item[2].startsWith("[") || item[2].startsWith('"[') || item[2].includes("c_"))) {
-                            innerStr = item[2];
-                            break;
-                        }
-                    }
-                }
-            }
-            if (!innerStr) {
-                let bardError: string | null = null;
-                if (Array.isArray(top)) {
-                    for (let item of top) {
-                        if (Array.isArray(item) && item[5]) {
-                            let str5 = JSON.stringify(item[5]);
-                            if (str5.includes("BardErrorInfo")) {
-                                bardError = str5;
-                                break;
-                            }
-                        }
-                    }
-                }
+            const { inner, innerStr, bardError } = extractInnerPayload(top, {
+                wrb,
+                rpcId: listRpc,
+                heuristicFilter: s => s.startsWith("[") || s.startsWith('"[') || s.includes("c_")
+            });
+
+            if (!innerStr || !inner) {
                 if (bardError) {
                     console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
                 } else {
@@ -146,7 +116,6 @@ function getProtocol(): any {
                     }
                 };
             }
-            let inner = JSON.parse(innerStr);
             let list = Array.isArray(inner[1]) ? inner[1] : (Array.isArray(inner[2]) ? inner[2] : []);
             let convs: ConversationListItem[] = [];
             const schema = getSchema();
