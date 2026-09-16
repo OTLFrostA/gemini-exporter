@@ -4,6 +4,8 @@ import type { GeminiUtilsModule } from "../../utils/utils.js";
 export interface FetchChatDetailOptions {
     messageSender?: any;
     tabService?: any;
+    /** P1-012: hard timeout for the message round-trip (default 120000ms). */
+    sendTimeoutMs?: number;
 }
 
 export interface FetchChatDetailResult {
@@ -135,77 +137,85 @@ const isBadBrand = isBrandPlaceholderTitle;
         const nid = normId(requestedItem.id);
         const messageSender = options.messageSender || null;
         const tabService = options.tabService || (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService : null);
+        // P1-012: the message round-trip gets a hard timeout so a callback
+        // that never fires can no longer hang the whole export forever.
+        const sendTimeoutMs = options.sendTimeoutMs ?? 120000;
 
-        return new Promise<FetchChatDetailResult>(async (resolve) => {
+        return new Promise<FetchChatDetailResult>((resolve) => {
             let settled = false;
-            const onAbort = () => {
-                if (!settled) {
-                    settled = true;
-                    resolve({ success: false, error: 'aborted' });
-                }
+            let timeoutId: any = null;
+            const settle = (result: FetchChatDetailResult) => {
+                if (settled) return;
+                settled = true;
+                if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+                if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                resolve(result);
             };
+            const onAbort = () => settle({ success: false, error: 'aborted' });
             if (abortSignal) {
                 if (abortSignal.aborted) return onAbort();
                 abortSignal.addEventListener('abort', onAbort, { once: true });
             }
+            timeoutId = setTimeout(() => {
+                settle({ success: false, error: `fetchChatDetail timed out after ${sendTimeoutMs}ms (no response)` });
+            }, sendTimeoutMs);
 
-            try {
-                if (tabService && tabService.sendToGeminiTab) {
-                    const directRes = await tabService.sendToGeminiTab({
-                        action: 'getConversationDetail',
-                        conversationId: nid,
-                        accountSlot: currentSlot
-                    }, currentSlot);
-                    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                    if (!settled) {
-                        settled = true;
-                        if (directRes && directRes.success) {
-                            const chat = directRes.data || directRes.chat || directRes;
-                            resolve({ success: true, results: [chat], skipped: 0 });
-                            return;
-                        } else if (directRes && directRes.error) {
-                            resolve(directRes);
-                            return;
+            (async () => {
+                try {
+                    if (tabService && tabService.sendToGeminiTab) {
+                        const directRes = await tabService.sendToGeminiTab({
+                            action: 'getConversationDetail',
+                            conversationId: nid,
+                            accountSlot: currentSlot
+                        }, currentSlot);
+                        if (!settled) {
+                            if (directRes && directRes.success) {
+                                const chat = directRes.data || directRes.chat || directRes;
+                                settle({ success: true, results: [chat], skipped: 0 });
+                                return;
+                            } else if (directRes && directRes.error) {
+                                settle(directRes);
+                                return;
+                            }
                         }
                     }
-                }
-            } catch (directErr: any) {
-                if (String(directErr?.message || '').includes('aborted')) {
-                    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                    if (!settled) { settled = true; resolve({ success: false, error: 'aborted' }); }
-                    return;
-                }
-            }
-
-            const sender = messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);
-
-            if (sender) {
-                sender({
-                    action: 'fetchBatch',
-                    ids: [requestedItem],
-                    format,
-                    skipExported: skip,
-                    globalOffset: currentIndex,
-                    globalTotal: totalChats,
-                    accountSlot: currentSlot
-                }, (response: any) => {
-                    if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                    if (!settled) {
-                        settled = true;
-                        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
-                            resolve({ success: false, error: chrome.runtime.lastError.message });
-                        } else {
-                            resolve(response);
-                        }
+                } catch (directErr: any) {
+                    if (String(directErr?.message || '').includes('aborted')) {
+                        settle({ success: false, error: 'aborted' });
+                        return;
                     }
-                });
-            } else {
-                if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                if (!settled) {
-                    settled = true;
-                    resolve({ success: false, error: 'chrome.runtime not available' });
+                    // fall through to the runtime.sendMessage path
                 }
-            }
+
+                const sender = messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);
+
+                if (sender) {
+                    try {
+                        sender({
+                            action: 'fetchBatch',
+                            ids: [requestedItem],
+                            format,
+                            skipExported: skip,
+                            globalOffset: currentIndex,
+                            globalTotal: totalChats,
+                            accountSlot: currentSlot
+                        }, (response: any) => {
+                            if (settled) return;
+                            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
+                                settle({ success: false, error: chrome.runtime.lastError.message });
+                            } else {
+                                settle(response);
+                            }
+                        });
+                    } catch (sendErr: any) {
+                        settle({ success: false, error: `sender threw: ${String(sendErr?.message || sendErr)}` });
+                    }
+                } else {
+                    settle({ success: false, error: 'chrome.runtime not available' });
+                }
+            })().catch((unhandled: any) => {
+                settle({ success: false, error: `fetchChatDetail internal error: ${String(unhandled?.message || unhandled)}` });
+            });
         });
     }
 

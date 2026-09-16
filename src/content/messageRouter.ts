@@ -84,6 +84,17 @@ export function init({
                             forceFull: msg.mode === 'full'
                         });
                     }
+                    if (!res) {
+                        // P1-020: a null scan result (already running / provider
+                        // unavailable) must never be reported as success —
+                        // syncController branches on res.success.
+                        sendResponse({
+                            success: false,
+                            count: 0,
+                            error: 'deep scan did not produce a result (already running or provider unavailable)'
+                        });
+                        return;
+                    }
                     sendResponse({
                         success: true,
                         count: res?.count || 0,
@@ -168,7 +179,9 @@ export function init({
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: msg.targetSid || null });
                         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                             await persistDetailTitle(detail);
-                            sendResponse({ success: true, data: detail, source: 'batchexecute' });
+                            // P1-039: surface retryAfterMs at the top level so
+                            // background/batchFetcher can honor the server hint.
+                            sendResponse({ success: true, data: detail, source: 'batchexecute', retryAfterMs: (detail as any)?.retryAfterMs ?? null });
                             return;
                         } else if (detail) {
                             const rawKeys = detail._raw ? Object.keys(detail._raw) : [];
@@ -192,7 +205,7 @@ export function init({
                         const chat = await Scraper.contentFetchChatDetail(cid);
                         if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
                             await persistDetailTitle(chat);
-                            sendResponse({ success: true, data: chat, source: 'dom' });
+                            sendResponse({ success: true, data: chat, source: 'dom', retryAfterMs: (chat as any)?.retryAfterMs ?? null });
                             return;
                         } else {
                             if (contentContext.isDevMode()) {
@@ -231,7 +244,9 @@ export function init({
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     const mergedDebug = { batchexecuteEmptyDebug, domError: errMsg };
-                    sendResponse({ success: false, error: errMsg, _debug: mergedDebug });
+                    // P1-039: keep the server Retry-After hint on the failure
+                    // response so callers can back off precisely.
+                    sendResponse({ success: false, error: errMsg, _debug: mergedDebug, retryAfterMs: (e as any)?.retryAfterMs ?? null });
                 }
             })();
             return true;

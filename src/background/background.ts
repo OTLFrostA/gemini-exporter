@@ -22,6 +22,11 @@ import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 
+// P1-017: per-slot fetchBatch serialization. Concurrent fetchBatch messages
+// for the same account slot used to interleave their tab RPCs and abort flags;
+// now each slot runs them strictly one after another.
+const fetchBatchChains = new Map<string, Promise<void>>();
+
 // Re-export modular components for architectural backward-compatibility and diagnostic inspection
 export {
     initSessionAccessLevel,
@@ -123,8 +128,36 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
 
     if (msg.action === 'fetchBatch') {
         const slot = msg.accountSlot || 'u0';
+        const ids = msg.ids;
+        const format = msg.format;
+        const skipExported = msg.skipExported;
+        const globalOffset = msg.globalOffset;
+        const globalTotal = msg.globalTotal;
         setSlotAborted(slot, false);
-        fetchBatch(msg.ids, msg.format, msg.skipExported, sendResponse, msg.globalOffset, msg.globalTotal, slot);
+        // P1-017: chain per slot so concurrent batches serialize instead of
+        // interleaving. P1-018: wrap so a rejection can never leave the port
+        // without exactly one response.
+        const prev = fetchBatchChains.get(slot) || Promise.resolve();
+        const run = prev.then(async () => {
+            let responded = false;
+            const guardedResponse = (response: any) => {
+                if (responded) return;
+                responded = true;
+                try { sendResponse(response); } catch (_) { /* port may be gone */ }
+            };
+            try {
+                await fetchBatch(ids, format, skipExported, guardedResponse, globalOffset, globalTotal, slot);
+                if (!responded) {
+                    // Fail closed: a batch that produced no response is a
+                    // failure, never a silent success.
+                    guardedResponse({ success: false, error: 'fetchBatch completed without a response' });
+                }
+            } catch (e: any) {
+                guardedResponse({ success: false, error: e?.message || String(e) });
+            }
+        });
+        // Keep the chain alive for later batches regardless of outcome.
+        fetchBatchChains.set(slot, run.then(() => undefined, () => undefined));
         return true;
     }
 

@@ -62,8 +62,10 @@ export async function runExport(
         setRunning(false);
         throw new Error('ExportEngine is not loaded');
     }
-    activeEngine = new engineClass();
     try {
+        // P1-021: construct inside try so a constructor throw still hits the
+        // finally and cannot leave the UI stuck in "running".
+        activeEngine = new engineClass();
         const result = await activeEngine.run({ selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }, callbacks);
         return result;
     } finally {

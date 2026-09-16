@@ -86,7 +86,8 @@ export async function fetchBatch(
                     if (isRateLimit && retryCount < maxRetries) {
                         // P1-039: receiver-side Retry-After — response headers never cross
                         // chrome.tabs.sendMessage, so honor an explicit retryAfterMs hint
-                        // when the content side provides one (clamped to 30s).
+                        // when the content side provides one (clamped to 30s; B组透传逻辑
+                        // 在此合并为同一份，raw 值做类型校验防止 NaN/非数字污染退避）。
                         const rawAfter = (res as any)?.retryAfterMs;
                         const retryAfterMs = (typeof rawAfter === "number" && rawAfter > 0)
                             ? Math.min(rawAfter, 30000)
@@ -144,11 +145,17 @@ export async function fetchBatch(
             }).catch(() => {});
         }
 
+        // P1-019: never present partial results as a full success. When the
+        // loop broke early on abort, report aborted explicitly so the caller
+        // stops instead of processing an incomplete batch as complete.
+        const wasAborted = isSlotAborted(slot);
         if (portSendResponse) {
             portSendResponse({
-                success: true,
+                success: !wasAborted,
+                aborted: wasAborted,
                 results,
-                skipped: 0
+                skipped: 0,
+                ...(wasAborted ? { error: 'aborted' } : {})
             });
         }
     } finally {

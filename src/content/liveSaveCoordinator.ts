@@ -66,7 +66,7 @@ function isDev(): boolean {
     return contentContext.isDevMode();
 }
 
-function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle'): void {
+function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle' | 'payload_too_large'): void {
     const isZh = contentContext.isZh();
     const Badge = getBadge();
     let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
@@ -74,6 +74,8 @@ function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_grante
         warnMsg = isZh ? '⚠ 目录未授权，实时同步已暂停' : '⚠ Folder permission denied, sync paused';
     } else if (errorType === 'no_dir_handle') {
         warnMsg = isZh ? '⚠ 目录未就绪，实时同步已暂停' : '⚠ Folder not ready, sync paused';
+    } else if (errorType === 'payload_too_large') {
+        warnMsg = isZh ? '⚠ 本次实时保存数据过大，已跳过发送（避免消息超限丢失）' : '⚠ Live-save payload too large, skipped to avoid silent message loss';
     }
     if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
         (Badge as any).showLiveSaveWarning(warnMsg, isZh);
@@ -201,6 +203,32 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         if (config.includeAssets !== false) {
                             collectedAssets = await processAndSaveImages(chat, nid, null);
                         }
+                        const assetsPayload = collectedAssets.map(a => ({
+                            fileName: a.fileName,
+                            subDir: a.subDir || 'assets',
+                            base64: a.base64 || (a.buffer ? arrayBufferToBase64(a.buffer) : '')
+                        }));
+                        // P1-030: fail-closed size cap. A single
+                        // runtime.sendMessage carrying the chat plus ALL base64
+                        // assets can exceed the extension message limit and die
+                        // silently — refuse to send an oversized payload and
+                        // make the failure visible instead of losing the save.
+                        const LIVE_SAVE_PAYLOAD_CAP = 48 * 1024 * 1024;
+                        let estPayloadSize = 0;
+                        try {
+                            estPayloadSize = JSON.stringify(chat).length;
+                            for (const a of assetsPayload) {
+                                estPayloadSize += (a.base64 || '').length + (a.fileName || '').length + 64;
+                            }
+                        } catch {
+                            estPayloadSize = Number.MAX_SAFE_INTEGER;
+                        }
+                        if (estPayloadSize > LIVE_SAVE_PAYLOAD_CAP) {
+                            const sizeMb = (estPayloadSize / 1024 / 1024).toFixed(1);
+                            console.warn(`[LiveSaveCoordinator] live-save payload ~${sizeMb}MB exceeds ${(LIVE_SAVE_PAYLOAD_CAP / 1024 / 1024).toFixed(0)}MB cap; refusing to send oversized message for ${nid}`);
+                            notifyLiveSaveWarning('payload_too_large');
+                            return false;
+                        }
                         const resp = await new Promise<any>((resolve) => {
                             chrome.runtime.sendMessage({
                                 action: 'liveSaveViaHandle',
@@ -209,11 +237,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                                     safeTitle,
                                     nid,
                                     config,
-                                    assets: collectedAssets.map(a => ({
-                                        fileName: a.fileName,
-                                        subDir: a.subDir || 'assets',
-                                        base64: a.base64 || (a.buffer ? arrayBufferToBase64(a.buffer) : '')
-                                    }))
+                                    assets: assetsPayload
                                 }
                             }, (r) => {
                                 if (chrome.runtime.lastError) {
@@ -403,12 +427,15 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
 
     if (targets.size === 0) return [];
 
-    // 2. Concurrently fetch and persist images
+    // 2. Fetch and persist images with bounded concurrency.
+    // P1-029: the old unbounded Promise.allSettled over every image target
+    // could fire dozens of simultaneous fetches on image-heavy chats.
+    const IMAGE_FETCH_CONCURRENCY = 4;
     const targetList = Array.from(targets.values());
     const fetcher = getAssetFetcher();
     const collectedAssets: Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }> = [];
 
-    await Promise.allSettled(targetList.map(async (target) => {
+    const processOneTarget = async (target: any): Promise<void> => {
         try {
             const res = await (fetcher && typeof fetcher.fetchImageBuffer === 'function'
                 ? fetcher.fetchImageBuffer(target.url, 12000)
@@ -444,7 +471,22 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
                 console.warn('[LiveSaveCoordinator] Error saving image asset:', target.url, err);
             }
         }
-    }));
+    };
+
+    {
+        let next = 0;
+        const workers: Promise<void>[] = [];
+        const workerCount = Math.min(IMAGE_FETCH_CONCURRENCY, targetList.length);
+        for (let w = 0; w < workerCount; w++) {
+            workers.push((async () => {
+                while (next < targetList.length) {
+                    const target = targetList[next++];
+                    await processOneTarget(target);
+                }
+            })());
+        }
+        await Promise.allSettled(workers);
+    }
 
     // 3. Rewrite in-memory conversation references for successfully saved assets
     const savedMap = new Map<string, string>();

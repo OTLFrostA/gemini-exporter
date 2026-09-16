@@ -39,7 +39,27 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
 
     if (typeof w.__gemExporterDeepScanPromise === 'undefined') w.__gemExporterDeepScanPromise = null;
 
+    // P1-026: cross-bundle cleanup registry. The previously injected bundle
+    // registered its OWN teardown functions here at the end of its init, so
+    // run them now — calling the new bundle's PageObserver.cleanup() cannot
+    // reach the old bundle's module state (observers, listeners, timers).
+    const runPreviousBundleCleanups = () => {
+        const fns = Array.isArray(w.__gemExporterCleanups) ? w.__gemExporterCleanups : [];
+        w.__gemExporterCleanups = [];
+        for (const fn of fns) {
+            try {
+                if (typeof fn === 'function') fn();
+            } catch (e) {
+                if (typeof console !== 'undefined' && console.warn) console.warn('[Gemini Exporter] previous bundle cleanup failed', e);
+            }
+        }
+    };
+
     if (w.__gemExporterInjected) {
+        // Newest first: the previous (fixed) bundle's registered cleanups.
+        runPreviousBundleCleanups();
+        // Fallback for bundles that predate the registry: best-effort cleanup
+        // with the current bundle's module instances.
         try {
             document.getElementById('geminiExportBadge')?.remove();
         } catch {
@@ -165,14 +185,32 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
     }
 
     // Initialize Message Router
+    // P1-026: capture the chrome.runtime.onMessage listener this bundle's
+    // Router.init registers, so a later re-inject can remove exactly this
+    // function (re-injecting otherwise stacks duplicate router listeners).
+    let routerMessageListener: ((msg: any, sender: any, sendResponse: any) => any) | null = null;
     if (Router && Router.init) {
-        Router.init({
-            syncEngine: Sync,
-            scraper: Scraper,
-            assets: Assets,
-            storage: Storage,
-            utils: Utils
-        });
+        const onMessageApi = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) || null;
+        const origAddListener = onMessageApi ? onMessageApi.addListener.bind(onMessageApi) : null;
+        if (onMessageApi && origAddListener) {
+            (onMessageApi as any).addListener = (fn: any) => {
+                routerMessageListener = fn;
+                return origAddListener(fn);
+            };
+        }
+        try {
+            Router.init({
+                syncEngine: Sync,
+                scraper: Scraper,
+                assets: Assets,
+                storage: Storage,
+                utils: Utils
+            });
+        } finally {
+            if (onMessageApi && origAddListener) {
+                (onMessageApi as any).addListener = origAddListener;
+            }
+        }
     }
 
     async function autoInitSync(): Promise<void> {
@@ -202,6 +240,34 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
             ensureBadge();
             autoInitSync();
         }, { once: true });
+    }
+
+    // P1-026: register THIS bundle's teardown so the next re-inject can tear
+    // down this bundle's actual module state (not the next bundle's).
+    try {
+        const cleanups: Array<() => void> = [];
+        cleanups.push(() => { try { PageObserver && (PageObserver as any).cleanup && (PageObserver as any).cleanup(); } catch { /* best effort */ } });
+        cleanups.push(() => { try { LiveSaveObserver && (LiveSaveObserver as any).cleanup && (LiveSaveObserver as any).cleanup(); } catch { /* best effort */ } });
+        cleanups.push(() => { try { (contentContext as any).clearAllTimers && (contentContext as any).clearAllTimers(); } catch { /* best effort */ } });
+        cleanups.push(() => {
+            try {
+                const fn = routerMessageListener;
+                if (fn && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+                    chrome.runtime.onMessage.removeListener(fn as any);
+                }
+            } catch { /* best effort */ }
+        });
+        cleanups.push(() => {
+            try {
+                if (Bridge && (Bridge as any).handleWindowMessage && typeof window !== 'undefined') {
+                    window.removeEventListener('message', (Bridge as any).handleWindowMessage);
+                }
+            } catch { /* best effort */ }
+        });
+        cleanups.push(() => { try { document.getElementById('geminiExportBadge')?.remove(); } catch { /* best effort */ } });
+        w.__gemExporterCleanups = (Array.isArray(w.__gemExporterCleanups) ? w.__gemExporterCleanups : []).concat(cleanups);
+    } catch {
+        /* intentional: registry is best-effort */
     }
 
     console.log('[Gemini Exporter Content Coordinator] ready');
