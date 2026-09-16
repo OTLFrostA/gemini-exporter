@@ -7,13 +7,30 @@ export { getStoredDirHandle, saveStoredDirHandle };
 
 let currentDirHandle: any = null;
 
-export async function verifyDirPermission(handle: any): Promise<boolean> {
-    if (!handle) return false;
+export async function verifyDirPermission(handle: any, options?: { allowRequest?: boolean }): Promise<boolean> {
+    const r = await verifyDirPermissionDetailed(handle, options);
+    return r.ok;
+}
+
+interface DirVerifyResult { ok: boolean; notFound: boolean; }
+
+async function verifyDirPermissionDetailed(handle: any, options?: { allowRequest?: boolean }): Promise<DirVerifyResult> {
+    if (!handle) return { ok: false, notFound: false };
     try {
         const opts = { mode: 'readwrite' };
+        // P1-119(a): never call requestPermission without a user gesture —
+        // on restore it either throws or pops a confusing prompt. Restore
+        // paths only query; a real user-gesture handler may pass
+        // { allowRequest: true }, and transient activation is honored too.
+        const hasActivation = typeof navigator !== 'undefined' &&
+            !!(navigator as any).userActivation && (navigator as any).userActivation.isActive;
         if ((await handle.queryPermission(opts)) !== 'granted') {
-            if ((await handle.requestPermission(opts)) !== 'granted') {
-                return false;
+            if ((options && options.allowRequest) || hasActivation) {
+                if ((await handle.requestPermission(opts)) !== 'granted') {
+                    return { ok: false, notFound: false };
+                }
+            } else {
+                return { ok: false, notFound: false };
             }
         }
         // Physical existence check:
@@ -22,12 +39,13 @@ export async function verifyDirPermission(handle: any): Promise<boolean> {
         for await (const _ of handle.keys()) {
             break;
         }
-        return true;
+        return { ok: true, notFound: false };
     } catch (e: any) {
-        if (e?.name === 'NotFoundError' || e?.message?.includes('not be found')) {
+        const notFound = e?.name === 'NotFoundError' || e?.message?.includes('not be found');
+        if (notFound) {
             console.warn('[DirHandleController] Target directory was deleted from disk:', e);
         }
-        return false;
+        return { ok: false, notFound };
     }
 }
 
@@ -35,12 +53,20 @@ export async function restoreSavedDirHandle(): Promise<any> {
     try {
         const handle = await getStoredDirHandle();
         if (handle) {
-            const ok = await verifyDirPermission(handle);
-            if (!ok) {
+            // Restore path: requestPermission is only attempted when the
+            // browser reports transient user activation (see above).
+            const r = await verifyDirPermissionDetailed(handle);
+            if (!r.ok) {
                 currentDirHandle = null;
-                // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
-                await saveStoredDirHandle(null);
-                console.warn('[DirHandle] Restored handle invalid or deleted on disk, cleared from storage');
+                // P1-119(b): only drop the persisted handle on a CONFIRMED
+                // NotFoundError. A transient 'prompt' permission state is not
+                // proof the directory is gone — keep it for the next
+                // user-gesture attempt instead of forcing a re-pick.
+                if (r.notFound) {
+                    // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
+                    await saveStoredDirHandle(null);
+                    console.warn('[DirHandle] Restored handle invalid or deleted on disk, cleared from storage');
+                }
                 return null;
             }
             currentDirHandle = handle;
