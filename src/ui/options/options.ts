@@ -153,11 +153,36 @@ export async function initWorkbench(): Promise<void> {
 
 export const initOptionsApp = initWorkbench;
 
+// P1-122: initWorkbench() is async — a rejection during startup used to
+// become an unhandled promise rejection (invisible failure, blank panel).
+// Both boot paths go through this guarded starter.
+function startWorkbench(): void {
+    try {
+        const p = initWorkbench();
+        if (p && typeof (p as Promise<void>).catch === 'function') {
+            (p as Promise<void>).catch((e) => {
+                console.error('[workbench] initWorkbench failed', e);
+                try {
+                    const el = typeof document !== 'undefined' ? document.getElementById('logList') : null;
+                    if (el) {
+                        const div = document.createElement('div');
+                        div.className = 'log-line log-error';
+                        div.textContent = `工作台初始化失败: ${(e && (e as Error).message) || e}`;
+                        el.prepend(div);
+                    }
+                } catch { /* last-resort: console.error above already recorded it */ }
+            });
+        }
+    } catch (e) {
+        console.error('[workbench] initWorkbench threw synchronously', e);
+    }
+}
+
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initWorkbench);
+        document.addEventListener('DOMContentLoaded', startWorkbench);
     } else {
-        initWorkbench();
+        startWorkbench();
     }
 }
 

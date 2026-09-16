@@ -22,8 +22,6 @@ import {
     getEffectiveTimestamp,
     compareConversations
 } from '../../../core/utils/utils.js';
-import { SessionStore } from '../../../core/storage/sessionStore.js';
-import { getExtensionVersion } from '../../../core/utils/constants.js';
 
 export { normId, cleanTitle, isRealTitle, resolveTitle, compareConversations };
 export const getEffectiveTime = getEffectiveTimestamp;
@@ -74,7 +72,7 @@ export async function checkExportSession(): Promise<void> {
         const Store = getStore();
         if (!Dialogs || !Dialogs.renderExportBanner) return;
         const isRunning = Controller ? Controller.isRunning() : false;
-        const session = await SessionStore.getSession();
+        const { gemini_last_export_session: session } = await chrome.storage.local.get(['gemini_last_export_session']);
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         Dialogs.renderExportBanner(session, slot, isRunning);
     } catch (e) {
@@ -159,6 +157,12 @@ export async function loadStore(force: boolean = false): Promise<any> {
         }
     } catch (e) {
         console.error('[workbench:init] loadStore error', e);
+        // P1-121: a loadStore failure used to be invisible outside devtools.
+        // Surface it in the UI log so the user can see and report it.
+        try {
+            const msg = e instanceof Error ? e.message : String(e);
+            log(`${typeof t === 'function' ? t('loadStoreFailed', msg) : `加载会话列表失败: ${msg}`}`, 'error');
+        } catch { /* log view not ready — console.error above already recorded it */ }
     }
 }
 
@@ -222,7 +226,7 @@ function initHeaderVersion(): void {
     const verEl = $('ver');
     if (verEl) {
         try {
-            verEl.textContent = 'v' + getExtensionVersion();
+            verEl.textContent = 'v' + (chrome.runtime.getManifest()?.version || (typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3'));
         } catch (e) {
             if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:optionsInit]', e);
         }
