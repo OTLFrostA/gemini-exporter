@@ -518,7 +518,6 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
             const CONCURRENCY = Math.max(1, typeof options.concurrency === 'number' ? options.concurrency : 3);
             let nextIndex = 0;
             let completedCount = skipped;
-            let convsNeedSave = false;
 
             const exportWorker = async () => {
                 while (nextIndex < payloadIds.length && !this.aborted && !(abortSignal && abortSignal.aborted)) {
@@ -596,8 +595,6 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                         ? await worker.resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
                         : { chat, listTitle: chat.title, displayTitle: chat.title, isError: false, errMsg: null, isConfirmedDeleted: false, convsNeedSave: false };
 
-                    if (resolvedRes.convsNeedSave) convsNeedSave = true;
-
                     if (resolvedRes.isError) {
                         failedChats.push({ id: chat.id || nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chat._debug || null, raw: chat._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
                         if (typeof console !== 'undefined' && console.warn) {
@@ -613,9 +610,31 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                     chat.title = listTitle;
 
                     const actualMsgCount = Array.isArray(chat.messages) ? chat.messages.length : (chat.messageCount || 0);
+                    let needUpdateStorage = !!resolvedRes.convsNeedSave;
                     if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
                         listC.messageCount = actualMsgCount;
-                        convsNeedSave = true;
+                        needUpdateStorage = true;
+                    }
+
+                    if (needUpdateStorage) {
+                        const storageService = Storage || (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : null);
+                        if (storageService && typeof storageService.updateConversation === 'function') {
+                            try {
+                                await storageService.updateConversation(currentSlot, nid, (existing: any) => {
+                                    if (listC) {
+                                        if (listC.title) existing.title = listC.title;
+                                        if (listC.titleSource) existing.titleSource = listC.titleSource;
+                                        if (listC.titles) existing.titles = { ...(existing.titles || {}), ...listC.titles };
+                                        if (listC.messageCount) existing.messageCount = listC.messageCount;
+                                    }
+                                    return existing;
+                                });
+                            } catch (err) {
+                                if (typeof console !== 'undefined' && console.warn) {
+                                    console.warn('[Gemini Exporter] atomic updateConversation failed for', nid, err);
+                                }
+                            }
+                        }
                     }
 
                     const ChatFormatter = (globalThis as any).ChatFormatter;
@@ -802,15 +821,6 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                 exportWorkers.push(exportWorker());
             }
             await Promise.all(exportWorkers);
-
-            if (convsNeedSave) {
-                if (Storage) {
-                    await Storage.setConversations(slot, conversations);
-                } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-                    chrome.storage.local.set({ [convKey]: conversations });
-                }
-            }
 
             attachmentQueue.close();
             try {
