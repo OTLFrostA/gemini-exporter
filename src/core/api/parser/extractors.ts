@@ -62,6 +62,7 @@ export interface GeminiParserExtractorsModule {
     GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
     RESEARCH_PROMPT_PREFIX_RE: RegExp;
     detectTurnSchemaDrift: (turn: unknown, convId?: string) => TurnDriftReport;
+    hasTurnContentMarkers: (turn: unknown[]) => boolean;
     extractModelCandidates: (turn: unknown) => unknown[];
     extractCandidateText: (cand: unknown) => string;
     safeStructureClean: (str?: string | null) => string;
@@ -85,6 +86,7 @@ declare global {
     var GeminiParserExtractors: GeminiParserExtractorsModule;
     var GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
     var detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
+    var hasTurnContentMarkers: (turn: any) => boolean;
 }
 
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
@@ -165,6 +167,40 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
     }
 
     /**
+     * P1-062: turn 内容标记的结构化检查（isTurn 的判据实现，单源定义，
+     * parseDetail.ts 的 isTurn 与本文件的 detectTurnSchemaDrift 共用）。
+     * 有界结构化扫描：在 turn 内找 rc_/c_d 前缀的真实形态标记；
+     * 不做全量序列化；budget 防止病态深层结构拖慢。
+     */
+    function hasTurnContentMarkers(turn: unknown[]): boolean {
+        // 快速路径：user payload 本身是数组即视为 turn（原逻辑的最后一个析取项，无需序列化）
+        if (Array.isArray(turn[2])) return true;
+        // candidate id 的 rc_ 前缀（结构化位置检查，不扫全量文本）
+        const modelPayload = turn[3];
+        if (Array.isArray(modelPayload)) {
+            const cands = modelPayload[0];
+            if (Array.isArray(cands)) {
+                for (const c of cands) {
+                    if (Array.isArray(c) && typeof c[0] === "string" && c[0].startsWith("rc_")) return true;
+                }
+            }
+        }
+        let budget = 2000;
+        const stack: unknown[] = [turn];
+        while (stack.length && budget > 0) {
+            const node = stack.pop();
+            if (typeof node === "string") {
+                budget--;
+                // 只认前缀形态（"rc_xxx"/"c_d..."），不再用近乎恒真的子串 "r_" 判据
+                if (node.startsWith("rc_") || node.startsWith("c_d")) return true;
+            } else if (Array.isArray(node)) {
+                for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+            }
+        }
+        return false;
+    }
+
+    /**
      * Validates turn structure against GEMINI_JSPB_SCHEMA and flags protocol drifts
      */
     function detectTurnSchemaDrift(turn: unknown, convId?: string): TurnDriftReport {
@@ -184,6 +220,11 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
         }
         if (!idStr || (!idStr.startsWith("c_") && !idStr.startsWith("r_"))) {
             warnings.push(`Turn ID meta at index 0 does not match expected pattern: ${JSON.stringify(head)?.slice(0, 30)}`);
+        } else if (!hasTurnContentMarkers(turn)) {
+            // P1-062 visibility: 头匹配 c_/r_ 但内容标记检查失败 → isTurn 会拒绝该 turn。
+            // 匹配严格度不变，只记一条可见警告（进 _debug.schemaDriftWarnings 与 schemaDrift
+            // 诊断字段，不中断导出），不再静默丢弃整段 turn。
+            warnings.push(`Turn head '${idStr.slice(0, 32)}' matches turn-id pattern but no rc_/c_d content markers found; isTurn() rejects this element (treated as non-turn)`);
         }
 
         const userPayload = turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
@@ -455,8 +496,24 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
                 if (Array.isArray(t) && typeof t[0] === "string" && t[0].startsWith("c_")) return t[0];
             }
         }
-        let flat = JSON.stringify(inner).match(/"c_[a-zA-Z0-9_-]{8,64}"/);
-        if (flat) return flat[0].replace(/"/g, "");
+        // P1-073: 回退路径改用有界深搜找完整格式的会话 ID，
+        // 替代 JSON.stringify(inner) 全量序列化（大会话内存翻倍，只为提取一个 ID）。
+        const CONV_ID_STRICT_RE = /^c_[a-zA-Z0-9_-]{8,64}$/;
+        let foundId: string | null = null;
+        deepWalk(inner, (node) => {
+            if (foundId) return false;
+            if (Array.isArray(node)) {
+                for (const el of node) {
+                    if (typeof el === "string" && CONV_ID_STRICT_RE.test(el)) { foundId = el; return false; }
+                }
+            } else if (node && typeof node === "object") {
+                for (const k in (node as Record<string, unknown>)) {
+                    const v = (node as Record<string, unknown>)[k];
+                    if (typeof v === "string" && CONV_ID_STRICT_RE.test(v)) { foundId = v; return false; }
+                }
+            }
+        });
+        if (foundId) return foundId;
         return "c_unknown";
     }
 
@@ -544,7 +601,9 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
-        let candidates = [turnData[4], turnData[5], turnData[turnData.length - 1]];
+        // P1-067: schema 声明 TURN.TIMESTAMP = 1（[seconds, nanos]），旧代码只看 4/5/末位
+        // 与 schema 自相矛盾。把下标 1 放第一候选，4/5/末位保留为兼容回退。
+        let candidates = [turnData[1], turnData[4], turnData[5], turnData[turnData.length - 1]];
         for (let candidate of candidates) {
             let ms = payloadToMs(candidate);
             if (ms !== null) return ms;
@@ -556,6 +615,7 @@ export {
     GEMINI_JSPB_SCHEMA,
     RESEARCH_PROMPT_PREFIX_RE,
     detectTurnSchemaDrift,
+    hasTurnContentMarkers,
     extractModelCandidates,
     extractCandidateText,
     safeStructureClean,
@@ -579,6 +639,7 @@ export const GeminiParserExtractors: GeminiParserExtractorsModule = {
     GEMINI_JSPB_SCHEMA,
     RESEARCH_PROMPT_PREFIX_RE,
     detectTurnSchemaDrift,
+    hasTurnContentMarkers,
     extractModelCandidates,
     extractCandidateText,
     safeStructureClean,
@@ -602,6 +663,7 @@ if (typeof globalThis !== 'undefined') {
     (globalThis as any).GeminiParserExtractors = GeminiParserExtractors;
     (globalThis as any).GEMINI_JSPB_SCHEMA = GEMINI_JSPB_SCHEMA;
     (globalThis as any).detectTurnSchemaDrift = detectTurnSchemaDrift;
+    (globalThis as any).hasTurnContentMarkers = hasTurnContentMarkers;
 }
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
 
