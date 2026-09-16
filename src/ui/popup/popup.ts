@@ -13,6 +13,7 @@ import {
     normId
 } from '../../core/utils/pathUtils.js';
 import { $, getI18n } from '../uiCommon.js';
+import { sendTypedMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
 
 const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
@@ -221,13 +222,11 @@ const log = (msg: string): void => {
             log(typeof i18n !== 'undefined' ? i18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
             ProgressView.update(40);
 
-            chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: convId, accountSlot: slot }, async (res) => {
+            // S3: 40s timeout (tab RPC underneath defaults to 25s). A lost
+            // response previously left the P1-123 export guard locked.
+            sendTypedMessage({ action: 'fetchChat', conversationId: convId, accountSlot: slot }, 40000).then(async (res: any) => {
                 // P1-123: release the guard only when this async flow ends.
                 try {
-                if (chrome.runtime.lastError) {
-                    log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', chrome.runtime.lastError.message) : ('抓取失败: ' + chrome.runtime.lastError.message));
-                    return;
-                }
                 if (!res || !res.success) {
                     log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: ' + (res?.error || '未知错误')));
                     return;
@@ -291,6 +290,9 @@ const log = (msg: string): void => {
                 } finally {
                     __releaseExportGuard();
                 }
+            }).catch((err: any) => {
+                __releaseExportGuard();
+                log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', err?.message || String(err)) : ('抓取失败: ' + (err?.message || String(err))));
             });
         } catch (e: any) {
             __releaseExportGuard();

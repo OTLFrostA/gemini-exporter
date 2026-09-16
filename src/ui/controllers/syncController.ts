@@ -2,6 +2,7 @@ import type { SyncControllerContract } from '../../types/ui.js';
 import GeminiProtocol, { LIMITS } from '../../core/protocol/protocol.js';
 import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
+import { sendTypedMessage } from '../../core/utils/messaging.js';
 
 let scanRunning = false;
 
@@ -48,16 +49,13 @@ function _runScan(
     setScanRunning(true);
     if (onStart) onStart();
 
-    chrome.runtime.sendMessage({ action: 'deepScan', mode, accountSlot: slot || 'u0' }, (res: any) => {
+    // S3: the UI->background hop needs its own timeout, slightly above the
+    // tab RPC timeout the background applies (300s for full/auto, 90s for
+    // incremental). Previously a lost response left scanRunning stuck true
+    // forever because setScanRunning(false) lived only inside the callback.
+    const uiTimeoutMs = mode === 'full' ? 330000 : 120000;
+    sendTypedMessage({ action: 'deepScan', mode, accountSlot: slot || 'u0' }, uiTimeoutMs).then((res: any) => {
         setScanRunning(false);
-
-        if (chrome.runtime.lastError) {
-            const err = chrome.runtime.lastError.message || '';
-            const errMsg = formatSyncErrorMessage(err);
-            if (onLog) onLog(errMsg, 'error');
-            if (onError) onError(new Error(err), errMsg);
-            return;
-        }
 
         const slidingLimit = (typeof GeminiProtocol !== 'undefined' && GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 500;
         const hitGoogleLimit = !!(
@@ -86,6 +84,12 @@ function _runScan(
             if (onLog) onLog(errMsg, 'error');
             if (onError) onError(new Error(err), errMsg, { hitGoogleLimit, res });
         }
+    }).catch((err: any) => {
+        // Timeout / port error: never leave the UI stuck in "scanning".
+        setScanRunning(false);
+        const errMsg = formatSyncErrorMessage(err?.message || String(err));
+        if (onLog) onLog(errMsg, 'error');
+        if (onError) onError(err instanceof Error ? err : new Error(String(err)), errMsg);
     });
 }
 
