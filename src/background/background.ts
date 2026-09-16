@@ -114,7 +114,11 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
             action: 'getConversationDetail',
             conversationId: msg.id || msg.conversationId
         }, msg.accountSlot)
-            .then(r => sendResponse(r))
+            // S2: an undefined tab response must fail closed, never resolve
+            // the sender with an ambiguous empty value.
+            .then(r => sendResponse(r == null
+                ? { ok: false, success: false, error: 'empty response from gemini tab' }
+                : r))
             .catch(e => sendResponse({ success: false, error: e?.message }));
         return true;
     }
@@ -221,5 +225,9 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         return true;
     }
 
+    // NOTE (S2): unknown actions intentionally fall through with
+    // `return false` ("not for me") — entrypoints.test.ts locks this
+    // contract. Senders must only await responses for actions this router
+    // owns; fire-and-forget broadcasts need no response.
     return false;
 });
