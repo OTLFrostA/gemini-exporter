@@ -32,7 +32,8 @@ class TestContext:
         output_dir: Optional[str] = None,
         dataset: Optional[Any] = None,
         delay: int = 6,
-        takeout_zip: Optional[str] = None
+        takeout_zip: Optional[str] = None,
+        pop_scenarios: bool = False
     ):
         self.port = port
         self.worktree_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -52,20 +53,27 @@ class TestContext:
             repo_path=self.worktree_root
         )
 
+        self._dataset_arg = dataset
+        self.scenarios = []
         if isinstance(dataset, dict) and "scenarios" in dataset:
             self.scenarios = dataset["scenarios"]
         elif isinstance(dataset, list) and dataset:
             self.scenarios = dataset
-        else:
-            print("🏊 [场景池调度] 从在线对话池中提取 2 个最新多模态场景 (1个Imagen生图 + 1个深度推演)...")
-            sc_img = self.provider.pop_scenario(required_features=["imagen"], min_turns=2)
-            sc_text = self.provider.pop_scenario(min_turns=2)
-            self.scenarios = [sc_img, sc_text]
-
         self._ext_id: Optional[str] = None
         self.chat_records: List[Dict[str, Any]] = []
         self.shared_data: Dict[str, Any] = {}
         os.makedirs(self.output_dir, exist_ok=True)
+
+        if pop_scenarios:
+            self.ensure_scenarios()
+
+    def ensure_scenarios(self) -> List[Dict[str, Any]]:
+        if not self.scenarios:
+            print("🏊 [场景池调度] 从在线对话池中提取 2 个最新多模态场景 (1个Imagen生图 + 1个深度推演)...")
+            sc_img = self.provider.pop_scenario(required_features=["imagen"], min_turns=2)
+            sc_text = self.provider.pop_scenario(min_turns=2)
+            self.scenarios = [sc_img, sc_text]
+        return self.scenarios
 
     @property
     def ext_id(self) -> Optional[str]:
@@ -185,13 +193,71 @@ class DAGRunner:
 
         return order
 
-    def run(self, ctx: TestContext) -> bool:
-        """按拓扑顺序调度执行用例"""
+    def get_ancestors(self, target_ids: List[str]) -> List[str]:
+        """获取目标特性的所有直接与间接前置节点集合（包含目标本身）"""
+        ancestors: List[str] = []
+        visited = set()
+        queue = list(target_ids)
+
+        for tid in target_ids:
+            if tid in self.cases and tid not in visited:
+                visited.add(tid)
+                ancestors.append(tid)
+
+        while queue:
+            curr = queue.pop(0)
+            case = self.cases.get(curr)
+            if not case:
+                continue
+            for prereq in case.prerequisites:
+                if prereq in self.cases and prereq not in visited:
+                    visited.add(prereq)
+                    ancestors.append(prereq)
+                    queue.append(prereq)
+        return ancestors
+
+    def prune_subgraph(self, target_ids: List[str]) -> List[FeatureTestCase]:
+        """
+        子图剪枝：根据指定的目标特性列表，推导最小前置依赖闭包，
+        并返回拓扑排序后的最小执行序列。
+        """
+        if not target_ids:
+            return self.get_execution_order()
+
+        valid_targets = [tid for tid in target_ids if tid in self.cases]
+        if not valid_targets:
+            print(f"⚠️ 指定的目标特性均不在已注册用例中: {target_ids}")
+            return []
+
+        active_fids = set(self.get_ancestors(valid_targets))
+        full_order = self.get_execution_order()
+        subgraph_order = [case for case in full_order if case.feature_id in active_fids]
+
+        pruned = [case.feature_id for case in full_order if case.feature_id not in active_fids]
+        if pruned:
+            print(f"✂️ [DAG 子图剪枝] 已自动剔除 {len(pruned)} 个非关联重型节点:")
+            for pfid in pruned[:8]:
+                print(f"   🚫 剪枝跳过: [{pfid}]")
+            if len(pruned) > 8:
+                print(f"   ... 以及其他 {len(pruned) - 8} 个节点")
+
+        return subgraph_order
+
+    def run(self, ctx: TestContext, target_ids: Optional[List[str]] = None) -> bool:
+        """按拓扑顺序调度执行用例（支持目标子图剪枝）"""
         # 同步特性至 registry
         for case in self.cases.values():
             ctx.registry.register(case.to_feature())
 
-        ordered_cases = self.get_execution_order()
+        if target_ids:
+            ordered_cases = self.prune_subgraph(target_ids)
+            # 记录被剪枝的节点为 SKIP
+            pruned_ids = [fid for fid in self.cases if fid not in {c.feature_id for c in ordered_cases}]
+            for pid in pruned_ids:
+                ctx.registry.record_result(pid, TestStatus.SKIP, 0.0, "子图剪枝免除执行")
+        else:
+            ordered_cases = self.get_execution_order()
+
         print(f"📋 [DAG 调度器] 解析拓扑依赖完成，执行序列包含 {len(ordered_cases)} 个用例。")
 
         for idx, case in enumerate(ordered_cases, 1):
@@ -244,7 +310,7 @@ class DAGRunner:
 
         # 校验关键特性
         has_failed_critical = False
-        for case in self.cases.values():
+        for case in ordered_cases:
             if case.critical:
                 res = ctx.registry.get_result(case.feature_id)
                 if not res or res.status != TestStatus.PASS:
