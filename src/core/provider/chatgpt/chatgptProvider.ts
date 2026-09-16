@@ -169,7 +169,7 @@ export function flattenChatGPTMapping(raw: any, conversationId?: string): Provid
         title,
         titleSource: 'api-detail',
         titles: {
-            rpc: title
+            'api-detail': title
         },
         messages,
         createdAt: createMs,

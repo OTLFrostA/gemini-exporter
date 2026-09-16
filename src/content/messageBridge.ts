@@ -5,6 +5,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
 import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
+import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
 export interface MessageBridgeDeps {
@@ -123,8 +124,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 const existingList = storageInst ? await storageInst.getConversations(targetSlot) : [];
                                 const existingConv = (existingList || []).find((c: any) => normId(c.id) === nid);
                                 if (existingConv && (isRealTitle ? isRealTitle(existingConv.title, nid) : true)) {
-                                    const exRank = TITLE_TIER_RANK[existingConv.titleSource || 'default'] ?? 0;
-                                    const sniffRank = TITLE_TIER_RANK.sniff ?? 20;
+                                    const exRank = TITLE_TIER_RANK[((existingConv.titleSource as TitleSource) || 'default')];
+                                    const sniffRank = TITLE_TIER_RANK.sniff;
                                     if (exRank >= sniffRank) {
                                         title = existingConv.title;
                                         sourceTier = existingConv.titleSource || 'dom';

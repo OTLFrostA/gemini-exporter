@@ -4,22 +4,21 @@
  */
 
 export type TitleSource =
-    | 'sniff'
+    | 'rpc'
     | 'dom'
-    | 'user-edit'
     | 'takeout'
+    | 'sniff'
     | 'api-detail'
-    | 'api-list'
-    | 'url';
+    | 'legacy'
+    | 'default';
 
 export interface TitleSources {
-    sniff?: string;
+    rpc?: string;
     dom?: string;
-    'user-edit'?: string;
     takeout?: string;
+    sniff?: string;
     'api-detail'?: string;
-    'api-list'?: string;
-    url?: string;
+    legacy?: string;
     [key: string]: string | undefined;
 }
 
