@@ -78,6 +78,16 @@ export function init({
                             forceFull: msg.mode === 'full'
                         });
                     }
+                    if (!res) {
+                        // P1-020: a null scan result (already running / provider
+                        // unavailable) must never be reported as success.
+                        sendResponse({
+                            success: false,
+                            count: 0,
+                            error: 'deep scan did not produce a result (already running or provider unavailable)'
+                        });
+                        return;
+                    }
                     sendResponse({
                         success: true,
                         count: res?.count || 0,

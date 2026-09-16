@@ -201,6 +201,59 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
         }
     }
 
+    // P1-028: capped stream reader for hooked responses. The old code called
+    // cloned.text() which fully buffers arbitrarily large batchexecute
+    // payloads before broadcastBatchexecute sliced them to 3MB. Now at most
+    // ~3MB is ever read; environments without stream readers fall back to a
+    // bounded text() slice.
+    const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
+
+    async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
+        try {
+            const body: any = (response as any).body;
+            if (body && typeof body.getReader === 'function') {
+                const reader = body.getReader();
+                const chunks: Uint8Array[] = [];
+                let received = 0;
+                let truncated = false;
+                try {
+                    for (;;) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        if (value && value.length) {
+                            const room = cap - received;
+                            if (room <= 0) { truncated = true; break; }
+                            if (value.length > room) {
+                                chunks.push(value.slice(0, room));
+                                received += room;
+                                truncated = true;
+                                break;
+                            }
+                            chunks.push(value);
+                            received += value.length;
+                        }
+                    }
+                } finally {
+                    try {
+                        if (truncated && typeof reader.cancel === 'function') await reader.cancel();
+                    } catch (_) { /* best effort */ }
+                    try { reader.releaseLock(); } catch (_) { /* best effort */ }
+                }
+                const merged = new Uint8Array(received);
+                let off = 0;
+                for (const c of chunks) { merged.set(c, off); off += c.length; }
+                const decoded = (typeof TextDecoder !== 'undefined')
+                    ? new TextDecoder().decode(merged)
+                    : String.fromCharCode.apply(null, Array.from(merged.slice(0, 65536)) as number[]);
+                return { text: decoded, truncated };
+            }
+        } catch (e) {
+            if (isDev()) console.debug('[GemExporter:hook]', e);
+        }
+        const txt = await response.text();
+        return txt.length > cap ? { text: txt.slice(0, cap), truncated: true } : { text: txt, truncated: false };
+    }
+
     // Hook Fetch
     if (origFetch) {
         window.fetch = async function(...args: any[]) {
@@ -223,7 +276,8 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                 const u = (url || '').toString();
                 if (u.includes('batchexecute')) {
                     const cloned = response.clone();
-                    cloned.text().then((txt: string) => {
+                    // P1-028: capped read instead of unbounded cloned.text().
+                    readCappedText(cloned).then(({ text: txt }) => {
                         try {
                             detectDeletedConversation(url, body, txt);
                             broadcastBatchexecute(url, txt);
@@ -236,7 +290,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                 } else if (isStreamUrl(url)) {
                     try {
                         const cloned = response.clone();
-                        cloned.text().then((txt: string) => {
+                        readCappedText(cloned).then(({ text: txt }) => {
                             try {
                                 broadcastStreamComplete(url, body, txt);
                             } catch (e) {
