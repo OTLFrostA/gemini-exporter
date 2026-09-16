@@ -226,11 +226,38 @@ export { EXT_VERSION, getExtensionVersion };
             if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
                 await storageAdapter.saveExportRecord(slot, targetId, rec);
             } else if (storageAdapter && typeof storageAdapter.set === 'function') {
+                // Fallback: no saveExportRecord on this adapter. Do a
+                // best-effort read-modify-write with the canonical single key
+                // (P1-045) instead of the old blind overwrite, which could
+                // silently drop another tab's concurrently saved records.
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                await storageAdapter.set({ [expKey]: { ...(curIds || {}), [targetId]: rec, [targetNid]: rec, ['c_' + targetNid]: rec } });
+                const ck = normId(targetId);
+                let cur: Record<string, any> = { ...(curIds || {}) };
+                if (typeof storageAdapter.get === 'function') {
+                    try {
+                        const got = await storageAdapter.get(expKey);
+                        const m = got && (got[expKey] || got);
+                        if (m && typeof m === 'object') cur = m;
+                    } catch { /* keep the in-memory snapshot */ }
+                }
+                const next = { ...cur };
+                delete next[targetId];
+                delete next[targetNid];
+                delete next['c_' + targetNid];
+                if (ck) next[ck] = rec;
+                await storageAdapter.set({ [expKey]: next });
             } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                // Same fallback directly against chrome.storage.local.
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                await chrome.storage.local.set({ [expKey]: { ...(curIds || {}), [targetId]: rec, [targetNid]: rec, ['c_' + targetNid]: rec } });
+                const ck = normId(targetId);
+                const got = await chrome.storage.local.get([expKey]);
+                const cur: Record<string, any> = (got && got[expKey] && typeof got[expKey] === 'object') ? got[expKey] : {};
+                const next: Record<string, any> = { ...cur };
+                delete next[targetId];
+                delete next[targetNid];
+                delete next['c_' + targetNid];
+                if (ck) next[ck] = rec;
+                await chrome.storage.local.set({ [expKey]: next });
             }
         } catch (e) {
             // P1-014: propagate the failure — the caller marks the chat as

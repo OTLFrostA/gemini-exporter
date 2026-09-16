@@ -218,67 +218,75 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
         try {
             const slot = targetSlot || getAccountSlot();
             const Storage = getStorage();
-            const existing = Storage ? await Storage.getConversations(slot) : [];
-            const map = new Map<string, any>();
-            existing.forEach((c: any) => {
-                if (!c || !c.id) return;
-                const nid = normId(c.id);
-                c.id = nid;
-                map.set(nid, c);
-            });
+            if (!Storage) return 0;
             const now = Date.now();
-            let changed = 0;
 
-            incomingItems.forEach((c, idx) => {
-                if (!c || !c.id) return;
-                const nid = normId(c.id);
-                c.id = nid;
-                const old = map.get(nid);
+            // Cross-tab: read + merge + write run atomically inside the storage
+            // transaction. The old shape read outside the lock, so two tabs
+            // could build on the same stale snapshot and the later write would
+            // silently discard the earlier tab's updates (lost update).
+            const tx = await Storage.transactConversations(slot, (existing: any[]) => {
+                const map = new Map<string, any>();
+                existing.forEach((c: any) => {
+                    if (!c || !c.id) return;
+                    const nid = normId(c.id);
+                    c.id = nid;
+                    map.set(nid, c);
+                });
+                let changed = 0;
 
-                const res = mergeConversation(old, c, {
-                    source,
-                    isRpcSource: source === 'network-list' || c.titleSource === 'rpc' || (typeof source === 'string' && source.startsWith('stream-')),
-                    targetSlot: slot
+                incomingItems.forEach((c, idx) => {
+                    if (!c || !c.id) return;
+                    const nid = normId(c.id);
+                    c.id = nid;
+                    const old = map.get(nid);
+
+                    const res = mergeConversation(old, c, {
+                        source,
+                        isRpcSource: source === 'network-list' || c.titleSource === 'rpc' || (typeof source === 'string' && source.startsWith('stream-')),
+                        targetSlot: slot
+                    });
+
+                    if (res.isChanged) {
+                        changed++;
+                    }
+
+                    res.merged.lastSeen = (c.lastSeen || (old && old.lastSeen) || new Date(now - idx).toISOString());
+                    res.merged.source = source || (old && old.source) || 'unknown';
+                    res.merged.accountSlot = slot;
+
+                    map.set(nid, res.merged);
                 });
 
-                if (res.isChanged) {
-                    changed++;
-                }
+                const merged = Array.from(map.values());
+                merged.sort(compareConversations);
 
-                res.merged.lastSeen = (c.lastSeen || (old && old.lastSeen) || new Date(now - idx).toISOString());
-                res.merged.source = source || (old && old.source) || 'unknown';
-                res.merged.accountSlot = slot;
-
-                map.set(nid, res.merged);
+                if (!forceWrite && changed === 0) return null;
+                return { list: merged, changed };
             });
 
-            const merged = Array.from(map.values());
-            merged.sort(compareConversations);
-
-            if (!forceWrite && changed === 0) {
-                if (__lastKnownCount !== merged.length) {
-                    updateBadge(merged.length, incomingItems.length);
-                    __lastKnownCount = merged.length;
+            const mergedLength = tx.list.length;
+            if (!tx.written) {
+                if (__lastKnownCount !== mergedLength) {
+                    updateBadge(mergedLength, incomingItems.length);
+                    __lastKnownCount = mergedLength;
                 }
-                return merged.length;
+                return mergedLength;
             }
 
-            if (Storage) {
-                await Storage.setConversations(slot, merged);
-                await Storage.setLastSync(slot, Date.now(), merged.length);
-                await Storage.updateAccountSlot(slot, {
-                    slot,
-                    name: slot === 'u0' ? 'Default Account (u0)' : `Account ${slot.toUpperCase()}`,
-                    count: merged.length,
-                    lastSync: new Date().toISOString()
-                });
-            }
+            await Storage.setLastSync(slot, Date.now(), mergedLength);
+            await Storage.updateAccountSlot(slot, {
+                slot,
+                name: slot === 'u0' ? 'Default Account (u0)' : `Account ${slot.toUpperCase()}`,
+                count: mergedLength,
+                lastSync: new Date().toISOString()
+            });
 
             try {
                 const p = chrome.runtime.sendMessage({
                     action: 'syncUpdate',
                     slot,
-                    count: merged.length,
+                    count: mergedLength,
                     newCount: incomingItems.length,
                     from: source
                 });
@@ -287,9 +295,9 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                 if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
             }
 
-            updateBadge(merged.length, incomingItems.length);
-            __lastKnownCount = merged.length;
-            return merged.length;
+            updateBadge(mergedLength, incomingItems.length);
+            __lastKnownCount = mergedLength;
+            return mergedLength;
         } catch (e: unknown) {
             const errMsg = getErrorMessage(e);
             if (errMsg.includes('Extension context invalidated')) return 0;
