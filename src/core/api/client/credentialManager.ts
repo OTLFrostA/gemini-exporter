@@ -1,6 +1,7 @@
 import GeminiProtocol, { GeminiProtocolModule, TOKEN_PATTERNS, TOKENS, BL_FALLBACK } from "../../protocol/protocol.js";
 import { detectSlotFromUrl } from "../../utils/pathUtils.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
+import { getCredStorage } from "./credStorage.js";
 
 export interface GeminiCredentials {
     sid: string;
@@ -111,13 +112,9 @@ function getProtocol(): GeminiProtocolModule {
         return "default";
     }
 
-    function getCredStorage(): any {
-        if (typeof chrome !== "undefined" && chrome.storage) {
-            if (chrome.storage.session) return chrome.storage.session;
-            return chrome.storage.local;
-        }
-        return null;
-    }
+    // getCredStorage is the shared resolver from ./credStorage.js (session
+    // preferred, local fallback after a "not allowed" session failure).
+    // It is re-exported below as part of the module surface.
 
     function normalizeLegacySingleCred(s: any, map: GeminiCredentialsMap): void {
         const legacy = s?.[STORAGE_KEYS.CREDENTIALS];
