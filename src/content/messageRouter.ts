@@ -16,6 +16,19 @@ const resolveProvider = () => {
     return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
 };
 
+// P1-006: asset URLs are fetched with the user's cookies (credentials:'include'),
+// so an unchecked msg.url would turn this content script into an arbitrary-URL
+// fetcher for any runtime-message sender. Only allow https URLs on Google
+// media/content hosts before handing them to AssetFetcher.
+function isAllowedAssetUrl(u: unknown): boolean {
+    if (typeof u !== 'string' || !u) return false;
+    let parsed: URL;
+    try { parsed = new URL(u); } catch { return false; }
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    return /(^|\.)(googleusercontent\.com|gstatic\.com|googleapis\.com|google\.com)$/.test(host);
+}
+
 export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
     scraper?: typeof DomScraper;
@@ -215,18 +228,21 @@ export function init({
         }
 
         if (msg.action === 'getFileBlob') {
+            if (!isAllowedAssetUrl(msg.url)) { sendResponse({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
             if (Assets) Assets.handleGetFileBlob(msg, sendResponse);
             else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'getImageBlob') {
+            if (!isAllowedAssetUrl(msg.url)) { sendResponse({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
             if (Assets) Assets.handleGetImageBlob(msg, sendResponse);
             else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'downloadAssetDirect') {
+            if (!isAllowedAssetUrl(msg.url)) { sendResponse({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
             if (Assets) Assets.downloadAssetDirect(msg, sendResponse);
             else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
             return true;

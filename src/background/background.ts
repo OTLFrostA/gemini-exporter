@@ -78,7 +78,20 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
 
     if (msg.action === 'reloadGeminiTab') {
         if (msg.tabId) {
-            chrome.tabs.reload(msg.tabId, () => sendResponse({ ok: true }));
+            // P1-009: only reload tabs that are actually Gemini pages — an
+            // unchecked tabId could reload any tab the extension can see.
+            chrome.tabs.get(msg.tabId, (tab) => {
+                if (chrome.runtime.lastError || !tab) {
+                    sendResponse({ ok: false, error: 'no such tab' });
+                    return;
+                }
+                const url = tab.url || '';
+                if (url.startsWith('https://gemini.google.com/')) {
+                    chrome.tabs.reload(msg.tabId, () => sendResponse({ ok: true }));
+                } else {
+                    sendResponse({ ok: false, error: 'not a gemini tab' });
+                }
+            });
         } else {
             chrome.tabs.query({ url: 'https://gemini.google.com/*' }, (tabs) => {
                 if (tabs && tabs.length > 0 && tabs[0].id != null) {
