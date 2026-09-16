@@ -123,7 +123,19 @@ export async function loadStore(force: boolean = false): Promise<any> {
             : { processed: (incoming || []).slice().sort(compareConversations), hasDirtyTitles: false };
 
         if ((hasDirtyTitles || processed.length !== (incoming || []).length) && Storage) {
-            Storage.setConversations(slot, processed).catch(() => {});
+            // SSOT: the normalize-then-write-back runs as an atomic transaction on
+            // the freshest stored list. Blind-writing `processed` (derived from a
+            // possibly stale UI snapshot) could clobber a concurrent tab's sync.
+            const writeBack = typeof Storage.transactConversations === 'function'
+                ? Storage.transactConversations(slot, (existing: any[]) => {
+                    const norm = Store.normalizeAndDeduplicate
+                        ? Store.normalizeAndDeduplicate(existing)
+                        : { processed: (existing || []).slice().sort(compareConversations), hasDirtyTitles: false };
+                    if (!norm.hasDirtyTitles && norm.processed.length === (existing || []).length) return null;
+                    return { list: norm.processed, changed: 1 };
+                })
+                : Storage.setConversations(slot, processed);
+            writeBack.catch(() => {});
         }
 
         Store.setConversations(processed);

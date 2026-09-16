@@ -9,8 +9,7 @@ import {
     isGeminiUrl,
     detectSlotFromUrl,
     extractConversationIdFromUrl,
-    buildExportFileName,
-    normId
+    buildExportFileName
 } from '../../core/utils/pathUtils.js';
 import { $, getI18n } from '../uiCommon.js';
 import { sendTypedMessage } from '../../core/utils/messaging.js';
@@ -278,11 +277,22 @@ const log = (msg: string): void => {
                         status: 'ok'
                     };
                     await Storage.saveExportRecord(slot, convId, rec);
-                    const list = await Storage.getConversations(slot);
-                    const item = list.find((c: any) => normId(c.id) === normId(convId));
-                    if (item && finalTitle !== convId && item.title !== finalTitle) {
-                        item.title = finalTitle;
-                        await Storage.setConversations(slot, list);
+                    // SSOT: title write-back goes through the title-tier arbitration
+                    // inside the conversation lock. The old shape raw-assigned
+                    // item.title and blind-wrote the list outside the lock: it could
+                    // clobber a concurrent tab's sync and let a lower-tier title
+                    // overwrite a higher-tier one.
+                    if (finalTitle !== convId && Storage && typeof Storage.updateConversation === 'function') {
+                        const tier = res && res.source === 'dom' ? 'dom' : 'rpc';
+                        await Storage.updateConversation(slot, convId, (current: any) => {
+                            if (!current) return null;
+                            const item = { ...current, titles: { ...(current.titles || {}) } };
+                            const beforeTitle = item.title;
+                            const beforeSource = item.titleSource;
+                            GeminiUtils.setTitleBySource(item, tier, finalTitle);
+                            if (item.title === beforeTitle && item.titleSource === beforeSource) return null;
+                            return { title: item.title, titleSource: item.titleSource, titles: item.titles };
+                        });
                     }
                 } catch (e) {
                     console.warn('[GemExporter:storage] Storage operation failed:', e);
