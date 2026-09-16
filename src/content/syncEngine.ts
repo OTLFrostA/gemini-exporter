@@ -524,8 +524,10 @@ export async function syncOnce(): Promise<number> {
 /**
  * 决定本次会话列表同步用增量还是全量 —— 还原为增量最根本的语义。
  *
- * 增量 = 从新往旧连续扫描，直到连续 5 条会话的服务端时间戳都没变化就停
- * （早退逻辑在 pagination.getAllConversations 里实现）。
+ * 增量 = 从新往旧连续扫描，直到本轮连续摄入区间与历史水位线闭环咬合才停。
+ * 停止判定在 ingestListBatch 里做（slice.minTimestamp <= checkpoint 时停并推进
+ * checkpoint）。旧的"连续 5 条未变化就停"分页兜底已被删除，
+ * 唯一的停止机制就是水位闭环。
  *
  * 不再做基线预判：无基线时所有条目都会被判"有变化"，扫描自然走到服务端
  * 尽头才停，等价于一次全量 —— 用条数 proxy 时间戳存在性的基线检查是多余的。
@@ -563,7 +565,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         const slot = getAccountSlot();
         resetSessionSlice(slot);
         const Storage = getStorage();
-        const beforeList = Storage ? await Storage.getConversations(slot) : [];
         const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
 
         const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
@@ -574,7 +575,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
 
         let stoppedByWatermark = false;
         let page1Batch: any[] = [];
-        let saveQueue = Promise.resolve<any>(0);
         // Typed as any: the registered Gemini provider spreads the full pagination
         // result (conversations/hitGoogleLimit/diagnostics) into the page shape
         // at runtime; the provider-neutral declared type is still stabilizing.
@@ -621,10 +621,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 }
             },
             targetSid: null,
-            incremental: !effectiveForceFull,
-            unchangedThreshold: 5
+            incremental: !effectiveForceFull
         });
-        await saveQueue;
 
         // If this was a full scan that finished naturally (not stopped by watermark, not aborted)
         if (effectiveForceFull && !stoppedByWatermark && !contentContext.isAborted()) {
@@ -642,7 +640,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         }
 
         if (all && all.conversations && all.conversations.length) {
-            // saveQueue already incrementally upserted each batch; avoid second full O(n log n) pass
+            // Each page batch was already incrementally upserted via onPageBatch;
+            // avoid a second full O(n log n) pass here.
             let mergedLen = all.conversations.length;
             // Absence from the fetched list only proves deletion when the listing is
             // provably complete. A Google ~600 sliding-window limit means the tail was
