@@ -22,6 +22,22 @@ export interface DeduplicateResult {
     hasDirtyTitles: boolean;
 }
 
+export type TimestampSource = 'scan' | 'sniff' | 'unknown';
+
+/**
+ * Map an upsert `source` string to the timestamp provenance it establishes.
+ * 'batchexecute' is only ever our own list-RPC scan (syncEngine list loop);
+ * 'network-list' is the page's own list response captured by the hook.
+ * Every other writer (detail fetch, DOM scrape, stream touch, takeout) does
+ * NOT establish scan provenance and must never launder a 'sniff' stamp into
+ * 'scan' — a same-value re-observation keeps the old stamp (see below).
+ */
+function timestampSourceForWriter(source: unknown): TimestampSource | null {
+    if (source === 'batchexecute') return 'scan';
+    if (source === 'network-list') return 'sniff';
+    return null;
+}
+
 /**
  * SSoT: Merge an incoming conversation into an existing conversation.
  * Accurately arbitrates multi-tier titles, dates/timestamps, message counts, and dirty title status.
@@ -136,6 +152,25 @@ export function mergeConversation(
         bestUpdatedAt = cUpdated || oldUpdated || null;
     }
 
+    // 1b. Timestamp provenance: the stamp follows the VALUE, and only moves on a
+    // strict increase. A same-value (or older) re-observation keeps the old stamp —
+    // this is load-bearing: letting a scan re-observe a sniffed value launder
+    // 'sniff' into 'scan' would reintroduce the fresh-install silent truncation
+    // (sniffed page 1 counting toward the incremental 5-streak).
+    let mergedTimestampSource: TimestampSource | undefined;
+    const writerStamp = timestampSourceForWriter(options?.source);
+    if (cUpdated && oldUpdated) {
+        if (cUpdated > oldUpdated && writerStamp) {
+            mergedTimestampSource = writerStamp;
+        }
+    } else if (cUpdated && !oldUpdated) {
+        // First timestamp ever seen (insert or backfill): stamp the writer.
+        if (writerStamp) {
+            mergedTimestampSource = writerStamp;
+        }
+    }
+    // else: no incoming timestamp, or not newer — keep old stamp via ...(old||{}).
+
     let cCreated: any = toTimestampMs(incoming?.createdAt);
     if (cCreated !== null && cCreated <= 0) cCreated = null;
 
@@ -223,6 +258,9 @@ export function mergeConversation(
         timestamp: bestTimestamp,
         updatedAt: bestUpdatedAt || bestTimestamp,
         createdAt: bestCreatedAt,
+        // Provenance set only when this merge established/advanced the value;
+        // undefined falls through to ...(old||{}) above, preserving the old stamp.
+        ...(mergedTimestampSource !== undefined ? { timestampSource: mergedTimestampSource } : {}),
         sidebarIndex: typeof incoming?.sidebarIndex === 'number'
             ? incoming.sidebarIndex
             : old?.sidebarIndex

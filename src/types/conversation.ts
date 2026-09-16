@@ -99,6 +99,15 @@ export interface Conversation {
      * Normalized timestamp in milliseconds (SSoT).
      */
     timestamp: number;
+    /**
+     * Provenance of `timestamp`/`updatedAt`: which writer last established the
+     * value. 'scan' = our own list-RPC scan (batchexecute); 'sniff' = page's
+     * own list response captured by the hook (network-list); 'unknown' = legacy
+     * records or writers that carry no timestamp. Incremental early-exit only
+     * counts 'scan' records: a sniffed timestamp proves the item is unchanged,
+     * not that the tail behind it was ever scanned.
+     */
+    timestampSource?: 'scan' | 'sniff' | 'unknown';
     updatedAt?: number | string;
     createdAt?: number | string;
     chatTime?: number | string;

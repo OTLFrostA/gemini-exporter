@@ -438,7 +438,12 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         if (all && all.conversations && all.conversations.length) {
             // saveQueue already incrementally upserted each batch; avoid second full O(n log n) pass
             let mergedLen = all.conversations.length;
-            const isFullExhaustive = !useIncremental && !all.stoppedEarly && !contentContext.isAborted();
+            // Absence from the fetched list only proves deletion when the listing is
+            // provably complete. A Google ~600 sliding-window limit means the tail was
+            // never fetched — reconciling against it would mass-delete still-alive
+            // older conversations, so the limit case must skip reconciliation.
+            const hitLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit);
+            const isFullExhaustive = !useIncremental && !all.stoppedEarly && !contentContext.isAborted() && !hitLimit;
             if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
                 const recRes = await Storage.reconcileConversations(slot, all.conversations, { keepTakeout: true });
                 if (recRes && recRes.removed > 0) {
