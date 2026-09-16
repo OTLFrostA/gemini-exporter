@@ -1,25 +1,5 @@
 [
   {
-    "id": "radio_astronomy_fast_radio_bursts",
-    "title": "射电天文学与天体物理：快速射电暴 (FRB) 色散测度推演与宇宙学探针",
-    "domain": "radio_astronomy_astrophysics",
-    "description": "测试等离子体色散关系推导、反色散相干算法实现与射电望远镜横向对比",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "physics"
-    ],
-    "turns": [
-      "请从等离子体色散关系 \\omega^2 = \\omega_p^2 + k^2 c^2 严格推导出快速射电暴（Fast Radio Burst, FRB）的脉冲到达时间延迟公式 \\Delta t \\approx \\frac{e^2}{2\\pi m_e c} \\nu^{-2} \\text{DM}，并明确色散测度（Dispersion Measure, DM）的物理定义。",
-      "请详细拆解实测 FRB 色散测度在银河系星际介质（\\text{DM}_{\\text{MW}}）、银河系银晕（\\text{DM}_{\\text{halo}}）、星系际介质（\\text{DM}_{\\text{IGM}}）以及宿主星系（\\text{DM}_{\\text{host}}）的分层贡献，并写出通过 Macquart 关系反演宇宙重子物质密度 \\Omega_b 的积分方程表达式。",
-      "请使用 Python 编写一段科学计算代码，利用 scipy 与 numpy 对给定的多频段宽带射电动态频谱（Dynamic Spectrogram / Waterfall data）进行反色散（De-dispersion）相干对齐变换，并绘制去色散前后的频响积分轮廓曲线。",
-      "请用一个 Markdown 表格，对比 FAST、CHIME、DSA-2000 和 SKA-1 Mid 四大射电天文望远镜在工作频段、视场（FoV）、角分辨率、FRB 探测率（Events/day）与毫角秒级精确宿主星系定位能力维度的关键指标。",
-      "简述周期性重复暴（如 FRB 121102 与 FRB 180916）的磁层耀斑模型与双星风相互作用模型之争，以及偏振角旋转与极高法拉第旋转测度（RM）突变对极端磁星环境的物理约束意义。"
-    ]
-  },
-  {
     "id": "photonic_quantum_computing_boson_sampling",
     "title": "光量子计算与玻色采样：高斯玻色采样 (GBS) 矩阵积态与量子优越性",
     "domain": "photonic_quantum_computing",
@@ -154,26 +134,6 @@
       "针对三体星群轨道动力学引起的臂长随时间线性变化 (呼吸效应 \\dot{L}_{ij} \neq 0)，推导能够同时消除相对论 Sagnac 效应与一阶臂长变化率的时变第二代 TDI-2.0 组合算子 \u0007lpha(t) 与 X_{2.0}(t) 的对易性条件。",
       "使用 Python 编写算法，基于代数张量表示，验证 TDI-1.0 与 TDI-2.0 X 组合在注入合成高斯白噪声与引力波连续正弦双星源信号后的激光相位噪声残余抑制比 (Noise Rejection Ratio)。",
       "使用 Markdown 表格对比地面干涉仪 (LIGO/Virgo/KAGRA)、空间干涉仪 (LISA/太极/天琴) 与脉冲星计时阵列 (PTA) 在探测频段 (Hz)、臂长尺度、主要噪声源限制及目标天体物理引力波波源分类。"
-    ]
-  },
-  {
-    "id": "deep_sea_hydrothermal_extremophile_genomics",
-    "domain": "deep_sea_hydrothermal_extremophile_genomics",
-    "title": "深海热液喷口极端嗜极生物基因组学与无光合成化能自养代谢",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "code",
-      "tables"
-    ],
-    "description": "测试还原性三羧酸循环 (rTCA) 热力学吉布斯自由能推导、嗜热菌酶结构耐高温机理、深海 Imagen 渲染与宏基因组分箱算法",
-    "turns": [
-      "在热力学平衡体系中，推导深海黑烟囱热液喷口环境下，化能自养嗜热古菌利用硫化氢 (H2S) 氧化与还原性三羧酸循环 (rTCA / Arnon-Buchanan cycle) 进行无光固碳反应的净摩尔吉布斯自由能变 \\Delta G^\\circ(T, P)，并分析超临界高水压 (P > 25 MPa) 对反应自发性的影响。",
-      "请生成一张超高画质、具有国家地理和水下摄影大片质感的深海图像：展现 3000 米深海海底漆黑无光的寂静深渊中，一座巨大的黑色矿物热液喷口（黑烟囱）正不断喷涌出滚滚翻腾的矿物浓烟与极高温含硫矿物黑水，喷口周围附着着大片白垩色与朱红色的巨型深海管虫群落（Riftia pachyptila），几只幽白发光的深海白螃蟹和盲虾穿梭其间，深海科考潜水器的强光探照灯打在喷口上，照亮了如梦似幻的悬浮颗粒与热液矿物晶体。",
-      "分析嗜超高温古菌 (如 Pyrococcus furiosus) 中关键代谢酶在 100°C 以上仍然保持催化活性的生物物理与结构机理，详述离子键网络 (Salt bridges)、疏水核心紧密度、二硫键交联以及脯氨酸引入对多肽链构象熵的稳定效应。",
-      "使用 Python 编写脚本，基于四核苷酸频率 (Tetranucleotide Frequency) 与共丰度 (Differential Coverage) 矩阵，实现一个基础的无监督宏基因组重叠群 (Contig) K-means / 高斯混合模型聚类分箱 (Binning) 算法。",
-      "使用 Markdown 表格对比化能无光合成的六大固碳代谢途径（Calvin 循环、还原性 TCA 循环、Wood-Ljungdahl 途径、3-羟基丙酸双循环、二羧酸/4-羟基丁酸途径、还原性甘氨酸途径）在 ATP 能量消耗代价、关键限制性酶、氧气敏感性与代表性嗜极物种分类。"
     ]
   },
   {
@@ -393,6 +353,48 @@
       "使用 Python 编写一个基于常微分方程数值积分算法的脚本，模拟胞嘧啶碱基编辑器 (CBE, 例如结合 APOBEC1 脱氨酶与 nCas9) 在特定编辑窗口 (如 Protospacer 第 4-8 位碱基) 内对靶向胞嘧啶 (C) 转化为尿嘧啶 (U) 以及可能发生的非目标旁观者编辑 (Bystander Editing) 的瞬态反应速率与产物百分比分布，打印编辑效率与纯度指标。",
       "针对先导编辑器 (Prime Editing, PE) 系统的逆转录酶介导编辑机制，形式化推导先导编辑 guide RNA (pegRNA) 的引物结合位点 (PBS) 长度与逆转录模板 (RTT) 长度对 R-loop 稳定性、3' 悬垂链退火杂交竞争以及目标序列整合成功率的数学关联模型，总结最优 pegRNA 序列热力学校验设计准则。",
       "使用 Markdown 表格横向对比标准 SpCas9 双链断裂系统 (NHEJ/HDR)、胞嘧啶碱基编辑器 (CBE)、腺嘌呤碱基编辑器 (ABE)、先导编辑器 (Prime Editor 2/3) 以及新型 RNA 靶向 Cas13 系统在编辑产物纯度、双链断裂 (DSB) 依赖性、插入/缺失突变率 (Indel %)、全基因组脱靶 (Off-target) 风险、递送尺寸载荷 (AAV 包裹兼容性) 维度的关键参数指标。"
+    ]
+  },
+  {
+    "id": "gravitational_lensing_dark_matter_halo_einstein_ring",
+    "domain": "astrophysics_gravitational_lensing_cosmology",
+    "title": "天体物理与宇宙学：强引力透镜暗物质晕拓扑重构与爱因斯坦环",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试薄透镜近似方程推导、爱因斯坦环半径求解、深空透镜图像渲染与 NFW 暗物质晕光线追踪数值仿真",
+    "turns": [
+      "从广义相对论光线偏折角公式 \\hat{\\alpha} = \\frac{4GM}{c^2\\xi} 出发，在薄透镜近似 (Thin Lens Approximation) 下严格推导引力透镜几何方程 \\beta = \\theta - \\frac{D_{ds}}{D_s}\\hat{\\alpha}(\\theta)，并分别求解轴对称点质量与奇异等温球 (SIS, Singular Isothermal Sphere) 质量分布下的爱因斯坦半径 \\theta_E 解析表达式。",
+      "请生成一张超高清、具有哈勃深空望远镜与韦伯空间望远镜 (JWST) 真实天文科研观测质感的深空强引力透镜图像：画面中央是一个巨大而致密的高红移巨型椭圆星系团，星系团外围呈现出一条极其清晰且近乎完美的绚丽深蓝色发光“爱因斯坦环”(Einstein Ring) 以及多重被极度拉伸扭曲的光弧 (Lensed Arcs)，被透镜化的背景星系形成了多重视像对称分布，背景深邃漆黑的宇宙中点缀着密集的原始星系红移斑点与微弱星芒，科学真实感与美学震撼力拉满。",
+      "结合 Navarro-Frenk-White (NFW) 暗物质晕径向密度剖面 \\rho(r) = \\frac{\\rho_0}{(r/r_s)(1 + r/r_s)^2}，推导沿视线方向积分得到的二维投影表面质量密度 \\Sigma(R) 与无量纲会聚度 (Convergence) \\kappa(R) = \\Sigma(R)/\\Sigma_{cr} 的解析分段函数，并分析其在特征半径 R = r_s 处的解析连续性。",
+      "使用 Python 编写科学计算脚本，利用 numpy 与 scipy 对包含椭圆主透镜与外部剪切场 (External Shear \\gamma) 的势场 \\psi(\\theta) 建立网格光线追踪 (Ray-tracing) 模型，数值计算雅可比矩阵 \\mathcal{A}(\\theta) 与局部放大率 \\mu = 1/\\det\\mathcal{A}，并绘制临界曲线 (Critical Curves) 与焦散线 (Caustics)。",
+      "使用 Markdown 表格，横向对比强引力透镜 (Strong Lensing)、弱引力透镜 (Weak Lensing 宇宙剪切) 与微引力透镜 (Microlensing) 在观测角尺度、测量物理量 (光弧/剪切椭圆度/光变曲线)、暗物质子晕探测灵敏度以及对宇宙学哈勃常数 H_0 与暗能量状态方程 w 约束维度的关键技术指标。"
+    ]
+  },
+  {
+    "id": "topological_quantum_computing_non_abelian_anyons",
+    "domain": "condensed_matter_topological_quantum_braiding",
+    "title": "凝聚态与量子信息：非阿贝尔任意子编织与拓扑量子计算",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试非阿贝尔任意子辫子群 B_n 映射、斐波那契任意子五边形/六边形恒等式、拓扑单量子比特门矩阵与编织字近似算法",
+    "turns": [
+      "在拓扑量子场论 (TQFT) 与二维分数量子霍尔相框架下，推导多粒子交换与非阿贝尔任意子 (Non-Abelian Anyons) 编织操作对应的辫子群 (Braid Group B_n) 抽象代数生成元 \\sigma_i 及其满足的 Artin 交换关系 \\sigma_i \\sigma_{i+1} \\sigma_i = \\sigma_{i+1} \\sigma_i \\sigma_{i+1} 与杨-巴克斯特方程 (Yang-Baxter Equation)。",
+      "详述斐波那契任意子 (Fibonacci Anyons) 模型中拓扑荷的融合规则 \\tau \\otimes \\tau = 1 \\oplus \\tau，推导其量子维度 (Quantum Dimension) d_\\tau = \\frac{1+\\sqrt{5}}{2}（黄金分割比），并写出对应融合基底下的五边形恒等式 (Pentagon Identity) 及其解出的 F 矩阵 (F-matrix) 显式形式。",
+      "严格推导斐波那契任意子编织操作对应的六边形恒等式 (Hexagon Identity) 与单粒子交换 R 矩阵，进而构造出在两量子比特融合计算子空间中的拓扑单量子比特非阿贝尔幺正旋转门 U = F^{-1} R^2 F 的显式 2 \\times 2 复数矩阵表示。",
+      "使用 Python 编写脚本，基于树搜索 (Breadth-First Tree Search) 或 Solovay-Kitaev 算法思想，将任意目标单比特相干门（如哈达玛门 H 或相角门 T）近似分解为由基本编织生成元 \\sigma_1, \\sigma_2 构成的有限长度编织字序列，并计算酉算子逼近误差 \\epsilon = ||U_{target} - U_{braid}||_{F}。",
+      "使用 Markdown 表格，对比马约拉纳零能模 (Majorana Zero Modes / Ising 任意子)、斐波那契任意子 (Fibonacci)、二维表面码 (Surface Code) 与连续玻色编码 (GKP) 在通用量子门集完备性（是否需要魔态蒸馏 Magic State Distillation）、拓扑容错保护层级、物理实验候选平台（半导体纳米线异质结 / \\nu=5/2 霍尔平台）与硬件可扩展性挑战。"
     ]
   }
 ]

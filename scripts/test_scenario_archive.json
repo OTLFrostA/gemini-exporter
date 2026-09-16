@@ -1039,5 +1039,47 @@
     "description": "深入推演 Raft 共识协议在网络三向分区下的选举与复制安全性，包含最小化状态机实现、脑裂恢复与线性一致读对比。",
     "consumed_at": "2026-09-15T23:48:37.575209",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "deep_sea_hydrothermal_extremophile_genomics",
+    "domain": "deep_sea_hydrothermal_extremophile_genomics",
+    "title": "深海热液喷口极端嗜极生物基因组学与无光合成化能自养代谢",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "code",
+      "tables"
+    ],
+    "description": "测试还原性三羧酸循环 (rTCA) 热力学吉布斯自由能推导、嗜热菌酶结构耐高温机理、深海 Imagen 渲染与宏基因组分箱算法",
+    "turns": [
+      "在热力学平衡体系中，推导深海黑烟囱热液喷口环境下，化能自养嗜热古菌利用硫化氢 (H2S) 氧化与还原性三羧酸循环 (rTCA / Arnon-Buchanan cycle) 进行无光固碳反应的净摩尔吉布斯自由能变 \\Delta G^\\circ(T, P)，并分析超临界高水压 (P > 25 MPa) 对反应自发性的影响。",
+      "请生成一张超高画质、具有国家地理和水下摄影大片质感的深海图像：展现 3000 米深海海底漆黑无光的寂静深渊中，一座巨大的黑色矿物热液喷口（黑烟囱）正不断喷涌出滚滚翻腾的矿物浓烟与极高温含硫矿物黑水，喷口周围附着着大片白垩色与朱红色的巨型深海管虫群落（Riftia pachyptila），几只幽白发光的深海白螃蟹和盲虾穿梭其间，深海科考潜水器的强光探照灯打在喷口上，照亮了如梦似幻的悬浮颗粒与热液矿物晶体。",
+      "分析嗜超高温古菌 (如 Pyrococcus furiosus) 中关键代谢酶在 100°C 以上仍然保持催化活性的生物物理与结构机理，详述离子键网络 (Salt bridges)、疏水核心紧密度、二硫键交联以及脯氨酸引入对多肽链构象熵的稳定效应。",
+      "使用 Python 编写脚本，基于四核苷酸频率 (Tetranucleotide Frequency) 与共丰度 (Differential Coverage) 矩阵，实现一个基础的无监督宏基因组重叠群 (Contig) K-means / 高斯混合模型聚类分箱 (Binning) 算法。",
+      "使用 Markdown 表格对比化能无光合成的六大固碳代谢途径（Calvin 循环、还原性 TCA 循环、Wood-Ljungdahl 途径、3-羟基丙酸双循环、二羧酸/4-羟基丁酸途径、还原性甘氨酸途径）在 ATP 能量消耗代价、关键限制性酶、氧气敏感性与代表性嗜极物种分类。"
+    ],
+    "consumed_at": "2026-09-16T12:54:37.694639"
+  },
+  {
+    "id": "radio_astronomy_fast_radio_bursts",
+    "title": "射电天文学与天体物理：快速射电暴 (FRB) 色散测度推演与宇宙学探针",
+    "domain": "radio_astronomy_astrophysics",
+    "description": "测试等离子体色散关系推导、反色散相干算法实现与射电望远镜横向对比",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "physics"
+    ],
+    "turns": [
+      "请从等离子体色散关系 \\omega^2 = \\omega_p^2 + k^2 c^2 严格推导出快速射电暴（Fast Radio Burst, FRB）的脉冲到达时间延迟公式 \\Delta t \\approx \\frac{e^2}{2\\pi m_e c} \\nu^{-2} \\text{DM}，并明确色散测度（Dispersion Measure, DM）的物理定义。",
+      "请详细拆解实测 FRB 色散测度在银河系星际介质（\\text{DM}_{\\text{MW}}）、银河系银晕（\\text{DM}_{\\text{halo}}）、星系际介质（\\text{DM}_{\\text{IGM}}）以及宿主星系（\\text{DM}_{\\text{host}}）的分层贡献，并写出通过 Macquart 关系反演宇宙重子物质密度 \\Omega_b 的积分方程表达式。",
+      "请使用 Python 编写一段科学计算代码，利用 scipy 与 numpy 对给定的多频段宽带射电动态频谱（Dynamic Spectrogram / Waterfall data）进行反色散（De-dispersion）相干对齐变换，并绘制去色散前后的频响积分轮廓曲线。",
+      "请用一个 Markdown 表格，对比 FAST、CHIME、DSA-2000 和 SKA-1 Mid 四大射电天文望远镜在工作频段、视场（FoV）、角分辨率、FRB 探测率（Events/day）与毫角秒级精确宿主星系定位能力维度的关键指标。",
+      "简述周期性重复暴（如 FRB 121102 与 FRB 180916）的磁层耀斑模型与双星风相互作用模型之争，以及偏振角旋转与极高法拉第旋转测度（RM）突变对极端磁星环境的物理约束意义。"
+    ],
+    "consumed_at": "2026-09-16T12:54:37.694639"
   }
 ]
