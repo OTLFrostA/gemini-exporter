@@ -1,6 +1,7 @@
 // storageService.ts - Unified multi-account Chrome storage access and key management
 import type { Conversation } from "../../types/index.js";
 import { normId, isVersionGreater as utilsIsVersionGreater } from "../utils/pathUtils.js";
+import { isTakeoutConversation } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
 
 
@@ -287,12 +288,7 @@ declare global {
             for (const conv of existing) {
                 if (!conv || !conv.id) continue;
                 const nid = normId(conv.id);
-                const isTakeout = keepTakeout && (
-                    (conv as any).source === 'takeout' ||
-                    conv.titleSource === 'takeout' ||
-                    (conv as any).isTakeoutOnly ||
-                    (conv.titles && (conv.titles as any).takeout && !(conv.titles as any).rpc && !(conv.titles as any).dom)
-                );
+                const isTakeout = keepTakeout && isTakeoutConversation(conv);
 
                 if (activeIdSet.has(nid) || isTakeout) {
                     kept.push(conv);
@@ -696,14 +692,7 @@ declare global {
             const data = await chrome.storage.local.get(['has_imported_takeout']);
             if (data && data.has_imported_takeout) return true;
             const convs = await getConversations(slot);
-            return (convs || []).some(c => (
-                c && (
-                    (c as any).source === 'takeout' ||
-                    c.titleSource === 'takeout' ||
-                    (c as any).isTakeoutOnly ||
-                    (c.titles && (c.titles as any).takeout)
-                )
-            ));
+            return (convs || []).some(c => c && isTakeoutConversation(c));
         } catch {
             return false;
         }

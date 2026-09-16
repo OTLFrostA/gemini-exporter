@@ -8,7 +8,8 @@ import GeminiUtils, {
     normId as utilsNormId,
     deduplicateConversations as utilsDeduplicateConversations,
     resolveTitle as utilsResolveTitle,
-    compareConversations as utilsCompareConversations
+    compareConversations as utilsCompareConversations,
+    isTakeoutConversation
 } from '../../core/utils/utils.js';
 
 let conversations: Conversation[] = [];
@@ -156,12 +157,7 @@ export async function reconcileWithCloud(activeCloudList: any[], options: any = 
         const keepTakeout = options.keepTakeout !== false;
         conversations = (conversations || []).filter(c => {
             const nid = normId(c.id);
-            const isTakeout = keepTakeout && (
-                c.source === 'takeout' ||
-                c.titleSource === 'takeout' ||
-                c.isTakeoutOnly ||
-                (c.titles && c.titles.takeout && !c.titles.rpc && !c.titles.dom)
-            );
+            const isTakeout = keepTakeout && isTakeoutConversation(c);
             return activeIdSet.has(nid) || isTakeout;
         });
         return res;
@@ -182,14 +178,7 @@ export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: 
 }
 
 export function hasTakeoutData(): boolean {
-    return (conversations || []).some(c => (
-        c && (
-            c.source === 'takeout' ||
-            c.titleSource === 'takeout' ||
-            c.isTakeoutOnly ||
-            (c.titles && c.titles.takeout)
-        )
-    ));
+    return (conversations || []).some(c => c && isTakeoutConversation(c));
 }
 
 export const ConversationsStore: IConversationsStore = {
