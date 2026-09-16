@@ -316,19 +316,55 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             turnMsgs.push(modelTurn);
         }
 
+        // P1-111: build a one-time flat index over the ZIP entries. The old code
+        // re-ran Object.entries(zipFiles) + path parsing inside the
+        // (cleanId × refName × entry) triple loop — 60M+ string ops for large
+        // archives. Exact lookups below hit the maps; only the substring
+        // fallback scans the flat index (no repeated path parsing).
+        const __zipEntries: { filename: string; stem: string; fObj: any }[] = [];
+        const __zipExact = new Map<string, { filename: string; stem: string; fObj: any }[]>();
+        for (const [path, fObj] of Object.entries<any>(zipFiles)) {
+            if ((fObj as any).dir) continue;
+            const zipFilename = path.replace(/^.*[\\\/]/, '').trim();
+            const entry = {
+                filename: zipFilename,
+                stem: zipFilename.replace(/\.[^/.]+$/, '').toLowerCase(),
+                fObj
+            };
+            __zipEntries.push(entry);
+            for (const key of [zipFilename.toLowerCase(), entry.stem]) {
+                let arr = __zipExact.get(key);
+                if (!arr) { arr = []; __zipExact.set(key, arr); }
+                arr.push(entry);
+            }
+        }
+
         for (const cleanId of foundIds) {
             if (!localMediaMap[cleanId]) localMediaMap[cleanId] = [];
             for (const refName of localMediaNames) {
                 const refStem = refName.replace(/\.[^/.]+$/, '').toLowerCase();
-                for (const [path, fObj] of Object.entries<any>(zipFiles)) {
-                    if (fObj.dir) continue;
-                    const zipFilename = path.replace(/^.*[\\\/]/, '').trim();
-                    const zipStem = zipFilename.replace(/\.[^/.]+$/, '').toLowerCase();
-                    if (zipFilename === refName || zipStem === refStem || zipFilename.endsWith(refName) || (refStem.length > 5 && zipStem.includes(refStem))) {
-                        if (!localMediaMap[cleanId].some(x => x.filename === zipFilename)) {
-                            localMediaMap[cleanId].push({ filename: zipFilename, fileObj: fObj });
+                const refLower = refName.toLowerCase();
+                const consider = (entry: { filename: string; stem: string; fObj: any }): void => {
+                    if (entry.filename === refName || entry.stem === refStem ||
+                        entry.filename.endsWith(refName) ||
+                        (refStem.length > 5 && entry.stem.includes(refStem))) {
+                        if (!localMediaMap[cleanId].some(x => x.filename === entry.filename)) {
+                            localMediaMap[cleanId].push({ filename: entry.filename, fileObj: entry.fObj });
                         }
                     }
+                };
+                // Exact-name / exact-stem hits via the index first.
+                const seenExact = new Set<string>();
+                for (const key of [refLower, refStem]) {
+                    const arr = __zipExact.get(key);
+                    if (arr) for (const e of arr) {
+                        if (!seenExact.has(e.filename)) { seenExact.add(e.filename); consider(e); }
+                    }
+                }
+                // Substring fallback: single scan over the flat index.
+                for (const e of __zipEntries) {
+                    if (seenExact.has(e.filename)) continue;
+                    consider(e);
                 }
             }
 
