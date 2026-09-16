@@ -3,6 +3,7 @@ import type { TakeoutControllerContract } from '../../types/ui.js';
 import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
+import { deduplicateConversations as staticDeduplicateConversations } from '../../core/utils/mergeUtils.js';
 import { t, normId } from '../uiCommon.js';
 
 const getTakeoutEngine = () => (globalThis as any).TakeoutEngine || TakeoutEngine;
@@ -36,24 +37,30 @@ export async function handleTakeoutImport(
         }, slot);
 
         const convs = Store ? Store.getConversations() : [];
-        const existingMap = new Map();
-        for (const c of convs) {
-            existingMap.set(normId(c.id).toLowerCase(), c);
-        }
+        const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
-        let addedCount = 0;
-        for (const tc of res.conversations) {
-            const nid = normId(tc.id).toLowerCase();
-            if (!existingMap.has(nid)) {
-                convs.push(tc);
-                existingMap.set(nid, tc);
-                addedCount++;
+        // SSoT: merge via deduplicateConversations so multi-tier titles
+        // (titles.takeout seeding), timestamps and ordering converge with the
+        // online upsert path. A naive push-if-absent would drop takeout slots
+        // for existing ids and store raw temp titles unsorted for new ids.
+        const existingIds = new Set((convs || []).map((c: any) => normId(c?.id)));
+        const addedCount = incoming.filter((tc: any) => tc?.id && !existingIds.has(normId(tc.id))).length;
+
+        const dedupe = (list: any[]) => {
+            if (Store && typeof Store.normalizeAndDeduplicate === 'function') {
+                return Store.normalizeAndDeduplicate(list);
             }
-        }
+            const injected = (globalThis as any).GeminiUtils;
+            if (injected && typeof injected.deduplicateConversations === 'function') {
+                return injected.deduplicateConversations(list);
+            }
+            return staticDeduplicateConversations(list);
+        };
+        const { processed } = dedupe([...(convs || []), ...incoming]);
 
-        if (addedCount > 0 && Store) {
+        if (Store && processed.length > 0) {
             const currentSlot = Store.getCurrentSlot() || 'u0';
-            await Store.saveConversations(currentSlot, convs);
+            await Store.saveConversations(currentSlot, processed);
         }
 
         const Storage = getStorage();
@@ -63,8 +70,8 @@ export async function handleTakeoutImport(
         }
 
         const successMsg = typeof t === 'function'
-            ? t('takeoutSuccessDetail', res.conversations.length, addedCount, res.totalMediaCount)
-            : `Takeout 解析成功！发现 ${res.conversations.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
+            ? t('takeoutSuccessDetail', incoming.length, addedCount, res.totalMediaCount)
+            : `Takeout 解析成功！发现 ${incoming.length} 条对话，已补全 ${addedCount} 条缺失历史，索引 ${res.totalMediaCount} 个离线资源`;
 
         if (onLog) onLog(successMsg, 'info');
         if (onFinished) onFinished({ res, addedCount, totalMediaCount: res.totalMediaCount, message: successMsg });

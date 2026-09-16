@@ -201,3 +201,48 @@ test('takeoutController - exports and gracefully handles null file', async () =>
     });
     assert.strictEqual(called, false);
 });
+
+test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, new ids sorted', async () => {
+    const existing = [
+        { id: 'chat-online-1', title: 'Online Title', titleSource: 'rpc', titles: { rpc: 'Online Title' }, updatedAt: 2000, timestamp: 2000 },
+    ];
+    let saved: any = null;
+    const origStore = (globalThis as any).ConversationsStore;
+    const origEngine = (globalThis as any).TakeoutEngine;
+    (globalThis as any).ConversationsStore = {
+        getConversations: () => existing,
+        getCurrentSlot: () => 'u0',
+        saveConversations: async (_slot: string, list: any) => { saved = list; },
+    };
+    (globalThis as any).TakeoutEngine = {
+        parseTakeoutZip: async () => ({
+            conversations: [
+                { id: 'chat-online-1', title: 'Takeout Prefix Question', titleSource: 'takeout', titles: { takeout: 'Takeout Prefix' }, updatedAt: 1000, timestamp: 1000 },
+                { id: 'chat-takeout-old', title: 'Old Takeout', titleSource: 'takeout', titles: { takeout: 'Old Takeout' }, updatedAt: 500, timestamp: 500 },
+                { id: 'chat-takeout-fresh', title: 'Fresh Takeout', titleSource: 'takeout', titles: { takeout: 'Fresh Takeout' }, updatedAt: 3000, timestamp: 3000 },
+            ],
+            totalMediaCount: 0,
+        }),
+    };
+    try {
+        let result: any = null;
+        await TakeoutController.handleTakeoutImport({} as any, {
+            onFinished: (r: any) => { result = r; }
+        });
+        assert.strictEqual(result.addedCount, 2);
+        assert.ok(Array.isArray(saved));
+        assert.strictEqual(saved.length, 3);
+        const sameId = saved.find((c: any) => c.id === 'chat-online-1');
+        assert.ok(sameId, 'same-id conversation must be merged, not dropped');
+        assert.strictEqual(sameId.title, 'Online Title');
+        assert.strictEqual(sameId.titleSource, 'rpc');
+        assert.strictEqual(sameId.titles && sameId.titles.takeout, 'Takeout Prefix Question');
+        assert.deepStrictEqual(
+            saved.map((c: any) => c.id),
+            ['chat-takeout-fresh', 'chat-online-1', 'chat-takeout-old']
+        );
+    } finally {
+        (globalThis as any).ConversationsStore = origStore;
+        (globalThis as any).TakeoutEngine = origEngine;
+    }
+});
