@@ -9,6 +9,7 @@ import { registerCleanup } from './cleanupRegistry.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
+    ingestListBatch?: (items: any[], source: string, options?: any) => Promise<any>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
     getAccountSlot?: () => string;
@@ -80,12 +81,17 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             if (!Proto) return;
 
             // If response contains conversation list (sidebar scroll or search)
-            if (text.includes(Proto.RPCS.LIST) && typeof upsertConversations === 'function') {
+            if (text.includes(Proto.RPCS.LIST)) {
                 try {
                     const listRes = parser.parseList(text);
                     if (listRes && listRes.conversations && listRes.conversations.length) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        await upsertConversations(listRes.conversations, 'network-list', false, targetSlot);
+                        const Ingest = (_deps && _deps.ingestListBatch) || (typeof (globalThis as any).ingestListBatch !== 'undefined' ? (globalThis as any).ingestListBatch : null);
+                        if (typeof Ingest === 'function') {
+                            await Ingest(listRes.conversations, 'network-list', { slot: targetSlot });
+                        } else if (typeof upsertConversations === 'function') {
+                            await upsertConversations(listRes.conversations, 'network-list', false, targetSlot);
+                        }
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[MessageBridge] parseList err', e);
