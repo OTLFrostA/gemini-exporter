@@ -3,29 +3,11 @@
  * Structured error class hierarchy for Gemini Exporter runtime and pipelines.
  */
 
-import { isRateLimited } from '../core/engine/export/rateLimiter.js';
-
 export class GeminiError extends Error {
     constructor(message: string) {
         super(message);
         this.name = 'GeminiError';
         Object.setPrototypeOf(this, new.target.prototype);
-    }
-}
-
-export class GeminiRpcError extends GeminiError {
-    statusCode?: number;
-    rpcName?: string;
-    isRateLimit?: boolean;
-
-    constructor(message: string, statusCode?: number, rpcName?: string) {
-        super(message);
-        this.name = 'GeminiRpcError';
-        this.statusCode = statusCode;
-        this.rpcName = rpcName;
-        // Converged on the canonical rate-limit predicate so its semantics
-        // cannot drift from the export pipeline's (see rateLimiter.ts).
-        this.isRateLimit = isRateLimited({ success: false, status: statusCode, error: message });
     }
 }
 

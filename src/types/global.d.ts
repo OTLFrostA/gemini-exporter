@@ -3,7 +3,12 @@ declare function importScripts(...urls: string[]): void;
 declare const __EXT_VERSION__: string;
 
 // Core globals are declared via their own module files (declare global) — do not duplicate here to avoid TS2403
-declare var JSZip: any;
+
+// P1-099: precise type instead of `any`. geminiClient.ts declares this same
+// global in its own `declare global` block as `typeof GeminiAPIClient`; the
+// typeof there resolves against this declaration, so it must exist and must
+// not be `any` (which would also re-hide typos at every use site).
+declare var GeminiAPIClient: import('../core/api/geminiClient.js').GeminiAPIClient;
 
 // UI workbench globals (mixed UMD / ESM transition, used via typeof checks)
 declare var ConversationsStore: import('./ui.js').IConversationsStore;
@@ -16,23 +21,16 @@ declare var SyncController: import('./ui.js').SyncControllerContract;
 declare var TakeoutController: import('./ui.js').TakeoutControllerContract;
 declare var DirHandleController: import('./ui.js').DirHandleControllerContract;
 declare var TourGuide: import('./ui.js').TourGuideContract;
-declare var BadgeView: any;
-declare var PageObserver: any;
-declare var MessageRouter: any;
-declare var MessageBridge: any;
-declare var SyncEngine: any;
-declare var DomScraper: any;
-declare var AssetFetcher: any;
-declare var OptionsInit: any;
-declare var OptionsExport: any;
-declare var OptionsSync: any;
-declare var OptionsTakeout: any;
-declare var OptionsSettings: any;
-declare var DefaultApiClient: any;
-declare var GeminiAPIClient: any;
-declare var DefaultTabService: any;
+
+// P1-099: the ~17 `declare var X: any` globals below were dead declarations.
+// Every one of them is now either imported as an ES module (PageObserver,
+// MessageRouter, MessageBridge, SyncEngine, DomScraper, AssetFetcher),
+// referenced only via `(globalThis as any).X` (BadgeView, I18n, Options*),
+// declared in its own module's `declare global` (GeminiAPIClient), or never
+// referenced at all (DefaultApiClient, DefaultTabService, JSZip — the latter
+// is always captured into a local first). Bare-identifier references resolve
+// to the real modules now, so the ambient `any`s only hid typos. Removed.
 declare var TabService: import('./utils.js').TabServiceModule;
-declare var I18n: any;
 
 interface Window {
     __gemExporterAborted?: boolean;

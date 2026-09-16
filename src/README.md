@@ -96,7 +96,6 @@ src/
 
   types/                       TypeScript Declarations & Wire Contracts
     index.ts                   Aggregated type exports
-    wire.ts                    JSPB wire format types, batchexecute envelopes & type guards
     models.ts                  Core domain entity interfaces (Conversation, Turn, Attachment)
     export.ts                  Export options, progress reporting, session recovery types
     ui.ts                      UI view/controller contracts & store interfaces
@@ -125,5 +124,5 @@ Gemini Exporter uses `esbuild` (`build.js`) configured for a high-performance, s
 1. **`core` has zero DOM dependencies except the `api/` layer which runs exclusively in content script context**: Core algorithms (parsing, formatting, title arbitration) run identically in Node.js unit tests, extension service workers, and UI pages.
 2. **Strict UI Separation**: `state` handles storage sync, `views` handles HTML rendering, `controllers` orchestrates workflows, and `options.ts` / `popup.ts` act as thin coordinators.
 3. **Single Source of Truth (SSoT)**: All string sanitization, filename cleaning, and multi-tier title arbitration & deduplication logic resides exclusively in `src/core/utils/utils.ts` (`resolveTitle`, `mergeConversation`, `deduplicateConversations`).
-4. **Wire Format Type Safety**: batchexecute RPC payloads are validated using type guards in `src/types/wire.ts` (`isBatchexecuteChunk`, `isJspbArray`, `isRecord`), guaranteeing type safety across Google wire format evolution.
+4. **Wire Format Validation**: batchexecute RPC payloads are validated with inline shape checks in the parser modules (`parseList.ts`, `parseDetail.ts`), kept next to the format assumptions they guard. (A standalone wire-format type-guard module was removed as dead code: nothing imported it, and its guards were weaker than the parsers' inline checks.)
 5. **Two-Tier Test Verification**: All changes are validated by Tier 1 (22 Node.js unit suites + 22 Playwright E2E specs) and Tier 2 live Chrome staging.
