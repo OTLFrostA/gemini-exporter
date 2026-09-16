@@ -97,8 +97,10 @@ export interface Conversation {
     title: string;
     /**
      * Normalized timestamp in milliseconds (SSoT).
+     * Nullable: a missing timestamp stays null (P1-085/P1-067 precedent) —
+     * never fabricate Date.now(). Merge keeps the old value.
      */
-    timestamp: number;
+    timestamp: number | null;
     updatedAt?: number | string;
     createdAt?: number | string;
     chatTime?: number | string;
