@@ -34,10 +34,17 @@ export interface GeminiStreamCompletePayload {
     url?: string;
 }
 
+// P1-084: explicit contract instead of `[key: string]: any`. The handler
+// (messageBridge) destructures { cid, reason, ...options } and forwards the
+// rest verbatim to LiveSaveCoordinator.executeLiveSave(cid, reason, options),
+// whose options bag is { mockMode?: boolean } — those are the only real
+// fields on this cross-world channel. Unknown extra fields are now a
+// compile-time error at the sender instead of silently-typed `any`.
 export interface GeminiLiveSaveTriggerPayload {
     cid: string;
     reason?: string;
-    [key: string]: any;
+    /** Forwarded verbatim to LiveSaveCoordinator.executeLiveSave as its options bag. */
+    mockMode?: boolean;
 }
 
 export interface CrossWorldEventMap {
