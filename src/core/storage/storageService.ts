@@ -23,12 +23,23 @@ export interface ReconcileResult {
     removedIds: string[];
 }
 
+export interface ConversationTransaction {
+    /** List to persist. Must be a fresh array; the stored list is replaced wholesale. */
+    list: Conversation[];
+    /** How many items the merge changed (drives badge / skip-write decisions). */
+    changed: number;
+}
+
 export interface StorageServiceModule {
     normSlot: (slot?: string | null) => string;
     normId: (id?: string | null) => string;
     getStorageKeys: (slot?: string | null) => StorageKeys;
     getConversations: (slot?: string | null) => Promise<Conversation[]>;
     setConversations: (slot: string | null | undefined, list: Conversation[]) => Promise<void>;
+    transactConversations: (
+        slot: string | null | undefined,
+        updater: (existing: Conversation[]) => ConversationTransaction | null
+    ) => Promise<{ list: Conversation[]; changed: number; written: boolean }>;
     updateConversation: (
         slot: string | null | undefined,
         conversationId: string,
@@ -96,8 +107,50 @@ declare global {
     }
 
     let _convChain: Promise<any> = Promise.resolve();
+
+    // Cross-tab write serialization.
+    //
+    // Every Gemini tab runs its own content-script JS context, so the in-memory
+    // promise chains below (_convChain / _slotChain / _saveRecordChain) only
+    // serialize writes *within* one tab. chrome.storage.local is shared across
+    // tabs, so two tabs could still interleave read-modify-write cycles: both
+    // read the same stale snapshot, then the later write silently discards the
+    // earlier tab's updates (classic lost update).
+    //
+    // navigator.locks (Web Locks API) is held per origin across tabs, workers
+    // and the service worker, so requesting a named lock here upgrades each
+    // chain to a truly global mutex. The lock is taken *inside* the in-memory
+    // chain, so a tab only holds the global lock while its own critical section
+    // runs — never while waiting behind its own queued work. Lock order is
+    // unchanged (conv -> slot, conv -> save-record; no path takes them in
+    // reverse), and Web Locks are never nested for the same name.
+    //
+    // When Web Locks is unavailable (very old Chrome, non-window test envs)
+    // the in-memory chain remains as the fallback, preserving the previous
+    // within-tab guarantee.
+    const XTAB_LOCK_PREFIX = 'gemini-exporter:write:';
+
+    function getWebLocks(): { request(name: string, fn: () => Promise<any>): Promise<any> } | null {
+        try {
+            const nav = typeof navigator !== 'undefined' ? (navigator as any) : undefined;
+            if (nav && nav.locks && typeof nav.locks.request === 'function') {
+                return nav.locks;
+            }
+        } catch { /* non-window contexts: fall through to in-memory chain */ }
+        return null;
+    }
+
+    function withCrossTabLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+        const locks = getWebLocks();
+        if (locks) {
+            return locks.request(XTAB_LOCK_PREFIX + name, fn);
+        }
+        return fn();
+    }
+
     function withConversationLock<T>(fn: () => Promise<T>): Promise<T> {
-        const p = _convChain.then(fn, fn);
+        const run = () => withCrossTabLock('conversations', fn);
+        const p = _convChain.then(run, run);
         _convChain = p.then(() => {}, () => {});
         return p;
     }
@@ -107,7 +160,8 @@ declare global {
     // Lock order is always conv -> slot; no path takes slot -> conv.
     let _slotChain: Promise<any> = Promise.resolve();
     function withSlotLock<T>(fn: () => Promise<T>): Promise<T> {
-        const p = _slotChain.then(fn, fn);
+        const run = () => withCrossTabLock('account-slot', fn);
+        const p = _slotChain.then(run, run);
         _slotChain = p.then(() => {}, () => {});
         return p;
     }
@@ -122,6 +176,31 @@ declare global {
     // blind write can no longer interleave with (and clobber) a read-modify-write.
     async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
         return withConversationLock(() => _setConversationsRaw(slot, list));
+    }
+
+    // Atomic read-merge-write for the conversation list.
+    //
+    // The updater runs *inside* the cross-tab conversation lock: it receives the
+    // freshest stored list and returns the list to persist, or null to skip the
+    // write. The updater must be pure (no storage I/O, no awaits) so the lock is
+    // only held across one storage get + one storage set.
+    //
+    // Callers must NOT read the list first and merge outside: that is exactly the
+    // cross-tab lost-update hole this closes (two tabs read the same snapshot,
+    // the later write discards the earlier tab's merge).
+    async function transactConversations(
+        slot: string | null | undefined,
+        updater: (existing: Conversation[]) => ConversationTransaction | null
+    ): Promise<{ list: Conversation[]; changed: number; written: boolean }> {
+        return withConversationLock(async () => {
+            const existing = (await getConversations(slot)) || [];
+            const res = updater(existing);
+            if (!res || !Array.isArray(res.list)) {
+                return { list: existing, changed: 0, written: false };
+            }
+            await _setConversationsRaw(slot, res.list);
+            return { list: res.list, changed: res.changed || 0, written: true };
+        });
     }
 
     async function updateConversation(
@@ -295,7 +374,8 @@ declare global {
 
     let _saveRecordChain: Promise<any> = Promise.resolve();
     function enqueueSaveRecordChain<T>(fn: () => Promise<T>): Promise<T> {
-        const p = _saveRecordChain.then(fn, fn);
+        const run = () => withCrossTabLock('export-records', fn);
+        const p = _saveRecordChain.then(run, run);
         _saveRecordChain = p.then(() => undefined, () => undefined);
         return p;
     }
@@ -423,10 +503,17 @@ declare global {
     }
 
     async function setLastSync(slot: string | null | undefined, timestamp?: number | null, count?: number): Promise<void> {
-        const { syncKey, countKey } = getStorageKeys(slot);
-        await chrome.storage.local.set({
-            [syncKey]: timestamp || Date.now(),
-            [countKey]: typeof count === 'number' ? count : 0
+        // Cross-tab: a blind write here could pair a stale count with a newer
+        // list (or vice versa) when two tabs upsert concurrently. Serialize it
+        // with the conversation lock so timestamp/count stay consistent with
+        // the list write they describe. Leaf call — never nested inside another
+        // conversation-locked section.
+        return withConversationLock(async () => {
+            const { syncKey, countKey } = getStorageKeys(slot);
+            await chrome.storage.local.set({
+                [syncKey]: timestamp || Date.now(),
+                [countKey]: typeof count === 'number' ? count : 0
+            });
         });
     }
 
@@ -606,6 +693,7 @@ export {
     getStorageKeys,
     getConversations,
     setConversations,
+    transactConversations,
     updateConversation,
     removeConversation,
     reconcileConversations,
@@ -641,6 +729,7 @@ export const StorageService: StorageServiceModule = {
     getStorageKeys,
     getConversations,
     setConversations,
+    transactConversations,
     updateConversation,
     removeConversation,
     reconcileConversations,
