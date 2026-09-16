@@ -3,8 +3,17 @@
  * Centralized Schema for Chrome extension runtime and tab messages.
  */
 
-import type { Conversation, Attachment } from './conversation.js';
+import type { Conversation } from './conversation.js';
+import type { LiveSaveConfig } from './liveSave.js';
 
+/**
+ * P1-092: exact protocol map. Every action below is both sent and handled
+ * somewhere in src (verified by grep over action:'x' send sites and
+ * msg.action==='x' comparisons), except 'getScrollContainer', 'getFileBlob'
+ * and 'getImageBlob', which are handler-only: messageRouter handles them but
+ * src currently has no sender. 'startExport' was a ghost entry — no sender,
+ * no handler — and is removed (it only exists as an i18n key, not a message).
+ */
 export const MESSAGE_ACTIONS = {
     SYNC_UPDATE: 'syncUpdate',
     SCAN_PROGRESS: 'scanProgress',
@@ -21,7 +30,6 @@ export const MESSAGE_ACTIONS = {
     PING: 'ping',
     OPEN_GEMINI_PAGE: 'openGeminiPage',
     RELOAD_GEMINI_TAB: 'reloadGeminiTab',
-    START_EXPORT: 'startExport',
     LIVE_SAVE_VIA_HANDLE: 'liveSaveViaHandle',
     GET_FILE_BLOB: 'getFileBlob',
     GET_IMAGE_BLOB: 'getImageBlob',
@@ -32,7 +40,6 @@ export type MessageAction = typeof MESSAGE_ACTIONS[keyof typeof MESSAGE_ACTIONS]
 
 export interface BaseMessage {
     action: MessageAction;
-    [key: string]: any;
 }
 
 export interface SyncUpdateMessage extends BaseMessage {
@@ -93,12 +100,20 @@ export interface ExportProgressMessage extends BaseMessage {
     assetsTotal?: number;
 }
 
+/** P1-093: matches what liveSaveCoordinator actually sends and liveSaveHandler destructures. */
+export interface LiveSaveAsset {
+    fileName: string;
+    subDir?: string;
+    base64?: string;
+}
+
 export interface LiveSaveViaHandlePayload {
-    chat: any;
+    chat: Conversation;
     safeTitle: string;
     nid: string;
-    config?: any;
+    config?: LiveSaveConfig;
     fileName?: string;
+    assets?: LiveSaveAsset[];
 }
 
 export interface LiveSaveViaHandleMessage extends BaseMessage {

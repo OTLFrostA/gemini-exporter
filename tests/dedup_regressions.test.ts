@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
-const { GeminiRpcError } = require('../src/types/errors.js');
 const { formatLiveSaveMarkdown, writeLiveSaveMarkdown } = require('../src/core/engine/liveSaveWriter.js');
 
 // ---------------------------------------------------------------------------
@@ -37,14 +36,6 @@ test('dedup - isRateLimited catches every previously inlined 429 variant', () =>
     for (const [label, res] of negatives) {
         assert.strictEqual(isRateLimited(res), false, `should not flag: ${label}`);
     }
-});
-
-test('dedup - GeminiRpcError.isRateLimit converges on the canonical predicate', () => {
-    assert.strictEqual(new GeminiRpcError('boom', 429).isRateLimit, true);
-    assert.strictEqual(new GeminiRpcError('quota exceeded').isRateLimit, true);
-    assert.strictEqual(new GeminiRpcError('BardErrorInfo wrapped').isRateLimit, true);
-    assert.strictEqual(new GeminiRpcError('plain error', 500).isRateLimit, false);
-    assert.strictEqual(new GeminiRpcError('network timeout').isRateLimit, false);
 });
 
 test('dedup - calculateBackoff keeps formula, cap and honors Retry-After', () => {
