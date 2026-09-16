@@ -54,7 +54,10 @@ import GeminiUtils, {
     buildExportFileName,
     resolveExportFileName as utilsResolveExportFileName,
     getErrorMessage,
-    checkIsUpdated as utilsCheckIsUpdated
+    checkIsUpdated as utilsCheckIsUpdated,
+    setTitleBySource as utilsSetTitleBySource,
+    cleanTitle as utilsCleanTitle,
+    isRealTitle as utilsIsRealTitle
 } from "../../utils/utils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
@@ -87,6 +90,54 @@ export const sanitizeZipPath = (p?: string | null): string =>
 
 export const checkIsUpdated = (c: any, rec?: any): boolean =>
     ((globalThis as any).GeminiUtils?.checkIsUpdated || utilsCheckIsUpdated)(c, rec);
+
+export const setTitleBySource = (chat: any, source?: string, rawTitle?: string): any =>
+    ((globalThis as any).GeminiUtils?.setTitleBySource || utilsSetTitleBySource)(chat, source, rawTitle);
+
+export const cleanTitle = (rawTitle?: string | null): string =>
+    ((globalThis as any).GeminiUtils?.cleanTitle || utilsCleanTitle)(rawTitle);
+
+export const isRealTitle = (title?: string | null, id?: string | number): boolean =>
+    ((globalThis as any).GeminiUtils?.isRealTitle || utilsIsRealTitle)(title, id);
+
+/**
+ * Applies an export-time title write-back from a list-snapshot conversation
+ * (listC) onto the stored record (existing) through the canonical title tier
+ * arbitration (setTitleBySource -> resolveTitle -> TITLE_TIER_RANK).
+ *
+ * Previously this was a blind overwrite (`existing.title = listC.title`),
+ * which let a lower-authority list snapshot downgrade a higher-authority
+ * stored title (e.g. storage holds an rpc title while the list snapshot only
+ * carries takeout). Now listC's titles are adopted per source-tier slot and
+ * the resolved title is re-arbitrated, so the stored title can stay or be
+ * upgraded, but never be downgraded by a weaker source.
+ */
+export function applyExportTitleWriteback(existing: any, listC: any): any {
+    if (!existing || !listC) return existing;
+    // Seed the stored record's own resolved title into its tier slot first
+    // (mirrors mergeConversation step 0), so legacy-shaped records whose
+    // title lives only in title/titleSource are protected by arbitration too.
+    // The slot-worthiness gate mirrors setTitleBySource/mergeConversation so
+    // placeholder titles never trigger a gratuitous titleSource rewrite.
+    if (existing.titleSource && existing.title &&
+        (!existing.titles || typeof existing.titles !== 'object' || !existing.titles[existing.titleSource])) {
+        const cleanedSeed = cleanTitle(existing.title);
+        if (cleanedSeed && (isRealTitle(cleanedSeed, existing.id) || existing.titleSource === 'takeout')) {
+            setTitleBySource(existing, existing.titleSource, existing.title);
+        }
+    }
+    if (listC.titles && typeof listC.titles === 'object') {
+        for (const [slot, slotTitle] of Object.entries(listC.titles)) {
+            if (typeof slotTitle === 'string' && slotTitle) {
+                setTitleBySource(existing, slot, slotTitle);
+            }
+        }
+    }
+    if (listC.title) {
+        setTitleBySource(existing, listC.titleSource || 'legacy', listC.title);
+    }
+    return existing;
+}
 
     function toIso(v: any): string | null {
         if (!v) return null;
@@ -646,9 +697,10 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                                 try {
                                     await storageService.updateConversation(currentSlot, nid, (existing: any) => {
                                         if (listC) {
-                                            if (listC.title) existing.title = listC.title;
-                                            if (listC.titleSource) existing.titleSource = listC.titleSource;
-                                            if (listC.titles) existing.titles = { ...(existing.titles || {}), ...listC.titles };
+                                            // Route the title write-back through the canonical tier
+                                            // arbitration: a lower-authority list snapshot must not
+                                            // downgrade a higher-authority stored title.
+                                            applyExportTitleWriteback(existing, listC);
                                             if (listC.messageCount) existing.messageCount = listC.messageCount;
                                         }
                                         return existing;
@@ -1004,6 +1056,7 @@ export const ExportOrchestratorModule: ExportOrchestratorModule = {
 (ExportOrchestratorModule as any).sanitizeZipPath = sanitizeZipPath;
 (ExportOrchestratorModule as any).getExtensionVersion = getExtensionVersion;
 (ExportOrchestratorModule as any).checkIsUpdated = checkIsUpdated;
+(ExportOrchestratorModule as any).applyExportTitleWriteback = applyExportTitleWriteback;
 (ExportOrchestratorModule as any).default = ExportOrchestratorModule;
 
 if (typeof globalThis !== 'undefined') {
