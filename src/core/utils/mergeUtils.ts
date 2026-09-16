@@ -126,9 +126,13 @@ export function mergeConversation(
         incoming?.source === 'network-list'
     );
 
-    let bestUpdatedAt = oldUpdated;
-    if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
-        bestUpdatedAt = cUpdated;
+    // Enforce strict monotonicity:
+    // 1. updatedAt must never regress into the past. If both exist, take the newest timestamp.
+    let bestUpdatedAt: number | null = null;
+    if (cUpdated && oldUpdated) {
+        bestUpdatedAt = Math.max(oldUpdated, cUpdated);
+    } else {
+        bestUpdatedAt = cUpdated || oldUpdated || null;
     }
 
     let cCreated: any = incoming?.createdAt || null;
@@ -139,14 +143,16 @@ export function mergeConversation(
     if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
     if (!Number.isFinite(oldCreated) || oldCreated <= 0) oldCreated = null;
 
-    let bestCreatedAt = oldCreated || cCreated || null;
-    if (cCreated && oldCreated && cCreated < oldCreated) {
-        bestCreatedAt = cCreated;
+    // 2. createdAt must never advance into the future. If both exist, take the earliest timestamp.
+    let bestCreatedAt: number | null = null;
+    if (cCreated && oldCreated) {
+        bestCreatedAt = Math.min(oldCreated, cCreated);
+    } else {
+        bestCreatedAt = cCreated || oldCreated || null;
     }
 
-    const bestTimestamp = isRpcSource
-        ? (cUpdated || bestUpdatedAt)
-        : (bestUpdatedAt || old?.timestamp || incoming?.timestamp || null);
+    // 3. bestTimestamp mirrors bestUpdatedAt (the latest activity time)
+    const bestTimestamp = bestUpdatedAt || old?.timestamp || incoming?.timestamp || null;
 
     // 7. Check if meaningful change occurred
     let isChanged = false;

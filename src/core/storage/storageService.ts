@@ -29,6 +29,11 @@ export interface StorageServiceModule {
     getStorageKeys: (slot?: string | null) => StorageKeys;
     getConversations: (slot?: string | null) => Promise<Conversation[]>;
     setConversations: (slot: string | null | undefined, list: Conversation[]) => Promise<void>;
+    updateConversation: (
+        slot: string | null | undefined,
+        conversationId: string,
+        patchOrUpdater: Partial<Conversation> | ((conv: Conversation) => Partial<Conversation> | null | void)
+    ) => Promise<boolean>;
     removeConversation: (slot: string | null | undefined, conversationId: string) => Promise<boolean>;
     reconcileConversations: (slot: string | null | undefined, activeCloudList: any[], options?: any) => Promise<ReconcileResult>;
     getExportedIds: (slot?: string | null) => Promise<Record<string, any>>;
@@ -96,9 +101,44 @@ declare global {
         return p;
     }
 
-    async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
+    async function _rawSetConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
         const { convKey } = getStorageKeys(slot);
         await chrome.storage.local.set({ [convKey]: list || [] });
+    }
+
+    async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
+        return withConversationLock(async () => {
+            await _rawSetConversations(slot, list);
+        });
+    }
+
+    async function updateConversation(
+        slot: string | null | undefined,
+        conversationId: string,
+        patchOrUpdater: Partial<Conversation> | ((conv: Conversation) => Partial<Conversation> | Conversation | null | void)
+    ): Promise<boolean> {
+        return withConversationLock(async () => {
+            if (!conversationId) return false;
+            const targetId = normId(conversationId);
+            const list = await getConversations(slot);
+            const index = list.findIndex(c => c && c.id && normId(c.id) === targetId);
+            if (index === -1) return false;
+
+            const current = list[index];
+            let updated: Conversation;
+            if (typeof patchOrUpdater === 'function') {
+                const res = patchOrUpdater(current);
+                if (res === null) return false;
+                updated = res ? { ...current, ...res } : { ...current };
+            } else {
+                updated = { ...current, ...patchOrUpdater };
+            }
+
+            const nextList = [...list];
+            nextList[index] = updated;
+            await _rawSetConversations(slot, nextList);
+            return true;
+        });
     }
 
     async function removeConversation(slot: string | null | undefined, conversationId: string): Promise<boolean> {
@@ -112,7 +152,7 @@ declare global {
                 return normId(c.id) !== targetId;
             });
             if (filtered.length !== initialLen) {
-                await setConversations(slot, filtered);
+                await _rawSetConversations(slot, filtered);
                 const { countKey } = getStorageKeys(slot);
                 await chrome.storage.local.set({ [countKey]: filtered.length });
                 await updateAccountSlot(slot, { count: filtered.length });
@@ -158,7 +198,7 @@ declare global {
             }
 
             if (removedIds.length > 0) {
-                await setConversations(slot, kept);
+                await _rawSetConversations(slot, kept);
                 const { countKey } = getStorageKeys(slot);
                 await chrome.storage.local.set({ [countKey]: kept.length });
                 await updateAccountSlot(slot, { count: kept.length });
@@ -411,6 +451,7 @@ export {
     getStorageKeys,
     getConversations,
     setConversations,
+    updateConversation,
     removeConversation,
     reconcileConversations,
     getExportedIds,
@@ -444,6 +485,7 @@ export const StorageService: StorageServiceModule = {
     getStorageKeys,
     getConversations,
     setConversations,
+    updateConversation,
     removeConversation,
     reconcileConversations,
     getExportedIds,
