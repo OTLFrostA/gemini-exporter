@@ -5,6 +5,10 @@ export interface ProcessAssetOptions {
     isImage?: boolean;
     listTitle?: string;
     timeoutMs?: number;
+    /** P1-041: abort signal — honored between attempts, during backoff, and by in-flight tab requests. */
+    signal?: AbortSignal | null;
+    /** P1-042: max retries after the first attempt (default 3). */
+    maxRetries?: number;
 }
 
 export interface ProcessAssetResult {
@@ -50,23 +54,54 @@ declare global {
 }
 
 import { sanitizeRelativePath } from "../utils/utils.js";
+import { calculateBackoff } from "./export/rateLimiter.js";
+import { interruptibleSleep } from "../api/client/retryPolicy.js";
 
 export function sanitizeZipPath(p?: string | null): string {
     if (!p) return '';
     return sanitizeRelativePath(p, 'file');
 }
 
-function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferBuffer: boolean, timeoutMs: number, timeoutMsg: string): Promise<any> {
+/**
+ * P1-041: payload validity predicates shared by the download and persist steps.
+ */
+function hasValidBuffer(r: any): boolean {
+    return !!(r && r.dataBuffer && (
+        (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
+        (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
+    ));
+}
+
+function hasValidB64(r: any): boolean {
+    return !!(r && (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(','))));
+}
+
+function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferBuffer: boolean, timeoutMs: number, timeoutMsg: string, signal?: AbortSignal | null): Promise<any> {
     return new Promise(resolve => {
         let timer: any = null;
         let settled = false;
+        const onAbort = () => done({ success: false, error: 'aborted' });
+        const done = (val: any) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            try { signal?.removeEventListener?.("abort", onAbort); } catch (_) { /* noop */ }
+            resolve(val);
+        };
+
+        // P1-041: an already-aborted signal resolves immediately instead of
+        // waiting out the full tab timeout.
+        if (signal?.aborted) {
+            done({ success: false, error: 'aborted' });
+            return;
+        }
+        if (signal && typeof signal.addEventListener === "function") {
+            signal.addEventListener("abort", onAbort, { once: true });
+        }
 
         if (timeoutMs > 0) {
             timer = setTimeout(() => {
-                if (!settled) {
-                    settled = true;
-                    resolve({ success: false, error: `${timeoutMsg} after ${timeoutMs}ms` });
-                }
+                done({ success: false, error: `${timeoutMsg} after ${timeoutMs}ms` });
             }, timeoutMs);
         }
 
@@ -76,14 +111,10 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             referer: `https://gemini.google.com/app/${chatId}`,
             preferBuffer
         }, (resp: any) => {
-            if (timer) clearTimeout(timer);
-            if (!settled) {
-                settled = true;
-                if (chrome.runtime && chrome.runtime.lastError) {
-                    resolve({ success: false, error: chrome.runtime.lastError.message });
-                } else {
-                    resolve(resp);
-                }
+            if (chrome.runtime && chrome.runtime.lastError) {
+                done({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                done(resp);
             }
         });
     });
@@ -115,91 +146,120 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
         }
 
         /**
-         * Download and persist an asset (image or attachment file)
+         * P1-041: a single download attempt (delegate or tab request + base64
+         * fallback), abort-aware. Returns the raw tab/delegate response.
+         */
+        private async downloadOnce(targetUrl: string, chat: any, item: any, timeoutMs: number, signal: AbortSignal | null): Promise<any> {
+            let r: any = null;
+
+            if (this.fetchAssetDelegate && targetUrl) {
+                // P1-041: pass the signal through so delegates can cancel in-flight fetches.
+                r = await this.fetchAssetDelegate({
+                    url: targetUrl,
+                    referer: `https://gemini.google.com/app/${chat.id}`,
+                    preferBuffer: true,
+                    timeoutMs,
+                    slot: this.currentSlot,
+                    chat,
+                    item,
+                    signal
+                });
+            } else {
+                const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
+                if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs) {
+                    r = await sendTabAssetRequest(tab.id, targetUrl, chat.id, true, timeoutMs, 'tabs.sendMessage timed out', signal);
+                }
+            }
+
+            // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
+            // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
+            if (r && r.success && !hasValidBuffer(r) && !hasValidB64(r) && typeof chrome !== 'undefined' && chrome.tabs) {
+                const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
+                if (fallbackTab && fallbackTab.id) {
+                    r = await sendTabAssetRequest(fallbackTab.id, targetUrl, chat.id, false, timeoutMs, 'tabs.sendMessage fallback timed out', signal);
+                }
+            }
+            return r;
+        }
+
+        /**
+         * Validate the download payload and persist it (zip folder or direct file write).
+         */
+        private async persistDownload(r: any, localName: string, isImage: boolean): Promise<{ saved: boolean; failReason: string }> {
+            let saved = false;
+            let failReason = '';
+            if (r && r.success) {
+                const isValidBuffer = hasValidBuffer(r);
+                const bytes = isValidBuffer ? new Uint8Array((r.dataBuffer as any).buffer || r.dataBuffer) : null;
+                const b64 = (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null));
+
+                if (this.useZip) {
+                    if (this.folder) {
+                        if (bytes && bytes.length > 0) {
+                            this.folder.file(sanitizeZipPath(localName), bytes);
+                            saved = true;
+                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                            this.folder.file(sanitizeZipPath(localName), b64, { base64: true });
+                            saved = true;
+                        }
+                    }
+                } else if (this.writeFileDirect) {
+                    if (bytes && bytes.length > 0) {
+                        saved = await this.writeFileDirect(localName, bytes);
+                    } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                        const binStr = atob(b64);
+                        const len = binStr.length;
+                        const b = new Uint8Array(len);
+                        for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
+                        saved = await this.writeFileDirect(localName, b);
+                    }
+                }
+
+                if (!saved) {
+                    failReason = r.error || 'Empty or unparseable binary/base64 payload';
+                }
+            } else {
+                failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
+            }
+            return { saved, failReason };
+        }
+
+        /**
+         * Download and persist an asset (image or attachment file).
+         * P1-042: transient failures are retried (default: up to 3 retries) with
+         * bounded backoff instead of failing permanently on the first jitter;
+         * P1-041: every wait honors the abort signal.
          */
         async processAsset(item: any, chat: any, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
             const isImage = !!opts.isImage;
             const targetUrl = isImage ? (item.resolvedUrl || item.sourceUrl || item.url) : ([item.url, item.sourceUrl, item.src].filter(Boolean)[0]);
             const localName = item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
+            const signal = opts.signal || null;
+            const maxRetries = (typeof opts.maxRetries === "number" && opts.maxRetries >= 0) ? Math.floor(opts.maxRetries) : 3;
+            const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
             let saved = false;
             let failReason = '';
             let recoveredFromTakeout = false;
 
             try {
-                let r: any = null;
-                const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
-
-                if (this.fetchAssetDelegate && targetUrl) {
-                    r = await this.fetchAssetDelegate({
-                        url: targetUrl,
-                        referer: `https://gemini.google.com/app/${chat.id}`,
-                        preferBuffer: true,
-                        timeoutMs,
-                        slot: this.currentSlot,
-                        chat,
-                        item
-                    });
-                } else {
-                    const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-                    if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs) {
-                        r = await sendTabAssetRequest(tab.id, targetUrl, chat.id, true, timeoutMs, 'tabs.sendMessage timed out');
-                    }
-                }
-
-                // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
-                // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
-                let hasValidBuffer = !!(r && r.dataBuffer && (
-                    (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
-                    (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
-                ));
-                const hasValidB64 = !!(r && (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(','))));
-
-                if (r && r.success && !hasValidBuffer && !hasValidB64 && typeof chrome !== 'undefined' && chrome.tabs) {
-                    const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-                    if (fallbackTab && fallbackTab.id) {
-                        r = await sendTabAssetRequest(fallbackTab.id, targetUrl, chat.id, false, timeoutMs, 'tabs.sendMessage fallback timed out');
-                        hasValidBuffer = !!(r && r.dataBuffer && (
-                            (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
-                            (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
-                        ));
-                    }
-                }
-
-                if (r && r.success) {
-                    const isValidBuffer = !!(r.dataBuffer && (
-                        (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
-                        (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer) && (r.dataBuffer as any).byteLength > 0)
-                    ));
-                    const bytes = isValidBuffer ? new Uint8Array(r.dataBuffer.buffer || r.dataBuffer) : null;
-                    const b64 = (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null));
-
-                    if (this.useZip) {
-                        if (this.folder) {
-                            if (bytes && bytes.length > 0) {
-                                this.folder.file(sanitizeZipPath(localName), bytes);
-                                saved = true;
-                            } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                                this.folder.file(sanitizeZipPath(localName), b64, { base64: true });
-                                saved = true;
-                            }
-                        }
-                    } else if (this.writeFileDirect) {
-                        if (bytes && bytes.length > 0) {
-                            saved = await this.writeFileDirect(localName, bytes);
-                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                            const binStr = atob(b64);
-                            const len = binStr.length;
-                            const b = new Uint8Array(len);
-                            for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
-                            saved = await this.writeFileDirect(localName, b);
-                        }
-                    }
-
-                    if (!saved) {
-                        failReason = r.error || 'Empty or unparseable binary/base64 payload';
-                    }
-                } else {
-                    failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
+                let attempt = 0;
+                for (;;) {
+                    // P1-041: abort is honored between attempts, not just between tasks.
+                    if (signal && signal.aborted) { failReason = 'aborted'; break; }
+                    const r = await this.downloadOnce(targetUrl, chat, item, timeoutMs, signal);
+                    // P1-041: an abort that landed mid-download surfaces here even if
+                    // the delegate/tab layer ignored the signal.
+                    if (signal && signal.aborted) { failReason = 'aborted'; break; }
+                    const persisted = await this.persistDownload(r, localName, isImage);
+                    if (persisted.saved) { saved = true; failReason = ''; break; }
+                    failReason = persisted.failReason;
+                    // P1-042: bounded retries with backoff instead of failing permanently
+                    // on the first transient timeout/jitter.
+                    if (attempt >= maxRetries) break;
+                    const delayMs = calculateBackoff(attempt, { initialDelayMs: 1000, maxDelayMs: 10000, jitterMs: 500 });
+                    this.onLog(`[${chat.title || chat.id}] 附件下载失败，${delayMs}ms 后重试 (${attempt + 1}/${maxRetries}): ${localName}`, 'warn');
+                    if (await interruptibleSleep(delayMs, signal)) { failReason = 'aborted'; break; }
+                    attempt++;
                 }
             } catch (e: any) {
                 failReason = e.message;

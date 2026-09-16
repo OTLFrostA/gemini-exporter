@@ -2,6 +2,7 @@
 
 import { TabService } from '../core/utils/tabService.js';
 import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
+import { interruptibleSleep } from '../core/api/client/retryPolicy.js';
 import { isSlotAborted } from './abortManager.js';
 import { startKeepAlive } from './keepAlive.js';
 
@@ -11,6 +12,27 @@ export const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Pr
 
 export const getGeminiTab = (slot?: string): Promise<any> =>
     TabService.getGeminiTab(slot);
+
+/**
+ * P1-038: race an in-flight tab message against the per-slot abort flag so
+ * cancel also takes effect while waiting on the content script (TabService
+ * itself has no AbortSignal). Resolves with { __slotAborted: true } when the
+ * slot was aborted; the underlying tab request is left to finish harmlessly.
+ */
+async function sendToGeminiTabCancellable(msg: any, slot: string): Promise<any> {
+    let settled = false;
+    const abortWait = (async () => {
+        while (!settled && !isSlotAborted(slot)) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+        return { __slotAborted: !settled };
+    })();
+    try {
+        return await Promise.race([sendToGeminiTab(msg, slot), abortWait]);
+    } finally {
+        settled = true;
+    }
+}
 
 export async function fetchBatch(
     list: any,
@@ -52,22 +74,37 @@ export async function fetchBatch(
                 const maxRetries = 3;
 
                 while (retryCount <= maxRetries && !isSlotAborted(slot)) {
-                    res = await sendToGeminiTab({
+                    // P1-038: in-flight tab messages are abort-aware (see sendToGeminiTabCancellable).
+                    res = await sendToGeminiTabCancellable({
                         action: 'getConversationDetail',
                         conversationId: cid
                     }, slot);
+                    if ((res as any)?.__slotAborted) { res = null; break; }
 
                     const isRateLimit = isRateLimited(res);
 
                     if (isRateLimit && retryCount < maxRetries) {
-                        const delayMs = calculateBackoff(retryCount);
+                        // P1-039: receiver-side Retry-After — response headers never cross
+                        // chrome.tabs.sendMessage, so honor an explicit retryAfterMs hint
+                        // when the content side provides one (clamped to 30s).
+                        const rawAfter = (res as any)?.retryAfterMs;
+                        const retryAfterMs = (typeof rawAfter === "number" && rawAfter > 0)
+                            ? Math.min(rawAfter, 30000)
+                            : undefined;
+                        const delayMs = calculateBackoff(retryCount, { retryAfterMs });
                         console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                        await new Promise(r => setTimeout(r, delayMs));
+                        // P1-038: the backoff sleep is interruptible — cancel no longer
+                        // waits out the full delay (previously up to ~31s unresponsive).
+                        const wasAborted = await interruptibleSleep(delayMs, undefined, () => isSlotAborted(slot));
+                        if (wasAborted) break;
                         retryCount++;
                         continue;
                     }
                     break;
                 }
+
+                // P1-038: after a cancel, exit without recording a bogus error entry.
+                if (isSlotAborted(slot)) break;
 
                 if (res && res.success) {
                     const chat = res.data || res.chat || res;

@@ -22,6 +22,8 @@ export interface GeminiClientRpcClientModule {
     nextReqid: () => string;
     generateFallbackSid: () => string;
     postBatchexecute: (options: RpcRequestOptions) => Promise<Response>;
+    /** P1-034: merge caller signal with internal timeout signal (not OR). */
+    mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
 
 declare global {
@@ -57,6 +59,19 @@ function getParser(): any {
 
     function generateFallbackSid(): string {
         return String(Math.floor(Math.random() * 1e19));
+    }
+
+    /**
+     * P1-034: merge the caller's AbortSignal with the internal timeout signal
+     * instead of picking one of them. Previously `signal || controller.signal`
+     * silently dropped the timeout whenever a caller signal was present, so a
+     * request could hang forever once the user started using the cancel button.
+     */
+    function mergeAbortSignals(signals: Array<AbortSignal | null | undefined>): AbortSignal | undefined {
+        const active = signals.filter((s): s is AbortSignal => !!s);
+        if (active.length === 0) return undefined;
+        if (active.length === 1) return active[0];
+        return AbortSignal.any(active);
     }
 
     /**
@@ -106,7 +121,8 @@ function getParser(): any {
                 },
                 body: body.toString(),
                 credentials: "include",
-                signal: signal || (controller ? controller.signal : undefined)
+                // P1-034: caller signal and internal timeout signal are merged, not OR-ed.
+                signal: mergeAbortSignals([signal, controller ? controller.signal : null])
             });
             return resp;
         } finally {
@@ -122,7 +138,8 @@ export {
     getApiUrl,
     nextReqid,
     generateFallbackSid,
-    postBatchexecute
+    postBatchexecute,
+    mergeAbortSignals
 };
 
 export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
@@ -133,7 +150,8 @@ export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     getApiUrl,
     nextReqid,
     generateFallbackSid,
-    postBatchexecute
+    postBatchexecute,
+    mergeAbortSignals
 };
 
 if (typeof globalThis !== 'undefined') (globalThis as any).GeminiClientRpcClient = GeminiClientRpcClient;
