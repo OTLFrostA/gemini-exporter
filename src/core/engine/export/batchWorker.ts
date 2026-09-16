@@ -55,6 +55,7 @@ declare global {
 
 import GeminiUtils, {
     normId as utilsNormId,
+    shortScope as utilsShortScope,
     cleanTitle as utilsCleanTitle,
     unescapeHtml as utilsUnescapeHtml,
     stripHtmlTags as utilsStripHtmlTags,
@@ -69,6 +70,13 @@ const normId = (id?: string | number | null): string => {
         return (globalThis as any).GeminiUtils.normId(id);
     }
     return utilsNormId(id);
+};
+
+const shortScope = (id?: string | number | null): string => {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.shortScope) {
+        return (globalThis as any).GeminiUtils.shortScope(id);
+    }
+    return utilsShortScope(id as any);
 };
 
 const cleanTitle = (t?: string | null): string => {
@@ -288,7 +296,7 @@ const isBadBrand = isBrandPlaceholderTitle;
 
         // 2b. Extract or synthesize Deep Research document entities
         if (Array.isArray(chat.messages) && chat.messages.length > 0) {
-            const shortScope = nid ? `${nid.slice(-6)}_` : '';
+            const scope = shortScope(nid);
             for (let mi = 0; mi < chat.messages.length; mi++) {
                 const m = chat.messages[mi];
                 if (m.role !== 'model' || !m.content || typeof m.content !== 'string') continue;
@@ -321,7 +329,7 @@ const isBadBrand = isBrandPlaceholderTitle;
 
                     if (!docTitle) docTitle = 'Deep Research Report';
                     const safeDocTitle = docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
-                    const localName = `files/${shortScope}${safeDocTitle}.md`;
+                    const localName = `files/${scope}${safeDocTitle}.md`;
 
                     if (!docMarkdown.trim().startsWith('#')) {
                         docMarkdown = `# ${docTitle}\n\n${docMarkdown.trim()}`;

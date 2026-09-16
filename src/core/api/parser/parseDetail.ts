@@ -69,6 +69,7 @@ import GeminiProtocol, { WRB, RPCS } from "../../protocol/protocol.js";
 import GeminiUtils from "../../utils/utils.js";
 import { extractInnerPayload } from "./payload.js";
 import { resolveDetailTitle } from "../../utils/titleUtils.js";
+import { shortId, shortScope as getShortScope } from "../../utils/pathUtils.js";
 
 function getExtractors(): any {
     return {
@@ -281,7 +282,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
 
             let convId = extractConversationId(inner, turns);
             if (convId === "c_unknown" && targetConvId) convId = targetConvId;
-            let shortScope = convId ? normId(convId).slice(-6) + "_" : "";
+            let shortScope = getShortScope(convId);
             let msgs: any[] = [];
             let dedupSet = new Set<string>();
             let docDedupSet = new Set<string>();
@@ -408,7 +409,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                                         }
                                     }
                                     if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle)) {
-                                        docTitle = `深度研究报告_${String(metaItem.id || "doc").replace(/[^a-zA-Z0-9_-]/g, "").slice(-6)}`;
+                                        docTitle = `深度研究报告_${shortId(metaItem.id || "doc")}`;
                                     }
 
                                     if (!md) return null;

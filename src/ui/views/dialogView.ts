@@ -2,6 +2,7 @@
 import type { IDialogView } from '../../types/ui.js';
 import StorageService from '../../core/storage/storageService.js';
 import ConversationsStore from '../state/conversationsStore.js';
+import { SessionStore } from '../../core/storage/sessionStore.js';
 
 import { $, t } from '../uiCommon.js';
 
@@ -77,11 +78,9 @@ export function renderExportBanner(session: any, currentSlot: string, isRunning:
 export function dismissExportBanner(): void {
     const banner = $('exportSessionBanner');
     if (banner) banner.style.display = 'none';
-    try {
-        chrome.storage.local.remove(['gemini_last_export_session']);
-    } catch (e) {
+    SessionStore.clearSession().catch(e => {
         console.warn("[GemExporter:storage] Storage operation failed:", e);
-    }
+    });
 }
 
 export function showDirectWritePrompt(count: number, onConfirmFolder: () => void, onContinueZip: () => void): void {

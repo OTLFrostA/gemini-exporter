@@ -62,6 +62,9 @@ import rateLimitModule, { RateLimitManager, isRateLimited, calculateBackoff, typ
 import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
 import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
+import { createWriter } from "../writers/writerInterface.js";
+import { SessionStore } from "../../storage/sessionStore.js";
+import { shortId } from "../../utils/pathUtils.js";
 
 export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3';
 export function getExtensionVersion(): string {
@@ -305,46 +308,19 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
             let folder: any = null;
             let zipWriter: any = null;
             let fsWriter: any = null;
+            let writer: any = null;
 
             if (useZip) {
-                const ZipWriterModule = (globalThis as any).ZipWriter;
-                const ZipWriterClass = (typeof ZipWriterModule !== 'undefined' && ZipWriterModule.ZipWriter)
-                    ? ZipWriterModule.ZipWriter
-                    : (typeof ZipWriterModule === 'function' ? ZipWriterModule : null);
-                if (ZipWriterClass) {
-                    zipWriter = new ZipWriterClass(exportFolderName);
-                    zip = zipWriter.zip;
-                    folder = zipWriter.folder;
-                } else {
-                    const JSZip = (globalThis as any).JSZip;
-                    if (typeof JSZip === 'undefined') throw new Error('JSZip library not found');
-                    zip = new JSZip();
-                    folder = zip.folder(exportFolderName);
-                }
+                writer = createWriter('zip', { folderName: exportFolderName });
+                zipWriter = writer;
+                zip = (writer as any).zip;
+                folder = (writer as any).folder;
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
-                    const FsWriterModule = (globalThis as any).FsWriter;
-                    const FsWriterClass = (typeof FsWriterModule !== 'undefined' && FsWriterModule.FsWriter)
-                        ? FsWriterModule.FsWriter
-                        : (typeof FsWriterModule === 'function' ? FsWriterModule : null);
-                    if (FsWriterClass) {
-                        fsWriter = new FsWriterClass(dirHandle, exportFolderName);
-                        batchDirHandle = await fsWriter.init();
-                    } else {
-                        if (dirHandle.queryPermission) {
-                            const perm = await dirHandle.queryPermission({ mode: 'readwrite' });
-                            if (perm !== 'granted') {
-                                const req = dirHandle.requestPermission ? await dirHandle.requestPermission({ mode: 'readwrite' }) : perm;
-                                if (req !== 'granted') throw new Error('Directory permission not granted: ' + req);
-                            }
-                        }
-                        if (dirHandle.name === exportFolderName) {
-                            batchDirHandle = dirHandle;
-                        } else {
-                            batchDirHandle = await dirHandle.getDirectoryHandle(exportFolderName, { create: true });
-                        }
-                    }
+                    writer = createWriter('fs', { dirHandle, folderName: exportFolderName });
+                    fsWriter = writer;
+                    batchDirHandle = await (fsWriter as any).init();
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     onLog(`创建子文件夹失败: ${errMsg}`, 'warn');
@@ -361,22 +337,11 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                 if (this.aborted) return false;
                 try {
                     const cleanPath = sanitizeZipPath(localName);
-                    if (fsWriter) {
-                        await fsWriter.writeFile(cleanPath, data);
+                    if (writer) {
+                        await writer.writeFile(cleanPath, data);
                         return true;
                     }
-                    const parts = cleanPath.split('/').filter(Boolean);
-                    let fileName = parts.pop() || 'file';
-                    const dirPath = parts.join('/');
-                    let targetDir = batchDirHandle;
-                    if (dirPath) {
-                        targetDir = await ensureSubDir(batchDirHandle, dirPath);
-                    }
-                    const fh = await targetDir.getFileHandle(fileName, { create: true });
-                    const wr = await fh.createWritable();
-                    await wr.write(data);
-                    await wr.close();
-                    return true;
+                    return false;
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     const errObj = e as any;
@@ -396,7 +361,7 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                 }
             };
 
-            return { zip, folder, zipWriter, batchDirHandle, fsWriter, writeFileDirect };
+            return { zip, folder, zipWriter, batchDirHandle, fsWriter, writer, writeFileDirect };
         }
 
         async _packageAndDownload(
@@ -685,12 +650,7 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                     const safeBase = sanitizeFileName(listTitle, chat.id);
                     const fileName = buildExportFileName(listTitle, chat.id, ext);
 
-                    let writeOk = true;
-                    if (useZip) {
-                        folder.file(fileName, content);
-                    } else {
-                        writeOk = await writeFileDirect(fileName, content);
-                    }
+                    const writeOk = await writeFileDirect(fileName, content);
 
                     let queuedAssetsForThisChat = 0;
                     const chatAssetTasks: (() => Promise<void>)[] = [];
@@ -742,7 +702,7 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                                         }
                                         if (useZip) {
                                             try {
-                                                folder.file(sanitizeZipPath(att.localName), att.contentMarkdown);
+                                                await writeFileDirect(att.localName, att.contentMarkdown);
                                                 totalAssets++;
                                                 downloadedAssets++;
                                                 updateProgress();
@@ -752,7 +712,7 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                                             queuedAssetsForThisChat++;
                                             updateProgress();
                                             chatAssetTasks.push(async () => {
-                                                const ok = await writeFileDirect(att.localName || `${safeBase}_${chat.id.slice(-6)}.md`, att.contentMarkdown);
+                                                const ok = await writeFileDirect(att.localName || `${safeBase}_${shortId(chat.id)}.md`, att.contentMarkdown);
                                                 if (ok) {
                                                     downloadedAssets++;
                                                     updateProgress();
@@ -843,21 +803,16 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                         });
                     } else {
                         try {
-                            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                                await chrome.storage.local.set({
-                                    gemini_last_export_session: {
-                                        status: 'running',
-                                        slot,
-                                        total: totalChats,
-                                        current: completedCount,
-                                        lastChatId: chat.id,
-                                        lastChatTitle: listTitle,
-                                        format,
-                                        useZip,
-                                        updatedAt: Date.now()
-                                    }
-                                });
-                            }
+                            await SessionStore.setSession({
+                                status: 'running',
+                                slot,
+                                total: totalChats,
+                                current: completedCount,
+                                lastChatId: chat.id,
+                                lastChatTitle: listTitle,
+                                format,
+                                useZip
+                            });
                         } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
                     }
                 }

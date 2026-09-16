@@ -22,6 +22,7 @@ import {
     getEffectiveTimestamp,
     compareConversations
 } from '../../../core/utils/utils.js';
+import { SessionStore } from '../../../core/storage/sessionStore.js';
 
 export { normId, cleanTitle, isRealTitle, resolveTitle, compareConversations };
 export const getEffectiveTime = getEffectiveTimestamp;
@@ -72,7 +73,7 @@ export async function checkExportSession(): Promise<void> {
         const Store = getStore();
         if (!Dialogs || !Dialogs.renderExportBanner) return;
         const isRunning = Controller ? Controller.isRunning() : false;
-        const { gemini_last_export_session: session } = await chrome.storage.local.get(['gemini_last_export_session']);
+        const session = await SessionStore.getSession();
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         Dialogs.renderExportBanner(session, slot, isRunning);
     } catch (e) {

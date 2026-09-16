@@ -5,6 +5,8 @@ import {
     sanitizeFileName,
     sanitizeRelativePath,
     normId,
+    shortId,
+    shortScope,
     isReservedRoute,
     RESERVED_ROUTES,
     isGeminiUrl,
@@ -52,6 +54,8 @@ export {
     sanitizeFileName,
     sanitizeRelativePath,
     normId,
+    shortId,
+    shortScope,
     isReservedRoute,
     RESERVED_ROUTES,
     isGeminiUrl,
@@ -101,6 +105,8 @@ export interface GeminiUtilsModule {
     sanitizeFileName: (name?: string | null, fallback?: string) => string;
     sanitizeRelativePath: (p?: string | null, defaultName?: string) => string;
     normId: (id?: string | number | null) => string;
+    shortId: (id?: string | number | null) => string;
+    shortScope: (id?: string | number | null) => string;
     isReservedRoute: (id?: string | number | null) => boolean;
     RESERVED_ROUTES: Set<string>;
     isGeminiUrl: (urlStr?: string | null) => boolean;
@@ -148,6 +154,8 @@ export const GeminiUtils: GeminiUtilsModule = {
     sanitizeFileName,
     sanitizeRelativePath,
     normId,
+    shortId,
+    shortScope,
     isReservedRoute,
     RESERVED_ROUTES,
     isGeminiUrl,
