@@ -154,7 +154,7 @@ def test_javascript_syntax():
     assert res.returncode == 0, f"TypeScript syntax check failed (tsc --noEmit):\n{res.stdout}\n{res.stderr}"
     print(f"  ✓ TypeScript strict syntax validated (tsc --noEmit)")
 
-def test_javascript_unit_tests():
+def test_javascript_unit_tests(target_tests=None):
     import subprocess
     import glob
     import shutil
@@ -168,6 +168,17 @@ def test_javascript_unit_tests():
             break
 
     test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))))
+    if target_tests is not None:
+        norm_targets = {os.path.normpath(t).replace("\\", "/") for t in target_tests}
+        norm_bases = {os.path.basename(t) for t in target_tests}
+        test_files = [
+            tf for tf in test_files
+            if os.path.relpath(tf, BASE_DIR).replace("\\", "/") in norm_targets
+            or os.path.basename(tf) in norm_bases
+        ]
+        if not test_files:
+            print("  ✓ 无受影响的 JavaScript/TypeScript 单元测试需要执行。")
+            return
 
 
     # Preload files for mock fs in JSC
@@ -849,33 +860,133 @@ def test_framework_environment_suite():
     assert res.returncode == 0, f"test_framework_environment.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 TestEnvironment & Unified Lifecycle test suite passed")
 
-test_json_files()
-test_manifest_structure()
-test_build_pipeline()
-test_html_includes()
-test_i18n_keys()
-test_content_badge_flicker_prevention()
-test_exported_history_and_slot_fallback()
-test_dataset_freshness_gate()
-test_scenario_pool_pipeline()
-test_online_scenario_provider_and_lifecycle_tracker()
-test_tour_status_indicator_styling()
-test_takeout_limit_modal_and_wall_detection()
-test_stage1_architecture_ssot_and_state_isolation()
-test_stage2_architecture_improvements()
-test_serial_pipeline_suite()
-test_gemini_driver_suite()
-test_selectors_and_gateway_suite()
-test_platform_driver_suite()
-test_pipeline_decoupling_suite()
-test_visual_sandbox_suite()
-test_framework_environment_suite()
-test_javascript_syntax()
-test_javascript_unit_tests()
+def run_all():
+    import argparse
+    import glob
+    parser = argparse.ArgumentParser(description="Gemini Exporter 综合测试套件")
+    parser.add_argument("--changed", action="store_true", help="仅执行当前 Git 改动及其传递依赖影响的测试")
+    parser.add_argument("--filter", default=None, help="按关键字或文件名过滤单元测试 (如 --filter storage)")
+    parser.add_argument("--files", nargs="*", default=None, help="显式指定目标测试文件或变更文件")
+    parser.add_argument("--base", default=None, help="Git 差异基准分支 (默认 origin/main 或 main)")
+    args, _ = parser.parse_known_args()
 
-print("=" * 60)
+    if args.filter:
+        print(f"🔍 正在按关键字过滤单元测试: '{args.filter}'")
+        all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))))
+        matching = [tf for tf in all_test_files if args.filter.lower() in os.path.basename(tf).lower()]
+        if not matching:
+            print(f"❌ 未找到匹配关键字 '{args.filter}' 的单元测试！")
+            sys.exit(1)
+        print(f"🧪 匹配到 {len(matching)} 个单元测试套件:")
+        for m in matching:
+            print(f"  • {os.path.relpath(m, BASE_DIR)}")
+        test_javascript_unit_tests(target_tests=matching)
+        print("=" * 60)
+        print(f"🎉 全部 {len(matching)} 个过滤测试均顺利通过！")
+        print("=" * 60)
+        return
 
-print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
-print("=" * 60)
+    if args.changed:
+        scripts_dir = os.path.join(BASE_DIR, "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        try:
+            from test_impact_analyzer import get_git_changed_files, analyze_impact, DependencyGraph
+            changed = set(args.files) if args.files else get_git_changed_files(base_ref=args.base, base_dir=BASE_DIR)
+            graph = DependencyGraph(base_dir=BASE_DIR)
+            result = analyze_impact(changed, graph=graph, base_dir=BASE_DIR)
+
+            if result.is_docs_only:
+                print("⚡ [增量测试] 检测到仅有文档/静态资源改动，无需执行单元测试套件。")
+                print("=" * 60)
+                print("🎉 ALL TESTS PASSED SUCCESSFULLY! (0s)")
+                print("=" * 60)
+                return
+
+            if result.is_all_affected:
+                print("⚠️ [增量测试] 检测到全局核心配置变更，回退执行全量测试套件...")
+            else:
+                print(f"⚡ [增量测试] 识别到 {len(result.changed_files)} 个变更文件，传递闭包覆盖 {len(result.affected_files)} 个模块。")
+                print(f"🧪 即将执行 {len(result.target_unit_tests)} 个受影响单元测试套件...")
+
+                affected = result.affected_files
+                # 执行关联的 Python 规格断言套件
+                if any("manifest.json" in f or "package.json" in f for f in affected):
+                    test_json_files()
+                    test_manifest_structure()
+                if any("build.js" in f or "package.json" in f for f in affected):
+                    test_build_pipeline()
+                if any("options.html" in f or "popup.html" in f for f in affected):
+                    test_html_includes()
+                if any("locales" in f for f in affected):
+                    test_i18n_keys()
+                if any(x in f for f in affected for x in ["badgeView", "content.css", "pageObserver", "syncEngine"]):
+                    test_content_badge_flicker_prevention()
+                if any(x in f for f in affected for x in ["storageService", "conversationsStore"]):
+                    test_exported_history_and_slot_fallback()
+                if any("test_live_chat_and_export.py" in f for f in affected):
+                    test_dataset_freshness_gate()
+                if any("scenario" in f for f in affected):
+                    test_scenario_pool_pipeline()
+                    test_online_scenario_provider_and_lifecycle_tracker()
+                if any(x in f for f in affected for x in ["tourGuide", "options.css", "dialogView"]):
+                    test_tour_status_indicator_styling()
+                    test_takeout_limit_modal_and_wall_detection()
+                if any(x in f for f in affected for x in ["background", "takeoutEngine", "syncEngine"]):
+                    test_stage1_architecture_ssot_and_state_isolation()
+                if any(x in f for f in affected for x in ["writers", "exportOrchestrator", "geminiClient", "hookCredentials"]):
+                    test_stage2_architecture_improvements()
+                if any("pipeline" in f for f in affected):
+                    test_serial_pipeline_suite()
+                    test_pipeline_decoupling_suite()
+                if any("driver" in f for f in affected):
+                    test_gemini_driver_suite()
+                    test_platform_driver_suite()
+                if any("selectors" in f for f in affected):
+                    test_selectors_and_gateway_suite()
+                if any("env" in f for f in affected):
+                    test_framework_environment_suite()
+
+                test_javascript_syntax()
+                test_javascript_unit_tests(target_tests=result.target_unit_tests)
+                print("=" * 60)
+                print(f"🎉 全部受影响单元测试 ({len(result.target_unit_tests)} 个套件) 均顺利通过！")
+                print("=" * 60)
+                return
+        except Exception as e:
+            print(f"⚠️ 依赖分析器出现异常 ({e})，回退执行全量测试套件...")
+
+    # 全量默认执行路径 (Backward Compatible)
+    test_json_files()
+    test_manifest_structure()
+    test_build_pipeline()
+    test_html_includes()
+    test_i18n_keys()
+    test_content_badge_flicker_prevention()
+    test_exported_history_and_slot_fallback()
+    test_dataset_freshness_gate()
+    test_scenario_pool_pipeline()
+    test_online_scenario_provider_and_lifecycle_tracker()
+    test_tour_status_indicator_styling()
+    test_takeout_limit_modal_and_wall_detection()
+    test_stage1_architecture_ssot_and_state_isolation()
+    test_stage2_architecture_improvements()
+    test_serial_pipeline_suite()
+    test_gemini_driver_suite()
+    test_selectors_and_gateway_suite()
+    test_platform_driver_suite()
+    test_pipeline_decoupling_suite()
+    test_visual_sandbox_suite()
+    test_framework_environment_suite()
+    test_javascript_syntax()
+    test_javascript_unit_tests()
+
+    print("=" * 60)
+    print("🎉 ALL TESTS PASSED SUCCESSFULLY!")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    run_all()
 
 

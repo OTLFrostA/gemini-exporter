@@ -34,9 +34,13 @@
 本项目严格区分并建立了双层测试体系，任何 AI 在提交代码或宣称功能完成前，必须严格依照下述标准执行验证：
 
 ### 第一层：CI 自动化门禁测试 (Tier 1: Fast & Headless)
-* **执行命令**：`npm test`（对应 `npm run type-check && python3 tests/run_tests.py && node build.js && playwright test`）。
-* **适用场景**：每次提交 PR 前在本地 worktree 中必须全绿通过，GitHub Actions 门禁对此强制校验。
-* **特性**：轻量极速（~50 秒完成），包含 TypeScript 严格类型检查、22 个单元测试套件、esbuild 双轨打包构建校验与 30 个无头 Playwright 端到端用例（12 个 spec 文件，含老会话置顶升权、会话实时删除与 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
+* **执行命令**：
+  - **全量门禁**：`npm test`（对应 `npm run type-check && python3 tests/run_tests.py && node build.js && playwright test`）。
+  - **增量极速（推荐日常开发使用）**：`npm run test:changed`（基于 Git 差异进行**模块级反向依赖分析与传递闭包推导 (Transitive Impact Analysis)**，若修改底层依赖则自动递归追溯并运行所有直接与间接关联模块及对应 Playwright 规格，耗时仅 5~15 秒）。
+  - **影响分析报告**：`npm run test:impact`（打印当前改动对全仓模块与测试的传递影响拓扑）。
+  - **单点定向单元测试**：`python3 tests/run_tests.py --filter <keyword>`（如 `python3 tests/run_tests.py --filter storage`，秒级验证指定模块）。
+* **适用场景**：日常功能开发与单步迭代推荐使用 `npm run test:changed` 极速自测；每次提交 PR 前必须全量通过 `npm test`，GitHub Actions 门禁对此强制校验。
+* **特性**：轻量极速，包含 TypeScript 严格类型检查、单元测试套件、esbuild 双轨打包构建校验与 35 个无头 Playwright 端到端用例（含老会话置顶升权、会话实时删除与 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
 
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。
@@ -75,6 +79,15 @@
 ## 三、常用辅助命令速查
 
 ```bash
+# 运行 Tier 1 依赖感知增量测试 (极速 5~15s，日常开发首选)
+npm run test:changed
+
+# 查看当前改动的影响拓扑与受影响测试清单
+npm run test:impact
+
+# 定向过滤运行特定单元测试 (秒级完成，如仅测 storage)
+python3 tests/run_tests.py --filter storage
+
 # 启动独立调试环境 Chrome (端口 9222)
 ./scripts/open_test_chrome.sh          # macOS / Linux
 .\scripts\open_test_chrome.ps1         # Windows PowerShell
