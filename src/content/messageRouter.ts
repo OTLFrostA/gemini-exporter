@@ -10,6 +10,7 @@ import { isRateLimited } from '../core/engine/export/rateLimiter.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
+import { registerCleanup } from './cleanupRegistry.js';
 
 const resolveProvider = () => {
     const url = (typeof location !== 'undefined' && location.href) || '';
@@ -57,10 +58,21 @@ export function init({
 
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
-    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    const dispatchMessage = (msg: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
+        // S1: exactly-once, fail-closed responder. A listener must never
+        // leave the message port hanging: a synchronous throw anywhere in
+        // dispatch is converted into a structured failure instead of a
+        // silent 25s sender-side timeout.
+        let responded = false;
+        const respond = (response: any) => {
+            if (responded) return;
+            responded = true;
+            try { sendResponse(response); } catch { /* port may be gone */ }
+        };
+        try {
         if (msg.action === 'ping') {
             const ver = getExtensionVersion();
-            sendResponse({
+            respond({
                 ok: true,
                 version: ver,
                 ver: ver
@@ -81,14 +93,14 @@ export function init({
                     if (!res) {
                         // P1-020: a null scan result (already running / provider
                         // unavailable) must never be reported as success.
-                        sendResponse({
+                        respond({
                             success: false,
                             count: 0,
                             error: 'deep scan did not produce a result (already running or provider unavailable)'
                         });
                         return;
                     }
-                    sendResponse({
+                    respond({
                         success: true,
                         count: res?.count || 0,
                         diagnostics: res?.diagnostics,
@@ -97,7 +109,7 @@ export function init({
                 } catch (e: unknown) {
                     const errStr = getErrorMessage(e);
                     const isLimit = isRateLimited({ success: false, error: errStr });
-                    sendResponse({ success: false, error: errStr, hitGoogleLimit: isLimit });
+                    respond({ success: false, error: errStr, hitGoogleLimit: isLimit });
                 }
             })();
             return true;
@@ -111,13 +123,13 @@ export function init({
                 w.__gemExporterAborted = true;
                 try { w.__gemExporterActiveClient && w.__gemExporterActiveClient.abort(); } catch { /* intentional: best-effort cleanup */ }
             }
-            sendResponse({ ok: true, aborted: true });
+            respond({ ok: true, aborted: true });
             return true;
         }
 
         if (msg.action === 'getScrollContainer') {
             const c = Scraper ? Scraper.getScrollContainer() : null;
-            sendResponse({
+            respond({
                 found: !!c,
                 tag: c?.tagName || null,
                 id: c?.id || null,
@@ -129,7 +141,7 @@ export function init({
         if (msg.action === 'getConversationDetail') {
             const cid = msg.conversationId || msg.id;
             if (!cid) {
-                sendResponse({ success: false, error: 'no id' });
+                respond({ success: false, error: 'no id' });
                 return true;
             }
             (async () => {
@@ -168,7 +180,7 @@ export function init({
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: msg.targetSid || null });
                         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                             await persistDetailTitle(detail);
-                            sendResponse({ success: true, data: detail, source: 'batchexecute' });
+                            respond({ success: true, data: detail, source: 'batchexecute' });
                             return;
                         } else if (detail) {
                             const rawKeys = detail._raw ? Object.keys(detail._raw) : [];
@@ -192,7 +204,7 @@ export function init({
                         const chat = await Scraper.contentFetchChatDetail(cid);
                         if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
                             await persistDetailTitle(chat);
-                            sendResponse({ success: true, data: chat, source: 'dom' });
+                            respond({ success: true, data: chat, source: 'dom' });
                             return;
                         } else {
                             if (contentContext.isDevMode()) {
@@ -224,42 +236,57 @@ export function init({
                                 }
                             }
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
-                            sendResponse({ success: true, data: { ...chat, _empty: true, isDeleted: isConfirmedDeleted, error: isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat?.error || 'DOM 返回内容为空'), _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
+                            respond({ success: true, data: { ...chat, _empty: true, isDeleted: isConfirmedDeleted, error: isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat?.error || 'DOM 返回内容为空'), _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
                             return;
                         }
                     }
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     const mergedDebug = { batchexecuteEmptyDebug, domError: errMsg };
-                    sendResponse({ success: false, error: errMsg, _debug: mergedDebug });
+                    respond({ success: false, error: errMsg, _debug: mergedDebug });
                 }
+                // S1: fail closed — every response path above returns, so
+                // reaching here means nothing was sent (e.g. no provider
+                // and no scraper). Never leave the port hanging. The
+                // exactly-once guard makes this a no-op when a response
+                // was already produced.
+                respond({ ok: false, success: false, error: 'conversation detail unavailable: no provider or scraper produced a result' });
             })();
             return true;
         }
 
         if (msg.action === 'getFileBlob') {
-            if (!isAllowedAssetUrl(msg.url)) { sendResponse({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
-            if (Assets) Assets.handleGetFileBlob(msg, sendResponse);
-            else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
+            if (Assets) Assets.handleGetFileBlob(msg, respond);
+            else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'getImageBlob') {
-            if (!isAllowedAssetUrl(msg.url)) { sendResponse({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
-            if (Assets) Assets.handleGetImageBlob(msg, sendResponse);
-            else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
+            if (Assets) Assets.handleGetImageBlob(msg, respond);
+            else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'downloadAssetDirect') {
-            if (!isAllowedAssetUrl(msg.url)) { sendResponse({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
-            if (Assets) Assets.downloadAssetDirect(msg, sendResponse);
-            else sendResponse({ success: false, error: 'AssetFetcher not loaded' });
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
+            if (Assets) Assets.downloadAssetDirect(msg, respond);
+            else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         // Unknown action: structured error instead of port closed
-        try { sendResponse({ ok: false, error: `unknown action: ${msg.action}` }); } catch {}
+        respond({ ok: false, success: false, error: `unknown action: ${msg.action}` });
+        } catch (e: unknown) {
+            respond({ ok: false, success: false, error: getErrorMessage(e) });
+        }
+    };
+    chrome.runtime.onMessage.addListener(dispatchMessage);
+    // P1-026: a re-injected bundle must remove the previous bundle's listener
+    // instead of stacking a second one (which would run e.g. deepScan twice).
+    registerCleanup(() => {
+        try { chrome.runtime.onMessage.removeListener(dispatchMessage); } catch { /* already gone */ }
     });
 }
 

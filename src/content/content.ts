@@ -15,6 +15,7 @@ import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { LiveStorageManager } from '../core/storage/liveStorageManager.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
+import { runCleanups, registerCleanup } from './cleanupRegistry.js';
 
 (() => {
     'use strict';
@@ -26,6 +27,10 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
     if (typeof w.__gemExporterDeepScanPromise === 'undefined') w.__gemExporterDeepScanPromise = null;
 
     if (w.__gemExporterInjected) {
+        // P1-026: page re-injection — first drop the previous bundle's
+        // listeners (runtime.onMessage, window message, storage, route),
+        // then re-register everything fresh below.
+        runCleanups();
         try {
             document.getElementById('geminiExportBadge')?.remove();
         } catch {
@@ -85,7 +90,7 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
                 w.__gemExporterDevMode = !!d.gemini_dev_mode;
                 if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
             });
-            chrome.storage.onChanged.addListener((changes, area) => {
+            const onStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
                 if (area === 'local' && changes.gemini_exporter_lang) {
                     const newLang = String(changes.gemini_exporter_lang.newValue || 'zh');
                     if (Sync && Sync.setLanguage) Sync.setLanguage(newLang);
@@ -96,6 +101,12 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
                     contentContext.setDevMode(devMode);
                     w.__gemExporterDevMode = devMode;
                 }
+            };
+            chrome.storage.onChanged.addListener(onStorageChanged);
+            // P1-026: without this, every re-injection stacks another
+            // storage listener (double language/badge refresh).
+            registerCleanup(() => {
+                try { chrome.storage.onChanged.removeListener(onStorageChanged); } catch { /* already gone */ }
             });
         }
     } catch (e) {
