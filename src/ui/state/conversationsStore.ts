@@ -169,16 +169,16 @@ export async function reconcileWithCloud(activeCloudList: any[], options: any = 
     return { kept: conversations.length, removed: 0, removedIds: [] };
 }
 
-export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: Conversation[]; hasDirtyTitles: boolean } {
-    if (!Array.isArray(incoming)) return { processed: [], hasDirtyTitles: false };
+export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: Conversation[]; hasDirtyTitles: boolean; changedCount: number } {
+    if (!Array.isArray(incoming)) return { processed: [], hasDirtyTitles: false, changedCount: 0 };
     const utils = getUtils();
     if (utils && typeof utils.deduplicateConversations === 'function') {
         const res = utils.deduplicateConversations(incoming);
-        return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles };
+        return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles, changedCount: res.changedCount || 0 };
     }
 
     const res = utilsDeduplicateConversations(incoming);
-    return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles };
+    return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles, changedCount: res.changedCount || 0 };
 }
 
 export function hasTakeoutData(): boolean {

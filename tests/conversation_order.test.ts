@@ -402,5 +402,57 @@ test('Title arbitration & non-downgrade CAS immunity - Takeout and DOM titles ca
     assert.strictEqual(res4.merged.titleSource, 'rpc');
 });
 
+test('Stale Takeout snapshot must not shrink messages/messageCount/lastSeen (CON-HF7 message dimension)', () => {
+    // Online record is richer (8 turns, recent lastSeen); Takeout export predates
+    // the last online turns, so its snapshot is smaller with an older lastSeen.
+    const online = {
+        id: 'stale_demo',
+        title: 'Online Title',
+        titleSource: 'rpc',
+        titles: { rpc: 'Online Title' },
+        messages: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'],
+        messageCount: 8,
+        updatedAt: 5000,
+        timestamp: 5000,
+        lastSeen: '2026-09-10T12:00:00.000Z'
+    };
+    const staleTakeout = {
+        id: 'stale_demo',
+        title: 'Takeout Prefix',
+        titleSource: 'takeout',
+        titles: { takeout: 'Takeout Prefix' },
+        messageCount: 2,
+        updatedAt: 1000,
+        timestamp: 1000,
+        lastSeen: '2026-09-01T12:00:00.000Z'
+    };
+
+    const res = GeminiUtils.mergeConversation(online, staleTakeout, { source: 'takeout-import' });
+    assert.strictEqual(res.merged.updatedAt, 5000, 'updatedAt guard keeps the newer timestamp');
+    assert.strictEqual(res.merged.messageCount, 8, 'stale snapshot must not shrink messageCount');
+    assert.deepStrictEqual(res.merged.messages, online.messages, 'stale snapshot must not replace messages');
+    assert.strictEqual(res.merged.lastSeen, online.lastSeen, 'stale snapshot must not rewind lastSeen');
+    assert.strictEqual(res.merged.titles.takeout, 'Takeout Prefix', 'takeout title slot is still seeded for the upgrade loop');
+    assert.strictEqual(res.merged.title, 'Online Title', 'rpc title stays authoritative');
+
+    // Growth direction still flows through and flags isChanged.
+    const growing = {
+        id: 'stale_demo',
+        title: 'Online Title',
+        titleSource: 'rpc',
+        titles: { rpc: 'Online Title' },
+        messageCount: 10,
+        updatedAt: 6000,
+        timestamp: 6000
+    };
+    const res2 = GeminiUtils.mergeConversation(
+        { id: 'stale_demo', title: 'Online Title', titleSource: 'rpc', titles: { rpc: 'Online Title' }, messageCount: 8, updatedAt: 5000, timestamp: 5000 },
+        growing,
+        { source: 'network-list' }
+    );
+    assert.strictEqual(res2.merged.messageCount, 10, 'richer incoming messageCount must flow through');
+    assert.strictEqual(res2.isChanged, true, 'message growth is a meaningful change');
+});
+
 
 
