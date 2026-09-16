@@ -225,8 +225,13 @@ export function compareConversations(a?: any, b?: any): number {
     if (!a) return 1;
     if (!b) return -1;
 
-    const tsA = getEffectiveTimestamp(a);
-    const tsB = getEffectiveTimestamp(b);
+    // Display recency: a chat the user just interacted with bumps to the top
+    // via the client-observed lastActiveAt, without touching the
+    // server-authoritative timestamps (SSOT: #403 follow-up). The scan
+    // watermark and export-staleness checks keep using getEffectiveTimestamp
+    // (server time only); lastActiveAt never feeds them.
+    const tsA = Math.max(getEffectiveTimestamp(a), toTimestampMs((a as any)?.lastActiveAt) ?? 0);
+    const tsB = Math.max(getEffectiveTimestamp(b), toTimestampMs((b as any)?.lastActiveAt) ?? 0);
     if (tsA !== tsB) return tsB - tsA;
 
     const idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;

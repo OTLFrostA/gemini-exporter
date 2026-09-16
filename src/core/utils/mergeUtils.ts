@@ -190,6 +190,15 @@ export function mergeConversation(
         bestLastSeen = oldSeenMs !== null ? old.lastSeen : (inSeenMs !== null ? incoming.lastSeen : null);
     }
 
+    // 3d. lastActiveAt monotonicity: client-observed interaction recency from
+    // the touch path (stream start/complete, live turn). Display signal only —
+    // it must never feed timestamp authority (getEffectiveTimestamp ignores
+    // it). Never move it backwards: a stale reordered touch must not un-bump
+    // a chat. Stored as ms epoch (unlike lastSeen's ISO string).
+    const oldActiveMs = toMs((old as any)?.lastActiveAt);
+    const inActiveMs = toMs((incoming as any)?.lastActiveAt);
+    const bestActiveMs = Math.max(oldActiveMs ?? 0, inActiveMs ?? 0);
+
     // 7. Check if meaningful change occurred
     // P1-057: title/timestamp alone miss real changes — a follow-up in the same
     // second bumps messageCount while timestamps stay identical.
@@ -210,7 +219,8 @@ export function mergeConversation(
         (oldBodyLen !== null && inBodyLen !== null && oldBodyLen !== inBodyLen) ||
         ((oldBodyLen === null || oldBodyLen === 0) && inBodyLen !== null && inBodyLen > 0) ||
         (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount) ||
-        bestMsgLen > oldMsgLen
+        bestMsgLen > oldMsgLen ||
+        bestActiveMs > (oldActiveMs ?? 0)
     ) {
         isChanged = true;
     }
@@ -250,6 +260,12 @@ export function mergeConversation(
         merged.lastSeen = options.now;
     } else if (bestLastSeen !== null) {
         merged.lastSeen = bestLastSeen;
+    }
+    // lastActiveAt: max-monotonic assignment AFTER the spread — a stale
+    // reordered touch carrying an older value must not clobber a newer one
+    // via last-writer-wins.
+    if (bestActiveMs > 0) {
+        merged.lastActiveAt = bestActiveMs;
     }
     if (incomingShrinksMessages) {
         if (Array.isArray(old.messages)) merged.messages = old.messages;
