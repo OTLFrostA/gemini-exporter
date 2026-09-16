@@ -66,15 +66,15 @@ test('P1-061a: rc_ 清洗正则使用真正的 \\s（源码级锁定，旧正则
     assert.ok(!src.includes('/^rc_[a-z0-9_]{10,}\\\\s*/i'), '不应残留双重转义 \\\\s');
 });
 
-test('P1-061b: chip URL 整行被清理且不残留空行', () => {
+test('P1-061b: chip URL 整行被清理（保留段落换行）', () => {
     const turn = makeTurn({ candText: "第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行" });
     const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(model, '应产出 model 消息');
-    assert.strictEqual(model.content, "第一行\n第三行");
+    assert.strictEqual(model.content, "第一行\n\n第三行");
 });
 
-test('P1-061c: 生成图片 URL 整行被清理且不残留空行（有图片时）', () => {
+test('P1-061c: 生成图片 URL 整行被清理（保留段落换行，有图片时）', () => {
     const turn = makeTurn({
         candText: "看这张图\nhttps://googleusercontent.com/image_generation_content/tok999\n结束",
         extraCand: [["https://lh3.googleusercontent.com/img=w100", 100, 100]]
@@ -82,7 +82,7 @@ test('P1-061c: 生成图片 URL 整行被清理且不残留空行（有图片时
     const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(model, '应产出 model 消息');
-    assert.strictEqual(model.content, "看这张图\n结束");
+    assert.strictEqual(model.content, "看这张图\n\n结束");
 });
 
 // ---------------------------------------------------------------- P1-062
