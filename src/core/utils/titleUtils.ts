@@ -25,6 +25,43 @@ export const TITLE_TIER_RANK: Record<string, number> = {
 };
 
 /**
+ * Unified predicate: "is this conversation record takeout-derived?"
+ *
+ * History: this exact 4-condition check used to be copy-pasted inline in four
+ * places with drifted semantics —
+ *   - conversationsStore.reconcileWithCloud: had an extra `!titles.rpc && !titles.dom` guard
+ *   - storageService.reconcileConversations: had the same extra guard
+ *   - conversationsStore.hasTakeoutData: wide (titles.takeout alone counts)
+ *   - storageService.hasTakeoutData: wide
+ * A "hybrid" record whose titles carry BOTH takeout and rpc was therefore
+ * judged "not takeout" by the guarded reconciliation paths (and deleted) while
+ * the wide hasTakeoutData checks considered it takeout data — the same data
+ * was kept by one path and removed by another.
+ *
+ * Canonical semantics are WIDE: a record counts as takeout as soon as it ever
+ * carried takeout data, regardless of later online (rpc/dom) enrichment.
+ * Rationale: these predicates guard reconciliation keep-lists, which are
+ * adjacent to deletion; the conservative direction is to keep data, not delete
+ * it. The `titles.takeout && !titles.rpc && !titles.dom` variant is NOT used
+ * here — "the record also has online titles" must not downgrade its
+ * takeout-derived status for keep purposes.
+ *
+ * BEHAVIOR CHANGE (intentional, towards the safe side): on the two previously
+ * guarded reconciliation sites, a takeout+rpc hybrid record now evaluates to
+ * true (kept); before it evaluated to false (removed by reconcile). Nothing
+ * else about deletion semantics changed.
+ */
+export function isTakeoutConversation(c: any): boolean {
+    if (!c) return false;
+    return (
+        (c as any).source === 'takeout' ||
+        c.titleSource === 'takeout' ||
+        (c as any).isTakeoutOnly ||
+        !!(c.titles && (c.titles as any).takeout)
+    );
+}
+
+/**
  * Strips zero-width characters and standard whitespace.
  */
 export function cleanZeroWidth(t: any): string {
