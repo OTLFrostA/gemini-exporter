@@ -4,6 +4,7 @@
  */
 
 import type { Conversation } from '../../types/index.js';
+import { normId } from './pathUtils.js';
 
 export interface TitleResolution {
     title: string;
@@ -48,8 +49,8 @@ export function isRealTitle(title?: string | null, id?: string | number): boolea
     if (!t || t.length < 2) return false;
     if (t === 'Untitled' || t === '未命名' || t === 'New chat' || t === '新对话') return false;
     if (id) {
-        let cleanId = String(id).replace(/^c_/, '').trim();
-        let cleanT = t.replace(/^c_/, '').trim();
+        let cleanId = normId(id);
+        let cleanT = normId(t);
         if (cleanT === cleanId) return false;
         if (cleanT.startsWith('未命名对话(') || cleanT.startsWith('Untitled(')) return false;
         if (cleanT === 'c_' + cleanId || cleanId === 'c_' + cleanT) return false;

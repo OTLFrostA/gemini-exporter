@@ -5,7 +5,7 @@ import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
-import { buildExportFileName, shortId } from '../core/utils/pathUtils.js';
+import { buildExportFileName, shortId, normId } from '../core/utils/pathUtils.js';
 import type { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
@@ -91,7 +91,7 @@ export function init(deps: LiveSaveCoordinatorDeps = {}): void {
  * Fetch full conversation detail by ID using Client RPC first, then fallback to DOM.
  */
 export async function resolveConversationDetail(cid: string): Promise<any> {
-    const nid = String(cid).replace(/^c_/, '').trim();
+    const nid = normId(cid);
     // DI seam kept: an explicitly injected client class still uses the legacy
     // construction path. Default now resolves through the provider registry.
     const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
@@ -132,7 +132,7 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
  */
 export async function executeLiveSave(cid: string, reason = 'turn_complete', options: { mockMode?: boolean } = {}): Promise<boolean> {
     if (!cid) return false;
-    const nid = String(cid).replace(/^c_/, '').trim();
+    const nid = normId(cid);
 
     // Serialize live save operations to prevent I/O race conditions
     _saveQueue = _saveQueue.then(async () => {

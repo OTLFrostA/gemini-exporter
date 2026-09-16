@@ -6,6 +6,7 @@
 import type { Conversation, ChatMessage, Attachment } from "../../types/conversation.js";
 import { unescapeHtml } from "../utils/utils.js";
 import { stripInternalChipMarkdown } from "../utils/chipUtils.js";
+import { normId } from "../utils/pathUtils.js";
 
 export interface FormattedResult {
     content: string;
@@ -246,7 +247,7 @@ declare global {
         };
         const createdIso = toSafeIso(chat.createdAt || chat.timestamp || chat.updatedAt, new Date().toISOString());
         const updatedIso = toSafeIso(chat.updatedAt || chat.timestamp || chat.createdAt, createdIso);
-        const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${String(chat.id).replace(/^c_/, '')}` : '');
+        const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${normId(chat.id)}` : '');
 
         // 1. YAML Frontmatter (Obsidian Properties / Notion Database / Logseq)
         let md = `---\n`;
@@ -411,7 +412,7 @@ declare global {
             return item;
         });
 
-        const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${String(chat.id).replace(/^c_/, '')}` : '');
+        const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${normId(chat.id)}` : '');
         return JSON.stringify({
             id: chat.id,
             title: chat.title,

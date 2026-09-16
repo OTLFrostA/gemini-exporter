@@ -38,8 +38,21 @@ class ZipWriter implements IExportWriter {
         return sanitizeRelativePath(p, 'file');
     }
 
-    writeFile(relativePath: string, content: any, options: any = {}): string {
-        const cleanPath = this.sanitizePath(relativePath);
+    writeFile(pathOrSubDir: string, contentOrFileName?: any, optionsOrContent?: any): string {
+        let cleanPath: string;
+        let content: any;
+        let options: any = {};
+
+        if (arguments.length === 3 && typeof contentOrFileName === 'string') {
+            const subDir = pathOrSubDir ? `${pathOrSubDir}/` : '';
+            cleanPath = this.sanitizePath(`${subDir}${contentOrFileName}`);
+            content = optionsOrContent;
+        } else {
+            cleanPath = this.sanitizePath(pathOrSubDir);
+            content = contentOrFileName;
+            options = optionsOrContent || {};
+        }
+
         if (content) {
             if (typeof content === 'string') {
                 this.totalBytes += content.length * (options && options.base64 ? 0.75 : 1);

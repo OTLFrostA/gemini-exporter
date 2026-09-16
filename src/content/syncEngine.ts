@@ -16,7 +16,7 @@ import {
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
-import { detectSlotFromUrl, extractConversationIdFromUrl } from '../core/utils/pathUtils.js';
+import { detectSlotFromUrl, extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
 
 const getStorage = () => (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
 const getScraper = () => DomScraper;
@@ -108,7 +108,7 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
             const slot = getAccountSlot();
             const Storage = getStorage();
             const existing = Storage ? await Storage.getConversations(slot) : [];
-            const found = existing.find((c: any) => String(c.id).replace(/^c_/, '') === activeId);
+            const found = existing.find((c: any) => normId(c.id) === activeId);
             if (found && (found.updatedAt || found.timestamp)) {
                 return;
             }
@@ -117,7 +117,7 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
             if (!provider) return;
             const d = await provider.fetchConversationDetail(activeId);
             if (d && d.id) {
-                const nid = String(d.id).replace(/^c_/, '').trim();
+                const nid = normId(d.id);
                 const targetTs = d.updatedAt || d.timestamp || null;
                 if (targetTs) {
                     await upsertConversations([{
@@ -150,7 +150,7 @@ export async function touchActiveConversation(
     options?: { forceWrite?: boolean; source?: string }
 ): Promise<number> {
     if (!cid) return 0;
-    const nid = String(cid).replace(/^c_/, '').trim();
+    const nid = normId(cid);
     if (!nid) return 0;
 
     const now = Date.now();
@@ -198,7 +198,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             const map = new Map<string, any>();
             existing.forEach((c: any) => {
                 if (!c || !c.id) return;
-                const nid = String(c.id).replace(/^c_/, '').trim();
+                const nid = normId(c.id);
                 c.id = nid;
                 map.set(nid, c);
             });
@@ -207,7 +207,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 
             incomingItems.forEach((c, idx) => {
                 if (!c || !c.id) return;
-                const nid = String(c.id).replace(/^c_/, '').trim();
+                const nid = normId(c.id);
                 c.id = nid;
                 const old = map.get(nid);
 

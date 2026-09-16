@@ -38,7 +38,7 @@ export const STORAGE_KEYS: StorageKeyMap = {
     CREDENTIALS: 'gemini_credentials'
 };
 
-export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.5.0';
+export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.5.1';
 
 export function getExtensionVersion(customVersion?: string): string {
     if (customVersion) return customVersion;

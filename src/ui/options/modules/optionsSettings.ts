@@ -18,6 +18,7 @@ import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
+import { getExtensionVersion } from '../../../core/utils/constants.js';
 
 export { normId, cleanTitle, resolveTitle };
 
@@ -241,7 +242,7 @@ export function checkWalkthroughOnOpen(): void {
             }
 
             // 4. Track B: Returning user major feature spotlight (on normal workbench open)
-            const currentAppVersion = (typeof chrome !== 'undefined' && chrome.runtime?.getManifest?.()?.version) || '1.5.0';
+            const currentAppVersion = getExtensionVersion();
             const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
                 ? await Storage.getLastSeenFeatureVersion()
                 : '';
