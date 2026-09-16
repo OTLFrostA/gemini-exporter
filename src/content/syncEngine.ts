@@ -370,6 +370,9 @@ export async function ingestListBatch(
         } else if (incomingItems && incomingItems.length > 0) {
             const tsList = incomingItems.map((c: any) => c.timestamp).filter((t: any) => typeof t === 'number' && t > 0);
             if (tsList.length > 0) baselineTs = Math.max(...tsList);
+        } else {
+            // Empty account: natural completion of full scan with 0 conversations anchors baseline to current time
+            baselineTs = Date.now();
         }
         if (baselineTs && Storage && typeof Storage.setScanCheckpoint === 'function') {
             await Storage.setScanCheckpoint(slot, baselineTs);
@@ -448,8 +451,8 @@ export async function ingestListBatch(
         };
     }
 
-    // Check if the contiguous slice has reached or crossed the current checkpoint
-    if (slice.minTimestamp <= currentCheckpoint + 60000) {
+    // Check if the contiguous slice has reached or crossed the current checkpoint strictly (no tolerance deadzone)
+    if (slice.minTimestamp <= currentCheckpoint) {
         const newWatermark = Math.max(currentCheckpoint, slice.headTimestamp);
         if (newWatermark > currentCheckpoint && Storage && typeof Storage.setScanCheckpoint === 'function') {
             await Storage.setScanCheckpoint(slot, newWatermark);
@@ -558,9 +561,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         contentContext.setAborted(false);
 
         const slot = getAccountSlot();
+        resetSessionSlice(slot);
         const Storage = getStorage();
         const beforeList = Storage ? await Storage.getConversations(slot) : [];
-        const beforeMap = new Map(beforeList.map((c: any) => [c.id, c]));
         const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
 
         const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
@@ -618,7 +621,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 }
             },
             targetSid: null,
-            existingMap: beforeMap,
             incremental: !effectiveForceFull,
             unchangedThreshold: 5
         });
