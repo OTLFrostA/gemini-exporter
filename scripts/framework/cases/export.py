@@ -8,6 +8,7 @@ from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions
+from scripts.framework.selectors import WorkbenchSelectors
 
 DESIGNATED_HISTORICAL_CHATS = [
     {
