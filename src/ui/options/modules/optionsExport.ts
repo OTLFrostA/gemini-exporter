@@ -13,6 +13,7 @@ import {
     getDialogs,
     getDirHandle,
     getLiveStorage,
+    getStorage,
     getUtils,
     getProgressView
 } from '../optionsContext.js';
@@ -102,6 +103,50 @@ export function updateZipUi(): void {
     }
     if (btnSetDir) {
         btnSetDir.disabled = disableDir;
+    }
+}
+
+/**
+ * Export title-update handler, extracted for testability.
+ *
+ * Applies an export-resolved title to the in-memory conversation AND persists
+ * it to storage via the atomic `updateConversation` read-modify-write path
+ * (the same convention exportOrchestrator uses). Previously this was a pure
+ * in-memory dirty write and the resolved title was lost on page reload.
+ *
+ * Title arbitration is untouched: the same `setTitleBySource` transform is
+ * applied to both the in-memory item and the stored copy.
+ *
+ * No loop risk: a storage write never re-enters the export pipeline, and
+ * exportOrchestrator's own write (when convsNeedSave) carries identical values.
+ */
+export async function persistTitleUpdate(chatId: string, newTitle: string, source: string): Promise<void> {
+    const Store = getStore();
+    const currentConvs = Store ? Store.getConversations() : [];
+    const item = currentConvs.find((c: any) => normId(c.id) === normId(chatId));
+    if (!item || !isRealTitle(newTitle, chatId)) return;
+    const utils = getUtils();
+    const applyTitle = (chat: any) => {
+        if (utils && typeof utils.setTitleBySource === 'function') {
+            utils.setTitleBySource(chat, source || 'rpc', newTitle);
+        } else {
+            chat.title = newTitle;
+            (chat as any).titleSource = source || 'rpc';
+        }
+    };
+    // 1) in-memory (existing behavior; keeps the list UI fresh during export)
+    applyTitle(item);
+    // 2) persist so the title survives reload
+    try {
+        const storage = getStorage();
+        const slot = Store && typeof Store.getCurrentSlot === 'function' ? Store.getCurrentSlot() : 'u0';
+        if (storage && typeof storage.updateConversation === 'function') {
+            await storage.updateConversation(slot, chatId, (existing: any) => {
+                applyTitle(existing);
+            });
+        }
+    } catch (err) {
+        log(`persistTitleUpdate failed for ${chatId}: ${getErrorMessage(err)}`, 'warn');
     }
 }
 
@@ -195,17 +240,10 @@ export async function startExportPipeline(
 
             onLog: (msg: string, lvl: 'info' | 'warn' | 'error') => log(msg, lvl),
             onTitleUpdated: (chatId: string, newTitle: string, source: string) => {
-                const currentConvs = Store ? Store.getConversations() : [];
-                const item = currentConvs.find((c: any) => normId(c.id) === normId(chatId));
-                if (item && isRealTitle(newTitle, chatId)) {
-                    const utils = getUtils();
-                    if (utils && typeof utils.setTitleBySource === 'function') {
-                        utils.setTitleBySource(item, source || 'rpc', newTitle);
-                    } else {
-                        item.title = newTitle;
-                        (item as any).titleSource = source || 'rpc';
-                    }
-                }
+                // Fire-and-forget: persistTitleUpdate updates the in-memory item
+                // synchronously first, then persists to storage; failures are
+                // logged inside and never reject here.
+                void persistTitleUpdate(chatId, newTitle, source);
             },
             onItemExported: async (chatId: string, titleOrRecord: any, maybeRecord: any) => {
                 const exportRecord = (maybeRecord && typeof maybeRecord === 'object')
@@ -558,6 +596,7 @@ export const OptionsExport = {
     init,
     exportSelected,
     startExportPipeline,
+    persistTitleUpdate,
     updateZipUi,
     getLastFailedChats,
     renderExportFailureBanner,
