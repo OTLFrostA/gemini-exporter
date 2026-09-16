@@ -326,6 +326,151 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
     return __storageWriteQueue;
 }
 
+export interface IngestListResult {
+    count: number;
+    reachedWatermark: boolean;
+    establishedBaseline: boolean;
+    newWatermark: number | null;
+}
+
+export interface IngestListOptions {
+    slot?: string;
+    isPage1?: boolean;
+    isFullScanComplete?: boolean;
+    forceFull?: boolean;
+}
+
+interface SessionSlice {
+    headTimestamp: number;
+    minTimestamp: number;
+    updatedAt: number;
+}
+
+const __sessionSlices = new Map<string, SessionSlice>();
+
+export function resetSessionSlice(slot?: string): void {
+    const s = slot || getAccountSlot();
+    __sessionSlices.delete(s);
+}
+
+export async function ingestListBatch(
+    incomingItems: any[],
+    source: string,
+    options?: IngestListOptions
+): Promise<IngestListResult> {
+    const slot = options?.slot || getAccountSlot();
+    const Storage = getStorage();
+
+    // 1. Full scan completion notification: establish initial baseline or recalibrate baseline
+    if (options?.isFullScanComplete) {
+        const slice = __sessionSlices.get(slot);
+        let baselineTs: number | null = null;
+        if (slice && slice.headTimestamp > 0) {
+            baselineTs = slice.headTimestamp;
+        } else if (incomingItems && incomingItems.length > 0) {
+            const tsList = incomingItems.map((c: any) => c.timestamp).filter((t: any) => typeof t === 'number' && t > 0);
+            if (tsList.length > 0) baselineTs = Math.max(...tsList);
+        }
+        if (baselineTs && Storage && typeof Storage.setScanCheckpoint === 'function') {
+            await Storage.setScanCheckpoint(slot, baselineTs);
+            console.log(`[Gemini Exporter] Watermark Baseline established at ${new Date(baselineTs).toISOString()} (${baselineTs}) for slot ${slot}`);
+        }
+        __sessionSlices.delete(slot);
+        return {
+            count: incomingItems?.length || 0,
+            reachedWatermark: true,
+            establishedBaseline: true,
+            newWatermark: baselineTs
+        };
+    }
+
+    // 2. Write conversations to storage via Fail-Closed upsert
+    const count = await upsertConversations(incomingItems, source, true, slot);
+
+    // 3. Extract timestamps of valid items in this batch
+    const timestamps = (incomingItems || [])
+        .map((c: any) => c.timestamp)
+        .filter((t: any): t is number => typeof t === 'number' && t > 0);
+
+    if (timestamps.length === 0) {
+        const currentCp = Storage && typeof Storage.getScanCheckpoint === 'function'
+            ? await Storage.getScanCheckpoint(slot)
+            : null;
+        return { count, reachedWatermark: false, establishedBaseline: false, newWatermark: currentCp };
+    }
+
+    const batchMax = Math.max(...timestamps);
+    const batchMin = Math.min(...timestamps);
+    const now = Date.now();
+
+    // 4. Track contiguous paging session
+    let slice = __sessionSlices.get(slot);
+    const isSliceActive = slice && (now - slice.updatedAt < 120000);
+
+    if (options?.isPage1 || !isSliceActive || !slice) {
+        slice = { headTimestamp: batchMax, minTimestamp: batchMin, updatedAt: now };
+        __sessionSlices.set(slot, slice);
+    } else {
+        // Multi-page chaining: subsequent pages in descending chronological order
+        // extend the contiguous paging interval downwards.
+        if (batchMax <= slice.headTimestamp + 60000) {
+            slice.minTimestamp = Math.min(slice.minTimestamp, batchMin);
+            slice.headTimestamp = Math.max(slice.headTimestamp, batchMax);
+            slice.updatedAt = now;
+        } else {
+            slice = { headTimestamp: batchMax, minTimestamp: batchMin, updatedAt: now };
+            __sessionSlices.set(slot, slice);
+        }
+    }
+
+    // 5. Watermark Checkpoint Evaluation
+    const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
+        ? await Storage.getScanCheckpoint(slot)
+        : null;
+
+    // Cold start: no baseline established yet! In this state, NEVER advance or create checkpoint during mid-scan or sniffing.
+    if (currentCheckpoint === null) {
+        return {
+            count,
+            reachedWatermark: false,
+            establishedBaseline: false,
+            newWatermark: null
+        };
+    }
+
+    // Forced full scan running: don't early exit on watermark
+    if (options?.forceFull) {
+        return {
+            count,
+            reachedWatermark: false,
+            establishedBaseline: false,
+            newWatermark: currentCheckpoint
+        };
+    }
+
+    // Check if the contiguous slice has reached or crossed the current checkpoint
+    if (slice.minTimestamp <= currentCheckpoint + 60000) {
+        const newWatermark = Math.max(currentCheckpoint, slice.headTimestamp);
+        if (newWatermark > currentCheckpoint && Storage && typeof Storage.setScanCheckpoint === 'function') {
+            await Storage.setScanCheckpoint(slot, newWatermark);
+            console.log(`[Gemini Exporter] Watermark advanced from ${new Date(currentCheckpoint).toISOString()} to ${new Date(newWatermark).toISOString()} (${newWatermark}) for slot ${slot}`);
+        }
+        return {
+            count,
+            reachedWatermark: true,
+            establishedBaseline: false,
+            newWatermark
+        };
+    }
+
+    return {
+        count,
+        reachedWatermark: false,
+        establishedBaseline: false,
+        newWatermark: currentCheckpoint
+    };
+}
+
 export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
@@ -418,43 +563,75 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         const beforeMap = new Map(beforeList.map((c: any) => [c.id, c]));
         const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
 
+        const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
+            ? await Storage.getScanCheckpoint(slot)
+            : null;
+        const isForceFull = !!forceOpts?.forceFull;
+        const effectiveForceFull = isForceFull || (currentCheckpoint === null);
+
+        let stoppedByWatermark = false;
+        let page1Batch: any[] = [];
         let saveQueue = Promise.resolve<any>(0);
         // Typed as any: the registered Gemini provider spreads the full pagination
         // result (conversations/hitGoogleLimit/diagnostics) into the page shape
         // at runtime; the provider-neutral declared type is still stabilizing.
         const all: any = await provider.listConversations({
             maxPages: effectiveMaxPages,
-            onProgress: (prog: any) => {
-            const badge = document.getElementById('geminiExportBadgeText');
-            if (badge) {
-                if (prog.stoppedEarly) badge.textContent = `已同步 ${prog.total} 条 ✓`;
-                else badge.textContent = `正在同步: 已获取 ${prog.total} 条${prog.hasMore ? '…' : ''}`;
-            }
-            try {
-                const page = prog.page || 1;
-                const estPercent = prog.hasMore ? Math.min(5 + page * 2, 95) : 98;
-                const _p = chrome.runtime.sendMessage({
-                    action: 'scanProgress',
-                    done: page,
-                    count: prog.total,
-                    percent: estPercent,
-                    title: `正在同步第 ${page} 页 (已获取 ${prog.total} 条)${prog.hasMore ? '…' : ''}`
+            forceFull: effectiveForceFull,
+            onPageBatch: async (batch: any[], info: { page: number; hasMore: boolean }) => {
+                if (info.page === 1) {
+                    page1Batch = batch;
+                }
+                const ingestRes = await ingestListBatch(batch, 'batchexecute', {
+                    slot,
+                    isPage1: info.page === 1,
+                    forceFull: effectiveForceFull
                 });
-                if (_p && _p.catch) _p.catch(() => {});
-            } catch (e) {
-                if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
-            }
 
-            if (prog.batch && prog.batch.length) {
-                saveQueue = saveQueue.then(() => upsertConversations(prog.batch, 'batchexecute', true));
-            }
+                if (!effectiveForceFull && ingestRes.reachedWatermark) {
+                    stoppedByWatermark = true;
+                    return {
+                        shouldStop: true,
+                        reason: '已与历史水位线闭环咬合，增量同步完成'
+                    };
+                }
+            },
+            onProgress: (prog: any) => {
+                const badge = document.getElementById('geminiExportBadgeText');
+                if (badge) {
+                    if (prog.stoppedEarly) badge.textContent = `已同步 ${prog.total} 条 ✓`;
+                    else badge.textContent = `正在同步: 已获取 ${prog.total} 条${prog.hasMore ? '…' : ''}`;
+                }
+                try {
+                    const page = prog.page || 1;
+                    const estPercent = prog.hasMore ? Math.min(5 + page * 2, 95) : 98;
+                    const _p = chrome.runtime.sendMessage({
+                        action: 'scanProgress',
+                        done: page,
+                        count: prog.total,
+                        percent: estPercent,
+                        title: `正在同步第 ${page} 页 (已获取 ${prog.total} 条)${prog.hasMore ? '…' : ''}`
+                    });
+                    if (_p && _p.catch) _p.catch(() => {});
+                } catch (e) {
+                    if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
+                }
             },
             targetSid: null,
             existingMap: beforeMap,
-            incremental: useIncremental,
+            incremental: !effectiveForceFull,
             unchangedThreshold: 5
         });
         await saveQueue;
+
+        // If this was a full scan that finished naturally (not stopped by watermark, not aborted)
+        if (effectiveForceFull && !stoppedByWatermark && !contentContext.isAborted()) {
+            await ingestListBatch(page1Batch, 'batchexecute', {
+                slot,
+                isFullScanComplete: true,
+                forceFull: isForceFull
+            });
+        }
 
         if (all && all.diagnostics) {
             try {
@@ -470,7 +647,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             // never fetched — reconciling against it would mass-delete still-alive
             // older conversations, so the limit case must skip reconciliation.
             const hitLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit);
-            const isFullExhaustive = !useIncremental && !all.stoppedEarly && !contentContext.isAborted() && !hitLimit;
+            const isFullExhaustive = effectiveForceFull && !all.stoppedEarly && !contentContext.isAborted() && !hitLimit;
             if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
                 const recRes = await Storage.reconcileConversations(slot, all.conversations, { keepTakeout: true });
                 if (recRes && recRes.removed > 0) {
@@ -480,7 +657,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             }
             const Proto = getProtocol();
             const slidingLimit = Proto?.LIMITS?.SLIDING_WINDOW || 600;
-            const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (!useIncremental && mergedLen >= slidingLimit));
+            const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (effectiveForceFull && mergedLen >= slidingLimit));
             const badge = document.getElementById('geminiExportBadgeText');
             if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
             if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -541,6 +718,8 @@ export const SyncEngine = {
     scheduleActiveChatDetailFetch,
     touchActiveConversation,
     upsertConversations,
+    ingestListBatch,
+    resetSessionSlice,
     syncOnce,
     tryBatchExecuteFull,
     compareConversations

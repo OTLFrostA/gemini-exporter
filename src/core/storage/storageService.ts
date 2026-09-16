@@ -10,6 +10,7 @@ export interface StorageKeys {
     expKey: string;
     syncKey: string;
     countKey: string;
+    checkpointKey: string;
 }
 
 export interface SyncStatus {
@@ -54,6 +55,8 @@ export interface StorageServiceModule {
     removeExportRecords: (slot: string | null | undefined, ids: string[] | null | undefined) => Promise<number>;
     getLastSync: (slot?: string | null) => Promise<SyncStatus>;
     setLastSync: (slot: string | null | undefined, timestamp?: number | null, count?: number) => Promise<void>;
+    getScanCheckpoint: (slot?: string | null) => Promise<number | null>;
+    setScanCheckpoint: (slot: string | null | undefined, timestamp: number | null) => Promise<void>;
     getAccountSlots: () => Promise<Record<string, any>>;
     setAccountSlots: (map: Record<string, any>) => Promise<void>;
     updateAccountSlot: (slot: string | null | undefined, info: any) => Promise<Record<string, any>>;
@@ -92,7 +95,8 @@ declare global {
             convKey: s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`,
             expKey: s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`,
             syncKey: s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`,
-            countKey: s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`
+            countKey: s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`,
+            checkpointKey: s === 'u0' ? 'gemini_scan_checkpoint' : `gemini_scan_checkpoint_${s}`
         };
     }
 
@@ -517,6 +521,24 @@ declare global {
         });
     }
 
+    async function getScanCheckpoint(slot?: string | null): Promise<number | null> {
+        const { checkpointKey } = getStorageKeys(slot);
+        const data = await chrome.storage.local.get([checkpointKey]);
+        const cp = data[checkpointKey];
+        return typeof cp === 'number' && cp > 0 ? cp : null;
+    }
+
+    async function setScanCheckpoint(slot: string | null | undefined, timestamp: number | null): Promise<void> {
+        return withConversationLock(async () => {
+            const { checkpointKey } = getStorageKeys(slot);
+            if (timestamp === null || timestamp === undefined || timestamp <= 0) {
+                await chrome.storage.local.remove([checkpointKey]);
+            } else {
+                await chrome.storage.local.set({ [checkpointKey]: timestamp });
+            }
+        });
+    }
+
     async function getAccountSlots(): Promise<Record<string, any>> {
         const data = await chrome.storage.local.get(['gemini_account_slots']);
         return data.gemini_account_slots || {};
@@ -704,6 +726,8 @@ export {
     removeExportRecords,
     getLastSync,
     setLastSync,
+    getScanCheckpoint,
+    setScanCheckpoint,
     getAccountSlots,
     setAccountSlots,
     updateAccountSlot,
@@ -740,6 +764,8 @@ export const StorageService: StorageServiceModule = {
     removeExportRecords,
     getLastSync,
     setLastSync,
+    getScanCheckpoint,
+    setScanCheckpoint,
     getAccountSlots,
     setAccountSlots,
     updateAccountSlot,

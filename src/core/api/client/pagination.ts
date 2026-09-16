@@ -16,6 +16,7 @@ export interface PaginationProgressInfo {
 export interface PaginationOptions {
     maxPages?: number;
     onProgress?: ((info: PaginationProgressInfo) => void) | null;
+    onPageBatch?: ((batch: ConversationListItem[], info: { page: number; hasMore: boolean }) => Promise<{ shouldStop?: boolean; reason?: string } | void>) | null;
     targetSid?: string | null;
     existingMap?: Map<string, any> | null;
     incremental?: boolean;
@@ -142,44 +143,71 @@ declare global {
                         seen.add(c.id);
                         all.push(c);
                         added++;
-                        if (incremental && existingMap) {
-                            const stored = existingMap.get(c.id);
-                            if (stored && stored.timestamp && c.timestamp) {
-                                const sameTime = Math.abs(stored.timestamp - c.timestamp) < 60000;
-                                const sameTitle = !stored.title || !c.title || stored.title === c.title;
-                                if (sameTime && sameTitle) {
-                                    unchangedStreak++;
-                                } else {
-                                    unchangedStreak = 0;
-                                }
+                    }
+                }
+
+                // 1. Watermark Engine Hook: feed batch to ingestion state machine
+                if (typeof opts?.onPageBatch === 'function' && res.conversations.length > 0) {
+                    const decision = await opts.onPageBatch(res.conversations, {
+                        page: i + 1,
+                        hasMore: !!res?.nextPageToken
+                    });
+                    if (decision && decision.shouldStop) {
+                        diagLog.stopReason = decision.reason || "已与历史水位线闭环咬合，早退终止";
+                        diagLog.totalConversations = all.length;
+                        diagLog.endTime = new Date().toISOString();
+                        if (onProgress) onProgress({
+                            page: i + 1,
+                            added,
+                            total: all.length,
+                            hasMore: false,
+                            stoppedEarly: true,
+                            reason: decision.reason || "增量同步完成",
+                            batch: res.conversations
+                        });
+                        return {
+                            conversations: all,
+                            total: all.length,
+                            stoppedEarly: true,
+                            diagnostics: diagLog,
+                            hitGoogleLimit: !!diagLog.hitGoogleLimit
+                        };
+                    }
+                } else if (incremental && existingMap) {
+                    for (let c of res.conversations) {
+                        const stored = existingMap.get(c.id);
+                        if (stored && stored.timestamp && c.timestamp) {
+                            const sameTime = Math.abs(stored.timestamp - c.timestamp) < 60000;
+                            const sameTitle = !stored.title || !c.title || stored.title === c.title;
+                            if (sameTime && sameTitle) {
+                                unchangedStreak++;
                             } else {
                                 unchangedStreak = 0;
                             }
-                            if (unchangedStreak >= unchangedThreshold) {
-                                diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
-                                diagLog.totalConversations = all.length;
-                                diagLog.endTime = new Date().toISOString();
-                                if (onProgress) onProgress({
-                                    page: i + 1,
-                                    added,
-                                    total: all.length,
-                                    hasMore: false,
-                                    stoppedEarly: true,
-                                    reason: "增量同步完成",
-                                    // 增量早退时本页也必须带上 batch，否则早退页里排在
-                                    // 5 连击之前的"有变化"会话会被检测到却永远写不进存储
-                                    // （下次增量又判为有变化、又丢弃，元数据永久 stale）。
-                                    batch: res.conversations
-                                });
-                                return {
-                                    conversations: all,
-                                    total: all.length,
-                                    stoppedEarly: true,
-                                    unchangedStreak,
-                                    diagnostics: diagLog,
-                                    hitGoogleLimit: !!diagLog.hitGoogleLimit
-                                };
-                            }
+                        } else {
+                            unchangedStreak = 0;
+                        }
+                        if (unchangedStreak >= unchangedThreshold) {
+                            diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
+                            diagLog.totalConversations = all.length;
+                            diagLog.endTime = new Date().toISOString();
+                            if (onProgress) onProgress({
+                                page: i + 1,
+                                added,
+                                total: all.length,
+                                hasMore: false,
+                                stoppedEarly: true,
+                                reason: "增量同步完成",
+                                batch: res.conversations
+                            });
+                            return {
+                                conversations: all,
+                                total: all.length,
+                                stoppedEarly: true,
+                                unchangedStreak,
+                                diagnostics: diagLog,
+                                hitGoogleLimit: !!diagLog.hitGoogleLimit
+                            };
                         }
                     }
                 }
