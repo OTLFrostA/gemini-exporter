@@ -2,6 +2,7 @@
 import type { Conversation } from "../../types/index.js";
 import { normId, isVersionGreater as utilsIsVersionGreater } from "../utils/pathUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
+import { getCredStorage } from "../api/client/credStorage.js";
 
 
 export interface StorageKeys {
@@ -560,13 +561,8 @@ declare global {
         });
     }
 
-    function getCredStorage(): chrome.storage.StorageArea | null {
-        if (typeof chrome !== 'undefined' && chrome.storage) {
-            if (chrome.storage.session) return chrome.storage.session;
-            return chrome.storage.local;
-        }
-        return null;
-    }
+    // getCredStorage is the shared resolver from ../api/client/credStorage.js
+    // (session preferred, local fallback after a "not allowed" session failure).
 
     async function getCredentialsMap(): Promise<Record<string, any>> {
         const storage = getCredStorage();

@@ -1,6 +1,40 @@
 // src/content/bootstrap.ts - Credential bootstrap for ISOLATED world
 import { CrossWorldEvents, type GeminiProtocolModule } from '../core/protocol/protocol.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
+import {
+    getCredStorage as sharedGetCredStorage,
+    markCredSessionAccessFailed as sharedMarkFailed,
+} from '../core/api/client/credStorage.js';
+
+// --- shared-module resolution ----------------------------------------------
+// The vm-shimmed known_issue_credentials_session test strips all imports from
+// this file before executing it; detect that and fall back to a local copy
+// with identical semantics (same pattern as the `typeof STORAGE_KEYS !==
+// 'undefined'` guard above). In the real bundle and in Node the shared module
+// is always used, so the fallback is dead code outside that one test.
+let _vmShimSessionAccessFailed = false;
+
+function vmShimGetCredStorage(): chrome.storage.StorageArea | null {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+        if (!_vmShimSessionAccessFailed && chrome.storage.session) return chrome.storage.session;
+        return chrome.storage.local;
+    }
+    return null;
+}
+
+const _useSharedCredStorage =
+    typeof sharedGetCredStorage !== 'undefined' && typeof sharedMarkFailed !== 'undefined';
+
+/** Shared credential storage resolver (re-exported for backwards compatibility). */
+export function getCredStorage(): chrome.storage.StorageArea | null {
+    if (_useSharedCredStorage) return (sharedGetCredStorage as () => chrome.storage.StorageArea | null)();
+    return vmShimGetCredStorage();
+}
+
+function markCredSessionFailed(): void {
+    if (_useSharedCredStorage) (sharedMarkFailed as () => void)();
+    else _vmShimSessionAccessFailed = true;
+}
 
 const SK_CRED_MAP = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS_MAP : 'gemini_credentials_map';
 const SK_CRED = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS : 'gemini_credentials';
@@ -122,16 +156,6 @@ export function isExtAlive(): boolean {
     }
 }
 
-let sessionAccessFailed = false;
-
-export function getCredStorage(): chrome.storage.StorageArea | null {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-        if (!sessionAccessFailed && chrome.storage.session) return chrome.storage.session;
-        return chrome.storage.local;
-    }
-    return null;
-}
-
 export async function loadCredentialsMap(): Promise<Record<string, any>> {
     let storage = getCredStorage();
     if (!storage) return {};
@@ -140,7 +164,7 @@ export async function loadCredentialsMap(): Promise<Record<string, any>> {
         mapObj = await storage.get([SK_CRED_MAP]);
     } catch (e: any) {
         if (String(e?.message || e).includes('not allowed')) {
-            sessionAccessFailed = true;
+            markCredSessionFailed();
             storage = chrome.storage.local;
             if (storage) {
                 mapObj = await storage.get([SK_CRED_MAP]);
@@ -174,7 +198,7 @@ export async function saveCredentials(map: Record<string, any>, cred?: any): Pro
         await storage.set(toSave);
     } catch (e: any) {
         if (String(e?.message || e).includes('not allowed')) {
-            sessionAccessFailed = true;
+            markCredSessionFailed();
             storage = chrome.storage.local;
             if (storage) {
                 await storage.set(toSave);
