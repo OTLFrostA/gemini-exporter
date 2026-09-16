@@ -147,11 +147,7 @@ declare global {
                             if (stored && stored.timestamp && c.timestamp) {
                                 const sameTime = Math.abs(stored.timestamp - c.timestamp) < 60000;
                                 const sameTitle = !stored.title || !c.title || stored.title === c.title;
-                                // 只有经列表扫描确立的时间戳才能计入 5 连击：嗅探到的
-                                // 时间戳只能证明"没变"，不能证明它后面的尾巴被扫过
-                                // （新安装嗅探第一页 → 首轮增量首屏即早退的静默截断）。
-                                const scannedProvenance = (stored as any).timestampSource === 'scan';
-                                if (sameTime && sameTitle && scannedProvenance) {
+                                if (sameTime && sameTitle) {
                                     unchangedStreak++;
                                 } else {
                                     unchangedStreak = 0;

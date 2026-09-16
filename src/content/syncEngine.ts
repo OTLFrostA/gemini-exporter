@@ -16,7 +16,7 @@ import {
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
-import { detectSlotFromUrl, extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
+import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
 
 const getStorage = () => (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
 const getScraper = () => DomScraper;
@@ -214,6 +214,25 @@ let __syncOnceInFlight = false;
 
 export function upsertConversations(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<number> {
     if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
+
+    // Fail-Closed Integrity Gate:
+    // If incoming items lack valid IDs or are malformed (e.g. schema drift resulting
+    // in 'c_unknown' or missing IDs), filter them out. If no valid items remain,
+    // abort storage transaction immediately to protect existing data from corruption.
+    const validIncoming = incomingItems.filter(c => {
+        if (!c || !c.id) return false;
+        const rawId = String(c.id).trim();
+        if (rawId === 'c_unknown' || rawId === 'c_' || rawId.toLowerCase() === 'unknown') return false;
+        const nid = normId(rawId);
+        if (!nid || nid === 'unknown' || nid.length < 3 || isReservedRoute(nid)) return false;
+        return true;
+    });
+
+    if (validIncoming.length === 0) {
+        console.warn('[Gemini Exporter] Fail-Closed: incoming batch has no valid conversation IDs, aborting storage write to protect existing data.');
+        return Promise.resolve(0);
+    }
+
     __storageWriteQueue = __storageWriteQueue.then(async () => {
         try {
             const slot = targetSlot || getAccountSlot();
@@ -235,7 +254,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                 });
                 let changed = 0;
 
-                incomingItems.forEach((c, idx) => {
+                validIncoming.forEach((c, idx) => {
                     if (!c || !c.id) return;
                     const nid = normId(c.id);
                     c.id = nid;
