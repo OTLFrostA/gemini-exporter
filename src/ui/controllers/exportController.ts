@@ -1,5 +1,6 @@
 import type { ExportControllerContract } from '../../types/ui.js';
 import ExportEngine from '../../core/engine/exportEngine.js';
+import { ProgressView } from '../views/progressView.js';
 import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
 
 const getExportEngineClass = (): any => {
@@ -11,6 +12,23 @@ const getExportEngineClass = (): any => {
 
 let activeEngine: any = null;
 let exportRunning = false;
+
+export function estimateMemoryUsage(selected: any[], conversations: any[]): number {
+    if (!Array.isArray(selected) || !selected.length) return 0;
+    const convMap = new Map<string, any>((conversations || []).map((c: any) => [c.id?.replace(/^c_/, ''), c]));
+    let totalAttachments = 0;
+    let totalMessages = 0;
+    for (const item of selected) {
+        const rawId = typeof item === 'string' ? item : item?.id;
+        const norm = rawId ? String(rawId).replace(/^c_/, '') : '';
+        const conv = (norm ? convMap.get(norm) : null) || (typeof item === 'object' ? item : null);
+        if (conv) {
+            totalAttachments += (conv.attachmentCount || conv.attachments?.length || 0);
+            totalMessages += (conv.messageCount || conv.messages?.length || 0);
+        }
+    }
+    return Math.round((totalAttachments * 1.8) + (totalMessages * 0.02) + (selected.length * 0.05));
+}
 
 export function setRunning(running: boolean): void {
     exportRunning = !!running;
@@ -47,9 +65,9 @@ export function abort(): void {
         if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:exportController.ts]", e);
     }
     setRunning(false);
-    const pw = $('progWrap');
-    if (pw) pw.style.display = 'none';
+    ProgressView.hide();
 }
+
 
 export async function runExport(
     { selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }: any,
@@ -77,8 +95,10 @@ export const ExportController: ExportControllerContract = {
     isRunning,
     getActiveEngine,
     runExport,
-    abort
+    abort,
+    estimateMemoryUsage
 };
+
 
 (ExportController as any).ExportController = ExportController;
 (ExportController as any).default = ExportController;

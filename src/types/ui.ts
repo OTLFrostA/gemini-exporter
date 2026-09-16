@@ -71,6 +71,20 @@ export interface IDialogView {
     hideDirectWritePrompt: () => void;
     showTakeoutLimitPrompt: (options?: { count?: number; hitGoogleLimit?: boolean; force?: boolean; onImportTakeout?: () => void }) => Promise<void>;
     hideTakeoutLimitPrompt: () => void;
+    renderExportFailureBanner: (failedList: any[], onRetry?: () => void) => void;
+    hideExportFailureBanner: () => void;
+    getLastFailedChats: () => any[];
+
+
+}
+
+export interface IProgressView {
+    show: (initialPct?: number, text?: string) => void;
+    update: (pct: number, text?: string) => void;
+    complete: (text?: string) => void;
+    reset: () => void;
+    hide: (delayMs?: number) => void;
+    getElement: (type: 'wrap' | 'bar' | 'text') => HTMLElement | null;
 }
 
 export interface ILogView {
@@ -114,7 +128,9 @@ export interface ExportControllerContract {
     getActiveEngine: () => any;
     runExport: (params: any, callbacks: any) => Promise<any>;
     abort: () => void;
+    estimateMemoryUsage?: (selected: any[], conversations: any[]) => number;
 }
+
 
 export interface TourGuideContract {
     startTour: (stepIndex?: number) => Promise<void>;

@@ -21,6 +21,7 @@ import { TakeoutEngine } from '../../core/engine/takeoutEngine.js';
 import { TourGuide } from '../tour/tourGuide.js';
 import { FsWriter } from '../../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
+import { ProgressView } from '../views/progressView.js';
 import { I18n } from '../../core/utils/i18n.js';
 import { getI18n as commonGetI18n } from '../uiCommon.js';
 
@@ -37,6 +38,7 @@ export const getLang = (): string => {
 export const getStore = () => (typeof (globalThis as any).ConversationsStore !== 'undefined' ? (globalThis as any).ConversationsStore : ConversationsStore);
 export const getList = () => (typeof (globalThis as any).ListView !== 'undefined' ? (globalThis as any).ListView : ListView);
 export const getDialogs = () => (typeof (globalThis as any).DialogView !== 'undefined' ? (globalThis as any).DialogView : DialogView);
+export const getProgressView = () => (typeof (globalThis as any).ProgressView !== 'undefined' ? (globalThis as any).ProgressView : ProgressView);
 export const getLogView = () => (typeof (globalThis as any).LogView !== 'undefined' ? (globalThis as any).LogView : LogView);
 export const getAccountView = () => (typeof (globalThis as any).AccountView !== 'undefined' ? (globalThis as any).AccountView : AccountView);
 export const getExportCtrl = () => (typeof (globalThis as any).ExportController !== 'undefined' ? (globalThis as any).ExportController : ExportController);
@@ -63,3 +65,4 @@ export const getTakeoutEngine = () => (typeof (globalThis as any).TakeoutEngine 
 export const getTour = () => (typeof (globalThis as any).TourGuide !== 'undefined' ? (globalThis as any).TourGuide : TourGuide);
 export const getFsWriter = () => (typeof (globalThis as any).FsWriter !== 'undefined' ? (globalThis as any).FsWriter : FsWriter);
 export const getChatFormatter = () => (typeof (globalThis as any).ChatFormatter !== 'undefined' ? (globalThis as any).ChatFormatter : ChatFormatter);
+

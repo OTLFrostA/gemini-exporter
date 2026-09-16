@@ -13,8 +13,10 @@ import {
     normId
 } from '../../core/utils/pathUtils.js';
 import { $, getI18n } from '../uiCommon.js';
+import { ProgressView } from '../views/progressView.js';
 
 const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
+
 // P0-5 fix: this used to be a no-op, silently swallowing every export failure.
 // Now it writes to the console and surfaces the message in the popup's #log panel.
 const log = (msg: string): void => {
@@ -178,10 +180,7 @@ const log = (msg: string): void => {
             : (currentFormatSelect?.value || 'markdown');
         if (typeof formatStore === 'undefined' && !ALLOWED_FORMATS.includes(format)) format = 'markdown';
 
-        const progWrap = $('progWrap');
-        const bar = $('bar');
-        if (progWrap) progWrap.style.display = 'block';
-        if (bar) bar.style.width = '10%';
+        ProgressView.show(10);
 
         try {
             const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -197,7 +196,7 @@ const log = (msg: string): void => {
                 return;
             }
             log(typeof i18n !== 'undefined' ? i18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
-            if (bar) bar.style.width = '40%';
+            ProgressView.update(40);
 
             chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: convId, accountSlot: slot }, async (res) => {
                 if (chrome.runtime.lastError) {
@@ -208,7 +207,7 @@ const log = (msg: string): void => {
                     log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: ' + (res?.error || '未知错误')));
                     return;
                 }
-                if (bar) bar.style.width = '80%';
+                ProgressView.update(80);
                 const chat = res.data || res;
                 if (!chat.id) chat.id = convId;
                 if (!chat.url) chat.url = `https://gemini.google.com/app/${convId}`;
@@ -242,7 +241,7 @@ const log = (msg: string): void => {
                 a.click();
                 setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-                if (bar) bar.style.width = '100%';
+                ProgressView.complete();
                 log(typeof i18n !== 'undefined' ? i18n.t('popupExported', fileName, chat.messages?.length || 0) : `已导出: ${fileName} (${chat.messages?.length || 0} 条消息)`);
 
                 try {
@@ -279,14 +278,12 @@ const log = (msg: string): void => {
             if (badge) badge.textContent = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
         }
         if (msg.action === 'exportProgress' || msg.action === 'scanProgress') {
-            const bar = $('bar');
-            const progWrap = $('progWrap');
-            if (progWrap) progWrap.style.display = 'block';
             let pct = typeof msg.percent === 'number' ? msg.percent : (msg.total ? Math.floor((msg.done / msg.total) * 100) : 50);
-            if (bar) bar.style.width = Math.min(Math.max(pct, 5), 100) + '%';
+            ProgressView.update(Math.min(Math.max(pct, 5), 100));
             if (msg.title) log(msg.title);
         }
     });
+
 
     // Init i18n and count
     const i18n = getI18n();
