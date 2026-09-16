@@ -6,9 +6,13 @@
  * Gemini → 嗅探第一页 → 点增量 → 首屏 5 连击即早退 → 旧会话静默截断。
  *
  * 契约：
- *   1. 戳跟着值的变化走：只有 incoming 严格更新（cUpdated > oldUpdated）
- *      时才按写入方重盖（'batchexecute'→'scan'，'network-list'→'sniff'）；
- *      同值/更旧的重观察永远保留旧戳（防 laundering）。
+ *   1. 戳跟着值的变化走：incoming 严格更新（cUpdated > oldUpdated）时按
+ *      写入方重盖（'batchexecute'→'scan'，'network-list'→'sniff'）；同值重
+ *      观察是 upgrade-only：只有扫描写入方（'batchexecute'）能把同值的
+ *      'sniff'/'unknown' 提升为 'scan'（证明本轮扫描实际覆盖了该条目），
+ *      嗅探写入方永远不得把 'scan' 降级；更旧的重观察保留旧戳。
+ *      （这能工作是因为增量早退只看扫描开始前的快照：本轮晋升的戳不
+ *      参与本轮 5 连击，从下一轮开始生效。）
  *   2. updatedAt 本身严格单调（merge 已有 Math.max），旧值写不进去。
  *   3. 增量早退只计数 timestampSource === 'scan' 的记录；缺字段视为非 scan。
  *
@@ -53,13 +57,42 @@ test('插入：其他源（detail/DOM）不盖戳', () => {
 
 // ---- 2. 戳跟着值走：同值不动，严格新值才翻 ----
 
-test('同值 sniff 重写 scan 记录：值不变、戳不动（防 laundering）', () => {
+test('同值 sniff 重写 scan 记录：值不变、戳不动（防降级）', () => {
     const scanned: any = mergeConversation(null, listItem('c', 1000, 'C'), { source: 'batchexecute' }).merged;
     assert.strictEqual(scanned.timestampSource, 'scan');
     // 页面重载又嗅到同一页：值相同，戳必须保持 scan
     const again: any = mergeConversation(scanned, listItem('c', 1000, 'C'), { source: 'network-list' });
     assert.strictEqual(again.merged.timestamp, 1000);
     assert.strictEqual(again.merged.timestampSource, 'scan');
+});
+
+test('同值 scan 重写 sniff 记录：值不变、戳提升为 scan', () => {
+    const sniffed: any = mergeConversation(null, listItem('c', 1000, 'C'), { source: 'network-list' }).merged;
+    assert.strictEqual(sniffed.timestampSource, 'sniff');
+    // 主动扫描看到相同时间戳：证明扫描实际覆盖了该条目，戳提升为 scan
+    const promoted: any = mergeConversation(sniffed, listItem('c', 1000, 'C'), { source: 'batchexecute' });
+    assert.strictEqual(promoted.merged.timestamp, 1000);
+    assert.strictEqual(promoted.merged.timestampSource, 'scan');
+});
+
+test('同值 scan 重写无戳老记录：戳提升为 scan', () => {
+    const legacy: any = listItem('c', 1000, 'C');
+    assert.strictEqual(legacy.timestampSource, undefined);
+    const promoted: any = mergeConversation(legacy, listItem('c', 1000, 'C'), { source: 'batchexecute' });
+    assert.strictEqual(promoted.merged.timestampSource, 'scan');
+});
+
+test('同值 scan 重写 scan 记录：戳保持 scan（幂等）', () => {
+    const scanned: any = mergeConversation(null, listItem('c', 1000, 'C'), { source: 'batchexecute' }).merged;
+    const again: any = mergeConversation(scanned, listItem('c', 1000, 'C'), { source: 'batchexecute' });
+    assert.strictEqual(again.merged.timestamp, 1000);
+    assert.strictEqual(again.merged.timestampSource, 'scan');
+});
+
+test('同值非扫描写入（page-sync）重写 sniff 记录：戳不动', () => {
+    const sniffed: any = mergeConversation(null, listItem('c', 1000, 'C'), { source: 'network-list' }).merged;
+    const again: any = mergeConversation(sniffed, listItem('c', 1000, 'C'), { source: 'page-sync' });
+    assert.strictEqual(again.merged.timestampSource, 'sniff');
 });
 
 test('sniff 带来严格新值：值取新、戳翻成 sniff', () => {
@@ -195,4 +228,68 @@ test('无戳老记录：不计数、不早退', () => {
         assert.strictEqual(calls, 1);
         assert.ok(!streakSawExit && !res.stoppedEarly, '无戳记录不能触发早退');
     });
+});
+
+test('两轮闭环：首轮增量不早退且晋升戳，次轮增量首屏早退', async () => {
+    // 第 0 步：新安装，嗅探写入第一页（sniff 戳）
+    let stored: any[] = [];
+    for (let i = 0; i < 30; i++) {
+        const ts = NOW - i * 60000;
+        stored.push(mergeConversation(null, listItem(`s${i}`, ts, `S ${i}`), { source: 'network-list' }).merged);
+    }
+    assert.ok(stored.every((c: any) => c.timestampSource === 'sniff'));
+
+    // 第一轮增量：快照全是 sniff → 不早退，扫完 3 页；
+    // saveQueue 按 'batchexecute' 把每批写回（模拟真实存储写入）
+    const snapshot1 = new Map(stored.map((c: any) => [c.id, c]));
+    const pages1: any[][] = [];
+    for (let p = 0; p < 3; p++) {
+        const page: any[] = [];
+        for (let k = 0; k < 20; k++) {
+            const idx = p * 20 + k;
+            page.push(listItem(`s${idx}`, NOW - idx * 60000, `S ${idx}`));
+        }
+        pages1.push(page);
+    }
+    const db = new Map(stored.map((c: any) => [c.id, c]));
+    const { client: client1, getCalls: getCalls1 } = mockClient(pages1);
+    const res1: any = await Pagination.getAllConversations(client1, {
+        maxPages: 2000,
+        existingMap: snapshot1,
+        incremental: true,
+        unchangedThreshold: 5,
+        onProgress: (prog: any) => {
+            if (prog.batch && prog.batch.length) {
+                for (const c of prog.batch) {
+                    const prev = db.get(c.id) || null;
+                    db.set(c.id, mergeConversation(prev, c, { source: 'batchexecute' }).merged);
+                }
+            }
+        },
+    });
+    assert.ok(!res1.stoppedEarly, '首轮（sniff 快照）不应早退');
+    assert.strictEqual(getCalls1(), 3, '首轮必须扫完 3 页');
+    // 首轮写入把 s0..s29 的戳晋升为 scan；新发现的 s30..s59 直接盖 scan
+    for (let i = 0; i < 60; i++) {
+        assert.strictEqual(db.get(`s${i}`).timestampSource, 'scan', `s${i} 应为 scan 戳`);
+    }
+    // 快照本身未被本轮写入污染（早退判断用的是扫描开始前的旧快照）
+    assert.ok([...snapshot1.values()].every((c: any) => c.timestampSource === 'sniff'));
+
+    // 第二轮增量：快照全是 scan，服务端无变化 → 首屏 5 连击早退
+    const snapshot2 = new Map([...db.entries()]);
+    const pages2: any[][] = [
+        [...db.values()].slice(0, 30).map((s: any) => listItem(s.id, s.timestamp, s.title)),
+        [listItem('older', NOW - 99999999, 'Older')],
+    ];
+    const { client: client2, getCalls: getCalls2 } = mockClient(pages2);
+    const res2: any = await Pagination.getAllConversations(client2, {
+        maxPages: 2000,
+        existingMap: snapshot2,
+        incremental: true,
+        unchangedThreshold: 5,
+        onProgress: () => {},
+    });
+    assert.strictEqual(getCalls2(), 1, '次轮应第 1 页即早退');
+    assert.strictEqual(res2.stoppedEarly, true, '次轮（scan 快照）应早退');
 });
