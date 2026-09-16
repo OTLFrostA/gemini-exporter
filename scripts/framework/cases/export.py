@@ -237,6 +237,13 @@ class FastSkipExportedCase(FeatureTestCase):
             (() => {{
                 const selectNone = document.getElementById('btnSelectNone');
                 if (selectNone) selectNone.click();
+                document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {{
+                    if (cb.checked) {{
+                        cb.checked = false;
+                        cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+                }});
+
                 const targetIds = {json.dumps(target_ids)};
                 const targetTitles = {json.dumps(target_titles)};
                 const items = Array.from(document.querySelectorAll('#list .item'));
@@ -244,11 +251,12 @@ class FastSkipExportedCase(FeatureTestCase):
                 items.forEach(item => {{
                     const cid = item.dataset.chatId;
                     const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
+                    const hasBadge = Boolean(item.querySelector('.badge-exported'));
                     const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
                     const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
-                    if (matchId || matchTitle) {{
+                    if (hasBadge || matchId || matchTitle) {{
                         const cb = item.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {{
+                        if (cb) {{
                             cb.checked = true;
                             cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
                             checkedCount++;
@@ -265,13 +273,14 @@ class FastSkipExportedCase(FeatureTestCase):
                     zipCb.checked = true;
                     zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 }}
-                return {{ checkedCount }};
+                const actualChecked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
+                return {{ checkedCount, actualChecked }};
             }})()
             """) or {}
 
-            checked_count = select_res.get("checkedCount", 0)
-            if checked_count < 6:
-                return False, f"未能在工作台中勾选足够的已导出会话: {checked_count} < 6", select_res
+            actual_checked = select_res.get("actualChecked", 0)
+            if actual_checked < 6:
+                return False, f"未能在工作台中勾选足够的已导出会话: actualChecked={actual_checked} < 6", select_res
 
             # 触发导出前记录时间戳与当前输出目录文件列表
             start_t = time.time()
@@ -286,24 +295,28 @@ class FastSkipExportedCase(FeatureTestCase):
             finish_msg = ""
             for _ in range(12):
                 time.sleep(0.5)
-                status_info = cdp_opt.eval("""
-                (() => {
+                status_info = cdp_opt.eval(f"""
+                (() => {{
                     const progText = document.getElementById('progText')?.textContent || '';
-                    const logArea = document.getElementById('logArea')?.textContent || '';
-                    const btn = document.querySelector('button#btnExport');
+                    const logEl = document.querySelector('{WorkbenchSelectors.LOG}') || document.getElementById('log');
+                    const logText = logEl ? logEl.textContent : '';
+                    const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
                     const isBusy = btn && btn.disabled;
-                    return {
+                    const hasSkip = logText.includes('跳过') || logText.includes('skipped') || logText.includes('无需生成 ZIP') ||
+                                    progText.includes('跳过') || progText.includes('skipped') || progText.includes('无需生成 ZIP');
+                    return {{
                         progText,
-                        hasSkipLog: logArea.includes('跳过') || logArea.includes('skipped') || logArea.includes('无需生成 ZIP'),
+                        logSnippet: logText.slice(-200),
+                        hasSkipLog: Boolean(hasSkip),
                         isBusy: Boolean(isBusy)
-                    };
-                })()
+                    }};
+                }})()
                 """) or {}
                 if status_info.get("hasSkipLog"):
                     skip_log_found = True
                 if not status_info.get("isBusy") and status_info.get("hasSkipLog"):
                     completed = True
-                    finish_msg = status_info.get("progText", "")
+                    finish_msg = status_info.get("progText", "") or status_info.get("logSnippet", "")
                     break
 
             all_skip_duration = time.time() - start_t
@@ -321,6 +334,12 @@ class FastSkipExportedCase(FeatureTestCase):
             (() => {
                 const selectNone = document.getElementById('btnSelectNone');
                 if (selectNone) selectNone.click();
+                document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
+                    if (cb.checked) {
+                        cb.checked = false;
+                        cb.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
                 const items = Array.from(document.querySelectorAll('#list .item'));
                 let unexportedItem = null;
                 let exportedItem = null;
@@ -341,6 +360,11 @@ class FastSkipExportedCase(FeatureTestCase):
                     const cb = unexportedItem.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
+                const skipCb = document.getElementById('skipExported');
+                if (skipCb && !skipCb.checked) {
+                    skipCb.checked = true;
+                    skipCb.dispatchEvent(new Event('change', { bubbles: true }));
+                }
                 return {
                     hasExported: Boolean(exportedItem),
                     hasUnexported: Boolean(unexportedItem),
@@ -351,7 +375,7 @@ class FastSkipExportedCase(FeatureTestCase):
             """) or {}
 
             if partial_prep.get("hasExported") and partial_prep.get("hasUnexported"):
-                partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30)
+                partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
                 if not partial_zip or not os.path.isfile(partial_zip):
                     return False, "部分跳过导出时未能成功生成未导出会话的 ZIP 包", partial_prep
 
