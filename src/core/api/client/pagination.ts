@@ -71,6 +71,20 @@ declare global {
             hitGoogleLimit: false,
             pageHistory: []
         };
+        // P1-040: check for a pre-start cancel BEFORE resetting the flag —
+        // previously the unconditional reset swallowed a cancel issued in the
+        // instant before the sync task actually started.
+        if (client.aborted || opts?.signal?.aborted) {
+            diagLog.stopReason = "用户手动终止同步（开始前已取消）";
+            diagLog.totalConversations = 0;
+            diagLog.endTime = new Date().toISOString();
+            return {
+                conversations: [],
+                total: 0,
+                diagnostics: diagLog,
+                hitGoogleLimit: false
+            };
+        }
         client.aborted = false;
 
         const isAborted = () => {

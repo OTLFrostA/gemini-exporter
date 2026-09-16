@@ -110,6 +110,10 @@ const pagination = GeminiClientPagination;
                 fReq: req,
                 cred,
                 sourcePath: "/app",
+                // P1-035: conversation list requests get a timeout like detail
+                // pages, but 30s — 15s was too aggressive for slow networks /
+                // proxies / huge accounts (first-page timeout killed the sync).
+                timeoutMs: 30000,
                 signal: opts?.signal || this.signal
             });
 
@@ -156,6 +160,9 @@ const pagination = GeminiClientPagination;
                     resp,
                     retryCount,
                     maxRetries,
+                    // P1-035: thread the cancel signal so the 429 backoff wait is
+                    // interruptible (fast cancel instead of sleeping out the delay).
+                    signal: opts?.signal || this.signal,
                     label: "getConversationList"
                 }) : { shouldRetry: false };
 
@@ -165,6 +172,8 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
+                // P1-035: an aborted backoff is a cancellation, not an HTTP error.
+                if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
 
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sid:${cred.sid?.slice(0,6)} atLen:${cred.at?.length} bl:${cred.bl?.slice(0,12)}`);
             }
@@ -254,6 +263,9 @@ const pagination = GeminiClientPagination;
                     resp,
                     retryCount,
                     maxRetries,
+                    // P1-035: thread the cancel signal so the 429 backoff wait is
+                    // interruptible (fast cancel instead of sleeping out the delay).
+                    signal: opts?.signal || this.signal,
                     label: `fetchConversationPage ${id}`
                 }) : { shouldRetry: false };
                 if (retry429.shouldRetry) {
@@ -262,6 +274,8 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
+                // P1-035: an aborted backoff is a cancellation, not an HTTP error.
+                if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (fetchConversationPage)");
 
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
