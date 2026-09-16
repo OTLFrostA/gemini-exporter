@@ -1,0 +1,106 @@
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
+
+// ---------------------------------------------------------------------------
+// Regression: optionsExport's onTitleUpdated used to be a pure in-memory dirty
+// write — it mutated the object returned by Store.getConversations() but never
+// wrote the new title back to storage, so the title was lost on page reload.
+// The handler logic now lives in the exported `persistTitleUpdate`, which must
+// update the in-memory item AND persist via storageService.updateConversation
+// (the same atomic read-modify-write path the export chain uses).
+// ---------------------------------------------------------------------------
+
+function seedConversation() {
+    return { id: 'c_aaa111', title: '旧标题', titleSource: 'dom', titles: { dom: '旧标题' } };
+}
+
+let memConvs: any[];
+let storedConvs: any[];
+let updateCalls: Array<{ slot: string; id: string }>;
+
+function installMocks() {
+    memConvs = [seedConversation()];
+    // stored copy is a separate object, like the real chrome.storage.local copy
+    storedConvs = [JSON.parse(JSON.stringify(seedConversation()))];
+    updateCalls = [];
+    (globalThis as any).ConversationsStore = {
+        getConversations: () => memConvs,
+        getCurrentSlot: () => 'u0',
+    };
+    (globalThis as any).StorageService = {
+        updateConversation: async (slot: string, id: string, updater: (c: any) => void) => {
+            updateCalls.push({ slot, id });
+            const target = storedConvs.find((c) => c && c.id === id);
+            if (!target) return false;
+            updater(target);
+            return true;
+        },
+    };
+}
+
+function loadPersistTitleUpdate(): (chatId: string, newTitle: string, source: string) => Promise<void> {
+    const mod = require('../src/ui/options/modules/optionsExport.js');
+    // NOTE: requiring the module transitively loads conversationsStore.ts and
+    // storageService.ts, which self-register the REAL implementations on
+    // globalThis and clobber the mocks installed above. Re-install afterwards
+    // (getStore()/getStorage() read globalThis lazily, so this takes effect).
+    installMocks();
+    assert.strictEqual(
+        typeof mod.persistTitleUpdate,
+        'function',
+        'persistTitleUpdate is not exported: title updates are still in-memory only'
+    );
+    return mod.persistTitleUpdate;
+}
+
+test('persistTitleUpdate updates in-memory item AND persists title to storage', async () => {
+    installMocks();
+    const persistTitleUpdate = loadPersistTitleUpdate();
+
+    await persistTitleUpdate('c_aaa111', '从RPC解析到的新标题', 'rpc');
+
+    // existing behavior: in-memory item reflects the arbitrated title
+    assert.strictEqual(memConvs[0].title, '从RPC解析到的新标题');
+    assert.strictEqual(memConvs[0].titles.rpc, '从RPC解析到的新标题');
+
+    // the fix: the stored copy must carry the new title too (survives reload)
+    assert.strictEqual(updateCalls.length, 1, 'expected exactly one atomic storage write');
+    assert.strictEqual(updateCalls[0].slot, 'u0');
+    assert.strictEqual(updateCalls[0].id, 'c_aaa111');
+    assert.strictEqual(storedConvs[0].title, '从RPC解析到的新标题');
+    assert.strictEqual(storedConvs[0].titles.rpc, '从RPC解析到的新标题');
+});
+
+test('persistTitleUpdate ignores non-real titles (no storage write)', async () => {
+    installMocks();
+    const persistTitleUpdate = loadPersistTitleUpdate();
+
+    await persistTitleUpdate('c_aaa111', 'Gemini', 'rpc');
+
+    assert.strictEqual(memConvs[0].title, '旧标题');
+    assert.strictEqual(updateCalls.length, 0, 'brand placeholder must not trigger a storage write');
+    assert.strictEqual(storedConvs[0].title, '旧标题');
+});
+
+test('persistTitleUpdate ignores unknown ids (no storage write)', async () => {
+    installMocks();
+    const persistTitleUpdate = loadPersistTitleUpdate();
+
+    await persistTitleUpdate('c_nope999', '某个新标题', 'rpc');
+
+    assert.strictEqual(updateCalls.length, 0);
+    assert.strictEqual(storedConvs[0].title, '旧标题');
+});
+
+test('persistTitleUpdate still updates memory when storage write is unavailable', async () => {
+    installMocks();
+    const persistTitleUpdate = loadPersistTitleUpdate();
+    // break storage AFTER the mock re-install above: no updateConversation
+    (globalThis as any).StorageService = {};
+
+    await persistTitleUpdate('c_aaa111', '从RPC解析到的新标题', 'rpc');
+
+    assert.strictEqual(memConvs[0].title, '从RPC解析到的新标题');
+    assert.strictEqual(storedConvs[0].title, '旧标题');
+});
