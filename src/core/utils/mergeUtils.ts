@@ -155,6 +155,40 @@ export function mergeConversation(
     // 3. bestTimestamp mirrors bestUpdatedAt (the latest activity time)
     const bestTimestamp = bestUpdatedAt || old?.timestamp || incoming?.timestamp || null;
 
+    // 3b. Message-dimension monotonicity (stale-snapshot guard, CON-HF7 analogue):
+    // Timestamps alone cannot tell a richer record from a staler one: a Takeout
+    // export predates later online turns, so its messageCount is smaller while
+    // its arrival is newer. Never shrink message payloads or their counts;
+    // growth (incoming richer) flows through via spread below.
+    const effectiveMessageCount = (c: any): number => {
+        if (!c || typeof c !== 'object') return 0;
+        const n = Number(c.messageCount);
+        const m = Array.isArray(c.messages) ? c.messages.length : 0;
+        const t = Array.isArray(c.turns) ? c.turns.length : 0;
+        return Math.max(Number.isFinite(n) && n > 0 ? n : 0, m, t);
+    };
+    const oldMsgLen = effectiveMessageCount(old);
+    const inMsgLen = effectiveMessageCount(incoming);
+    const bestMsgLen = Math.max(oldMsgLen, inMsgLen);
+    const incomingShrinksMessages = !!old && oldMsgLen > inMsgLen;
+
+    // 3c. lastSeen monotonicity: Takeout snapshots carry historical lastSeen
+    // (takeoutHtmlParser seeds it from the activity timestamp); never move it
+    // backwards. Sorting only uses it as a tie-break, but recency must hold.
+    const toMs = (v: any): number | null => {
+        if (v === null || v === undefined || v === '') return null;
+        const ms = typeof v === 'string' ? new Date(v).getTime() : Number(v);
+        return Number.isFinite(ms) && ms > 0 ? ms : null;
+    };
+    const oldSeenMs = toMs(old?.lastSeen);
+    const inSeenMs = toMs(incoming?.lastSeen);
+    let bestLastSeen: any = null;
+    if (oldSeenMs !== null && inSeenMs !== null) {
+        bestLastSeen = oldSeenMs >= inSeenMs ? old.lastSeen : incoming.lastSeen;
+    } else {
+        bestLastSeen = oldSeenMs !== null ? old.lastSeen : (inSeenMs !== null ? incoming.lastSeen : null);
+    }
+
     // 7. Check if meaningful change occurred
     // P1-057: title/timestamp alone miss real changes — a follow-up in the same
     // second bumps messageCount while timestamps stay identical.
@@ -174,7 +208,8 @@ export function mergeConversation(
         (oldMsgCount !== null && inMsgCount !== null && oldMsgCount !== inMsgCount) ||
         (oldBodyLen !== null && inBodyLen !== null && oldBodyLen !== inBodyLen) ||
         ((oldBodyLen === null || oldBodyLen === 0) && inBodyLen !== null && inBodyLen > 0) ||
-        (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount)
+        (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount) ||
+        bestMsgLen > oldMsgLen
     ) {
         isChanged = true;
     }
@@ -212,6 +247,14 @@ export function mergeConversation(
 
     if (options?.now) {
         merged.lastSeen = options.now;
+    } else if (bestLastSeen !== null) {
+        merged.lastSeen = bestLastSeen;
+    }
+    if (incomingShrinksMessages) {
+        if (Array.isArray(old.messages)) merged.messages = old.messages;
+        if (Array.isArray(old.turns)) merged.turns = old.turns;
+        if (typeof old.messageCount === 'number') merged.messageCount = old.messageCount;
+        else if (bestMsgLen > 0) merged.messageCount = bestMsgLen;
     }
     if (options?.source) {
         merged.source = options.source || old?.source || 'unknown';

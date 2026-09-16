@@ -203,21 +203,23 @@ test('takeoutController - exports and gracefully handles null file', async () =>
 });
 
 test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, new ids sorted', async () => {
+    const onlineMessages = ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'];
     const existing = [
-        { id: 'chat-online-1', title: 'Online Title', titleSource: 'rpc', titles: { rpc: 'Online Title' }, updatedAt: 2000, timestamp: 2000 },
+        { id: 'chat-online-1', title: 'Online Title', titleSource: 'rpc', titles: { rpc: 'Online Title' }, messages: onlineMessages, messageCount: 8, updatedAt: 2000, timestamp: 2000, lastSeen: '2026-09-10T12:00:00.000Z' },
     ];
     let saved: any = null;
+    let saveCalls = 0;
     const origStore = (globalThis as any).ConversationsStore;
     const origEngine = (globalThis as any).TakeoutEngine;
     (globalThis as any).ConversationsStore = {
         getConversations: () => existing,
         getCurrentSlot: () => 'u0',
-        saveConversations: async (_slot: string, list: any) => { saved = list; },
+        saveConversations: async (_slot: string, list: any) => { saved = list; saveCalls++; },
     };
     (globalThis as any).TakeoutEngine = {
         parseTakeoutZip: async () => ({
             conversations: [
-                { id: 'chat-online-1', title: 'Takeout Prefix Question', titleSource: 'takeout', titles: { takeout: 'Takeout Prefix' }, updatedAt: 1000, timestamp: 1000 },
+                { id: 'chat-online-1', title: 'Takeout Prefix Question', titleSource: 'takeout', titles: { takeout: 'Takeout Prefix' }, messageCount: 2, updatedAt: 1000, timestamp: 1000, lastSeen: '2026-09-01T12:00:00.000Z' },
                 { id: 'chat-takeout-old', title: 'Old Takeout', titleSource: 'takeout', titles: { takeout: 'Old Takeout' }, updatedAt: 500, timestamp: 500 },
                 { id: 'chat-takeout-fresh', title: 'Fresh Takeout', titleSource: 'takeout', titles: { takeout: 'Fresh Takeout' }, updatedAt: 3000, timestamp: 3000 },
             ],
@@ -230,6 +232,7 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
             onFinished: (r: any) => { result = r; }
         });
         assert.strictEqual(result.addedCount, 2);
+        assert.strictEqual(saveCalls, 1, 'changed import must persist once');
         assert.ok(Array.isArray(saved));
         assert.strictEqual(saved.length, 3);
         const sameId = saved.find((c: any) => c.id === 'chat-online-1');
@@ -237,10 +240,46 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
         assert.strictEqual(sameId.title, 'Online Title');
         assert.strictEqual(sameId.titleSource, 'rpc');
         assert.strictEqual(sameId.titles && sameId.titles.takeout, 'Takeout Prefix Question');
+        assert.strictEqual(sameId.messageCount, 8, 'stale takeout snapshot must not shrink messageCount');
+        assert.deepStrictEqual(sameId.messages, onlineMessages, 'stale takeout snapshot must not replace messages');
+        assert.strictEqual(sameId.lastSeen, '2026-09-10T12:00:00.000Z', 'stale takeout snapshot must not rewind lastSeen');
         assert.deepStrictEqual(
             saved.map((c: any) => c.id),
             ['chat-takeout-fresh', 'chat-online-1', 'chat-takeout-old']
         );
+    } finally {
+        (globalThis as any).ConversationsStore = origStore;
+        (globalThis as any).TakeoutEngine = origEngine;
+    }
+});
+
+test('takeoutController - zero-change re-import does not rewrite the store', async () => {
+    const existing = [
+        { id: 'chat-1', title: 'Same Title', titleSource: 'takeout', titles: { takeout: 'Same Title' }, messageCount: 2, updatedAt: 1000, timestamp: 1000 },
+    ];
+    let saveCalls = 0;
+    const origStore = (globalThis as any).ConversationsStore;
+    const origEngine = (globalThis as any).TakeoutEngine;
+    (globalThis as any).ConversationsStore = {
+        getConversations: () => existing,
+        getCurrentSlot: () => 'u0',
+        saveConversations: async () => { saveCalls++; },
+    };
+    (globalThis as any).TakeoutEngine = {
+        parseTakeoutZip: async () => ({
+            conversations: [
+                { id: 'chat-1', title: 'Same Title', titleSource: 'takeout', titles: { takeout: 'Same Title' }, messageCount: 2, updatedAt: 1000, timestamp: 1000 },
+            ],
+            totalMediaCount: 0,
+        }),
+    };
+    try {
+        let result: any = null;
+        await TakeoutController.handleTakeoutImport({} as any, {
+            onFinished: (r: any) => { result = r; }
+        });
+        assert.strictEqual(result.addedCount, 0);
+        assert.strictEqual(saveCalls, 0, 'zero-change import must not rewrite the store');
     } finally {
         (globalThis as any).ConversationsStore = origStore;
         (globalThis as any).TakeoutEngine = origEngine;

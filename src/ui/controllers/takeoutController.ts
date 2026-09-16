@@ -56,9 +56,21 @@ export async function handleTakeoutImport(
             }
             return staticDeduplicateConversations(list);
         };
-        const { processed } = dedupe([...(convs || []), ...incoming]);
+        const { processed, changedCount } = dedupe([...(convs || []), ...incoming]);
 
-        if (Store && processed.length > 0) {
+        // Only rewrite the whole table when something actually changed. Note
+        // deduplicateConversations counts every distinct id's first occurrence
+        // as changed (!old => isChanged), so subtract those trivial counts:
+        // repeatMods > 0 means a same-id merge really moved the record
+        // (authoritative title / timestamp / message growth). Titles-dict-only
+        // enrichment with an unchanged resolved title is immaterial and stays
+        // unsaved; a later RPC merge re-seeds what it needs.
+        const trivialFirstSeen = processed.length;
+        const hasChangeSignal = typeof changedCount === 'number';
+        // No signal (foreign mock without changedCount) -> assume changed when
+        // there is incoming data (conservative: correctness over write saving).
+        const repeatMods = hasChangeSignal ? changedCount - trivialFirstSeen : (incoming.length > 0 ? 1 : 0);
+        if (Store && (addedCount > 0 || repeatMods > 0)) {
             const currentSlot = Store.getCurrentSlot() || 'u0';
             await Store.saveConversations(currentSlot, processed);
         }

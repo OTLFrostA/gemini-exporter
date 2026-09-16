@@ -38,7 +38,7 @@ export interface IConversationsStore {
     setDevMode: (devOn: boolean) => Promise<void>;
     removeConversation: (id: string) => Promise<Conversation[]>;
     reconcileWithCloud: (activeCloudList: any[], options?: any) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
-    normalizeAndDeduplicate: (incoming: Conversation[]) => { processed: Conversation[]; hasDirtyTitles: boolean };
+    normalizeAndDeduplicate: (incoming: Conversation[]) => { processed: Conversation[]; hasDirtyTitles: boolean; changedCount: number };
     hasTakeoutData: () => boolean;
     normId: (id: string | null | undefined) => string;
 }
