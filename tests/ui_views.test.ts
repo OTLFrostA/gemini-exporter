@@ -7,6 +7,8 @@ const BadgeView = require('../src/content/badgeView.js');
 const DialogView = require('../src/ui/views/dialogView.js');
 const ListView = require('../src/ui/views/listView.js');
 const LogView = require('../src/ui/views/logView.js');
+const ProgressView = require('../src/ui/views/progressView.js');
+
 
 // ---------------------------------------------------------------------------
 // AccountView
@@ -478,3 +480,69 @@ test('logView - buffer recording and deduplication', () => {
     LogView.clear();
     assert.strictEqual(LogView.getBuffer().length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// DialogView - Export Failure Banner
+// ---------------------------------------------------------------------------
+test('dialogView - renderExportFailureBanner and hideExportFailureBanner', () => {
+    assert.strictEqual(typeof DialogView.renderExportFailureBanner, 'function');
+    assert.strictEqual(typeof DialogView.hideExportFailureBanner, 'function');
+
+    const mockCard = { id: 'exportFailureCard', style: { display: 'none' } };
+    const mockTitle = { id: 'exportFailureTitle', textContent: '' };
+    const mockBtnRetry = { id: 'btnRetryFailed', textContent: '', onclick: null as any };
+    const mockBtnDismiss = { id: 'btnDismissFailure', onclick: null as any };
+    const mockList = { id: 'exportFailureList', innerHTML: '', appendChild: (el: any) => {} };
+
+    const oldDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = {
+            getElementById: (id: string) => {
+                if (id === 'exportFailureCard') return mockCard;
+                if (id === 'exportFailureTitle') return mockTitle;
+                if (id === 'btnRetryFailed') return mockBtnRetry;
+                if (id === 'btnDismissFailure') return mockBtnDismiss;
+                if (id === 'exportFailureList') return mockList;
+                return null;
+            },
+            createElement: () => ({ style: {}, textContent: '', title: '' })
+        };
+
+        let retryTriggered = false;
+        DialogView.renderExportFailureBanner(
+            [{ id: 'chat-1', title: 'Fail 1', error: 'Network error' }],
+            () => { retryTriggered = true; }
+        );
+
+        assert.strictEqual(mockCard.style.display, 'block');
+        assert.ok(DialogView.getLastFailedChats().length === 1);
+        assert.strictEqual(typeof mockBtnRetry.onclick, 'function');
+        mockBtnRetry.onclick();
+        assert.strictEqual(retryTriggered, true);
+
+        // Dismiss
+        assert.strictEqual(typeof mockBtnDismiss.onclick, 'function');
+        mockBtnDismiss.onclick();
+        assert.strictEqual(mockCard.style.display, 'none');
+
+        // Hide
+        DialogView.hideExportFailureBanner();
+        assert.strictEqual(mockCard.style.display, 'none');
+        assert.strictEqual(DialogView.getLastFailedChats().length, 0);
+    } finally {
+        (globalThis as any).document = oldDoc;
+    }
+});
+
+// ---------------------------------------------------------------------------
+// ProgressView
+// ---------------------------------------------------------------------------
+test('progressView - interface and basic operations in ui_views suite', () => {
+    assert.ok(ProgressView);
+    assert.strictEqual(typeof ProgressView.show, 'function');
+    assert.strictEqual(typeof ProgressView.update, 'function');
+    assert.strictEqual(typeof ProgressView.complete, 'function');
+    assert.strictEqual(typeof ProgressView.reset, 'function');
+    assert.strictEqual(typeof ProgressView.hide, 'function');
+});
+

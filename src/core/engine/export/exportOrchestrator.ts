@@ -459,30 +459,17 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                     : `[${sTitle}] 跳过已导出内容 (无更新)`, 'info');
             }
 
+            const ProgressReporterClass = getProgressReporter()?.ProgressReporter || ProgressReporter;
+            const reporter = new ProgressReporterClass({
+                totalChats,
+                onProgress,
+                onLog
+            });
+
             const updateProgress = (chatIdx?: number, chatTitle?: string) => {
-                if (typeof chatIdx === 'number') currentExportIdx = chatIdx;
-                if (typeof chatTitle === 'string' && chatTitle) currentExportTitle = chatTitle;
-
-                const current = Math.min(currentExportIdx, totalChats);
-                let pct = totalChats ? Math.floor((current / totalChats) * 100) : 0;
-
-                if (totalAssets > 0 && downloadedAssets > 0 && pct < 100) {
-                    const chatWeight = 0.75;
-                    const assetWeight = 0.25;
-                    const chatFraction = totalChats ? (current / totalChats) : 0;
-                    const assetFraction = Math.min(1, downloadedAssets / totalAssets);
-                    pct = Math.min(99, Math.floor((chatFraction * chatWeight + assetFraction * assetWeight) * 100));
-                }
-
-                onProgress({
-                    current,
-                    total: totalChats,
-                    pct,
-                    title: currentExportTitle,
-                    assetsDownloaded: downloadedAssets,
-                    assetsTotal: totalAssets
-                });
+                reporter.update(chatIdx, chatTitle, { downloadedAssets, totalAssets });
             };
+
 
             if (payloadIds.length === 0) {
                 updateProgress(totalChats, typeof I18n !== 'undefined' ? I18n.t('exportSkippedAll', skipped) : 'All items skipped');

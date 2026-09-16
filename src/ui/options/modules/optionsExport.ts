@@ -13,8 +13,11 @@ import {
     getDialogs,
     getDirHandle,
     getLiveStorage,
-    getUtils
+    getUtils,
+    getProgressView
 } from '../optionsContext.js';
+import { DialogView } from '../../views/dialogView.js';
+import { ProgressView } from '../../views/progressView.js';
 import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { $ } from '../../uiCommon.js';
@@ -25,74 +28,39 @@ let __loadStore: ((force?: boolean) => Promise<any>) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __getSearchFilter: () => string = () => '';
 let _isExporting = false;
-let _lastFailedChats: any[] = [];
 
 export function getLastFailedChats(): any[] {
-    return _lastFailedChats;
+    const Dialogs = getDialogs();
+    return (Dialogs?.getLastFailedChats?.()) ?? DialogView.getLastFailedChats();
 }
 
 export function renderExportFailureBanner(failedList: any[]): void {
-    _lastFailedChats = Array.isArray(failedList) ? failedList : [];
-    const card = $('exportFailureCard');
-    if (!card) return;
-    if (!_lastFailedChats.length) {
-        card.style.display = 'none';
-        return;
+    const Dialogs = getDialogs();
+    if (typeof Dialogs?.renderExportFailureBanner === 'function') {
+        Dialogs.renderExportFailureBanner(failedList, retryFailedExport);
+    } else {
+        DialogView.renderExportFailureBanner(failedList, retryFailedExport);
     }
-    const titleEl = $('exportFailureTitle');
-    if (titleEl) {
-        titleEl.textContent = typeof t === 'function' ? t('exportFailureBannerTitle') : '部分会话导出失败';
-    }
-    const btnRetry = $('btnRetryFailed') as HTMLButtonElement | null;
-    if (btnRetry) {
-        btnRetry.textContent = typeof t === 'function' ? t('btnRetryFailedCount', _lastFailedChats.length) : `重试失败项 (${_lastFailedChats.length})`;
-        btnRetry.onclick = () => {
-            retryFailedExport();
-        };
-    }
-    const btnDismiss = $('btnDismissFailure') as HTMLButtonElement | null;
-    if (btnDismiss) {
-        btnDismiss.onclick = () => {
-            card.style.display = 'none';
-        };
-    }
-    const listEl = $('exportFailureList');
-    if (listEl) {
-        listEl.innerHTML = '';
-        _lastFailedChats.slice(0, 20).forEach(item => {
-            const row = document.createElement('div');
-            row.style.whiteSpace = 'nowrap';
-            row.style.overflow = 'hidden';
-            row.style.textOverflow = 'ellipsis';
-            row.style.padding = '1px 0';
-            const itemTitle = item.title || item.id || 'Untitled';
-            const itemErr = item.error ? ` (${item.error})` : '';
-            row.textContent = `• ${itemTitle}${itemErr}`;
-            row.title = `${itemTitle}${itemErr}`;
-            listEl.appendChild(row);
-        });
-        if (_lastFailedChats.length > 20) {
-            const more = document.createElement('div');
-            more.style.fontStyle = 'italic';
-            more.textContent = `... 以及其他 ${_lastFailedChats.length - 20} 项`;
-            listEl.appendChild(more);
-        }
-    }
-    card.style.display = 'block';
 }
 
 export function hideExportFailureBanner(): void {
-    _lastFailedChats = [];
-    const card = $('exportFailureCard');
-    if (card) card.style.display = 'none';
+    const Dialogs = getDialogs();
+    if (typeof Dialogs?.hideExportFailureBanner === 'function') {
+        Dialogs.hideExportFailureBanner();
+    } else {
+        DialogView.hideExportFailureBanner();
+    }
 }
 
+
+
 export async function retryFailedExport(): Promise<void> {
-    if (!_lastFailedChats.length) return;
+    const failedList = getLastFailedChats();
+    if (!failedList.length) return;
     const List = getList();
     const Store = getStore();
     const failedIds = new Set<string>();
-    for (const c of _lastFailedChats) {
+    for (const c of failedList) {
         if (c.id) {
             failedIds.add(c.id);
             failedIds.add(normId(c.id));
@@ -105,6 +73,7 @@ export async function retryFailedExport(): Promise<void> {
     hideExportFailureBanner();
     await exportSelected();
 }
+
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (__log) __log(msg, level);
@@ -154,19 +123,9 @@ export async function startExportPipeline(
 
     // S-1 Memory Guardrail: Pre-flight memory estimation for large ZIP exports
     if (includeZip) {
-        const convMap = new Map<string, any>((convs || []).map((c: any) => [normId(c.id), c]));
-        let totalAttachments = 0;
-        let totalMessages = 0;
-        for (const item of selected) {
-            const rawId = typeof item === 'string' ? item : item?.id;
-            const conv = (rawId ? convMap.get(normId(rawId)) : null) || (typeof item === 'object' ? item : null);
-            if (conv) {
-                totalAttachments += (conv.attachmentCount || conv.attachments?.length || 0);
-                totalMessages += (conv.messageCount || conv.messages?.length || 0);
-            }
-        }
-        // Approximate: ~1.8MB per attachment, 20KB per message, 50KB per conversation metadata
-        const estimatedMb = Math.round((totalAttachments * 1.8) + (totalMessages * 0.02) + (selected.length * 0.05));
+        const estimatedMb = (Controller && typeof Controller.estimateMemoryUsage === 'function')
+            ? Controller.estimateMemoryUsage(selected, convs)
+            : Math.round((selected.length * 0.05));
         if (estimatedMb >= 300) {
             const warnMsg = typeof t === 'function'
                 ? t('exportLargeMemoryWarn', estimatedMb)
@@ -194,12 +153,7 @@ export async function startExportPipeline(
     }
 
     hideExportFailureBanner();
-    const progWrap = $('progWrap');
-    const bar = $('bar');
-    const progText = $('progText');
-    if (progWrap) progWrap.style.display = 'block';
-    if (bar) bar.style.width = '2%';
-    if (progText) progText.textContent = typeof t === 'function' ? t('startExport') : 'Preparing export...';
+    ProgressView.show(2, typeof t === 'function' ? t('startExport') : 'Preparing export...');
 
     log(typeof t === 'function'
         ? t('exportStartingDetail', selected.length, format.toUpperCase(), includeZip ? 'ZIP' : (typeof t === 'function' ? t('folder') : 'Folder'), includeAssets ? 'ON' : 'OFF')
@@ -235,13 +189,10 @@ export async function startExportPipeline(
                     ? utils.formatExportProgress(progress, txt, isEn)
                     : { text: txt || '', pct: typeof progress === 'number' ? progress : (progress?.pct || 0) };
 
-                if (bar && typeof formatted.pct !== 'undefined') {
-                    bar.style.width = `${Math.min(Math.max(formatted.pct, 2), 100)}%`;
-                }
-                if (progText && formatted.text) {
-                    progText.textContent = formatted.text;
-                }
+                const pct = typeof formatted.pct !== 'undefined' ? Math.max(formatted.pct, 2) : 2;
+                ProgressView.update(pct, formatted.text);
             },
+
             onLog: (msg: string, lvl: 'info' | 'warn' | 'error') => log(msg, lvl),
             onTitleUpdated: (chatId: string, newTitle: string, source: string) => {
                 const currentConvs = Store ? Store.getConversations() : [];
@@ -284,7 +235,7 @@ export async function startExportPipeline(
 
         if (result && result.aborted) {
             log(typeof t === 'function' ? t('exportAborted') : '导出任务已被用户中止', 'warn');
-            if (progText) progText.textContent = typeof t === 'function' ? t('exportAborted') : '导出已终止';
+            ProgressView.complete(typeof t === 'function' ? t('exportAborted') : '导出已终止');
         } else {
             const failedList = Array.isArray(result?.failedChats) ? result.failedChats : [];
             const failedCount = failedList.length;
@@ -354,18 +305,14 @@ export async function startExportPipeline(
                 log(finishMsg, 'info');
                 hideExportFailureBanner();
             }
-            if (bar) bar.style.width = '100%';
-            if (progText) progText.textContent = finishMsg;
+            ProgressView.complete(finishMsg);
         }
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
         log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
-        if (progText) progText.textContent = `Error: ${errMsg}`;
+        ProgressView.complete(`Error: ${errMsg}`);
     } finally {
-        setTimeout(() => {
-            if (progWrap) progWrap.style.display = 'none';
-            if (bar) bar.style.width = '0%';
-        }, 3000);
+        ProgressView.hide(3000);
         if (__loadStore) await __loadStore(true);
     }
 }
@@ -385,10 +332,10 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     if (!selected.length) {
         const noSelMsg = typeof t === 'function' ? t('noSelection') : 'Please select at least one conversation!';
         log(noSelMsg, 'warn');
-        const progTextEl = $('progText');
-        if (progTextEl) progTextEl.textContent = noSelMsg;
+        ProgressView.update(0, noSelMsg);
         return;
     }
+
 
     const formatSelect = $('format') as HTMLSelectElement | null;
     const format = overrideFormat || (Formats ? Formats.getCurrentFormat(document.body.classList.contains('dev-mode'), formatSelect?.value) : (formatSelect?.value || 'markdown'));

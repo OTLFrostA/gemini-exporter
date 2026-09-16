@@ -249,13 +249,78 @@ export function hideTakeoutLimitPrompt(): void {
     if (modal) modal.style.display = 'none';
 }
 
+let _lastFailedChats: any[] = [];
+
+export function getLastFailedChats(): any[] {
+    return _lastFailedChats;
+}
+
+export function renderExportFailureBanner(failedList: any[], onRetry?: () => void): void {
+    _lastFailedChats = Array.isArray(failedList) ? failedList : [];
+    const card = $('exportFailureCard');
+    if (!card) return;
+    if (!_lastFailedChats.length) {
+        card.style.display = 'none';
+        return;
+    }
+    const titleEl = $('exportFailureTitle');
+    if (titleEl) {
+        titleEl.textContent = typeof t === 'function' ? t('exportFailureBannerTitle') : '部分会话导出失败';
+    }
+    const btnRetry = $('btnRetryFailed') as HTMLButtonElement | null;
+    if (btnRetry) {
+        btnRetry.textContent = typeof t === 'function' ? t('btnRetryFailedCount', _lastFailedChats.length) : `重试失败项 (${_lastFailedChats.length})`;
+        if (onRetry) {
+            btnRetry.onclick = () => onRetry();
+        }
+    }
+    const btnDismiss = $('btnDismissFailure') as HTMLButtonElement | null;
+    if (btnDismiss) {
+        btnDismiss.onclick = () => {
+            card.style.display = 'none';
+        };
+    }
+    const listEl = $('exportFailureList');
+    if (listEl) {
+        listEl.innerHTML = '';
+        _lastFailedChats.slice(0, 20).forEach(item => {
+            const row = document.createElement('div');
+            row.style.whiteSpace = 'nowrap';
+            row.style.overflow = 'hidden';
+            row.style.textOverflow = 'ellipsis';
+            row.style.padding = '1px 0';
+            const itemTitle = item.title || item.id || 'Untitled';
+            const itemErr = item.error ? ` (${item.error})` : '';
+            row.textContent = `• ${itemTitle}${itemErr}`;
+            row.title = `${itemTitle}${itemErr}`;
+            listEl.appendChild(row);
+        });
+        if (_lastFailedChats.length > 20) {
+            const more = document.createElement('div');
+            more.style.fontStyle = 'italic';
+            more.textContent = `... 以及其他 ${_lastFailedChats.length - 20} 项`;
+            listEl.appendChild(more);
+        }
+    }
+    card.style.display = 'block';
+}
+
+export function hideExportFailureBanner(): void {
+    _lastFailedChats = [];
+    const card = $('exportFailureCard');
+    if (card) card.style.display = 'none';
+}
+
 export const DialogView: IDialogView = {
     renderExportBanner,
     dismissExportBanner,
     showDirectWritePrompt,
     hideDirectWritePrompt,
     showTakeoutLimitPrompt,
-    hideTakeoutLimitPrompt
+    hideTakeoutLimitPrompt,
+    renderExportFailureBanner,
+    hideExportFailureBanner,
+    getLastFailedChats
 };
 
 (DialogView as any).DialogView = DialogView;
@@ -269,3 +334,4 @@ if (typeof module === 'object' && module.exports) {
 }
 
 export default DialogView;
+

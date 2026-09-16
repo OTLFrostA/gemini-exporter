@@ -10,6 +10,7 @@ import {
     getExportCtrl as getExportController,
     getSyncCtrl as getSyncController
 } from '../optionsContext.js';
+import { ProgressView } from '../../views/progressView.js';
 import { $ } from '../../uiCommon.js';
 import { detectSlotFromUrl } from '../../../core/utils/pathUtils.js';
 
@@ -38,31 +39,21 @@ function bindSyncButtons(): void {
 
     $('btnIncrementalScan')?.addEventListener('click', () => {
         if (Controller && Controller.isRunning()) return;
-        const progWrap = $('progWrap');
-        const bar = $('bar');
-        const progText = $('progText');
         const slot = Store ? Store.getCurrentSlot() : 'u0';
 
         if (SyncCtrl) {
             SyncCtrl.startIncrementalScan(slot, {
                 onStart: () => {
-                    if (progWrap) progWrap.style.display = 'block';
-                    if (bar) bar.style.width = '5%';
-                    if (progText) progText.textContent = typeof t === 'function' ? t('syncingLatest') : '正在同步最新会话...';
+                    ProgressView.show(5, typeof t === 'function' ? t('syncingLatest') : '正在同步最新会话...');
                 },
                 onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onFinished: ({ message }: any) => {
-                    if (bar) bar.style.width = '100%';
-                    if (progText) progText.textContent = message;
-                    setTimeout(() => {
-                        if (progWrap) progWrap.style.display = 'none';
-                        if (bar) bar.style.width = '0%';
-                        if (progText) progText.textContent = '';
-                    }, 2500);
+                    ProgressView.complete(message);
+                    ProgressView.hide(2500);
                     if (__loadStore) __loadStore();
                 },
                 onError: (err: any, errMsg: string) => {
-                    if (progText) progText.textContent = errMsg;
+                    ProgressView.update(0, errMsg);
                 }
             });
         }
@@ -70,33 +61,23 @@ function bindSyncButtons(): void {
 
     $('btnDeepScan')?.addEventListener('click', () => {
         if (Controller && Controller.isRunning()) return;
-        const progWrap = $('progWrap');
-        const bar = $('bar');
-        const progText = $('progText');
         const slot = Store ? Store.getCurrentSlot() : 'u0';
 
         if (SyncCtrl) {
             SyncCtrl.startDeepScan(slot, {
                 onStart: () => {
-                    if (progWrap) progWrap.style.display = 'block';
-                    if (bar) bar.style.width = '5%';
-                    if (progText) progText.textContent = typeof t === 'function' ? t('deepSyncing') : '正在全量扫描历史...';
+                    ProgressView.show(5, typeof t === 'function' ? t('deepSyncing') : '正在全量扫描历史...');
                 },
                 onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onFinished: async ({ message, res, count, hitGoogleLimit }: any) => {
-                    if (bar) bar.style.width = '100%';
-                    if (progText) progText.textContent = message;
-                    setTimeout(() => {
-                        if (progWrap) progWrap.style.display = 'none';
-                        if (bar) bar.style.width = '0%';
-                        if (progText) progText.textContent = '';
-                    }, 2500);
+                    ProgressView.complete(message);
+                    ProgressView.hide(2500);
                     if (__loadStore) __loadStore();
                     const currentCount = count || res?.count || (Store && typeof (Store as any).getConversations === 'function' ? (Store as any).getConversations().length : 0);
                     await checkAndPromptTakeoutLimit(currentCount, hitGoogleLimit);
                 },
                 onError: async (err: any, errMsg: string, details: any) => {
-                    if (progText) progText.textContent = errMsg;
+                    ProgressView.update(0, errMsg);
                     const currentCount = (Store && typeof (Store as any).getConversations === 'function') ? (Store as any).getConversations().length : 0;
                     await checkAndPromptTakeoutLimit(currentCount || details?.count, details?.hitGoogleLimit);
                 }
@@ -110,8 +91,7 @@ function bindSyncButtons(): void {
             SyncCtrl.stopScan(slot, {
                 onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onStopped: ({ message }: any) => {
-                    const progText = $('progText');
-                    if (progText) progText.textContent = message;
+                    ProgressView.complete(message);
                 }
             });
         }
@@ -123,19 +103,16 @@ export function bindBroadcastListeners(): void {
 
     chrome.runtime.onMessage.addListener((msg: any) => {
         if (msg.action === 'scanProgress') {
-            const progWrap = $('progWrap');
-            const bar = $('bar');
-            const progText = $('progText');
-            if (progWrap) progWrap.style.display = 'block';
             let pct = typeof msg.percent === 'number' ? msg.percent : 50;
-            if (bar) bar.style.width = Math.min(Math.max(pct, 5), 100) + '%';
-            if (progText && msg.title) progText.textContent = msg.title;
+            const clamped = Math.min(Math.max(pct, 5), 100);
+            ProgressView.update(clamped, msg.title || '');
             if (msg.title) log(msg.title);
 
             if (msg.percent === 100 || msg.done === 1) {
                 checkAndPromptTakeoutLimit(msg.count, msg.hitGoogleLimit);
             }
         }
+
         if (msg.action === 'syncUpdate') {
             if (__loadStore) __loadStore(true);
         }
