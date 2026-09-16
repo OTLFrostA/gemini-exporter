@@ -1,8 +1,24 @@
 // src/content/pageObserver.ts - Page lifecycle, URL mutation watcher, and timer cleanup
 import { contentContext } from './contentContext.js';
+import { registerCleanup } from './cleanupRegistry.js';
 
 let __syncDebounceTimer: any = null;
 let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
+let __historyUrlCallback: (() => void) | null = null;
+
+function __handleLocationChange(): void {
+    if (typeof location === 'undefined') return;
+    if (location.href !== __lastObservedUrl) {
+        __lastObservedUrl = location.href;
+        if (typeof __historyUrlCallback === 'function') __historyUrlCallback();
+    }
+}
+
+function removeHistoryListeners(): void {
+    if (typeof window === 'undefined' || !window.removeEventListener) return;
+    window.removeEventListener('popstate', __handleLocationChange);
+    window.removeEventListener('gemini:locationchange', __handleLocationChange);
+}
 
 export function cleanup(): void {
     contentContext.clearTimer('urlWatcher');
@@ -23,6 +39,9 @@ export function cleanup(): void {
         w.__gemExporterSyncInterval = null;
         w.__gemExporterTitleObserver = null;
         w.__gemExporterDebounceTimer = null;
+        // P1-026: remove the route listeners registered by hookHistoryEvents
+        // (liveSaveObserver got the same treatment in P1-025).
+        removeHistoryListeners();
     }
 }
 
@@ -62,17 +81,18 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
             return res;
         };
 
-        const handleLocationChange = () => {
-            if (typeof location === 'undefined') return;
-            if (location.href !== __lastObservedUrl) {
-                __lastObservedUrl = location.href;
-                onUrlChanged();
-            }
-        };
-
-        window.addEventListener('popstate', handleLocationChange);
-        window.addEventListener('gemini:locationchange', handleLocationChange);
     }
+
+    // P1-026: refresh on every call (outside the once-guard above). The
+    // handler reads the current bundle's callback from module state, and
+    // removal is registered so the next bundle's runCleanups() drops this
+    // bundle's listener — otherwise the old bundle's stale onUrlChanged
+    // closure keeps running (and keeps the whole old bundle alive).
+    removeHistoryListeners();
+    __historyUrlCallback = onUrlChanged;
+    window.addEventListener('popstate', __handleLocationChange);
+    window.addEventListener('gemini:locationchange', __handleLocationChange);
+    registerCleanup(removeHistoryListeners);
 }
 
 export function observeTitleChanges(onTitleChanged: () => void): void {

@@ -5,6 +5,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
 import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
+import { registerCleanup } from './cleanupRegistry.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
@@ -22,13 +23,22 @@ export interface MessageBridgeDeps {
 }
 
 let _deps: MessageBridgeDeps | null = null;
-let _listening = false;
 
 export function init(dependencies: MessageBridgeDeps = {}): { handleWindowMessage: (event: MessageEvent) => Promise<void> } {
     _deps = dependencies;
-    if (!_listening && typeof window !== 'undefined' && window.addEventListener) {
-        window.addEventListener('message', handleWindowMessage);
-        _listening = true;
+    if (typeof window !== 'undefined' && window.addEventListener) {
+        const w = window as any;
+        // P1-026: the module-level _listening flag resets when the bundle is
+        // re-evaluated, so guard on window (survives) and register removal —
+        // otherwise a re-injected bundle processes every stream event twice.
+        if (!w.__gemExporterBridgeListening) {
+            window.addEventListener('message', handleWindowMessage);
+            w.__gemExporterBridgeListening = true;
+        }
+        registerCleanup(() => {
+            try { window.removeEventListener('message', handleWindowMessage); } catch { /* already gone */ }
+            w.__gemExporterBridgeListening = false;
+        });
     }
     return { handleWindowMessage };
 }
