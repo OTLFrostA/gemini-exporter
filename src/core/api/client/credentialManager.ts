@@ -192,8 +192,21 @@ function getProtocol(): GeminiProtocolModule {
                     }
                 }
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
-        } else if (pageBl && vals[0] && !vals[0].bl) {
-            vals[0].bl = pageBl;
+        } else if (pageBl) {
+            // P1-010 follow-up: heal only the entry belonging to the current tab's
+            // slot — healing vals[0] (an arbitrary account) could persist the wrong
+            // account's bl. If no same-slot entry is missing bl, heal nothing.
+            const curSlot = detectSlot() || "default";
+            const target = vals.find(v => !v.bl && (v.accountSlot || "default") === curSlot);
+            if (target) {
+                target.bl = pageBl;
+                // P1-010: the healed bl lived only in the in-memory map and was lost
+                // on the next resolveCred; write it back to storage (best-effort).
+                try {
+                    const storage = getCredStorage();
+                    if (storage) await storage.set({ gemini_credentials_map: map });
+                } catch (e) { /* keep in-memory copy; retried on next resolveCred */ }
+            }
         }
         const normSlot = (s?: string | null) => (s === "u0" || !s ? "default" : s);
         let result: GeminiCredentials;

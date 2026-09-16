@@ -210,11 +210,8 @@ async function ensureCredsOnce(): Promise<any> {
         const blFromPage = extractBlFromPage();
         if (blFromPage) {
             updateContextCreds({ bl: blFromPage });
-            try {
-                if (typeof localStorage !== 'undefined') localStorage.setItem('__gemExporterBl', blFromPage);
-            } catch (e) {
-                if (isDev()) console.debug('[GemExporter:bootstrap.ts]', e);
-            }
+            // P1-002: never write bl to localStorage — content scripts share the
+            // page's origin-scoped storage, so any page script could read it.
         }
         if (atFromPage) {
             updateContextCreds({ at: atFromPage });
@@ -236,7 +233,8 @@ async function ensureCredsOnce(): Promise<any> {
                 sid: fakeSid
             });
             updateContextCreds(map[fakeSid]);
-            console.log('[Gemini Exporter] at fallback created fake sid', atFromPage.slice(0, 12) + '... bl ' + (blFromPage || 'fallback').slice(0, 20));
+            // P1-003: dev-gated, lengths only — never log credential prefixes.
+            if (isDev()) console.log('[Gemini Exporter] at fallback created fake sid', 'atLen', atFromPage.length, 'blLen', (blFromPage || '').length);
             return map[fakeSid];
         }
         if (atFromPage && vals.length > 0) {
@@ -252,7 +250,8 @@ async function ensureCredsOnce(): Promise<any> {
                     sid: best.sid
                 });
                 updateContextCreds(best);
-                console.log('[Gemini Exporter] at refreshed from page', atFromPage.slice(0, 12));
+                // P1-003: dev-gated, lengths only — never log credential prefixes.
+                if (isDev()) console.log('[Gemini Exporter] at refreshed from page', 'atLen', atFromPage.length);
             } else if (blFromPage && best.bl !== blFromPage) {
                 best.bl = blFromPage;
                 map[best.sid] = best;
@@ -267,7 +266,8 @@ async function ensureCredsOnce(): Promise<any> {
                 map[best.sid] = best;
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
-                console.log('[Gemini Exporter] bl refreshed', blFromPage);
+                // P1-003: dev-gated, lengths only — never log credential values.
+                if (isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
             }
         }
     } catch (e) {
@@ -291,7 +291,10 @@ if (typeof window !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });
     window.addEventListener('load', () => ensureCreds(), { once: true });
 
-    // Listen to GEMINI_CREDENTIALS - only from same-origin window postMessage
+    // Listen to GEMINI_CREDENTIALS from the MAIN-world hook. NOTE (threat model):
+    // same-window page scripts can forge this message indistinguishably
+    // (event.source === window is true for them too), so treat the payload as
+    // untrusted: an empty `at` must never clobber the stored credential.
     window.addEventListener('message', (e: MessageEvent) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;

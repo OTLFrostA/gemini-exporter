@@ -51,6 +51,14 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                     lastUsed: Date.now(),
                     url: location.href
                 };
+                // NOTE (threat model): this is a broadcast, not a private channel.
+                // `window.postMessage` delivers to every listener on this page,
+                // including the page's own scripts, so this cannot be made
+                // invisible to them. What we do limit: targetOrigin is locked to
+                // this page's origin, and the message is only sent when fresh
+                // credentials were actually captured. The page's own scripts can
+                // already observe the same network traffic this hook sniffs, so
+                // the marginal exposure is limited to ISOLATED-world listeners.
                 window.postMessage({
                     type: Events.CREDENTIALS,
                     payload
