@@ -231,7 +231,7 @@ test('GeminiParser.parseList - accurately extracts server timestamp from index 5
 
     // Verify ordering: Page 1 (newer) MUST be ahead of Page 2 (older), even if Page 2 was parsed later in real time
     const combined = [conv2, conv1]; // Even if scanned in reverse or later
-    combined.sort((a, b) => b.updatedAt - a.updatedAt);
+    combined.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     assert.strictEqual(combined[0].id, 'page1', 'Page 1 (newer updatedAt) must remain on top of Page 2');
     assert.strictEqual(combined[1].id, 'page2');
 });

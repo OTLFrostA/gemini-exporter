@@ -454,8 +454,24 @@ import { GeminiProtocol } from "../../protocol/protocol.js";
                 if (Array.isArray(t) && typeof t[0] === "string" && t[0].startsWith("c_")) return t[0];
             }
         }
-        let flat = JSON.stringify(inner).match(/"c_[a-zA-Z0-9_-]{8,64}"/);
-        if (flat) return flat[0].replace(/"/g, "");
+        // P1-073: 回退路径改用有界深搜找完整格式的会话 ID，
+        // 替代 JSON.stringify(inner) 全量序列化（大会话内存翻倍，只为提取一个 ID）。
+        const CONV_ID_STRICT_RE = /^c_[a-zA-Z0-9_-]{8,64}$/;
+        let foundId: string | null = null;
+        deepWalk(inner, (node) => {
+            if (foundId) return false;
+            if (Array.isArray(node)) {
+                for (const el of node) {
+                    if (typeof el === "string" && CONV_ID_STRICT_RE.test(el)) { foundId = el; return false; }
+                }
+            } else if (node && typeof node === "object") {
+                for (const k in (node as Record<string, unknown>)) {
+                    const v = (node as Record<string, unknown>)[k];
+                    if (typeof v === "string" && CONV_ID_STRICT_RE.test(v)) { foundId = v; return false; }
+                }
+            }
+        });
+        if (foundId) return foundId;
         return "c_unknown";
     }
 
@@ -541,7 +557,9 @@ import { GeminiProtocol } from "../../protocol/protocol.js";
 
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
-        let candidates = [turnData[4], turnData[5], turnData[turnData.length - 1]];
+        // P1-067: schema 声明 TURN.TIMESTAMP = 1（[seconds, nanos]），旧代码只看 4/5/末位
+        // 与 schema 自相矛盾。把下标 1 放第一候选，4/5/末位保留为兼容回退。
+        let candidates = [turnData[1], turnData[4], turnData[5], turnData[turnData.length - 1]];
         for (let candidate of candidates) {
             if (Array.isArray(candidate) && typeof candidate[0] === "number" && candidate[0] > 1e9) {
                 let val = candidate[0];

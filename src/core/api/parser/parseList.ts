@@ -6,10 +6,11 @@ export interface ConversationListItem {
     title: string;
     titleSource: string;
     titles: { rpc: string };
-    createdAt: number;
-    updatedAt: number;
-    chatTime: number;
-    timestamp: number;
+    // P1-074: 无时间戳时为 null，不再用 Date.now() 伪造（伪造会扰乱增量同步比较）
+    createdAt: number | null;
+    updatedAt: number | null;
+    chatTime: number | null;
+    timestamp: number | null;
     messageCount: number;
     url: string;
 }
@@ -109,7 +110,9 @@ function getProtocol(): any {
                 }
                 if (!innerStr) {
                     for (let item of top) {
-                        if (Array.isArray(item) && typeof item[2] === "string" && (item[2].startsWith("[") || item[2].startsWith('"[') || item[2].includes("c_"))) {
+                        // P1-065: 旧判据 item[2].includes("c_") 过宽（"public_" 等普通文本也会命中），
+                        // 改为要求完整会话 ID 格式 c_[8..64位]。
+                        if (Array.isArray(item) && typeof item[2] === "string" && (item[2].startsWith("[") || item[2].startsWith('"[') || /c_[a-zA-Z0-9_-]{8,64}/.test(item[2]))) {
                             innerStr = item[2];
                             break;
                         }
@@ -172,15 +175,15 @@ function getProtocol(): any {
                 }
 
                 let effectiveTime = serverTs || updateTs || createTs;
-                let fallbackTime = effectiveTime || Date.now();
+                // P1-074: 无任何时间戳时不再用 Date.now() 伪造，保留 null 由下游决定
 
                 if (typeof item[listItemSchema.COUNT_ALT2] === "number") {
                     count = item[listItemSchema.COUNT_ALT2];
                 } else if (typeof item[listItemSchema.COUNT_ALT1] === "number") {
                     count = item[listItemSchema.COUNT_ALT1];
-                } else if (typeof item[5] === "number") {
-                    count = item[5];
                 }
+                // P1-066: 删除 item[5] 回退——按 schema item[5] 是 TIMESTAMP，
+                // 把 epoch 秒误判成"十亿级消息数"。无有效 count 位时保持 0。
 
                 if (id) {
                     let cleanId = normId(id);
@@ -191,10 +194,10 @@ function getProtocol(): any {
                         title: cleanT,
                         titleSource: isReal ? "rpc" : "default",
                         titles: { rpc: cleanT },
-                        createdAt: createTs || effectiveTime || fallbackTime,
-                        updatedAt: effectiveTime || fallbackTime,
-                        chatTime: effectiveTime || fallbackTime,
-                        timestamp: effectiveTime || fallbackTime,
+                        createdAt: createTs || effectiveTime || null,
+                        updatedAt: effectiveTime || null,
+                        chatTime: effectiveTime || null,
+                        timestamp: effectiveTime || null,
                         messageCount: count,
                         url: `https://gemini.google.com/app/${cleanId}`
                     });

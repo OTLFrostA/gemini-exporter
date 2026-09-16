@@ -120,22 +120,70 @@ function getSchema(): any {
 const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
 
+    // P1-062: isTurn 结果按 turn 数组实例缓存（WeakMap，不泄漏）；形态判据改为结构化
+    // 检查，替代"全量 JSON.stringify + s.includes(\"r_\")"(后者近乎恒真且 O(n²))。
+    const isTurnCache = new WeakMap<object, boolean>();
+
+    // 有界结构化扫描：在 turn 内找 rc_/c_d 前缀的真实形态标记。
+    // 不做全量序列化；budget 防止病态深层结构拖慢。
+    function hasTurnContentMarkers(turn: unknown[]): boolean {
+        // 快速路径：user payload 本身是数组即视为 turn（原逻辑的最后一个析取项，无需序列化）
+        if (Array.isArray(turn[2])) return true;
+        // candidate id 的 rc_ 前缀（结构化位置检查，不扫全量文本）
+        const modelPayload = turn[3];
+        if (Array.isArray(modelPayload)) {
+            const cands = modelPayload[0];
+            if (Array.isArray(cands)) {
+                for (const c of cands) {
+                    if (Array.isArray(c) && typeof c[0] === "string" && c[0].startsWith("rc_")) return true;
+                }
+            }
+        }
+        let budget = 2000;
+        const stack: unknown[] = [turn];
+        while (stack.length && budget > 0) {
+            const node = stack.pop();
+            if (typeof node === "string") {
+                budget--;
+                // 只认前缀形态（"rc_xxx"/"c_d..."），不再用近乎恒真的子串 "r_" 判据
+                if (node.startsWith("rc_") || node.startsWith("c_d")) return true;
+            } else if (Array.isArray(node)) {
+                for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+            }
+        }
+        return false;
+    }
+
+    // P1-064: 用户文本提取。payload[0] 可能是字符串（非标准形态）而非数组；
+    // 旧代码 turn[2][0][0] 在字符串上会退化成首字符。显式处理两种形态。
+    function extractUserTextFromPayload(userPayload: unknown): string {
+        if (!Array.isArray(userPayload) || userPayload.length === 0) return "";
+        const first = userPayload[0];
+        if (typeof first === "string") return first;
+        if (Array.isArray(first) && typeof first[0] === "string") return first[0];
+        return "";
+    }
+
+    // P1-065: 内层载荷启发式发现。旧判据 item[2].includes("c_") 过宽
+    //（"music_" 这类普通文本也会命中），改为要求完整会话 ID 格式。
+    const CONV_ID_FORMAT_RE = /c_[a-zA-Z0-9_-]{8,64}/;
+
     function isTurn(turn: unknown): boolean {
         if (!Array.isArray(turn) || turn.length < 3) return false;
+        const cached = isTurnCache.get(turn);
+        if (cached !== undefined) return cached;
         const head = turn[0];
         let idStr = "";
         if (typeof head === "string") idStr = head;
         else if (Array.isArray(head) && head.length) {
             idStr = typeof head[0] === "string" ? head[0] : (Array.isArray(head[0]) && typeof head[0][0] === "string" ? head[0][0] : "");
         }
-        if (!idStr || (!idStr.startsWith("c_") && !idStr.startsWith("r_"))) return false;
-        // 需含 user 文本或 candidate rc_
-        try {
-            const s = JSON.stringify(turn);
-            return s.includes("rc_") || s.includes("c_d") || s.includes("r_") || Array.isArray(turn[2]);
-        } catch {
-            return false;
+        let result = false;
+        if (idStr && (idStr.startsWith("c_") || idStr.startsWith("r_"))) {
+            result = hasTurnContentMarkers(turn);
         }
+        isTurnCache.set(turn, result);
+        return result;
     }
 
     function isTurnsArray(arr: unknown): boolean {
@@ -237,7 +285,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                 }
                 if (!innerStr) {
                     for (let item of top) {
-                        if (Array.isArray(item) && typeof item[2] === "string" && (item[2].includes("c_") || item[2].includes("rc_") || item[2].startsWith("[["))) {
+                        if (Array.isArray(item) && typeof item[2] === "string" && (CONV_ID_FORMAT_RE.test(item[2]) || item[2].includes("rc_") || item[2].startsWith("[["))) {
                             innerStr = item[2];
                             break;
                         }
@@ -294,6 +342,11 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                 && inner[0] === null && inner[1] === null
                 && Array.isArray(inner[2]) && inner[2].length > 0
                 && typeof inner[2][0]?.[0] === "string" && inner[2][0][0].startsWith("c_");
+            // P1-063: metadata-only 载荷（无 turns）必须产出可见的 schemaDrift 警告，
+            // 不能只在 dev 模式 console.warn，否则下游会静默落盘空会话（fail-open）。
+            if (isMetadataOnly) {
+                schemaDriftWarnings.push("metadata-only payload: hNvQHb returned no turns (inner[2][0] looks like a list-format row); exported messages will be empty");
+            }
             if (isMetadataOnly && isDevMode) {
                 console.warn("[Parser] hNvQHb returned metadata-only payload (no turns). " +
                     "inner[2][0] looks like a list-format row, not a turns array. " +
@@ -336,7 +389,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                     schemaDriftWarnings.push(...drift.warnings);
                 }
                 let ts = extractTurnTimestamp(turn) || Date.now();
-                let uText = turn?.[schema.TURN.USER_PAYLOAD]?.[0]?.[0] || "";
+                let uText = extractUserTextFromPayload(turn?.[schema.TURN.USER_PAYLOAD]);
                 let uImgs = filterNewImages(extractImages(turn?.[schema.TURN.USER_PAYLOAD], imageSeq), dedupSet);
                 let uFiles = extractUserFiles(turn?.[schema.TURN.USER_PAYLOAD]).filter((f: UserFileAttachment) => {
                     let key = f.id || f.sourceUrl || f.fileName;
@@ -458,12 +511,12 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                         let thoughts = extractThoughts(candidateBlock);
                         let citations = extractCitations(candidateBlock);
                         if (responseText) {
-                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\\s*/i, "");
-                            responseText = responseText.replace(/(?:^|\n)\\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\]]*)?(?:\])?\\s*(?=\n|$)/gi, "\n");
+                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, "");
+                            responseText = responseText.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\]]*)?(?:\])?\s*(?:\n|$)/gi, "\n");
                             responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, "$1");
                             responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, "").trim();
                             if (filteredImages.length > 0) {
-                                responseText = responseText.replace(/(?:^|\n)\\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\\s*(?=\n|$)/gi, "\n");
+                                responseText = responseText.replace(/(?:^|\n)\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\s*(?:\n|$)/gi, "\n");
                                 responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, "$1");
                                 responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\)]*)?/gi, "").trim();
                             }

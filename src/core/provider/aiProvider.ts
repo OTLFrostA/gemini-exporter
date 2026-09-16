@@ -22,7 +22,7 @@ export interface ProviderConversationItem {
     id: string;
     title: string;
     url?: string;
-    updatedAt?: number | string;
+    updatedAt?: number | string | null;
     [key: string]: any;
 }
 

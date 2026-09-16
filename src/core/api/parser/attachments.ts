@@ -60,12 +60,25 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
 const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
 
 
+    // P1-069: 媒体 URL host 白名单。payload 里符合 [url, w, h] 形状的三方 URL
+    //（引用图片、追踪像素） previously 会被直接收录进下载队列（fail-open）。
+    const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
+    function getUrlHost(u: string): string {
+        const m = /^https?:\/\/([^/:?#]+)/i.exec(u || "");
+        return m ? m[1].toLowerCase() : "";
+    }
+    function isGoogleMediaHost(u: string): boolean {
+        return GOOGLE_MEDIA_HOST_RE.test(getUrlHost(u));
+    }
+
     function extractImageSelectionIndex(sourceUrl?: string | null): number | undefined {
         if (!sourceUrl || typeof sourceUrl !== "string") return undefined;
         let match = sourceUrl.match(IMAGE_GEN_RE);
         if (!match) return undefined;
-        let index = parseInt(match[1], 10);
-        return isNaN(index) ? void 0 : index;
+        // P1-068: IMAGE_GEN_RE 捕获的是路径 token（通常是长随机串而非序号）。
+        // parseInt("12abX...") 会返回 12 造成虚假序号；只有纯数字 token 才视为选中序号。
+        if (!/^\d+$/.test(match[1])) return void 0;
+        return parseInt(match[1], 10);
     }
 
     function getImageDedupKey(imageObj: Partial<ImageAttachment>): string {
@@ -87,7 +100,13 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         if (url.includes("googleusercontent.com/p/") || url.includes("/places/v1/media")) {
             return url;
         }
-        return url.replace(/=w\d+(-h\d+)?(-p|-k|-no)?.*$/i, "=s0").replace(/=s\d+(-p|-k|-no)?.*$/i, "=s0");
+        // P1-070: 只改写末尾的尺寸参数，保留 ?query（旧代码的 .*$ 会把
+        // ?authuser=0 等鉴权/尺寸参数整体吞掉，导致 403 或指向错误资源）。
+        const qIdx = url.indexOf("?");
+        const base = qIdx === -1 ? url : url.slice(0, qIdx);
+        const query = qIdx === -1 ? "" : url.slice(qIdx);
+        const resized = base.replace(/=w\d+(-h\d+)?(-p|-k|-no)?$/i, "=s0").replace(/=s\d+(-p|-k|-no)?$/i, "=s0");
+        return resized + query;
     }
 
     function isInternalChipUrl(u?: string | null): boolean {
@@ -95,11 +114,28 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return /googleusercontent\.com\/(immersive_entry_chip|deep_research|map_content|map_location|grounding_content|web_search|youtube_content|flights_content|hotels_content|workspace_content)/i.test(u);
     }
 
+    // P1-071: 扩展名/MIME 映射表。旧 inferExt 白名单只有 6 种，其余一律判 ".jpg"；
+    // Pattern 2 里 rawFileName 取任意后缀却只映射 png/webp/gif 的 MIME，导致扩展名与 MIME 脱节。
+    const IMAGE_EXT_MIME: Record<string, string> = {
+        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
+        ".bmp": "image/bmp", ".svg": "image/svg+xml", ".avif": "image/avif",
+        ".tif": "image/tiff", ".tiff": "image/tiff", ".ico": "image/x-icon",
+        ".heic": "image/heic", ".heif": "image/heif"
+    };
+    function mimeForExt(ext: string): string {
+        return IMAGE_EXT_MIME[ext] || "image/jpeg";
+    }
+
     function inferExt(url: string): string {
         try {
             let u = String(url).split("?")[0].split("#")[0];
-            let m = u.match(/\.([a-z0-9]{3,4})$/i);
-            if (m && /^(jpg|jpeg|png|webp|gif|bmp)$/i.test(m[1])) return "." + m[1].toLowerCase().replace("jpeg", "jpg");
+            let m = u.match(/\.([a-z0-9]{2,5})$/i);
+            if (m) {
+                let ext = "." + m[1].toLowerCase();
+                if (ext === ".jpeg") ext = ".jpg";
+                if (IMAGE_EXT_MIME[ext]) return ext;
+            }
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
         return ".jpg";
     }
@@ -112,7 +148,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         deepWalk(obj, (node) => {
             if (Array.isArray(node)) {
-                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && typeof node[1] === "number" && typeof node[2] === "number") {
+                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && isGoogleMediaHost(node[0]) && typeof node[1] === "number" && typeof node[2] === "number") {
                     let sourceUrl = node[0],
                         width = node[1],
                         height = node[2];
@@ -123,7 +159,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         let hashFrag = "";
                         try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
                         let fileName = `image-${counter.value++}${hashFrag ? "-" + hashFrag : ""}${ext}`;
-                        let mimeType = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : ext === ".gif" ? "image/gif" : "image/jpeg";
+                        let mimeType = mimeForExt(ext);
                         let key = getImageDedupKey({ sourceUrl, token });
                         if (!seenKeys.has(key)) {
                             seenKeys.add(key);
@@ -137,7 +173,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                             });
                         }
                     }
-                } else if (node.length >= 4 && typeof node[3] === "string" && node[3].startsWith("http") && !isInternalChipUrl(node[3]) &&
+                } else if (node.length >= 4 && typeof node[3] === "string" && node[3].startsWith("http") && isGoogleMediaHost(node[3]) && !isInternalChipUrl(node[3]) &&
                     (
                         (typeof node[2] === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(node[2]) || /watermarked_img_/i.test(node[2]))) ||
                         (typeof node[11] === "string" && node[11].startsWith("image/")) ||
@@ -155,7 +191,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     let width = Array.isArray(node[15]) && typeof node[15][0] === "number" ? node[15][0] : void 0;
                     let height = Array.isArray(node[15]) && typeof node[15][1] === "number" ? node[15][1] : void 0;
                     let size = Array.isArray(node[15]) && typeof node[15][2] === "number" ? node[15][2] : void 0;
-                    let mimeType = typeof node[11] === "string" ? node[11] : (ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg");
+                    let mimeType = typeof node[11] === "string" ? node[11] : mimeForExt(ext);
 
                     let hashFrag = "";
                     try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
@@ -189,7 +225,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         deepWalk(turnUserArr, (node) => {
             if (Array.isArray(node)) {
-                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && typeof node[1] === "string" && itemMatchesFilename(node[1])) {
+                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && isGoogleMediaHost(node[0]) && typeof node[1] === "string" && itemMatchesFilename(node[1])) {
                     if (!isInternalChipUrl(node[0])) {
                         files.push({
                             sourceUrl: node[0],
@@ -286,7 +322,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             if (Array.isArray(node)) {
                 let idMatch = false;
                 for (let elem of node) {
-                    if (typeof elem === "string" && (elem === docId || elem === targetId || elem.includes(targetId))) {
+                    // P1-072: 只做精确匹配。旧代码的 elem.includes(targetId) 会让正文里
+                    // "提到" 该 ID 的任意节点都命中，叠加宽松的正文判据后静默返回错误内容。
+                    if (typeof elem === "string" && (elem === docId || elem === targetId)) {
                         idMatch = true;
                         break;
                     }
