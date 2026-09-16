@@ -17,6 +17,21 @@ let __options: LiveSaveObserverOptions = {};
 let __initialized = false;
 let _rafPending = false;
 
+// P1-025: module-level handler refs so cleanup() can removeEventListener the
+// exact functions init() registered (anonymous per-call closures leaked).
+function __onLocationChange(): void {
+    if (__isGenerating || __debounceTimer) {
+        triggerSave('location_change');
+    }
+    __isGenerating = false;
+}
+
+function __onBeforeUnload(): void {
+    if (__isGenerating || __debounceTimer) {
+        triggerSave('unload');
+    }
+}
+
 function isDev(): boolean {
     return contentContext.isDevMode();
 }
@@ -162,22 +177,11 @@ export function init(options: LiveSaveObserverOptions = {}): void {
     }
 
     // Emergency flush on route change
-    const onLocationChange = () => {
-        if (__isGenerating || __debounceTimer) {
-            triggerSave('location_change');
-        }
-        __isGenerating = false;
-    };
-    window.addEventListener('gemini:locationchange', onLocationChange);
-    window.addEventListener('popstate', onLocationChange);
+    window.addEventListener('gemini:locationchange', __onLocationChange);
+    window.addEventListener('popstate', __onLocationChange);
 
     // Emergency flush on beforeunload
-    const onBeforeUnload = () => {
-        if (__isGenerating || __debounceTimer) {
-            triggerSave('unload');
-        }
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('beforeunload', __onBeforeUnload);
 
     __initialized = true;
     if (isDev()) console.log('[LiveSaveObserver] Initialized');
@@ -193,6 +197,12 @@ export function cleanup(): void {
         __mutationObserver.disconnect();
         __mutationObserver = null;
         contentContext.clearTimer('liveSaveObserver');
+    }
+    // P1-025: remove the module-level listeners registered by init().
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('gemini:locationchange', __onLocationChange);
+        window.removeEventListener('popstate', __onLocationChange);
+        window.removeEventListener('beforeunload', __onBeforeUnload);
     }
     __isGenerating = false;
     __pendingConversationId = null;
