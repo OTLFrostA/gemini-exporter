@@ -1,7 +1,7 @@
 // src/background/batchFetcher.ts - Batch chat fetching, 429 rate limit backoff, and progress broadcast
 
 import { TabService } from '../core/utils/tabService.js';
-import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
+import { isRateLimited, calculateBackoff, withRateLimitRetry } from '../core/engine/export/rateLimiter.js';
 import { isSlotAborted } from './abortManager.js';
 import { startKeepAlive } from './keepAlive.js';
 
@@ -48,25 +48,22 @@ export async function fetchBatch(
             const cid = item.id || item;
             try {
                 let res: any = null;
-                let retryCount = 0;
-                const maxRetries = 3;
-
-                while (retryCount <= maxRetries && !isSlotAborted(slot)) {
-                    res = await sendToGeminiTab({
-                        action: 'getConversationDetail',
-                        conversationId: cid
-                    }, slot);
-
-                    const isRateLimit = isRateLimited(res);
-
-                    if (isRateLimit && retryCount < maxRetries) {
-                        const delayMs = calculateBackoff(retryCount);
-                        console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                        await new Promise(r => setTimeout(r, delayMs));
-                        retryCount++;
-                        continue;
-                    }
-                    break;
+                try {
+                    res = await withRateLimitRetry(
+                        () => sendToGeminiTab({
+                            action: 'getConversationDetail',
+                            conversationId: cid
+                        }, slot),
+                        {
+                            maxRetries: 3,
+                            isAborted: () => isSlotAborted(slot),
+                            onRetry: (retryCount, delayMs) => {
+                                console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/3)`);
+                            }
+                        }
+                    );
+                } catch {
+                    res = null;
                 }
 
                 if (res && res.success) {

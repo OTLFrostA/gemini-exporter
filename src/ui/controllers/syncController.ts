@@ -1,5 +1,6 @@
 import type { SyncControllerContract } from '../../types/ui.js';
 import GeminiProtocol, { LIMITS } from '../../core/protocol/protocol.js';
+import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
 
 let scanRunning = false;
@@ -29,15 +30,11 @@ export function formatSyncErrorMessage(err: string): string {
     return hasI18n() ? t('syncFailed', errStr) : `同步失败: ${errStr}`;
 }
 
+/**
+ * Detects HTTP 429 rate limits, quota exhaustion, and Google server limits via unified rateLimiter.
+ */
 export function isServerRateOrQuotaLimit(text?: string | null): boolean {
-    if (!text) return false;
-    const str = String(text);
-    return str.includes('BardErrorInfo') ||
-        str.includes('服务端上限') ||
-        str.includes(GeminiProtocol?.LIMITS?.SERVER_LIMIT_TEXT || '') ||
-        str.includes('1096') ||
-        str.includes('429') ||
-        /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(str);
+    return isRateLimited(text);
 }
 
 function _runScan(

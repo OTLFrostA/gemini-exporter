@@ -1,5 +1,6 @@
 // parseDetail.ts - hNvQHb conversation detail RPC response parser
 import type { Message, Conversation, TitleSources } from "../../../types/index.js";
+import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import type { GeminiParserExtractorsModule, GeminiJspbSchema, TurnDriftReport } from "./extractors.js";
 import type { GeminiParserAttachmentsModule, ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
 
@@ -458,15 +459,8 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                         let thoughts = extractThoughts(candidateBlock);
                         let citations = extractCitations(candidateBlock);
                         if (responseText) {
-                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\\s*/i, "");
-                            responseText = responseText.replace(/(?:^|\n)\\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\]]*)?(?:\])?\\s*(?=\n|$)/gi, "\n");
-                            responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)[^\)]*\)/gi, "$1");
-                            responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:immersive_entry_chip|deep_research_confirmation_content|map_content|map_location_reference|grounding_content|web_search_content|youtube_content|flights_content|hotels_content|workspace_content)(?:\/[^\s\n\)]*)?/gi, "").trim();
-                            if (filteredImages.length > 0) {
-                                responseText = responseText.replace(/(?:^|\n)\\s*(?:\[)?https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\]]*)?(?:\])?\\s*(?=\n|$)/gi, "\n");
-                                responseText = responseText.replace(/\[([^\]]+)\]\(https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)[^\)]*\)/gi, "$1");
-                                responseText = responseText.replace(/https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)(?:\/[^\s\n\)]*)?/gi, "").trim();
-                            }
+                            responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, "");
+                            responseText = stripInternalChipMarkdown(responseText);
                         }
                         if (responseText || thoughts || filteredImages.length || docDetails.length) {
                             msgs.push({

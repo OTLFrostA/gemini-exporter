@@ -1,5 +1,5 @@
 // src/content/bootstrap.ts - Credential bootstrap for ISOLATED world
-import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
+import { CrossWorldEvents, type GeminiProtocolModule } from '../core/protocol/protocol.js';
 
 const Proto: GeminiProtocolModule = ((typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : ((typeof window !== 'undefined' && (window as any).GeminiProtocol) || null)) as any);
 
@@ -291,7 +291,7 @@ if (typeof window !== 'undefined') {
     window.addEventListener('message', (e: MessageEvent) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;
-        if (e.data && e.data.type === 'GEMINI_CREDENTIALS') {
+        if (e.data && e.data.type === (CrossWorldEvents?.CREDENTIALS || 'GEMINI_CREDENTIALS')) {
             if (!isExtAlive()) return;
             // Queued behind any in-flight ensureCreds so concurrent load→save
             // cycles cannot overwrite each other's map entries.

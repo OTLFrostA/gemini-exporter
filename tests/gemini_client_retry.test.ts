@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
 const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
 const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
+const { isRateLimited, withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
 
 (global as any).GeminiResponseParserClass = GeminiResponseParserClass;
 
@@ -143,3 +144,72 @@ test('geminiClient - getAllConversations traverses pages until completion', asyn
         (global as any).fetch = origFetch;
     }
 });
+
+// ---------------------------------------------------------------------------
+// 4. isRateLimited unified predicate
+// ---------------------------------------------------------------------------
+test('rateLimiter - isRateLimited correctly detects all variants across formats', () => {
+    // Status 429
+    assert.strictEqual(isRateLimited({ status: 429 }), true);
+    assert.strictEqual(isRateLimited({ status: 200, success: true }), false);
+
+    // Errors & strings
+    assert.strictEqual(isRateLimited('Error: 429 Too Many Requests'), true);
+    assert.strictEqual(isRateLimited('Network error: BardErrorInfo limit'), true);
+    assert.strictEqual(isRateLimited('已达到服务端上限，请稍后重试'), true);
+    assert.strictEqual(isRateLimited('Error 1096 encountered'), true);
+    assert.strictEqual(isRateLimited('Quota exceeded for quota metric'), true);
+    assert.strictEqual(isRateLimited(new Error('RESOURCE_EXHAUSTED: rate limit')), true);
+
+    // Negative cases
+    assert.strictEqual(isRateLimited(null), false);
+    assert.strictEqual(isRateLimited(''), false);
+    assert.strictEqual(isRateLimited('Connection reset by peer'), false);
+    assert.strictEqual(isRateLimited({ success: true, error: '429' }), false);
+});
+
+// ---------------------------------------------------------------------------
+// 5. withRateLimitRetry operation
+// ---------------------------------------------------------------------------
+test('rateLimiter - withRateLimitRetry retries on rate limit and succeeds', async () => {
+    let attempts = 0;
+    const retryLogs: number[] = [];
+
+    const result = await withRateLimitRetry(
+        async () => {
+            attempts++;
+            if (attempts < 3) {
+                return { success: false, status: 429, error: 'rate limit' };
+            }
+            return { success: true, data: 'ok' };
+        },
+        {
+            maxRetries: 3,
+            initialDelayMs: 5,
+            jitterMs: 0,
+            onRetry: (retryCount: number) => {
+                retryLogs.push(retryCount);
+            }
+        }
+    );
+
+    assert.strictEqual(attempts, 3);
+    assert.deepStrictEqual(retryLogs, [0, 1]);
+    assert.deepStrictEqual(result, { success: true, data: 'ok' });
+});
+
+test('rateLimiter - withRateLimitRetry respects abort signal', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(
+        async () => {
+            await withRateLimitRetry(
+                async () => ({ success: true }),
+                { signal: controller.signal }
+            );
+        },
+        /Operation aborted/
+    );
+});
+
