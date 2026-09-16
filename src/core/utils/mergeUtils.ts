@@ -22,23 +22,6 @@ export interface DeduplicateResult {
     hasDirtyTitles: boolean;
 }
 
-export type TimestampSource = 'scan' | 'sniff' | 'unknown';
-
-/**
- * Map an upsert `source` string to the timestamp provenance it establishes.
- * 'batchexecute' is only ever our own list-RPC scan (syncEngine list loop);
- * 'network-list' is the page's own list response captured by the hook.
- * Every other writer (detail fetch, DOM scrape, stream touch, takeout) does
- * NOT establish scan provenance and must never launder a 'sniff' stamp into
- * 'scan'. A same-value re-observation is upgrade-only: only a scan writer may
- * promote 'sniff'/'unknown' → 'scan' (it proves the scan covered the item);
- * a sniff writer never demotes an established 'scan' stamp.
- */
-function timestampSourceForWriter(source: unknown): TimestampSource | null {
-    if (source === 'batchexecute') return 'scan';
-    if (source === 'network-list') return 'sniff';
-    return null;
-}
 
 /**
  * SSoT: Merge an incoming conversation into an existing conversation.
@@ -154,37 +137,7 @@ export function mergeConversation(
         bestUpdatedAt = cUpdated || oldUpdated || null;
     }
 
-    // 1b. Timestamp provenance: the stamp follows the VALUE. A strict increase
-    // re-stamps with the writer that carried the new value. A same-value
-    // re-observation is upgrade-only: our own list-RPC scan re-seeing a sniffed
-    // or unknown value proves the scan actually covered this item, so it may
-    // promote 'sniff'/'unknown' → 'scan'. A sniff re-seeing a 'scan' value must
-    // never demote it (scan coverage was already established). This cannot
-    // reintroduce the fresh-install silent truncation: the incremental
-    // early-exit compares against the pre-scan snapshot (beforeMap), so
-    // promotions made during the current round never count toward its
-    // 5-streak — they take effect from the NEXT round.
-    let mergedTimestampSource: TimestampSource | undefined;
-    const writerStamp = timestampSourceForWriter(options?.source);
-    const oldStamp = (old as any)?.timestampSource as TimestampSource | undefined;
-    if (cUpdated && oldUpdated) {
-        if (cUpdated > oldUpdated) {
-            if (writerStamp) {
-                mergedTimestampSource = writerStamp;
-            }
-        } else if (cUpdated === oldUpdated && writerStamp === 'scan' && oldStamp !== 'scan') {
-            // Same value re-observed by our own list scan: promote coverage.
-            mergedTimestampSource = 'scan';
-        }
-        // else: same value from a non-scan writer, or older value — keep old
-        // stamp via ...(old||{}). Notably a sniff never demotes 'scan'.
-    } else if (cUpdated && !oldUpdated) {
-        // First timestamp ever seen (insert or backfill): stamp the writer.
-        if (writerStamp) {
-            mergedTimestampSource = writerStamp;
-        }
-    }
-    // else: no incoming timestamp — keep old stamp via ...(old||{}).
+
 
     let cCreated: any = toTimestampMs(incoming?.createdAt);
     if (cCreated !== null && cCreated <= 0) cCreated = null;
@@ -273,9 +226,6 @@ export function mergeConversation(
         timestamp: bestTimestamp,
         updatedAt: bestUpdatedAt || bestTimestamp,
         createdAt: bestCreatedAt,
-        // Provenance set only when this merge established/advanced the value;
-        // undefined falls through to ...(old||{}) above, preserving the old stamp.
-        ...(mergedTimestampSource !== undefined ? { timestampSource: mergedTimestampSource } : {}),
         sidebarIndex: typeof incoming?.sidebarIndex === 'number'
             ? incoming.sidebarIndex
             : old?.sidebarIndex
