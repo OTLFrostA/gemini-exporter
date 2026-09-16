@@ -103,6 +103,7 @@ export function init({
                     respond({
                         success: true,
                         count: res?.count || 0,
+                        syncMode: (res as any)?.syncMode || null,
                         diagnostics: res?.diagnostics,
                         hitGoogleLimit: !!(res?.hitGoogleLimit || res?.diagnostics?.hitGoogleLimit)
                     });

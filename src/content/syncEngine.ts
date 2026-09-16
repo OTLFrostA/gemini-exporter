@@ -346,6 +346,28 @@ export async function syncOnce(): Promise<number> {
     }
 }
 
+/**
+ * 决定本次会话列表同步用增量还是全量。
+ *
+ * 增量同步只在已有基线数据时有意义：新安装（本地为空/极少）时若强制增量，
+ * 会静默截断到 2 页并上报"完成"，导致大部分历史永远不出现。此时必须回退
+ * 到全量 —— 这也是无强制选项时自动路径本来的判定。因此 forceIncremental
+ * 不得绕过基线检查。
+ */
+export function resolveListSyncMode(
+    beforeCount: number,
+    forceOpts?: { forceFull?: boolean; forceIncremental?: boolean; maxPages?: number }
+): { useIncremental: boolean; maxPages: number } {
+    const hasBaseline = beforeCount > 30;
+    let useIncremental = hasBaseline;
+    if (forceOpts?.forceFull) useIncremental = false;
+    if (forceOpts?.forceIncremental && hasBaseline) useIncremental = true;
+    return {
+        useIncremental,
+        maxPages: forceOpts?.maxPages || (useIncremental ? 2 : 2000),
+    };
+}
+
 export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; forceIncremental?: boolean; maxPages?: number }): Promise<any> {
     if (contentContext.getDeepScanPromise()) return null;
 
@@ -368,11 +390,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
         const Storage = getStorage();
         const beforeList = Storage ? await Storage.getConversations(slot) : [];
         const beforeMap = new Map(beforeList.map((c: any) => [c.id, c]));
-        let useIncremental = beforeList.length > 30;
-        if (forceOpts?.forceFull) useIncremental = false;
-        if (forceOpts?.forceIncremental) useIncremental = true;
-
-        const effectiveMaxPages = forceOpts?.maxPages || (useIncremental ? 2 : 2000);
+        const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(beforeList.length, forceOpts);
 
         let saveQueue = Promise.resolve<any>(0);
         // Typed as any: the registered Gemini provider spreads the full pagination
@@ -411,6 +429,12 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; for
             unchangedThreshold: 5
         });
         await saveQueue;
+
+        // 把实际执行的模式带给调用方：无基线时"增量"会回退为全量，
+        // UI 必须按实际模式上报，不能谎称"增量同步完成"。
+        if (all && typeof all === 'object') {
+            (all as any).syncMode = useIncremental ? 'incremental' : 'full';
+        }
 
         if (all && all.diagnostics) {
             try {
