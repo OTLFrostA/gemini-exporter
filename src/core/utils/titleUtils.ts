@@ -3,7 +3,7 @@
  * Conversation title arbitration, sanitization, and priority ordering.
  */
 
-import type { Conversation } from '../../types/index.js';
+import type { Conversation, TitleSource } from '../../types/index.js';
 import { normId } from './pathUtils.js';
 
 export interface TitleResolution {
@@ -13,10 +13,11 @@ export interface TitleResolution {
 
 const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-export const TITLE_SOURCE_PRIORITY: string[] = ['rpc', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
+export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
 
-export const TITLE_TIER_RANK: Record<string, number> = {
+export const TITLE_TIER_RANK: Record<TitleSource, number> = {
     rpc: 50,
+    'api-detail': 50,
     dom: 40,
     takeout: 30,
     sniff: 20,
