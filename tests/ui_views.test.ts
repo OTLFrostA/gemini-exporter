@@ -74,7 +74,7 @@ test('badgeView - DOM creation and text update', () => {
         id: 'geminiExportBadge',
         innerHTML: '',
         style: {},
-        classList: { add: () => {}, remove: () => {} },
+        classList: { add: () => {}, remove: () => {}, contains: () => false },
         addEventListener: () => {},
         isConnected: true
     };
