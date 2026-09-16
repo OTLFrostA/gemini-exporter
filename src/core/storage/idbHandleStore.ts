@@ -32,22 +32,44 @@ export function openHandleDB(): Promise<IDBDatabase> {
                 db.createObjectStore(IDB_STORE);
             }
         };
+        // P1-053: surface blocked upgrades (e.g. a future IDB_VERSION bump stalled
+        // by leaked unclosed connections) instead of hanging silently.
+        req.onblocked = () => {
+            console.warn(
+                '[IdbHandleStore] IndexedDB open is blocked by an older unclosed connection. ' +
+                'A future version upgrade would stall here; connections are now closed after each operation.'
+            );
+        };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
     });
 }
 
+// P1-053: every operation closes its connection when done, so version upgrades
+// can never be blocked by connections this module leaked.
+async function withHandleDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
+    const db = await openHandleDB();
+    try {
+        return await fn(db);
+    } finally {
+        try {
+            db.close();
+        } catch {
+            /* ignore close errors */
+        }
+    }
+}
+
 export async function getStoredDirHandle(): Promise<any> {
     if (typeof indexedDB === 'undefined') return null;
     try {
-        const db = await openHandleDB();
-        return new Promise((resolve, reject) => {
+        return await withHandleDB((db) => new Promise((resolve, reject) => {
             const tx = db.transaction(IDB_STORE, 'readonly');
             const store = tx.objectStore(IDB_STORE);
             const req = store.get(IDB_KEY);
             req.onsuccess = () => resolve(req.result || null);
             req.onerror = () => reject(req.error);
-        });
+        }));
     } catch (e) {
         console.warn('[IdbHandleStore] Failed to get dir handle from IndexedDB:', e);
         return null;
@@ -57,8 +79,7 @@ export async function getStoredDirHandle(): Promise<any> {
 export async function saveStoredDirHandle(handle: any): Promise<boolean> {
     if (typeof indexedDB === 'undefined') return false;
     try {
-        const db = await openHandleDB();
-        return new Promise((resolve, reject) => {
+        return await withHandleDB((db) => new Promise((resolve, reject) => {
             const tx = db.transaction(IDB_STORE, 'readwrite');
             const store = tx.objectStore(IDB_STORE);
             if (handle === null || handle === undefined) {
@@ -68,7 +89,7 @@ export async function saveStoredDirHandle(handle: any): Promise<boolean> {
             }
             tx.oncomplete = () => resolve(true);
             tx.onerror = () => reject(tx.error);
-        });
+        }));
     } catch (e) {
         console.warn('[IdbHandleStore] Failed to save dir handle to IndexedDB:', e);
         return false;

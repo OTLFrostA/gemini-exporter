@@ -73,8 +73,11 @@ test('P0-1: export-record save chain recovers after a single failed batch (no po
             `save chain poisoned: second save rejected with stale error: ${secondErr && secondErr.message}`
         );
         const got: any = await (global as any).chrome.storage.local.get(['exportedIds']);
+        // P1-045 (2026-09-15): export records are now stored under a single canonical
+        // key normId(id); readers look up all historical alias forms, so the record
+        // saved here as 'c_p0_1_probe_b' persists under 'p0_1_probe_b'.
         assert.ok(
-            got.exportedIds && got.exportedIds['c_p0_1_probe_b'],
+            got.exportedIds && got.exportedIds['p0_1_probe_b'],
             'second export record must be persisted after storage recovered'
         );
     } finally {
