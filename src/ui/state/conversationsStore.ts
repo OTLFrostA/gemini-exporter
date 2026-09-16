@@ -142,10 +142,13 @@ export async function removeConversation(id: string): Promise<Conversation[]> {
     if (!id) return conversations;
     const nid = normId(id);
     const storage = getStorage();
-    conversations = (conversations || []).filter(c => normId(c.id) !== nid);
+    // Write-through: persist to storage first so a storage failure does not
+    // leave the in-memory cache out of sync (item gone from cache but still
+    // in chrome.storage). If the await throws, memory stays untouched.
     if (storage?.removeConversation) {
         await storage.removeConversation(currentSlot, nid);
     }
+    conversations = (conversations || []).filter(c => normId(c.id) !== nid);
     return conversations;
 }
 
