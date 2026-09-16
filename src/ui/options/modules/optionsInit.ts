@@ -157,6 +157,12 @@ export async function loadStore(force: boolean = false): Promise<any> {
         }
     } catch (e) {
         console.error('[workbench:init] loadStore error', e);
+        // P1-121: a loadStore failure used to be invisible outside devtools.
+        // Surface it in the UI log so the user can see and report it.
+        try {
+            const msg = e instanceof Error ? e.message : String(e);
+            log(`${typeof t === 'function' ? t('loadStoreFailed', msg) : `加载会话列表失败: ${msg}`}`, 'error');
+        } catch { /* log view not ready — console.error above already recorded it */ }
     }
 }
 

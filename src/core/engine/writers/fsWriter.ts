@@ -38,6 +38,10 @@ class FsWriter implements IExportWriter {
     rootDirHandle: any;
     folderName: string;
     batchDirHandle: any;
+    // P1-116: per-target-path write chains. Concurrent writeFile calls for
+    // the same path used to race on createWritable() and interleave/truncate
+    // bytes; now they serialize per path (different paths still parallelize).
+    __writeChains: Map<string, Promise<void>>;
 
     static FsWriter = FsWriter;
     static ensureSubDir = ensureSubDir;
@@ -49,6 +53,7 @@ class FsWriter implements IExportWriter {
         this.rootDirHandle = dirHandle;
         this.folderName = folderName;
         this.batchDirHandle = null;
+        this.__writeChains = new Map();
     }
 
     async init(): Promise<any> {
@@ -97,12 +102,26 @@ class FsWriter implements IExportWriter {
             throw new Error(`[FsWriter] Invalid content object passed to writeFile for ${cleanName}`);
         }
 
-        const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
-        const writable = await fileHandle.createWritable();
+        // P1-116: serialize concurrent writes targeting the same path.
+        const chainKey = (actualSubDir ? actualSubDir + '/' : '') + cleanName;
+        const prev = this.__writeChains.get(chainKey) || Promise.resolve();
+        let releaseGate!: () => void;
+        const gate = new Promise<void>((res) => { releaseGate = res; });
+        this.__writeChains.set(chainKey, prev.then(() => gate));
+        await prev;
         try {
-            await writable.write(actualContent);
+            const fileHandle = await targetDir.getFileHandle(cleanName, { create: true });
+            const writable = await fileHandle.createWritable();
+            try {
+                await writable.write(actualContent);
+            } finally {
+                await writable.close();
+            }
         } finally {
-            await writable.close();
+            releaseGate();
+            if (this.__writeChains.get(chainKey) === gate) {
+                this.__writeChains.delete(chainKey);
+            }
         }
         return cleanName;
     }

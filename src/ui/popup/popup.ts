@@ -103,9 +103,14 @@ const log = (msg: string): void => {
     // Language switch toggle
     const handleLangChange = async (targetLang: string): Promise<void> => {
         const i18n = getI18n();
-        if (typeof i18n !== 'undefined') {
+        if (i18n && typeof i18n.setLang === 'function') {
             await i18n.setLang(targetLang);
-            updateCount();
+            // P1-123: explicitly re-apply static copy + toggle UI + badge.
+            // (setLang happens to call applyI18n internally, but the popup
+            // must not depend on that side effect to stay translated.)
+            if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
+            if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
+            await updateCount();
         }
     };
 
@@ -170,8 +175,24 @@ const log = (msg: string): void => {
     });
 
     // "只导当前页" button
+    // P1-123: re-entrancy guard. The chrome.runtime.sendMessage callback below
+    // runs a long async flow AFTER this click handler returns — without the
+    // guard, rapid clicks would run two exports in parallel (double download,
+    // double export record).
+    let __exportingCurrentPage = false;
     $('btnCurrent')?.addEventListener('click', async () => {
+        const btnCurrentEl = $('btnCurrent') as HTMLButtonElement | null;
         const i18n = getI18n();
+        if (__exportingCurrentPage) {
+            log(i18n && typeof i18n.t === 'function' ? i18n.t('popupExportBusy') : '正在导出当前页，请稍候…');
+            return;
+        }
+        __exportingCurrentPage = true;
+        if (btnCurrentEl) btnCurrentEl.disabled = true;
+        const __releaseExportGuard = (): void => {
+            __exportingCurrentPage = false;
+            if (btnCurrentEl) btnCurrentEl.disabled = false;
+        };
         const currentFormatSelect = $('format') as HTMLSelectElement | null;
         let format: string = (typeof formatStore !== 'undefined' && formatStore.getCurrentFormat)
             ? formatStore.getCurrentFormat(false, currentFormatSelect?.value)
@@ -188,18 +209,22 @@ const log = (msg: string): void => {
             const tab = tabs[0];
             if (!tab || !tab.url || !isGeminiUrl(tab.url)) {
                 log(typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com，请先打开 Gemini 对话页');
+                __releaseExportGuard();
                 return;
             }
             const slot = detectSlotFromUrl(tab.url);
             const convId = extractConversationIdFromUrl(tab.url);
             if (!convId) {
                 log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话 (URL 中没找到对话 ID)');
+                __releaseExportGuard();
                 return;
             }
             log(typeof i18n !== 'undefined' ? i18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
             if (bar) bar.style.width = '40%';
 
             chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: convId, accountSlot: slot }, async (res) => {
+                // P1-123: release the guard only when this async flow ends.
+                try {
                 if (chrome.runtime.lastError) {
                     log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', chrome.runtime.lastError.message) : ('抓取失败: ' + chrome.runtime.lastError.message));
                     return;
@@ -264,8 +289,12 @@ const log = (msg: string): void => {
                 } catch (e) {
                     console.warn('[GemExporter:storage] Storage operation failed:', e);
                 }
+                } finally {
+                    __releaseExportGuard();
+                }
             });
         } catch (e: any) {
+            __releaseExportGuard();
             log(typeof i18n !== 'undefined' ? i18n.t('popupExportError', e?.message) : ('导出异常: ' + e?.message));
             console.error('[popup] export current err', e);
         }

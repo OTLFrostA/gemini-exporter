@@ -1,7 +1,7 @@
 // mergeUtils.ts - Conversation merging and deduplication utilities
 
 import { normId, isReservedRoute } from './pathUtils.js';
-import { cleanTitle, isRealTitle, resolveTitle, compareConversations, isBrandPlaceholderTitle as isBadTitle, TITLE_TIER_RANK } from './titleUtils.js';
+import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle, TITLE_TIER_RANK } from './titleUtils.js';
 
 export interface MergeConversationOptions {
     isRpcSource?: boolean;
@@ -110,13 +110,13 @@ export function mergeConversation(
     }
 
     // 6. Timestamps arbitration
-    let cUpdated: any = incoming?.updatedAt || incoming?.timestamp || null;
-    if (typeof cUpdated === 'string') cUpdated = new Date(cUpdated).getTime();
-    if (!Number.isFinite(cUpdated) || cUpdated <= 0) cUpdated = null;
+    // P1-108: route through toTimestampMs so pure-digit epoch strings
+    // (e.g. "1726358400000") are not silently nulled via new Date(str).
+    let cUpdated: any = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
+    if (cUpdated !== null && cUpdated <= 0) cUpdated = null;
 
-    let oldUpdated: any = old?.updatedAt || old?.timestamp || null;
-    if (typeof oldUpdated === 'string') oldUpdated = new Date(oldUpdated).getTime();
-    if (!Number.isFinite(oldUpdated) || oldUpdated <= 0) oldUpdated = null;
+    let oldUpdated: any = toTimestampMs(old?.updatedAt ?? old?.timestamp);
+    if (oldUpdated !== null && oldUpdated <= 0) oldUpdated = null;
 
     const isRpcSource = options?.isRpcSource ?? (
         options?.source === 'network-list' ||
@@ -134,13 +134,11 @@ export function mergeConversation(
         bestUpdatedAt = cUpdated;
     }
 
-    let cCreated: any = incoming?.createdAt || null;
-    if (typeof cCreated === 'string') cCreated = new Date(cCreated).getTime();
-    if (!Number.isFinite(cCreated) || cCreated <= 0) cCreated = null;
+    let cCreated: any = toTimestampMs(incoming?.createdAt);
+    if (cCreated !== null && cCreated <= 0) cCreated = null;
 
-    let oldCreated: any = old?.createdAt || null;
-    if (typeof oldCreated === 'string') oldCreated = new Date(oldCreated).getTime();
-    if (!Number.isFinite(oldCreated) || oldCreated <= 0) oldCreated = null;
+    let oldCreated: any = toTimestampMs(old?.createdAt);
+    if (oldCreated !== null && oldCreated <= 0) oldCreated = null;
 
     let bestCreatedAt = oldCreated || cCreated || null;
     if (cCreated && oldCreated && cCreated < oldCreated) {

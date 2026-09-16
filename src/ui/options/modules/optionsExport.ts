@@ -25,6 +25,9 @@ let __loadStore: ((force?: boolean) => Promise<any>) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __getSearchFilter: () => string = () => '';
 let _isExporting = false;
+// P1-124: generation counter so the 3s "hide progress" timer scheduled in
+// startExportPipeline's finally cannot hide a NEWER export's progress UI.
+let __exportGen = 0;
 let _lastFailedChats: any[] = [];
 
 export function getLastFailedChats(): any[] {
@@ -362,7 +365,11 @@ export async function startExportPipeline(
         log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
         if (progText) progText.textContent = `Error: ${errMsg}`;
     } finally {
+        // P1-124: generation-guarded — if a newer export started after this
+        // timer was scheduled, leave the new run's progress UI alone.
+        const __timerGen = __exportGen;
         setTimeout(() => {
+            if (__timerGen !== __exportGen) return;
             if (progWrap) progWrap.style.display = 'none';
             if (bar) bar.style.width = '0%';
         }, 3000);
@@ -373,6 +380,7 @@ export async function startExportPipeline(
 export async function exportSelected(overrideFormat: string | null = null): Promise<void> {
     if (_isExporting) return;
     _isExporting = true;
+    __exportGen++;
     try {
         const Store = getStore();
         const List = getList();

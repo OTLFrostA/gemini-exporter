@@ -11,7 +11,11 @@ const DialogView = require('../src/ui/views/dialogView.js');
 
 test('takeout_engine - C2PA regex parses years beyond 2029', () => {
     // 2032-11-15 12:30:00 UTC
-    const rawString = "dummy_header_20321115123000Z_dummy_footer";
+    // NOTE (P1-117): a bare 15-digit run with no trust context is now rejected
+    // by design (it was the false-positive class). The sample carries a real
+    // C2PA trust marker; the test intent — years beyond 2029 still parse —
+    // is unchanged.
+    const rawString = "c2pa:claim_generator=\"Google\" date=\"20321115123000Z\"";
     const ts = TakeoutEngine.extractC2PATimestamp(rawString);
     assert.ok(ts !== null, 'C2PA timestamp in 2032 should be parsed');
     const d = new Date(ts);

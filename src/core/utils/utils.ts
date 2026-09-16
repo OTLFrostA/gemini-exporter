@@ -21,6 +21,7 @@ import {
     stripHtmlTags,
     resolveTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
@@ -66,6 +67,7 @@ export {
     stripHtmlTags,
     resolveTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
@@ -107,6 +109,7 @@ export interface GeminiUtilsModule {
     buildExportFileName: (title?: string | null, id?: string | null, ext?: string) => string;
     resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
+    toTimestampMs: (raw: any) => number | null;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
     checkIsUpdated: (c: any, rec?: any) => boolean;
@@ -153,6 +156,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     buildExportFileName,
     resolveTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,

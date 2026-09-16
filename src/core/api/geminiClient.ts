@@ -98,6 +98,14 @@ const pagination = GeminiClientPagination;
             let api = getApiUrl(cred.accountSlot || "default");
             const filter = customFilter || [0, null, 1];
             const P = getProtocol();
+            // P1-126: JSPB request layouts are positional — document them here.
+            // LIST inner:  [pageSize=50, pageToken, filter]
+            //   filter:    [0, null, 1]  (matches-all filter; customFilter overrides)
+            // fReq frame:  [[ [rpcId, innerJson, null, "generic"] ]]
+            // MAINTENANCE SYNC RULE: these layouts mirror what geminiParser.ts
+            // expects on the response side. If Gemini changes the wire format,
+            // update the request builders here AND the parser indices together,
+            // then re-run the parser cross-validation tests — never one side alone.
             let req = JSON.stringify([
                 [
                     [P.RPCS.LIST, JSON.stringify([50, pageToken || null, filter]), null, "generic"]
@@ -201,6 +209,12 @@ const pagination = GeminiClientPagination;
             const P = getProtocol();
             const rpcids = detailOnly ? P.RPCS.DETAIL : `${P.RPCS.DETAIL},${P.RPCS.LIST}`;
 
+            // P1-126: JSPB positional layouts (see getConversationList for the
+            // maintenance sync rule — request and parser indices change together).
+            // DETAIL inner: [convId, 10|null, pageToken, 1, [1], [4], null, 1]
+            //   [1]=pageSize, [2]=pageToken, [4]/[5]=render hints ([1]=text, [4]=attachments)
+            //   altParams variant uses null at [1] (server-default page size).
+            // META inner (list piggyback): [1, null, [null, null, 1, null, 1, convId]]
             let innerDetail = (opts && opts.altParams)
                 ? JSON.stringify([id, null, pageToken || null, 1, [1], [4], null, 1])
                 : JSON.stringify([id, 10, pageToken || null, 1, [1], [4], null, 1]);

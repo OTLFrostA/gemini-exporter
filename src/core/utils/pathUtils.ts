@@ -32,14 +32,20 @@ export function sanitizeFileName(name?: string | null, fallback: string = 'untit
     s = s.replace(/^\.+|\.+$/g, '');
     s = s.trim();
     if (!s) return fallback;
-    if (/^(con|prn|aux|nul|com\d|lpt\d)$/i.test(s)) s = s + '_chat';
     let ext = '';
     const lastDot = s.lastIndexOf('.');
     if (lastDot > 0 && s.length - lastDot <= 6) {
         ext = s.slice(lastDot);
         s = s.slice(0, lastDot);
     }
-    if (s.length > 70) s = s.slice(0, 70).trim();
+    // P1-102: reserved-name check must run on the stem AFTER the extension is
+    // stripped — previously "con.md" never matched ^con$ and slipped through.
+    // P1-103: Windows also reserves COM10+ / LPT10+ (\\.\COM10 namespace),
+    // so \d (single digit) is not enough; cover 1-99.
+    if (/^(con|prn|aux|nul|com\d{1,2}|lpt\d{1,2})$/i.test(s)) s = s + '_chat';
+    // P1-104: truncate by Unicode code points, not UTF-16 code units —
+    // slice(0, 70) could cut an emoji surrogate pair in half.
+    if ([...s].length > 70) s = [...s].slice(0, 70).join('').trim();
     s = s.replace(/[\.\s_]+$/g, '').trim();
     if (!s) s = fallback;
     return s + ext;
@@ -107,7 +113,13 @@ export function buildExportFileName(title?: string | null, id?: string | null, e
     const safeTitle = sanitizeFileName(title || 'untitled');
     const nid = normId(id);
     const cid6 = nid.length >= 6 ? nid.slice(-6) : (nid || 'chat');
-    const cleanExt = ext.replace(/^\.+/, '') || 'md';
+    // P1-105: the ext parameter is part of a file/ZIP-entry path — treat it as
+    // untrusted. Drop directory parts, traversal dots and illegal characters
+    // instead of only stripping leading dots ("../../evil" / "md/x" used to pass through).
+    let cleanExt = String(ext || '').replace(/^\.+/, '');
+    cleanExt = cleanExt.split(/[\\/]/).pop() || '';
+    cleanExt = cleanExt.replace(/^\.+|\.+$/g, '').replace(/\.{2,}/g, '.').replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!cleanExt) cleanExt = 'md';
     return `${safeTitle}_${cid6}.${cleanExt}`;
 }
 
