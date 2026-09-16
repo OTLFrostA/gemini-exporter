@@ -1,18 +1,4 @@
 // src/content/content.ts - Gemini Exporter content script coordinator (Layered Architecture)
-import '../core/protocol/protocol.js';
-import '../core/utils/constants.js';
-import '../core/utils/utils.js';
-import '../core/storage/storageService.js';
-import '../core/api/parser/extractors.js';
-import '../core/api/parser/attachments.js';
-import '../core/api/parser/parseList.js';
-import '../core/api/parser/parseDetail.js';
-import '../core/api/geminiParser.js';
-import '../core/api/client/credentialManager.js';
-import '../core/api/client/retryPolicy.js';
-import '../core/api/client/rpcClient.js';
-import '../core/api/client/pagination.js';
-import '../core/api/geminiClient.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { contentContext } from './contentContext.js';

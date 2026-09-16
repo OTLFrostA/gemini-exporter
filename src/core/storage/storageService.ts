@@ -1,6 +1,8 @@
 // storageService.ts - Unified multi-account Chrome storage access and key management
 import type { Conversation } from "../../types/index.js";
-import { normId } from "../utils/pathUtils.js";
+import { normId, isVersionGreater as utilsIsVersionGreater } from "../utils/pathUtils.js";
+import { STORAGE_KEYS } from "../utils/constants.js";
+
 
 export interface StorageKeys {
     slot: string;
@@ -265,15 +267,15 @@ declare global {
     async function getCredentialsMap(): Promise<Record<string, any>> {
         const storage = getCredStorage();
         if (!storage) return {};
-        const data = await storage.get(['gemini_credentials_map']);
-        let map = data.gemini_credentials_map || {};
+        const data: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
+        let map: Record<string, any> = data[STORAGE_KEYS.CREDENTIALS_MAP] || {};
         if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
             try {
-                const localData = await chrome.storage.local.get(['gemini_credentials_map']);
-                if (localData && localData.gemini_credentials_map) {
-                    map = localData.gemini_credentials_map;
-                    await storage.set({ gemini_credentials_map: map });
-                    await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+                const localData: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP]);
+                if (localData && localData[STORAGE_KEYS.CREDENTIALS_MAP]) {
+                    map = localData[STORAGE_KEYS.CREDENTIALS_MAP];
+                    await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+                    await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                 }
             } catch { /* intentional: migration fallback */ }
         }
@@ -283,10 +285,10 @@ declare global {
     async function setCredentialsMap(map: Record<string, any>): Promise<void> {
         const storage = getCredStorage();
         if (!storage) return;
-        await storage.set({ gemini_credentials_map: map || {} });
+        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map || {} });
         if (storage !== chrome.storage.local && chrome.storage.local) {
             try {
-                await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
             } catch { /* intentional: local purge */ }
         }
     }
@@ -299,22 +301,22 @@ declare global {
             delete map[sid];
             await setCredentialsMap(map);
         } else {
-            await storage.remove(['gemini_credentials_map', 'gemini_credentials']);
+            await storage.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
         }
         if (storage !== chrome.storage.local && chrome.storage.local) {
             try {
-                await chrome.storage.local.remove(['gemini_credentials_map', 'gemini_credentials']);
+                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
             } catch { /* intentional: local purge */ }
         }
     }
 
     async function getDevMode(): Promise<boolean> {
-        const data = await chrome.storage.local.get(['gemini_dev_mode']);
-        return !!data.gemini_dev_mode;
+        const data = await chrome.storage.local.get([STORAGE_KEYS.DEV_MODE]);
+        return !!data[STORAGE_KEYS.DEV_MODE];
     }
 
     async function setDevMode(enabled: boolean): Promise<void> {
-        await chrome.storage.local.set({ gemini_dev_mode: !!enabled });
+        await chrome.storage.local.set({ [STORAGE_KEYS.DEV_MODE]: !!enabled });
     }
 
     async function isTourCompleted(): Promise<boolean> {
@@ -339,19 +341,9 @@ declare global {
      * E.g. isVersionGreater('1.5.0', '1.4.3') => true
      */
     function isVersionGreater(v1: string, v2: string): boolean {
-        if (!v1) return false;
-        if (!v2) return true;
-        const p1 = String(v1).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
-        const p2 = String(v2).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
-        const maxLen = Math.max(p1.length, p2.length);
-        for (let i = 0; i < maxLen; i++) {
-            const num1 = p1[i] || 0;
-            const num2 = p2[i] || 0;
-            if (num1 > num2) return true;
-            if (num1 < num2) return false;
-        }
-        return false;
+        return utilsIsVersionGreater(v1, v2);
     }
+
 
     async function getLastSeenFeatureVersion(): Promise<string> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return '0.0.0';

@@ -128,6 +128,25 @@ export function buildExportFileName(title?: string | null, id?: string | null, e
     return `${safeTitle}_${cid6}.${cleanExt}`;
 }
 
+/**
+ * Compare two semantic versions: returns true if v1 > v2.
+ * E.g. isVersionGreater('1.5.0', '1.4.3') => true
+ */
+export function isVersionGreater(v1?: string | null, v2?: string | null): boolean {
+    if (!v1) return false;
+    if (!v2) return true;
+    const p1 = String(v1).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+    const p2 = String(v2).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+    const maxLen = Math.max(p1.length, p2.length);
+    for (let i = 0; i < maxLen; i++) {
+        const num1 = p1[i] || 0;
+        const num2 = p2[i] || 0;
+        if (num1 > num2) return true;
+        if (num1 < num2) return false;
+    }
+    return false;
+}
+
 export default {
     normId,
     shortId,
@@ -139,5 +158,7 @@ export default {
     isGeminiUrl,
     detectSlotFromUrl,
     extractConversationIdFromUrl,
-    buildExportFileName
+    buildExportFileName,
+    isVersionGreater
 };
+

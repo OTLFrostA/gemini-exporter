@@ -1,6 +1,7 @@
 // retryPolicy.ts - Centralized HTTP 400 XSRF recovery, 401 cleanup, and 429 backoff policy
 import type { GeminiClientCredentialManagerModule } from "./credentialManager.js";
 import { calculateBackoff } from "../../engine/export/rateLimiter.js";
+import { STORAGE_KEYS } from "../../utils/constants.js";
 
 export interface Http400Params {
     resp: { status: number; [key: string]: any };
@@ -82,9 +83,9 @@ declare global {
                         if (freshBl) map[cred.sid].bl = freshBl;
                         const storage = getStorageFn();
                         if (storage) {
-                            await storage.set({ gemini_credentials_map: map });
+                            await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
                             if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                                await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                             }
                         }
                     }
@@ -116,9 +117,9 @@ declare global {
                     delete map[cred.sid];
                     const storage = getStorageFn();
                     if (storage) {
-                        await storage.set({ gemini_credentials_map: map });
+                        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
                         if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                            await chrome.storage.local.remove(["gemini_credentials_map", "gemini_credentials"]);
+                            await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                         }
                     }
                 }

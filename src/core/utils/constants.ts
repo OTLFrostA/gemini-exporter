@@ -1,4 +1,4 @@
-// src/core/utils/constants.ts - Pure constants, no DOM / no chrome APIs
+declare const __EXT_VERSION__: string | undefined;
 
 export type AllowedFormat = 'markdown' | 'json_openai' | 'json' | 'json_raw';
 
@@ -7,6 +7,8 @@ export interface StorageKeyMap {
     ZIP: string;
     DEV_MODE: string;
     SUPPRESS_DIRECT_WRITE_PROMPT: string;
+    CREDENTIALS_MAP: string;
+    CREDENTIALS: string;
 }
 
 export interface GeminiConstantsModule {
@@ -15,6 +17,8 @@ export interface GeminiConstantsModule {
     DIRECT_WRITE_THRESHOLD: number;
     FEEDBACK_URL: string;
     STORAGE_KEYS: StorageKeyMap;
+    EXT_VERSION: string;
+    getExtensionVersion: (customVersion?: string) => string;
 }
 
 declare global {
@@ -29,19 +33,37 @@ export const STORAGE_KEYS: StorageKeyMap = {
     FORMAT: 'gemini_export_format',
     ZIP: 'gemini_export_zip',
     DEV_MODE: 'gemini_dev_mode',
-    SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt'
+    SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt',
+    CREDENTIALS_MAP: 'gemini_credentials_map',
+    CREDENTIALS: 'gemini_credentials'
 };
+
+export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.5.0';
+
+export function getExtensionVersion(customVersion?: string): string {
+    if (customVersion) return customVersion;
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+            const manifest = chrome.runtime.getManifest();
+            if (manifest && manifest.version) return manifest.version;
+        }
+    } catch { /* intentional */ }
+    return EXT_VERSION;
+}
 
 export const GeminiConstants: GeminiConstantsModule = {
     ALLOWED_FORMATS,
     DEFAULT_FORMAT,
     DIRECT_WRITE_THRESHOLD,
     STORAGE_KEYS,
-    FEEDBACK_URL
+    FEEDBACK_URL,
+    EXT_VERSION,
+    getExtensionVersion
 };
 
 if (typeof globalThis !== 'undefined') (globalThis as any).GeminiConstants = GeminiConstants;
 if (typeof module === 'object' && module.exports) module.exports = GeminiConstants;
 
 export default GeminiConstants;
+
 

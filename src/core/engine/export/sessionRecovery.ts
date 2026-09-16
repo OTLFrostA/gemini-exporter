@@ -63,20 +63,8 @@ const normId = (id?: string | number | null): string => {
     return utilsNormId(id);
 };
 
-export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '1.4.3';
-export function getExtensionVersion(customVersion?: string): string {
-    if (customVersion) return customVersion;
-    try {
-        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
-            return chrome.runtime.getManifest().version || EXT_VERSION;
-        }
-    } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) {
-            console.debug('[GemExporter:sessionRecovery.ts]', e);
-        }
-    }
-    return EXT_VERSION;
-}
+import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
+export { EXT_VERSION, getExtensionVersion };
 
     async function writeIndexAndMeta(
         metaResults: any[],
