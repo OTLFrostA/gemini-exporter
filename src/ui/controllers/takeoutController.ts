@@ -36,16 +36,12 @@ export async function handleTakeoutImport(
             if (onLog) onLog(txt, 'info');
         }, slot);
 
-        const convs = Store ? Store.getConversations() : [];
         const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
         // SSoT: merge via deduplicateConversations so multi-tier titles
         // (titles.takeout seeding), timestamps and ordering converge with the
         // online upsert path. A naive push-if-absent would drop takeout slots
         // for existing ids and store raw temp titles unsorted for new ids.
-        const existingIds = new Set((convs || []).map((c: any) => normId(c?.id)));
-        const addedCount = incoming.filter((tc: any) => tc?.id && !existingIds.has(normId(tc.id))).length;
-
         const dedupe = (list: any[]) => {
             if (Store && typeof Store.normalizeAndDeduplicate === 'function') {
                 return Store.normalizeAndDeduplicate(list);
@@ -56,26 +52,72 @@ export async function handleTakeoutImport(
             }
             return staticDeduplicateConversations(list);
         };
-        const { processed, changedCount } = dedupe([...(convs || []), ...incoming]);
 
-        // Only rewrite the whole table when something actually changed. Note
-        // deduplicateConversations counts every distinct id's first occurrence
-        // as changed (!old => isChanged), so subtract those trivial counts:
-        // repeatMods > 0 means a same-id merge really moved the record
-        // (authoritative title / timestamp / message growth). Titles-dict-only
-        // enrichment with an unchanged resolved title is immaterial and stays
-        // unsaved; a later RPC merge re-seeds what it needs.
-        const trivialFirstSeen = processed.length;
-        const hasChangeSignal = typeof changedCount === 'number';
-        // No signal (foreign mock without changedCount) -> assume changed when
-        // there is incoming data (conservative: correctness over write saving).
-        const repeatMods = hasChangeSignal ? changedCount - trivialFirstSeen : (incoming.length > 0 ? 1 : 0);
-        if (Store && (addedCount > 0 || repeatMods > 0)) {
-            const currentSlot = Store.getCurrentSlot() || 'u0';
-            await Store.saveConversations(currentSlot, processed);
+        // Pure merge planner: given the freshest stored list, decide whether
+        // anything changed. Returns null when the write can be skipped.
+        // Must stay pure (no I/O, no awaits) — it runs inside the transaction
+        // lock. Dedupe semantics are unchanged from the legacy path.
+        const planMerge = (existing: any[]) => {
+            const existingIds = new Set((existing || []).map((c: any) => normId(c?.id)));
+            const addedCount = incoming.filter((tc: any) => tc?.id && !existingIds.has(normId(tc.id))).length;
+            const { processed, changedCount } = dedupe([...(existing || []), ...incoming]);
+
+            // Only rewrite the whole table when something actually changed. Note
+            // deduplicateConversations counts every distinct id's first occurrence
+            // as changed (!old => isChanged), so subtract those trivial counts:
+            // repeatMods > 0 means a same-id merge really moved the record
+            // (authoritative title / timestamp / message growth). Titles-dict-only
+            // enrichment with an unchanged resolved title is immaterial and stays
+            // unsaved; a later RPC merge re-seeds what it needs.
+            const trivialFirstSeen = processed.length;
+            const hasChangeSignal = typeof changedCount === 'number';
+            // No signal (foreign mock without changedCount) -> assume changed when
+            // there is incoming data (conservative: correctness over write saving).
+            const repeatMods = hasChangeSignal ? changedCount - trivialFirstSeen : (incoming.length > 0 ? 1 : 0);
+            if (!(addedCount > 0 || repeatMods > 0)) return null;
+            return { processed, addedCount, changed: hasChangeSignal ? changedCount : 0 };
+        };
+
+        // Atomic read-merge-write (#402): the updater re-reads the freshest
+        // stored list *inside* the cross-tab conversation lock, so a concurrent
+        // tab's write can no longer be discarded by our stale snapshot.
+        // Falls back to the legacy snapshot path only when the transactional
+        // API is unavailable or unusable (e.g. StorageService present without
+        // a real chrome.storage backend in unit tests).
+        const Storage = getStorage();
+        const currentSlot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';
+        const canTransact = !!Store && !!Storage && typeof Storage.transactConversations === 'function';
+        let addedCount = 0;
+        let tx: { list: any[]; changed: number; written: boolean } | null = null;
+        if (canTransact) {
+            try {
+                tx = await Storage.transactConversations(currentSlot, (existing: any[]) => {
+                    const plan = planMerge(existing);
+                    if (!plan) return null;
+                    addedCount = plan.addedCount;
+                    return { list: plan.processed, changed: plan.changed };
+                });
+            } catch (e) {
+                console.warn('[GemExporter:takeout] transactConversations failed, falling back to legacy write:', e);
+                tx = null;
+            }
+        }
+        if (tx) {
+            // Transaction ran: refresh the UI store's in-memory snapshot so the
+            // options page keeps showing the freshest list.
+            if (tx.written && Store && typeof Store.setConversations === 'function') {
+                Store.setConversations(tx.list);
+            }
+        } else if (Store) {
+            // Legacy path: snapshot read + blind whole-table write.
+            const convs = Store.getConversations() || [];
+            const plan = planMerge(convs);
+            if (plan) {
+                addedCount = plan.addedCount;
+                await Store.saveConversations(currentSlot, plan.processed);
+            }
         }
 
-        const Storage = getStorage();
         if (Storage) {
             if (Storage.setTakeoutPromptCompleted) await Storage.setTakeoutPromptCompleted(true);
             if (Storage.setHasImportedTakeout) await Storage.setHasImportedTakeout(true);
