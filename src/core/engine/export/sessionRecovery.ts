@@ -270,16 +270,11 @@ export { EXT_VERSION, getExtensionVersion };
 
         if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
 
-        if (curIds) {
-            curIds[targetId] = rec;
-            curIds[targetNid] = rec;
-            curIds['c_' + targetNid] = rec;
-        }
-        if (exportedIds) {
-            exportedIds[targetId] = rec;
-            exportedIds[targetNid] = rec;
-            exportedIds['c_' + targetNid] = rec;
-        }
+        // P1-045 follow-up: the in-memory bookkeeping maps also use the single
+        // canonical key (normId). Readers already resolve the historical
+        // aliases (raw id / 'c_'+nid), so no migration is needed.
+        if (curIds && targetNid) curIds[targetNid] = rec;
+        if (exportedIds && targetNid) exportedIds[targetNid] = rec;
 
         try {
             onItemExported(targetId, rec);
