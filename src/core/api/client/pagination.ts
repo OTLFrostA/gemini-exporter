@@ -18,9 +18,7 @@ export interface PaginationOptions {
     onProgress?: ((info: PaginationProgressInfo) => void) | null;
     onPageBatch?: ((batch: ConversationListItem[], info: { page: number; hasMore: boolean }) => Promise<{ shouldStop?: boolean; reason?: string } | void>) | null;
     targetSid?: string | null;
-    existingMap?: Map<string, any> | null;
     incremental?: boolean;
-    unchangedThreshold?: number;
     signal?: AbortSignal | null;
     [key: string]: any;
 }
@@ -29,7 +27,6 @@ export interface PaginationResult {
     conversations: ConversationListItem[];
     total: number;
     stoppedEarly?: boolean;
-    unchangedStreak?: number;
     diagnostics: any;
     hitGoogleLimit: boolean;
 }
@@ -55,13 +52,10 @@ declare global {
         }
         if (!maxPages || typeof maxPages !== "number") maxPages = 2000;
         opts = opts || {};
-        const existingMap = opts.existingMap || null;
         const incremental = !!opts.incremental;
-        const unchangedThreshold = opts.unchangedThreshold || 5;
         let all: ConversationListItem[] = [],
             seen = new Set<string>(),
             token: string | null = null;
-        let unchangedStreak = 0;
         const diagLog: any = {
             startTime: new Date().toISOString(),
             maxPages,
@@ -172,43 +166,6 @@ declare global {
                             diagnostics: diagLog,
                             hitGoogleLimit: !!diagLog.hitGoogleLimit
                         };
-                    }
-                } else if (incremental && existingMap) {
-                    for (let c of res.conversations) {
-                        const stored = existingMap.get(c.id);
-                        if (stored && stored.timestamp && c.timestamp) {
-                            const sameTime = Math.abs(stored.timestamp - c.timestamp) < 60000;
-                            const sameTitle = !stored.title || !c.title || stored.title === c.title;
-                            if (sameTime && sameTitle) {
-                                unchangedStreak++;
-                            } else {
-                                unchangedStreak = 0;
-                            }
-                        } else {
-                            unchangedStreak = 0;
-                        }
-                        if (unchangedStreak >= unchangedThreshold) {
-                            diagLog.stopReason = `增量同步命中连续 ${unchangedStreak} 条已存在历史，早退终止`;
-                            diagLog.totalConversations = all.length;
-                            diagLog.endTime = new Date().toISOString();
-                            if (onProgress) onProgress({
-                                page: i + 1,
-                                added,
-                                total: all.length,
-                                hasMore: false,
-                                stoppedEarly: true,
-                                reason: "增量同步完成",
-                                batch: res.conversations
-                            });
-                            return {
-                                conversations: all,
-                                total: all.length,
-                                stoppedEarly: true,
-                                unchangedStreak,
-                                diagnostics: diagLog,
-                                hitGoogleLimit: !!diagLog.hitGoogleLimit
-                            };
-                        }
                     }
                 }
             }
