@@ -165,7 +165,11 @@ declare global {
                                     total: all.length,
                                     hasMore: false,
                                     stoppedEarly: true,
-                                    reason: "增量同步完成"
+                                    reason: "增量同步完成",
+                                    // 增量早退时本页也必须带上 batch，否则早退页里排在
+                                    // 5 连击之前的"有变化"会话会被检测到却永远写不进存储
+                                    // （下次增量又判为有变化、又丢弃，元数据永久 stale）。
+                                    batch: res.conversations
                                 });
                                 return {
                                     conversations: all,
