@@ -121,14 +121,9 @@ class OnlineScenarioProvider:
 
     def pop_ephemeral_query(self) -> str:
         """
-        为瞬态自毁会话 (Ephemeral Chat) 提取一个干净唯一的单轮提问。
+        为瞬态自毁会话 (Ephemeral Chat) 生成一个干净唯一的快速单轮提问。
+        专为瞬态自毁与侧边栏删除实时剥离设计，要求模型在极短时间内（10-15s）回复完毕，
+        绝不占用或消耗场景池中用于多轮深度推演的高价值学术场景。
         """
-        pool = self._load_json(self.pool_path, [])
-        # 如果池中有富余场景，出队一个短轮次场景使用其第一轮提问
-        if len(pool) > 10:
-            sc = self.pop_scenario(min_turns=1)
-            turns = sc.get("turns", [])
-            first_turn = turns[0] if turns else "什么是计算机系统的瞬态会话？请用一句话回答。"
-            query = first_turn.get("prompt", "") if isinstance(first_turn, dict) else str(first_turn)
-            return query
-        return f"请简要阐述分布式计算系统的瞬态一致性原理 (校验戳: {int(time.time())})，请用一句话回答。"
+        ts = int(time.time())
+        return f"请简要阐述分布式计算系统的瞬态一致性原理 (校验戳: {ts})，请用一句话回答。"

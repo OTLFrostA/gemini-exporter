@@ -125,7 +125,26 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
         cdp = self.cdp
-        for pass_idx in range(3):
+        # 1. 首先缓冲等待模型切换按钮挂载就绪并包含文本（最多等待 15 秒，避免 SPA 路由切换瞬间 DOM 未就绪）
+        wait_btn_start = time.time()
+        while time.time() - wait_btn_start < 15.0:
+            btn_info = cdp.eval(f"""
+            (() => {{
+                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
+                if (!btn) return null;
+                const text = (btn.textContent || '').trim();
+                const label = (btn.getAttribute('aria-label') || '').trim();
+                if (text || label) {{
+                    return {{ text, label, disabled: !!btn.disabled }};
+                }}
+                return null;
+            }})()
+            """)
+            if btn_info:
+                break
+            time.sleep(0.5)
+
+        for pass_idx in range(5):
             status = cdp.eval(f"""
             (() => {{
                 const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
@@ -279,14 +298,18 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             time.sleep(0.4)
             force_menu_check = False
 
-        final_status = cdp.eval(f"""
-        (() => {{
-            const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-            return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')).toLowerCase() : '';
-        }})()
-        """) or ""
-        if "flash" in final_status and ("extended" in final_status or "thinking" in final_status):
-            return True
+        final_status = ""
+        check_final_start = time.time()
+        while time.time() - check_final_start < 5.0:
+            final_status = cdp.eval(f"""
+            (() => {{
+                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
+                return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')).toLowerCase() : '';
+            }})()
+            """) or ""
+            if "flash" in final_status and ("extended" in final_status or "thinking" in final_status):
+                return True
+            time.sleep(0.5)
 
         raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + Extended thinking！当前状态: '{final_status}'。测试已被主动终止。")
 
@@ -487,14 +510,16 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 const isAppRoute = (path === '/app' || path === '/app/');
                 const bubbleCount = document.querySelectorAll('{GeminiSelectors.USER_QUERY}, {GeminiSelectors.MODEL_RESPONSE}').length;
                 const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+                const modeBtn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
                 return {{
                     isAppRoute,
                     bubbleCount,
-                    hasEditor: !!editor
+                    hasEditor: !!editor,
+                    hasModeBtn: !!(modeBtn && ((modeBtn.textContent || '').trim() || (modeBtn.getAttribute('aria-label') || '').trim()))
                 }};
             }})()
             """)
-            if state and state.get("isAppRoute") and state.get("bubbleCount") == 0 and state.get("hasEditor"):
+            if state and state.get("isAppRoute") and state.get("bubbleCount") == 0 and state.get("hasEditor") and state.get("hasModeBtn"):
                 break
             time.sleep(0.5)
 
