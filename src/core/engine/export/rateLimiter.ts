@@ -13,28 +13,42 @@ export interface RateLimiterOptions {
     retryAfterMs?: number;
 }
 
+export interface RetryOptions extends RateLimiterOptions {
+    onRetry?: (retryCount: number, delayMs: number, errorOrRes: any) => void;
+    signal?: AbortSignal | null;
+    isAborted?: () => boolean;
+}
+
 export interface RateLimitModule {
     RateLimitManager: typeof RateLimitManager;
     isRateLimited: (res: any) => boolean;
     calculateBackoff: (retryCount: number, options?: RateLimiterOptions) => number;
+    withRateLimitRetry: <T>(operation: () => Promise<T>, options?: RetryOptions) => Promise<T>;
 }
 
 /**
- * Check if a response result indicates rate limit (HTTP 429 or quota exceeded).
+ * Check if a response result or error indicates rate limit (HTTP 429 or quota exceeded).
  *
  * Canonical predicate for the whole codebase: previously inlined variants
- * lived in exportOrchestrator.ts, types/errors.ts (GeminiRpcError) and
- * content/messageRouter.ts (BardErrorInfo / 1096 / resource_exhausted).
+ * lived in exportOrchestrator.ts, types/errors.ts (GeminiRpcError),
+ * content/messageRouter.ts (BardErrorInfo / 1096 / resource_exhausted),
+ * syncController.ts (服务端上限), and pagination.ts.
  * All call sites now converge here so the semantics cannot drift again.
  */
 export function isRateLimited(res: any): boolean {
     if (!res) return false;
-    if (res.success) return false;
+    if (typeof res === 'string') {
+        if (/429|rate\s*limit|quota|too\s*many\s*requests|resource_exhausted/i.test(res)) return true;
+        return res.includes('BardErrorInfo') || res.includes('1096') || res.includes('服务端上限');
+    }
+    if (res instanceof Error) {
+        return isRateLimited(res.message);
+    }
+    if (res.success === true) return false;
     if (res.status === 429) return true;
-    const err = String(res.error || '');
+    const err = String(res.error || res.message || '');
     if (/429|rate\s*limit|quota|too\s*many\s*requests|resource_exhausted/i.test(err)) return true;
-    // Legacy variants previously inlined in content/messageRouter.ts
-    return err.includes('BardErrorInfo') || err.includes('1096');
+    return err.includes('BardErrorInfo') || err.includes('1096') || err.includes('服务端上限');
 }
 
 /**
@@ -51,6 +65,57 @@ export function calculateBackoff(retryCount: number, options?: RateLimiterOption
         return Math.max(capped, retryAfterMs);
     }
     return capped;
+}
+
+/**
+ * Execute an asynchronous operation with automatic rate limit retries and exponential backoff.
+ */
+export async function withRateLimitRetry<T>(
+    operation: () => Promise<T>,
+    options?: RetryOptions
+): Promise<T> {
+    const maxRetries = options?.maxRetries ?? 3;
+    let retryCount = 0;
+
+    while (true) {
+        if (options?.signal?.aborted || options?.isAborted?.()) {
+            throw new Error('Operation aborted');
+        }
+
+        try {
+            const res = await operation();
+            if (isRateLimited(res) && retryCount < maxRetries) {
+                const delayMs = calculateBackoff(retryCount, options);
+                if (options?.onRetry) {
+                    options.onRetry(retryCount, delayMs, res);
+                }
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                if (options?.signal?.aborted || options?.isAborted?.()) {
+                    throw new Error('Operation aborted');
+                }
+                retryCount++;
+                continue;
+            }
+            return res;
+        } catch (err: any) {
+            if (options?.signal?.aborted || options?.isAborted?.()) {
+                throw err;
+            }
+            if (isRateLimited(err) && retryCount < maxRetries) {
+                const delayMs = calculateBackoff(retryCount, options);
+                if (options?.onRetry) {
+                    options.onRetry(retryCount, delayMs, err);
+                }
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                if (options?.signal?.aborted || options?.isAborted?.()) {
+                    throw new Error('Operation aborted');
+                }
+                retryCount++;
+                continue;
+            }
+            throw err;
+        }
+    }
 }
 
 /**
@@ -111,11 +176,13 @@ declare global {
 export const rateLimitModule: RateLimitModule = {
     RateLimitManager,
     isRateLimited,
-    calculateBackoff
+    calculateBackoff,
+    withRateLimitRetry
 };
 
 (rateLimitModule as any).RateLimitManager = RateLimitManager;
 (rateLimitModule as any).RateLimitModule = rateLimitModule;
+(rateLimitModule as any).withRateLimitRetry = withRateLimitRetry;
 (rateLimitModule as any).default = rateLimitModule;
 
 if (typeof globalThis !== 'undefined') {

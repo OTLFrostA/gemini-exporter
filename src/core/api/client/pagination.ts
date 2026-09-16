@@ -1,4 +1,5 @@
 import { isDevMode } from "../../utils/utils.js";
+import { isRateLimited } from "../../engine/export/rateLimiter.js";
 import type { ConversationListItem } from "../parser/parseList.js";
 import type { DetailParseResult } from "../parser/parseDetail.js";
 
@@ -95,11 +96,7 @@ declare global {
                 res = await client.getConversationList(token, targetSid, undefined, { signal: opts?.signal });
             } catch (err: any) {
                 console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
-                const errMsg = String(err?.message || err);
-                const isLimit = errMsg.includes("BardErrorInfo")
-                    || errMsg.includes("1096")
-                    || errMsg.includes("429")
-                    || /quota|rate\s*limit|resource_exhausted|too\s*many\s*requests/i.test(errMsg);
+                const isLimit = isRateLimited(err);
                 if (isLimit) {
                     diagLog.hitGoogleLimit = true;
                 }

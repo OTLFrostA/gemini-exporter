@@ -1,5 +1,5 @@
-// attachments.ts - Image, user file, and deep research document attachment extractors
 import type { GeminiParserExtractorsModule } from "./extractors.js";
+import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../utils/chipUtils.js";
 
 export interface ImageAttachment {
     sourceUrl: string;
@@ -91,8 +91,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     }
 
     function isInternalChipUrl(u?: string | null): boolean {
-        if (!u || typeof u !== "string") return false;
-        return /googleusercontent\.com\/(immersive_entry_chip|deep_research|map_content|map_location|grounding_content|web_search|youtube_content|flights_content|hotels_content|workspace_content)/i.test(u);
+        return canonicalIsInternalChipUrl(u);
     }
 
     function inferExt(url: string): string {
