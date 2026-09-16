@@ -83,6 +83,10 @@ declare global {
         };
 
         let reachedMax = true;
+        // P1-059: distinguish "synced to a natural end" from "interrupted halfway
+        // by a network/service exception with partial data", so downstream UI and
+        // incremental logic never mistake a partial result for a complete sync.
+        let interruptedByError = false;
         for (let i = 0; i < maxPages; i++) {
             if (isAborted()) {
                 diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
@@ -106,6 +110,7 @@ declare global {
                 diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
                 reachedMax = false;
                 if (all.length > 0) {
+                    interruptedByError = true;
                     break;
                 }
                 throw err;
@@ -198,12 +203,19 @@ declare global {
         }
         diagLog.totalConversations = all.length;
         diagLog.endTime = new Date().toISOString();
-        return {
+        const finalResult: PaginationResult = {
             conversations: all,
             total: all.length,
             diagnostics: diagLog,
             hitGoogleLimit: !!diagLog.hitGoogleLimit
         };
+        // P1-059: only set when the run was cut short by an exception; natural
+        // ends (empty page, no next token, max pages, incremental early-exit)
+        // keep the field unset as before.
+        if (interruptedByError) {
+            finalResult.stoppedEarly = true;
+        }
+        return finalResult;
     }
 
     /**
@@ -214,11 +226,33 @@ declare global {
         let token: string | null = null;
         let first: any = null;
         let attempts = 0;
+        // P1-060: guard against a misbehaving server returning the same (or
+        // cycling) nextPageToken forever, and dedupe messages by id so a repeated
+        // page cannot produce duplicate messages in the export.
+        const seenTokens = new Set<string>();
+        const seenMsgIds = new Set<string>();
         do {
             let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
-            msgs = [...page.messages, ...msgs];
-            token = page.nextPageToken || null;
+            const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: any) => {
+                const mid = m ? m.id : null;
+                if (mid === null || mid === undefined || mid === '') return true;
+                if (seenMsgIds.has(String(mid))) return false;
+                seenMsgIds.add(String(mid));
+                return true;
+            });
+            msgs = [...fresh, ...msgs];
+            const nextToken: string | null = page.nextPageToken || null;
+            if (nextToken) {
+                if (seenTokens.has(nextToken)) {
+                    // Token loop: the server is repeating a cursor we already
+                    // followed — stop instead of pulling up to 20 duplicate pages.
+                    token = null;
+                    break;
+                }
+                seenTokens.add(nextToken);
+            }
+            token = nextToken;
             attempts++;
         } while (token && attempts < 20);
         if (!first) throw new Error("no data");

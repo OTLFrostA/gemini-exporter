@@ -126,8 +126,11 @@ export function mergeConversation(
         incoming?.source === 'network-list'
     );
 
+    // P1-058: timestamps are newer-wins, regardless of source. The old
+    // `isRpcSource ||` short-circuit let an older RPC timestamp regress
+    // updatedAt, which could flip checkIsUpdated into a false "no update".
     let bestUpdatedAt = oldUpdated;
-    if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
+    if (cUpdated && (!bestUpdatedAt || cUpdated > bestUpdatedAt)) {
         bestUpdatedAt = cUpdated;
     }
 
@@ -149,13 +152,25 @@ export function mergeConversation(
         : (bestUpdatedAt || old?.timestamp || incoming?.timestamp || null);
 
     // 7. Check if meaningful change occurred
+    // P1-057: title/timestamp alone miss real changes — a follow-up in the same
+    // second bumps messageCount while timestamps stay identical.
+    const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
+    const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
+    const oldBodyLen = Array.isArray(old?.messages) ? old.messages.length : null;
+    const inBodyLen = Array.isArray(incoming?.messages) ? incoming.messages.length : null;
+    const oldAttCount = typeof (old as any)?.attachmentCount === 'number' ? (old as any).attachmentCount : null;
+    const inAttCount = typeof (incoming as any)?.attachmentCount === 'number' ? (incoming as any).attachmentCount : null;
     let isChanged = false;
     if (!old) {
         isChanged = true;
     } else if (
         old.title !== resolvedTitle ||
         (!old.timestamp && bestTimestamp) ||
-        (bestUpdatedAt && bestUpdatedAt !== oldUpdated)
+        (bestUpdatedAt && bestUpdatedAt !== oldUpdated) ||
+        (oldMsgCount !== null && inMsgCount !== null && oldMsgCount !== inMsgCount) ||
+        (oldBodyLen !== null && inBodyLen !== null && oldBodyLen !== inBodyLen) ||
+        ((oldBodyLen === null || oldBodyLen === 0) && inBodyLen !== null && inBodyLen > 0) ||
+        (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount)
     ) {
         isChanged = true;
     }
@@ -175,6 +190,21 @@ export function mergeConversation(
             ? incoming.sidebarIndex
             : old?.sidebarIndex
     };
+
+    // P1-056: message-body arbitration. Every other field above is last-writer-wins
+    // on the raw spread, so an incremental list entry carrying an empty/stale body
+    // merged after a detail fetch would wipe already-captured text, and the result
+    // would depend on merge order (not idempotent). A fuller existing body always
+    // wins over an empty or shorter incoming one; messageCount takes the max so a
+    // stale smaller count cannot regress either.
+    const oldBodyLen2 = Array.isArray(old?.messages) ? old.messages.length : 0;
+    const inBodyLen2 = Array.isArray(incoming?.messages) ? incoming.messages.length : 0;
+    if (oldBodyLen2 > 0 && inBodyLen2 < oldBodyLen2) {
+        merged.messages = old.messages;
+    }
+    if (oldMsgCount !== null && inMsgCount !== null) {
+        merged.messageCount = Math.max(oldMsgCount, inMsgCount);
+    }
 
     if (options?.now) {
         merged.lastSeen = options.now;
