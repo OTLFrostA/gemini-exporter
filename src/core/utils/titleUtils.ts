@@ -135,9 +135,14 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
     }
 
     // 3. Fallback to Takeout Prompt if present in chat.titles
+    // P1-107: this fallback used to accept ANY non-empty takeout title, even
+    // brand placeholders that step 1 explicitly rejected ("Google Gemini" etc.).
+    // Apply the same standard as step 1 so the two steps cannot contradict.
     if (chat.titles && chat.titles.takeout) {
         const rawTakeout = cleanTitle(chat.titles.takeout);
-        if (rawTakeout) return { title: rawTakeout, source: 'takeout' };
+        if (rawTakeout && (isRealTitle(rawTakeout, id) || !isBrandPlaceholderTitle(rawTakeout))) {
+            return { title: rawTakeout, source: 'takeout' };
+        }
     }
 
     return { title: '未命名对话', source: 'default' };
@@ -162,15 +167,50 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
 }
 
 /**
+ * P1-106: normalize the many timestamp shapes seen in the wild (pure-digit
+ * epoch strings, ISO strings, Date objects, numbers) into epoch milliseconds.
+ * Pure-digit strings are epoch seconds when short (< 1e11) and epoch
+ * milliseconds otherwise — previously `new Date("1726358400000")` produced an
+ * Invalid Date and the value was silently dropped. Returns null when the
+ * value cannot be interpreted as a positive timestamp.
+ */
+export function toTimestampMs(raw: any): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') {
+        // Numbers keep the historical contract: epoch milliseconds as-is
+        // (existing tests pin small values like 3000 to mean 3000ms).
+        return Number.isFinite(raw) && raw > 0 ? raw : null;
+    }
+    if (raw instanceof Date) {
+        const t = raw.getTime();
+        return Number.isFinite(t) && t > 0 ? t : null;
+    }
+    if (typeof raw === 'string') {
+        const s = raw.trim();
+        if (!s) return null;
+        if (/^\d+(\.\d+)?$/.test(s)) {
+            const n = Number(s);
+            if (!Number.isFinite(n) || n <= 0) return null;
+            // Pure-digit strings: short values are epoch seconds (a 10-digit
+            // value as ms would land in 1970), long values are epoch ms.
+            return n < 1e11 ? n * 1000 : n;
+        }
+        const t = new Date(s).getTime();
+        return Number.isFinite(t) && t > 0 ? t : null;
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
  * Get the authoritative effective timestamp (milliseconds) of a conversation.
  */
 export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): number {
     if (!chat || typeof chat !== 'object') return 0;
     const candidates = [chat.updatedAt, chat.timestamp, (chat as any).chatTime, chat.createdAt, (chat as any).lastSeen];
     for (const raw of candidates) {
-        if (raw === null || raw === undefined) continue;
-        let ms = (typeof raw === 'string') ? new Date(raw).getTime() : Number(raw);
-        if (Number.isFinite(ms) && ms > 0) {
+        const ms = toTimestampMs(raw);
+        if (ms !== null) {
             return ms;
         }
     }
@@ -195,13 +235,11 @@ export function compareConversations(a?: any, b?: any): number {
 
     let lsA = 0;
     if (a.lastSeen) {
-        lsA = (typeof a.lastSeen === 'string') ? new Date(a.lastSeen).getTime() : Number(a.lastSeen);
-        if (!Number.isFinite(lsA)) lsA = 0;
+        lsA = toTimestampMs(a.lastSeen) ?? 0;
     }
     let lsB = 0;
     if (b.lastSeen) {
-        lsB = (typeof b.lastSeen === 'string') ? new Date(b.lastSeen).getTime() : Number(b.lastSeen);
-        if (!Number.isFinite(lsB)) lsB = 0;
+        lsB = toTimestampMs(b.lastSeen) ?? 0;
     }
     return lsB - lsA;
 }
@@ -214,8 +252,10 @@ export function checkIsUpdated(c: any, rec?: any): boolean {
     if (!c || !rec) return false;
     try {
         const cTs = getEffectiveTimestamp(c);
-        const rTs = rec.exportedAt ? (typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt).getTime() : Number(rec.exportedAt)) : 0;
-        const rChatTime = (rec as any).chatTime ? (typeof (rec as any).chatTime === 'string' ? new Date((rec as any).chatTime).getTime() : Number((rec as any).chatTime)) : 0;
+        // P1-106: rec timestamps go through the same normalizer so pure-digit
+        // epoch strings (e.g. "1726358400000") are not silently dropped.
+        const rTs = toTimestampMs(rec.exportedAt) ?? 0;
+        const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
 
         // 1. Timestamp check with a 2000ms grace buffer for clock skew / write latency:
         // If chat timestamp advanced in Gemini past the export time or recorded chat time, it is updated.
@@ -271,6 +311,7 @@ export default {
     resolveTitle,
     resolveDetailTitle,
     setTitleBySource,
+    toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,

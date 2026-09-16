@@ -52,6 +52,7 @@ import GeminiUtils, {
     normId as utilsNormId,
     sanitizeRelativePath,
     buildExportFileName,
+    resolveExportFileName as utilsResolveExportFileName,
     getErrorMessage,
     checkIsUpdated as utilsCheckIsUpdated
 } from "../../utils/utils.js";
@@ -416,7 +417,7 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                 takeoutEngine = null
             } = options;
 
-            const { zip, folder, zipWriter, writeFileDirect } = await this._initWriter(options, onLog);
+            const { zip, folder, zipWriter, batchDirHandle, writeFileDirect } = await this._initWriter(options, onLog);
 
             const AssetPipelineClass = getAssetPipelineClass();
             const assetPipeline = AssetPipelineClass ? new AssetPipelineClass({
@@ -645,7 +646,23 @@ export const checkIsUpdated = (c: any, rec?: any): boolean =>
                     const content = formatted.content;
                     const ext = formatted.ext;
                     const safeBase = sanitizeFileName(listTitle, chat.id);
-                    const fileName = buildExportFileName(listTitle, chat.id, ext);
+                    // P1-102/103/104 compat: in direct-write mode, probe for a
+                    // legacy-rule filename on disk and reuse it, so upgrading
+                    // doesn't orphan the previously exported file with a
+                    // second, renamed copy. ZIP mode always starts from a fresh
+                    // archive, so no probing is needed there.
+                    const resolveName = (globalThis as any).GeminiUtils?.resolveExportFileName || utilsResolveExportFileName;
+                    const fileName = useZip
+                        ? buildExportFileName(listTitle, chat.id, ext)
+                        : await resolveName(listTitle, chat.id, ext, async (n: string) => {
+                            try {
+                                if (!batchDirHandle || typeof batchDirHandle.getFileHandle !== 'function') return false;
+                                await batchDirHandle.getFileHandle(n, { create: false });
+                                return true;
+                            } catch {
+                                return false;
+                            }
+                        });
 
                     const writeOk = await writeFileDirect(fileName, content);
 
