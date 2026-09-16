@@ -402,7 +402,11 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     titles: { takeout: promptTitle },
                     url: `https://gemini.google.com/app/${cleanId}`,
                     href: `https://gemini.google.com/app/${cleanId}`,
-                    timestamp: ts || Date.now(),
+                    // P1-085/P1-067 precedent: missing stays missing — never
+                    // fabricate Date.now() into the authoritative timestamp.
+                    // A fabricated "now" would win max-arbitration in merge and
+                    // permanently pollute the record. Null lets merge keep old.
+                    timestamp: ts ?? null,
                     lastSeen: ts ? new Date(ts).toISOString() : '',
                     source: 'takeout-import',
                     messageCount: turnMsgs.length,
