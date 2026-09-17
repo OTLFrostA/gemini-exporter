@@ -63,13 +63,5 @@ export const LogView: ILogView = {
     getBuffer
 };
 
-(LogView as any).LogView = LogView;
-(LogView as any).default = LogView;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).LogView = LogView;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = LogView;
-}
 export default LogView;

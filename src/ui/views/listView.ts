@@ -348,14 +348,6 @@ export const ListView: IListView = {
 };
 
 (ListView as any).checkIsUpdated = checkIsUpdated;
-(ListView as any).ListView = ListView;
-(ListView as any).default = ListView;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).ListView = ListView;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = ListView;
-}
 
 export default ListView;

@@ -402,14 +402,6 @@ export const OptionsSettings = {
     checkOnboardingTour
 };
 
-(OptionsSettings as any).OptionsSettings = OptionsSettings;
-(OptionsSettings as any).default = OptionsSettings;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).OptionsSettings = OptionsSettings;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsSettings;
-}
 
 export default OptionsSettings;

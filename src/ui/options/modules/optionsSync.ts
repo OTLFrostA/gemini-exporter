@@ -148,14 +148,6 @@ export const OptionsSync = {
     autoDetectActiveSlot
 };
 
-(OptionsSync as any).OptionsSync = OptionsSync;
-(OptionsSync as any).default = OptionsSync;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).OptionsSync = OptionsSync;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsSync;
-}
 
 export default OptionsSync;

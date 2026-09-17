@@ -601,14 +601,6 @@ export const OptionsExport = {
     retryFailedExport
 };
 
-(OptionsExport as any).OptionsExport = OptionsExport;
-(OptionsExport as any).default = OptionsExport;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).OptionsExport = OptionsExport;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsExport;
-}
 
 export default OptionsExport;

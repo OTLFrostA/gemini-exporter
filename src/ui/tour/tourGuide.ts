@@ -23,7 +23,7 @@ import { getExtensionVersion } from '../../core/utils/constants.js';
 export { STEPS } from './tourSteps.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
-const getTabService = () => (globalThis as any).TabService || TabService;
+const getTabService = () => __resolveModule('TabService', TabService);
 
 export function clearActionListeners(): void {
     if (typeof activeActionCleanup === 'function') {
@@ -448,17 +448,6 @@ export const TourGuide: TourGuideContract = {
     STEPS
 };
 
-(TourGuide as any).TourGuide = TourGuide;
-(TourGuide as any).default = TourGuide;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).TourGuide = TourGuide;
-}
-if (typeof window !== 'undefined') {
-    (window as any).TourGuide = TourGuide;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = TourGuide;
-}
 
 export default TourGuide;

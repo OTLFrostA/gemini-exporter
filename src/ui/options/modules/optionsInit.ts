@@ -271,14 +271,6 @@ export const OptionsInit = {
     getEffectiveTime
 };
 
-(OptionsInit as any).OptionsInit = OptionsInit;
-(OptionsInit as any).default = OptionsInit;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).OptionsInit = OptionsInit;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsInit;
-}
 
 export default OptionsInit;

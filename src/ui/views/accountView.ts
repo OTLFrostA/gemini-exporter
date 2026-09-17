@@ -42,13 +42,5 @@ export const AccountView: IAccountView = {
     bindChange
 };
 
-(AccountView as any).AccountView = AccountView;
-(AccountView as any).default = AccountView;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).AccountView = AccountView;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = AccountView;
-}
 export default AccountView;
