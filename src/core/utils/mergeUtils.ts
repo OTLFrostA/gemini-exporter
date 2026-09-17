@@ -22,6 +22,23 @@ export interface DeduplicateResult {
     hasDirtyTitles: boolean;
 }
 
+/**
+ * SSoT: "any authoritative title slot already holds a title" guard.
+ * The legacy fallback below must not fabricate a zombie `legacy` slot when a
+ * real source slot (rpc / api-detail / dom / takeout / sniff) already has a
+ * title. `legacy` itself is excluded (the guard checks it separately) and
+ * rank-0 `default` is intentionally not authoritative.
+ */
+function hasAuthoritativeTitleSlot(titles: Record<string, string | undefined>): boolean {
+    return Boolean(
+        titles.rpc ||
+        titles['api-detail'] ||
+        titles.dom ||
+        titles.takeout ||
+        titles.sniff
+    );
+}
+
 
 /**
  * SSoT: Merge an incoming conversation into an existing conversation.
@@ -41,7 +58,7 @@ export function mergeConversation(
         if (cleanOldT && (isRealTitle(cleanOldT, id) || old.titleSource === 'takeout')) {
             mergedTitles[old.titleSource] = cleanOldT;
         }
-    } else if (old && old.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
+    } else if (old && old.title && !mergedTitles.legacy && !hasAuthoritativeTitleSlot(mergedTitles)) {
         const cleanOldT = cleanTitle(old.title);
         if (cleanOldT && isRealTitle(cleanOldT, id)) {
             mergedTitles.legacy = cleanOldT;
@@ -80,7 +97,7 @@ export function mergeConversation(
                 mergedTitles[inSrc] = cleanT;
             }
         }
-    } else if (incoming?.title && !mergedTitles.legacy && !mergedTitles.rpc && !mergedTitles.dom && !mergedTitles.takeout) {
+    } else if (incoming?.title && !mergedTitles.legacy && !hasAuthoritativeTitleSlot(mergedTitles)) {
         const cleanT = cleanTitle(incoming.title);
         if (cleanT && isRealTitle(cleanT, id)) {
             mergedTitles.legacy = cleanT;
