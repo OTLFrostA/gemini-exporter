@@ -43,6 +43,7 @@ export interface ExportOrchestratorModule {
 }
 
 import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { AssetPipeline as AssetPipelineStatic } from "../assetPipeline.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
     sanitizeFileName as utilsSanitizeFileName,
@@ -215,7 +216,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
     const getGeminiTab = async (slot?: string): Promise<any> =>
         ((globalThis as any).TabService || TabService)?.getGeminiTab?.(slot) ?? null;
 
-    const getAssetPipelineClass = (): any => (globalThis as any).AssetPipeline || null;
+    const getAssetPipelineClass = (): any => __resolveModule('AssetPipeline', AssetPipelineStatic);
 
     class ExportOrchestrator {
         aborted: boolean;

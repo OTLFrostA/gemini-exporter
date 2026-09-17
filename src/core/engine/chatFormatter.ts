@@ -31,10 +31,6 @@ export interface ChatFormatterModule {
     formatContent: (chat: any, formatType?: string, opts?: ChatFormatterOptions) => FormattedResult;
 }
 
-declare global {
-    var ChatFormatter: ChatFormatterModule;
-}
-
 
     /**
      * Intelligently shift Markdown heading levels (e.g. # -> ###, ## -> ####)
@@ -486,6 +482,4 @@ export const ChatFormatter: ChatFormatterModule = {
     formatContent
 };
 
-(ChatFormatter as any).ChatFormatter = ChatFormatter;
-(ChatFormatter as any).default = ChatFormatter;
 export default ChatFormatter;

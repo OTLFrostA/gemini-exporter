@@ -48,10 +48,6 @@ export interface AssetPipelineInstance {
     processAsset: (item: any, chat: any, opts?: ProcessAssetOptions) => Promise<ProcessAssetResult>;
 }
 
-declare global {
-    var AssetPipeline: AssetPipelineClass;
-}
-
 import { sanitizeRelativePath } from "../utils/utils.js";
 import { I18n as I18nStatic } from "../utils/i18n.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
@@ -285,13 +281,4 @@ export {
     AssetPipeline
 };
 
-(AssetPipeline as any).AssetPipeline = AssetPipeline;
-(AssetPipeline as any).default = AssetPipeline;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).AssetPipeline) {
-    (globalThis as any).AssetPipeline = AssetPipeline;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = AssetPipeline;
-}
 export default AssetPipeline;

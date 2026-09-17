@@ -33,7 +33,6 @@ export interface TakeoutParserModule {
 }
 
 declare global {
-    var TakeoutParser: TakeoutParserModule;
     var JSZip: any;
     var I18n: any;
 }
@@ -58,7 +57,7 @@ export async function parseTakeoutZip(
         throw new Error('JSZip 库未加载，无法解析 ZIP');
     }
 
-    const guard = (typeof globalThis !== 'undefined' && (globalThis as any).ZipBombGuard) || ZipBombGuard;
+    const guard = ZipBombGuard;
     if (guard?.validateZipFile) {
         guard.validateZipFile(file);
     }
@@ -127,7 +126,7 @@ export async function parseTakeoutZip(
     const htmlText = await activityFile.async('text');
     if (onProgress) onProgress(70, (i18nInstance && typeof i18nInstance.t === 'function') ? i18nInstance.t('takeoutParsingDetail') : '正在解析对话并建立离线媒体索引...');
 
-    const mediaIdx = (typeof globalThis !== 'undefined' && (globalThis as any).MediaIndex) || MediaIndex;
+    const mediaIdx = MediaIndex;
     const extractC2PATime = mediaIdx?.extractC2PATimestamp || (() => null);
 
     const localGlobalMedia: Record<string, any> = {};
@@ -167,7 +166,7 @@ export async function parseTakeoutZip(
         }
     }
 
-    const parser = (typeof globalThis !== 'undefined' && (globalThis as any).TakeoutHtmlParser) || DefaultTakeoutHtmlParser;
+    const parser = DefaultTakeoutHtmlParser;
     const parseFn = parser?.parseTakeoutHtmlBlocks || parseTakeoutHtmlBlocks;
     const { extractedMap, localConvCache, localMediaMap, genBlocks } = await parseFn({
         htmlText,
@@ -205,13 +204,4 @@ export const TakeoutParser: TakeoutParserModule = {
     parseTakeoutZip
 };
 
-(TakeoutParser as any).TakeoutParser = TakeoutParser;
-(TakeoutParser as any).default = TakeoutParser;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).TakeoutParser) {
-    (globalThis as any).TakeoutParser = TakeoutParser;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = TakeoutParser;
-}
 export default TakeoutParser;
