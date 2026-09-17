@@ -255,7 +255,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             const userMsg: any = {
                 role: 'user',
                 content: promptText,
-                timestamp: ts || Date.now()
+                timestamp: ts ?? null
             };
             if (localMediaNames.length > 0) {
                 userMsg.images = localMediaNames.map(name => ({
@@ -280,7 +280,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             const modelTurn: any = {
                 role: 'model',
                 content: responseHtml,
-                timestamp: (ts ? ts + 2000 : Date.now())
+                timestamp: (ts ? ts + 2000 : null)
             };
 
             const isHtmlReport = /<h1[^>]*>/i.test(responseHtml) && responseHtml.length > 3000;

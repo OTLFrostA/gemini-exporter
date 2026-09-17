@@ -259,7 +259,7 @@ const log = (msg: string): void => {
                         title: finalTitle,
                         exportedAt: new Date().toISOString(),
                         messageCount: chat.messages?.length || 0,
-                        chatTime: chat.timestamp || Date.now(),
+                        chatTime: chat.timestamp ?? null,
                         status: 'ok'
                     };
                     await Storage.saveExportRecord(slot, convId, rec);
