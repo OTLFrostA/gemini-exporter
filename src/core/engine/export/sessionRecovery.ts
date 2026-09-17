@@ -54,6 +54,7 @@ declare global {
 
 import { normId as utilsNormId } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 
 const normId = (id?: string | number | null): string => {
@@ -73,8 +74,8 @@ export { EXT_VERSION, getExtensionVersion };
         useZip?: boolean
     ): Promise<void> {
         if (!metaResults || !metaResults.length) return;
-        const I18n = (globalThis as any).I18n;
-        const isZh = typeof I18n !== 'undefined' && I18n.getLang && I18n.getLang() === 'zh';
+        const I18n = __resolveModule('I18n', I18nStatic);
+        const isZh = I18n.getLang && I18n.getLang() === 'zh';
         let indexContent = isZh
             ? `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`
             : `# Gemini Conversation Export Index\n\n> Export Time: ${new Date().toLocaleString()} · Total Chats: ${landedChats} · Assets: ${downloadedAssets}/${totalAssets}\n\n| Conversation Title | Messages | Assets | Original URL | Exported File |\n| :--- | :--- | :--- | :--- | :--- |\n`;
@@ -189,8 +190,8 @@ export { EXT_VERSION, getExtensionVersion };
                     await writeFileDirect('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
                 }
             }
-            const I18n = (globalThis as any).I18n;
-            onLog(typeof I18n !== 'undefined' ? I18n.t('logDevLogWritten') : '🛠️ [开发者模式] 已自动将完整导出日志与诊断写入 _export_dev.log', 'info');
+            const I18n = __resolveModule('I18n', I18nStatic);
+            onLog(I18n.t('logDevLogWritten'), 'info');
         } catch (logWriteErr) {
             if (typeof console !== 'undefined' && console.error) {
                 console.error('Failed to write _export_dev.log', logWriteErr);

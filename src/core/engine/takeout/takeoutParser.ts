@@ -7,6 +7,8 @@
 
 import { normId as utilsNormId } from "../../utils/utils.js";
 import { ZipBombGuard } from "./zipBombGuard.js";
+import { I18n as I18nStatic } from "../../utils/i18n.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { MediaIndex } from "./mediaIndex.js";
 import {
     stripHtmlTags as htmlStripTags,
@@ -70,8 +72,8 @@ export async function parseTakeoutZip(
         guard.validateZipEntries(zip);
     }
 
-    const i18nInstance = typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n;
-    if (onProgress) onProgress(40, (i18nInstance && typeof i18nInstance.t === 'function') ? i18nInstance.t('takeoutParsingStructure') : '正在扫描 Takeout 目录结构...');
+    const i18nInstance = __resolveModule('I18n', I18nStatic);
+    if (onProgress) onProgress(40, i18nInstance.t('takeoutParsingStructure'));
 
     let activityFile: any = null;
     for (const [path, fObj] of Object.entries<any>(zip.files)) {

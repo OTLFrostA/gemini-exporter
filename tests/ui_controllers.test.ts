@@ -6,6 +6,16 @@ const { __setModuleOverride, __getModuleOverride, __resolveModule } = require('.
 if (!__resolveModule('GeminiProtocol', null)) {
     __setModuleOverride('GeminiProtocol', require('../src/core/protocol/protocol.js'));
 }
+// Mock I18n with Chinese strings for syncController error message tests
+__setModuleOverride('I18n', {
+    t: (key: string, ...args: any[]) => {
+        const zh: Record<string, string> = {
+            'syncConnectionFailedRefresh': '未能与 Gemini 建立连接，请刷新 gemini.google.com 页面后重试',
+            'syncFailed': `同步失败: ${args[0] || ''}`,
+        };
+        return zh[key] || key;
+    }
+});
 
 const DirHandleController = require('../src/ui/controllers/dirHandleController.js');
 const ExportController = require('../src/ui/controllers/exportController.js');

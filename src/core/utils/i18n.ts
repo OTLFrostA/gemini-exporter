@@ -191,8 +191,6 @@ export const I18n: I18nModule = {
     applyI18n
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).I18n = I18n;
-if (typeof module === 'object' && module.exports) module.exports = I18n;
 
 export default I18n;
 

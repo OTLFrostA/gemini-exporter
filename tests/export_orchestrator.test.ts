@@ -266,8 +266,8 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     assert.strictEqual(result.landedChats, 2, 'Only 2 chats (new and updated) should be exported');
     assert.strictEqual(result.skipped, 2, '2 chats (synced and old) should be skipped upfront');
     assert.deepStrictEqual(fetchedIds.sort(), ['chat-new', 'chat-updated'].sort(), 'Only new and updated chats should be fetched');
-    assert.ok(logs.some(l => (l.includes('Synced Conversation') || l.includes('chat-synced')) && l.includes('跳过')), 'Logs should report chat-synced skipped');
-    assert.ok(logs.some(l => (l.includes('Old Synced Conversation') || l.includes('chat-old')) && l.includes('跳过')), 'Logs should report chat-old skipped');
+    assert.ok(logs.some(l => (l.includes('Synced Conversation') || l.includes('chat-synced')) && (l.includes('跳过') || l.includes('skipped'))), 'Logs should report chat-synced skipped');
+    assert.ok(logs.some(l => (l.includes('Old Synced Conversation') || l.includes('chat-old')) && (l.includes('跳过') || l.includes('skipped'))), 'Logs should report chat-old skipped');
 });
 
 test('ExportOrchestrator - skip: true when all selected chats are up-to-date completes instantly without network calls or empty zip', async () => {
@@ -321,7 +321,7 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
     assert.strictEqual(result.skipped, 2, 'All 2 chats should be skipped');
     assert.strictEqual(result.failedChats.length, 0, 'Zero failures');
     assert.strictEqual(zipGenerated, false, 'No empty zip should be generated when all chats are skipped');
-    assert.ok(logs.some(l => l.includes('无需生成 ZIP')), 'Logs should confirm no zip generated');
+    assert.ok(logs.some(l => l.includes('无需生成 ZIP') || l.includes('No ZIP generated')), 'Logs should confirm no zip generated');
 });
 
 test('ExportOrchestrator - skip: false exports all selected chats regardless of export records', async () => {
