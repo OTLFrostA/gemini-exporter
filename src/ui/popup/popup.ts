@@ -255,11 +255,13 @@ const log = (msg: string): void => {
 
                 try {
                     const finalTitle = chat.title || convId;
+                    let chatTime = chat.timestamp ?? chat.updatedAt ?? null;
+                    if (typeof chatTime === 'string') chatTime = new Date(chatTime).getTime();
                     const rec = {
                         title: finalTitle,
                         exportedAt: new Date().toISOString(),
                         messageCount: chat.messages?.length || 0,
-                        chatTime: chat.timestamp || Date.now(),
+                        chatTime: (typeof chatTime === 'number' && Number.isFinite(chatTime)) ? chatTime : null,
                         status: 'ok'
                     };
                     await Storage.saveExportRecord(slot, convId, rec);

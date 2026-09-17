@@ -325,7 +325,7 @@ const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一�
                 if (drift.isDrifted) {
                     schemaDriftWarnings.push(...drift.warnings);
                 }
-                let ts = extractTurnTimestamp(turn) || Date.now();
+                let ts = extractTurnTimestamp(turn) ?? null;
                 let uText = extractUserTextFromPayload(turn?.[schema.TURN.USER_PAYLOAD]);
                 let uImgs = filterNewImages(extractImages(turn?.[schema.TURN.USER_PAYLOAD], imageSeq), dedupSet);
                 let uFiles = extractUserFiles(turn?.[schema.TURN.USER_PAYLOAD]).filter((f: UserFileAttachment) => {

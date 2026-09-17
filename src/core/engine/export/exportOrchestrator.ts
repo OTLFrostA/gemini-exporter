@@ -832,7 +832,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             landedChats++;
                             onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
                             if (!chat.error && !chat._empty) {
-                                let exportTs = listC?.timestamp || chat.timestamp || Date.now();
+                                let exportTs = listC?.timestamp ?? chat.timestamp ?? null;
                                 if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
                                 const record = {
                                     title: listTitle,

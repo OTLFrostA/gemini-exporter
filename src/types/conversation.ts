@@ -53,7 +53,8 @@ export type AuthorRole = 'user' | 'model' | 'assistant' | 'system';
 export interface ChatMessage {
     role: AuthorRole;
     content: string;
-    timestamp?: number;
+    /** Server-authoritative message time; null when the server provided none (never fabricate Date.now()). */
+    timestamp?: number | null;
     turnId?: string;
     attachments?: Attachment[];
     thoughts?: string | string[];
@@ -67,7 +68,7 @@ export type Message = ChatMessage;
 
 export interface Turn {
     id?: string;
-    timestamp?: number;
+    timestamp?: number | null;
     messages?: ChatMessage[];
     userContent?: string;
     modelContent?: string;
