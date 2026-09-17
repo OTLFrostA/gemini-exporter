@@ -168,9 +168,35 @@ function bindStorageCleanup(): void {
         log(typeof t === 'function' ? t('confirmClearExported') : '已清空已导出记录', 'info');
     });
 
-    $('btnClearAll')?.addEventListener('click', async () => {
-        const confirmMsg = typeof t === 'function' ? t('confirmClearAll') : '确定清空本地所有会话数据？';
-        if (!confirm(confirmMsg)) return;
+    const btnClearAll = $('btnClearAll') as HTMLButtonElement | null;
+    let clearAllTimeout: any = null;
+    let isConfirmingClear = false;
+
+    const resetClearBtn = () => {
+        if (!btnClearAll) return;
+        isConfirmingClear = false;
+        if (clearAllTimeout) {
+            clearTimeout(clearAllTimeout);
+            clearAllTimeout = null;
+        }
+        btnClearAll.textContent = typeof t === 'function' ? t('btnClearAll') : '清空全部';
+        btnClearAll.style.background = 'transparent';
+        btnClearAll.style.color = '#ff8a8a';
+        btnClearAll.style.borderColor = '#5a2a2a';
+    };
+
+    btnClearAll?.addEventListener('click', async () => {
+        if (!isConfirmingClear) {
+            isConfirmingClear = true;
+            btnClearAll.textContent = typeof t === 'function' ? (t('confirmClearAllInPlace') || '⚠️ 再次点击确认清空 (3s)') : '⚠️ 再次点击确认清空 (3s)';
+            btnClearAll.style.background = '#dc2626';
+            btnClearAll.style.color = '#ffffff';
+            btnClearAll.style.borderColor = '#ef4444';
+            clearAllTimeout = setTimeout(resetClearBtn, 3500);
+            return;
+        }
+
+        resetClearBtn();
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         if (Store) await Store.clearAll(slot);
         const convs = Store ? Store.getConversations() : [];
@@ -180,6 +206,12 @@ function bindStorageCleanup(): void {
             List.updateStat(convs);
         }
         log(typeof t === 'function' ? t('confirmClearAll') : '本地会话数据已清空');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (isConfirmingClear && e.target !== btnClearAll) {
+            resetClearBtn();
+        }
     });
 }
 
