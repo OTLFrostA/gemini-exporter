@@ -220,7 +220,7 @@ export async function startExportPipeline(
             includeIndex,
             includeAssets,
             useZip: includeZip,
-            dirHandle: DirHandle ? DirHandle.getDirHandle() : null,
+            dirHandle: dirHandle || (DirHandle ? DirHandle.getDirHandle() : null),
             currentSlot,
             conversations: convs,
             exportedIds,

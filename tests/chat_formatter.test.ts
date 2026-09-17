@@ -205,4 +205,34 @@ test('engine - SessionRecovery.updateSessionStatus updates chrome.storage.local 
     }
 });
 
+test('chat_formatter - natural language prompt > 400 chars with code keywords is never mangled into javascript fence', () => {
+    const longPrompt = 'Please explain the following architectural concepts in detail. In JavaScript and TypeScript, developers often ask why const and let were introduced to replace var in ES6, and how lexical scoping works with closures inside a function() declaration. ' + 'Extra discussion text for length padding. '.repeat(10);
+    assert.ok(longPrompt.length > 400);
+    const mockChat = {
+        id: 'natural_lang_prompt_test',
+        title: 'Variable Scoping',
+        messages: [
+            { role: 'user', content: longPrompt },
+            { role: 'model', content: 'Here is the detailed explanation of const vs var.' }
+        ]
+    };
+    const res = ChatFormatter.formatContent(mockChat, 'markdown');
+    assert.ok(!res.content.includes('```javascript\nPlease explain'), 'Natural language prompt must not be wrapped in javascript code block');
+    assert.ok(res.content.includes('Please explain the following architectural concepts'), 'Prompt content must remain plain text');
+});
+
+test('chat_formatter - raw userscript header is properly wrapped into javascript fence', () => {
+    const rawUserscript = '// ==UserScript==\n// @name Test\n// @match *://*/*\n// ==/UserScript==\nconsole.log(1);';
+    const mockChat = {
+        id: 'userscript_test',
+        title: 'Script Chat',
+        messages: [
+            { role: 'user', content: rawUserscript }
+        ]
+    };
+    const res = ChatFormatter.formatContent(mockChat, 'markdown');
+    assert.ok(res.content.includes('```javascript\n// ==UserScript=='), 'Raw userscript header should be wrapped in code fence');
+});
+
+
 

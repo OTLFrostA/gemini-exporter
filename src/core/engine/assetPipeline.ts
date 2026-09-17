@@ -161,8 +161,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                 }
             }
 
-            // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
-            // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
             if (r && r.success && !hasValidBuffer(r) && !hasValidB64(r) && typeof chrome !== 'undefined' && chrome.tabs) {
                 const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                 if (fallbackTab && fallbackTab.id) {
@@ -180,7 +178,13 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             let failReason = '';
             if (r && r.success) {
                 const isValidBuffer = hasValidBuffer(r);
-                const bytes = isValidBuffer ? new Uint8Array((r.dataBuffer as any).buffer || r.dataBuffer) : null;
+                const bytes = isValidBuffer ? (
+                    typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer
+                        ? new Uint8Array(r.dataBuffer)
+                        : (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer)
+                            ? new Uint8Array(r.dataBuffer.buffer, r.dataBuffer.byteOffset, r.dataBuffer.byteLength)
+                            : new Uint8Array(r.dataBuffer))
+                ) : null;
                 const b64 = (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null));
 
                 if (this.useZip) {
