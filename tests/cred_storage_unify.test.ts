@@ -29,7 +29,7 @@ function freshModules() {
     try {
         credStorage = require('../src/core/api/client/credStorage.js');
     } catch { /* pre-fix: shared module not yet created */ }
-    const credManager = require('../src/core/api/client/credentialManager.js');
+    const credManager = require('../src/core/api/client/credentialManager.js').default;
     const bootstrap = require('../src/content/bootstrap.js');
     return { credStorage, credManager, bootstrap };
 }

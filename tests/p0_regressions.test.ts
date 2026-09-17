@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 const StorageService = require('../src/core/storage/storageService.js');
-const CredManager = require('../src/core/api/client/credentialManager.js');
+const CredManager = require('../src/core/api/client/credentialManager.js').default;
 const BatchWorker = require('../src/core/engine/export/batchWorker.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
