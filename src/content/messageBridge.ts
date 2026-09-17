@@ -57,7 +57,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         isRealTitle = () => true,
         cleanTitle = (t: string) => (t || '').trim(),
         updateBadge,
-        Storage = (typeof StorageService !== 'undefined' ? StorageService : null)
+        Storage = StorageService
     } = _deps;
 
     // 1. Captured batchexecute response (Sidebar scroll, search, page load, opening any chat)
@@ -68,7 +68,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             const parser = (typeof GeminiResponseParserClass !== 'undefined' ? GeminiResponseParserClass : null)
                 || ((typeof globalThis !== 'undefined' ? (globalThis as any).GeminiResponseParserClass : null) || null);
             if (!parser) return;
-            const Proto = (_deps && _deps.protocol) || (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : ((typeof window !== 'undefined' && (window as any).GeminiProtocol) || null));
+            const Proto = (_deps && _deps.protocol) || GeminiProtocol;
             if (!Proto) return;
 
             // If response contains conversation list (sidebar scroll or search)

@@ -2,7 +2,7 @@
 import type { Conversation } from "../../types/index.js";
 import { normId, isVersionGreater as utilsIsVersionGreater } from "../utils/pathUtils.js";
 import { isTakeoutConversation } from "../utils/titleUtils.js";
-import { STORAGE_KEYS, exportedIdsKey } from "../utils/constants.js";
+import { STORAGE_KEYS } from "../utils/constants.js";
 import { getCredStorage } from "../api/client/credStorage.js";
 
 
@@ -78,10 +78,6 @@ export interface StorageServiceModule {
     setHasImportedTakeout: (imported?: boolean) => Promise<void>;
 }
 
-declare global {
-    var StorageService: any;
-}
-
 
 
     function normSlot(slot?: string | null): string {
@@ -95,7 +91,7 @@ declare global {
         return {
             slot: s,
             convKey: s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`,
-            expKey: exportedIdsKey(s),
+            expKey: s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`,
             syncKey: s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`,
             countKey: s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`,
             checkpointKey: s === 'u0' ? 'gemini_scan_checkpoint' : `gemini_scan_checkpoint_${s}`
@@ -729,9 +725,5 @@ export const StorageService: StorageServiceModule = {
     setHasImportedTakeout
 };
 
-if (typeof globalThis !== 'undefined' && !(globalThis as any).StorageService) {
-    (globalThis as any).StorageService = StorageService;
-}
-if (typeof module === 'object' && module.exports) module.exports = StorageService;
 
 export default StorageService;

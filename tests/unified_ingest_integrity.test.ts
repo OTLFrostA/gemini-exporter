@@ -15,6 +15,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 const syncEngine = require('../src/content/syncEngine.js');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 const { upsertConversations } = syncEngine;
 
 function listItem(id: string, tsMs: number, title: string, messagesLen = 3) {
@@ -85,7 +86,7 @@ function mockStorageContext() {
             sendMessage: () => {}
         }
     };
-    (global as any).StorageService = mockStorage;
+    __setModuleOverride('StorageService', mockStorage);
 
     return {
         wasTransactionInvoked: () => transactionInvoked,

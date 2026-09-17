@@ -55,7 +55,9 @@ test('P1-077 - typed self-mounts, no as-any escape hatches', () => {
     assert.strictEqual(Proto.GeminiProtocol, Proto, 'self mount intact');
     assert.strictEqual(Proto.default, Proto, 'default mount intact');
     assert.strictEqual(Proto.CrossWorldEvents, Proto.EVENTS, 'events mount intact');
-    assert.strictEqual(globalThis.GeminiProtocol, Proto, 'globalThis mount intact');
+    // Phase 1c: the globalThis mount was intentionally removed — protocol now
+    // resolves via static import (or the __setModuleOverride test seam).
+    assert.strictEqual((globalThis as any).GeminiProtocol, undefined, 'globalThis mount must stay gone');
     const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/protocol/protocol.ts'), 'utf8');
     assert.ok(!/^\s*\/\/\s*@ts-ignore/m.test(src), '@ts-ignore directive must be gone');
     const codeOnly = src.replace(/\/\/.*$/gm, '');

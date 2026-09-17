@@ -125,7 +125,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         // Mark conversation as exported in exportedIds SSoT
         try {
             const slot = accountSlot || 'u0';
-            if (typeof StorageService !== 'undefined' && StorageService?.saveExportRecord) {
+            if (StorageService?.saveExportRecord) {
                 await StorageService.saveExportRecord(slot, nid, {
                     exportedAt: new Date(now).toISOString(),
                     title: safeTitle,

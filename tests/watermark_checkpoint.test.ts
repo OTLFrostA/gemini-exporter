@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
 const SyncEngine = require('../src/content/syncEngine.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 const Pagination = require('../src/core/api/client/pagination.js');
 
 function mockStorageContext(initialCheckpoint: number | null = null) {
@@ -58,7 +59,7 @@ function mockStorageContext(initialCheckpoint: number | null = null) {
             }
         }
     };
-    (global as any).StorageService = mockStorage;
+    __setModuleOverride('StorageService', mockStorage);
 
     return {
         getSavedList: () => savedList,
@@ -83,8 +84,8 @@ function makeItem(id: string, timestamp: number, title: string = `Chat ${id}`) {
 
 test('1. StorageService - scan checkpoint persistence and slot isolation', async () => {
     const origChrome = (global as any).chrome;
-    const origStorage = (global as any).StorageService;
-    delete (global as any).StorageService;
+    const prevStorageOverride = __getModuleOverride('StorageService');
+    __setModuleOverride('StorageService', undefined as any); // ensure the real module is used
 
     const mockStorage: Record<string, any> = {};
     (global as any).chrome = {
@@ -134,7 +135,7 @@ test('1. StorageService - scan checkpoint persistence and slot isolation', async
         assert.strictEqual(await StorageService.getScanCheckpoint('u1'), 1700000200000);
     } finally {
         (global as any).chrome = origChrome;
-        (global as any).StorageService = origStorage;
+        __setModuleOverride('StorageService', prevStorageOverride);
     }
 });
 

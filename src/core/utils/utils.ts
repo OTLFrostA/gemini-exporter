@@ -149,7 +149,6 @@ export interface GeminiUtilsModule {
 }
 
 declare global {
-    var GeminiUtils: GeminiUtilsModule;
     var __gemExporterDevMode: boolean | undefined;
     var __gemExporterVerboseLog: boolean | undefined;
     var __gemExporterLogAll: boolean | undefined;
@@ -204,11 +203,5 @@ export const GeminiUtils: GeminiUtilsModule = {
     getErrorMessage
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).GeminiUtils = GeminiUtils;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = GeminiUtils;
-}
 
 export default GeminiUtils;

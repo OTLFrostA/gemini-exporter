@@ -220,7 +220,6 @@ if (typeof globalThis !== 'undefined') {
     (globalThis as any).OptionsTakeout = OptionsTakeout;
     (globalThis as any).OptionsSettings = OptionsSettings;
     (globalThis as any).TourGuide = TourGuide;
-    (globalThis as any).ConversationsStore = ConversationsStore;
     (globalThis as any).ListView = ListView;
     (globalThis as any).AccountView = AccountView;
     (globalThis as any).DialogView = DialogView;

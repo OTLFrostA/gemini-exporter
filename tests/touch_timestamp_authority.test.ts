@@ -2,6 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const SyncEngine = require('../src/content/syncEngine.js');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // SSOT timestamp authority: timestamp/updatedAt are server-authoritative.
 // touchActiveConversation (stream start/complete, live turn) must NOT stamp the
@@ -24,7 +25,7 @@ function mockStorageContext() {
         setScanCheckpoint: async (_s: any, ts: number | null) => { checkpoint = ts; }
     };
     (global as any).chrome = { runtime: { sendMessage: () => {} } };
-    (global as any).StorageService = mockStorage;
+    __setModuleOverride('StorageService', mockStorage);
     return {
         seed: (items: any[]) => { savedList = items.map(c => ({ ...c })); },
         getSavedList: () => savedList,

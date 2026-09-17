@@ -3,6 +3,7 @@ import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { contentContext } from './contentContext.js';
+import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { ensureCreds } from './bootstrap.js';
 import { SyncEngine } from './syncEngine.js';
 import { PageObserver } from './pageObserver.js';
@@ -52,10 +53,10 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     const Router = MessageRouter;
     const Badge = BadgeView;
     const Bridge = MessageBridge;
-    const Storage = (typeof StorageService !== 'undefined' ? StorageService : null) as any;
+    const Storage = StorageService as any;
     const Scraper = DomScraper;
     const Assets = AssetFetcher;
-    const Utils = (typeof GeminiUtils !== 'undefined' ? GeminiUtils : null) as any;
+    const Utils = GeminiUtils as any;
 
     function getAccountSlot(): string {
         return Sync ? Sync.getAccountSlot() : 'u0';
@@ -145,7 +146,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
             updateBadge: Sync.updateBadge,
             ensureBadge,
             Storage,
-            protocol: typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : null,
+            protocol: GeminiProtocol,
             onStreamStart: (cid) => {
                 if (LiveSaveObserver && typeof LiveSaveObserver.notifyStreamStart === 'function') {
                     LiveSaveObserver.notifyStreamStart(cid);

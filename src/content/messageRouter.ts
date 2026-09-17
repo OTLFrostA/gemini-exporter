@@ -39,8 +39,8 @@ export function init({
     syncEngine = SyncEngine,
     scraper = DomScraper,
     assets = AssetFetcher,
-    storage = (typeof StorageService !== 'undefined' ? StorageService : null),
-    utils = (typeof GeminiUtils !== 'undefined' ? GeminiUtils : null)
+    storage = StorageService,
+    utils = GeminiUtils
 }: MessageRouterDeps = {}): void {
     const Sync = syncEngine;
     const Scraper = scraper;
