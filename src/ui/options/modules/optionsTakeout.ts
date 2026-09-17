@@ -7,6 +7,7 @@ import {
     getTakeoutCtrl
 } from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
+import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -50,10 +51,10 @@ export async function maybePromptTakeout(count: number = 600, hitGoogleLimit: bo
 export async function checkPendingTakeoutPrompt(): Promise<void> {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            const data = await chrome.storage.local.get(['gemini_pending_takeout_prompt']);
-            if (data && data.gemini_pending_takeout_prompt) {
-                const info = data.gemini_pending_takeout_prompt;
-                await chrome.storage.local.remove('gemini_pending_takeout_prompt');
+            const data = await chrome.storage.local.get([STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]);
+            if (data && data[STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]) {
+                const info = data[STORAGE_KEYS.PENDING_TAKEOUT_PROMPT];
+                await chrome.storage.local.remove(STORAGE_KEYS.PENDING_TAKEOUT_PROMPT);
                 await maybePromptTakeout((info as any).count || 600, !!(info as any).hitGoogleLimit);
             }
         }

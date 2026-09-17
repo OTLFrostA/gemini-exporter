@@ -6,6 +6,8 @@ export interface StorageKeyMap {
     FORMAT: string;
     ZIP: string;
     DEV_MODE: string;
+    LANG: string;
+    PENDING_TAKEOUT_PROMPT: string;
     SUPPRESS_DIRECT_WRITE_PROMPT: string;
     CREDENTIALS_MAP: string;
     CREDENTIALS: string;
@@ -33,6 +35,8 @@ export const STORAGE_KEYS: StorageKeyMap = {
     FORMAT: 'gemini_export_format',
     ZIP: 'gemini_export_zip',
     DEV_MODE: 'gemini_dev_mode',
+    LANG: 'gemini_exporter_lang',
+    PENDING_TAKEOUT_PROMPT: 'gemini_pending_takeout_prompt',
     SUPPRESS_DIRECT_WRITE_PROMPT: 'gemini_suppress_direct_write_prompt',
     CREDENTIALS_MAP: 'gemini_credentials_map',
     CREDENTIALS: 'gemini_credentials'
