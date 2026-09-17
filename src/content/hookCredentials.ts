@@ -31,7 +31,6 @@ import type {
             if (!url) return;
             const u = url.toString();
             if (!u.includes('batchexecute')) return;
-            // Extract at, f.sid, bl
             let atMatch = u.match(/[?&]at=([^&]+)/) || (body && typeof body === 'string' && body.match(/at=([^&]+)/));
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);

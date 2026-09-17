@@ -163,7 +163,6 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             const Storage = getStorage();
             const config: LiveSaveConfig = await Storage.getLiveConfig();
 
-            // If Disk save is not enabled, do nothing
             if (!config.enabledDisk) {
                 return false;
             }
