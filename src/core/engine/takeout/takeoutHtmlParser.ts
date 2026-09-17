@@ -12,6 +12,7 @@ import {
 } from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { ChatFormatter } from "../chatFormatter.js";
 import type { Conversation } from "../../../types/index.js";
 
 export interface ParseTakeoutHtmlOptions {
@@ -288,7 +289,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                 if (h1Match) {
                     docTitle = unescapeHtmlEntities(stripHtmlTags(h1Match[1])).trim();
                 }
-                const convHtml = (globalThis as any).ChatFormatter?.convertHtmlToMarkdown;
+                const convHtml = ChatFormatter.convertHtmlToMarkdown;
                 let docMd = convHtml ? convHtml(responseHtml) : responseHtml.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
                 if (!docMd.trim().startsWith('#')) {
                     docMd = `# ${docTitle}\n\n${docMd.trim()}`;

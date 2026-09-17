@@ -65,6 +65,7 @@ import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
 import { createWriter } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
+import { ChatFormatter } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
 
 import { EXT_VERSION, getExtensionVersion, exportedIdsKey } from "../../utils/constants.js";
@@ -707,10 +708,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             }
                         }
 
-                        const ChatFormatter = (globalThis as any).ChatFormatter;
-                        const formatted = typeof ChatFormatter !== 'undefined' && ChatFormatter.formatContent
-                            ? ChatFormatter.formatContent(chat, format)
-                            : { content: JSON.stringify(chat, null, 2), ext: 'json' };
+                        const formatted = ChatFormatter.formatContent(chat, format);
 
                         const content = formatted.content;
                         const ext = formatted.ext;

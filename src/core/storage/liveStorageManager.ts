@@ -95,8 +95,4 @@ declare global {
     var LiveStorageManager: any;
 }
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).LiveStorageManager = LiveStorageManager;
-}
-
 export default LiveStorageManager;

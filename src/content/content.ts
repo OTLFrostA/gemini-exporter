@@ -116,8 +116,8 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         LiveSaveCoordinator.init({
             storageManager: LiveStorageManager,
             scraper: Scraper,
-            formatter: typeof ChatFormatter !== 'undefined' ? ChatFormatter : (w.ChatFormatter || null),
-            fsWriterClass: typeof FsWriter !== 'undefined' ? FsWriter : (w.FsWriter || null),
+            formatter: ChatFormatter,
+            fsWriterClass: FsWriter,
             utils: Utils,
             badge: Badge
         });

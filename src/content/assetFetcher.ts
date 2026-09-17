@@ -460,9 +460,5 @@ export const AssetFetcher = {
 (AssetFetcher as any).AssetFetcher = AssetFetcher;
 (AssetFetcher as any).default = AssetFetcher;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).AssetFetcher = AssetFetcher;
-}
-
 export default AssetFetcher;
 

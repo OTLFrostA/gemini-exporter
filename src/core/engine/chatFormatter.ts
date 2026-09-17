@@ -485,11 +485,4 @@ export const ChatFormatter: ChatFormatterModule = {
 
 (ChatFormatter as any).ChatFormatter = ChatFormatter;
 (ChatFormatter as any).default = ChatFormatter;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).ChatFormatter) {
-    (globalThis as any).ChatFormatter = ChatFormatter;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = ChatFormatter;
-}
 export default ChatFormatter;
