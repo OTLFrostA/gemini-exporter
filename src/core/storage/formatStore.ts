@@ -28,10 +28,6 @@ export interface FormatStoreModule {
     handleDevToggle: (devOn: boolean, currentFormatOrSelect: any) => DevToggleResult;
 }
 
-declare global {
-    var FormatStore: FormatStoreModule;
-}
-
 import { ALLOWED_FORMATS as CONST_ALLOWED_FORMATS, DEFAULT_FORMAT as CONST_DEFAULT_FORMAT } from "../utils/constants.js";
 
 export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'json_openai', 'json', 'json_raw'];
@@ -147,9 +143,6 @@ export const FormatStore: FormatStoreModule = {
     bindFormatSelect,
     handleDevToggle
 };
-
-if (typeof globalThis !== 'undefined') (globalThis as any).FormatStore = FormatStore;
-if (typeof module === 'object' && module.exports) module.exports = FormatStore;
 
 export default FormatStore;
 

@@ -237,8 +237,5 @@ export const TabService: TabServiceModule = {
     sendToAITab
 };
 
-if (typeof globalThis !== 'undefined' && !(globalThis as any).TabService) (globalThis as any).TabService = TabService;
-if (typeof module === 'object' && module.exports) module.exports = TabService;
-
 export default TabService;
 

@@ -95,12 +95,5 @@ export const SessionStore = {
     clearSession
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).SessionStore = SessionStore;
-if (typeof module === 'object' && module.exports) {
-    module.exports = SessionStore;
-    (module.exports as any).SessionStore = SessionStore;
-    (module.exports as any).default = SessionStore;
-}
-
 export default SessionStore;
 

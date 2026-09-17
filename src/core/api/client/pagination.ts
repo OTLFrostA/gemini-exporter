@@ -302,9 +302,4 @@ export const GeminiClientPagination: GeminiClientPaginationModule = {
     getConversationDetail
 };
 
-if (typeof globalThis !== "undefined" && !(globalThis as any).GeminiClientPagination) {
-}
-if (typeof module === "object" && module.exports) {
-    module.exports = GeminiClientPagination;
-}
 export default GeminiClientPagination;
