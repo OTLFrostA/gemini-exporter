@@ -1,6 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // Regression: optionsExport's onTitleUpdated used to be a pure in-memory dirty
@@ -24,11 +25,11 @@ function installMocks() {
     // stored copy is a separate object, like the real chrome.storage.local copy
     storedConvs = [JSON.parse(JSON.stringify(seedConversation()))];
     updateCalls = [];
-    (globalThis as any).ConversationsStore = {
+    __setModuleOverride('ConversationsStore', {
         getConversations: () => memConvs,
         getCurrentSlot: () => 'u0',
-    };
-    (globalThis as any).StorageService = {
+    });
+    __setModuleOverride('StorageService', {
         updateConversation: async (slot: string, id: string, updater: (c: any) => void) => {
             updateCalls.push({ slot, id });
             const target = storedConvs.find((c) => c && c.id === id);
@@ -36,16 +37,16 @@ function installMocks() {
             updater(target);
             return true;
         },
-    };
+    });
 }
 
 function loadPersistTitleUpdate(): (chatId: string, newTitle: string, source: string) => Promise<void> {
     const mod = require('../src/ui/options/modules/optionsExport.js');
     // NOTE: requiring the module transitively loads conversationsStore.ts and
-    // storageService.ts, which self-register the REAL implementations on
-    // globalThis and clobber the mocks installed above. Re-install afterwards
-    // (getStore()/getStorage() read globalThis lazily, so this takes effect).
-    installMocks();
+    // storageService.ts, but their self-registration only touches the legacy
+    // globalThis entry — the explicit overrides installed above keep priority,
+    // so the mocks stay effective without re-installing (this re-install hack
+    // was the old globalThis clobbering this seam was built to eliminate).
     assert.strictEqual(
         typeof mod.persistTitleUpdate,
         'function',
@@ -96,8 +97,8 @@ test('persistTitleUpdate ignores unknown ids (no storage write)', async () => {
 test('persistTitleUpdate still updates memory when storage write is unavailable', async () => {
     installMocks();
     const persistTitleUpdate = loadPersistTitleUpdate();
-    // break storage AFTER the mock re-install above: no updateConversation
-    (globalThis as any).StorageService = {};
+    // break storage AFTER the mocks are installed above: no updateConversation
+    __setModuleOverride('StorageService', {});
 
     await persistTitleUpdate('c_aaa111', '从RPC解析到的新标题', 'rpc');
 

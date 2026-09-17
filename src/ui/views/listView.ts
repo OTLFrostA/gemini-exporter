@@ -1,5 +1,8 @@
 // src/ui/views/listView.ts - List rendering, no storage
 import type { Conversation } from '../../types/conversation.js';
+import { __resolveModule } from '../../core/utils/moduleOverrides.js';
+
+const gu = (): any => __resolveModule('GeminiUtils', null);
 import type { ExportRecord, IListView } from '../../types/ui.js';
 
 import {
@@ -13,20 +16,20 @@ import { $, t } from '../uiCommon.js';
 import { normId } from '../../core/utils/pathUtils.js';
 
 export const isRealTitle = (title?: string | null, id?: string | null): boolean =>
-    (globalThis as any).GeminiUtils?.isRealTitle ? (globalThis as any).GeminiUtils.isRealTitle(title, id) : utilsIsRealTitle(title, id || undefined);
+    gu()?.isRealTitle ? gu().isRealTitle(title, id) : utilsIsRealTitle(title, id || undefined);
 
 export const cleanTitle = (tStr?: string | null): string =>
-    (globalThis as any).GeminiUtils?.cleanTitle ? (globalThis as any).GeminiUtils.cleanTitle(tStr) : utilsCleanTitle(tStr);
+    gu()?.cleanTitle ? gu().cleanTitle(tStr) : utilsCleanTitle(tStr);
 
 export const resolveTitle = (chat: any): { title: string; source: string } =>
-    (globalThis as any).GeminiUtils?.resolveTitle ? (globalThis as any).GeminiUtils.resolveTitle(chat) : utilsResolveTitle(chat);
+    gu()?.resolveTitle ? gu().resolveTitle(chat) : utilsResolveTitle(chat);
 
 export const getEffectiveTimestamp = (chat?: any): number =>
-    (globalThis as any).GeminiUtils?.getEffectiveTimestamp ? (globalThis as any).GeminiUtils.getEffectiveTimestamp(chat) : utilsGetEffectiveTimestamp(chat);
+    gu()?.getEffectiveTimestamp ? gu().getEffectiveTimestamp(chat) : utilsGetEffectiveTimestamp(chat);
 
 export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
-    return (globalThis as any).GeminiUtils?.checkIsUpdated
-        ? (globalThis as any).GeminiUtils.checkIsUpdated(c, rec)
+    return gu()?.checkIsUpdated
+        ? gu().checkIsUpdated(c, rec)
         : utilsCheckIsUpdated(c, rec);
 }
 

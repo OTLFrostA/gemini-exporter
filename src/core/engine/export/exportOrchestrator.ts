@@ -46,6 +46,7 @@ declare global {
     var ExportOrchestrator: any;
 }
 
+import { __resolveModule } from "../../utils/moduleOverrides.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
     sanitizeFileName as utilsSanitizeFileName,
@@ -73,32 +74,32 @@ import { shortId } from "../../utils/pathUtils.js";
 import { EXT_VERSION, getExtensionVersion, exportedIdsKey } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
-const getUtils = (): GeminiUtilsModule | null => (globalThis as any).GeminiUtils || GeminiUtils;
+const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', GeminiUtils);
 const getProgressReporter = (): any => (globalThis as any).ProgressReporter || progressReporterModule;
 const getBatchWorker = (): BatchWorkerModule => (globalThis as any).BatchWorker || BatchWorker;
 const getSessionRecovery = (): SessionRecoveryModule => (globalThis as any).SessionRecovery || SessionRecovery;
 const getRateLimiter = (): RateLimitModule => (globalThis as any).RateLimitModule || rateLimitModule;
 
 export const sanitizeFileName = (name?: string | null, fallback?: string): string =>
-    ((globalThis as any).GeminiUtils?.sanitizeFileName || utilsSanitizeFileName)(name, fallback);
+    (((__resolveModule('GeminiUtils', null) as any)?.sanitizeFileName) || utilsSanitizeFileName)(name, fallback);
 
 export const normId = (id?: string | number | null): string =>
-    ((globalThis as any).GeminiUtils?.normId || utilsNormId)(id);
+    (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
 
 export const sanitizeZipPath = (p?: string | null): string =>
-    ((globalThis as any).GeminiUtils?.sanitizeRelativePath || sanitizeRelativePath)(p, 'file');
+    (((__resolveModule('GeminiUtils', null) as any)?.sanitizeRelativePath) || sanitizeRelativePath)(p, 'file');
 
 export const checkIsUpdated = (c: any, rec?: any): boolean =>
-    ((globalThis as any).GeminiUtils?.checkIsUpdated || utilsCheckIsUpdated)(c, rec);
+    (((__resolveModule('GeminiUtils', null) as any)?.checkIsUpdated) || utilsCheckIsUpdated)(c, rec);
 
 export const setTitleBySource = (chat: any, source?: string, rawTitle?: string): any =>
-    ((globalThis as any).GeminiUtils?.setTitleBySource || utilsSetTitleBySource)(chat, source, rawTitle);
+    (((__resolveModule('GeminiUtils', null) as any)?.setTitleBySource) || utilsSetTitleBySource)(chat, source, rawTitle);
 
 export const cleanTitle = (rawTitle?: string | null): string =>
-    ((globalThis as any).GeminiUtils?.cleanTitle || utilsCleanTitle)(rawTitle);
+    (((__resolveModule('GeminiUtils', null) as any)?.cleanTitle) || utilsCleanTitle)(rawTitle);
 
 export const isRealTitle = (title?: string | null, id?: string | number): boolean =>
-    ((globalThis as any).GeminiUtils?.isRealTitle || utilsIsRealTitle)(title, id);
+    (((__resolveModule('GeminiUtils', null) as any)?.isRealTitle) || utilsIsRealTitle)(title, id);
 
 /**
  * Applies an export-time title write-back from a list-snapshot conversation
@@ -275,7 +276,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
             const slot = currentSlot || 'u0';
-            const Storage = (typeof (globalThis as any).StorageService !== 'undefined') ? (globalThis as any).StorageService : ((globalThis as any).StorageService || null);
+            const Storage = __resolveModule('StorageService', null);
             let curIds = Storage ? await Storage.getExportedIds(slot) : {};
             if (!Storage && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 const expKey = exportedIdsKey(slot);
@@ -689,7 +690,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         }
 
                         if (needUpdateStorage) {
-                            const storageService = Storage || (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : null);
+                            const storageService = Storage || __resolveModule('StorageService', null);
                             if (storageService && typeof storageService.updateConversation === 'function') {
                                 try {
                                     await storageService.updateConversation(currentSlot, nid, (existing: any) => {
@@ -719,7 +720,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         const ext = formatted.ext;
                         const safeBase = sanitizeFileName(listTitle, chat.id);
                         // In direct-write mode, probe for existing filename on disk to reuse
-                        const resolveName = (globalThis as any).GeminiUtils?.resolveExportFileName || utilsResolveExportFileName;
+                        const resolveName = (((__resolveModule('GeminiUtils', null) as any)?.resolveExportFileName) || utilsResolveExportFileName);
                         const fileName = useZip
                             ? buildExportFileName(listTitle, chat.id, ext)
                             : await resolveName(listTitle, chat.id, ext, async (n: string) => {

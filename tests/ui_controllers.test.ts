@@ -2,8 +2,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-if (typeof globalThis !== 'undefined' && !(globalThis as any).GeminiProtocol) {
-    (globalThis as any).GeminiProtocol = require('../src/core/protocol/protocol.js');
+const { __setModuleOverride, __getModuleOverride, __resolveModule } = require('../src/core/utils/moduleOverrides.js');
+if (!__resolveModule('GeminiProtocol', null)) {
+    __setModuleOverride('GeminiProtocol', require('../src/core/protocol/protocol.js'));
 }
 
 const DirHandleController = require('../src/ui/controllers/dirHandleController.js');
@@ -209,15 +210,15 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
     ];
     let saved: any = null;
     let saveCalls = 0;
-    const origStore = (globalThis as any).ConversationsStore;
-    const origEngine = (globalThis as any).TakeoutEngine;
-    const origStorage = (globalThis as any).StorageService;
-    (globalThis as any).ConversationsStore = {
+    const origStore = __getModuleOverride('ConversationsStore');
+    const origEngine = __getModuleOverride('TakeoutEngine');
+    const origStorage = __getModuleOverride('StorageService');
+    __setModuleOverride('ConversationsStore', {
         getConversations: () => existing,
         getCurrentSlot: () => 'u0',
         setConversations: (list: any) => { saved = list; },
-    };
-    (globalThis as any).StorageService = {
+    });
+    __setModuleOverride('StorageService', {
         transactConversations: async (_slot: string, updater: any) => {
             const plan = updater(existing);
             if (!plan) return { list: existing, changed: 0, written: false };
@@ -227,8 +228,8 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
         },
         setTakeoutPromptCompleted: async () => {},
         setHasImportedTakeout: async () => {}
-    };
-    (globalThis as any).TakeoutEngine = {
+    });
+    __setModuleOverride('TakeoutEngine', {
         parseTakeoutZip: async () => ({
             conversations: [
                 { id: 'chat-online-1', title: 'Takeout Prefix Question', titleSource: 'takeout', titles: { takeout: 'Takeout Prefix' }, messageCount: 2, updatedAt: 1000, timestamp: 1000, lastSeen: '2026-09-01T12:00:00.000Z' },
@@ -237,7 +238,7 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
             ],
             totalMediaCount: 0,
         }),
-    };
+    });
     try {
         let result: any = null;
         await TakeoutController.handleTakeoutImport({} as any, {
@@ -260,9 +261,9 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
             ['chat-takeout-fresh', 'chat-online-1', 'chat-takeout-old']
         );
     } finally {
-        (globalThis as any).ConversationsStore = origStore;
-        (globalThis as any).TakeoutEngine = origEngine;
-        (globalThis as any).StorageService = origStorage;
+        __setModuleOverride('ConversationsStore', origStore);
+        __setModuleOverride('TakeoutEngine', origEngine);
+        __setModuleOverride('StorageService', origStorage);
     }
 });
 
@@ -271,14 +272,14 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
         { id: 'chat-1', title: 'Same Title', titleSource: 'takeout', titles: { takeout: 'Same Title' }, messageCount: 2, updatedAt: 1000, timestamp: 1000 },
     ];
     let saveCalls = 0;
-    const origStore = (globalThis as any).ConversationsStore;
-    const origEngine = (globalThis as any).TakeoutEngine;
-    const origStorage = (globalThis as any).StorageService;
-    (globalThis as any).ConversationsStore = {
+    const origStore = __getModuleOverride('ConversationsStore');
+    const origEngine = __getModuleOverride('TakeoutEngine');
+    const origStorage = __getModuleOverride('StorageService');
+    __setModuleOverride('ConversationsStore', {
         getConversations: () => existing,
         getCurrentSlot: () => 'u0',
-    };
-    (globalThis as any).StorageService = {
+    });
+    __setModuleOverride('StorageService', {
         transactConversations: async (_slot: string, updater: any) => {
             const plan = updater(existing);
             if (!plan) return { list: existing, changed: 0, written: false };
@@ -287,15 +288,15 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
         },
         setTakeoutPromptCompleted: async () => {},
         setHasImportedTakeout: async () => {}
-    };
-    (globalThis as any).TakeoutEngine = {
+    });
+    __setModuleOverride('TakeoutEngine', {
         parseTakeoutZip: async () => ({
             conversations: [
                 { id: 'chat-1', title: 'Same Title', titleSource: 'takeout', titles: { takeout: 'Same Title' }, messageCount: 2, updatedAt: 1000, timestamp: 1000 },
             ],
             totalMediaCount: 0,
         }),
-    };
+    });
     try {
         let result: any = null;
         await TakeoutController.handleTakeoutImport({} as any, {
@@ -304,8 +305,8 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
         assert.strictEqual(result.addedCount, 0);
         assert.strictEqual(saveCalls, 0, 'zero-change import must not rewrite the store');
     } finally {
-        (globalThis as any).ConversationsStore = origStore;
-        (globalThis as any).TakeoutEngine = origEngine;
-        (globalThis as any).StorageService = origStorage;
+        __setModuleOverride('ConversationsStore', origStore);
+        __setModuleOverride('TakeoutEngine', origEngine);
+        __setModuleOverride('StorageService', origStorage);
     }
 });
