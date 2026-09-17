@@ -64,6 +64,7 @@ import {
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
+import TabService from "../../utils/tabService.js";
 
 const injectedUtils = (): any => __resolveModule('GeminiUtils', null);
 
@@ -151,7 +152,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
     ): Promise<FetchChatDetailResult> {
         const nid = normId(requestedItem.id);
         const messageSender = options.messageSender || null;
-        const tabService = options.tabService || __resolveModule('TabService', null);
+        const tabService = options.tabService || __resolveModule('TabService', TabService);
 
         return new Promise<FetchChatDetailResult>(async (resolve) => {
             let settled = false;

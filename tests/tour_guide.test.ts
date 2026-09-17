@@ -60,12 +60,12 @@ __setModuleOverride('StorageService', {
     setTourCompleted: async (v: any) => { tourStatusMock = !!v; }
 });
 
-// Mock TabService
-(global as any).TabService = {
+// Mock TabService (via the module seam; the legacy globalThis mount is gone)
+__setModuleOverride('TabService', {
     checkGeminiStatus: async () => ({ status: 'CONNECTED' }),
     openGeminiPage: async () => {},
     reloadGeminiTab: async () => {}
-};
+});
 
 // Mock I18n
 __setModuleOverride('I18n', {
