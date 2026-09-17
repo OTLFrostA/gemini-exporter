@@ -1,6 +1,7 @@
 // src/ui/state/conversationsStore.ts - State layer, no DOM rendering, only data + storage
 import type { Conversation } from '../../types/conversation.js';
 import type { ExportRecord, IConversationsStore } from '../../types/ui.js';
+import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 
 import StorageService from '../../core/storage/storageService.js';
 import GeminiUtils, {
@@ -14,14 +15,8 @@ let exportedIds: Record<string, ExportRecord> = {};
 let currentSlot: string = 'u0';
 let accountSlots: Record<string, any> = {};
 
-const getStorage = (): any => {
-    if (typeof (globalThis as any).StorageService !== 'undefined') return (globalThis as any).StorageService;
-    return StorageService;
-};
-const getUtils = (): any => {
-    if (typeof (globalThis as any).GeminiUtils !== 'undefined') return (globalThis as any).GeminiUtils;
-    return GeminiUtils;
-};
+const getStorage = (): any => __resolveModule('StorageService', StorageService);
+const getUtils = (): any => __resolveModule('GeminiUtils', GeminiUtils);
 
 export const normId = (id?: string | null): string => {
     const utils = getUtils();

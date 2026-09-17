@@ -1,5 +1,6 @@
 // src/ui/tour/tourGuide.ts - Interactive Spotlight Onboarding Guide for Gemini Exporter
 import type { TourGuideContract } from '../../types/ui.js';
+import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 
 let currentStep = 0;
 let isActive = false;
@@ -21,7 +22,7 @@ import { positionElements as positionTourElements } from './tourPosition.js';
 import { getExtensionVersion } from '../../core/utils/constants.js';
 export { STEPS } from './tourSteps.js';
 
-const getStorage = () => (globalThis as any).StorageService || StorageService;
+const getStorage = () => __resolveModule('StorageService', StorageService);
 const getTabService = () => (globalThis as any).TabService || TabService;
 
 export function clearActionListeners(): void {

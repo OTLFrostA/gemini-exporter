@@ -1,14 +1,15 @@
 // src/ui/controllers/takeoutController.ts - Takeout Import Controller
 import type { TakeoutControllerContract } from '../../types/ui.js';
 import TakeoutEngine from '../../core/engine/takeoutEngine.js';
+import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
 import { deduplicateConversations as staticDeduplicateConversations } from '../../core/utils/mergeUtils.js';
 import { t, normId } from '../uiCommon.js';
 
-const getTakeoutEngine = () => (globalThis as any).TakeoutEngine || TakeoutEngine;
-const getStore = () => (globalThis as any).ConversationsStore || ConversationsStore;
-const getStorage = () => (globalThis as any).StorageService || StorageService;
+const getTakeoutEngine = () => __resolveModule('TakeoutEngine', TakeoutEngine);
+const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
+const getStorage = () => __resolveModule('StorageService', StorageService);
 
 export async function handleTakeoutImport(
     file: File,
@@ -46,7 +47,7 @@ export async function handleTakeoutImport(
             if (Store && typeof Store.normalizeAndDeduplicate === 'function') {
                 return Store.normalizeAndDeduplicate(list);
             }
-            const injected = (globalThis as any).GeminiUtils;
+            const injected = __resolveModule('GeminiUtils', null);
             if (injected && typeof injected.deduplicateConversations === 'function') {
                 return injected.deduplicateConversations(list);
             }

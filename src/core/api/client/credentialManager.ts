@@ -1,6 +1,7 @@
 import GeminiProtocol, { GeminiProtocolModule } from "../../protocol/protocol.js";
 import { detectSlotFromUrl } from "../../utils/pathUtils.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { getCredStorage } from "./credStorage.js";
 
 export interface GeminiCredentials {
@@ -28,10 +29,7 @@ declare global {
 }
 
 function getProtocol(): GeminiProtocolModule {
-    if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
-        return (globalThis as any).GeminiProtocol;
-    }
-    return GeminiProtocol;
+    return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
     const generateFallbackSid = () => String(Math.floor(Math.random() * 1e19));

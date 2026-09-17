@@ -3,6 +3,7 @@ import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
+import { __resolveModule } from '../core/utils/moduleOverrides.js';
 import {
     getErrorMessage,
     cleanTitle,
@@ -18,10 +19,10 @@ import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
 
-const getStorage = () => (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
+const getStorage = () => __resolveModule('StorageService', StorageService);
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
-const getProtocol = () => (typeof (globalThis as any).GeminiProtocol !== 'undefined' ? (globalThis as any).GeminiProtocol : GeminiProtocol);
+const getProtocol = () => __resolveModule('GeminiProtocol', GeminiProtocol);
 const resolveProvider = () => {
     const url = (typeof location !== 'undefined' && location.href) || '';
     return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();

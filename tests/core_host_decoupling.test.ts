@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import * as GeminiUtils from '../src/core/utils/utils.js';
-(globalThis as any).GeminiUtils = GeminiUtils;
+import { __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
+__setModuleOverride('GeminiUtils', GeminiUtils);
 
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
 import * as BatchWorker from '../src/core/engine/export/batchWorker.js';

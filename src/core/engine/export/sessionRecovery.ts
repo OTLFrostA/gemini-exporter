@@ -53,13 +53,11 @@ declare global {
 }
 
 import { normId as utilsNormId } from "../../utils/utils.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 
 const normId = (id?: string | number | null): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.normId) {
-        return (globalThis as any).GeminiUtils.normId(id);
-    }
-    return utilsNormId(id);
+    return (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
 };
 
 import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";

@@ -63,66 +63,78 @@ import {
     cleanZeroWidth as utilsCleanZeroWidth,
     isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle
 } from "../../utils/utils.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
+
+const injectedUtils = (): any => __resolveModule('GeminiUtils', null);
 
 const normId = (id?: string | number | null): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.normId) {
-        return (globalThis as any).GeminiUtils.normId(id);
+    const injected = injectedUtils();
+    if (injected?.normId) {
+        return injected.normId(id);
     }
     return utilsNormId(id);
 };
 
 const shortScope = (id?: string | number | null): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.shortScope) {
-        return (globalThis as any).GeminiUtils.shortScope(id);
+    const injected = injectedUtils();
+    if (injected?.shortScope) {
+        return injected.shortScope(id);
     }
     return utilsShortScope(id as any);
 };
 
 const cleanTitle = (t?: string | null): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.cleanTitle) {
-        return (globalThis as any).GeminiUtils.cleanTitle(t);
+    const injected = injectedUtils();
+    if (injected?.cleanTitle) {
+        return injected.cleanTitle(t);
     }
     return utilsCleanTitle(t);
 };
 
 const unescapeHtml = (t?: string | null): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.unescapeHtml) {
-        return (globalThis as any).GeminiUtils.unescapeHtml(t);
+    const injected = injectedUtils();
+    if (injected?.unescapeHtml) {
+        return injected.unescapeHtml(t);
     }
     return utilsUnescapeHtml(t);
 };
 
 const stripHtmlTags = (t?: string | null): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.stripHtmlTags) {
-        return (globalThis as any).GeminiUtils.stripHtmlTags(t);
+    const injected = injectedUtils();
+    if (injected?.stripHtmlTags) {
+        return injected.stripHtmlTags(t);
     }
     return utilsStripHtmlTags(t);
 };
 
 const isRealTitle = (t?: string | null, fallbackId?: string | number): boolean => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.isRealTitle) {
-        return (globalThis as any).GeminiUtils.isRealTitle(t, fallbackId);
+    const injected = injectedUtils();
+    if (injected?.isRealTitle) {
+        return injected.isRealTitle(t, fallbackId);
     }
     return utilsIsRealTitle(t, fallbackId);
 };
 
 const resolveTitle = (chat?: any) => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.resolveTitle) {
-        return (globalThis as any).GeminiUtils.resolveTitle(chat);
+    const injected = injectedUtils();
+    if (injected?.resolveTitle) {
+        return injected.resolveTitle(chat);
     }
     return utilsResolveTitle(chat);
 };
 
 const cleanZeroWidth = (t?: any): string => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.cleanZeroWidth) {
-        return (globalThis as any).GeminiUtils.cleanZeroWidth(t);
+    const injected = injectedUtils();
+    if (injected?.cleanZeroWidth) {
+        return injected.cleanZeroWidth(t);
     }
     return utilsCleanZeroWidth(t);
 };
 
 const isBrandPlaceholderTitle = (t?: any): boolean => {
-    if (typeof globalThis !== 'undefined' && (globalThis as any).GeminiUtils?.isBrandPlaceholderTitle) {
-        return (globalThis as any).GeminiUtils.isBrandPlaceholderTitle(t);
+    const injected = injectedUtils();
+    if (injected?.isBrandPlaceholderTitle) {
+        return injected.isBrandPlaceholderTitle(t);
     }
     return utilsIsBrandPlaceholderTitle(t);
 };
@@ -360,7 +372,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             const I18n = (globalThis as any).I18n;
             if (isConfirmedDeleted) {
                 try {
-                    const storage = typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : (typeof window !== 'undefined' && (window as any).StorageService);
+                    const storage = __resolveModule('StorageService', (typeof window !== 'undefined' && (window as any).StorageService) || null);
                     if (storage && typeof storage.removeConversation === 'function') {
                         await storage.removeConversation(currentSlot || 'u0', nid);
                         const sender = options.messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);

@@ -11,6 +11,7 @@ import {
     stripHtmlTags as utilsStripHtmlTags
 } from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
 import type { Conversation } from "../../../types/index.js";
 
 export interface ParseTakeoutHtmlOptions {
@@ -147,10 +148,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
     const { htmlText, zipFiles, onProgress } = options;
     const normIdFn = options.normIdFn || ((id?: string | null) => {
         try {
-            if (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils?.normId) {
-                return (globalThis as any).GeminiUtils.normId(id);
-            }
-            return utilsNormId(id);
+            return (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
         } catch {
             if (!id) return "";
             return String(id).replace(/^c_/, "").trim();

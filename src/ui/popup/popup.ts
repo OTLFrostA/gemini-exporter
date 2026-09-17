@@ -2,6 +2,7 @@
 
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
+import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
 import {
@@ -14,7 +15,7 @@ import { $, getI18n } from '../uiCommon.js';
 import { sendTypedMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
 
-const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
+const getStorage = () => __resolveModule('StorageService', StorageService);
 
 const log = (msg: string): void => {
     try {
@@ -81,10 +82,10 @@ const log = (msg: string): void => {
             updateUiForTabState(isGemini);
 
             let count = 0;
-            const convs = await Storage.getConversations(slot);
+            const convs = await getStorage().getConversations(slot);
             count = convs.length;
             if (!count) {
-                const syncInfo = await Storage.getLastSync(slot);
+                const syncInfo = await getStorage().getLastSync(slot);
                 count = syncInfo?.count || 0;
             }
             const badge = $('countBadge');
@@ -223,7 +224,7 @@ const log = (msg: string): void => {
                 chat.title = cleanTitle(chat.title);
                 if (!chat.title || chat.title === 'Untitled conversation') {
                     try {
-                        const list = Storage ? await Storage.getConversations(slot) : [];
+                        const list = getStorage() ? await getStorage().getConversations(slot) : [];
                         const found = list.find((c: any) => c.id === convId || c.id === `c_${convId}`);
                         if (found && found.title) chat.title = cleanTitle(found.title);
                     } catch (e) {
@@ -262,15 +263,15 @@ const log = (msg: string): void => {
                         chatTime: chat.timestamp || Date.now(),
                         status: 'ok'
                     };
-                    await Storage.saveExportRecord(slot, convId, rec);
+                    await getStorage().saveExportRecord(slot, convId, rec);
                     // SSOT: title write-back goes through the title-tier arbitration
                     // inside the conversation lock. The old shape raw-assigned
                     // item.title and blind-wrote the list outside the lock: it could
                     // clobber a concurrent tab's sync and let a lower-tier title
                     // overwrite a higher-tier one.
-                    if (finalTitle !== convId && Storage && typeof Storage.updateConversation === 'function') {
+                    if (finalTitle !== convId && getStorage() && typeof getStorage().updateConversation === 'function') {
                         const tier = res && res.source === 'dom' ? 'dom' : 'rpc';
-                        await Storage.updateConversation(slot, convId, (current: any) => {
+                        await getStorage().updateConversation(slot, convId, (current: any) => {
                             if (!current) return null;
                             const item = { ...current, titles: { ...(current.titles || {}) } };
                             const beforeTitle = item.title;

@@ -10,6 +10,7 @@ const assert = require('node:assert');
 
 const StorageService = require('../src/core/storage/storageService.js');
 const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 const IdbHandleStore = require('../src/core/storage/idbHandleStore.js');
 const FormatStore = require('../src/core/storage/formatStore.js');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
@@ -297,7 +298,7 @@ test('P1-052: dir handle is published to memory only after the IDB write succeed
         setDirHandle(h: any) { this.handle = h; },
         getDirHandle() { return this.handle; },
     };
-    (globalThis as any).DirHandleController = mem;
+    __setModuleOverride('DirHandleController', mem);
     const prevIDB = (globalThis as any).indexedDB;
     try {
         // Failure path: no IndexedDB -> saveStoredDirHandle returns false.
@@ -324,7 +325,7 @@ test('P1-052: dir handle is published to memory only after the IDB write succeed
         assert.strictEqual(okClear, true);
         assert.strictEqual(mem.handle, null);
     } finally {
-        delete (globalThis as any).DirHandleController;
+        __setModuleOverride('DirHandleController', undefined);
         if (prevIDB === undefined) delete (globalThis as any).indexedDB;
         else (globalThis as any).indexedDB = prevIDB;
     }

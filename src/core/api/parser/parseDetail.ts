@@ -1,6 +1,7 @@
 // parseDetail.ts - hNvQHb conversation detail RPC response parser
 import type { Message, TitleSources } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
 import type { TurnDriftReport } from "./extractors.js";
 import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
 
@@ -110,11 +111,11 @@ function getAttachments(): any {
 }
 
 function getUtils(): any {
-    return (typeof globalThis !== "undefined" && (globalThis as any).GeminiUtils) || GeminiUtils;
+    return __resolveModule('GeminiUtils', GeminiUtils);
 }
 
 function getProtocol(): any {
-    return (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) || GeminiProtocol;
+    return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
 function getSchema(): any {
