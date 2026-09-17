@@ -1,5 +1,5 @@
 import type { SyncControllerContract } from '../../types/ui.js';
-import GeminiProtocol, { LIMITS } from '../../core/protocol/protocol.js';
+import GeminiProtocol from '../../core/protocol/protocol.js';
 import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
 import { sendTypedMessage } from '../../core/utils/messaging.js';

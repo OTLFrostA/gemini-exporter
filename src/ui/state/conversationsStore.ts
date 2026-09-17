@@ -2,13 +2,10 @@
 import type { Conversation } from '../../types/conversation.js';
 import type { ExportRecord, IConversationsStore } from '../../types/ui.js';
 
-import StorageService, { type StorageServiceModule } from '../../core/storage/storageService.js';
+import StorageService from '../../core/storage/storageService.js';
 import GeminiUtils, {
-    type GeminiUtilsModule,
     normId as utilsNormId,
     deduplicateConversations as utilsDeduplicateConversations,
-    resolveTitle as utilsResolveTitle,
-    compareConversations as utilsCompareConversations,
     isTakeoutConversation
 } from '../../core/utils/utils.js';
 

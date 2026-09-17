@@ -1,4 +1,3 @@
-import type { GeminiParserExtractorsModule } from "./extractors.js";
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../utils/chipUtils.js";
 
 export interface ImageAttachment {

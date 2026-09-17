@@ -1,6 +1,5 @@
 // progressReporter.ts - Progress calculation, logging callbacks, and session state persistence
 
-import type { ExportProgressMessage } from '../../../types/index.js';
 import { SessionStore } from '../../storage/sessionStore.js';
 
 export interface ProgressReporterOptions {

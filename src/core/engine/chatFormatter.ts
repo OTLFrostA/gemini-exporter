@@ -3,7 +3,7 @@
  * Unified export formatter for Gemini conversations.
  * Supports Markdown (Obsidian / Notion / Logseq optimized), OpenAI JSON, Standard JSON, and Raw JSON.
  */
-import type { Conversation, ChatMessage, Attachment } from "../../types/conversation.js";
+import type { ChatMessage, Attachment } from "../../types/conversation.js";
 import { unescapeHtml } from "../utils/utils.js";
 import { stripInternalChipMarkdown } from "../utils/chipUtils.js";
 import { normId } from "../utils/pathUtils.js";

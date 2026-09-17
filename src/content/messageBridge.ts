@@ -57,7 +57,6 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         isRealTitle = () => true,
         cleanTitle = (t: string) => (t || '').trim(),
         updateBadge,
-        ensureBadge,
         Storage = (typeof StorageService !== 'undefined' ? StorageService : null)
     } = _deps;
 

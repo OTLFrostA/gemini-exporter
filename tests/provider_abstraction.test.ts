@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
 
-import { ProviderRegistry, ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';
+import { ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { ChatGPTProvider, flattenChatGPTMapping } from '../src/core/provider/chatgpt/chatgptProvider.js';
 import ChatFormatter from '../src/core/engine/chatFormatter.js';

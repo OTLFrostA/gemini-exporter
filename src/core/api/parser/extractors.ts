@@ -1,5 +1,4 @@
 // extractors.ts - JSPB Schema, unified tree walker, candidate, title, and timestamp extractors
-import type { Conversation } from "../../../types/index.js";
 
 export interface JspbTurnSchema {
     ID_META: number;

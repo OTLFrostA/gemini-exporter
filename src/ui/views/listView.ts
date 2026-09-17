@@ -2,7 +2,7 @@
 import type { Conversation } from '../../types/conversation.js';
 import type { ExportRecord, IListView } from '../../types/ui.js';
 
-import GeminiUtils, {
+import {
     isRealTitle as utilsIsRealTitle,
     cleanTitle as utilsCleanTitle,
     resolveTitle as utilsResolveTitle,
@@ -40,13 +40,11 @@ function escapeHtml(str?: string | null): string {
         .replace(/'/g, '&#39;');
 }
 
-let onDeleteCallback: ((chatId: string) => void) | null = null;
-export function setOnDelete(cb: (chatId: string) => void): void {
-    onDeleteCallback = cb;
+export function setOnDelete(_cb: (chatId: string) => void): void {
+    // Preserved for IListView contract
 }
 
 let currentConversationsRef: Conversation[] = [];
-let currentOnDeleteChatRef: ((chatId: string) => void) | null = null;
 
 function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): void {
     if (!list || list._delegated) return;
@@ -93,7 +91,6 @@ export function render(
     const list = $('list') as (HTMLElement & { _delegated?: boolean }) | null;
     if (!list) return;
     currentConversationsRef = conversations || [];
-    currentOnDeleteChatRef = onDeleteChat || onDeleteCallback;
     ensureListDelegation(list);
 
     if (!conversations || !conversations.length) {

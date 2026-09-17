@@ -62,8 +62,8 @@ import GeminiUtils, {
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
-import rateLimitModule, { RateLimitManager, isRateLimited, calculateBackoff, type RateLimitModule } from "./rateLimiter.js";
-import progressReporterModule, { ProgressReporter, type ProgressReporterModule } from "./progressReporter.js";
+import rateLimitModule, { isRateLimited, calculateBackoff, type RateLimitModule } from "./rateLimiter.js";
+import progressReporterModule, { ProgressReporter } from "./progressReporter.js";
 import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
 import { createWriter } from "../writers/writerInterface.js";
@@ -490,8 +490,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             let metaResults: any[] = [];
 
             const totalChats = totalSelected || payloadIds.length;
-            let currentExportTitle = '';
-            let currentExportIdx = skipped;
 
             const I18n = (globalThis as any).I18n;
 

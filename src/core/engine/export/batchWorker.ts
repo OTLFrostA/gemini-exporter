@@ -1,5 +1,4 @@
 // batchWorker.ts - Single-chat remote fetching, exponential rate-limit backoff, and title/media resolution
-import type { GeminiUtilsModule } from "../../utils/utils.js";
 
 export interface FetchChatDetailOptions {
     messageSender?: any;
@@ -53,7 +52,7 @@ declare global {
     var BatchWorker: BatchWorkerModule;
 }
 
-import GeminiUtils, {
+import {
     normId as utilsNormId,
     shortScope as utilsShortScope,
     cleanTitle as utilsCleanTitle,
@@ -127,8 +126,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
     }
     return utilsIsBrandPlaceholderTitle(t);
 };
-
-const isBadBrand = isBrandPlaceholderTitle;
 
     async function fetchChatDetail(
         requestedItem: any,

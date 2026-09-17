@@ -1,5 +1,4 @@
 // src/core/engine/assetPipeline.ts - Dedicated Asset Download & Persistence Pipeline
-import type { GeminiUtilsModule } from "../utils/utils.js";
 
 export interface ProcessAssetOptions {
     isImage?: boolean;

@@ -1,5 +1,4 @@
 // parseList.ts - MaZiqc conversation list RPC response parser
-import type { GeminiParserExtractorsModule, GeminiJspbSchema } from "./extractors.js";
 
 export interface ConversationListItem {
     id: string;

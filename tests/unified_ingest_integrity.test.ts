@@ -17,8 +17,6 @@ const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 const syncEngine = require('../src/content/syncEngine.js');
 const { upsertConversations } = syncEngine;
 
-const NOW = 1757980000000;
-
 function listItem(id: string, tsMs: number, title: string, messagesLen = 3) {
     return {
         id,

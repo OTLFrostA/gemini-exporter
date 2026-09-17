@@ -1,8 +1,7 @@
 // src/content/assetFetcher.ts - In-page authenticated blob and asset fetching handler
 import { contentContext } from './contentContext.js';
 
-const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024; // 超过50MB避免 FileReader base64 内存翻倍，交由 Takeout 兜底
-const LARGE_FILE_WARN_SIZE = 30 * 1024 * 1024;
+const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024;
 const GG_CHAIN_MAX_HOPS = 5;
 
 export function ensureAlr(url: string): string {

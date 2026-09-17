@@ -6,14 +6,13 @@
  */
 
 import { normId as utilsNormId } from "../../utils/utils.js";
-import { ZipBombGuard, type ZipBombGuardModule } from "./zipBombGuard.js";
-import { MediaIndex, type MediaIndexModule } from "./mediaIndex.js";
+import { ZipBombGuard } from "./zipBombGuard.js";
+import { MediaIndex } from "./mediaIndex.js";
 import {
     stripHtmlTags as htmlStripTags,
     parseTakeoutHtmlBlocks,
     correlateGeneratedImages,
-    TakeoutHtmlParser as DefaultTakeoutHtmlParser,
-    type TakeoutHtmlParserModule
+    TakeoutHtmlParser as DefaultTakeoutHtmlParser
 } from "./takeoutHtmlParser.js";
 import { TakeoutParseError } from "../../../types/errors.js";
 import type { Conversation } from "../../../types/index.js";

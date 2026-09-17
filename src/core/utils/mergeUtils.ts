@@ -1,7 +1,7 @@
 // mergeUtils.ts - Conversation merging and deduplication utilities
 
 import { normId, isReservedRoute } from './pathUtils.js';
-import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle, TITLE_TIER_RANK } from './titleUtils.js';
+import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle } from './titleUtils.js';
 
 export interface MergeConversationOptions {
     isRpcSource?: boolean;
@@ -116,14 +116,6 @@ export function mergeConversation(
 
     let oldUpdated: any = toTimestampMs(old?.updatedAt ?? old?.timestamp);
     if (oldUpdated !== null && oldUpdated <= 0) oldUpdated = null;
-
-    const isRpcSource = options?.isRpcSource ?? (
-        options?.source === 'network-list' ||
-        options?.source === 'network-detail' ||
-        (typeof options?.source === 'string' && options.source.startsWith('stream-')) ||
-        incoming?.titleSource === 'rpc' ||
-        incoming?.source === 'network-list'
-    );
 
     let bestUpdatedAt: number | null = null;
     if (cUpdated && oldUpdated) {
