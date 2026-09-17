@@ -61,9 +61,10 @@ export async function retryFailedExport(): Promise<void> {
     const failedIds = new Set<string>();
     for (const c of failedList) {
         if (c.id) {
+            // Single add is enough: List.selectByIds() normalizes every id with
+            // normId() before matching, so 'c_<id>' / raw variants collapse to
+            // the same key. No need to pre-expand aliases here.
             failedIds.add(c.id);
-            failedIds.add(normId(c.id));
-            failedIds.add('c_' + normId(c.id));
         }
     }
     if (List && typeof List.selectByIds === 'function') {
