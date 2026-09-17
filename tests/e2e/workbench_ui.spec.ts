@@ -126,9 +126,9 @@ test.describe('Workbench UI & Selection Controls', () => {
 
     await page.evaluate(async () => {
       await chrome.storage.local.clear();
-      const Store = (window as any).Store;
-      if (Store && typeof Store.setConversations === 'function') {
-        Store.setConversations([]);
+      const ConversationsStore = (window as any).ConversationsStore;
+      if (ConversationsStore && typeof ConversationsStore.setConversations === 'function') {
+        ConversationsStore.setConversations([]);
       }
       const now = Date.now();
       const mockConvs = [

@@ -179,6 +179,14 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         }
     }
 
+    // Test-only hook (paired with the MAIN-world __geminiExporterSyncOnce in
+    // hookCredentials.ts): lets Playwright specs trigger a real Sync.syncOnce()
+    // against the live DOM. DOM events cross the isolated/main world boundary,
+    // so no script injection is needed. No production behavior.
+    document.addEventListener('gemini-exporter:test-sync-once', () => {
+        if (Sync) Sync.syncOnce();
+    });
+
     // Initialize Page Observer (handles pushState, popstate, MutationObserver and clean intervals)
     if (Observer && Observer.init) {
         Observer.init({
