@@ -105,9 +105,3 @@ ProviderRegistry.setDefaultProviderId('gemini');
 
 export default GeminiProvider;
 
-declare global {
-    var GeminiProvider: any;
-}
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).GeminiProvider = GeminiProvider;
-}

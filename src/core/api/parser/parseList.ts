@@ -25,12 +25,6 @@ export interface GeminiParserParseListModule {
     parseList: (text: string) => ListParseResult;
 }
 
-declare global {
-    var GeminiParserParseList: GeminiParserParseListModule;
-    var extractListItemTimestamp: (item: unknown) => number | null;
-    var parseList: (text: string) => ListParseResult;
-}
-
 import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
 import { payloadToMs, extractInnerPayload } from "./payload.js";
@@ -44,9 +38,6 @@ function getSchema(): any {
 function getProtocol(): any {
     return GeminiProtocol;
 }
-
-
-
 
     /**
      * Extracts official server-side last updated timestamp from a MaZiqc list item.
@@ -198,11 +189,6 @@ export const GeminiParserParseList: GeminiParserParseListModule = {
     parseList
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).GeminiParserParseList = GeminiParserParseList;
-    (globalThis as any).extractListItemTimestamp = extractListItemTimestamp;
-    (globalThis as any).parseList = parseList;
-}
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserParseList;
 
 export default GeminiParserParseList;

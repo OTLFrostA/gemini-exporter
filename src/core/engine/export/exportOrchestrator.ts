@@ -42,10 +42,6 @@ export interface ExportOrchestratorModule {
     getExtensionVersion: () => string;
 }
 
-declare global {
-    var ExportOrchestrator: any;
-}
-
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
@@ -1048,9 +1044,6 @@ export const ExportOrchestratorModule: ExportOrchestratorModule = {
 (ExportOrchestratorModule as any).applyExportTitleWriteback = applyExportTitleWriteback;
 (ExportOrchestratorModule as any).default = ExportOrchestratorModule;
 
-if (typeof globalThis !== 'undefined') {
-    if (!(globalThis as any).ExportOrchestrator) (globalThis as any).ExportOrchestrator = ExportOrchestrator;
-}
 if (typeof module === 'object' && module.exports) {
     module.exports = ExportOrchestratorModule;
 }
