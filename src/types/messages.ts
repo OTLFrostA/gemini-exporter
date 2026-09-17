@@ -74,6 +74,7 @@ export interface GetConversationDetailMessage extends BaseMessage {
     action: 'getConversationDetail';
     conversationId: string;
     accountSlot?: string;
+    targetSid?: string;
 }
 
 export interface CancelExportMessage extends BaseMessage {

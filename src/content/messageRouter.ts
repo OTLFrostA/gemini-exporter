@@ -17,6 +17,7 @@ import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/gemini/geminiProvider.js';
 import '../core/provider/chatgpt/chatgptProvider.js';
 import { registerCleanup } from './cleanupRegistry.js';
+import type { GetConversationDetailMessage } from '../types/messages.js';
 
 const resolveProvider = () => {
     const url = (typeof location !== 'undefined' && location.href) || '';
@@ -135,7 +136,8 @@ export function init({
         }
 
         if (msg.action === 'getConversationDetail') {
-            const cid = msg.conversationId || msg.id;
+            const detailMsg = msg as GetConversationDetailMessage;
+            const cid = detailMsg.conversationId;
             if (!cid) {
                 respond({ success: false, error: 'no id' });
                 return true;
@@ -154,7 +156,7 @@ export function init({
                         }
                     }
                     if (!isRealTitle(chatObj.title, nid)) return;
-                    const slot = msg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
+                    const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                     try {
                         // SSOT: single-item title update runs inside the cross-tab
                         // conversation lock via updateConversation. The old shape
@@ -182,7 +184,7 @@ export function init({
                 try {
                     const provider = resolveProvider();
                     if (provider) {
-                        const detail = await provider.fetchConversationDetail(cid, { targetSid: msg.targetSid || null });
+                        const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
                         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                             await persistDetailTitle(detail);
                             respond({ success: true, data: detail, source: 'batchexecute' });
@@ -217,7 +219,7 @@ export function init({
                             }
                             const isConfirmedDeleted = !!chat?.isDeleted || !!chat?._debug?.isNotFound;
                             if (isConfirmedDeleted) {
-                                const slot = msg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
+                                const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                                 try {
                                     if (Storage && typeof Storage.removeConversation === 'function') {
                                         await Storage.removeConversation(slot, cid);

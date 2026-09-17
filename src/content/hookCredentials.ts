@@ -1,5 +1,12 @@
 // src/content/hookCredentials.ts - MAIN world, captures Gemini credentials safely (no inline)
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
+import type {
+    GeminiCredentialsPayload,
+    GeminiConversationDeletedPayload,
+    GeminiStreamStartPayload,
+    GeminiStreamCompletePayload,
+    GeminiNetworkBatchexecutePayload
+} from '../core/protocol/events.js';
 
 (() => {
     if (typeof window === 'undefined') return;
@@ -42,7 +49,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
             }
             if (atMatch || sidMatch) {
                 const slot = getSlotFromUrl(u);
-                const payload = {
+                const payload: GeminiCredentialsPayload = {
                     at: atMatch ? decodeURIComponent(atMatch[1]) : '',
                     sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
                     bl: blMatch ? decodeURIComponent(blMatch[1]) : '',
@@ -86,7 +93,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                 const deletedId = idMatch[1];
                 window.postMessage({
                     type: Events.CONVERSATION_DELETED,
-                    payload: { id: deletedId, slot }
+                    payload: { id: deletedId, slot } as GeminiConversationDeletedPayload
                 }, location.origin);
             }
         } catch (e) {
@@ -147,7 +154,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
             } catch {}
             window.postMessage({
                 type: Events.STREAM_START,
-                payload: { id: convId, slot }
+                payload: { id: convId, slot } as GeminiStreamStartPayload
             }, location.origin);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -165,7 +172,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
             } catch {}
             window.postMessage({
                 type: Events.STREAM_COMPLETE,
-                payload: { id: convId, slot, url: (url || '').toString() }
+                payload: { id: convId, slot, url: (url || '').toString() } as GeminiStreamCompletePayload
             }, location.origin);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -186,7 +193,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                     text: text.slice(0, 3000000), // Protect against memory spikes
                     slot,
                     url: (url || '').toString()
-                }
+                } as GeminiNetworkBatchexecutePayload
             }, location.origin);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);

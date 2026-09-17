@@ -9,6 +9,13 @@ import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js
 import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
 import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
+import type {
+    GeminiNetworkBatchexecutePayload,
+    GeminiConversationDeletedPayload,
+    GeminiLiveSaveTriggerPayload,
+    GeminiStreamStartPayload,
+    GeminiStreamCompletePayload
+} from '../core/protocol/events.js';
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
@@ -64,7 +71,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
     // 1. Captured batchexecute response (Sidebar scroll, search, page load, opening any chat)
     if (d.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
-        const { text, slot } = d.payload || {};
+        const { text, slot } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
         if (!text) return;
         try {
             const parser = GeminiResponseParserClass;
@@ -156,7 +163,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
     // 2. Real-time conversation deletion hook listener (GzXR5e)
     if (d.type === CrossWorldEvents.CONVERSATION_DELETED) {
-        const { id, slot } = d.payload || {};
+        const { id, slot } = (d.payload || {}) as Partial<GeminiConversationDeletedPayload>;
         if (id) {
             try {
                 const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
@@ -191,7 +198,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
     // 3. In-page live auto-save trigger
     if (d.type === CrossWorldEvents.LIVE_SAVE_TRIGGER) {
-        const { cid, reason, ...options } = d.payload || {};
+        const { cid, reason, ...options } = (d.payload || {}) as Partial<GeminiLiveSaveTriggerPayload>;
         if (cid) {
             try {
                 const coordinator = LiveSaveCoordinator;
@@ -207,7 +214,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
     // 4. Streaming generation lifecycle hooks (RPC / StreamGenerate)
     if (d.type === CrossWorldEvents.STREAM_START) {
-        const { id, slot } = d.payload || {};
+        const { id, slot } = (d.payload || {}) as Partial<GeminiStreamStartPayload>;
         if (typeof (_deps as any)?.onStreamStart === 'function') {
             (_deps as any).onStreamStart(id, slot);
         } else {
@@ -246,7 +253,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     if (d.type === CrossWorldEvents.STREAM_COMPLETE) {
-        const { id, slot } = d.payload || {};
+        const { id, slot } = (d.payload || {}) as Partial<GeminiStreamCompletePayload>;
         if (typeof (_deps as any)?.onStreamComplete === 'function') {
             (_deps as any).onStreamComplete(id, slot);
         } else {
