@@ -35,12 +35,13 @@ test('GeminiUtils.getEffectiveTimestamp - hierarchy and type safety', () => {
     };
     assert.strictEqual(GeminiUtils.getEffectiveTimestamp(chat3), 1800, 'createdAt fallback');
 
-    // Case 5: Falls back to lastSeen string
+    // Case 5: lastSeen is client-observed and must NOT feed the authoritative
+    // timestamp (PR-3, core-vocab audit D2). No server timestamp -> 0.
     const isoTime = '2026-09-03T18:00:00.000Z';
     const chat4 = {
         lastSeen: isoTime
     };
-    assert.strictEqual(GeminiUtils.getEffectiveTimestamp(chat4), new Date(isoTime).getTime());
+    assert.strictEqual(GeminiUtils.getEffectiveTimestamp(chat4), 0, 'lastSeen-only chat must return 0');
 });
 
 test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as maxTs', () => {
@@ -86,7 +87,7 @@ test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as max
     assert.strictEqual(detail.chatTime, 1700005000000, 'chatTime should align with updatedAt');
 });
 
-test('Conversation sorting - accurately orders by latest activity and never puts new chats at tail', () => {
+test('Conversation sorting - orders by latest server activity; lastSeen-only chats sort after timestamped ones (PR-3)', () => {
     const getEffectiveTime = GeminiUtils.getEffectiveTimestamp;
 
     function sortConversations(list: any[]) {
@@ -149,10 +150,15 @@ test('Conversation sorting - accurately orders by latest activity and never puts
     assert.strictEqual(sorted1[1].id, 'chat_3days_old');
     assert.strictEqual(sorted1[2].id, 'chat_month_old');
 
-    // Test 2: Brand new chat captured from DOM with recent lastSeen MUST NOT be pushed to tail
+    // Test 2 (PR-3, core-vocab audit D2): lastSeen no longer feeds
+    // getEffectiveTimestamp, so a DOM capture without server timestamps
+    // orders below server-timestamped chats in a pure-server-time sort.
+    // Display recency for user-interacted chats is handled via lastActiveAt
+    // inside the real compareConversations, not via lastSeen.
     const sorted2 = sortConversations([chatB, chatC, chatD]);
-    assert.strictEqual(sorted2[0].id, 'chat_brand_new_dom', 'Brand new chat must be ranked at top and never at the tail');
-    assert.notStrictEqual(sorted2[sorted2.length - 1].id, 'chat_brand_new_dom', 'Brand new chat must never be at the tail');
+    assert.strictEqual(sorted2[0].id, 'chat_3days_old');
+    assert.strictEqual(sorted2[1].id, 'chat_month_old');
+    assert.strictEqual(sorted2[2].id, 'chat_brand_new_dom', 'lastSeen-only chat sorts after timestamped chats');
 });
 
 test('Conversation merge - updates updatedAt when conversation becomes active again', () => {
