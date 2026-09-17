@@ -5,8 +5,6 @@ const assert = require('node:assert');
 
 // Ensure parser is available in global for geminiClient in Node environment
 const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
-(global as any).GeminiResponseParserClass = GeminiResponseParserClass;
-
 // 1. Test 429 rate limit backoff in GeminiAPIClient
 test('perf - geminiClient 429 backoff retries and recovers on transient rate limit', async () => {
     const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
