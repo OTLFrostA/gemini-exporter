@@ -1,6 +1,10 @@
 export {};
 
-// known_issue_credentials_session.test.js — INTENTIONALLY RED.
+// known_issue_credentials_session.test.js
+//
+// NOTE (2026-09-16): the old "INTENTIONALLY RED" header below is stale —
+// the desired end state is now pinned and the test passes. Keeping the
+// issue description as documentation of the original problem.
 //
 // KNOWN ISSUE (audit report P1-2.6, still open after #194):
 // Gemini session tokens (at / SNlM0e — functionally CSRF credentials for the
@@ -15,9 +19,6 @@ export {};
 //   chrome.storage.session.setAccessLevel('TRUSTED_AND_UNTRUSTED_CONTEXTS')
 // or the content script must proxy credential writes through the service
 // worker. This test pins the desired end state.
-//
-// This file makes `npm test` fail by design until the issue is fixed. Do
-// not merge to main while it is red.
 
 const test = require('node:test');
 const assert = require('node:assert');
