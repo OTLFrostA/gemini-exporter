@@ -1,11 +1,13 @@
 // src/ui/uiCommon.ts - Shared UI helpers & SSoT utilities
 import { normId, cleanTitle, isRealTitle } from '../core/utils/utils.js';
+import { I18n as I18nStatic } from '../core/utils/i18n.js';
+import { __resolveModule } from '../core/utils/moduleOverrides.js';
 
 export const $ = (id: string): HTMLElement | null =>
     typeof document !== 'undefined' ? document.getElementById(id) : null;
 
 export const getI18n = (): any => {
-    return (typeof globalThis !== 'undefined' && (globalThis as any).I18n) || null;
+    return __resolveModule('I18n', I18nStatic);
 };
 
 export const t = (key: string, ...args: any[]): string => {

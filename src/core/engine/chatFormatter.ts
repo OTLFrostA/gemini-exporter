@@ -7,6 +7,8 @@ import type { ChatMessage, Attachment } from "../../types/conversation.js";
 import { unescapeHtml } from "../utils/utils.js";
 import { stripInternalChipMarkdown } from "../utils/chipUtils.js";
 import { normId } from "../utils/pathUtils.js";
+import { I18n as I18nStatic } from "../utils/i18n.js";
+import { __resolveModule } from "../utils/moduleOverrides.js";
 
 export interface FormattedResult {
     content: string;
@@ -240,7 +242,8 @@ declare global {
      */
     function toMarkdown(chat: any, opts: ChatFormatterOptions = {}): string {
         if (!chat) return '';
-        const isEn = (opts.lang === 'en') || (typeof (globalThis as any).I18n !== 'undefined' && (globalThis as any).I18n.getLang && (globalThis as any).I18n.getLang() === 'en');
+        const i18n = __resolveModule('I18n', I18nStatic);
+        const isEn = (opts.lang === 'en') || (i18n && typeof i18n.getLang === 'function' && i18n.getLang() === 'en');
 
         if (chat.error) {
             const failTitle = isEn ? 'Export Failed' : '导出失败';

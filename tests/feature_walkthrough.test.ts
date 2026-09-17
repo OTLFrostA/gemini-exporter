@@ -2,6 +2,7 @@ export {};
 // tests/feature_walkthrough.test.ts - Unit tests for Two-Track Walkthrough and Feature Releases Architecture
 const test = require('node:test');
 const assert = require('node:assert');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // Mock browser environment
 let mockStorage: Record<string, any> = {};
@@ -105,9 +106,9 @@ function createMockElement(id: string, tagName: string = 'div') {
     location: { search: '' }
 };
 
-(global as any).I18n = {
+__setModuleOverride('I18n', {
     t: (k: string) => k
-};
+});
 
 const StorageService = require('../src/core/storage/storageService.js');
 const { FEATURE_RELEASES, getLatestEligibleFeature } = require('../src/ui/tour/featureReleases.js');

@@ -12,6 +12,7 @@ import {
 } from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import type { Conversation } from "../../../types/index.js";
 
@@ -46,7 +47,6 @@ export interface TakeoutHtmlParserModule {
 
 declare global {
     var TakeoutHtmlParser: TakeoutHtmlParserModule;
-    var I18n: any;
 }
 
 /**
@@ -156,15 +156,13 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
         }
     });
 
+    const i18nInstance = __resolveModule('I18n', I18nStatic);
     const rawBlocks = htmlText.split('<div class="outer-cell');
     if (rawBlocks.length <= 1) {
         const hasOuterCell = htmlText.includes('outer-cell');
         const hasTakeoutMarker = /gemini|bard|MyActivity|我的活动/i.test(htmlText);
         if (!hasOuterCell && hasTakeoutMarker) {
-            const i18nInstance = typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n;
-            const err = i18nInstance && typeof i18nInstance.t === 'function'
-                ? i18nInstance.t('takeoutFormatChanged')
-                : 'Takeout 归档格式未能识别，可能 Google 已调整导出结构';
+            const err = i18nInstance.t('takeoutFormatChanged');
             throw new TakeoutParseError(err, true, 'MyActivity.html');
         }
     }
@@ -179,10 +177,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             await new Promise(r => setTimeout(r, 0));
             if (onProgress && i % 100 === 0) {
                 const pct = Math.min(88, 70 + Math.floor((i / rawBlocks.length) * 18));
-                const i18nInstance = typeof I18n !== 'undefined' ? I18n : (globalThis as any).I18n;
-                const msg = i18nInstance && typeof i18nInstance.t === 'function'
-                    ? i18nInstance.t('takeoutParsingDetailProgress', i, rawBlocks.length - 1)
-                    : `正在解析对话并建立离线媒体索引 (${i}/${rawBlocks.length - 1})...`;
+                const msg = i18nInstance.t('takeoutParsingDetailProgress', i, rawBlocks.length - 1);
                 onProgress(pct, msg);
             }
         }

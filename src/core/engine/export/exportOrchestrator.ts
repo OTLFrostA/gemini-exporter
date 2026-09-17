@@ -67,11 +67,13 @@ import { createWriter } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
+import { I18n as I18nStatic } from "../../utils/i18n.js";
 
 import { EXT_VERSION, getExtensionVersion, exportedIdsKey } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
 const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', GeminiUtils);
+const getI18n = (): any => __resolveModule('I18n', I18nStatic);
 const getProgressReporter = (): any => (globalThis as any).ProgressReporter || progressReporterModule;
 const getBatchWorker = (): BatchWorkerModule => (globalThis as any).BatchWorker || BatchWorker;
 const getSessionRecovery = (): SessionRecoveryModule => (globalThis as any).SessionRecovery || SessionRecovery;
@@ -389,10 +391,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                     const isPermissionRevoked = errObj?.name === 'NotAllowedError'
                         || /permission|not\s*allowed/i.test(errMsg);
                     if (isPermissionRevoked) {
-                        const I18n = (globalThis as any).I18n;
-                        const permMsg = typeof I18n !== 'undefined'
-                            ? I18n.t('fsPermissionRevoked')
-                            : '文件夹访问权限已失效或被撤销，导出已中止';
+                        const I18n = getI18n();
+                        const permMsg = I18n.t('fsPermissionRevoked');
                         onLog(permMsg, 'error');
                         this.abort();
                         return false;
@@ -415,14 +415,14 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             onProgress: (progress: any) => void
         ): Promise<void> {
             const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
-            const I18n = (globalThis as any).I18n;
-            onLog(typeof I18n !== 'undefined' ? I18n.t('logPackagingZip') : '正在打包 ZIP 压缩包…', 'info');
+            const I18n = getI18n();
+            onLog(I18n.t('logPackagingZip'), 'info');
             const onUpdate = (percent: number) => {
                 onProgress({
                     current: payloadIds.length,
                     total: payloadIds.length,
                     pct: Math.floor(percent),
-                    title: typeof I18n !== 'undefined' ? I18n.t('progPackagingZip', Math.floor(percent)) : `打包 ZIP 中 (${Math.floor(percent)}%)`,
+                    title: I18n.t('progPackagingZip', Math.floor(percent)),
                     assetsDownloaded: downloadedAssets,
                     assetsTotal: totalAssets
                 });
@@ -489,13 +489,11 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
             const totalChats = totalSelected || payloadIds.length;
 
-            const I18n = (globalThis as any).I18n;
+            const I18n = getI18n();
 
             for (const sItem of skippedItems) {
                 const sTitle = sItem.title || sItem.id;
-                onLog(typeof I18n !== 'undefined'
-                    ? (I18n.t('logExportSkippedAlreadyExported', sTitle) || `[${sTitle}] 跳过已导出内容 (无更新)`)
-                    : `[${sTitle}] 跳过已导出内容 (无更新)`, 'info');
+                onLog(I18n.t('logExportSkippedAlreadyExported', sTitle) || `[${sTitle}] 跳过已导出内容 (无更新)`, 'info');
             }
 
             const ProgressReporterClass = getProgressReporter()?.ProgressReporter || ProgressReporter;
@@ -511,7 +509,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
 
             if (payloadIds.length === 0) {
-                updateProgress(totalChats, typeof I18n !== 'undefined' ? I18n.t('exportSkippedAll', skipped) : 'All items skipped');
+                updateProgress(totalChats, I18n.t('exportSkippedAll', skipped));
             } else {
                 updateProgress(skipped, 'Preparing...');
             }
@@ -611,7 +609,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         let retryCount = 0;
                         const maxRateLimitRetries = 3;
 
-                        const I18n = (globalThis as any).I18n;
+                        const I18n = getI18n();
 
                         while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
                             res = worker && worker.fetchChatDetail
@@ -633,9 +631,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 } else {
                                     this.rateLimitCooldownUntil = Date.now() + delayMs;
                                 }
-                                onLog(typeof I18n !== 'undefined'
-                                    ? I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1))
-                                    : `[${requestedItem.title || nid}] ⚠️ 触发 Google 限频 (429)，退避等待 ${(delayMs / 1000).toFixed(1)} 秒后重试...`, 'warn');
+                                onLog(I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1)), 'warn');
                                 await new Promise(r => setTimeout(r, delayMs));
                                 retryCount++;
                                 continue;
@@ -647,9 +643,9 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
                         if (!res || !res.success) {
                             const fetchErr = res ? res.error : 'unknown';
-                            onLog(typeof I18n !== 'undefined' ? I18n.t('logFetchFailed', fetchErr) : `抓取对话失败: ${fetchErr}`, 'warn');
+                            onLog(I18n.t('logFetchFailed', fetchErr), 'warn');
                             failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
-                            onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr) : `[${requestedItem.title || requestedItem.id}] 导出跳过: ${fetchErr}`, 'warn');
+                            onLog(I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr), 'warn');
                             completedCount++;
                             updateProgress(completedCount, requestedItem.title || requestedItem.id);
                             continue;
@@ -753,7 +749,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     const fallbackMsg = isImage
                                         ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
                                         : `[${chat.title || chat.id}] 附件获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`;
-                                    onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired') : fallbackMsg, 'warn');
+                                    onLog(getI18n().t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
                                     const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                     pendingAssetsPerChat.set(nid, left);
                                     if (left === 0) await finalizeChatExport(chat.id);
@@ -825,7 +821,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
                         if (writeOk) {
                             landedChats++;
-                            onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSuccess', listTitle, fileName) : `[${listTitle}] ✓ 文本导出成功 (${fileName})`, 'info');
+                            onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
                             if (!chat.error && !chat._empty) {
                                 let exportTs = listC?.timestamp ?? chat.timestamp ?? null;
                                 if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
@@ -927,8 +923,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             try {
                 await Promise.all(consumerPool);
             } catch (e) {
-                const I18n = (globalThis as any).I18n;
-                if (this.aborted) onLog(typeof I18n !== 'undefined' ? I18n.t('logAssetsAborted') : '附件下载因终止而中断', 'warn');
+                if (this.aborted) onLog(getI18n().t('logAssetsAborted'), 'warn');
             }
 
             if (includeIndex && metaResults.length > 0) {
@@ -985,9 +980,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
             if (useZip) {
                 if (landedChats === 0 && skipped > 0 && failedChats.length === 0) {
-                    onLog(typeof I18n !== 'undefined'
-                        ? (I18n.t('logExportSkippedAllNoZip') || '所选对话均已导出且无更新，已全部跳过，无需生成 ZIP。')
-                        : '所选对话均已导出且无更新，已全部跳过，无需生成 ZIP。', 'info');
+                    onLog(getI18n().t('logExportSkippedAllNoZip'), 'info');
                 } else {
                     await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
                 }

@@ -1,6 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 const AccountView = require('../src/ui/views/accountView.js');
 const BadgeView = require('../src/content/badgeView.js');
@@ -160,9 +161,7 @@ test('dialogView - exports, safe no-DOM invocation, and verified modal transitio
     };
 
     const oldDoc = (global as any).document;
-    const oldI18n = (global as any).I18n;
     try {
-        (global as any).I18n = require('../src/core/utils/i18n.js');
         (global as any).document = {
             getElementById: (id: string) => domMap[id] || null
         };
@@ -185,7 +184,6 @@ test('dialogView - exports, safe no-DOM invocation, and verified modal transitio
         assert.strictEqual(mockTakeoutModal.style.display, 'none', 'Takeout limit modal should hide with display: none');
     } finally {
         (global as any).document = oldDoc;
-        (global as any).I18n = oldI18n;
     }
 });
 
@@ -201,9 +199,7 @@ test('dialogView - renderExportBanner XSS prevention: lastChatTitle is rendered 
     const btnResumeElem = { style: {} };
 
     const oldDoc = (global as any).document;
-    const oldI18n = (global as any).I18n;
     try {
-        (global as any).I18n = require('../src/core/utils/i18n.js');
         (global as any).document = {
             getElementById: (id: string) => {
                 if (id === 'exportSessionBanner') return bannerElem;
@@ -228,7 +224,6 @@ test('dialogView - renderExportBanner XSS prevention: lastChatTitle is rendered 
         assert.ok(appendedNodes[0].textContent.includes(maliciousTitle.slice(0, 20)), 'Text node must contain the sliced raw title safely');
     } finally {
         (global as any).document = oldDoc;
-        (global as any).I18n = oldI18n;
     }
 });
 
@@ -298,16 +293,16 @@ test('listView - render displays Updated badge and auto-checks updated conversat
     };
 
     const origDoc = (globalThis as any).document;
-    const origI18n = (globalThis as any).I18n;
+    const origI18n = __getModuleOverride('I18n');
     try {
         (globalThis as any).document = fakeDoc;
-        (globalThis as any).I18n = {
+        __setModuleOverride('I18n', {
             t: (key: string) => {
                 if (key === 'badgeNeedsReexport' || key === 'badgeUpdated') return '已更新';
                 if (key === 'badgeExported') return '已导出';
                 return key;
             }
-        };
+        });
 
         const t0 = 1700000000000;
         const convs = [
@@ -338,7 +333,7 @@ test('listView - render displays Updated badge and auto-checks updated conversat
         assert.ok(html.includes('data-chat-id="c_updated"'), 'Contains updated item');
     } finally {
         (globalThis as any).document = origDoc;
-        (globalThis as any).I18n = origI18n;
+        __setModuleOverride('I18n', origI18n);
     }
 });
 

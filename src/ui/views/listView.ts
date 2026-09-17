@@ -1,6 +1,7 @@
 // src/ui/views/listView.ts - List rendering, no storage
 import type { Conversation } from '../../types/conversation.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
+import { I18n as I18nStatic } from '../../core/utils/i18n.js';
 
 const gu = (): any => __resolveModule('GeminiUtils', null);
 import type { ExportRecord, IListView } from '../../types/ui.js';
@@ -196,8 +197,9 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
     ));
     if (!item) return;
 
-    const bExported = (typeof I18n !== 'undefined' && I18n.t)
-        ? I18n.t('badgeExported')
+    const _i18n = __resolveModule('I18n', I18nStatic);
+    const bExported = (_i18n.t)
+        ? _i18n.t('badgeExported')
         : (typeof t === 'function' ? t('badgeExported') : 'Exported');
     const badgeText = (bExported && bExported !== 'badgeExported') ? bExported : 'Exported';
 

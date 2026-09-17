@@ -66,6 +66,7 @@ import {
     isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle
 } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 
 const injectedUtils = (): any => __resolveModule('GeminiUtils', null);
@@ -256,8 +257,8 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                 };
                 delete chat.error;
                 delete chat._empty;
-                const I18n = (globalThis as any).I18n;
-                onLog(typeof I18n !== 'undefined' ? I18n.t('logTakeoutChatRecovered', chat.title || nid) : `[${chat.title || nid}] ⚡ 已自动从 Takeout 离线记录恢复问答并导出`, 'info');
+                const I18n = __resolveModule('I18n', I18nStatic);
+                onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
             }
         }
 
@@ -373,7 +374,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             const debugInfo = chat._debug ? ` _debug=${String(chat._debug).slice(0, 200)}` : (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
             const errMsg = (isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）')) + debugInfo;
 
-            const I18n = (globalThis as any).I18n;
+            const I18n = __resolveModule('I18n', I18nStatic);
             if (isConfirmedDeleted) {
                 try {
                     const storage = __resolveModule('StorageService', (typeof window !== 'undefined' && (window as any).StorageService) || null);
@@ -388,9 +389,9 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                 } catch (e) {
                     if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:batchWorker.ts]', e);
                 }
-                onLog(typeof I18n !== 'undefined' ? I18n.t('logChatDeletedAndPruned', displayTitle) : `[${displayTitle}] ⚡ 云端已确认该会话不存在或已被删除，已自动从本地列表中移除`, 'warn');
+                onLog(I18n.t('logChatDeletedAndPruned', displayTitle), 'warn');
             } else {
-                onLog(typeof I18n !== 'undefined' ? I18n.t('logExportSkipped', displayTitle, errMsg) : `[${displayTitle}] 导出跳过: ${errMsg}`, 'error');
+                onLog(I18n.t('logExportSkipped', displayTitle, errMsg), 'error');
             }
 
             return {

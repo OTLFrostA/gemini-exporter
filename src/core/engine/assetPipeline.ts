@@ -53,6 +53,8 @@ declare global {
 }
 
 import { sanitizeRelativePath } from "../utils/utils.js";
+import { I18n as I18nStatic } from "../utils/i18n.js";
+import { __resolveModule } from "../utils/moduleOverrides.js";
 import { calculateBackoff } from "./export/rateLimiter.js";
 import { interruptibleSleep } from "../api/client/retryPolicy.js";
 
@@ -266,8 +268,8 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                             const defaultMsg = isImage
                                 ? `[${chat.title || chat.id}] ⚡ 图片从 Takeout 离线池补全成功: ${localName}`
                                 : `[${chat.title || chat.id}] ⚡ 附件从 Takeout 离线池补全成功: ${localName}`;
-                            const I18n = (globalThis as any).I18n;
-                            this.onLog(typeof I18n !== 'undefined' ? I18n.t(logKey, chat.title || chat.id, localName) : defaultMsg, 'info');
+                            const I18n = __resolveModule('I18n', I18nStatic);
+                            this.onLog(I18n.t(logKey, chat.title || chat.id, localName), 'info');
                         }
                     }
                 } catch (e) {

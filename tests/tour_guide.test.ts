@@ -68,9 +68,9 @@ __setModuleOverride('StorageService', {
 };
 
 // Mock I18n
-(global as any).I18n = {
+__setModuleOverride('I18n', {
     t: (k: any) => k
-};
+});
 
 const TourGuide = require('../src/ui/tour/tourGuide.js');
 const TabService = require('../src/core/utils/tabService.js');

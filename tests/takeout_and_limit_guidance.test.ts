@@ -7,7 +7,6 @@ const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
 const I18n = require('../src/core/utils/i18n.js');
 const DialogView = require('../src/ui/views/dialogView.js');
 
-(global as any).I18n = I18n;
 
 test('takeout_engine - C2PA regex parses years beyond 2029', () => {
     // 2032-11-15 12:30:00 UTC
