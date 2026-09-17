@@ -302,10 +302,6 @@ if (typeof window !== 'undefined') {
             // cycles cannot overwrite each other's map entries.
             runSerializedCredOp(async () => {
                 try {
-                    // Payload contract: GeminiCredentialsPayload. Note `url`
-                    // lives inside the payload — the old `e.data.url` read was
-                    // dead (always undefined), silently falling back to
-                    // location.href every time.
                     const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
                     const sid = p.sid || '';
                     if (!sid) return;

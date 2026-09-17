@@ -136,10 +136,6 @@ export function init({
         }
 
         if (msg.action === 'getConversationDetail') {
-            // Contract: GetConversationDetailMessage. All in-repo senders
-            // (background/batchFetcher, background/background, batchWorker)
-            // transmit `conversationId` only; the legacy `msg.id` fallback
-            // is dead and removed.
             const detailMsg = msg as GetConversationDetailMessage;
             const cid = detailMsg.conversationId;
             if (!cid) {
