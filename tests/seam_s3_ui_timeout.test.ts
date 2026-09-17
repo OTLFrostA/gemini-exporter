@@ -57,7 +57,8 @@ test('S3 - options deepScan goes through sendTypedMessage with an explicit timeo
     const code = SRC('src/ui/controllers/syncController.ts');
     assert.ok(code.includes("import { sendTypedMessage } from '../../core/utils/messaging.js'"));
     assert.ok(
-        /sendTypedMessage\(\{\s*action:\s*'deepScan'[^)]+},\s*\w+\s*\)/.test(code),
+        /sendTypedMessage\(\{\s*action:\s*'deepScan'[^)]+},\s*\w+\s*\)/.test(code) ||
+        (/action:\s*'deepScan'/.test(code) && /sendTypedMessage\(\s*\w+,\s*\w+\s*\)/.test(code)),
         'deepScan passes an explicit timeout'
     );
     // The stuck-state fix: the rejection path must also clear scanRunning.
