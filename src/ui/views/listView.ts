@@ -106,7 +106,7 @@ export function render(
         ? conversations.filter(c => (resolveTitle(c).title || '').toLowerCase().includes(q) || String(c.id || '').toLowerCase().includes(q))
         : conversations;
     if (!filtered.length) {
-        list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof t === 'function' ? t('emptyList') : 'No matching conversations found.'}</div>`;
+        list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof t === 'function' ? t('emptySearchList') : 'No matching conversations found.'}</div>`;
         return;
     }
 

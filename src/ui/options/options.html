@@ -179,7 +179,7 @@
       <span id="liveSaveStatusTag" class="badge" style="font-size:10px; color:#10b981; border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.08); margin-left:auto;" data-i18n="liveSaveActive">已就绪</span>
     </div>
     
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
+    <div style="display:grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); gap:10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
       <label style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px; font-size:13px; height:32px;">
         <span style="color:var(--muted); white-space:nowrap;" data-i18n="format">格式</span>
         <select id="format" style="flex:1; height:32px; padding:4px 8px;">
@@ -264,12 +264,12 @@
   <div class="card card-right">
     <div class="label" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; margin-top:2px; flex:none;">
       <div style="display:flex; justify-content:space-between; align-items:center; height:28px; gap:8px;">
-        <span style="display:flex; align-items:center; white-space:nowrap;"><span data-i18n="filterAll">会话列表</span> <span class="stat" id="lastSync" style="margin-left:8px;"></span></span>
-        <div style="display:flex; gap:6px; align-items:center; flex:1; max-width:260px; margin:0 4px;">
-          <input id="chatSearchInput" type="text" placeholder="搜索标题 / ID..." data-i18n-placeholder="searchPlaceholder" style="width:100%; height:26px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:2px 8px; font-size:11px; outline:none;">
+        <span style="display:flex; align-items:center; white-space:nowrap; flex:none;"><span data-i18n="filterAll" style="font-weight:700;">会话列表</span></span>
+        <div style="display:flex; gap:6px; align-items:center; flex:1; min-width:130px; max-width:280px; margin:0 4px;">
+          <input id="chatSearchInput" type="text" placeholder="搜索标题 / ID..." data-i18n-placeholder="searchPlaceholder" style="width:100%; min-width:0; height:26px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:2px 8px; font-size:11px; outline:none;">
         </div>
-        <div style="display:flex; gap:6px; align-items:center; white-space:nowrap;">
-          <span id="selectedStat" class="stat" style="margin-right:4px; white-space:nowrap;">已选 0 条</span>
+        <div style="display:flex; gap:6px; align-items:center; white-space:nowrap; flex:none;">
+          <span id="selectedStat" class="stat" style="margin-right:4px; white-space:nowrap;"></span>
           <button id="btnSelectAll" class="ghost small" style="padding:2px 8px; font-size:11px;" data-i18n="selectAll">全选</button>
           <button id="btnSelectNone" class="ghost small" style="padding:2px 8px; font-size:11px;" data-i18n="selectNone">全不选</button>
         </div>
@@ -280,8 +280,8 @@
         <button id="btnImportTakeout" class="ghost small" data-i18n="btnImportTakeout" data-i18n-title="btnImportTakeoutTip" title="读取 Google Takeout 压缩包，自动补全历史无法扫描的远古对话，并加载离线附件兜底池">📥 导入 Takeout</button>
         <input type="file" id="takeoutFileInput" accept=".zip" style="display:none;">
         <button id="btnStopScan" class="ghost small" style="display:none; color:#ff8a8a; border-color:#5a2a2a;" data-i18n="btnStopScan" title="随时停止当前同步，已拉取的数据会完整保留">终止同步</button>
-        <div style="flex:1;"></div>
-        <button id="btnClearAll" class="ghost small" style="color:#ff8a8a" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
+        <span class="stat" id="lastSync" style="margin-left:auto; margin-right:4px; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;"></span>
+        <button id="btnClearAll" class="ghost small" style="color:#ff8a8a; flex:none;" data-i18n="btnClearAll" title="清空本地所有会话数据">清空全部</button>
       </div>
     </div>
     <!-- 导出状态与中断恢复横幅 (Export Session Recovery Banner) -->
@@ -292,7 +292,7 @@
         <button id="btnDismissExportBanner" class="ghost small" style="padding:3px 8px; font-size:11px;" data-i18n="btnDismissBanner">✕ 关闭</button>
       </div>
     </div>
-    <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;">暂无会话数据，请打开 gemini.google.com 页面同步。</div>
+    <div id="list" class="list" style="flex:1; margin:0; overflow-y:auto; padding-right:4px;"></div>
   </div>
 </div>
 
