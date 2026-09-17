@@ -331,6 +331,26 @@
   </div>
 </div>
 
+<div id="takeoutImportModal" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(0,0,0,0.65); backdrop-filter:blur(3px);">
+  <div style="background:var(--card); border:1px solid var(--border-focus); border-radius:14px; width:480px; max-width:92vw; padding:20px; box-shadow:0 12px 36px rgba(0,0,0,0.5); color:var(--text); display:flex; flex-direction:column; gap:14px; position:relative; box-sizing:border-box;">
+    <button id="btnTakeoutImportClose" style="position:absolute; top:12px; right:12px; background:transparent; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:4px 8px; border-radius:4px; line-height:1;" title="Close">✕</button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-size:15px; font-weight:700;" data-i18n="takeoutImportModalTitle">📥 导入 Google Takeout 归档数据</span>
+    </div>
+    <div style="font-size:13px; line-height:1.6; color:var(--muted);" data-i18n="takeoutImportModalDesc">
+      支持导入 Google Takeout 导出的原始 .zip 压缩包（无需手动解压）。导入后将自动补全云端 API 上限遗漏的历史会话，并建立离线多模态附件池。
+    </div>
+    <div id="takeoutDropZone" style="border:2px dashed var(--border); border-radius:10px; padding:24px 16px; text-align:center; background:var(--card-inner); cursor:pointer; transition:border-color 0.2s, background 0.2s; display:flex; flex-direction:column; align-items:center; gap:8px;">
+      <span style="font-size:28px;">📦</span>
+      <span style="font-size:13px; color:var(--text);" data-i18n="takeoutDropZoneText">将 Takeout ZIP 压缩包拖拽至此处，或者</span>
+      <button id="btnTakeoutSelectFile" class="primary" style="height:32px; padding:0 16px; font-size:12px; margin-top:4px;" data-i18n="btnTakeoutSelectFile">📁 选择本地 ZIP 文件</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:2px;">
+      <a id="btnTakeoutGoWeb" href="https://takeout.google.com/settings/takeout/custom/gemini" target="_blank" class="ghost" style="height:34px; font-size:12px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; gap:6px;" data-i18n="btnModalOpenTakeoutWeb">🌐 前往 Google Takeout (已自动勾选 Gemini)</a>
+    </div>
+  </div>
+</div>
+
 <!-- PR5: JSZip stays external (UMD global), bundled workbench follows -->
 <script src="/lib/jszip.min.js"></script>
 <script src="/dist/ui/options.js"></script>

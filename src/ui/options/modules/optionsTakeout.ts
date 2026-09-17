@@ -63,43 +63,112 @@ export async function checkPendingTakeoutPrompt(): Promise<void> {
     }
 }
 
+function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
+    const TakeoutCtrl = getTakeoutCtrl();
+    if (!f || !TakeoutCtrl) return;
+
+    const progWrap = $('progWrap');
+    const bar = $('bar');
+    const progText = $('progText');
+    if (progWrap) progWrap.style.display = 'block';
+    if (bar) bar.style.width = '15%';
+
+    TakeoutCtrl.handleTakeoutImport(f, {
+        onProgress: (pct: number, txt: string) => {
+            if (bar) bar.style.width = `${pct}%`;
+            if (progText) progText.textContent = txt;
+        },
+        onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl || 'info'),
+        onFinished: ({ message }: any) => {
+            if (progText) progText.textContent = message;
+            if (progWrap) progWrap.style.display = 'none';
+            if (input) {
+                try { input.value = ''; } catch { /* noop */ }
+            }
+            if (__loadStore) __loadStore();
+        },
+        onError: (err: any, errMsg?: string) => {
+            if (progText) progText.textContent = errMsg || err.message;
+            if (progWrap) progWrap.style.display = 'none';
+            if (input) {
+                try { input.value = ''; } catch { /* noop */ }
+            }
+        }
+    });
+}
+
 export function init({ loadStore, log: logFn }: OptionsTakeoutOptions = {}): void {
     __loadStore = loadStore || null;
     __log = logFn || null;
 
-    $('btnImportTakeout')?.addEventListener('click', () => {
-        ($('takeoutFileInput') as HTMLInputElement | null)?.click();
+    const modal = $('takeoutImportModal');
+    const closeBtn = $('btnTakeoutImportClose');
+    const dropZone = $('takeoutDropZone');
+    const selectBtn = $('btnTakeoutSelectFile');
+    const fileInput = $('takeoutFileInput') as HTMLInputElement | null;
+
+    const openImportModal = () => {
+        if (modal) modal.style.display = 'flex';
+    };
+    const closeImportModal = () => {
+        if (modal) modal.style.display = 'none';
+    };
+
+    $('btnImportTakeout')?.addEventListener('click', openImportModal);
+    closeBtn?.addEventListener('click', closeImportModal);
+
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) closeImportModal();
     });
 
-    $('takeoutFileInput')?.addEventListener('change', (e: Event) => {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+            closeImportModal();
+        }
+    });
+
+    selectBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileInput?.click();
+    });
+
+    if (dropZone) {
+        dropZone.addEventListener('click', (e) => {
+            if (e.target !== selectBtn) {
+                fileInput?.click();
+            }
+        });
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.borderColor = 'var(--accent, #6366f1)';
+            dropZone.style.background = 'rgba(99, 102, 241, 0.08)';
+        });
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.borderColor = 'var(--border)';
+            dropZone.style.background = 'var(--card-inner)';
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.borderColor = 'var(--border)';
+            dropZone.style.background = 'var(--card-inner)';
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0) {
+                closeImportModal();
+                processTakeoutImport(files[0], fileInput);
+            }
+        });
+    }
+
+    fileInput?.addEventListener('change', (e: Event) => {
         const input = e.target as HTMLInputElement;
         const f = input.files && input.files[0];
-        const TakeoutCtrl = getTakeoutCtrl();
-        if (f && TakeoutCtrl) {
-            const progWrap = $('progWrap');
-            const bar = $('bar');
-            const progText = $('progText');
-            if (progWrap) progWrap.style.display = 'block';
-            if (bar) bar.style.width = '15%';
-
-            TakeoutCtrl.handleTakeoutImport(f, {
-                onProgress: (pct: number, txt: string) => {
-                    if (bar) bar.style.width = `${pct}%`;
-                    if (progText) progText.textContent = txt;
-                },
-                onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl || 'info'),
-                onFinished: ({ message }: any) => {
-                    if (progText) progText.textContent = message;
-                    if (progWrap) progWrap.style.display = 'none';
-                    try { input.value = ''; } catch { /* noop */ }
-                    if (__loadStore) __loadStore();
-                },
-                onError: (err: any, errMsg?: string) => {
-                    if (progText) progText.textContent = errMsg || err.message;
-                    if (progWrap) progWrap.style.display = 'none';
-                    try { input.value = ''; } catch { /* noop */ }
-                }
-            });
+        if (f) {
+            closeImportModal();
+            processTakeoutImport(f, input);
         }
     });
 }
