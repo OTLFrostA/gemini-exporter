@@ -362,6 +362,10 @@ export async function initLiveSaveSettings(): Promise<void> {
         });
     }
 
+    // Runtime bind-once flag: the live-save storage watcher must be attached exactly
+    // once, even if this options module is re-evaluated during the options page lifecycle.
+    // Deliberately kept on globalThis (not module-local), consistent with the codebase's
+    // other runtime flags (e.g. ContentContext's __gemExporterAborted-style state).
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged && !(globalThis as any).__liveSaveStorageWatcherBound) {
         (globalThis as any).__liveSaveStorageWatcherBound = true;
         chrome.storage.onChanged.addListener((changes: any, area: string) => {
