@@ -324,15 +324,7 @@ export const DialogView: IDialogView = {
     getLastFailedChats
 };
 
-(DialogView as any).DialogView = DialogView;
-(DialogView as any).default = DialogView;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).DialogView = DialogView;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = DialogView;
-}
 
 export default DialogView;
 

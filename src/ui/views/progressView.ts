@@ -104,13 +104,5 @@ export const ProgressView: IProgressView = {
     getElement
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).ProgressView = ProgressView;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = ProgressView;
-    (module.exports as any).ProgressView = ProgressView;
-    (module.exports as any).default = ProgressView;
-}
 
 export default ProgressView;

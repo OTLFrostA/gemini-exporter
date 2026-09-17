@@ -111,14 +111,6 @@ export const OptionsTakeout = {
     isTakeoutPromptCompleted
 };
 
-(OptionsTakeout as any).OptionsTakeout = OptionsTakeout;
-(OptionsTakeout as any).default = OptionsTakeout;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).OptionsTakeout = OptionsTakeout;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = OptionsTakeout;
-}
 
 export default OptionsTakeout;

@@ -133,9 +133,7 @@ const log = (msg: string): void => {
         handleLangChange('en');
     });
 
-    const formatStore = (typeof FormatStore !== 'undefined')
-        ? FormatStore
-        : (globalThis as any).FormatStore;
+    const formatStore = __resolveModule('FormatStore', FormatStore);
     const ALLOWED_FORMATS: string[] = (typeof formatStore !== 'undefined' ? formatStore.ALLOWED_FORMATS : ['markdown', 'json_openai', 'json', 'json_raw']);
     const formatSelect = $('format') as HTMLSelectElement | null;
 
