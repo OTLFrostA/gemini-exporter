@@ -23,10 +23,6 @@ export interface WriterInterfaceModule {
     createWriter: (type: 'zip' | 'fs' | string, options?: WriterFactoryOptions) => IExportWriter;
 }
 
-declare global {
-    var WriterInterface: WriterInterfaceModule;
-}
-
 import { ZipWriter } from './zipWriter.js';
 import { FsWriter } from './fsWriter.js';
 
@@ -56,9 +52,6 @@ export const WriterInterface: WriterInterfaceModule = {
     isWriter,
     createWriter
 };
-
-if (typeof globalThis !== 'undefined') (globalThis as any).WriterInterface = WriterInterface;
-if (typeof module === 'object' && module.exports) module.exports = WriterInterface;
 
 export default WriterInterface;
 

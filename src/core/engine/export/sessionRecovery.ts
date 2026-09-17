@@ -48,10 +48,6 @@ export interface SessionRecoveryModule {
     getExtensionVersion: (customVersion?: string) => string;
 }
 
-declare global {
-    var SessionRecovery: SessionRecoveryModule;
-}
-
 import { normId as utilsNormId } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
@@ -300,13 +296,4 @@ export const SessionRecovery: SessionRecoveryModule = {
     getExtensionVersion
 };
 
-(SessionRecovery as any).SessionRecovery = SessionRecovery;
-(SessionRecovery as any).default = SessionRecovery;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).SessionRecovery) {
-    (globalThis as any).SessionRecovery = SessionRecovery;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = SessionRecovery;
-}
 export default SessionRecovery;

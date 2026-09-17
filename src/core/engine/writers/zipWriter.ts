@@ -2,14 +2,11 @@
 
 import type { IExportWriter } from './writerInterface.js';
 import { sanitizeRelativePath } from '../../utils/utils.js';
+import { __resolveModule } from '../../utils/moduleOverrides.js';
 
 export interface ZipWriterClass {
     new (folderName?: string): ZipWriter;
     ZipWriter: typeof ZipWriter;
-}
-
-declare global {
-    var ZipWriter: ZipWriterClass;
 }
 
 class ZipWriter implements IExportWriter {
@@ -21,7 +18,7 @@ class ZipWriter implements IExportWriter {
     static ZipWriter = ZipWriter;
 
     constructor(folderName: string = 'gemini_export') {
-        const JSZipLib = (typeof (globalThis as any).JSZip !== 'undefined' ? (globalThis as any).JSZip : null)
+        const JSZipLib = __resolveModule('JSZip', null)
             || (typeof self !== 'undefined' ? (self as any).JSZip : null)
             || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null);
         if (!JSZipLib) {
@@ -86,9 +83,6 @@ class ZipWriter implements IExportWriter {
         });
     }
 }
-
-if (typeof globalThis !== 'undefined') (globalThis as any).ZipWriter = ZipWriter;
-if (typeof module === 'object' && module.exports) module.exports = ZipWriter;
 
 export { ZipWriter };
 export default ZipWriter;

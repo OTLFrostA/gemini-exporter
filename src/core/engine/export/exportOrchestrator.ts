@@ -75,10 +75,10 @@ export { EXT_VERSION, getExtensionVersion };
 
 const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', GeminiUtils);
 const getI18n = (): any => __resolveModule('I18n', I18nStatic);
-const getProgressReporter = (): any => (globalThis as any).ProgressReporter || progressReporterModule;
-const getBatchWorker = (): BatchWorkerModule => (globalThis as any).BatchWorker || BatchWorker;
-const getSessionRecovery = (): SessionRecoveryModule => (globalThis as any).SessionRecovery || SessionRecovery;
-const getRateLimiter = (): RateLimitModule => (globalThis as any).RateLimitModule || rateLimitModule;
+const getProgressReporter = (): any => progressReporterModule;
+const getBatchWorker = (): BatchWorkerModule => BatchWorker;
+const getSessionRecovery = (): SessionRecoveryModule => SessionRecovery;
+const getRateLimiter = (): RateLimitModule => rateLimitModule;
 
 export const sanitizeFileName = (name?: string | null, fallback?: string): string =>
     (((__resolveModule('GeminiUtils', null) as any)?.sanitizeFileName) || utilsSanitizeFileName)(name, fallback);
@@ -209,12 +209,11 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
     }
 
     async function ensureSubDir(root: any, subPath: string): Promise<any> {
-        const fn = (globalThis as any).FsWriter?.ensureSubDir || fsEnsureSubDir;
-        return await fn(root, subPath);
+        return await fsEnsureSubDir(root, subPath);
     }
 
     const getGeminiTab = async (slot?: string): Promise<any> =>
-        (__resolveModule('TabService', (globalThis as any).TabService || TabService))?.getGeminiTab?.(slot) ?? null;
+        (__resolveModule('TabService', TabService))?.getGeminiTab?.(slot) ?? null;
 
     const getAssetPipelineClass = (): any => __resolveModule('AssetPipeline', AssetPipelineStatic);
 
@@ -1026,17 +1025,4 @@ export const ExportOrchestratorModule: ExportOrchestratorModule = {
     getExtensionVersion
 };
 
-(ExportOrchestratorModule as any).ExportOrchestrator = ExportOrchestrator;
-(ExportOrchestratorModule as any).AsyncQueue = AsyncQueue;
-(ExportOrchestratorModule as any).ensureSubDir = ensureSubDir;
-(ExportOrchestratorModule as any).sanitizeFileName = sanitizeFileName;
-(ExportOrchestratorModule as any).sanitizeZipPath = sanitizeZipPath;
-(ExportOrchestratorModule as any).getExtensionVersion = getExtensionVersion;
-(ExportOrchestratorModule as any).checkIsUpdated = checkIsUpdated;
-(ExportOrchestratorModule as any).applyExportTitleWriteback = applyExportTitleWriteback;
-(ExportOrchestratorModule as any).default = ExportOrchestratorModule;
-
-if (typeof module === 'object' && module.exports) {
-    module.exports = ExportOrchestratorModule;
-}
 export default ExportOrchestratorModule;
