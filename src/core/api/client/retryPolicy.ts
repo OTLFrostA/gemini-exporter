@@ -1,5 +1,5 @@
 // retryPolicy.ts - Centralized HTTP 400 XSRF recovery, 401 cleanup, and 429 backoff policy
-import type { GeminiClientCredentialManagerModule } from "./credentialManager.js";
+import { GeminiClientCredentialManager, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
 import { calculateBackoff } from "../../engine/export/rateLimiter.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
 
@@ -55,16 +55,8 @@ export interface GeminiClientRetryPolicyModule {
     parseRetryAfterMs: (value: string | null | undefined) => number | undefined;
 }
 
-declare global {
-    var GeminiClientRetryPolicy: GeminiClientRetryPolicyModule;
-}
-
-
-
     function getCredentialManager(): GeminiClientCredentialManagerModule | null {
-        if (typeof GeminiClientCredentialManager !== "undefined") return GeminiClientCredentialManager;
-        if (typeof globalThis !== "undefined" && (globalThis as any).GeminiClientCredentialManager) return (globalThis as any).GeminiClientCredentialManager;
-        return null;
+        return GeminiClientCredentialManager;
     }
 
     /**
@@ -232,7 +224,6 @@ export const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
     parseRetryAfterMs
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).GeminiClientRetryPolicy = GeminiClientRetryPolicy;
 if (typeof module === 'object' && module.exports) module.exports = GeminiClientRetryPolicy;
 
 export default GeminiClientRetryPolicy;

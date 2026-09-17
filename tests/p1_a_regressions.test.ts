@@ -84,8 +84,8 @@ test('P1-009: reloadGeminiTab only reloads Gemini tabs', () => {
 
 // ---------------------------------------------------------------- P1-010（行为测试 + 可反向验证）
 test('P1-010: self-healed bl is written back to storage (not memory-only)', async () => {
-    const CredManager = require('../src/core/api/client/credentialManager.js');
-    const resolveCred = CredManager.resolveCred || (CredManager.default && CredManager.default.resolveCred);
+    const CredManager = require('../src/core/api/client/credentialManager.js').default;
+    const resolveCred = CredManager.resolveCred;
     assert.ok(typeof resolveCred === 'function', 'resolveCred not exported');
 
     const setCalls: any[] = [];

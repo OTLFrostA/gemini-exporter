@@ -24,10 +24,6 @@ export interface GeminiClientCredentialManagerModule {
     generateFallbackSid: () => string;
 }
 
-declare global {
-    var GeminiClientCredentialManager: GeminiClientCredentialManagerModule;
-}
-
 function getProtocol(): GeminiProtocolModule {
     return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
@@ -251,10 +247,4 @@ export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule 
     generateFallbackSid
 };
 
-if (typeof globalThis !== "undefined" && !(globalThis as any).GeminiClientCredentialManager) {
-    (globalThis as any).GeminiClientCredentialManager = GeminiClientCredentialManager;
-}
-if (typeof module === "object" && module.exports) {
-    module.exports = GeminiClientCredentialManager;
-}
 export default GeminiClientCredentialManager;

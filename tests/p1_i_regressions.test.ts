@@ -257,7 +257,7 @@ test('P1-088 - checkReadiness never passes the slot id off as the account name',
     const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/provider/gemini/geminiProvider.ts'), 'utf8');
     assert.ok(!src.includes('accountName: slot'), 'slot id must not masquerade as accountName');
     // Runtime: stub credential resolution to force the ready:true branch.
-    const credMgr = require('../src/core/api/client/credentialManager.js');
+    const credMgr = require('../src/core/api/client/credentialManager.js').default;
     const orig = credMgr.resolveCred;
     credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: 'u0' });
     try {
