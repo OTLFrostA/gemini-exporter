@@ -1,5 +1,6 @@
 // src/content/bootstrap.ts - Credential bootstrap for ISOLATED world
 import { CrossWorldEvents, GeminiProtocol, type GeminiProtocolModule } from '../core/protocol/protocol.js';
+import type { GeminiCredentialsPayload } from '../core/protocol/events.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import {
     getCredStorage as sharedGetCredStorage,
@@ -301,10 +302,14 @@ if (typeof window !== 'undefined') {
             // cycles cannot overwrite each other's map entries.
             runSerializedCredOp(async () => {
                 try {
-                    const p = e.data.payload || {};
+                    // Payload contract: GeminiCredentialsPayload. Note `url`
+                    // lives inside the payload — the old `e.data.url` read was
+                    // dead (always undefined), silently falling back to
+                    // location.href every time.
+                    const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
                     const sid = p.sid || '';
                     if (!sid) return;
-                    const slot = p.accountSlot || detectSlotFromUrl(e.data.url || location.href) || 'default';
+                    const slot = p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'default';
                     const map = await loadCredentialsMap();
                     const old = map[sid] || {};
                     map[sid] = {

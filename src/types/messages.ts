@@ -74,6 +74,8 @@ export interface GetConversationDetailMessage extends BaseMessage {
     action: 'getConversationDetail';
     conversationId: string;
     accountSlot?: string;
+    /** Accepted by the handler but sent by no in-repo caller today (provider-layer seam). */
+    targetSid?: string;
 }
 
 export interface CancelExportMessage extends BaseMessage {
