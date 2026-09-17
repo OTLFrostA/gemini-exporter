@@ -4,8 +4,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 (() => {
     if (typeof window === 'undefined') return;
 
-    // Protocol anti-corruption layer: globalThis / window fallback
-    const Proto = typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : ((window as any).GeminiProtocol || null);
+    const Proto: any = GeminiProtocol;
     if (!Proto) {
         console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
         return;

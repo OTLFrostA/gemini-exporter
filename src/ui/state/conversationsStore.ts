@@ -205,11 +205,5 @@ export const ConversationsStore: IConversationsStore = {
 (ConversationsStore as any).ConversationsStore = ConversationsStore;
 (ConversationsStore as any).default = ConversationsStore;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).ConversationsStore = ConversationsStore;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = ConversationsStore;
-}
 
 export default ConversationsStore;

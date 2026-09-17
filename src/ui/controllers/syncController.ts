@@ -59,7 +59,7 @@ function _runScan(
     sendTypedMessage(msg, uiTimeoutMs).then((res: any) => {
         setScanRunning(false);
 
-        const slidingLimit = (typeof GeminiProtocol !== 'undefined' && GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 500;
+        const slidingLimit = (GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 500;
         const hitGoogleLimit = !!(
             res?.hitGoogleLimit ||
             res?.diagnostics?.hitGoogleLimit ||

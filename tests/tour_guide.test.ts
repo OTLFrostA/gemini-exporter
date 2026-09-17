@@ -1,6 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // Mock browser environment for unit testing TourGuide
 (global as any).window = {
@@ -52,12 +53,12 @@ const mockElements = new Map<string, any>();
     querySelectorAll: () => []
 };
 
-// Mock StorageService
+// Mock StorageService (via the module seam; the legacy globalThis mount is gone)
 let tourStatusMock = false;
-(global as any).StorageService = {
+__setModuleOverride('StorageService', {
     isTourCompleted: async () => tourStatusMock,
     setTourCompleted: async (v: any) => { tourStatusMock = !!v; }
-};
+});
 
 // Mock TabService
 (global as any).TabService = {

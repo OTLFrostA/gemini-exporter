@@ -27,10 +27,6 @@ export interface TakeoutEngineModule {
     __slotTakeouts: Map<string, TakeoutStore>;
 }
 
-declare global {
-    var TakeoutEngine: TakeoutEngineModule;
-}
-
 export {
     getTakeoutOfflineChat,
     getTakeoutFallbackMedia,
@@ -56,10 +52,4 @@ export const TakeoutEngine: TakeoutEngineModule = {
 (TakeoutEngine as any).TakeoutEngine = TakeoutEngine;
 (TakeoutEngine as any).default = TakeoutEngine;
 
-if (typeof globalThis !== 'undefined' && !(globalThis as any).TakeoutEngine) {
-    (globalThis as any).TakeoutEngine = TakeoutEngine;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = TakeoutEngine;
-}
 export default TakeoutEngine;

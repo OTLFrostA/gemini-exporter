@@ -103,16 +103,12 @@ class FakeAssetPipeline {
 async function runExport(chatDetail: any, { useFakePipeline = false }: { useFakePipeline?: boolean } = {}) {
     zipCaptures.length = 0;
     const origChrome = (global as any).chrome;
-    const origStorage = (global as any).StorageService;
-    const origUtils = (global as any).GeminiUtils;
     const origJSZip = (global as any).JSZip;
     const origPipeline = (global as any).AssetPipeline;
     const origTab = (global as any).TabService;
 
     const chromeMock = makeChromeStorage();
     (global as any).chrome = chromeMock;
-    (global as any).StorageService = StorageService;
-    (global as any).GeminiUtils = GeminiUtils;
     (global as any).JSZip = FakeJSZip;
     if (useFakePipeline) (global as any).AssetPipeline = FakeAssetPipeline;
     else delete (global as any).AssetPipeline;
@@ -150,8 +146,6 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
         return { result, onItemExportedCalls, exportedIds, chromeData: chromeMock.data };
     } finally {
         (global as any).chrome = origChrome;
-        (global as any).StorageService = origStorage;
-        (global as any).GeminiUtils = origUtils;
         (global as any).JSZip = origJSZip;
         (global as any).AssetPipeline = origPipeline;
         (global as any).TabService = origTab;

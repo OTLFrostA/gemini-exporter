@@ -15,6 +15,7 @@ const assert = require('node:assert');
 const SyncEngine = require('../src/content/syncEngine.js');
 const { compareConversations, getEffectiveTimestamp } = require('../src/core/utils/titleUtils.js');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 function mockStorageContext() {
     let savedList: any[] = [];
@@ -31,7 +32,7 @@ function mockStorageContext() {
         setScanCheckpoint: async () => {}
     };
     (global as any).chrome = { runtime: { sendMessage: () => {} } };
-    (global as any).StorageService = mockStorage;
+    __setModuleOverride('StorageService', mockStorage);
     return {
         seed: (items: any[]) => { savedList = items.map(c => ({ ...c })); },
         getSavedList: () => savedList,

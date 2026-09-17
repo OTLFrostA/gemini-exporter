@@ -10,9 +10,9 @@
 // Tests now call __setModuleOverride(name, impl); production code resolves
 // through __resolveModule(name, staticFallback).
 //
-// Resolution order: explicit test override → legacy globalThis entry → static import.
-// The globalThis middle step is temporary (kept so not-yet-migrated readers keep
-// working) and will be removed in a follow-up once nothing mounts on globalThis.
+// Resolution order: explicit test override → static import.
+// The legacy globalThis middle step was removed once the last mounts were
+// deleted: nothing in src/ or tests/ mounts these names on globalThis anymore.
 
 const overrides = new Map<string, any>();
 
@@ -36,7 +36,5 @@ export function __resolveModule(name: string, fallback: null | undefined): any;
 export function __resolveModule<T>(name: string, fallback: T): T;
 export function __resolveModule(name: string, fallback?: any): any {
     const o = overrides.get(name);
-    if (o !== undefined) return o;
-    const g = (globalThis as any)[name];
-    return g !== undefined ? g : fallback;
+    return o !== undefined ? o : fallback;
 }

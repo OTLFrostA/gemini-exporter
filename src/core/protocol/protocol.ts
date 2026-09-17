@@ -58,10 +58,6 @@ export interface GeminiProtocolModule {
     createReqidGenerator: () => () => string;
 }
 
-declare global {
-    var GeminiProtocol: GeminiProtocolModule;
-}
-
 export const PROTOCOL_VERSION = '2026-09-07';
 
 // batchexecute wrapper: every payload row is ["wrb.fr", "<rpc>", "<json string>", ...]
@@ -147,13 +143,6 @@ protocolExports.GeminiProtocol = GeminiProtocol;
 protocolExports.CrossWorldEvents = CrossWorldEvents;
 protocolExports.default = GeminiProtocol;
 
-if (typeof globalThis !== 'undefined') {
-    // Typed via the `declare global` above — no cast needed.
-    globalThis.GeminiProtocol = GeminiProtocol;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = GeminiProtocol;
-}
 
 export default GeminiProtocol;
 

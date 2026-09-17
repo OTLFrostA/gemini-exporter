@@ -1,5 +1,5 @@
 // src/content/bootstrap.ts - Credential bootstrap for ISOLATED world
-import { CrossWorldEvents, type GeminiProtocolModule } from '../core/protocol/protocol.js';
+import { CrossWorldEvents, GeminiProtocol, type GeminiProtocolModule } from '../core/protocol/protocol.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import {
     getCredStorage as sharedGetCredStorage,
@@ -17,7 +17,7 @@ function markCredSessionFailed(): void {
 const SK_CRED_MAP = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS_MAP : 'gemini_credentials_map';
 const SK_CRED = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS : 'gemini_credentials';
 
-const Proto: GeminiProtocolModule = ((typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : ((typeof window !== 'undefined' && (window as any).GeminiProtocol) || null)) as any);
+const Proto: GeminiProtocolModule = GeminiProtocol as any;
 
 function isDev(): boolean {
     if (typeof window !== 'undefined') {
