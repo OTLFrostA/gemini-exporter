@@ -316,11 +316,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             turnMsgs.push(modelTurn);
         }
 
-        // P1-111: build a one-time flat index over the ZIP entries. The old code
-        // re-ran Object.entries(zipFiles) + path parsing inside the
-        // (cleanId × refName × entry) triple loop — 60M+ string ops for large
-        // archives. Exact lookups below hit the maps; only the substring
-        // fallback scans the flat index (no repeated path parsing).
+        // Build flat index over ZIP entries for fast lookup
         const __zipEntries: { filename: string; stem: string; fObj: any }[] = [];
         const __zipExact = new Map<string, { filename: string; stem: string; fObj: any }[]>();
         for (const [path, fObj] of Object.entries<any>(zipFiles)) {
@@ -402,10 +398,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     titles: { takeout: promptTitle },
                     url: `https://gemini.google.com/app/${cleanId}`,
                     href: `https://gemini.google.com/app/${cleanId}`,
-                    // P1-085/P1-067 precedent: missing stays missing — never
-                    // fabricate Date.now() into the authoritative timestamp.
-                    // A fabricated "now" would win max-arbitration in merge and
-                    // permanently pollute the record. Null lets merge keep old.
+                    // Missing timestamp stays null so merge does not overwrite authoritative data
                     timestamp: ts ?? null,
                     lastSeen: ts ? new Date(ts).toISOString() : '',
                     source: 'takeout-import',

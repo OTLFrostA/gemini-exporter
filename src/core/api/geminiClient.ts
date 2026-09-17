@@ -98,14 +98,7 @@ const pagination = GeminiClientPagination;
             let api = getApiUrl(cred.accountSlot || "default");
             const filter = customFilter || [0, null, 1];
             const P = getProtocol();
-            // P1-126: JSPB request layouts are positional — document them here.
-            // LIST inner:  [pageSize=50, pageToken, filter]
-            //   filter:    [0, null, 1]  (matches-all filter; customFilter overrides)
-            // fReq frame:  [[ [rpcId, innerJson, null, "generic"] ]]
-            // MAINTENANCE SYNC RULE: these layouts mirror what geminiParser.ts
-            // expects on the response side. If Gemini changes the wire format,
-            // update the request builders here AND the parser indices together,
-            // then re-run the parser cross-validation tests — never one side alone.
+            // JSPB request layout: [pageSize=50, pageToken, filter]
             let req = JSON.stringify([
                 [
                     [P.RPCS.LIST, JSON.stringify([50, pageToken || null, filter]), null, "generic"]
@@ -118,9 +111,6 @@ const pagination = GeminiClientPagination;
                 fReq: req,
                 cred,
                 sourcePath: "/app",
-                // P1-035: conversation list requests get a timeout like detail
-                // pages, but 30s — 15s was too aggressive for slow networks /
-                // proxies / huge accounts (first-page timeout killed the sync).
                 timeoutMs: 30000,
                 signal: opts?.signal || this.signal
             });
@@ -168,8 +158,6 @@ const pagination = GeminiClientPagination;
                     resp,
                     retryCount,
                     maxRetries,
-                    // P1-035: thread the cancel signal so the 429 backoff wait is
-                    // interruptible (fast cancel instead of sleeping out the delay).
                     signal: opts?.signal || this.signal,
                     label: "getConversationList"
                 }) : { shouldRetry: false };
@@ -180,10 +168,8 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                // P1-035: an aborted backoff is a cancellation, not an HTTP error.
                 if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
 
-                // P1-007: diagnostics carry lengths/presence only — never credential prefixes.
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${cred.sid?.length ?? 0} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
             let txt = await resp.text();
@@ -210,12 +196,9 @@ const pagination = GeminiClientPagination;
             const detailOnly = !!(opts && opts.detailOnly);
             const P = getProtocol();
             const rpcids = detailOnly ? P.RPCS.DETAIL : `${P.RPCS.DETAIL},${P.RPCS.LIST}`;
-            // P1-126: JSPB positional layouts (see getConversationList for the
-            // maintenance sync rule — request and parser indices change together).
-            // DETAIL inner: [convId, 10|null, pageToken, 1, [1], [4], null, 1]
-            //   [1]=pageSize, [2]=pageToken, [4]/[5]=render hints ([1]=text, [4]=attachments)
-            //   altParams variant uses null at [1] (server-default page size).
-            // META inner (list piggyback): [1, null, [null, null, 1, null, 1, convId]]
+            // JSPB request layout:
+            // DETAIL: [convId, 10|null, pageToken, 1, [1], [4], null, 1]
+            // META: [1, null, [null, null, 1, null, 1, convId]]
 
             let innerDetail = (opts && opts.altParams)
                 ? JSON.stringify([id, null, pageToken || null, 1, [1], [4], null, 1])
@@ -278,8 +261,6 @@ const pagination = GeminiClientPagination;
                     resp,
                     retryCount,
                     maxRetries,
-                    // P1-035: thread the cancel signal so the 429 backoff wait is
-                    // interruptible (fast cancel instead of sleeping out the delay).
                     signal: opts?.signal || this.signal,
                     label: `fetchConversationPage ${id}`
                 }) : { shouldRetry: false };
@@ -289,7 +270,6 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                // P1-035: an aborted backoff is a cancellation, not an HTTP error.
                 if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (fetchConversationPage)");
 
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);

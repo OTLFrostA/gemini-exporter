@@ -74,7 +74,6 @@ const DEFAULT = DEFAULT_FORMAT;
             if (selectEl) selectEl.value = finalVal;
             return { format: finalVal, isDev, stored };
         } catch (e) {
-            // P1-054: never silently disguise a storage failure as "no stored value".
             console.warn('[FormatStore] Failed to load format from storage:', e);
             if (selectEl) selectEl.value = DEFAULT;
             return { format: DEFAULT, isDev: false, stored: null };
@@ -100,8 +99,6 @@ const DEFAULT = DEFAULT_FORMAT;
 
     function bindFormatSelect(selectEl: any): void {
         if (!selectEl) return;
-        // P1-055: handle the saveFormat promise — an un-awaited rejection used to
-        // surface as an unhandled promise rejection.
         selectEl.addEventListener('change', (e: any) => {
             saveFormat(e.target.value).catch((err: any) => {
                 console.warn('[FormatStore] Failed to save format:', err);
@@ -113,8 +110,6 @@ const DEFAULT = DEFAULT_FORMAT;
         if (currentFormatOrSelect && typeof currentFormatOrSelect === 'object' && 'value' in currentFormatOrSelect) {
             if (!devOn && currentFormatOrSelect.value === 'json_raw') {
                 currentFormatOrSelect.value = DEFAULT;
-                // P1-055: same class of bug as bindFormatSelect — do not let the
-                // save promise float.
                 saveFormat(DEFAULT).catch((err: any) => {
                     console.warn('[FormatStore] Failed to save format on dev toggle:', err);
                 });

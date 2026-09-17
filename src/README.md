@@ -117,7 +117,6 @@ Gemini Exporter uses `esbuild` (`build.js`) configured for a high-performance, s
 
 2. **Source-Level Test Execution**:
    - Node.js unit tests (`tests/*.test.ts`) dynamically load TypeScript sources directly via `tests/ts_register.js` for instant testing without intermediate disk artifacts.
-   - Run `node build.js --per-file` if individual unbundled transpiled modules are needed for offline AST inspection.
 
 ## Architectural Rules
 

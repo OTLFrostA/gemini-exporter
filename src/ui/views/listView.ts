@@ -185,8 +185,6 @@ export function render(
 export function updateItemExportStatus(chatId: string, exportRecord?: ExportRecord | null): void {
     if (!chatId || typeof document === 'undefined') return;
     const nid = normId(chatId);
-    // P1-118: escape dynamic ids before interpolating into a selector —
-    // a raw id containing '"' or selector syntax breaks querySelector.
     const esc = (v: string): string =>
         (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&');
     const item = (document.querySelector && (

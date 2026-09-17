@@ -10,27 +10,23 @@ const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', 'src', p),
 test('p1_b2 - P1-017: fetchBatch chains per slot', () => {
     const src = SRC('background/background.ts');
     assert.ok(src.includes('fetchBatchChains'), 'per-slot chain map exists');
-    assert.ok(src.includes('P1-017'), 'P1-017 marker present');
 });
 
 test('p1_b2 - P1-018: guarded exactly-once response', () => {
     const src = SRC('background/background.ts');
     assert.ok(src.includes('guardedResponse'), 'guarded response wrapper exists');
-    assert.ok(src.includes('P1-018'), 'P1-018 marker present');
     assert.ok(/if \(responded\) return;/.test(src), 'duplicate responses suppressed');
 });
 
 // ---------- P1-020: deepScan null ----------
 test('p1_b2 - P1-020: null scan result reports failure', () => {
     const src = SRC('content/messageRouter.ts');
-    assert.ok(src.includes('P1-020'), 'P1-020 marker present');
     assert.ok(/if \(!res\)[\s\S]{0,400}success: false/.test(src), 'null result sends success:false');
 });
 
 // ---------- P1-021: engine construction in try ----------
 test('p1_b2 - P1-021: engine constructed inside try', () => {
     const src = SRC('ui/controllers/exportController.ts');
-    assert.ok(src.includes('P1-021'), 'P1-021 marker present');
     const tryIdx = src.indexOf('try {');
     const newIdx = src.indexOf('activeEngine = new engineClass()');
     assert.ok(tryIdx !== -1 && newIdx !== -1 && tryIdx < newIdx, 'construction inside try block');
@@ -57,7 +53,6 @@ test('p1_b2 - P1-028: readCappedText exists and is used', () => {
     const src = SRC('content/hookCredentials.ts');
     assert.ok(src.includes('readCappedText'), 'capped reader exists');
     assert.ok(src.includes('BATCHEXECUTE_SNIFF_CAP'), 'cap constant exists');
-    assert.ok(src.includes('P1-028'), 'P1-028 marker present');
 });
 
 // ---------- P1-030: payload size cap ----------
@@ -65,5 +60,4 @@ test('p1_b2 - P1-030: live-save payload has fail-closed cap', () => {
     const src = SRC('content/liveSaveCoordinator.ts');
     assert.ok(src.includes('LIVE_SAVE_PAYLOAD_CAP'), 'payload cap exists');
     assert.ok(src.includes('payload_too_large'), 'too-large warning type exists');
-    assert.ok(src.includes('P1-030'), 'P1-030 marker present');
 });

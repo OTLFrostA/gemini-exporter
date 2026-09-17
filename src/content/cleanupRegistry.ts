@@ -1,12 +1,5 @@
-// src/content/cleanupRegistry.ts - Cross-bundle cleanup registry (P1-026)
-//
-// Content-script bundles can be re-executed in the SAME isolated world
-// (extension update / re-injection via chrome.scripting). Module-level flags
-// reset on re-evaluation, but properties on `window` survive — so cleanups
-// registered by the previous bundle are stored on window and run before the
-// new bundle registers its listeners/timers/observers. Without this,
-// re-injection duplicates runtime.onMessage listeners, window message
-// listeners and storage listeners, causing double processing.
+// src/content/cleanupRegistry.ts - Cross-bundle cleanup registry
+// Runs cleanups before re-injected bundles register new listeners.
 
 const KEY = '__gemExporterCleanups';
 

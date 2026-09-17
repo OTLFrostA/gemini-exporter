@@ -20,9 +20,6 @@ import {
 import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
 import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
 
-// P1-017: per-slot fetchBatch serialization. Concurrent fetchBatch messages
-// for the same account slot used to interleave their tab RPCs and abort flags;
-// now each slot runs them strictly one after another.
 const fetchBatchChains = new Map<string, Promise<void>>();
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
@@ -83,8 +80,6 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
 
     if (msg.action === 'reloadGeminiTab') {
         if (msg.tabId) {
-            // P1-009: only reload tabs that are actually Gemini pages — an
-            // unchecked tabId could reload any tab the extension can see.
             chrome.tabs.get(msg.tabId, (tab) => {
                 if (chrome.runtime.lastError || !tab) {
                     sendResponse({ ok: false, error: 'no such tab' });
@@ -114,8 +109,6 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
             action: 'getConversationDetail',
             conversationId: msg.id || msg.conversationId
         }, msg.accountSlot)
-            // S2: an undefined tab response must fail closed, never resolve
-            // the sender with an ambiguous empty value.
             .then(r => sendResponse(r == null
                 ? { ok: false, success: false, error: 'empty response from gemini tab' }
                 : r))
@@ -131,9 +124,6 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         const globalOffset = msg.globalOffset;
         const globalTotal = msg.globalTotal;
         setSlotAborted(slot, false);
-        // P1-017: chain per slot so concurrent batches serialize instead of
-        // interleaving. P1-018: wrap so a rejection can never leave the port
-        // without exactly one response.
         const prev = fetchBatchChains.get(slot) || Promise.resolve();
         const run = prev.then(async () => {
             let responded = false;
@@ -225,9 +215,5 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         return true;
     }
 
-    // NOTE (S2): unknown actions intentionally fall through with
-    // `return false` ("not for me") — entrypoints.test.ts locks this
-    // contract. Senders must only await responses for actions this router
-    // owns; fire-and-forget broadcasts need no response.
     return false;
 });

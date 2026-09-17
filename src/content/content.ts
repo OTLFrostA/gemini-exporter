@@ -27,9 +27,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     if (typeof w.__gemExporterDeepScanPromise === 'undefined') w.__gemExporterDeepScanPromise = null;
 
     if (w.__gemExporterInjected) {
-        // P1-026: page re-injection — first drop the previous bundle's
-        // listeners (runtime.onMessage, window message, storage, route),
-        // then re-register everything fresh below.
+        // Clean up previous bundle listeners before re-initializing
         runCleanups();
         try {
             document.getElementById('geminiExportBadge')?.remove();
@@ -103,8 +101,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
                 }
             };
             chrome.storage.onChanged.addListener(onStorageChanged);
-            // P1-026: without this, every re-injection stacks another
-            // storage listener (double language/badge refresh).
             registerCleanup(() => {
                 try { chrome.storage.onChanged.removeListener(onStorageChanged); } catch { /* already gone */ }
             });

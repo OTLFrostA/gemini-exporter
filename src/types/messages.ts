@@ -1,19 +1,9 @@
 /**
- * src/types/messages.ts
- * Centralized Schema for Chrome extension runtime and tab messages.
+ * Centralized schema for Chrome extension runtime and tab messages.
  */
-
 import type { Conversation } from './conversation.js';
 import type { LiveSaveConfig } from './liveSave.js';
 
-/**
- * P1-092: exact protocol map. Every action below is both sent and handled
- * somewhere in src (verified by grep over action:'x' send sites and
- * msg.action==='x' comparisons), except 'getScrollContainer', 'getFileBlob'
- * and 'getImageBlob', which are handler-only: messageRouter handles them but
- * src currently has no sender. 'startExport' was a ghost entry — no sender,
- * no handler — and is removed (it only exists as an i18n key, not a message).
- */
 export const MESSAGE_ACTIONS = {
     SYNC_UPDATE: 'syncUpdate',
     SCAN_PROGRESS: 'scanProgress',
@@ -100,7 +90,6 @@ export interface ExportProgressMessage extends BaseMessage {
     assetsTotal?: number;
 }
 
-/** P1-093: matches what liveSaveCoordinator actually sends and liveSaveHandler destructures. */
 export interface LiveSaveAsset {
     fileName: string;
     subDir?: string;

@@ -161,9 +161,6 @@ declare global {
         return p;
     }
 
-    // P1-048: account-slot read-modify-write gets its own serialization chain so
-    // concurrent updateAccountSlot calls cannot silently drop each other's fields.
-    // Lock order is always conv -> slot; no path takes slot -> conv.
     let _slotChain: Promise<any> = Promise.resolve();
     function withSlotLock<T>(fn: () => Promise<T>): Promise<T> {
         const run = () => withCrossTabLock('account-slot', fn);
@@ -172,14 +169,11 @@ declare global {
         return p;
     }
 
-    // P1-047: the raw write, used only inside withConversationLock.
     async function _setConversationsRaw(slot: string | null | undefined, list: Conversation[]): Promise<void> {
         const { convKey } = getStorageKeys(slot);
         await chrome.storage.local.set({ [convKey]: list || [] });
     }
 
-    // P1-047: public setConversations now goes through the conversation lock, so a
-    // blind write can no longer interleave with (and clobber) a read-modify-write.
     async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
         return withConversationLock(() => _setConversationsRaw(slot, list));
     }
@@ -249,18 +243,12 @@ declare global {
                 return normId(c.id) !== targetId;
             });
             if (filtered.length !== initialLen) {
-                // P1-048: write convKey + countKey in a single set to shrink the
-                // window where the two can diverge; the whole body is already
-                // serialized by withConversationLock, so the raw write is safe here.
                 const { convKey, countKey } = getStorageKeys(slot);
                 await chrome.storage.local.set({
                     [convKey]: filtered,
                     [countKey]: filtered.length
                 });
                 await updateAccountSlot(slot, { count: filtered.length });
-                // P1-049: deleting a conversation must also drop its export records
-                // (canonical key + historical aliases), otherwise exportedIds grows
-                // forever and deleted chats keep showing as "exported".
                 await removeExportRecords(slot, [conversationId]);
                 return true;
             }
@@ -299,14 +287,12 @@ declare global {
             }
 
             if (removedIds.length > 0) {
-                // P1-048: single set for convKey + countKey (see removeConversation).
                 const { convKey, countKey } = getStorageKeys(slot);
                 await chrome.storage.local.set({
                     [convKey]: kept,
                     [countKey]: kept.length
                 });
                 await updateAccountSlot(slot, { count: kept.length });
-                // P1-049: drop export records of the reconciled-away conversations.
                 await removeExportRecords(slot, removedIds);
             }
 
@@ -333,7 +319,6 @@ declare global {
 
     async function setExportedIds(slot: string | null | undefined, map: Record<string, any>): Promise<void> {
         const { expKey, slot: s } = getStorageKeys(slot);
-        // P1-045: wholesale writes also go through canonical keys.
         const canonical = normalizeExportRecordKeys(map);
         const updates: Record<string, any> = { [expKey]: canonical || {} };
         if (s === 'u0') {
@@ -342,9 +327,6 @@ declare global {
         await chrome.storage.local.set(updates);
     }
 
-    // P1-045: one canonical key per conversation — normId(id). Historical writers
-    // stored three alias keys (id / normId(id) / 'c_'+normId(id)); readers already
-    // look all three up, so writing only the canonical key stays compatible.
     function canonicalExportKey(id: string | number | null | undefined): string {
         return normId(id);
     }
@@ -382,7 +364,6 @@ declare global {
     }
 
     async function saveExportRecord(slot: string | null | undefined, id: string, record: any): Promise<Record<string, any>> {
-        // P1-045: single canonical key instead of the old 3-alias fan-out.
         const ck = canonicalExportKey(id);
         if (!ck) {
             throw new Error('[StorageService] saveExportRecord: empty conversation id');
@@ -393,8 +374,6 @@ declare global {
     async function saveExportRecordsBatch(slot: string | null | undefined, records: Record<string, any>): Promise<Record<string, any>> {
         return enqueueSaveRecordChain(async () => {
             const { expKey, slot: s } = getStorageKeys(slot);
-            // Read only this slot's own key(s): for u0 the canonical key plus the
-            // legacy 'gemini_exported_u0' copy; never the merged cross-slot view.
             const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
             const data = await chrome.storage.local.get(readKeys);
             const cur: Record<string, any> = {};
@@ -402,17 +381,10 @@ declare global {
                 const m = (data as any)[k];
                 if (m && typeof m === 'object') Object.assign(cur, m);
             }
-            // P1-045: fold historical aliases to canonical keys (shrinks old maps).
             collapseExportAliases(cur);
             Object.assign(cur, normalizeExportRecordKeys(records));
-            // P1-046: a non-u0 slot writes ONLY its own key. The old code merged the
-            // slot's records into the global 'exportedIds' key, so u1's exports showed
-            // up in u0's record table (and vice versa) and could be misread as
-            // "already exported" under the wrong account. Reads via getExportedIds
-            // still merge the global key for backward compatibility.
             const updates: Record<string, any> = { [expKey]: cur };
             if (s === 'u0' && (data as any)['gemini_exported_u0']) {
-                // Absorbed the legacy copy above; drop it so it cannot go stale.
                 await chrome.storage.local.remove(['gemini_exported_u0']);
             }
             await chrome.storage.local.set(updates);
@@ -420,9 +392,6 @@ declare global {
         });
     }
 
-    // P1-049: delete export records for the given conversation ids (canonical key
-    // plus all historical alias forms). Serialized with the save chain so a
-    // concurrent save cannot resurrect a deleted record.
     async function removeExportRecords(slot: string | null | undefined, ids: string[] | null | undefined): Promise<number> {
         if (!ids || ids.length === 0) return 0;
         const aliasKeys = new Set<string>();
@@ -439,9 +408,6 @@ declare global {
         if (aliasKeys.size === 0) return 0;
         const { expKey, slot: s } = getStorageKeys(slot);
         return enqueueSaveRecordChain(async () => {
-            // For non-u0 also sweep this slot's historical pollution out of the
-            // global key (P1-046), but only for keys this slot actually owns
-            // (present in its own map) so u0's legitimate records are untouched.
             const sweepGlobal = s !== 'u0';
             const data = await chrome.storage.local.get(sweepGlobal ? [expKey, 'exportedIds'] : [expKey]);
             const ownMap = ((data as any)[expKey] && typeof (data as any)[expKey] === 'object')
@@ -467,11 +433,6 @@ declare global {
                     : null;
                 if (g) {
                     let gRemoved = 0;
-                    // Sweep this slot's historical pollution out of the global key:
-                    // any global entry whose normalized id matches a key this slot
-                    // demonstrably owned is this slot's own pollution (P1-046 wrote
-                    // identical keys to both). u0's legitimate records have different
-                    // normalized ids and are never touched.
                     const ownedNids = new Set<string>();
                     for (const k of ownedBefore) {
                         const nk = normId(k);
@@ -546,8 +507,6 @@ declare global {
     }
 
     async function updateAccountSlot(slot: string | null | undefined, info: any): Promise<Record<string, any>> {
-        // P1-048: serialize the get-modify-set so concurrent callers cannot drop
-        // each other's counter/field updates.
         return withSlotLock(async () => {
             const s = normSlot(slot);
             const map = await getAccountSlots();

@@ -22,7 +22,7 @@ export interface GeminiClientRpcClientModule {
     nextReqid: () => string;
     generateFallbackSid: () => string;
     postBatchexecute: (options: RpcRequestOptions) => Promise<Response>;
-    /** P1-034: merge caller signal with internal timeout signal (not OR). */
+    /** Merge caller signal with internal timeout signal. */
     mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
 
@@ -59,10 +59,7 @@ function getParser(): any {
     }
 
     /**
-     * P1-034: merge the caller's AbortSignal with the internal timeout signal
-     * instead of picking one of them. Previously `signal || controller.signal`
-     * silently dropped the timeout whenever a caller signal was present, so a
-     * request could hang forever once the user started using the cancel button.
+     * Merge multiple AbortSignals so either timeout or user cancellation can abort.
      */
     function mergeAbortSignals(signals: Array<AbortSignal | null | undefined>): AbortSignal | undefined {
         const active = signals.filter((s): s is AbortSignal => !!s);
@@ -118,7 +115,6 @@ function getParser(): any {
                 },
                 body: body.toString(),
                 credentials: "include",
-                // P1-034: caller signal and internal timeout signal are merged, not OR-ed.
                 signal: mergeAbortSignals([signal, controller ? controller.signal : null])
             });
             return resp;

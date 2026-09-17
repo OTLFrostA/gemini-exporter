@@ -274,8 +274,6 @@ const isBadBrand = isBrandPlaceholderTitle;
                             targetModelMsg.attachments = targetModelMsg.attachments || [];
                             targetModelMsg.images.push(imgObj);
                             targetModelMsg.attachments.push(imgObj);
-                            // P0-6 fix: Takeout model messages may carry no `content` field at all;
-                            // normalize to a string before calling .includes().
                             if (typeof targetModelMsg.content !== 'string') targetModelMsg.content = '';
                             if (!targetModelMsg.content.includes(tm.filename)) {
                                 targetModelMsg.content = (targetModelMsg.content ? targetModelMsg.content + '\n\n' : '') + `![Generated Image](assets/${tm.filename})`;

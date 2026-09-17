@@ -41,9 +41,7 @@ class ProgressReporter {
     currentExportTitle: string;
     onProgress: (info: any) => void;
     onLog: (msg: string, level?: string) => void;
-    // P1-023: monotonic progress — totalAssets can grow dynamically (new
-    // attachments discovered mid-run), which would make pct go backwards.
-    // Clamp to never report a lower value than previously reported.
+    // Monotonic percentage tracker to prevent backward progress jumps
     private lastPct: number = 0;
 
     static ProgressReporter = ProgressReporter;
@@ -74,7 +72,6 @@ class ProgressReporter {
 
         const current = Math.min(this.currentExportIdx, this.totalChats);
         const rawPct = calculateProgress(current, this.totalChats, downloadedAssets, totalAssets);
-        // P1-023: clamp to monotonic — never go backwards.
         const pct = Math.max(this.lastPct, rawPct);
         this.lastPct = pct;
 

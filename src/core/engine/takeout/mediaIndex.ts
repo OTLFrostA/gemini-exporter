@@ -32,9 +32,7 @@ export function getStore(slot?: string | null): TakeoutStore {
         return __slotTakeouts.get(slot)!;
     }
     if (slot) {
-        // P1-113: an explicit slot that never imported Takeout must NOT fall
-        // back to another slot's data (cross-account contamination). Return an
-        // empty isolated store instead.
+        // Return empty isolated store if slot has no Takeout data
         return { mediaMap: {}, globalMedia: {}, convCache: {} };
     }
     return {
@@ -50,7 +48,6 @@ export const normId = utilsNormId;
         if (!bufferOrArray) return null;
         let str = '';
         if (typeof Buffer !== 'undefined' && Buffer.isBuffer(bufferOrArray)) {
-            // P1-117: decode the first 64KB in one shot instead of 65536× `+=`.
             str = bufferOrArray.toString('utf8', 0, Math.min(bufferOrArray.length, 65536));
         } else if (bufferOrArray instanceof Uint8Array || ArrayBuffer.isView(bufferOrArray)) {
             const byteLen = (bufferOrArray as any).byteLength ?? (bufferOrArray as any).length ?? 0;
@@ -64,9 +61,7 @@ export const normId = utilsNormId;
         }
         const m = /(20\d{2})([01]\d)([0-3]\d)([0-2]\d)([0-5]\d)([0-5]\d)Z/.exec(str);
         if (!m || m.index === undefined) return null;
-        // P1-117: a bare 15-digit run is not a C2PA timestamp. Require a trust
-        // marker (C2PA/JUMBF/XMP/EXIF) near the candidate, otherwise any random
-        // digit run in the binary would be misread as a capture time.
+        // Require a trust marker near candidate timestamp to prevent false positives
         const windowStart = Math.max(0, m.index - 512);
         const near = str.slice(windowStart, m.index + 32);
         if (!/(c2pa|jumb|jxmp|xmp|dc:|exif|tiff|createDate|dateTimeOriginal|claim_generator)/i.test(near)) {
@@ -78,8 +73,7 @@ export const normId = utilsNormId;
         const hour = parseInt(m[4], 10);
         const min = parseInt(m[5], 10);
         const sec = parseInt(m[6], 10);
-        // P1-117: validate the calendar date instead of letting Date.UTC
-        // silently normalize overflows (e.g. month 13 → next year).
+        // Validate calendar bounds
         if (month < 1 || month > 12 || day < 1 || day > 31 ||
             hour > 23 || min > 59 || sec > 60) return null;
         const t = Date.UTC(year, month - 1, day, hour, min, sec);
@@ -93,8 +87,6 @@ export const normId = utilsNormId;
     function getTakeoutOfflineChat(chatId: string, slot?: string | null): any {
         if (!chatId) return null;
         const nid = normId(chatId);
-        // P1-113: getStore already resolves slot → isolated store or legacy
-        // globals; no extra global fallback here (that was the leak).
         return getStore(slot).convCache[nid] || null;
     }
 
@@ -109,8 +101,6 @@ export const normId = utilsNormId;
         if (!filenameOrId) return null;
         const nid = normId(chatId);
         const store = getStore(slot);
-        // P1-113: no silent fallback to the module-global maps — for an
-        // explicit slot that never imported, these are empty by design.
         const mediaMap = store.mediaMap;
         const globalMedia = store.globalMedia;
         const isGenericName = (s: string) => /^(?:image(?:[_-]?\d+)?|file(?:[_-]?\d+)?|asset(?:[_-]?\d+)?|media(?:[_-]?\d+)?|thumb(?:nail)?(?:[_-]?\d+)?|photo(?:[_-]?\d+)?|picture(?:[_-]?\d+)?|screenshot(?:[_-]?\d+)?)$/i.test(s);
@@ -145,12 +135,6 @@ export const normId = utilsNormId;
             }
 
             // Pass 2: stem matching (ONLY for distinctive non-generic names).
-            // P1-112: the old substring clauses
-            // (cleanTargetStem.includes(cleanItemStem) etc.) could return an
-            // UNRELATED file's bytes (e.g. target "cat-photo" hitting an
-            // unrelated "photo"), which was then saved under the failed
-            // attachment's name — silent content corruption. Only exact stem
-            // equality is trusted now; a miss returns null instead of a lie.
             for (const item of convMedia) {
                 const itemFilename = item.filename;
                 const itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
@@ -200,8 +184,6 @@ export const normId = utilsNormId;
             let cleanStem = stem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
 
             if (hasNid) {
-                // P1-112: same as pass 2 — no substring matching here either.
-                // Only exact stem equality may return another file's bytes.
                 if (!isGenericName(cleanStem) && !isGenericName(cleanTargetStem) &&
                     (cleanStem === cleanTargetStem || stem === targetStem)) {
                     try {

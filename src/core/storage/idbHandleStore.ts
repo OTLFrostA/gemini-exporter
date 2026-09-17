@@ -32,8 +32,6 @@ export function openHandleDB(): Promise<IDBDatabase> {
                 db.createObjectStore(IDB_STORE);
             }
         };
-        // P1-053: surface blocked upgrades (e.g. a future IDB_VERSION bump stalled
-        // by leaked unclosed connections) instead of hanging silently.
         req.onblocked = () => {
             console.warn(
                 '[IdbHandleStore] IndexedDB open is blocked by an older unclosed connection. ' +
@@ -45,8 +43,6 @@ export function openHandleDB(): Promise<IDBDatabase> {
     });
 }
 
-// P1-053: every operation closes its connection when done, so version upgrades
-// can never be blocked by connections this module leaked.
 async function withHandleDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
     const db = await openHandleDB();
     try {

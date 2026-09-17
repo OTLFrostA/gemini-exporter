@@ -39,8 +39,6 @@ export function cleanup(): void {
         w.__gemExporterSyncInterval = null;
         w.__gemExporterTitleObserver = null;
         w.__gemExporterDebounceTimer = null;
-        // P1-026: remove the route listeners registered by hookHistoryEvents
-        // (liveSaveObserver got the same treatment in P1-025).
         removeHistoryListeners();
     }
 }
@@ -83,11 +81,7 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
 
     }
 
-    // P1-026: refresh on every call (outside the once-guard above). The
-    // handler reads the current bundle's callback from module state, and
-    // removal is registered so the next bundle's runCleanups() drops this
-    // bundle's listener — otherwise the old bundle's stale onUrlChanged
-    // closure keeps running (and keeps the whole old bundle alive).
+    // Refresh listener for current bundle and register cleanup
     removeHistoryListeners();
     __historyUrlCallback = onUrlChanged;
     window.addEventListener('popstate', __handleLocationChange);

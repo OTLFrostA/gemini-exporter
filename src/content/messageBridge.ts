@@ -30,9 +30,7 @@ export function init(dependencies: MessageBridgeDeps = {}): { handleWindowMessag
     _deps = dependencies;
     if (typeof window !== 'undefined' && window.addEventListener) {
         const w = window as any;
-        // P1-026: the module-level _listening flag resets when the bundle is
-        // re-evaluated, so guard on window (survives) and register removal —
-        // otherwise a re-injected bundle processes every stream event twice.
+        // Guard on window to survive re-injection and register removal on cleanup
         if (!w.__gemExporterBridgeListening) {
             window.addEventListener('message', handleWindowMessage);
             w.__gemExporterBridgeListening = true;
@@ -48,14 +46,7 @@ export function init(dependencies: MessageBridgeDeps = {}): { handleWindowMessag
 export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     if (!event || !_deps) return;
     if (typeof location !== 'undefined' && event.origin !== location.origin) return;
-    // NOTE (threat model): `event.source === window` only proves the message was
-    // posted by *this* window — it does NOT authenticate the sender. Same-window
-    // page scripts (third-party scripts, XSS, another extension's MAIN-world
-    // injection) call window.postMessage with an identical source and origin, so
-    // forged CONVERSATION_DELETED / CREDENTIALS / STREAM_* payloads are
-    // indistinguishable from hook-posted ones here. This check blocks only
-    // cross-window/iframe traffic. Synthetic dispatches (unit tests) carry no
-    // source and still pass.
+    // Restrict to same-window messages (does NOT authenticate the sender against page scripts).
     if (event.source && (typeof window === 'undefined' || event.source !== window)) return;
     const d = event.data;
     if (!d || typeof d !== 'object') return;

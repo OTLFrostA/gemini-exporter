@@ -17,8 +17,6 @@ import { ProgressView } from '../views/progressView.js';
 
 const Storage = (typeof (globalThis as any).StorageService !== 'undefined' ? (globalThis as any).StorageService : StorageService);
 
-// P0-5 fix: this used to be a no-op, silently swallowing every export failure.
-// Now it writes to the console and surfaces the message in the popup's #log panel.
 const log = (msg: string): void => {
     try {
         if (typeof console !== 'undefined') console.log('[GemExporter:popup]', msg);
@@ -107,9 +105,6 @@ const log = (msg: string): void => {
         const i18n = getI18n();
         if (i18n && typeof i18n.setLang === 'function') {
             await i18n.setLang(targetLang);
-            // P1-123: explicitly re-apply static copy + toggle UI + badge.
-            // (setLang happens to call applyI18n internally, but the popup
-            // must not depend on that side effect to stay translated.)
             if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
             if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
             await updateCount();
@@ -176,11 +171,6 @@ const log = (msg: string): void => {
         chrome.runtime.openOptionsPage();
     });
 
-    // "只导当前页" button
-    // P1-123: re-entrancy guard. The chrome.runtime.sendMessage callback below
-    // runs a long async flow AFTER this click handler returns — without the
-    // guard, rapid clicks would run two exports in parallel (double download,
-    // double export record).
     let __exportingCurrentPage = false;
     $('btnCurrent')?.addEventListener('click', async () => {
         const btnCurrentEl = $('btnCurrent') as HTMLButtonElement | null;
@@ -221,10 +211,7 @@ const log = (msg: string): void => {
             log(typeof i18n !== 'undefined' ? i18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
             ProgressView.update(40);
 
-            // S3: 40s timeout (tab RPC underneath defaults to 25s). A lost
-            // response previously left the P1-123 export guard locked.
             sendTypedMessage({ action: 'fetchChat', conversationId: convId, accountSlot: slot }, 40000).then(async (res: any) => {
-                // P1-123: release the guard only when this async flow ends.
                 try {
                 if (!res || !res.success) {
                     log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: ' + (res?.error || '未知错误')));

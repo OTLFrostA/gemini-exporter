@@ -142,9 +142,7 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
     }, 200);
 }
 
-// P1-024: bound the debounce map so it cannot grow without limit over a
-// long-lived page session. Oldest entries (by insertion order) are evicted
-// past the cap; entries older than the TTL are dropped opportunistically.
+// Bounded debounce map with size cap and TTL eviction
 const __lastTouchedMap = new Map<string, number>();
 const LAST_TOUCHED_MAX_ENTRIES = 2000;
 const LAST_TOUCHED_TTL_MS = 30 * 60 * 1000;
@@ -279,10 +277,6 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                         changed++;
                     }
 
-                    // P1-fix: lastSeen 必须单调递增。mergeConversation 已按毫秒取 max
-                    // 算出 bestLastSeen（incoming 可能携带陈旧的 takeout lastSeen）；
-                    // 此处只在 merge 未给出值时才 seed 当前时间，不得再用 incoming
-                    // 无条件覆盖，否则会把时间往回调。
                     res.merged.lastSeen = res.merged.lastSeen || new Date(now - idx).toISOString();
                     res.merged.source = source || (old && old.source) || 'unknown';
                     res.merged.accountSlot = slot;

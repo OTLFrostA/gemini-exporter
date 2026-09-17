@@ -107,9 +107,7 @@ export async function parseTakeoutZip(
     // S-4 Memory Guardrail: check uncompressed size before loading full text into memory
     const MAX_HTML_UNCOMPRESSED_SIZE = 250 * 1024 * 1024; // 250MB threshold
     const uncompressedSize = activityFile._data?.uncompressedSize;
-    // P1-114(c) fail-closed: the old code skipped the check entirely when
-    // uncompressedSize was unknown (fail-open). Refuse instead of loading an
-    // unverifiable multi-hundred-MB string into the tab.
+    // Fail closed if uncompressed size cannot be verified
     if (typeof uncompressedSize !== 'number') {
         const errNoSize = (i18nInstance && typeof i18nInstance.t === 'function')
             ? i18nInstance.t('takeoutHtmlSizeUnknown')

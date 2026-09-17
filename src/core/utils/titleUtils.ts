@@ -26,31 +26,7 @@ export const TITLE_TIER_RANK: Record<TitleSource, number> = {
 };
 
 /**
- * Unified predicate: "is this conversation record takeout-derived?"
- *
- * History: this exact 4-condition check used to be copy-pasted inline in four
- * places with drifted semantics —
- *   - conversationsStore.reconcileWithCloud: had an extra `!titles.rpc && !titles.dom` guard
- *   - storageService.reconcileConversations: had the same extra guard
- *   - conversationsStore.hasTakeoutData: wide (titles.takeout alone counts)
- *   - storageService.hasTakeoutData: wide
- * A "hybrid" record whose titles carry BOTH takeout and rpc was therefore
- * judged "not takeout" by the guarded reconciliation paths (and deleted) while
- * the wide hasTakeoutData checks considered it takeout data — the same data
- * was kept by one path and removed by another.
- *
- * Canonical semantics are WIDE: a record counts as takeout as soon as it ever
- * carried takeout data, regardless of later online (rpc/dom) enrichment.
- * Rationale: these predicates guard reconciliation keep-lists, which are
- * adjacent to deletion; the conservative direction is to keep data, not delete
- * it. The `titles.takeout && !titles.rpc && !titles.dom` variant is NOT used
- * here — "the record also has online titles" must not downgrade its
- * takeout-derived status for keep purposes.
- *
- * BEHAVIOR CHANGE (intentional, towards the safe side): on the two previously
- * guarded reconciliation sites, a takeout+rpc hybrid record now evaluates to
- * true (kept); before it evaluated to false (removed by reconcile). Nothing
- * else about deletion semantics changed.
+ * Check whether a conversation record is derived from Google Takeout.
  */
 export function isTakeoutConversation(c: any): boolean {
     if (!c) return false;
@@ -173,9 +149,6 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
     }
 
     // 3. Fallback to Takeout Prompt if present in chat.titles
-    // P1-107: this fallback used to accept ANY non-empty takeout title, even
-    // brand placeholders that step 1 explicitly rejected ("Google Gemini" etc.).
-    // Apply the same standard as step 1 so the two steps cannot contradict.
     if (chat.titles && chat.titles.takeout) {
         const rawTakeout = cleanTitle(chat.titles.takeout);
         if (rawTakeout && (isRealTitle(rawTakeout, id) || !isBrandPlaceholderTitle(rawTakeout))) {
@@ -205,18 +178,11 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
 }
 
 /**
- * P1-106: normalize the many timestamp shapes seen in the wild (pure-digit
- * epoch strings, ISO strings, Date objects, numbers) into epoch milliseconds.
- * Pure-digit strings are epoch seconds when short (< 1e11) and epoch
- * milliseconds otherwise — previously `new Date("1726358400000")` produced an
- * Invalid Date and the value was silently dropped. Returns null when the
- * value cannot be interpreted as a positive timestamp.
+ * Normalize timestamp input into epoch milliseconds.
  */
 export function toTimestampMs(raw: any): number | null {
     if (raw === null || raw === undefined) return null;
     if (typeof raw === 'number') {
-        // Numbers keep the historical contract: epoch milliseconds as-is
-        // (existing tests pin small values like 3000 to mean 3000ms).
         return Number.isFinite(raw) && raw > 0 ? raw : null;
     }
     if (raw instanceof Date) {
@@ -229,8 +195,6 @@ export function toTimestampMs(raw: any): number | null {
         if (/^\d+(\.\d+)?$/.test(s)) {
             const n = Number(s);
             if (!Number.isFinite(n) || n <= 0) return null;
-            // Pure-digit strings: short values are epoch seconds (a 10-digit
-            // value as ms would land in 1970), long values are epoch ms.
             return n < 1e11 ? n * 1000 : n;
         }
         const t = new Date(s).getTime();
@@ -263,11 +227,7 @@ export function compareConversations(a?: any, b?: any): number {
     if (!a) return 1;
     if (!b) return -1;
 
-    // Display recency: a chat the user just interacted with bumps to the top
-    // via the client-observed lastActiveAt, without touching the
-    // server-authoritative timestamps (SSOT: #403 follow-up). The scan
-    // watermark and export-staleness checks keep using getEffectiveTimestamp
-    // (server time only); lastActiveAt never feeds them.
+    // Display recency: bump active chat to top via lastActiveAt without mutating server timestamps
     const tsA = Math.max(getEffectiveTimestamp(a), toTimestampMs((a as any)?.lastActiveAt) ?? 0);
     const tsB = Math.max(getEffectiveTimestamp(b), toTimestampMs((b as any)?.lastActiveAt) ?? 0);
     if (tsA !== tsB) return tsB - tsA;
@@ -287,16 +247,10 @@ export function compareConversations(a?: any, b?: any): number {
     return lsB - lsA;
 }
 
-/**
- * Single Source of Truth (SSoT): Check if an exported conversation has subsequent updates.
- * Compares chat effective timestamps and message counts against the export record.
- */
 export function checkIsUpdated(c: any, rec?: any): boolean {
     if (!c || !rec) return false;
     try {
         const cTs = getEffectiveTimestamp(c);
-        // P1-106: rec timestamps go through the same normalizer so pure-digit
-        // epoch strings (e.g. "1726358400000") are not silently dropped.
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;
         const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
 

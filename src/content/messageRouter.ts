@@ -17,10 +17,7 @@ const resolveProvider = () => {
     return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
 };
 
-// P1-006: asset URLs are fetched with the user's cookies (credentials:'include'),
-// so an unchecked msg.url would turn this content script into an arbitrary-URL
-// fetcher for any runtime-message sender. Only allow https URLs on Google
-// media/content hosts before handing them to AssetFetcher.
+// Only allow HTTPS URLs on Google media/content hosts before fetching assets.
 function isAllowedAssetUrl(u: unknown): boolean {
     if (typeof u !== 'string' || !u) return false;
     let parsed: URL;
@@ -59,10 +56,7 @@ export function init({
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
     const dispatchMessage = (msg: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
-        // S1: exactly-once, fail-closed responder. A listener must never
-        // leave the message port hanging: a synchronous throw anywhere in
-        // dispatch is converted into a structured failure instead of a
-        // silent 25s sender-side timeout.
+        // Exactly-once responder to avoid leaving message port open on failure.
         let responded = false;
         const respond = (response: any) => {
             if (responded) return;
@@ -90,8 +84,6 @@ export function init({
                         });
                     }
                     if (!res) {
-                        // P1-020: a null scan result (already running / provider
-                        // unavailable) must never be reported as success.
                         respond({
                             success: false,
                             count: 0,
@@ -116,7 +108,6 @@ export function init({
 
         if (msg.action === 'stopDeepScan' || msg.action === 'abortSync') {
             contentContext.abort();
-            // Static anchor for regression lock (tests/regression_p0.test.js)
             if (typeof window !== 'undefined') {
                 const w = window as any;
                 w.__gemExporterAborted = true;
@@ -291,8 +282,6 @@ export function init({
         }
     };
     chrome.runtime.onMessage.addListener(dispatchMessage);
-    // P1-026: a re-injected bundle must remove the previous bundle's listener
-    // instead of stacking a second one (which would run e.g. deepScan twice).
     registerCleanup(() => {
         try { chrome.runtime.onMessage.removeListener(dispatchMessage); } catch { /* already gone */ }
     });

@@ -236,9 +236,6 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                     lastErr = 'empty blob';
                     continue;
                 }
-                // P1-027: the 50MB cap guards only the base64 (toDataUrl) path —
-                // the arrayBuffer path above does not double memory, so large
-                // assets are allowed through when the caller prefers buffers.
                 if (msg.preferBuffer === true && typeof blob.arrayBuffer === 'function') {
                     try {
                         const dataBuffer = await blob.arrayBuffer();
@@ -256,8 +253,7 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                         if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                     }
                 }
-                // P1-027: cap applies to the base64 path only (FileReader roughly
-                // doubles memory); buffer path above is exempt.
+                // Size cap applies to base64 path to avoid memory pressure
                 if (blob.size > MAX_BASE64_BLOB_SIZE) {
                     lastErr = `asset too large (${(blob.size / 1024 / 1024).toFixed(1)}MB > ${MAX_BASE64_BLOB_SIZE / 1024 / 1024}MB cap); use Google Takeout import`;
                     continue;
@@ -327,7 +323,6 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                                 if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
                             }
                         }
-                        // P1-027: cap applies to the base64 path only.
                         if (blob.size > MAX_BASE64_BLOB_SIZE) {
                             sendResponse({
                                 success: false,

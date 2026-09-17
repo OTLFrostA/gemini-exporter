@@ -173,9 +173,6 @@ function getProtocol(): GeminiProtocolModule {
             try {
                 const storage = getCredStorage();
                 if (storage) {
-                    // P0-2 fix: merge the backfilled entry into the existing map instead of
-                    // overwriting the whole map — a single account missing `at` must never
-                    // drop the credentials of the other accounts.
                     map[sid] = entry;
                     await storage.set({
                         [STORAGE_KEYS.CREDENTIALS_MAP]: map,
@@ -190,15 +187,11 @@ function getProtocol(): GeminiProtocolModule {
                 }
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
         } else if (pageBl) {
-            // P1-010 follow-up: heal only the entry belonging to the current tab's
-            // slot — healing vals[0] (an arbitrary account) could persist the wrong
-            // account's bl. If no same-slot entry is missing bl, heal nothing.
+            // Heal only the entry belonging to the current tab's slot
             const curSlot = detectSlot() || "default";
             const target = vals.find(v => !v.bl && (v.accountSlot || "default") === curSlot);
             if (target) {
                 target.bl = pageBl;
-                // P1-010: the healed bl lived only in the in-memory map and was lost
-                // on the next resolveCred; write it back to storage (best-effort).
                 try {
                     const storage = getCredStorage();
                     if (storage) await storage.set({ gemini_credentials_map: map });

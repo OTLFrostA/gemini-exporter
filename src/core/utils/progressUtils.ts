@@ -27,8 +27,6 @@ export function formatExportProgress(
     let text = '';
 
     if (typeof progress === 'object' && progress !== null) {
-        // P1-109: NaN passes `typeof x === 'number'` and also passes through
-        // Math.min(Math.max(NaN, 0), 100) unchanged — reject non-finite here.
         pct = (typeof progress.pct === 'number' && Number.isFinite(progress.pct)) ? progress.pct : 0;
         const current = progress.current || 0;
         const total = progress.total || 0;

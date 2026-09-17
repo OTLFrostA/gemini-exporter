@@ -17,9 +17,7 @@ export const MAX_ENTRY_COUNT = 10000; // 10,000 files
 export const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
 
 export function validateZipFile(file?: { size?: number } | null): void {
-    // P1-114(b): parseTakeoutZip also accepts an already-loaded JSZip object
-    // (file.file === 'function' && file.files), which has no .size — the old
-    // check silently skipped the 500MB cap for it. Detect and validate entries.
+    // Handle pre-loaded JSZip instances
     if (file && typeof (file as any).file === 'function' && (file as any).files) {
         validateZipEntries(file);
         return;
@@ -31,8 +29,7 @@ export function validateZipFile(file?: { size?: number } | null): void {
             : typeof (file as any).byteLength === 'number' ? (file as any).byteLength
             : NaN)
         : NaN;
-    // P1-114 fail-closed: when we cannot determine the size at all, refuse
-    // instead of silently skipping the guard.
+    // Fail closed when size cannot be determined
     if (!Number.isFinite(byteSize)) {
         throw new Error('无法确认 Takeout ZIP 体积，已中止以防 ZipBomb');
     }
@@ -53,9 +50,7 @@ export function validateZipEntries(zip?: any): void {
     let unknownSizeEntries = 0;
     for (const f of files) {
         if (f.dir) continue;
-        // P1-114(a) fail-closed: entries whose uncompressed size cannot be
-        // verified must not be silently excluded from the 1GB cap — that made
-        // the guard a no-op whenever JSZip internals changed shape.
+        // Check uncompressed size
         const sz = f && f._data && typeof f._data.uncompressedSize === 'number'
             ? f._data.uncompressedSize
             : NaN;

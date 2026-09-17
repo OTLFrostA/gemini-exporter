@@ -58,10 +58,6 @@ export interface GeminiProtocolModule {
     createReqidGenerator: () => () => string;
 }
 
-// P1-077: the stale @ts-ignore that suppressed a duplicate-global conflict
-// is removed. There is exactly one `var GeminiProtocol` declaration in the
-// codebase; if a second one ever appears, the compiler must report it
-// instead of staying silent while the two declarations drift apart.
 declare global {
     var GeminiProtocol: GeminiProtocolModule;
 }
@@ -99,12 +95,7 @@ export const TOKEN_PATTERNS: ProtocolTokenPatterns = {
 };
 
 // Deletion sniffing: the deleted conversation id must be anchored to the
-// GzXR5e payload context (#194) — never take the first hex token in the
-// response text. Anchor [0] covers the quoted RPC-name form (["']GzXR5e["']);
-// anchor [1] covers payloads where the RPC name appears unquoted (e.g. after
-// decodeURIComponent). BOTH anchors require the c_ conversation-id prefix, so
-// a stray hex token near a GzXR5e mention is never mistaken for the deleted
-// conversation id (P1-075).
+// GzXR5e payload context (#194).
 export const DELETION_ANCHORS: RegExp[] = [
     /["']GzXR5e["'][\s\S]{1,150}?c_([a-f0-9]{8,64})/i,
     /GzXR5e[\s\S]{1,150}?c_([a-f0-9]{8,64})/i
@@ -146,10 +137,6 @@ export const GeminiProtocol: GeminiProtocolModule = {
     createReqidGenerator
 };
 
-// Self-reference mounts for classic-script (non-module) consumers such as the
-// MAIN-world hook bundle. P1-077: typed through an extended interface instead
-// of `as any`, so a misspelled mount becomes a compile error rather than a
-// silent runtime miss.
 interface GeminiProtocolModuleExports extends GeminiProtocolModule {
     GeminiProtocol: GeminiProtocolModule;
     CrossWorldEvents: typeof CrossWorldEvents;
