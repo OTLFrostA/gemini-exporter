@@ -11,7 +11,7 @@ export interface TitleResolution {
     source: string;
 }
 
-const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
+export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
 export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
 
@@ -225,14 +225,15 @@ export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): numb
 /**
  * Authoritative conversation comparator for consistent ordering across UI and background sync.
  */
-export function compareConversations(a?: any, b?: any): number {
+type SortableConversation = Partial<Conversation> & { sidebarIndex?: number };
+export function compareConversations(a?: SortableConversation | null, b?: SortableConversation | null): number {
     if (!a && !b) return 0;
     if (!a) return 1;
     if (!b) return -1;
 
     // Display recency: bump active chat to top via lastActiveAt without mutating server timestamps
-    const tsA = Math.max(getEffectiveTimestamp(a), toTimestampMs((a as any)?.lastActiveAt) ?? 0);
-    const tsB = Math.max(getEffectiveTimestamp(b), toTimestampMs((b as any)?.lastActiveAt) ?? 0);
+    const tsA = Math.max(getEffectiveTimestamp(a), toTimestampMs(a.lastActiveAt) ?? 0);
+    const tsB = Math.max(getEffectiveTimestamp(b), toTimestampMs(b.lastActiveAt) ?? 0);
     if (tsA !== tsB) return tsB - tsA;
 
     const idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;

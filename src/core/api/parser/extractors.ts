@@ -89,6 +89,7 @@ declare global {
 }
 
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
+import { RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
 import { payloadToMs, extractInnerPayload } from "./payload.js";
 
@@ -128,8 +129,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
             COUNT_ALT2: 9      // Optional turn count if number
         }
     });
-
-    const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     function getUtils(): any {
         return GeminiUtils;
