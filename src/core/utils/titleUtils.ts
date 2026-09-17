@@ -206,10 +206,13 @@ export function toTimestampMs(raw: any): number | null {
 
 /**
  * Get the authoritative effective timestamp (milliseconds) of a conversation.
+ * Server-authoritative only: updatedAt > timestamp > chatTime > createdAt.
+ * lastSeen is client-observed and intentionally excluded (PR-3, core-vocab audit D2):
+ * when no server timestamp exists this returns 0 rather than a client-seeded guess.
  */
 export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): number {
     if (!chat || typeof chat !== 'object') return 0;
-    const candidates = [chat.updatedAt, chat.timestamp, (chat as any).chatTime, chat.createdAt, (chat as any).lastSeen];
+    const candidates = [chat.updatedAt, chat.timestamp, (chat as any).chatTime, chat.createdAt];
     for (const raw of candidates) {
         const ms = toTimestampMs(raw);
         if (ms !== null) {
