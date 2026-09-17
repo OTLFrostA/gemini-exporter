@@ -69,11 +69,11 @@ export const GeminiConstants: GeminiConstantsModule = {
 
 /**
  * Canonical chrome.storage key for a slot's exported-ids record.
- * Pure formula, no slot normalization — callers pass whatever slot value
- * they already use ('u0' -> legacy 'exportedIds' key).
+ * Normalizes empty/null/undefined slots to the default 'u0' -> legacy 'exportedIds' key.
  */
-export function exportedIdsKey(slot: string | null | undefined): string {
-    return slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+export function exportedIdsKey(slot?: string | null): string {
+    const s = slot || 'u0';
+    return s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
 }
 
 if (typeof globalThis !== 'undefined') (globalThis as any).GeminiConstants = GeminiConstants;

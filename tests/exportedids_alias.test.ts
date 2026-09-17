@@ -11,6 +11,7 @@ const assert = require('node:assert');
 
 const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
 const { normId } = require('../src/core/utils/pathUtils.js');
+const { exportedIdsKey } = require('../src/core/utils/constants.js');
 const ConversationsStore = require('../src/ui/state/conversationsStore.js');
 
 // Same alias-tolerant lookup the production readers use.
@@ -73,4 +74,14 @@ test('exportedIds alias - legacy alias-only map still resolves (no migration nee
     assert.strictEqual(ConversationsStore.getExportedRecord('xyz789'), rec);
     assert.strictEqual(ConversationsStore.getExportedRecord('c_xyz789'), rec);
     assert.strictEqual(ConversationsStore.getExportedRecord('nope'), null);
+});
+
+test('exportedIdsKey - canonical key computation and slot fallback', () => {
+    assert.strictEqual(exportedIdsKey('u0'), 'exportedIds');
+    assert.strictEqual(exportedIdsKey('u1'), 'gemini_exported_u1');
+    assert.strictEqual(exportedIdsKey('u2'), 'gemini_exported_u2');
+    assert.strictEqual(exportedIdsKey(null), 'exportedIds');
+    assert.strictEqual(exportedIdsKey(undefined), 'exportedIds');
+    assert.strictEqual(exportedIdsKey(''), 'exportedIds');
+    assert.strictEqual(exportedIdsKey(), 'exportedIds');
 });
