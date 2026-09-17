@@ -104,12 +104,13 @@ class FakeAssetPipeline {
 async function runExport(chatDetail: any, { useFakePipeline = false }: { useFakePipeline?: boolean } = {}) {
     zipCaptures.length = 0;
     const origChrome = (global as any).chrome;
-    const origJSZip = (global as any).JSZip;
+    const origJSZip = __getModuleOverride('JSZip');
     const origPipeline = __getModuleOverride('AssetPipeline');
+    const origTab = __getModuleOverride('TabService');
 
     const chromeMock = makeChromeStorage();
     (global as any).chrome = chromeMock;
-    (global as any).JSZip = FakeJSZip;
+    __setModuleOverride('JSZip', FakeJSZip);
     if (useFakePipeline) __setModuleOverride('AssetPipeline', FakeAssetPipeline);
     else __setModuleOverride('AssetPipeline', undefined);
 
@@ -146,9 +147,9 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
         return { result, onItemExportedCalls, exportedIds, chromeData: chromeMock.data };
     } finally {
         (global as any).chrome = origChrome;
-        (global as any).JSZip = origJSZip;
+        __setModuleOverride('JSZip', origJSZip);
         __setModuleOverride('AssetPipeline', origPipeline);
-        __setModuleOverride('TabService', undefined);
+        __setModuleOverride('TabService', origTab);
     }
 }
 

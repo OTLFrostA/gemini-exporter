@@ -4,6 +4,7 @@ const assert = require('node:assert');
 
 const { ExportOrchestrator, AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
 const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // AsyncQueue
@@ -78,7 +79,7 @@ test('RateLimitManager - detect rate limit and exponential backoff', async () =>
 // ExportOrchestrator: Mock JSZip
 // ---------------------------------------------------------------------------
 function setupMockJSZip() {
-    (global as any).JSZip = class MockJSZip {
+    __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         folder(_name: string) {
@@ -90,7 +91,7 @@ function setupMockJSZip() {
             if (cb) cb({ percent: 100 });
             return new Blob(['mock-zip'], { type: 'application/zip' });
         }
-    };
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -272,14 +273,14 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
 
 test('ExportOrchestrator - skip: true when all selected chats are up-to-date completes instantly without network calls or empty zip', async () => {
     let zipGenerated = false;
-    (global as any).JSZip = class MockJSZipAllSkip {
+    __setModuleOverride('JSZip', class MockJSZipAllSkip {
         files: Record<string, any> = {};
         folder() { return { file: () => {} }; }
         async generateAsync() {
             zipGenerated = true;
             return new Blob(['mock-zip'], { type: 'application/zip' });
         }
-    };
+    });
 
     const orchestrator = new ExportOrchestrator();
 

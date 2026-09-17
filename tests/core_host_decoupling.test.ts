@@ -56,9 +56,9 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
 
 test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via injected messageSender', async () => {
     const origChrome = (global as any).chrome;
-    const origTabService = (global as any).TabService;
     delete (global as any).chrome;
-    delete (global as any).TabService;
+    // Clear any TabService test override so the seam resolves to null
+    __setModuleOverride('TabService', undefined);
 
     try {
         let sentMessage: any = null;
@@ -87,7 +87,7 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         assert.strictEqual(result.results![0].title, 'Decoupled Remote Chat');
     } finally {
         (global as any).chrome = origChrome;
-        (global as any).TabService = origTabService;
+        __setModuleOverride('TabService', undefined);
     }
 });
 

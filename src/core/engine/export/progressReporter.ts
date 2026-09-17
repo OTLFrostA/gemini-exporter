@@ -14,10 +14,6 @@ export interface ProgressReporterModule {
     updateStorageSession: typeof updateStorageSession;
 }
 
-declare global {
-    var ProgressReporter: ProgressReporterModule;
-}
-
 function calculateProgress(current: number, total: number, downloadedAssets: number = 0, totalAssets: number = 0): number {
     const safeTotal = Number(total) || 0;
     const safeCurrent = Math.min(Number(current) || 0, safeTotal);
@@ -108,15 +104,4 @@ export const progressReporterModule: ProgressReporterModule = {
     updateStorageSession
 };
 
-(progressReporterModule as any).ProgressReporter = ProgressReporter;
-(progressReporterModule as any).calculateProgress = calculateProgress;
-(progressReporterModule as any).updateStorageSession = updateStorageSession;
-(progressReporterModule as any).default = progressReporterModule;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).ProgressReporter) {
-    (globalThis as any).ProgressReporter = progressReporterModule;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = progressReporterModule;
-}
 export default progressReporterModule;

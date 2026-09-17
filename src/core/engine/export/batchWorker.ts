@@ -50,10 +50,6 @@ export interface BatchWorkerModule {
     ) => Promise<ResolveChatResult>;
 }
 
-declare global {
-    var BatchWorker: BatchWorkerModule;
-}
-
 import {
     normId as utilsNormId,
     shortScope as utilsShortScope,
@@ -155,7 +151,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
     ): Promise<FetchChatDetailResult> {
         const nid = normId(requestedItem.id);
         const messageSender = options.messageSender || null;
-        const tabService = options.tabService || __resolveModule('TabService', (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService : null));
+        const tabService = options.tabService || __resolveModule('TabService', null);
 
         return new Promise<FetchChatDetailResult>(async (resolve) => {
             let settled = false;
@@ -480,13 +476,4 @@ export const BatchWorker: BatchWorkerModule = {
     resolveChat
 };
 
-(BatchWorker as any).BatchWorker = BatchWorker;
-(BatchWorker as any).default = BatchWorker;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).BatchWorker) {
-    (globalThis as any).BatchWorker = BatchWorker;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = BatchWorker;
-}
 export default BatchWorker;

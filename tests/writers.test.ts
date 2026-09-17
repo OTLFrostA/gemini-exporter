@@ -3,8 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/core/engine/writers/fsWriter.js');
-const ZipWriter = require('../src/core/engine/writers/zipWriter.js');
+const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
 const WriterInterface = require('../src/core/engine/writers/writerInterface.js');
+const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // FsWriter
@@ -59,7 +60,7 @@ test('fsWriter - sanitizeFileName and ensureSubDir nested resolution', async () 
 // ---------------------------------------------------------------------------
 test('zipWriter - exports, instantiation, and sanitization', () => {
     assert.ok(ZipWriter);
-    (global as any).JSZip = class MockJSZip {
+    __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         folder(_name: string) {
@@ -71,7 +72,7 @@ test('zipWriter - exports, instantiation, and sanitization', () => {
             if (cb) cb({ percent: 100 });
             return new Blob(['mock-zip'], { type: 'application/zip' });
         }
-    };
+    });
 
     const writer = new ZipWriter('test_folder');
     assert.ok(writer);
@@ -105,12 +106,12 @@ test('writerInterface - isWriter and createWriter factory', () => {
     assert.strictEqual(WriterInterface.isWriter({}), false);
     assert.strictEqual(WriterInterface.isWriter({ writeFile: () => {} }), true);
 
-    (global as any).JSZip = class MockJSZip {
+    __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         folder(_name: string) { return { file: (_p: string, _c: any) => {} }; }
         async generateAsync(_opts?: any) { return new Blob(['']); }
-    };
+    });
 
     const zipWriter = WriterInterface.createWriter('zip', { folderName: 'test_export' });
     assert.ok(zipWriter);
@@ -167,7 +168,7 @@ test('fsWriter - rejects invalid or empty plain object content before touching f
 });
 
 test('zipWriter - supports 3-argument (subDir, fileName, content) signature matching IExportWriter', () => {
-    (global as any).JSZip = class MockJSZip {
+    __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         constructor() { this.files = {}; }
         folder(_name: string) {
@@ -176,7 +177,7 @@ test('zipWriter - supports 3-argument (subDir, fileName, content) signature matc
             };
         }
         async generateAsync() { return new Blob(['']); }
-    };
+    });
 
     const writer = new ZipWriter('my_export');
     const path = writer.writeFile('assets', 'img.png', 'fake_data');

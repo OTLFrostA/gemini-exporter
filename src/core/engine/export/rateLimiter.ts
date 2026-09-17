@@ -204,10 +204,6 @@ export class RateLimitManager {
     }
 }
 
-declare global {
-    var RateLimitModule: RateLimitModule;
-}
-
 export const rateLimitModule: RateLimitModule = {
     RateLimitManager,
     isRateLimited,
@@ -215,17 +211,5 @@ export const rateLimitModule: RateLimitModule = {
     withRateLimitRetry,
     abortableSleep
 };
-
-(rateLimitModule as any).RateLimitManager = RateLimitManager;
-(rateLimitModule as any).RateLimitModule = rateLimitModule;
-(rateLimitModule as any).withRateLimitRetry = withRateLimitRetry;
-(rateLimitModule as any).default = rateLimitModule;
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).RateLimitModule = rateLimitModule;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = rateLimitModule;
-}
 
 export default rateLimitModule;
