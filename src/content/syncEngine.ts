@@ -312,7 +312,6 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                     action: 'syncUpdate',
                     slot,
                     count: mergedLength,
-                    newCount: incomingItems.length,
                     from: source
                 });
                 if (p && p.catch) p.catch(() => {});

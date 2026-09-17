@@ -70,7 +70,7 @@ import { createWriter } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 import { shortId } from "../../utils/pathUtils.js";
 
-import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
+import { EXT_VERSION, getExtensionVersion, exportedIdsKey } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
 const getUtils = (): GeminiUtilsModule | null => (globalThis as any).GeminiUtils || GeminiUtils;
@@ -278,7 +278,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             const Storage = (typeof (globalThis as any).StorageService !== 'undefined') ? (globalThis as any).StorageService : ((globalThis as any).StorageService || null);
             let curIds = Storage ? await Storage.getExportedIds(slot) : {};
             if (!Storage && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                const expKey = exportedIdsKey(slot);
                 const store = await chrome.storage.local.get([expKey]);
                 curIds = store[expKey] || {};
             }

@@ -194,7 +194,7 @@ function getProtocol(): GeminiProtocolModule {
                 target.bl = pageBl;
                 try {
                     const storage = getCredStorage();
-                    if (storage) await storage.set({ gemini_credentials_map: map });
+                    if (storage) await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
                 } catch (e) { /* keep in-memory copy; retried on next resolveCred */ }
             }
         }

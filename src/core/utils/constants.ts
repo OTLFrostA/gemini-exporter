@@ -21,6 +21,7 @@ export interface GeminiConstantsModule {
     STORAGE_KEYS: StorageKeyMap;
     EXT_VERSION: string;
     getExtensionVersion: (customVersion?: string) => string;
+    exportedIdsKey: (slot: string | null | undefined) => string;
 }
 
 declare global {
@@ -62,8 +63,18 @@ export const GeminiConstants: GeminiConstantsModule = {
     STORAGE_KEYS,
     FEEDBACK_URL,
     EXT_VERSION,
-    getExtensionVersion
+    getExtensionVersion,
+    exportedIdsKey
 };
+
+/**
+ * Canonical chrome.storage key for a slot's exported-ids record.
+ * Pure formula, no slot normalization — callers pass whatever slot value
+ * they already use ('u0' -> legacy 'exportedIds' key).
+ */
+export function exportedIdsKey(slot: string | null | undefined): string {
+    return slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+}
 
 if (typeof globalThis !== 'undefined') (globalThis as any).GeminiConstants = GeminiConstants;
 if (typeof module === 'object' && module.exports) module.exports = GeminiConstants;

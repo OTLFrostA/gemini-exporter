@@ -69,7 +69,7 @@ import {
 import GeminiProtocol from "../../protocol/protocol.js";
 import GeminiUtils from "../../utils/utils.js";
 import { extractInnerPayload } from "./payload.js";
-import { resolveDetailTitle } from "../../utils/titleUtils.js";
+import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
 import { shortId, shortScope as getShortScope } from "../../utils/pathUtils.js";
 
 function getExtractors(): any {
@@ -120,8 +120,6 @@ function getProtocol(): any {
 function getSchema(): any {
     return GEMINI_JSPB_SCHEMA;
 }
-
-const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
 
     // Cache isTurn results per turn array instance

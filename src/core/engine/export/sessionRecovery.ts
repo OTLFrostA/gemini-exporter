@@ -62,7 +62,7 @@ const normId = (id?: string | number | null): string => {
     return utilsNormId(id);
 };
 
-import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
+import { EXT_VERSION, getExtensionVersion, exportedIdsKey } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
     async function writeIndexAndMeta(
@@ -224,7 +224,7 @@ export { EXT_VERSION, getExtensionVersion };
                 await storageAdapter.saveExportRecord(slot, targetId, rec);
             } else if (storageAdapter && typeof storageAdapter.set === 'function') {
                 // Fallback: read-modify-write using canonical key
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                const expKey = exportedIdsKey(slot);
                 const ck = normId(targetId);
                 let cur: Record<string, any> = { ...(curIds || {}) };
                 if (typeof storageAdapter.get === 'function') {
@@ -241,7 +241,7 @@ export { EXT_VERSION, getExtensionVersion };
                 if (ck) next[ck] = rec;
                 await storageAdapter.set({ [expKey]: next });
             } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+                const expKey = exportedIdsKey(slot);
                 const ck = normId(targetId);
                 const got = await chrome.storage.local.get([expKey]);
                 const cur: Record<string, any> = (got && got[expKey] && typeof got[expKey] === 'object') ? got[expKey] : {};
