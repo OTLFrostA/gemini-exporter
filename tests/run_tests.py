@@ -684,7 +684,7 @@ def test_takeout_limit_modal_and_wall_detection():
     sync_js_path = sync_ts if os.path.isfile(sync_ts) else os.path.join(BASE_DIR, "src/content/syncEngine.js")
     with open(sync_js_path, "r", encoding="utf-8") as f:
         sync_code = f.read()
-    assert "gemini_pending_takeout_prompt" in sync_code, "syncEngine.js should persist gemini_pending_takeout_prompt"
+    assert "gemini_pending_takeout_prompt" in sync_code or "STORAGE_KEYS.PENDING_TAKEOUT_PROMPT" in sync_code, "syncEngine.js should persist gemini_pending_takeout_prompt (literal or via STORAGE_KEYS)"
 
     # 6. Ensure single-time tutorial prompt behavior (isTakeoutPromptCompleted & has_completed_takeout_prompt)
     storage_ts = os.path.join(BASE_DIR, "src/core/storage/storageService.ts")

@@ -85,6 +85,12 @@ export interface Conversation {
     createdAt?: number | string;
     chatTime?: number | string;
     lastSeen?: number | string;
+    /**
+     * Client-observed interaction recency (touch path: stream start/complete,
+     * live turn). Display-sort signal only — never feeds timestamp authority.
+     * Stored as ms epoch (unlike lastSeen's ISO string).
+     */
+    lastActiveAt?: number;
     source?: string;
     titleSource?: TitleSource | string;
     titles?: TitleSources;

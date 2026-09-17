@@ -12,6 +12,7 @@ import {
     mergeConversation,
     deduplicateConversations
 } from '../core/utils/utils.js';
+import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/index.js';
@@ -672,7 +673,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                     const existing = await chrome.storage.local.get(['has_completed_takeout_prompt']);
                     if (!existing?.has_completed_takeout_prompt) {
                         chrome.storage.local.set({
-                            gemini_pending_takeout_prompt: {
+                            [STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]: {
                                 slot,
                                 count: mergedLen,
                                 hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit),

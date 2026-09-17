@@ -1,6 +1,7 @@
 // src/core/utils/i18n.ts - Complete, centralized internationalization engine for Gemini Exporter
 
 import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
+import { STORAGE_KEYS } from './constants.js';
 
 import zhDict from './locales/zh.js';
 import enDict from './locales/en.js';
@@ -23,8 +24,8 @@ const langChangeListeners: Set<(lang: string) => void> = new Set();
         ensureLocales();
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const data = await chrome.storage.local.get('gemini_exporter_lang');
-                const savedLang = typeof data?.gemini_exporter_lang === 'string' ? (data.gemini_exporter_lang as string) : null;
+                const data = await chrome.storage.local.get(STORAGE_KEYS.LANG);
+                const savedLang = typeof data?.[STORAGE_KEYS.LANG] === 'string' ? (data[STORAGE_KEYS.LANG] as string) : null;
                 if (savedLang && LOCALES[savedLang]) {
                     currentLang = savedLang;
                 } else {
@@ -51,7 +52,7 @@ const langChangeListeners: Set<(lang: string) => void> = new Set();
         currentLang = lang;
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                await chrome.storage.local.set({ gemini_exporter_lang: lang });
+                await chrome.storage.local.set({ [STORAGE_KEYS.LANG]: lang });
             }
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
         applyI18n();

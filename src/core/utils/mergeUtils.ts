@@ -5,7 +5,6 @@ import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestam
 
 export interface MergeConversationOptions {
     isRpcSource?: boolean;
-    now?: number | string;
     source?: string;
     targetSlot?: string;
 }
@@ -157,8 +156,11 @@ export function mergeConversation(
         bestCreatedAt = cCreated || oldCreated || null;
     }
 
-    // 3. bestTimestamp mirrors bestUpdatedAt (the latest activity time)
-    const bestTimestamp = bestUpdatedAt || old?.timestamp || incoming?.timestamp || null;
+    // 3. bestTimestamp mirrors bestUpdatedAt (the latest activity time).
+    // P1-hygiene: route the raw .timestamp fallbacks through toTimestampMs
+    // like cUpdated/oldUpdated above, so a legacy garbage string can never
+    // be kept verbatim in the authoritative timestamp field.
+    const bestTimestamp = bestUpdatedAt || toTimestampMs(old?.timestamp) || toTimestampMs(incoming?.timestamp) || null;
 
     // 3b. Preserve fuller message payloads and count monotonicity
     const effectiveMessageCount = (c: any): number => {
@@ -189,8 +191,8 @@ export function mergeConversation(
     }
 
     // 3d. lastActiveAt monotonicity
-    const oldActiveMs = toMs((old as any)?.lastActiveAt);
-    const inActiveMs = toMs((incoming as any)?.lastActiveAt);
+    const oldActiveMs = toMs(old?.lastActiveAt);
+    const inActiveMs = toMs(incoming?.lastActiveAt);
     const bestActiveMs = Math.max(oldActiveMs ?? 0, inActiveMs ?? 0);
 
     // 7. Check if meaningful change occurred
@@ -243,9 +245,9 @@ export function mergeConversation(
         merged.messageCount = Math.max(oldMsgCount, inMsgCount);
     }
 
-    if (options?.now) {
-        merged.lastSeen = options.now;
-    } else if (bestLastSeen !== null) {
+    // P1-hygiene: the caller-injected `options.now` lastSeen override had zero
+    // callers and was removed; lastSeen is always the max-monotonic merge.
+    if (bestLastSeen !== null) {
         merged.lastSeen = bestLastSeen;
     }
     if (bestActiveMs > 0) {

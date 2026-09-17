@@ -1,6 +1,7 @@
 // src/content/content.ts - Gemini Exporter content script coordinator (Layered Architecture)
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils } from '../core/utils/utils.js';
+import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { contentContext } from './contentContext.js';
 import { ensureCreds } from './bootstrap.js';
 import { SyncEngine } from './syncEngine.js';
@@ -81,16 +82,16 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     // Language & Dev mode synchronization
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            chrome.storage.local.get(['gemini_exporter_lang', 'gemini_dev_mode'], d => {
-                const lang = String(d.gemini_exporter_lang || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'));
+            chrome.storage.local.get([STORAGE_KEYS.LANG, 'gemini_dev_mode'], d => {
+                const lang = String(d[STORAGE_KEYS.LANG] || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'));
                 if (Sync && Sync.setLanguage) Sync.setLanguage(lang);
                 contentContext.setDevMode(!!d.gemini_dev_mode);
                 w.__gemExporterDevMode = !!d.gemini_dev_mode;
                 if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
             });
             const onStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
-                if (area === 'local' && changes.gemini_exporter_lang) {
-                    const newLang = String(changes.gemini_exporter_lang.newValue || 'zh');
+                if (area === 'local' && changes[STORAGE_KEYS.LANG]) {
+                    const newLang = String(changes[STORAGE_KEYS.LANG].newValue || 'zh');
                     if (Sync && Sync.setLanguage) Sync.setLanguage(newLang);
                     if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
                 }
