@@ -291,12 +291,7 @@ export const MessageRouter = {
     init
 };
 
-
 (MessageRouter as any).MessageRouter = MessageRouter;
 (MessageRouter as any).default = MessageRouter;
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).MessageRouter = MessageRouter;
-}
 
 export default MessageRouter;

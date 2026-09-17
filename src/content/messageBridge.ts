@@ -2,6 +2,8 @@
 import { contentContext } from './contentContext.js';
 import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
+import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
+import { LiveSaveObserver } from './liveSaveObserver.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
 import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
@@ -65,8 +67,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         const { text, slot } = d.payload || {};
         if (!text) return;
         try {
-            const parser = (typeof GeminiResponseParserClass !== 'undefined' ? GeminiResponseParserClass : null)
-                || ((typeof globalThis !== 'undefined' ? (globalThis as any).GeminiResponseParserClass : null) || null);
+            const parser = GeminiResponseParserClass;
             if (!parser) return;
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
             if (!Proto) return;
@@ -193,7 +194,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         const { cid, reason, ...options } = d.payload || {};
         if (cid) {
             try {
-                const coordinator = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveCoordinator);
+                const coordinator = LiveSaveCoordinator;
                 if (coordinator && typeof coordinator.executeLiveSave === 'function') {
                     await coordinator.executeLiveSave(cid, reason || 'turn_complete', options);
                 }
@@ -210,7 +211,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         if (typeof (_deps as any)?.onStreamStart === 'function') {
             (_deps as any).onStreamStart(id, slot);
         } else {
-            const obs = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveObserver);
+            const obs = LiveSaveObserver;
             if (obs && typeof obs.notifyStreamStart === 'function') {
                 obs.notifyStreamStart(id);
             }
@@ -249,7 +250,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         if (typeof (_deps as any)?.onStreamComplete === 'function') {
             (_deps as any).onStreamComplete(id, slot);
         } else {
-            const obs = (typeof globalThis !== 'undefined' && (globalThis as any).LiveSaveObserver);
+            const obs = LiveSaveObserver;
             if (obs && typeof obs.notifyStreamComplete === 'function') {
                 obs.notifyStreamComplete(id);
             }
@@ -300,9 +301,5 @@ export const MessageBridge = {
 
 (MessageBridge as any).MessageBridge = MessageBridge;
 (MessageBridge as any).default = MessageBridge;
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).MessageBridge = MessageBridge;
-}
 
 export default MessageBridge;
