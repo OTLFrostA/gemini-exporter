@@ -89,3 +89,23 @@ test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
     assert.ok(typeof en.takeoutHtmlSizeUnknown === 'string' && en.takeoutHtmlSizeUnknown.length > 0, 'en key present');
     assert.ok(typeof zh.takeoutHtmlSizeUnknown === 'string' && zh.takeoutHtmlSizeUnknown.length > 0, 'zh key present');
 });
+
+test('p1_h1 - parseTakeoutTimestamp CST and numeric offset handling', () => {
+    const { parseTakeoutTimestamp } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+    const blockCjkCst = '<div class="content-cell">Prompted 介绍木星<br>Jul 15, 2024, 2:30:00 PM CST</div>';
+    const tsCst = parseTakeoutTimestamp(blockCjkCst);
+    assert.ok(tsCst !== null);
+    const isoCst = new Date(tsCst).toISOString();
+    assert.strictEqual(isoCst, '2024-07-15T06:30:00.000Z', 'CST in CJK context must map to UTC+8 (+0800)');
+
+    const blockUtc = '<div class="content-cell">Prompted Hello<br>Jul 15, 2024, 2:30:00 PM UTC+8</div>';
+    const tsUtc = parseTakeoutTimestamp(blockUtc);
+    assert.ok(tsUtc !== null);
+    assert.strictEqual(new Date(tsUtc).toISOString(), '2024-07-15T06:30:00.000Z');
+
+    const blockZh = '<div class="content-cell">提示 你好<br>2024年3月15日 下午2:30:00 UTC+8</div>';
+    const tsZh = parseTakeoutTimestamp(blockZh);
+    assert.ok(tsZh !== null);
+    assert.strictEqual(new Date(tsZh).toISOString(), '2024-03-15T06:30:00.000Z');
+});
+

@@ -91,45 +91,66 @@ export function parseTakeoutPrompt(block: string): { promptText: string; hasExpl
  */
 export function parseTakeoutTimestamp(block: string): number | null {
     let ts: number | null = null;
-    const timeMatchEn = block.match(/([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}(?::\d{2})?\s*[\u202f\s]*(?:AM|PM)\s*[A-Z]*)/);
-    const timeMatchZh = block.match(/(\d{4}年\d{1,2}月\d{1,2}日[\s\u202f\xa0]*(?:上午|下午)?\s*\d{1,2}:\d{2}(?::\d{2})?)/);
-    const timeMatchIso = block.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2}[\sT]\d{1,2}:\d{2}(?::\d{2})?)/);
+    const timeMatchEn = block.match(/([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}(?::\d{2})?\s*[\u202f\s]*(?:AM|PM)(?:\s+[A-Za-z0-9_+-]+)?)/);
+    const timeMatchZh = block.match(/(\d{4}年\d{1,2}月\d{1,2}日[\s\u202f\xa0]*(?:[A-Z]{2,4}\s+)?(?:上午|下午)?\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:UTC|GMT)?\s*[+-]?\d{1,2}(?::?\d{2})?|\s*[A-Z]{2,4})?)/);
+    const timeMatchIso = block.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2}[\sT]\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/);
+
+    const hasCjk = /[\u4e00-\u9fa5]/.test(block);
+    const tzMap: Record<string, string> = {
+        'UTC': '+0000', 'GMT': '+0000',
+        'EDT': '-0400', 'EST': '-0500',
+        'CDT': '-0500',
+        'CST': hasCjk ? '+0800' : '-0600',
+        'MDT': '-0600', 'MST': '-0700',
+        'PDT': '-0700', 'PST': '-0800',
+        'AKDT': '-0800', 'AKST': '-0900',
+        'HST': '-1000', 'HDT': '-0900',
+        'BST': '+0100', 'CET': '+0100', 'CEST': '+0200',
+        'EET': '+0200', 'EEST': '+0300',
+        'IST': '+0530', 'JST': '+0900', 'KST': '+0900',
+        'AEST': '+1000', 'AEDT': '+1100',
+        'SGT': '+0800', 'HKT': '+0800'
+    };
+
+    const extractOffset = (text: string) => {
+        const numMatch = text.match(/\s+(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$/i);
+        if (numMatch) {
+            const sign = numMatch[1];
+            const hours = numMatch[2].padStart(2, '0');
+            const mins = (numMatch[3] || '00').padStart(2, '0');
+            const clean = text.replace(/\s+(?:UTC|GMT)?\s*[+-]\d{1,2}(?::?\d{2})?$/i, '').trim();
+            return { cleanText: clean, offsetStr: ` GMT${sign}${hours}${mins}` };
+        }
+        const codeMatch = text.match(/\s+([A-Z]{3,4})$/);
+        if (codeMatch && tzMap[codeMatch[1]]) {
+            const clean = text.replace(/\s+[A-Z]{3,4}$/, '').trim();
+            return { cleanText: clean, offsetStr: ' GMT' + tzMap[codeMatch[1]] };
+        }
+        return { cleanText: text.trim(), offsetStr: '' };
+    };
 
     if (timeMatchEn) {
         let rawT = timeMatchEn[1].replace(/[\u202f\xa0]/g, ' ').trim();
-        const tzMap: Record<string, string> = {
-            'UTC': '+0000', 'GMT': '+0000',
-            'EDT': '-0400', 'EST': '-0500',
-            'CDT': '-0500', 'CST': '-0600',
-            'MDT': '-0600', 'MST': '-0700',
-            'PDT': '-0700', 'PST': '-0800',
-            'AKDT': '-0800', 'AKST': '-0900',
-            'HST': '-1000', 'HDT': '-0900',
-            'BST': '+0100', 'CET': '+0100', 'CEST': '+0200',
-            'EET': '+0200', 'EEST': '+0300',
-            'IST': '+0530', 'JST': '+0900',
-            'AEST': '+1000', 'AEDT': '+1100'
-        };
-        const tzMatch = rawT.match(/\s+([A-Z]{3,4})$/);
-        let tzOffsetStr = '';
-        if (tzMatch && tzMap[tzMatch[1]]) {
-            tzOffsetStr = ' GMT' + tzMap[tzMatch[1]];
-        }
-        let cleanT = rawT.replace(/\s+[A-Z]{3,4}$/, '').trim() + tzOffsetStr;
-        let dt = new Date(cleanT);
+        const { cleanText, offsetStr } = extractOffset(rawT);
+        let dt = new Date(cleanText + offsetStr);
         if (!isNaN(dt.getTime())) ts = dt.getTime();
     } else if (timeMatchZh) {
-        let rawZh = timeMatchZh[1];
-        let isPm = rawZh.includes('下午');
-        let isAm = rawZh.includes('上午');
-        let cleanZh = rawZh.replace(/上午|下午/g, '').replace(/[年月日]/g, (m: string) => m === '年' || m === '月' ? '-' : ' ')
-                           .replace(/[\u202f\xa0]/g, ' ').replace(/\s+/g, ' ').trim();
-        let dt = new Date(cleanZh);
-        if (!isNaN(dt.getTime())) {
-            let h = dt.getHours();
-            if (isPm && h < 12) dt.setHours(h + 12);
-            else if (isAm && h === 12) dt.setHours(0);
-            ts = dt.getTime();
+        let rawZh = timeMatchZh[1].replace(/[\u202f\xa0]/g, ' ').trim();
+        const { cleanText, offsetStr } = extractOffset(rawZh);
+        let isPm = cleanText.includes('下午');
+        let isAm = cleanText.includes('上午');
+        let parts = cleanText.replace(/上午|下午/g, '').replace(/[A-Z]{2,4}/g, '').trim()
+            .match(/(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        if (parts) {
+            let y = parts[1], m = parts[2].padStart(2, '0'), d = parts[3].padStart(2, '0');
+            let h = parseInt(parts[4], 10);
+            let min = parts[5];
+            let sec = parts[6] || '00';
+            if (isPm && h < 12) h += 12;
+            else if (isAm && h === 12) h = 0;
+            let dateStr = `${y}-${m}-${d} ${String(h).padStart(2, '0')}:${min}:${sec}${offsetStr}`;
+            let dt = new Date(dateStr);
+            if (!isNaN(dt.getTime())) ts = dt.getTime();
         }
     } else if (timeMatchIso) {
         let dt = new Date(timeMatchIso[1].replace(/[\u202f\xa0]/g, ' '));

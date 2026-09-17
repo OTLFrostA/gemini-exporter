@@ -207,8 +207,7 @@ export interface ChatFormatterModule {
         let cleaned = cleanMessageBody(text);
         if (!cleaned) return '';
 
-        // If message has raw userscript or ultra-long code without markdown code fence
-        if (!cleaned.includes('```') && (cleaned.includes('// ==UserScript==') || cleaned.length > 400)) {
+        if (!cleaned.includes('```') && cleaned.includes('// ==UserScript==')) {
             const lines = cleaned.split('\n');
             let outLines: string[] = [];
             let inFence = false;
@@ -218,10 +217,6 @@ export interface ChatFormatterModule {
                     outLines.push('```javascript');
                     outLines.push(line);
                     inFence = true;
-                } else if (s.length > 400 && !inFence && (s.includes('function(') || s.includes('var ') || s.includes('const ') || s.includes('\\x'))) {
-                    outLines.push('```javascript');
-                    outLines.push(line);
-                    outLines.push('```');
                 } else {
                     outLines.push(line);
                 }
