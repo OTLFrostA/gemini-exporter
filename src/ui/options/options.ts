@@ -1,38 +1,15 @@
 // src/ui/options/options.ts - Gemini Exporter workbench single entrypoint & coordinator
-import '../../core/protocol/protocol.js';
-import '../../core/utils/constants.js';
-import '../../core/utils/utils.js';
-import '../../core/utils/tabService.js';
-import '../../core/utils/locales/zh.js';
-import '../../core/utils/locales/en.js';
-import '../../core/utils/i18n.js';
-import '../../core/storage/storageService.js';
-import '../../core/storage/formatStore.js';
-import '../../core/engine/writers/zipWriter.js';
+// NOTE (re-audit 2026-09-17, main=d601f83): all 33 former bare side-effect imports
+// were verified removable. A static-import-graph BFS from this entrypoint reaches all
+// 33 modules (82 files total), and no reader uses a `(globalThis as any).ModuleName`
+// mount for them anymore — #437 migrated the AssetPipeline reader to the
+// moduleOverrides seam with a static default import
+// (exportOrchestrator.ts:46 `import { AssetPipeline as AssetPipelineStatic }`, used via
+// `__resolveModule('AssetPipeline', AssetPipelineStatic)`), so the module stays in the
+// esbuild bundle through that chain: options.ts -> optionsContext.ts ->
+// controllers/exportController.ts -> exportEngine.js -> export/exportOrchestrator.js ->
+// assetPipeline.js.
 import { FsWriterModule as FsWriter } from '../../core/engine/writers/fsWriter.js';
-import '../../core/engine/writers/writerInterface.js';
-import '../../core/engine/chatFormatter.js';
-import '../../core/api/parser/extractors.js';
-import '../../core/api/parser/attachments.js';
-import '../../core/api/parser/parseList.js';
-import '../../core/api/parser/parseDetail.js';
-import '../../core/api/geminiParser.js';
-import '../../core/api/client/credentialManager.js';
-import '../../core/api/client/retryPolicy.js';
-import '../../core/api/client/rpcClient.js';
-import '../../core/api/client/pagination.js';
-import '../../core/api/geminiClient.js';
-import '../../core/engine/takeout/zipBombGuard.js';
-import '../../core/engine/takeout/mediaIndex.js';
-import '../../core/engine/takeout/takeoutParser.js';
-import '../../core/engine/takeoutEngine.js';
-import '../../core/engine/assetPipeline.js';
-import '../../core/engine/export/progressReporter.js';
-import '../../core/engine/export/sessionRecovery.js';
-import '../../core/engine/export/rateLimiter.js';
-import '../../core/engine/export/batchWorker.js';
-import '../../core/engine/export/exportOrchestrator.js';
-import '../../core/engine/exportEngine.js';
 import { OptionsInit } from './modules/optionsInit.js';
 import { OptionsExport } from './modules/optionsExport.js';
 import { OptionsSync } from './modules/optionsSync.js';

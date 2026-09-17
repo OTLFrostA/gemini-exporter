@@ -16,7 +16,13 @@ import { GeminiConstants } from '../../core/utils/constants.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { GeminiProtocol } from '../../core/protocol/protocol.js';
 import { ProviderRegistry } from '../../core/provider/providerRegistry.js';
-import '../../core/provider/index.js';
+// Side-effect imports kept intentionally: geminiProvider/chatgptProvider self-register
+// into ProviderRegistry on module evaluation (see the "Auto-register" blocks at the
+// bottom of each file), and nothing else in the static import graph pulls them in —
+// without these, ProviderRegistry would stay empty at runtime. Importing the two
+// provider modules directly (rather than provider/index.js) keeps the intent precise.
+import '../../core/provider/gemini/geminiProvider.js';
+import '../../core/provider/chatgpt/chatgptProvider.js';
 import { TabService } from '../../core/utils/tabService.js';
 import { TakeoutEngine } from '../../core/engine/takeoutEngine.js';
 import { TourGuide } from '../tour/tourGuide.js';
