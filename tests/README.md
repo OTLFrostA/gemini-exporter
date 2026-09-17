@@ -9,7 +9,7 @@
 ```mermaid
 flowchart TD
     subgraph Tier1 [第一层：CI 自动化极速门禁 Tier 1 - Fast & Headless Gate]
-        T1_A["python3 tests/run_tests.py<br>37 个 TypeScript/Node 行为单元测试套件"]
+        T1_A["python3 tests/run_tests.py<br>78 个 TypeScript/Node 行为单元测试套件"]
         T1_B["npx playwright test<br>15 个 Spec 文件 / 34 个无头端到端测试 (~20秒)"]
         T1_A --> T1_PASS["CI 极速门禁通过 (~25秒)"]
         T1_B --> T1_PASS
@@ -39,15 +39,15 @@ flowchart TD
 ### 1. 定位与设计原则
 * **轻量极速**：完全在本地与 GitHub Actions 虚拟无头环境中运行，无须连接外网，无须真实 Google 账号。
 * **100% 行为真断言**：彻底杜绝仅检查 `typeof === 'function'` 的假门面断言与源码文本正则匹配，通过构造具有完整 DOM 树与真实层级结构（折叠 recent 列表、滚动容器、会话链接树）的测试夹具，真实调用模块 API。
-* **执行总耗时**：~20 秒完成 37 个单测套件 + 34 个 Playwright 端到端用例。
+* **执行总耗时**：~20 秒完成 78 个单测套件 + 34 个 Playwright 端到端用例。
 
 ### 2. 运行命令
 ```bash
-# 执行完整 CI 门禁（类型检查 + 37 个单测 + 构建打包 + 34 个无头集成用例）
+# 执行完整 CI 门禁（类型检查 + 78 个单测 + 构建打包 + 34 个无头集成用例）
 npm test
 
 # 或分别单独执行
-npm run test:unit    # 运行 python3 tests/run_tests.py (37 个单元测试套件)
+npm run test:unit    # 运行 python3 tests/run_tests.py (78 个单元测试套件)
 npm run test:e2e     # 运行 npx playwright test (34 个 Playwright 用例)
 ```
 
