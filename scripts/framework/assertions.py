@@ -76,8 +76,8 @@ class CDPAssertions:
                     const idx2 = domItems.indexOf(el2);
 
                     resolve({{
-                        ts1: c1 ? (c1.updatedAt || c1.timestamp || 0) : 0,
-                        ts2: c2 ? (c2.updatedAt || c2.timestamp || 0) : 0,
+                        ts1: c1 ? Math.max(c1.updatedAt || c1.timestamp || 0, c1.lastActiveAt || 0) : 0,
+                        ts2: c2 ? Math.max(c2.updatedAt || c2.timestamp || 0, c2.lastActiveAt || 0) : 0,
                         idx1: idx1,
                         idx2: idx2,
                         totalDom: domItems.length,
