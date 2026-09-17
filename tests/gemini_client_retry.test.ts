@@ -7,8 +7,6 @@ const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js')
 const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
 const { isRateLimited, withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
 
-(global as any).GeminiResponseParserClass = GeminiResponseParserClass;
-
 // ---------------------------------------------------------------------------
 // 1. handleHttp400 XSRF recovery logic in retryPolicy
 // ---------------------------------------------------------------------------
