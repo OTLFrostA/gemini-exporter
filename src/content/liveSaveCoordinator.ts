@@ -8,7 +8,13 @@ import { GeminiUtils } from '../core/utils/utils.js';
 import { buildExportFileName, shortId, normId } from '../core/utils/pathUtils.js';
 import type { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { ProviderRegistry } from '../core/provider/providerRegistry.js';
-import '../core/provider/index.js';
+// Side-effect imports kept intentionally: geminiProvider/chatgptProvider self-register
+// into ProviderRegistry on module evaluation (see the "Auto-register" blocks at the
+// bottom of each file), and nothing else in the static import graph pulls them in —
+// without these, ProviderRegistry would stay empty at runtime. Importing the two
+// provider modules directly (rather than provider/index.js) keeps the intent precise.
+import '../core/provider/gemini/geminiProvider.js';
+import '../core/provider/chatgpt/chatgptProvider.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
