@@ -16,7 +16,7 @@
 
 const overrides = new Map<string, any>();
 
-export function __setModuleOverride(name: string, impl: any): void {
+export function __setModuleOverride<T = any>(name: string, impl: T | undefined): void {
     if (impl === undefined) overrides.delete(name);
     else overrides.set(name, impl);
 }
@@ -26,12 +26,15 @@ export function __clearModuleOverrides(): void {
 }
 
 /** Read the current explicit override (test teardown bookkeeping). */
-export function __getModuleOverride(name: string): any {
+export function __getModuleOverride<T = any>(name: string): T | undefined {
     return overrides.get(name);
 }
 
-/** Resolve a module by its legacy global name. Never throws; never returns a promise. */
-export function __resolveModule(name: string, fallback: any): any {
+/** Resolve an optional module override where fallback is null/undefined, returning `any`. */
+export function __resolveModule(name: string, fallback: null | undefined): any;
+/** Resolve a module override: explicit test override wins, else the typed static fallback. */
+export function __resolveModule<T>(name: string, fallback: T): T;
+export function __resolveModule(name: string, fallback?: any): any {
     const o = overrides.get(name);
     if (o !== undefined) return o;
     const g = (globalThis as any)[name];
