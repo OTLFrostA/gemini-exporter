@@ -1,4 +1,18 @@
-// src/core/engine/takeoutEngine.ts - Re-export facade for Takeout operations
+// src/core/engine/takeoutEngine.ts
+//
+// Stable public facade for Takeout operations.
+//
+// Design intent — kept deliberately, this is not an empty shell:
+// - This module is the SOLE public entry point for Takeout APIs. Nothing imports
+//   ./takeout/mediaIndex.js or ./takeout/takeoutParser.js directly.
+// - It aggregates two implementation modules (mediaIndex + takeoutParser) into one
+//   coherent `TakeoutEngine` namespace, so consumers are insulated from internal
+//   file moves.
+// - The `TakeoutEngine` namespace object is the identity key of the
+//   __resolveModule('TakeoutEngine', …) test seam (see takeoutController.ts,
+//   optionsContext.ts, and tests using __setModuleOverride('TakeoutEngine', …)).
+//   Deleting this facade would force the seam to be re-keyed and churn
+//   2 production + 7 test files for zero behavioral gain.
 import {
     getTakeoutOfflineChat,
     getTakeoutFallbackMedia,
@@ -48,8 +62,5 @@ export const TakeoutEngine: TakeoutEngineModule = {
     getStore,
     __slotTakeouts
 };
-
-(TakeoutEngine as any).TakeoutEngine = TakeoutEngine;
-(TakeoutEngine as any).default = TakeoutEngine;
 
 export default TakeoutEngine;
