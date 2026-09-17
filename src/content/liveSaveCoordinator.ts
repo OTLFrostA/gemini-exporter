@@ -575,8 +575,4 @@ declare global {
     var LiveSaveCoordinator: any;
 }
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).LiveSaveCoordinator = LiveSaveCoordinator;
-}
-
 export default LiveSaveCoordinator;

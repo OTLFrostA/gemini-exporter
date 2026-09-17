@@ -232,9 +232,7 @@ const log = (msg: string): void => {
                     }
                 }
 
-                const chatFormatter = (typeof ChatFormatter !== 'undefined')
-                    ? ChatFormatter
-                    : (globalThis as any).ChatFormatter;
+                const chatFormatter = ChatFormatter;
                 const formatted = (typeof chatFormatter !== 'undefined')
                     ? chatFormatter.formatContent(chat, format)
                     : { content: JSON.stringify(chat, null, 2), ext: 'json', mime: 'application/json' };

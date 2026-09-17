@@ -139,8 +139,6 @@ export const FsWriterModule: FsWriterModule = {
     sanitizeRelativePath
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).FsWriter = FsWriterModule;
-if (typeof module === 'object' && module.exports) module.exports = FsWriterModule;
 
 export default FsWriterModule;
 

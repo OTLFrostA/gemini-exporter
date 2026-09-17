@@ -66,6 +66,7 @@ import {
     isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle
 } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { ChatFormatter } from "../chatFormatter.js";
 
 const injectedUtils = (): any => __resolveModule('GeminiUtils', null);
 
@@ -327,7 +328,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                         if (h1Match) {
                             docTitle = cleanTitle(stripHtmlTags(unescapeHtml(h1Match[1])));
                         }
-                        const convHtml = (globalThis as any).ChatFormatter?.convertHtmlToMarkdown;
+                        const convHtml = ChatFormatter.convertHtmlToMarkdown;
                         docMarkdown = convHtml ? convHtml(m.content) : m.content.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_match: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
                     } else {
                         const h1Match = m.content.match(/(?:^|\n)#\s+([^\n]+)/);

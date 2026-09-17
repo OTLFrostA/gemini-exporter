@@ -291,8 +291,4 @@ export const DomScraper = {
 (DomScraper as any).DomScraper = DomScraper;
 (DomScraper as any).default = DomScraper;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).DomScraper = DomScraper;
-}
-
 export default DomScraper;

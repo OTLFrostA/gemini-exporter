@@ -9,7 +9,7 @@ import '../../core/utils/i18n.js';
 import '../../core/storage/storageService.js';
 import '../../core/storage/formatStore.js';
 import '../../core/engine/writers/zipWriter.js';
-import '../../core/engine/writers/fsWriter.js';
+import { FsWriterModule as FsWriter } from '../../core/engine/writers/fsWriter.js';
 import '../../core/engine/writers/writerInterface.js';
 import '../../core/engine/chatFormatter.js';
 import '../../core/api/parser/extractors.js';
@@ -239,6 +239,7 @@ if (typeof window !== 'undefined') {
     (window as any).OptionsSync = OptionsSync;
     (window as any).OptionsTakeout = OptionsTakeout;
     (window as any).OptionsSettings = OptionsSettings;
+    (window as any).FsWriter = FsWriter;
 }
 if (typeof module === 'object' && module.exports) {
     module.exports = OptionsModule;

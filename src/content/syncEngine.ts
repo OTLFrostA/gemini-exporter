@@ -736,8 +736,4 @@ export const SyncEngine = {
 (SyncEngine as any).SyncEngine = SyncEngine;
 (SyncEngine as any).default = SyncEngine;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).SyncEngine = SyncEngine;
-}
-
 export default SyncEngine;

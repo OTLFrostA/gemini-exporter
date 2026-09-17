@@ -143,8 +143,4 @@ export const PageObserver = {
 (PageObserver as any).PageObserver = PageObserver;
 (PageObserver as any).default = PageObserver;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).PageObserver = PageObserver;
-}
-
 export default PageObserver;

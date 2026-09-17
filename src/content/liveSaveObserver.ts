@@ -276,8 +276,4 @@ declare global {
     var LiveSaveObserver: any;
 }
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).LiveSaveObserver = LiveSaveObserver;
-}
-
 export default LiveSaveObserver;

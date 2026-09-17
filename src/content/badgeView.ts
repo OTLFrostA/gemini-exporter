@@ -293,8 +293,4 @@ export const BadgeView = {
 (BadgeView as any).BadgeView = BadgeView;
 (BadgeView as any).default = BadgeView;
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).BadgeView = BadgeView;
-}
-
 export default BadgeView;
