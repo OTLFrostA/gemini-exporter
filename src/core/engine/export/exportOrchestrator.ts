@@ -214,7 +214,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
     }
 
     const getGeminiTab = async (slot?: string): Promise<any> =>
-        ((globalThis as any).TabService || TabService)?.getGeminiTab?.(slot) ?? null;
+        (__resolveModule('TabService', (globalThis as any).TabService || TabService))?.getGeminiTab?.(slot) ?? null;
 
     const getAssetPipelineClass = (): any => __resolveModule('AssetPipeline', AssetPipelineStatic);
 
