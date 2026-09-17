@@ -13,7 +13,7 @@ const assert = require('node:assert');
 // null as unknown via toTimestampMs(...) ?? 0.
 
 const { parseDetail } = require('../src/core/api/parser/parseDetail.js');
-const { parseTakeoutHtmlBlocks } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
 
 // --- parseDetail: a turn whose payload carries NO timestamp candidates ---
 // extractTurnTimestamp reads turn[1], turn[4], turn[5], turn[last]; all are
@@ -65,4 +65,27 @@ test('timestamp_honesty - takeout turn messages keep timestamp null when the blo
         // Old behavior: `timestamp: ts || Date.now()` / `(ts ? ts + 2000 : Date.now())`.
         assert.strictEqual(m.timestamp, null, `takeout message timestamp must stay null, never Date.now() (role=${m.role})`);
     }
+});
+
+test('timestamp_honesty - correlateGeneratedImages model turn keeps timestamp null when no server timestamp exists', () => {
+    const localMediaMap: Record<string, any[]> = {};
+    const localConvCache: Record<string, any> = {
+        'test_cid': {
+            id: 'test_cid',
+            timestamp: null,
+            messages: []
+        }
+    };
+    const extractedMap: Record<string, any> = {};
+    const watermarkedImages = [{ filename: 'gen_1.png', time: null, fileObj: {} }];
+    const genBlocks = [{ chatId: 'test_cid', time: 0, prompt: 'draw a cat' }];
+
+    correlateGeneratedImages(watermarkedImages, genBlocks, localMediaMap, localConvCache, extractedMap);
+
+    const cached = localConvCache['test_cid'];
+    assert.ok(cached.messages.length === 1, 'should synthesize model turn');
+    const modelTurn = cached.messages[0];
+    assert.strictEqual(modelTurn.role, 'model');
+    // Old behavior: line 482 fell back to Date.now() when neither img.time nor cached.timestamp was set!
+    assert.strictEqual(modelTurn.timestamp, null, 'synthesized model turn timestamp must stay null, never Date.now()');
 });

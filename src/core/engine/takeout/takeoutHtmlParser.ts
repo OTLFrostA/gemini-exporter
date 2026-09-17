@@ -479,7 +479,7 @@ export function correlateGeneratedImages(
                 modelTurn = {
                     role: 'model',
                     content: `![Generated Image](assets/${img.filename})`,
-                    timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : Date.now()),
+                    timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : null),
                     images: [imgObj],
                     attachments: [imgObj]
                 };

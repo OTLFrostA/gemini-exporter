@@ -68,7 +68,7 @@ export type Message = ChatMessage;
 
 export interface Turn {
     id?: string;
-    timestamp?: number;
+    timestamp?: number | null;
     messages?: ChatMessage[];
     userContent?: string;
     modelContent?: string;
