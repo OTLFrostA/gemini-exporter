@@ -35,11 +35,12 @@ function installMocks(opts: {
     let legacySaves = 0;
     let transactCalls = 0;
 
-    const origStore = (globalThis as any).ConversationsStore;
-    const origEngine = (globalThis as any).TakeoutEngine;
-    const origStorage = (globalThis as any).StorageService;
+    const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+    const origStore = __getModuleOverride('ConversationsStore');
+    const origEngine = __getModuleOverride('TakeoutEngine');
+    const origStorage = __getModuleOverride('StorageService');
 
-    (globalThis as any).ConversationsStore = {
+    __setModuleOverride('ConversationsStore', {
         // Deliberately stale: captured before the other tab's write.
         getConversations: () => opts.stale,
         getCurrentSlot: () => 'u0',
@@ -51,11 +52,11 @@ function installMocks(opts: {
             cell.list = list;
             legacySaves++;
         },
-    };
-    (globalThis as any).TakeoutEngine = {
+    });
+    __setModuleOverride('TakeoutEngine', {
         parseTakeoutZip: async () => ({ conversations: opts.incoming, totalMediaCount: 0 }),
-    };
-    (globalThis as any).StorageService = {
+    });
+    __setModuleOverride('StorageService', {
         transactConversations: async (_slot: string, updater: (e: any[]) => any) => {
             transactCalls++;
             // The updater runs inside the lock and re-reads fresh storage:
@@ -69,7 +70,7 @@ function installMocks(opts: {
             cell.list = res.list;
             return { list: res.list, changed: res.changed || 0, written: true };
         },
-    };
+    });
 
     return {
         getBacking: () => cell.list,
@@ -77,9 +78,9 @@ function installMocks(opts: {
         getLegacySaves: () => legacySaves,
         getTransactCalls: () => transactCalls,
         restore: () => {
-            (globalThis as any).ConversationsStore = origStore;
-            (globalThis as any).TakeoutEngine = origEngine;
-            (globalThis as any).StorageService = origStorage;
+            __setModuleOverride('ConversationsStore', origStore);
+            __setModuleOverride('TakeoutEngine', origEngine);
+            __setModuleOverride('StorageService', origStorage);
         },
     };
 }

@@ -1,13 +1,14 @@
 // src/ui/views/dialogView.ts - Dialog and Banner Views
 import type { IDialogView } from '../../types/ui.js';
 import StorageService from '../../core/storage/storageService.js';
+import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import { SessionStore } from '../../core/storage/sessionStore.js';
 
 import { $, t } from '../uiCommon.js';
 
-const getStorage = () => (globalThis as any).StorageService || StorageService;
-const getStore = () => (globalThis as any).ConversationsStore || ConversationsStore;
+const getStorage = () => __resolveModule('StorageService', StorageService);
+const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
 
 export function renderExportBanner(session: any, currentSlot: string, isRunning: boolean): void {
     const banner = $('exportSessionBanner');

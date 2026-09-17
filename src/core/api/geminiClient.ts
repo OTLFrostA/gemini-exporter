@@ -1,6 +1,7 @@
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode } from "../utils/utils.js";
 import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "./geminiParser.js";
+import { __resolveModule } from "../utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,
     getAtFromPage,
@@ -26,10 +27,7 @@ export interface GeminiAPIClientOptions {
 }
 
 function getProtocol(): GeminiProtocolModule {
-    if (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) {
-        return (globalThis as any).GeminiProtocol;
-    }
-    return GeminiProtocol;
+    return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
 function getParser(): GeminiResponseParserFacade {

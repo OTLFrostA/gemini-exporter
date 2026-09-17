@@ -48,12 +48,14 @@ const hybrid = () => ({ id: 'c_hybrid1', title: 'Hybrid', titles: { takeout: 'Ta
 const pureTakeout = () => ({ id: 'c_takeout1', title: 'Pure Takeout', source: 'takeout' });
 const pureOnline = () => ({ id: 'c_online1', title: 'Pure Online', titles: { rpc: 'RPC Title' } });
 
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+
 function withStubStorage() {
-    const prev = (globalThis as any).StorageService;
-    (globalThis as any).StorageService = {
+    const prev = __getModuleOverride('StorageService');
+    __setModuleOverride('StorageService', {
         reconcileConversations: async () => ({ kept: 0, removed: 0, removedIds: [] }),
-    };
-    return () => { (globalThis as any).StorageService = prev; };
+    });
+    return () => { __setModuleOverride('StorageService', prev); };
 }
 
 test('store: reconcileWithCloud 保留 takeout+rpc 混血记录（与 hasTakeoutData 一致）', async () => {
