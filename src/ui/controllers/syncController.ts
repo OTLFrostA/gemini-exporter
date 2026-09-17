@@ -1,4 +1,5 @@
 import type { SyncControllerContract } from '../../types/ui.js';
+import type { DeepScanMessage, StopDeepScanMessage } from '../../types/messages.js';
 import GeminiProtocol from '../../core/protocol/protocol.js';
 import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
@@ -54,7 +55,8 @@ function _runScan(
     // incremental). Previously a lost response left scanRunning stuck true
     // forever because setScanRunning(false) lived only inside the callback.
     const uiTimeoutMs = mode === 'full' ? 330000 : 120000;
-    sendTypedMessage({ action: 'deepScan', mode, accountSlot: slot || 'u0' }, uiTimeoutMs).then((res: any) => {
+    const msg: DeepScanMessage = { action: 'deepScan', mode, accountSlot: slot || 'u0' };
+    sendTypedMessage(msg, uiTimeoutMs).then((res: any) => {
         setScanRunning(false);
 
         const slidingLimit = (typeof GeminiProtocol !== 'undefined' && GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 500;
@@ -102,7 +104,8 @@ export function startDeepScan(slot: string, callbacks: any = {}): void {
 }
 
 export function stopScan(slot: string, { onStopped, onLog }: any = {}): void {
-    chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: slot || 'u0' }, () => {
+    const msg: StopDeepScanMessage = { action: 'stopDeepScan', accountSlot: slot || 'u0' };
+    chrome.runtime.sendMessage(msg, () => {
         const stopMsg = typeof t === 'function' ? t('stoppingSync') : '正在终止同步...';
         if (onLog) onLog(stopMsg, 'warn');
         setScanRunning(false);

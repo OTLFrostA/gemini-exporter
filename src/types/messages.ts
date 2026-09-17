@@ -132,4 +132,79 @@ export interface GetScrollContainerMessage extends BaseMessage {
     action: 'getScrollContainer';
 }
 
+// Payload shapes below were confirmed against the actual senders and handlers
+// (see per-interface notes); fields stay optional to match the existing
+// BackgroundMessage loose-bag convention.
+
+export interface FetchBatchMessage extends BaseMessage {
+    // Sender: src/core/engine/export/batchWorker.ts (~L187: ids/format/
+    // skipExported/globalOffset/globalTotal/accountSlot).
+    // Handler: src/background/background.ts (~L119) reads the same fields;
+    // batchFetcher.fetchBatch(list, format?, skipExported?, ..., globalOffset?,
+    // globalTotal?, accountSlot?) gives the per-field types.
+    action: 'fetchBatch';
+    ids?: (string | { id: string; title?: string; url?: string })[];
+    format?: string;
+    skipExported?: boolean;
+    globalOffset?: number;
+    globalTotal?: number;
+    accountSlot?: string;
+}
+
+export interface AbortSyncMessage extends BaseMessage {
+    // Handler: src/background/background.ts (~L158) reads accountSlot and
+    // forwards a bare { action: 'abortSync' } to the Gemini tab.
+    // Content handler: src/content/messageRouter.ts (~L109) reads no fields.
+    // (No UI->background sender exists in src; the handler is kept for compat.)
+    action: 'abortSync';
+    accountSlot?: string;
+}
+
+export interface DeepScanMessage extends BaseMessage {
+    // UI sender: src/ui/controllers/syncController.ts (~L57: mode is
+    // 'incremental' | 'full', accountSlot).
+    // Background (src/background/background.ts ~L176) reads mode/maxIter/
+    // accountSlot and forwards { action, maxIter, mode } to the tab
+    // (defaults: maxIter 150, mode 'auto').
+    // Content handler: src/content/messageRouter.ts (~L77) reads mode === 'full'.
+    action: 'deepScan';
+    mode?: 'incremental' | 'full' | 'auto';
+    maxIter?: number;
+    accountSlot?: string;
+}
+
+export interface StopDeepScanMessage extends BaseMessage {
+    // Sender: src/ui/controllers/syncController.ts (~L105: accountSlot).
+    // Handler: src/background/background.ts (~L196) reads accountSlot and
+    // forwards a bare { action: 'stopDeepScan' } to the Gemini tab.
+    action: 'stopDeepScan';
+    accountSlot?: string;
+}
+
+export interface PingMessage extends BaseMessage {
+    // Sender: src/core/utils/tabService.ts (~L129: bare { action: 'ping' }).
+    // Handlers: src/background/background.ts (~L166) and
+    // src/content/messageRouter.ts (~L67) read no fields.
+    action: 'ping';
+}
+
+export interface OpenOptionsMessage extends BaseMessage {
+    // Sender: src/content/badgeView.ts (~L111: bare { action: 'openOptions' }).
+    // Handler: src/background/background.ts (~L68) reads no fields.
+    action: 'openOptions';
+}
+
+export interface OpenGeminiPageMessage extends BaseMessage {
+    // Sender: src/core/utils/tabService.ts (~L150: bare { action }).
+    // Handler: src/background/background.ts (~L74) reads no fields.
+    action: 'openGeminiPage';
+}
+
+export interface ReloadGeminiTabMessage extends BaseMessage {
+    // Sender: src/core/utils/tabService.ts (~L160: { action, tabId? }).
+    // Handler: src/background/background.ts (~L81) reads msg.tabId.
+    action: 'reloadGeminiTab';
+    tabId?: number;
+}
+
 

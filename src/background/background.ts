@@ -1,6 +1,7 @@
 // src/background/background.ts - Manifest V3 Background Service Worker for Gemini Exporter
 
 import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
+import type { AbortSyncMessage, DeepScanMessage, StopDeepScanMessage } from '../types/messages.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
 import {
     __bgAborts,
@@ -158,7 +159,8 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     if (msg.action === 'abortSync') {
         const slot = msg.accountSlot || 'u0';
         setSlotAborted(slot, true);
-        sendToGeminiTab({ action: 'abortSync' }, slot).catch(() => {});
+        const abortMsg: AbortSyncMessage = { action: 'abortSync' };
+        sendToGeminiTab(abortMsg, slot).catch(() => {});
         sendResponse({ ok: true, aborted: true });
         return true;
     }
@@ -178,11 +180,12 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
             const stopKeepAlive = startKeepAlive();
             try {
                 const timeoutMs = (msg.mode === 'full' || msg.mode === 'auto') ? 300000 : 90000;
-                const res = await sendToGeminiTab({
+                const deepScanMsg: DeepScanMessage = {
                     action: 'deepScan',
                     maxIter: msg.maxIter || 150,
                     mode: msg.mode || 'auto'
-                }, msg.accountSlot, timeoutMs);
+                };
+                const res = await sendToGeminiTab(deepScanMsg, msg.accountSlot, timeoutMs);
                 sendResponse(res);
             } catch (e: any) {
                 sendResponse({ success: false, error: e?.message });
@@ -196,7 +199,8 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     if (msg.action === 'stopDeepScan') {
         const slot = msg.accountSlot || 'u0';
         setSlotAborted(slot, true);
-        sendToGeminiTab({ action: 'stopDeepScan' }, slot)
+        const stopMsg: StopDeepScanMessage = { action: 'stopDeepScan' };
+        sendToGeminiTab(stopMsg, slot)
             .then(r => sendResponse(r || { ok: true, aborted: true }))
             .catch(() => sendResponse({ ok: true, aborted: true }));
         return true;

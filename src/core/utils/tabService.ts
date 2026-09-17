@@ -1,6 +1,7 @@
 // src/core/utils/tabService.ts - Unified Gemini Tab Discovery & Communication Service
 
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
+import type { PingMessage, OpenGeminiPageMessage, ReloadGeminiTabMessage } from '../../types/messages.js';
 import { detectSlotFromUrl } from './pathUtils.js';
 
     function filterTabsBySlot(tabs: chrome.tabs.Tab[], slot?: string): chrome.tabs.Tab[] {
@@ -126,7 +127,8 @@ import { detectSlotFromUrl } from './pathUtils.js';
                     return;
                 }
 
-                chrome.tabs.sendMessage(targetTab.id, { action: 'ping' }, (response) => {
+                const pingMsg: PingMessage = { action: 'ping' };
+                chrome.tabs.sendMessage(targetTab.id, pingMsg, (response) => {
                     if (!settled) {
                         settled = true;
                         clearTimeout(timer);
@@ -147,7 +149,8 @@ import { detectSlotFromUrl } from './pathUtils.js';
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
             return chrome.tabs.create({ url: 'https://gemini.google.com/app' });
         } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-            return chrome.runtime.sendMessage({ action: 'openGeminiPage' });
+            const msg: OpenGeminiPageMessage = { action: 'openGeminiPage' };
+            return chrome.runtime.sendMessage(msg);
         } else if (typeof window !== 'undefined') {
             window.open('https://gemini.google.com/app', '_blank');
         }
@@ -157,7 +160,8 @@ import { detectSlotFromUrl } from './pathUtils.js';
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.reload && tabId) {
             return chrome.tabs.reload(tabId);
         } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-            return chrome.runtime.sendMessage({ action: 'reloadGeminiTab', tabId });
+            const msg: ReloadGeminiTabMessage = { action: 'reloadGeminiTab', tabId };
+            return chrome.runtime.sendMessage(msg);
         }
     }
 

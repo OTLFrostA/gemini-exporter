@@ -1,4 +1,6 @@
 // src/content/badgeView.ts - Draggable Badge UI & Position Management
+
+import type { OpenOptionsMessage } from '../types/messages.js';
 let __lastKnownCount: number | null = null;
 
 export function applyStoredBadgePosition(el: HTMLElement | null): void {
@@ -108,7 +110,8 @@ export function makeBadgeDraggable(div: HTMLElement, onClick?: (e: MouseEvent) =
             onClick(e);
         } else {
             try {
-                const p = chrome.runtime.sendMessage({ action: 'openOptions' });
+                const msg: OpenOptionsMessage = { action: 'openOptions' };
+                const p = chrome.runtime.sendMessage(msg);
                 if (p && p.catch) p.catch(() => {});
             } catch (e) {
                 if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:badgeView]', e);

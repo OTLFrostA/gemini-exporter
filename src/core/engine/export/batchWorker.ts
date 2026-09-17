@@ -1,5 +1,7 @@
 // batchWorker.ts - Single-chat remote fetching, exponential rate-limit backoff, and title/media resolution
 
+import type { FetchBatchMessage } from '../../../types/messages.js';
+
 export interface FetchChatDetailOptions {
     messageSender?: any;
     tabService?: any;
@@ -185,7 +187,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             const sender = messageSender || (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage ? chrome.runtime.sendMessage.bind(chrome.runtime) : null);
 
             if (sender) {
-                sender({
+                const msg: FetchBatchMessage = {
                     action: 'fetchBatch',
                     ids: [requestedItem],
                     format,
@@ -193,7 +195,8 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                     globalOffset: currentIndex,
                     globalTotal: totalChats,
                     accountSlot: currentSlot
-                }, (response: any) => {
+                };
+                sender(msg, (response: any) => {
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) {
                         settled = true;
