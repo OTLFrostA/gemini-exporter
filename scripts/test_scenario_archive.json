@@ -1081,5 +1081,48 @@
       "简述周期性重复暴（如 FRB 121102 与 FRB 180916）的磁层耀斑模型与双星风相互作用模型之争，以及偏振角旋转与极高法拉第旋转测度（RM）突变对极端磁星环境的物理约束意义。"
     ],
     "consumed_at": "2026-09-16T12:54:37.694639"
+  },
+  {
+    "id": "atom_interferometry_quantum_gravimeter",
+    "domain": "atom_interferometry_quantum_gravimeter",
+    "title": "冷原子干涉量子陀螺仪与绝对重力仪精密物理测量",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "physics"
+    ],
+    "description": "测试拉曼光脉冲 \\pi/2-\\pi-\\pi/2 物质波分束与合束推导、重力加速度 g 相位调制公式与 Imagen 冷原子团腔渲染",
+    "turns": [
+      "在物质波量子光学框架下，推导采用对向传播受激拉曼光脉冲序列 (\\pi/2 - \\pi - \\pi/2) 构成的 Mach-Zehnder 冷原子干涉仪中，重力场加速度 g 与原子波包在自由落体演化时间 T 下产生的干涉相位差 \\Delta \\Phi = k_{eff} g T^2 的严格路径积分 (Path Integral) 表达式。",
+      "请生成一张极具现代物理科研质感与高科技精密的 3D 渲染概念图：展示一台尖端超高真空冷原子绝对重力仪与原子干涉仪的内部核心物理腔体，中心悬浮着一团被六束相交的反向传播红外激光精准冷却并捕获的发光冷铷原子团（呈现出幽静迷人的荧光蓝紫色光辉），上下方向贯穿两束超窄线宽的垂直拉曼激光束，真空腔室由高透光蓝宝石观察窗与无磁钛合金法兰构成，周围密布精密光学准直透镜组、磁屏蔽超导筒与激光稳频光纤阵列，科学与工程细节极尽真实严谨。",
+      "推导当冷原子干涉系统处于旋转参考系时，由 Sagnac 效应引起的旋转角速度 \\Omega 导致的干涉相位漂移 \\Delta \\Phi_{rot} = 2 k_{eff} \\cdot (v_0 \times \\Omega) T^2，并分析原子初速度分布色散带来的多普勒展宽退相干抑制方法。",
+      "推导大动量传递 (Large Momentum Transfer, LMT) 技术中布拉格脉冲 (Bragg diffraction) 或 Bloch 振荡如何将有效波矢由 2k 提升至 2Nk，从而实现干涉灵敏度 \\sim N 倍量子放大的物理机理与自发辐射损耗权衡。",
+      "使用 Markdown 表格对比冷原子绝对重力仪、超导相对重力仪、石英弹簧相对重力仪及激光陀螺仪在测量灵敏度 (\\mu Gal/\\sqrt{Hz})、长期零漂稳定性、动态响应带宽与野外便携化适应能力指标。"
+    ],
+    "consumed_at": "2026-09-16T23:31:42.721686",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "photonic_quantum_computing_boson_sampling",
+    "title": "光量子计算与玻色采样：高斯玻色采样 (GBS) 矩阵积态与量子优越性",
+    "domain": "photonic_quantum_computing",
+    "description": "测试压缩真空态推导、矩阵 Hafnian 计算复杂度与光量子优越性实验路径对比",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "algorithms"
+    ],
+    "turns": [
+      "请从量子光学纠缠压缩态（Squeezed Vacuum State）出发，详细推导出高斯玻色采样（Gaussian Boson Sampling, GBS）的输出光子符合探测概率分布与矩阵 Hafnian 函数 \\text{Pr}(n) \\propto \\frac{\\text{Haf}(A_S)}{\\sqrt{\\det(Q)} \\prod n_i!} 之间的数学联系。",
+      "解释为什么经典的矩阵 Hafnian 计算复杂度属于 #P-hard 难题，并对比 Ryser 算法计算 Permanent 与 Barvinok 多项式逼近算法在经典超算模拟玻色采样时遭遇的维度灾难瓶颈。",
+      "请使用 Python 结合 numpy 实现一个基于递归分解或动态规划的简单对称矩阵 Hafnian 算法函数，附带小维度（如 4x4）矩阵的手动验算测试用例。",
+      "用 Markdown 表格对比超导线路（如 Sycamore）、离子阱（如 Quantinuum）与光量子（如九章/Jiuzhang、Borealis）三大主流量子优越性实验路径在相干时间、门保真度、室温运行容忍度与容错纠错扩展性上的优劣势。",
+      "分析光子损耗（Photon Loss）、模式不匹配（Mode Mismatch）以及暗计数（Dark Counts）等真实物理缺陷如何弱化光量子采样的计算复杂度下界，甚至导致经典张量网络（MPS/PEPS）能够在多项式时间内对其进行有效近似模拟。"
+    ],
+    "consumed_at": "2026-09-16T23:31:42.726361",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

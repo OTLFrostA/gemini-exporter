@@ -1,24 +1,5 @@
 [
   {
-    "id": "photonic_quantum_computing_boson_sampling",
-    "title": "光量子计算与玻色采样：高斯玻色采样 (GBS) 矩阵积态与量子优越性",
-    "domain": "photonic_quantum_computing",
-    "description": "测试压缩真空态推导、矩阵 Hafnian 计算复杂度与光量子优越性实验路径对比",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "algorithms"
-    ],
-    "turns": [
-      "请从量子光学纠缠压缩态（Squeezed Vacuum State）出发，详细推导出高斯玻色采样（Gaussian Boson Sampling, GBS）的输出光子符合探测概率分布与矩阵 Hafnian 函数 \\text{Pr}(n) \\propto \\frac{\\text{Haf}(A_S)}{\\sqrt{\\det(Q)} \\prod n_i!} 之间的数学联系。",
-      "解释为什么经典的矩阵 Hafnian 计算复杂度属于 #P-hard 难题，并对比 Ryser 算法计算 Permanent 与 Barvinok 多项式逼近算法在经典超算模拟玻色采样时遭遇的维度灾难瓶颈。",
-      "请使用 Python 结合 numpy 实现一个基于递归分解或动态规划的简单对称矩阵 Hafnian 算法函数，附带小维度（如 4x4）矩阵的手动验算测试用例。",
-      "用 Markdown 表格对比超导线路（如 Sycamore）、离子阱（如 Quantinuum）与光量子（如九章/Jiuzhang、Borealis）三大主流量子优越性实验路径在相干时间、门保真度、室温运行容忍度与容错纠错扩展性上的优劣势。",
-      "分析光子损耗（Photon Loss）、模式不匹配（Mode Mismatch）以及暗计数（Dark Counts）等真实物理缺陷如何弱化光量子采样的计算复杂度下界，甚至导致经典张量网络（MPS/PEPS）能够在多项式时间内对其进行有效近似模拟。"
-    ]
-  },
-  {
     "id": "atmospheric_climate_dynamics_navier_stokes",
     "title": "大气动力学与气候推演：准地转多尺度涡旋与高阶谱分析",
     "domain": "atmospheric_climate_dynamics",
@@ -153,26 +134,6 @@
       "针对聚变反应产物 \u0007lpha 粒子 (He) 注入钨基体内部诱发的高密度「钨绒毛」(Tungsten Fuzz) 纳米结构生长，从 He-空位缺陷复合、氦泡自捕获聚集与界面应力破裂机制阐述其微观动力学模型。",
       "使用 Python 编写脚本，基于 Kinchin-Pease (NRT) 位移损伤模型，计算 14.1 MeV 聚变高能中子轰击纯钨结构材料产生的每原子离位损伤数 (Displacements Per Atom, dpa) 与初级击出原子 (PKA) 能量分布谱。",
       "使用 Markdown 表格对比金属钨 (W)、碳化硅陶瓷复合材料 (SiC/SiC)、低活化铁素体/马氏体钢 (RAFM) 以及液态金属锂 (Liquid Li) 在聚变第一壁与偏滤器服役环境中的热导率、熔点、热应力疲劳极限、氚滞留量与抗中子活化性能。"
-    ]
-  },
-  {
-    "id": "atom_interferometry_quantum_gravimeter",
-    "domain": "atom_interferometry_quantum_gravimeter",
-    "title": "冷原子干涉量子陀螺仪与绝对重力仪精密物理测量",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "physics"
-    ],
-    "description": "测试拉曼光脉冲 \\pi/2-\\pi-\\pi/2 物质波分束与合束推导、重力加速度 g 相位调制公式与 Imagen 冷原子团腔渲染",
-    "turns": [
-      "在物质波量子光学框架下，推导采用对向传播受激拉曼光脉冲序列 (\\pi/2 - \\pi - \\pi/2) 构成的 Mach-Zehnder 冷原子干涉仪中，重力场加速度 g 与原子波包在自由落体演化时间 T 下产生的干涉相位差 \\Delta \\Phi = k_{eff} g T^2 的严格路径积分 (Path Integral) 表达式。",
-      "请生成一张极具现代物理科研质感与高科技精密的 3D 渲染概念图：展示一台尖端超高真空冷原子绝对重力仪与原子干涉仪的内部核心物理腔体，中心悬浮着一团被六束相交的反向传播红外激光精准冷却并捕获的发光冷铷原子团（呈现出幽静迷人的荧光蓝紫色光辉），上下方向贯穿两束超窄线宽的垂直拉曼激光束，真空腔室由高透光蓝宝石观察窗与无磁钛合金法兰构成，周围密布精密光学准直透镜组、磁屏蔽超导筒与激光稳频光纤阵列，科学与工程细节极尽真实严谨。",
-      "推导当冷原子干涉系统处于旋转参考系时，由 Sagnac 效应引起的旋转角速度 \\Omega 导致的干涉相位漂移 \\Delta \\Phi_{rot} = 2 k_{eff} \\cdot (v_0 \times \\Omega) T^2，并分析原子初速度分布色散带来的多普勒展宽退相干抑制方法。",
-      "推导大动量传递 (Large Momentum Transfer, LMT) 技术中布拉格脉冲 (Bragg diffraction) 或 Bloch 振荡如何将有效波矢由 2k 提升至 2Nk，从而实现干涉灵敏度 \\sim N 倍量子放大的物理机理与自发辐射损耗权衡。",
-      "使用 Markdown 表格对比冷原子绝对重力仪、超导相对重力仪、石英弹簧相对重力仪及激光陀螺仪在测量灵敏度 (\\mu Gal/\\sqrt{Hz})、长期零漂稳定性、动态响应带宽与野外便携化适应能力指标。"
     ]
   },
   {
@@ -395,6 +356,47 @@
       "严格推导斐波那契任意子编织操作对应的六边形恒等式 (Hexagon Identity) 与单粒子交换 R 矩阵，进而构造出在两量子比特融合计算子空间中的拓扑单量子比特非阿贝尔幺正旋转门 U = F^{-1} R^2 F 的显式 2 \\times 2 复数矩阵表示。",
       "使用 Python 编写脚本，基于树搜索 (Breadth-First Tree Search) 或 Solovay-Kitaev 算法思想，将任意目标单比特相干门（如哈达玛门 H 或相角门 T）近似分解为由基本编织生成元 \\sigma_1, \\sigma_2 构成的有限长度编织字序列，并计算酉算子逼近误差 \\epsilon = ||U_{target} - U_{braid}||_{F}。",
       "使用 Markdown 表格，对比马约拉纳零能模 (Majorana Zero Modes / Ising 任意子)、斐波那契任意子 (Fibonacci)、二维表面码 (Surface Code) 与连续玻色编码 (GKP) 在通用量子门集完备性（是否需要魔态蒸馏 Magic State Distillation）、拓扑容错保护层级、物理实验候选平台（半导体纳米线异质结 / \\nu=5/2 霍尔平台）与硬件可扩展性挑战。"
+    ]
+  },
+  {
+    "id": "deep_sea_hydrothermal_geochemistry_methanogenesis",
+    "domain": "deep_sea_hydrothermal_vent_geochemistry",
+    "title": "深海热液喷口地球化学与极端嗜极微生物非平衡热力学生成动力学",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "physics",
+      "code"
+    ],
+    "description": "测试热液羽流化学热力学吉布斯自由能推导、甲烷菌厌氧代谢途径动力学与深海黑烟囱多孔硫化物矿物高精度 Imagen 概念渲染",
+    "turns": [
+      "在极端深海海底热液喷口（350°C、300 bar）环境下，从非平衡热力学和电化学氧化还原电位推导出甲烷菌利用溶解氢气与二氧化碳发生化能自养产甲烷反应：4 H2(aq) + CO2(aq) -> CH4(aq) + 2 H2O(l) 的标准摩尔吉布斯自由能变化 \\Delta G(T, P) 及化学亲和势 A = -\\Delta G 计算公式，解释为什么在高温高压下非生物成因与生物成因烷烃生成的热力学驱动力截然不同。",
+      "请生成一张极具深海科考写实感与高清地质细节的 3D 渲染科学插图：展示位于水深 3000 米的大洋中脊黑烟囱（Black Smoker）喷口，柱体由多孔的黄铜矿、闪锌矿与磁黄铁矿层层沉积堆叠而成，喷口处正喷涌出浓黑滚烫的金属硫化物矿物热液羽流，在深海潜水器强光探照灯的冷白色光束照射下，柱体表面附着着一层呈雪白与浅金色的极端嗜热古菌生物薄膜，几只特化的深海盲虾（Rimicaris exoculata）与白雪状深海蟹在矿物缝隙中缓慢爬行，深邃的海水背景中漂浮着细微的矿物悬浮微粒，展现深海极端化能生态系统的壮丽与幽邃。",
+      "请使用 Python 编写一个基于反应动力学的简易热液混合模拟程序，模拟热液流体（pH=3, 富含 Fe2+/H2S）与低温碱性海水（pH=8.2, 2°C）按不同质量比例绝热混合时，混合流体的温度、pH 变化以及黄铁矿（FeS2）饱和指数（Saturation Index, SI = \\log(IAP/K_{sp})）的演化曲线。",
+      "用 Markdown 表格对比大洋中脊酸性黑烟囱（如 TAG/Lucky Strike）、超慢速扩张脊超基性蛇纹岩化白烟囱（如 Lost City）以及弧后盆地富碳酸盐喷口在流体温度、pH 值、出水甲烷/氢气分压、主要硫化物矿物组分与微生物群落代谢特征维度的关键区别。",
+      "从原始生命起源与地球化学能量转换假说（Alkaline Hydrothermal Vent Hypothesis）出发，严谨论证白烟囱多孔沉淀物中由黄铁矿-灰辉铁矿（Fe-S 簇）构成的无机微米级空隙壁，如何作为天然质子浓度梯度（\\Delta pH）原电池驱动原始 ATP 合成酶前体进行能量偶联。"
+    ]
+  },
+  {
+    "id": "semiconductor_quantum_dot_cavity_qed_single_photon",
+    "domain": "quantum_dot_single_photon_emitter",
+    "title": "自组装半导体量子点腔量子电动力学与确定性高纯度单光子源",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "physics"
+    ],
+    "description": "测试 Jaynes-Cummings 哈密顿量强耦合推导、二阶二项相关函数 g^(2)(0) 零延迟反聚束测量与微柱腔珀塞尔因子优化算法",
+    "turns": [
+      "在腔量子电动力学（Cavity QED）框架下，推导嵌入微柱谐振腔（Micropillar Cavity）中的 InAs/GaAs 自组装单量子点（视为两能级激子系统）与单模辐射场相互作用的 Jaynes-Cummings 哈密顿量 \\hat{H}_{JC} = \\hbar \\omega_c \\hat{a}^\\dagger \\hat{a} + \\frac{1}{2}\\hbar \\omega_a \\hat{\\sigma}_z + \\hbar g (\\hat{a}^\\dagger \\hat{\\sigma}_- + \\hat{a} \\hat{\\sigma}_+)，并详细推导珀塞尔增强因子（Purcell Factor）F_P = \\frac{3}{4\\pi^2} \\left(\\frac{\\lambda}{n}\\right)^3 \\frac{Q}{V_{eff}} 对自发辐射速率与单光子提取效率 \\eta 的理论极限影响。",
+      "请从量子光学相干理论出发，推导 Hanbury Brown-Twiss (HBT) 强度干涉仪测量的零时间延迟二阶相干函数 g^{(2)}(0) = \\frac{\\langle :\\hat{n}(t)\\hat{n}(t): \\rangle}{\\langle \\hat{n}(t) \\rangle^2} 公式，并解释在脉冲共振荧光激发（Pulsed Resonant Fluorescence）下，为什么 g^{(2)}(0) < 0.01 是断言无背景荧光污染的高纯度不可区分单光子态（Indistinguishable Single-Photon State）的黄金物理判据。",
+      "请使用 Python 实现一个基于量子主方程（Lindblad Master Equation）模拟量子点与微柱腔在非共振声子辅助失谐（Phonon-Assisted Incoherent Pumping）激发下的二能级密度矩阵 \\hat{\\rho}(t) 演化脚本，计算光子发射脉冲波形与腔泄漏光子的时域概率分布。",
+      "用 Markdown 表格对比基于 InAs 量子点微柱腔、金刚石色心（NV/SiV 纳米腔）、自发参量下转换（SPDC 预报单光子源）以及二维材料（hBN/WSe2 缺陷）四大主流单光子源技术在单光子纯度 1-g^{(2)}(0)、双光子干涉不可区分度 V_{HOM}、发射重频（MHz/GHz）以及低温制冷依赖性上的优缺点对比。",
+      "详细分析量子点中由各向异性交换相互作用（Anisotropic Exchange Interaction, AEI）引起的微结构精细结构劈裂（Fine-Structure Splitting, FSS）如何破坏双激子-激子（Biexciton-Exciton, XX-X）级联辐射的光子偏振纠缠，并总结利用面内双轴单轴应变微调（Piezoelectric Strain Tuning）消除 FSS 的物理机制与工程实现方案。"
     ]
   }
 ]
