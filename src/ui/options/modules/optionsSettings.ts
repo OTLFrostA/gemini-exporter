@@ -188,7 +188,7 @@ function bindStorageCleanup(): void {
     btnClearAll?.addEventListener('click', async () => {
         if (!isConfirmingClear) {
             isConfirmingClear = true;
-            btnClearAll.textContent = typeof t === 'function' ? (t('confirmClearAllInPlace') || '⚠️ 再次点击确认清空 (3s)') : '⚠️ 再次点击确认清空 (3s)';
+            btnClearAll.textContent = typeof t === 'function' ? (t('confirmClearAllInPlace') || '⚠️ 确认清空? (3s)') : '⚠️ 确认清空? (3s)';
             btnClearAll.style.background = '#dc2626';
             btnClearAll.style.color = '#ffffff';
             btnClearAll.style.borderColor = '#ef4444';
