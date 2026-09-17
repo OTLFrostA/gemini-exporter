@@ -116,8 +116,6 @@ function getSchema(): any {
     return GEMINI_JSPB_SCHEMA;
 }
 
-const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
-
     // Cache isTurn results per turn array instance
     const isTurnCache = new WeakMap<object, boolean>();
 
