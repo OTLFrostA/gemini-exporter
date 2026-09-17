@@ -5,9 +5,10 @@ const assert = require('node:assert');
 // Regression tests for exportedIds triple-alias write bloat.
 // Historical writers stored three alias keys per conversation
 // (raw id / normId(id) / 'c_'+normId(id)) in the in-memory maps.
-// The fix: writes use the single canonical key normId(id); readers
-// (getExportedRecord, listView, exportOrchestrator skip-check) already
-// resolve all three aliases, so no migration is needed.
+// The fix: writes use the single canonical key normId(id); the read path
+// (StorageService.getExportedIds, ConversationsStore.setExportedIds) folds
+// legacy alias keys back to canonical, so readers probe the single canonical
+// key instead of a triple lookup, and no migration is needed.
 
 const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
 const { normId } = require('../src/core/utils/pathUtils.js');

@@ -310,9 +310,11 @@ test('listView - render displays Updated badge and auto-checks updated conversat
             { id: 'c_exported', title: '已导出未更新对话', timestamp: t0, updatedAt: t0 },
             { id: 'c_updated', title: '已导出有新对话', timestamp: t0, updatedAt: t0 + 60000 }
         ];
+        // Post-triage-#5 contract: exportedIds maps are normalized to canonical
+        // keys on the read path, so the test map uses canonical keys too.
         const expMap = {
-            'c_exported': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出未更新对话' },
-            'c_updated': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出有新对话' }
+            'exported': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出未更新对话' },
+            'updated': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出有新对话' }
         };
 
         // Render with null prevSelectedSet (default initial load)

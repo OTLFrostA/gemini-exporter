@@ -281,6 +281,16 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 const expKey = exportedIdsKey(slot);
                 const store = await chrome.storage.local.get([expKey]);
                 curIds = store[expKey] || {};
+                // Triage #5: fold legacy alias keys here too — this raw fallback
+                // bypasses StorageService.getExportedIds(), so collapse inline
+                // with the same normId semantics (see storageService.ts).
+                for (const k of Object.keys(curIds)) {
+                    const ck = normId(k);
+                    if (ck && ck !== k) {
+                        if (!(ck in curIds)) curIds[ck] = curIds[k];
+                        delete curIds[k];
+                    }
+                }
             }
             if (options.exportedIds && typeof options.exportedIds === 'object') {
                 curIds = { ...curIds, ...options.exportedIds };
@@ -306,7 +316,13 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 };
 
                 if (skip) {
-                    const rec = curIds[sid] || curIds['c_' + nid] || curIds[nid] || null;
+                    // Triage #5 read-path fix: curIds is canonical-keyed — the
+                    // StorageService read path collapses legacy alias keys, the
+                    // raw store fallback is written canonical-only by
+                    // setExportedIds/saveExportRecordsBatch, and caller-supplied
+                    // options.exportedIds comes from the normalized in-memory
+                    // store. A single canonical probe is enough.
+                    const rec = curIds[nid] || null;
                     if (rec) {
                         const conv = (Array.isArray(conversations) ? conversations.find((c: any) => normId(c.id) === nid) : null) || (typeof s === 'object' ? s : null);
                         const isUpdated = checkUpdatedFn(conv || itemPayload, rec);

@@ -27,7 +27,27 @@ export const normId = (id?: string | null): string => {
 export function getConversations(): Conversation[] { return conversations; }
 export function setConversations(list: Conversation[]): void { conversations = list || []; }
 export function getExportedIds(): Record<string, ExportRecord> { return exportedIds; }
-export function setExportedIds(map: Record<string, ExportRecord>): void { exportedIds = map || {}; }
+
+// Fold legacy alias keys ('c_<id>' / raw id) into the canonical normId key.
+// Same semantics as StorageService's collapseExportAliases, applied here so the
+// in-memory map behind Store.getExportedIds() / getExportedRecord() / listView
+// always carries canonical keys (triage #5 read-path fix).
+function collapseExportAliases(map: Record<string, any>): void {
+    for (const k of Object.keys(map)) {
+        const ck = normId(k);
+        if (!ck || ck === k) continue;
+        if (!(ck in map)) {
+            map[ck] = map[k];
+        }
+        delete map[k];
+    }
+}
+
+export function setExportedIds(map: Record<string, ExportRecord>): void {
+    const next = map || {};
+    collapseExportAliases(next);
+    exportedIds = next;
+ }
 export function getCurrentSlot(): string { return currentSlot; }
 export function setCurrentSlot(slot: string): void { currentSlot = slot || 'u0'; }
 export function getAccountSlots(): Record<string, any> { return accountSlots; }
@@ -35,8 +55,10 @@ export function setAccountSlots(map: Record<string, any>): void { accountSlots =
 
 export function getExportedRecord(id?: string | null): ExportRecord | null {
     if (!id || !exportedIds) return null;
-    const nid = normId(id);
-    return exportedIds[id] || exportedIds['c_' + nid] || exportedIds[nid] || null;
+    // Triage #5 read-path fix: exportedIds is normalized to canonical keys at
+    // load/set time (see setExportedIds above and StorageService.getExportedIds),
+    // so a single canonical probe covers both current and legacy-alias records.
+    return exportedIds[normId(id)] || null;
 }
 
 export function getSignature(list?: Conversation[]): string {

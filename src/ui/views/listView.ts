@@ -117,7 +117,9 @@ export function render(
     filtered.forEach((c) => {
         const origIdx = idxMap.get(c as object) ?? -1;
         const nid = normId(c.id);
-        const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+        // Single canonical probe: expMap is normalized to canonical keys on the
+        // read path (triage #5), so legacy 'c_<id>' alias keys no longer exist here.
+        const rec = expMap[nid] || null;
         const isUpdated = checkIsUpdated(c, rec);
         let isChecked = false;
         if (isUpdated) {
@@ -296,7 +298,8 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
             return;
         }
         const nid = normId(c.id);
-        const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+        // Single canonical probe: expMap is normalized on the read path (triage #5).
+        const rec = expMap[nid] || null;
         (cb as HTMLInputElement).checked = !rec;
     });
     updateStat(conversations);
@@ -314,7 +317,8 @@ export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: 
             return;
         }
         const nid = normId(c.id);
-        const rec = expMap[c.id] || expMap['c_' + nid] || expMap[nid] || null;
+        // Single canonical probe: expMap is normalized on the read path (triage #5).
+        const rec = expMap[nid] || null;
         (cb as HTMLInputElement).checked = checkIsUpdated(c, rec);
     });
     updateStat(conversations);

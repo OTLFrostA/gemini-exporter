@@ -310,6 +310,13 @@ export interface StorageServiceModule {
                 Object.assign(merged, data[k]);
             }
         }
+        // Triage #5 read-path fix: fold legacy alias keys ('c_<id>' / raw id)
+        // into their canonical normId key before returning, so every consumer
+        // of this map can probe a single canonical key. The write path already
+        // collapses on save; this covers maps persisted by older triple-alias
+        // writers. Delete-path multi-key clearing (removeExportRecords) is a
+        // separate concern and stays untouched.
+        collapseExportAliases(merged);
         return merged;
     }
 
