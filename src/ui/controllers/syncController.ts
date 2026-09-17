@@ -122,14 +122,4 @@ export const SyncController: SyncControllerContract & { formatSyncErrorMessage?:
     formatSyncErrorMessage
 };
 
-(SyncController as any).SyncController = SyncController;
-(SyncController as any).default = SyncController;
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).SyncController = SyncController;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = SyncController;
-}
-
 export default SyncController;

@@ -116,14 +116,4 @@ export const TakeoutController: TakeoutControllerContract = {
     handleTakeoutImport
 };
 
-(TakeoutController as any).TakeoutController = TakeoutController;
-(TakeoutController as any).default = TakeoutController;
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).TakeoutController = TakeoutController;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = TakeoutController;
-}
-
 export default TakeoutController;

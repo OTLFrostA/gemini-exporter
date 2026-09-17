@@ -4,12 +4,7 @@ import { ProgressView } from '../views/progressView.js';
 import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
 import { normId } from '../../core/utils/pathUtils.js';
 
-const getExportEngineClass = (): any => {
-    if (typeof (globalThis as any).ExportEngine !== 'undefined') {
-        return (globalThis as any).ExportEngine.ExportEngine || (globalThis as any).ExportEngine;
-    }
-    return ExportEngine;
-};
+const getExportEngineClass = (): any => ExportEngine;
 
 let activeEngine: any = null;
 let exportRunning = false;
@@ -99,16 +94,5 @@ export const ExportController: ExportControllerContract = {
     abort,
     estimateMemoryUsage
 };
-
-
-(ExportController as any).ExportController = ExportController;
-(ExportController as any).default = ExportController;
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).ExportController = ExportController;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = ExportController;
-}
 
 export default ExportController;
