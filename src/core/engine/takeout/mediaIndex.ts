@@ -18,10 +18,6 @@ export interface MediaIndexModule {
     __slotTakeouts: Map<string, TakeoutStore>;
 }
 
-declare global {
-    var MediaIndex: MediaIndexModule;
-}
-
 const __slotTakeouts = new Map<string, TakeoutStore>();
 let __takeoutMediaMap: Record<string, any> = {};
 let __takeoutGlobalMedia: Record<string, any> = {};
@@ -261,13 +257,4 @@ export const MediaIndex: MediaIndexModule = {
     __slotTakeouts
 };
 
-(MediaIndex as any).MediaIndex = MediaIndex;
-(MediaIndex as any).default = MediaIndex;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).MediaIndex) {
-    (globalThis as any).MediaIndex = MediaIndex;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = MediaIndex;
-}
 export default MediaIndex;

@@ -8,10 +8,6 @@ export interface ZipBombGuardModule {
     validateZipEntries: (zip?: any) => void;
 }
 
-declare global {
-    var ZipBombGuard: ZipBombGuardModule;
-}
-
 export const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
 export const MAX_ENTRY_COUNT = 10000; // 10,000 files
 export const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
@@ -76,13 +72,4 @@ export const ZipBombGuard: ZipBombGuardModule = {
     validateZipEntries
 };
 
-(ZipBombGuard as any).ZipBombGuard = ZipBombGuard;
-(ZipBombGuard as any).default = ZipBombGuard;
-
-if (typeof globalThis !== 'undefined' && !(globalThis as any).ZipBombGuard) {
-    (globalThis as any).ZipBombGuard = ZipBombGuard;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = ZipBombGuard;
-}
 export default ZipBombGuard;

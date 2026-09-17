@@ -155,7 +155,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
     ): Promise<FetchChatDetailResult> {
         const nid = normId(requestedItem.id);
         const messageSender = options.messageSender || null;
-        const tabService = options.tabService || (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService : null);
+        const tabService = options.tabService || __resolveModule('TabService', (typeof (globalThis as any).TabService !== 'undefined' ? (globalThis as any).TabService : null));
 
         return new Promise<FetchChatDetailResult>(async (resolve) => {
             let settled = false;

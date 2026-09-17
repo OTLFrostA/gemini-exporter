@@ -17,6 +17,7 @@ const assert = require('node:assert');
 const path = require('node:path');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 const SRC = path.join(__dirname, '..', 'src');
 const Proto = require('../src/core/protocol/protocol.js');
@@ -104,21 +105,20 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     zipCaptures.length = 0;
     const origChrome = (global as any).chrome;
     const origJSZip = (global as any).JSZip;
-    const origPipeline = (global as any).AssetPipeline;
-    const origTab = (global as any).TabService;
+    const origPipeline = __getModuleOverride('AssetPipeline');
 
     const chromeMock = makeChromeStorage();
     (global as any).chrome = chromeMock;
     (global as any).JSZip = FakeJSZip;
-    if (useFakePipeline) (global as any).AssetPipeline = FakeAssetPipeline;
-    else delete (global as any).AssetPipeline;
+    if (useFakePipeline) __setModuleOverride('AssetPipeline', FakeAssetPipeline);
+    else __setModuleOverride('AssetPipeline', undefined);
 
-    (global as any).TabService = {
+    __setModuleOverride('TabService', {
         sendToGeminiTab: async (msg: any) => {
             assert.strictEqual(msg.action, 'getConversationDetail');
             return { success: true, data: chatDetail };
         }
-    };
+    });
 
     try {
         const onItemExportedCalls: any[] = [];
@@ -147,8 +147,8 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     } finally {
         (global as any).chrome = origChrome;
         (global as any).JSZip = origJSZip;
-        (global as any).AssetPipeline = origPipeline;
-        (global as any).TabService = origTab;
+        __setModuleOverride('AssetPipeline', origPipeline);
+        __setModuleOverride('TabService', undefined);
     }
 }
 

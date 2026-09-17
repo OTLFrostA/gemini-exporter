@@ -45,10 +45,6 @@ export interface TakeoutHtmlParserModule {
     ) => void;
 }
 
-declare global {
-    var TakeoutHtmlParser: TakeoutHtmlParserModule;
-}
-
 /**
  * Strips HTML tags recursively to ensure safe plain text output.
  */
@@ -528,10 +524,4 @@ export const TakeoutHtmlParser: TakeoutHtmlParserModule = {
     correlateGeneratedImages
 };
 
-if (typeof globalThis !== 'undefined' && !(globalThis as any).TakeoutHtmlParser) {
-    (globalThis as any).TakeoutHtmlParser = TakeoutHtmlParser;
-}
-if (typeof module === 'object' && module.exports) {
-    module.exports = TakeoutHtmlParser;
-}
 export default TakeoutHtmlParser;
