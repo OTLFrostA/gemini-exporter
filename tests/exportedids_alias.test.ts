@@ -15,10 +15,11 @@ const { normId } = require('../src/core/utils/pathUtils.js');
 const { exportedIdsKey } = require('../src/core/utils/constants.js');
 const ConversationsStore = require('../src/ui/state/conversationsStore.js');
 
-// Same alias-tolerant lookup the production readers use.
+// Same single-canonical-key lookup the production readers use
+// (normId(id)); legacy alias keys are folded to canonical at the
+// read/write boundary, so no triple probe is needed here.
 const lookup = (map: Record<string, any>, id: string) => {
-    const nid = normId(id);
-    return map[id] || map['c_' + nid] || map[nid] || null;
+    return map[normId(id)] || null;
 };
 
 async function runFinalize(targetId: string) {

@@ -14,8 +14,8 @@ function markCredSessionFailed(): void {
     sharedMarkFailed();
 }
 
-const SK_CRED_MAP = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS_MAP : 'gemini_credentials_map';
-const SK_CRED = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS : 'gemini_credentials';
+const SK_CRED_MAP = STORAGE_KEYS.CREDENTIALS_MAP;
+const SK_CRED = STORAGE_KEYS.CREDENTIALS;
 
 const Proto: GeminiProtocolModule = GeminiProtocol as any;
 

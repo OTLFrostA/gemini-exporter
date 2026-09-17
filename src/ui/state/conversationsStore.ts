@@ -224,8 +224,4 @@ export const ConversationsStore: IConversationsStore = {
     normId
 };
 
-(ConversationsStore as any).ConversationsStore = ConversationsStore;
-(ConversationsStore as any).default = ConversationsStore;
-
-
 export default ConversationsStore;

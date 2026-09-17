@@ -288,7 +288,4 @@ export const DomScraper = {
 
 
 
-(DomScraper as any).DomScraper = DomScraper;
-(DomScraper as any).default = DomScraper;
-
 export default DomScraper;

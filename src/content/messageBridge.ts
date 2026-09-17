@@ -78,7 +78,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const listRes = parser.parseList(text);
                     if (listRes && listRes.conversations && listRes.conversations.length) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        const Ingest = (_deps && _deps.ingestListBatch) || (typeof (globalThis as any).ingestListBatch !== 'undefined' ? (globalThis as any).ingestListBatch : null);
+                        const Ingest = (_deps && _deps.ingestListBatch) || null;
                         if (typeof Ingest === 'function') {
                             await Ingest(listRes.conversations, 'network-list', { slot: targetSlot });
                         } else if (typeof upsertConversations === 'function') {
@@ -298,8 +298,5 @@ export const MessageBridge = {
     init,
     handleWindowMessage
 };
-
-(MessageBridge as any).MessageBridge = MessageBridge;
-(MessageBridge as any).default = MessageBridge;
 
 export default MessageBridge;

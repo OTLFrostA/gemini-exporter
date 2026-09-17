@@ -739,7 +739,4 @@ export const SyncEngine = {
 };
 
 
-(SyncEngine as any).SyncEngine = SyncEngine;
-(SyncEngine as any).default = SyncEngine;
-
 export default SyncEngine;

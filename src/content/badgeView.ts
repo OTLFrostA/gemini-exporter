@@ -290,7 +290,4 @@ export const BadgeView = {
 };
 
 
-(BadgeView as any).BadgeView = BadgeView;
-(BadgeView as any).default = BadgeView;
-
 export default BadgeView;

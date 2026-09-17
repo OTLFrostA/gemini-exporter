@@ -34,7 +34,6 @@ export interface TakeoutParserModule {
 
 declare global {
     var JSZip: any;
-    var I18n: any;
 }
 
 const normId = utilsNormId;

@@ -333,11 +333,6 @@ type DetectSlotFn = typeof detectSlot;
 type ResolveCredFn = typeof resolveCred;
 type LoadCredMapFn = typeof loadCredMap;
 
-declare global {
-    var GeminiAPIClient: typeof GeminiAPIClient;
-    var resolveCred: ResolveCredFn;
-}
-
 
 
 if (typeof module === "object" && module.exports) {

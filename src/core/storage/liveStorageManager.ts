@@ -91,8 +91,4 @@ export const LiveStorageManager = {
     clearLiveDirHandle
 };
 
-declare global {
-    var LiveStorageManager: any;
-}
-
 export default LiveStorageManager;

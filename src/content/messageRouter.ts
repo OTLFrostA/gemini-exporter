@@ -297,7 +297,4 @@ export const MessageRouter = {
     init
 };
 
-(MessageRouter as any).MessageRouter = MessageRouter;
-(MessageRouter as any).default = MessageRouter;
-
 export default MessageRouter;

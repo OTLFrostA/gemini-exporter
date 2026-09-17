@@ -577,8 +577,4 @@ export const LiveSaveCoordinator = {
     isCurrentlySaving
 };
 
-declare global {
-    var LiveSaveCoordinator: any;
-}
-
 export default LiveSaveCoordinator;

@@ -81,10 +81,6 @@ export interface GeminiParserExtractorsModule {
     getProtocol: () => any;
 }
 
-declare global {
-    var detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
-}
-
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
