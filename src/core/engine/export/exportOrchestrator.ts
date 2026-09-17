@@ -535,8 +535,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         await task();
                     } catch (e) {
                         if (abortSignal && abortSignal.aborted) break;
-                        // P1-016: a task that throws must not swallow the exception NOR
-                        // leak pendingAssetsPerChat — decrement and record via __assetMeta.
+                        // Decrement pending count and record failure if task throws
                         const meta = (task as any)?.__assetMeta || null;
                         if (meta) {
                             const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
@@ -609,7 +608,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                     const requestedItem = payloadIds[currentIndex];
                     if (!requestedItem) break;
 
-                    // P1-011: per-chat error isolation — one bad chat must never kill the run.
+                    // Per-chat error isolation: one failed chat must not abort the entire batch
                     try {
                         const nid = normId(requestedItem.id);
                         let res: any = null;
@@ -721,11 +720,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         const content = formatted.content;
                         const ext = formatted.ext;
                         const safeBase = sanitizeFileName(listTitle, chat.id);
-                        // P1-102/103/104 compat: in direct-write mode, probe for a
-                        // legacy-rule filename on disk and reuse it, so upgrading
-                        // doesn't orphan the previously exported file with a
-                        // second, renamed copy. ZIP mode always starts from a fresh
-                        // archive, so no probing is needed there.
+                        // In direct-write mode, probe for existing filename on disk to reuse
                         const resolveName = (globalThis as any).GeminiUtils?.resolveExportFileName || utilsResolveExportFileName;
                         const fileName = useZip
                             ? buildExportFileName(listTitle, chat.id, ext)
@@ -771,8 +766,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     if (left === 0) await finalizeChatExport(chat.id);
                                 }
                             };
-                            // P1-016: consumer safety-net metadata — if the task itself throws,
-                            // the consumer still decrements pendingAssetsPerChat and records it.
                             (assetTask as any).__assetMeta = { nid, chatId: chat.id, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
                             chatAssetTasks.push(assetTask);
                         };
@@ -911,7 +904,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
                         }
                     } catch (e) {
-                        // P1-011: record the failed chat and continue with the next one.
                         const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
                         const failId = requestedItem.id || 'unknown';
                         const title = requestedItem.title || failId;
@@ -934,8 +926,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             try {
                 await Promise.all(exportWorkers);
             } catch (e) {
-                // P1-011: exportWorker never throws per-chat errors (caught above),
-                // but a scheduler-level failure must be visible rather than vanish.
                 onLog(`导出调度异常: ${typeof e === 'object' && e !== null && 'message' in (e as any) ? (e as any).message : String(e)}`, 'error');
                 throw e;
             }

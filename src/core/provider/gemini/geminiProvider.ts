@@ -1,9 +1,3 @@
-/**
- * src/core/provider/gemini/geminiProvider.ts
- * Google Gemini Provider implementation.
- * Encapsulates batchexecute RPC communication, JSPB payload parsing,
- * multi-account slot resolution, and Takeout import integration.
- */
 import type {
     AIProvider,
     ProviderCapabilities,
@@ -19,10 +13,6 @@ import GeminiClientCredentialManager from "../../api/client/credentialManager.js
 export class GeminiProvider implements AIProvider {
     readonly id = 'gemini';
     readonly name = 'Google Gemini';
-    // P1-089: keep hostPatterns in sync with matchesUrl() below — both must
-    // cover gemini.google.com and the legacy bard.google.com domain, so
-    // consumers that only read hostPatterns (permission pre-checks, URL
-    // pre-filters) don't miss bard URLs.
     readonly hostPatterns = ['https://gemini.google.com/*', 'https://bard.google.com/*'];
 
     readonly capabilities: ProviderCapabilities = {
@@ -66,10 +56,6 @@ export class GeminiProvider implements AIProvider {
                 return {
                     ready: true,
                     accountSlot: slot
-                    // P1-088: accountName intentionally omitted. Sniffed
-                    // credentials (sid/at/bl) carry no human-readable account
-                    // name, and placing the slot id here misled UI/log
-                    // consumers into displaying "/u/0/" as the account name.
                 };
             }
             return {

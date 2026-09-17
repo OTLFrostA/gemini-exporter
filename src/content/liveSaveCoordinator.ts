@@ -208,11 +208,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             subDir: a.subDir || 'assets',
                             base64: a.base64 || (a.buffer ? arrayBufferToBase64(a.buffer) : '')
                         }));
-                        // P1-030: fail-closed size cap. A single
-                        // runtime.sendMessage carrying the chat plus ALL base64
-                        // assets can exceed the extension message limit and die
-                        // silently — refuse to send an oversized payload and
-                        // make the failure visible instead of losing the save.
+                        // Payload size cap to prevent message serialization failure
                         const LIVE_SAVE_PAYLOAD_CAP = 48 * 1024 * 1024;
                         let estPayloadSize = 0;
                         try {
@@ -428,8 +424,6 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
     if (targets.size === 0) return [];
 
     // 2. Fetch and persist images with bounded concurrency.
-    // P1-029: the old unbounded Promise.allSettled over every image target
-    // could fire dozens of simultaneous fetches on image-heavy chats.
     const IMAGE_FETCH_CONCURRENCY = 4;
     const targetList = Array.from(targets.values());
     const fetcher = getAssetFetcher();

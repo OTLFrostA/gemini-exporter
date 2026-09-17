@@ -128,10 +128,7 @@ declare global {
         res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
             return `\`${unescapeHtml(code)}\``;
         });
-        // P1-110: steps 1-2 legitimately leave literal "<div>" / "List<String>"
-        // text inside fenced/inline code. Stash code spans NOW (before steps
-        // 3-7) so heading/bold/table/tag-strip processing cannot rewrite or
-        // delete code content — that was silent export corruption.
+        // Protect fenced and inline code blocks before processing HTML tags
         const __codeSpans: string[] = [];
         const __stashCode = (code: string): string => {
             __codeSpans.push(code);
@@ -143,8 +140,6 @@ declare global {
         // 3. Headings
         res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
         // 4. Bold & italic
-        // P1-110 companion: require a word boundary after the tag name so that
-        // <b...> never matches <br>/<blockquote> and <i...> never matches <img>/<input>.
         res = res.replace(/<(strong|b)(?=[\\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
         res = res.replace(/<(em|i)(?=[\\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
         // 5. Tables
@@ -254,8 +249,6 @@ declare global {
 
         const safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
         const safeYamlTitle = safeTitleClean.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        // P0-7 fix: invalid date values (e.g. "not-a-date") used to throw
-        // RangeError: Invalid time value from toISOString(). Fall back gracefully.
         const toSafeIso = (v: any, fallback: string): string => {
             if (!v) return fallback;
             const d = new Date(v);

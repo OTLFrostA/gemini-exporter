@@ -211,10 +211,22 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
     let saveCalls = 0;
     const origStore = (globalThis as any).ConversationsStore;
     const origEngine = (globalThis as any).TakeoutEngine;
+    const origStorage = (globalThis as any).StorageService;
     (globalThis as any).ConversationsStore = {
         getConversations: () => existing,
         getCurrentSlot: () => 'u0',
-        saveConversations: async (_slot: string, list: any) => { saved = list; saveCalls++; },
+        setConversations: (list: any) => { saved = list; },
+    };
+    (globalThis as any).StorageService = {
+        transactConversations: async (_slot: string, updater: any) => {
+            const plan = updater(existing);
+            if (!plan) return { list: existing, changed: 0, written: false };
+            saved = plan.list;
+            saveCalls++;
+            return { list: plan.list, changed: plan.changed, written: true };
+        },
+        setTakeoutPromptCompleted: async () => {},
+        setHasImportedTakeout: async () => {}
     };
     (globalThis as any).TakeoutEngine = {
         parseTakeoutZip: async () => ({
@@ -250,6 +262,7 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
     } finally {
         (globalThis as any).ConversationsStore = origStore;
         (globalThis as any).TakeoutEngine = origEngine;
+        (globalThis as any).StorageService = origStorage;
     }
 });
 
@@ -260,10 +273,20 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
     let saveCalls = 0;
     const origStore = (globalThis as any).ConversationsStore;
     const origEngine = (globalThis as any).TakeoutEngine;
+    const origStorage = (globalThis as any).StorageService;
     (globalThis as any).ConversationsStore = {
         getConversations: () => existing,
         getCurrentSlot: () => 'u0',
-        saveConversations: async () => { saveCalls++; },
+    };
+    (globalThis as any).StorageService = {
+        transactConversations: async (_slot: string, updater: any) => {
+            const plan = updater(existing);
+            if (!plan) return { list: existing, changed: 0, written: false };
+            saveCalls++;
+            return { list: plan.list, changed: plan.changed, written: true };
+        },
+        setTakeoutPromptCompleted: async () => {},
+        setHasImportedTakeout: async () => {}
     };
     (globalThis as any).TakeoutEngine = {
         parseTakeoutZip: async () => ({
@@ -283,5 +306,6 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
     } finally {
         (globalThis as any).ConversationsStore = origStore;
         (globalThis as any).TakeoutEngine = origEngine;
+        (globalThis as any).StorageService = origStorage;
     }
 });

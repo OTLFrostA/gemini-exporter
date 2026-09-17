@@ -18,10 +18,6 @@ async function verifyDirPermissionDetailed(handle: any, options?: { allowRequest
     if (!handle) return { ok: false, notFound: false };
     try {
         const opts = { mode: 'readwrite' };
-        // P1-119(a): never call requestPermission without a user gesture —
-        // on restore it either throws or pops a confusing prompt. Restore
-        // paths only query; a real user-gesture handler may pass
-        // { allowRequest: true }, and transient activation is honored too.
         const hasActivation = typeof navigator !== 'undefined' &&
             !!(navigator as any).userActivation && (navigator as any).userActivation.isActive;
         if ((await handle.queryPermission(opts)) !== 'granted') {
@@ -58,10 +54,6 @@ export async function restoreSavedDirHandle(): Promise<any> {
             const r = await verifyDirPermissionDetailed(handle);
             if (!r.ok) {
                 currentDirHandle = null;
-                // P1-119(b): only drop the persisted handle on a CONFIRMED
-                // NotFoundError. A transient 'prompt' permission state is not
-                // proof the directory is gone — keep it for the next
-                // user-gesture attempt instead of forcing a re-pick.
                 if (r.notFound) {
                     // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
                     await saveStoredDirHandle(null);

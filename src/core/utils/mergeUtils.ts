@@ -111,8 +111,6 @@ export function mergeConversation(
     }
 
     // 6. Timestamps arbitration
-    // P1-108: route through toTimestampMs so pure-digit epoch strings
-    // (e.g. "1726358400000") are not silently nulled via new Date(str).
     let cUpdated: any = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
     if (cUpdated !== null && cUpdated <= 0) cUpdated = null;
 
@@ -127,9 +125,6 @@ export function mergeConversation(
         incoming?.source === 'network-list'
     );
 
-    // Enforce strict monotonicity (supersedes P1-058: #371's version is stricter
-    // and more explicit — Math.max/Math.min instead of conditional update):
-    // 1. updatedAt must never regress into the past. If both exist, take the newest timestamp.
     let bestUpdatedAt: number | null = null;
     if (cUpdated && oldUpdated) {
         bestUpdatedAt = Math.max(oldUpdated, cUpdated);
@@ -156,11 +151,7 @@ export function mergeConversation(
     // 3. bestTimestamp mirrors bestUpdatedAt (the latest activity time)
     const bestTimestamp = bestUpdatedAt || old?.timestamp || incoming?.timestamp || null;
 
-    // 3b. Message-dimension monotonicity (stale-snapshot guard, CON-HF7 analogue):
-    // Timestamps alone cannot tell a richer record from a staler one: a Takeout
-    // export predates later online turns, so its messageCount is smaller while
-    // its arrival is newer. Never shrink message payloads or their counts;
-    // growth (incoming richer) flows through via spread below.
+    // 3b. Preserve fuller message payloads and count monotonicity
     const effectiveMessageCount = (c: any): number => {
         if (!c || typeof c !== 'object') return 0;
         const n = Number(c.messageCount);
@@ -173,9 +164,7 @@ export function mergeConversation(
     const bestMsgLen = Math.max(oldMsgLen, inMsgLen);
     const incomingShrinksMessages = !!old && oldMsgLen > inMsgLen;
 
-    // 3c. lastSeen monotonicity: Takeout snapshots carry historical lastSeen
-    // (takeoutHtmlParser seeds it from the activity timestamp); never move it
-    // backwards. Sorting only uses it as a tie-break, but recency must hold.
+    // 3c. lastSeen monotonicity
     const toMs = (v: any): number | null => {
         if (v === null || v === undefined || v === '') return null;
         const ms = typeof v === 'string' ? new Date(v).getTime() : Number(v);
@@ -190,18 +179,12 @@ export function mergeConversation(
         bestLastSeen = oldSeenMs !== null ? old.lastSeen : (inSeenMs !== null ? incoming.lastSeen : null);
     }
 
-    // 3d. lastActiveAt monotonicity: client-observed interaction recency from
-    // the touch path (stream start/complete, live turn). Display signal only —
-    // it must never feed timestamp authority (getEffectiveTimestamp ignores
-    // it). Never move it backwards: a stale reordered touch must not un-bump
-    // a chat. Stored as ms epoch (unlike lastSeen's ISO string).
+    // 3d. lastActiveAt monotonicity
     const oldActiveMs = toMs((old as any)?.lastActiveAt);
     const inActiveMs = toMs((incoming as any)?.lastActiveAt);
     const bestActiveMs = Math.max(oldActiveMs ?? 0, inActiveMs ?? 0);
 
     // 7. Check if meaningful change occurred
-    // P1-057: title/timestamp alone miss real changes — a follow-up in the same
-    // second bumps messageCount while timestamps stay identical.
     const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
     const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
     const oldBodyLen = Array.isArray(old?.messages) ? old.messages.length : null;
@@ -241,12 +224,7 @@ export function mergeConversation(
             : old?.sidebarIndex
     };
 
-    // P1-056: message-body arbitration. Every other field above is last-writer-wins
-    // on the raw spread, so an incremental list entry carrying an empty/stale body
-    // merged after a detail fetch would wipe already-captured text, and the result
-    // would depend on merge order (not idempotent). A fuller existing body always
-    // wins over an empty or shorter incoming one; messageCount takes the max so a
-    // stale smaller count cannot regress either.
+    // Fuller existing message body wins over shorter incoming
     const oldBodyLen2 = Array.isArray(old?.messages) ? old.messages.length : 0;
     const inBodyLen2 = Array.isArray(incoming?.messages) ? incoming.messages.length : 0;
     if (oldBodyLen2 > 0 && inBodyLen2 < oldBodyLen2) {
@@ -261,9 +239,6 @@ export function mergeConversation(
     } else if (bestLastSeen !== null) {
         merged.lastSeen = bestLastSeen;
     }
-    // lastActiveAt: max-monotonic assignment AFTER the spread — a stale
-    // reordered touch carrying an older value must not clobber a newer one
-    // via last-writer-wins.
     if (bestActiveMs > 0) {
         merged.lastActiveAt = bestActiveMs;
     }

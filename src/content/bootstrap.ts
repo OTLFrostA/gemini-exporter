@@ -6,34 +6,12 @@ import {
     markCredSessionAccessFailed as sharedMarkFailed,
 } from '../core/api/client/credStorage.js';
 
-// --- shared-module resolution ----------------------------------------------
-// The vm-shimmed known_issue_credentials_session test strips all imports from
-// this file before executing it; detect that and fall back to a local copy
-// with identical semantics (same pattern as the `typeof STORAGE_KEYS !==
-// 'undefined'` guard above). In the real bundle and in Node the shared module
-// is always used, so the fallback is dead code outside that one test.
-let _vmShimSessionAccessFailed = false;
-
-function vmShimGetCredStorage(): chrome.storage.StorageArea | null {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-        if (!_vmShimSessionAccessFailed && chrome.storage.session) return chrome.storage.session;
-        return chrome.storage.local;
-    }
-    return null;
-}
-
-const _useSharedCredStorage =
-    typeof sharedGetCredStorage !== 'undefined' && typeof sharedMarkFailed !== 'undefined';
-
-/** Shared credential storage resolver (re-exported for backwards compatibility). */
 export function getCredStorage(): chrome.storage.StorageArea | null {
-    if (_useSharedCredStorage) return (sharedGetCredStorage as () => chrome.storage.StorageArea | null)();
-    return vmShimGetCredStorage();
+    return sharedGetCredStorage();
 }
 
 function markCredSessionFailed(): void {
-    if (_useSharedCredStorage) (sharedMarkFailed as () => void)();
-    else _vmShimSessionAccessFailed = true;
+    sharedMarkFailed();
 }
 
 const SK_CRED_MAP = typeof STORAGE_KEYS !== 'undefined' ? STORAGE_KEYS.CREDENTIALS_MAP : 'gemini_credentials_map';
@@ -234,8 +212,6 @@ async function ensureCredsOnce(): Promise<any> {
         const blFromPage = extractBlFromPage();
         if (blFromPage) {
             updateContextCreds({ bl: blFromPage });
-            // P1-002: never write bl to localStorage — content scripts share the
-            // page's origin-scoped storage, so any page script could read it.
         }
         if (atFromPage) {
             updateContextCreds({ at: atFromPage });
@@ -257,7 +233,6 @@ async function ensureCredsOnce(): Promise<any> {
                 sid: fakeSid
             });
             updateContextCreds(map[fakeSid]);
-            // P1-003: dev-gated, lengths only — never log credential prefixes.
             if (isDev()) console.log('[Gemini Exporter] at fallback created fake sid', 'atLen', atFromPage.length, 'blLen', (blFromPage || '').length);
             return map[fakeSid];
         }
@@ -274,7 +249,6 @@ async function ensureCredsOnce(): Promise<any> {
                     sid: best.sid
                 });
                 updateContextCreds(best);
-                // P1-003: dev-gated, lengths only — never log credential prefixes.
                 if (isDev()) console.log('[Gemini Exporter] at refreshed from page', 'atLen', atFromPage.length);
             } else if (blFromPage && best.bl !== blFromPage) {
                 best.bl = blFromPage;
@@ -290,7 +264,6 @@ async function ensureCredsOnce(): Promise<any> {
                 map[best.sid] = best;
                 await saveCredentials(map);
                 updateContextCreds({ bl: blFromPage });
-                // P1-003: dev-gated, lengths only — never log credential values.
                 if (isDev()) console.log('[Gemini Exporter] bl refreshed', 'blLen', blFromPage.length);
             }
         }

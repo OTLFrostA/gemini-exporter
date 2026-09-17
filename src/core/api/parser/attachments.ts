@@ -60,8 +60,6 @@ import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
 const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
 
 
-    // P1-069: 媒体 URL host 白名单。payload 里符合 [url, w, h] 形状的三方 URL
-    //（引用图片、追踪像素） previously 会被直接收录进下载队列（fail-open）。
     const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
     function getUrlHost(u: string): string {
         const m = /^https?:\/\/([^/:?#]+)/i.exec(u || "");
@@ -71,8 +69,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return GOOGLE_MEDIA_HOST_RE.test(getUrlHost(u));
     }
 
-    // P1-069 visibility: 白名单丢弃 URL 时打一条可见 warn（含 host 与 URL）。
-    // 只加可见性，不改变丢弃逻辑。调用方用 warned 集合按 host 去重，避免同一 host 刷屏。
     function warnWhitelistDropOnce(warned: Set<string>, url: string, kind: string): void {
         try {
             let host = getUrlHost(url);
@@ -89,8 +85,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         if (!sourceUrl || typeof sourceUrl !== "string") return undefined;
         let match = sourceUrl.match(IMAGE_GEN_RE);
         if (!match) return undefined;
-        // P1-068: IMAGE_GEN_RE 捕获的是路径 token（通常是长随机串而非序号）。
-        // parseInt("12abX...") 会返回 12 造成虚假序号；只有纯数字 token 才视为选中序号。
         if (!/^\d+$/.test(match[1])) return void 0;
         return parseInt(match[1], 10);
     }
@@ -114,8 +108,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         if (url.includes("googleusercontent.com/p/") || url.includes("/places/v1/media")) {
             return url;
         }
-        // P1-070: 只改写末尾的尺寸参数，保留 ?query（旧代码的 .*$ 会把
-        // ?authuser=0 等鉴权/尺寸参数整体吞掉，导致 403 或指向错误资源）。
         const qIdx = url.indexOf("?");
         const base = qIdx === -1 ? url : url.slice(0, qIdx);
         const query = qIdx === -1 ? "" : url.slice(qIdx);
@@ -127,8 +119,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return canonicalIsInternalChipUrl(u);
     }
 
-    // P1-071: 扩展名/MIME 映射表。旧 inferExt 白名单只有 6 种，其余一律判 ".jpg"；
-    // Pattern 2 里 rawFileName 取任意后缀却只映射 png/webp/gif 的 MIME，导致扩展名与 MIME 脱节。
     const IMAGE_EXT_MIME: Record<string, string> = {
         ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
         ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif",
@@ -157,7 +147,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         let images: ImageAttachment[] = [];
         let seenKeys = new Set<string>();
         let warnedHosts = new Set<string>();
-        // seqRef: { value: number } 全局递增，避免跨 turn 同名覆盖（P0）
         let counter = seqRef && typeof seqRef.value === "number" ? seqRef : { value: 1 };
 
         deepWalk(obj, (node) => {
@@ -168,7 +157,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         height = node[2];
                     if (!isInternalChipUrl(sourceUrl)) {
                         let token = typeof node[3] === "string" ? node[3] : void 0;
-                        // 使用全局序号 + URL hash 片段保证跨 turn 唯一
                         let ext = inferExt(sourceUrl);
                         let hashFrag = "";
                         try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
@@ -193,7 +181,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         (typeof node[11] === "string" && node[11].startsWith("image/")) ||
                         (Array.isArray(node[15]) && typeof node[15][0] === "number" && typeof node[15][1] === "number")
                     )) {
-                    // Pattern 2: Gemini Generated Media [null, 1, fileName, sourceUrl, null, token, ..., mimeType, ..., [width, height, size]]
                     let sourceUrl = node[3];
                     let token = typeof node[5] === "string" ? node[5] : void 0;
                     let ext = inferExt(sourceUrl);
@@ -228,8 +215,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         });
                     }
                 }
-                // P1-069 visibility: 白名单丢弃的 [url,w,h]/generated-media 形节点打 warn 留痕。
-                // 与上面两条收录分支互斥（host 白名单取反），只加可见性，不改变丢弃逻辑。
                 if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && !isGoogleMediaHost(node[0]) && typeof node[1] === "number" && typeof node[2] === "number") {
                     warnWhitelistDropOnce(warnedHosts, node[0], "extractImages [url,w,h]");
                 } else if (node.length >= 4 && typeof node[3] === "string" && node[3].startsWith("http") && !isGoogleMediaHost(node[3]) && !isInternalChipUrl(node[3]) &&
@@ -269,7 +254,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         });
                     }
                 }
-                // P1-069 visibility: 白名单丢弃的 [url,filename] 形节点打 warn 留痕，只加可见性，不改变丢弃逻辑。
                 if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && !isGoogleMediaHost(node[0]) && typeof node[1] === "string" && itemMatchesFilename(node[1])) {
                     warnWhitelistDropOnce(warnedHosts, node[0], "extractUserFiles [url,filename]");
                 }
@@ -353,9 +337,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             if (Array.isArray(node)) {
                 let idMatch = false;
                 for (let elem of node) {
-                    // P1-072: 精确匹配优先；targetId 以子串形式出现在长度 <200 的短字符串
-                    // 元素里（如 drive 完整 URL ".../d/<id>/edit"）也算命中。
-                    // 正文误命中仍被下面的 hasSections/hasLongStr 结构门控挡住，风险可控。
                     if (typeof elem === "string" && (elem === docId || elem === targetId ||
                         (elem.length < 200 && (elem.includes(docId) || elem.includes(targetId))))) {
                         idMatch = true;

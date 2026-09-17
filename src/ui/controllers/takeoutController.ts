@@ -78,43 +78,18 @@ export async function handleTakeoutImport(
             return { processed, addedCount, changed: hasChangeSignal ? changedCount : 0 };
         };
 
-        // Atomic read-merge-write (#402): the updater re-reads the freshest
-        // stored list *inside* the cross-tab conversation lock, so a concurrent
-        // tab's write can no longer be discarded by our stale snapshot.
-        // Falls back to the legacy snapshot path only when the transactional
-        // API is unavailable or unusable (e.g. StorageService present without
-        // a real chrome.storage backend in unit tests).
         const Storage = getStorage();
         const currentSlot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';
-        const canTransact = !!Store && !!Storage && typeof Storage.transactConversations === 'function';
         let addedCount = 0;
-        let tx: { list: any[]; changed: number; written: boolean } | null = null;
-        if (canTransact) {
-            try {
-                tx = await Storage.transactConversations(currentSlot, (existing: any[]) => {
-                    const plan = planMerge(existing);
-                    if (!plan) return null;
-                    addedCount = plan.addedCount;
-                    return { list: plan.processed, changed: plan.changed };
-                });
-            } catch (e) {
-                console.warn('[GemExporter:takeout] transactConversations failed, falling back to legacy write:', e);
-                tx = null;
-            }
-        }
-        if (tx) {
-            // Transaction ran: refresh the UI store's in-memory snapshot so the
-            // options page keeps showing the freshest list.
-            if (tx.written && Store && typeof Store.setConversations === 'function') {
-                Store.setConversations(tx.list);
-            }
-        } else if (Store) {
-            // Legacy path: snapshot read + blind whole-table write.
-            const convs = Store.getConversations() || [];
-            const plan = planMerge(convs);
-            if (plan) {
+        if (Storage && typeof Storage.transactConversations === 'function') {
+            const tx = await Storage.transactConversations(currentSlot, (existing: any[]) => {
+                const plan = planMerge(existing);
+                if (!plan) return null;
                 addedCount = plan.addedCount;
-                await Store.saveConversations(currentSlot, plan.processed);
+                return { list: plan.processed, changed: plan.changed };
+            });
+            if (tx?.written && Store && typeof Store.setConversations === 'function') {
+                Store.setConversations(tx.list);
             }
         }
 

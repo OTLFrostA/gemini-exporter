@@ -66,9 +66,6 @@ declare global {
             hitGoogleLimit: false,
             pageHistory: []
         };
-        // P1-040: check for a pre-start cancel BEFORE resetting the flag —
-        // previously the unconditional reset swallowed a cancel issued in the
-        // instant before the sync task actually started.
         if (client.aborted || opts?.signal?.aborted) {
             diagLog.stopReason = "用户手动终止同步（开始前已取消）";
             diagLog.totalConversations = 0;
@@ -93,9 +90,6 @@ declare global {
         };
 
         let reachedMax = true;
-        // P1-059: distinguish "synced to a natural end" from "interrupted halfway
-        // by a network/service exception with partial data", so downstream UI and
-        // incremental logic never mistake a partial result for a complete sync.
         let interruptedByError = false;
         for (let i = 0; i < maxPages; i++) {
             if (isAborted()) {
@@ -209,9 +203,6 @@ declare global {
             diagnostics: diagLog,
             hitGoogleLimit: !!diagLog.hitGoogleLimit
         };
-        // P1-059: only set when the run was cut short by an exception; natural
-        // ends (empty page, no next token, max pages, incremental early-exit)
-        // keep the field unset as before.
         if (interruptedByError) {
             finalResult.stoppedEarly = true;
         }
@@ -226,9 +217,6 @@ declare global {
         let token: string | null = null;
         let first: any = null;
         let attempts = 0;
-        // P1-060: guard against a misbehaving server returning the same (or
-        // cycling) nextPageToken forever, and dedupe messages by id so a repeated
-        // page cannot produce duplicate messages in the export.
         const seenTokens = new Set<string>();
         const seenMsgIds = new Set<string>();
         do {

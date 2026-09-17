@@ -90,16 +90,12 @@ export function init({ loadStore, log: logFn }: OptionsTakeoutOptions = {}): voi
                 onFinished: ({ message }: any) => {
                     if (progText) progText.textContent = message;
                     if (progWrap) progWrap.style.display = 'none';
-                    // P1-120: reset the file input so picking the SAME zip
-                    // again fires a change event (re-import is a supported flow).
                     try { input.value = ''; } catch { /* noop */ }
                     if (__loadStore) __loadStore();
                 },
                 onError: (err: any, errMsg?: string) => {
                     if (progText) progText.textContent = errMsg || err.message;
                     if (progWrap) progWrap.style.display = 'none';
-                    // P1-120: same reset on failure — the user may fix the
-                    // archive and retry the identical file.
                     try { input.value = ''; } catch { /* noop */ }
                 }
             });

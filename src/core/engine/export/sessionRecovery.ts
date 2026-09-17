@@ -219,17 +219,12 @@ export { EXT_VERSION, getExtensionVersion };
         const rec = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
         if (!rec || (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid))) return false;
 
-        // P1-014: persist the export record FIRST. In-memory bookkeeping
-        // (finalizedChatsSet / curIds / exportedIds) is only mutated after the
-        // write succeeds, so a failed write can never be misread as "done".
+        // Persist export record before updating in-memory state
         try {
             if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
                 await storageAdapter.saveExportRecord(slot, targetId, rec);
             } else if (storageAdapter && typeof storageAdapter.set === 'function') {
-                // Fallback: no saveExportRecord on this adapter. Do a
-                // best-effort read-modify-write with the canonical single key
-                // (P1-045) instead of the old blind overwrite, which could
-                // silently drop another tab's concurrently saved records.
+                // Fallback: read-modify-write using canonical key
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
                 const ck = normId(targetId);
                 let cur: Record<string, any> = { ...(curIds || {}) };
@@ -247,7 +242,6 @@ export { EXT_VERSION, getExtensionVersion };
                 if (ck) next[ck] = rec;
                 await storageAdapter.set({ [expKey]: next });
             } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                // Same fallback directly against chrome.storage.local.
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
                 const ck = normId(targetId);
                 const got = await chrome.storage.local.get([expKey]);
@@ -260,8 +254,6 @@ export { EXT_VERSION, getExtensionVersion };
                 await chrome.storage.local.set({ [expKey]: next });
             }
         } catch (e) {
-            // P1-014: propagate the failure — the caller marks the chat as
-            // failed/retryable instead of silently recording success.
             if (typeof console !== 'undefined' && console.error) {
                 console.error('[GemExporter:sessionRecovery.ts] saveExportRecord failed for', targetId, e);
             }
@@ -269,10 +261,6 @@ export { EXT_VERSION, getExtensionVersion };
         }
 
         if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
-
-        // P1-045 follow-up: the in-memory bookkeeping maps also use the single
-        // canonical key (normId). Readers already resolve the historical
-        // aliases (raw id / 'c_'+nid), so no migration is needed.
         if (curIds && targetNid) curIds[targetNid] = rec;
         if (exportedIds && targetNid) exportedIds[targetNid] = rec;
 
@@ -286,9 +274,7 @@ export { EXT_VERSION, getExtensionVersion };
         return true;
     }
 
-    // P1-015: serialize session-status writes through a module-level chain
-    // so concurrent updateSessionStatus calls cannot interleave their
-    // read-modify-write cycles and clobber each other.
+    // Serialize session status writes to prevent race conditions
     let sessionStatusWriteChain: Promise<void> = Promise.resolve();
 
     async function updateSessionStatus(patch: any): Promise<void> {

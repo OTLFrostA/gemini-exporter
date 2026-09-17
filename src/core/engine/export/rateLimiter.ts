@@ -181,15 +181,8 @@ export class RateLimitManager {
     }
 
     /**
-     * Wait until the shared cooldown expires.
-     *
-     * P1-036: the wait is abort-interruptible — a cancel during cooldown
-     * returns false immediately instead of sleeping the full window.
-     * P1-037: after a shared cooldown expires, each waiter adds a small
-     * random stagger so concurrent workers don't wake up in lockstep and
-     * re-trigger 429 together (thundering herd).
-     *
-     * @returns true when the cooldown fully elapsed, false when aborted.
+     * Wait until shared cooldown expires, with random stagger to avoid thundering herd.
+     * @returns true when cooldown elapsed, false when aborted.
      */
     async waitForCooldown(abortSignal?: AbortSignal | null, staggerMs: number = 1000): Promise<boolean> {
         if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {

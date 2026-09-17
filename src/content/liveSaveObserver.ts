@@ -17,8 +17,6 @@ let __options: LiveSaveObserverOptions = {};
 let __initialized = false;
 let _rafPending = false;
 
-// P1-025: module-level handler refs so cleanup() can removeEventListener the
-// exact functions init() registered (anonymous per-call closures leaked).
 function __onLocationChange(): void {
     if (__isGenerating || __debounceTimer) {
         triggerSave('location_change');
@@ -198,7 +196,6 @@ export function cleanup(): void {
         __mutationObserver = null;
         contentContext.clearTimer('liveSaveObserver');
     }
-    // P1-025: remove the module-level listeners registered by init().
     if (typeof window !== 'undefined') {
         window.removeEventListener('gemini:locationchange', __onLocationChange);
         window.removeEventListener('popstate', __onLocationChange);

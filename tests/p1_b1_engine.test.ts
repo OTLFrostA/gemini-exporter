@@ -9,7 +9,6 @@ const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', 'src', p),
 // ---------- P1-011: per-chat error isolation ----------
 test('p1_b1 - P1-011: per-chat body wrapped in try/catch', () => {
     const src = SRC('core/engine/export/exportOrchestrator.ts');
-    assert.ok(src.includes('P1-011: per-chat error isolation'), 'P1-011 marker present');
     assert.ok(src.includes('failedChats.push({ id: failId'), 'failed chat recorded');
 });
 
@@ -39,14 +38,12 @@ test('p1_b1 - P1-014: storage write happens before in-memory bookkeeping', () =>
 test('p1_b1 - P1-015: updateSessionStatus serialized via chain', () => {
     const src = SRC('core/engine/export/sessionRecovery.ts');
     assert.ok(src.includes('sessionStatusWriteChain'), 'write chain exists');
-    assert.ok(src.includes('P1-015'), 'P1-015 marker present');
 });
 
 // ---------- P1-016: attachment consumer safety net ----------
 test('p1_b1 - P1-016: tasks carry __assetMeta', () => {
     const src = SRC('core/engine/export/exportOrchestrator.ts');
     assert.ok(src.includes('__assetMeta'), 'metadata attached to tasks');
-    assert.ok(src.includes('P1-016'), 'P1-016 marker present');
 });
 
 test('p1_b1 - P1-016: consumer catch decrements pending and records failure', () => {

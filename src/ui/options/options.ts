@@ -63,14 +63,11 @@ export function renderLog(): void {
     if (OptionsInit && OptionsInit.renderLog) OptionsInit.renderLog();
 }
 
-// Facade delegations & static regression test anchors:
-// 1. compareConversations SSoT delegation (verified by tests/run_tests.py)
 export const compareConversations = (a: any, b: any) => (OptionsInit && OptionsInit.compareConversations ? OptionsInit.compareConversations(a, b) : 0);
 
-// 2. isBad title scrubbing delegation (verified by tests/regression_p0.test.js)
 export const isBad = (t: string | null | undefined, id?: string | null) => (OptionsInit && OptionsInit.isBad ? OptionsInit.isBad(t, id) : false);
 
-// 3. checkPendingTakeoutPrompt & gemini_pending_takeout_prompt check (verified by tests/run_tests.py)
+// Delegates checkPendingTakeoutPrompt (gemini_pending_takeout_prompt) to OptionsTakeout
 export async function checkPendingTakeoutPrompt(): Promise<void> {
     if (OptionsTakeout && OptionsTakeout.checkPendingTakeoutPrompt) {
         return await OptionsTakeout.checkPendingTakeoutPrompt();
@@ -153,9 +150,6 @@ export async function initWorkbench(): Promise<void> {
 
 export const initOptionsApp = initWorkbench;
 
-// P1-122: initWorkbench() is async — a rejection during startup used to
-// become an unhandled promise rejection (invisible failure, blank panel).
-// Both boot paths go through this guarded starter.
 function startWorkbench(): void {
     try {
         const p = initWorkbench();

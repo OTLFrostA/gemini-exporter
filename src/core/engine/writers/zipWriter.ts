@@ -62,8 +62,7 @@ class ZipWriter implements IExportWriter {
                 this.totalBytes += content.length;
             }
         }
-        // P1-115: beyond 500MB the in-memory ZIP build can OOM the tab.
-        // Fail hard (retryable, never marked successful) instead of warn-and-continue.
+        // Guard against memory exhaustion when building large ZIP archives
         if (this.totalBytes > this.MAX_SAFE_ZIP_BYTES) {
             throw new Error(`[ZipWriter] 未压缩内容超过 ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB 上限，已中止导出以防内存溢出。请减少所选会话数量后重试。`);
         }

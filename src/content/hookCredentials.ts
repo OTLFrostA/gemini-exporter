@@ -51,14 +51,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                     lastUsed: Date.now(),
                     url: location.href
                 };
-                // NOTE (threat model): this is a broadcast, not a private channel.
-                // `window.postMessage` delivers to every listener on this page,
-                // including the page's own scripts, so this cannot be made
-                // invisible to them. What we do limit: targetOrigin is locked to
-                // this page's origin, and the message is only sent when fresh
-                // credentials were actually captured. The page's own scripts can
-                // already observe the same network traffic this hook sniffs, so
-                // the marginal exposure is limited to ISOLATED-world listeners.
+                // broadcast, not a private channel; targetOrigin is locked to page origin.
                 window.postMessage({
                     type: Events.CREDENTIALS,
                     payload
@@ -201,11 +194,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
         }
     }
 
-    // P1-028: capped stream reader for hooked responses. The old code called
-    // cloned.text() which fully buffers arbitrarily large batchexecute
-    // payloads before broadcastBatchexecute sliced them to 3MB. Now at most
-    // ~3MB is ever read; environments without stream readers fall back to a
-    // bounded text() slice.
+    // Bounded stream reader for hooked responses (cap at 3MB).
     const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
 
     async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
@@ -276,7 +265,6 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
                 const u = (url || '').toString();
                 if (u.includes('batchexecute')) {
                     const cloned = response.clone();
-                    // P1-028: capped read instead of unbounded cloned.text().
                     readCappedText(cloned).then(({ text: txt }) => {
                         try {
                             detectDeletedConversation(url, body, txt);

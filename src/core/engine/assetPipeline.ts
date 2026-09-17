@@ -5,9 +5,9 @@ export interface ProcessAssetOptions {
     isImage?: boolean;
     listTitle?: string;
     timeoutMs?: number;
-    /** P1-041: abort signal — honored between attempts, during backoff, and by in-flight tab requests. */
+    /** Abort signal honored between attempts and during backoff. */
     signal?: AbortSignal | null;
-    /** P1-042: max retries after the first attempt (default 3). */
+    /** Max retries after the first attempt (default 3). */
     maxRetries?: number;
 }
 
@@ -62,9 +62,6 @@ export function sanitizeZipPath(p?: string | null): string {
     return sanitizeRelativePath(p, 'file');
 }
 
-/**
- * P1-041: payload validity predicates shared by the download and persist steps.
- */
 function hasValidBuffer(r: any): boolean {
     return !!(r && r.dataBuffer && (
         (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer && r.dataBuffer.byteLength > 0) ||
@@ -89,8 +86,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             resolve(val);
         };
 
-        // P1-041: an already-aborted signal resolves immediately instead of
-        // waiting out the full tab timeout.
         if (signal?.aborted) {
             done({ success: false, error: 'aborted' });
             return;
@@ -146,14 +141,12 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
         }
 
         /**
-         * P1-041: a single download attempt (delegate or tab request + base64
-         * fallback), abort-aware. Returns the raw tab/delegate response.
+         * A single download attempt, abort-aware.
          */
         private async downloadOnce(targetUrl: string, chat: any, item: any, timeoutMs: number, signal: AbortSignal | null): Promise<any> {
             let r: any = null;
 
             if (this.fetchAssetDelegate && targetUrl) {
-                // P1-041: pass the signal through so delegates can cancel in-flight fetches.
                 r = await this.fetchAssetDelegate({
                     url: targetUrl,
                     referer: `https://gemini.google.com/app/${chat.id}`,
@@ -225,10 +218,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
         }
 
         /**
-         * Download and persist an asset (image or attachment file).
-         * P1-042: transient failures are retried (default: up to 3 retries) with
-         * bounded backoff instead of failing permanently on the first jitter;
-         * P1-041: every wait honors the abort signal.
+         * Download and persist an asset (image or attachment file) with retries and backoff.
          */
         async processAsset(item: any, chat: any, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
             const isImage = !!opts.isImage;
@@ -244,17 +234,12 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             try {
                 let attempt = 0;
                 for (;;) {
-                    // P1-041: abort is honored between attempts, not just between tasks.
                     if (signal && signal.aborted) { failReason = 'aborted'; break; }
                     const r = await this.downloadOnce(targetUrl, chat, item, timeoutMs, signal);
-                    // P1-041: an abort that landed mid-download surfaces here even if
-                    // the delegate/tab layer ignored the signal.
                     if (signal && signal.aborted) { failReason = 'aborted'; break; }
                     const persisted = await this.persistDownload(r, localName, isImage);
                     if (persisted.saved) { saved = true; failReason = ''; break; }
                     failReason = persisted.failReason;
-                    // P1-042: bounded retries with backoff instead of failing permanently
-                    // on the first transient timeout/jitter.
                     if (attempt >= maxRetries) break;
                     const delayMs = calculateBackoff(attempt, { initialDelayMs: 1000, maxDelayMs: 10000, jitterMs: 500 });
                     this.onLog(`[${chat.title || chat.id}] 附件下载失败，${delayMs}ms 后重试 (${attempt + 1}/${maxRetries}): ${localName}`, 'warn');

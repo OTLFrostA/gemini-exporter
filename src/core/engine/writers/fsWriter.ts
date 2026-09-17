@@ -38,9 +38,7 @@ class FsWriter implements IExportWriter {
     rootDirHandle: any;
     folderName: string;
     batchDirHandle: any;
-    // P1-116: per-target-path write chains. Concurrent writeFile calls for
-    // the same path used to race on createWritable() and interleave/truncate
-    // bytes; now they serialize per path (different paths still parallelize).
+    // Serialize concurrent writes targeting the same target path
     __writeChains: Map<string, Promise<void>>;
 
     static FsWriter = FsWriter;
@@ -102,12 +100,7 @@ class FsWriter implements IExportWriter {
             throw new Error(`[FsWriter] Invalid content object passed to writeFile for ${cleanName}`);
         }
 
-        // P1-116: serialize concurrent writes targeting the same path.
-        // Store `gate` itself (not prev.then(() => gate)) so the cleanup
-        // comparison below can hit: the entry is deleted when the last
-        // waiter for this path finishes. Each waiter awaits the previous
-        // gate, which resolves exactly when the previous write released it
-        // in its finally block — serialization is preserved.
+        // Serialize concurrent writes targeting the same path
         const chainKey = (actualSubDir ? actualSubDir + '/' : '') + cleanName;
         const prev = this.__writeChains.get(chainKey) || Promise.resolve();
         let releaseGate!: () => void;

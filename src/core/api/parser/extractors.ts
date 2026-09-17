@@ -142,10 +142,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
     }
 
 
-    /**
-     * Generic depth-bounded recursive walker over nested arrays and objects.
-     * Replaces 8+ duplicate ad-hoc walk() functions across the parsing pipeline.
-     */
     function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
             if (!node || typeof node !== "object" || depth > maxDepth) return;
@@ -166,16 +162,8 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
         walk(root, 0);
     }
 
-    /**
-     * P1-062: turn 内容标记的结构化检查（isTurn 的判据实现，单源定义，
-     * parseDetail.ts 的 isTurn 与本文件的 detectTurnSchemaDrift 共用）。
-     * 有界结构化扫描：在 turn 内找 rc_/c_d 前缀的真实形态标记；
-     * 不做全量序列化；budget 防止病态深层结构拖慢。
-     */
     function hasTurnContentMarkers(turn: unknown[]): boolean {
-        // 快速路径：user payload 本身是数组即视为 turn（原逻辑的最后一个析取项，无需序列化）
         if (Array.isArray(turn[2])) return true;
-        // candidate id 的 rc_ 前缀（结构化位置检查，不扫全量文本）
         const modelPayload = turn[3];
         if (Array.isArray(modelPayload)) {
             const cands = modelPayload[0];
@@ -191,7 +179,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
             const node = stack.pop();
             if (typeof node === "string") {
                 budget--;
-                // 只认前缀形态（"rc_xxx"/"c_d..."），不再用近乎恒真的子串 "r_" 判据
                 if (node.startsWith("rc_") || node.startsWith("c_d")) return true;
             } else if (Array.isArray(node)) {
                 for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
@@ -200,9 +187,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
         return false;
     }
 
-    /**
-     * Validates turn structure against GEMINI_JSPB_SCHEMA and flags protocol drifts
-     */
     function detectTurnSchemaDrift(turn: unknown, convId?: string): TurnDriftReport {
         const warnings: string[] = [];
         if (!Array.isArray(turn)) {
@@ -221,9 +205,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
         if (!idStr || (!idStr.startsWith("c_") && !idStr.startsWith("r_"))) {
             warnings.push(`Turn ID meta at index 0 does not match expected pattern: ${JSON.stringify(head)?.slice(0, 30)}`);
         } else if (!hasTurnContentMarkers(turn)) {
-            // P1-062 visibility: 头匹配 c_/r_ 但内容标记检查失败 → isTurn 会拒绝该 turn。
-            // 匹配严格度不变，只记一条可见警告（进 _debug.schemaDriftWarnings 与 schemaDrift
-            // 诊断字段，不中断导出），不再静默丢弃整段 turn。
             warnings.push(`Turn head '${idStr.slice(0, 32)}' matches turn-id pattern but no rc_/c_d content markers found; isTurn() rejects this element (treated as non-turn)`);
         }
 
@@ -276,25 +257,19 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
         const candidateBlock = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
         if (Array.isArray(candidateBlock)) {
-            // Case 1 (Standard Protobuf): modelPayload[0] is array of candidates [cand0, cand1, ...]
             if (candidateBlock.length > 0 && Array.isArray(candidateBlock[0])) {
                 return candidateBlock;
             }
-            // Case 2 (Single candidate wrapped directly):
             if (typeof candidateBlock[0] === "string") {
                 return [candidateBlock];
             }
         }
-        // Fallback: If turn[3] was a flat candidates array directly (legacy test compatibility)
         if (Array.isArray(modelPayload[0]) && typeof modelPayload[0][0] === "string" && modelPayload[0][0].startsWith("rc_")) {
             return modelPayload;
         }
         return [];
     }
 
-    /**
-     * Cleanly extracts candidate response text without language tag (e.g. "zh") pollution
-     */
     function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
         const body = (cand as any)?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
@@ -304,7 +279,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
         if (typeof body === "string") return body;
         if (!Array.isArray(body)) return "";
 
-        // Candidate body: typically [ partsArray, languageCode, ... ]
         const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
         if (typeof parts === "string") return parts;
         if (Array.isArray(parts)) {
@@ -319,7 +293,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
             if (textChunks.length) return textChunks.join("");
         }
 
-        // Fallback: if body itself is an array of strings [ "text chunk 1", ... ]
         if (typeof body[0] === "string" && body[0].length > 3) {
             return body[0];
         }
@@ -496,8 +469,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
                 if (Array.isArray(t) && typeof t[0] === "string" && t[0].startsWith("c_")) return t[0];
             }
         }
-        // P1-073: 回退路径改用有界深搜找完整格式的会话 ID，
-        // 替代 JSON.stringify(inner) 全量序列化（大会话内存翻倍，只为提取一个 ID）。
         const CONV_ID_STRICT_RE = /^c_[a-zA-Z0-9_-]{8,64}$/;
         let foundId: string | null = null;
         deepWalk(inner, (node) => {
@@ -601,8 +572,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
-        // P1-067: schema 声明 TURN.TIMESTAMP = 1（[seconds, nanos]），旧代码只看 4/5/末位
-        // 与 schema 自相矛盾。把下标 1 放第一候选，4/5/末位保留为兼容回退。
         let candidates = [turnData[1], turnData[4], turnData[5], turnData[turnData.length - 1]];
         for (let candidate of candidates) {
             let ms = payloadToMs(candidate);

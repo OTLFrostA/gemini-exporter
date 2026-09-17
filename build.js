@@ -7,9 +7,6 @@
 //   3. background/background -> dist/background/background.js (Service Worker bundle)
 //   4. ui/popup          -> dist/ui/popup.js          (Popup modal coordinator)
 //   5. ui/options        -> dist/ui/options.js        (Options workbench coordinator)
-//
-// Optional:
-// Pass `--per-file` to additionally generate individual unbundled modules for offline inspection.
 
 const esbuild = require('esbuild');
 const fs = require('fs');
@@ -42,33 +39,6 @@ const EXPECTED_BUNDLES = [
     'dist/ui/popup.js',
     'dist/ui/options.js',
 ];
-
-function walkSourceFiles(dir) {
-    const out = [];
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const tsBases = new Set();
-    for (const entry of entries) {
-        if (!entry.isDirectory() && entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
-            tsBases.add(entry.name.slice(0, -3));
-        }
-    }
-
-    for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            if (entry.name === 'types') continue;
-            out.push(...walkSourceFiles(full));
-        } else if (entry.name.endsWith('.d.ts')) {
-            continue;
-        } else if (entry.name.endsWith('.ts')) {
-            out.push(full);
-        } else if (entry.name.endsWith('.js')) {
-            const base = entry.name.slice(0, -3);
-            if (!tsBases.has(base)) out.push(full);
-        }
-    }
-    return out;
-}
 
 async function build() {
     const t0 = Date.now();
@@ -110,28 +80,7 @@ async function build() {
         throw new Error(`esbuild bundle build failed with ${errors} error(s)`);
     }
 
-    // 2. Optional: Per-file transform when explicitly requested via --per-file
-    if (process.argv.includes('--per-file')) {
-        const perFileEntries = walkSourceFiles(SRC);
-        const perFileResult = await esbuild.build({
-            entryPoints: perFileEntries,
-            outdir: DIST,
-            outbase: SRC,
-            bundle: false,
-            minify: true,
-            sourcemap: true,
-            target: ['chrome120'],
-            legalComments: 'none',
-            define: DEFINE_VERSION,
-            logLevel: 'silent',
-            write: true,
-        });
-        if ((perFileResult.errors || []).length > 0) {
-            throw new Error(`esbuild per-file build failed with ${perFileResult.errors.length} error(s)`);
-        }
-    }
-
-    // 3. Verify all expected production bundles exist
+    // 2. Verify all expected production bundles exist
     for (const bundle of EXPECTED_BUNDLES) {
         const fullPath = path.join(ROOT, bundle);
         if (!fs.existsSync(fullPath)) {
