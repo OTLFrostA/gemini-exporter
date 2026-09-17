@@ -209,14 +209,17 @@ const OptionsModule = {
     OptionsSettings
 };
 
-// E2E test hooks (read by Playwright specs): __workbenchLoadStore, DialogView,
-// ConversationsStore, TourGuide, FsWriter. Other module mounts removed — use static imports.
+// E2E / Live test hooks (read by Playwright specs & live harness actions.py):
+// __workbenchLoadStore, DialogView, ConversationsStore, TourGuide, FsWriter,
+// TakeoutController, SyncController. Other module mounts removed — use static imports.
 if (typeof window !== 'undefined') {
     (window as any).__workbenchLoadStore = loadStore;
     (window as any).ConversationsStore = ConversationsStore;
     (window as any).DialogView = DialogView;
     (window as any).TourGuide = TourGuide;
     (window as any).FsWriter = FsWriter;
+    (window as any).TakeoutController = TakeoutController;
+    (window as any).SyncController = SyncController;
 }
 
 export { OptionsModule };
