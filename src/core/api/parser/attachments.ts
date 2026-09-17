@@ -50,14 +50,9 @@ export interface GeminiParserAttachmentsModule {
     findDocMarkdownByClues: (root: unknown, metaItem?: DeepResearchDocMeta | null) => string;
 }
 
-declare global {
-    var GeminiParserAttachments: GeminiParserAttachmentsModule;
-}
-
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
 
 const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
-
 
     const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
     function getUrlHost(u: string): string {
@@ -439,7 +434,6 @@ export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
     findDocMarkdownByClues
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).GeminiParserAttachments = GeminiParserAttachments;
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
 
 export default GeminiParserAttachments;

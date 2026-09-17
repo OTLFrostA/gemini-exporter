@@ -26,10 +26,6 @@ export interface GeminiClientRpcClientModule {
     mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
 
-declare global {
-    var GeminiClientRpcClient: GeminiClientRpcClientModule;
-}
-
 import { GeminiProtocol } from "../../protocol/protocol.js";
 import { GeminiUtils } from "../../utils/utils.js";
 import { GeminiResponseParserClass } from "../geminiParser.js";
@@ -48,7 +44,6 @@ function getUtils(): any {
 function getParser(): any {
     return GeminiResponseParserClass;
 }
-
 
     function getApiUrl(slot?: string | null): string {
         if (slot && slot !== "default") {
@@ -147,7 +142,6 @@ export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     mergeAbortSignals
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).GeminiClientRpcClient = GeminiClientRpcClient;
 if (typeof module === 'object' && module.exports) module.exports = GeminiClientRpcClient;
 
 export default GeminiClientRpcClient;

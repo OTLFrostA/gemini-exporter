@@ -89,9 +89,3 @@ export class ProviderRegistryClass {
 export const ProviderRegistry = new ProviderRegistryClass();
 export default ProviderRegistry;
 
-declare global {
-    var ProviderRegistry: ProviderRegistryClass;
-}
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).ProviderRegistry = ProviderRegistry;
-}

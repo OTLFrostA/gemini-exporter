@@ -253,8 +253,6 @@ const __zhFactory = (): LocaleDictionary => {
     };
 };
 export const zh: LocaleDictionary = __zhFactory();
-if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.zh = zh; }
 if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = zh;
 export default zh;
-
 

@@ -205,7 +205,6 @@ export class RateLimitManager {
 }
 
 declare global {
-    var RateLimitManager: any;
     var RateLimitModule: RateLimitModule;
 }
 
@@ -223,7 +222,6 @@ export const rateLimitModule: RateLimitModule = {
 (rateLimitModule as any).default = rateLimitModule;
 
 if (typeof globalThis !== 'undefined') {
-    (globalThis as any).RateLimitManager = RateLimitManager;
     (globalThis as any).RateLimitModule = rateLimitModule;
 }
 if (typeof module === 'object' && module.exports) {

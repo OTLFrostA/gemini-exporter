@@ -24,10 +24,6 @@ export interface GeminiConstantsModule {
     exportedIdsKey: (slot: string | null | undefined) => string;
 }
 
-declare global {
-    var GeminiConstants: GeminiConstantsModule;
-}
-
 export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'json_openai', 'json', 'json_raw'];
 export const DEFAULT_FORMAT: AllowedFormat = 'markdown';
 export const DIRECT_WRITE_THRESHOLD = 50;
@@ -76,9 +72,7 @@ export function exportedIdsKey(slot?: string | null): string {
     return s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;
 }
 
-if (typeof globalThis !== 'undefined') (globalThis as any).GeminiConstants = GeminiConstants;
 if (typeof module === 'object' && module.exports) module.exports = GeminiConstants;
 
 export default GeminiConstants;
-
 

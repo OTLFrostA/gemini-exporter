@@ -30,12 +30,6 @@ export interface GeminiParserParseDetailModule {
     parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
 }
 
-declare global {
-    var GeminiParserParseDetail: GeminiParserParseDetailModule;
-    var findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
-    var parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
-}
-
 import {
     GEMINI_JSPB_SCHEMA,
     detectTurnSchemaDrift,
@@ -122,6 +116,7 @@ function getSchema(): any {
     return GEMINI_JSPB_SCHEMA;
 }
 
+const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
     // Cache isTurn results per turn array instance
     const isTurnCache = new WeakMap<object, boolean>();
@@ -588,11 +583,6 @@ export const GeminiParserParseDetail: GeminiParserParseDetailModule = {
     parseDetail
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).GeminiParserParseDetail = GeminiParserParseDetail;
-    (globalThis as any).findTurnsDeep = findTurnsDeep;
-    (globalThis as any).parseDetail = parseDetail;
-}
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserParseDetail;
 
 export default GeminiParserParseDetail;

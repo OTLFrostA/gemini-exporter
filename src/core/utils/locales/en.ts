@@ -253,8 +253,6 @@ const __enFactory = (): LocaleDictionary => {
     };
 };
 export const en: LocaleDictionary = __enFactory();
-if (typeof globalThis !== 'undefined') { (globalThis as any).GeminiLocales = (globalThis as any).GeminiLocales || {}; (globalThis as any).GeminiLocales.en = en; }
 if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = en;
 export default en;
-
 

@@ -36,10 +36,6 @@ export interface GeminiClientPaginationModule {
     getConversationDetail: (client: any, conversationId: string, targetSid?: string | null) => Promise<DetailParseResult>;
 }
 
-declare global {
-    var GeminiClientPagination: GeminiClientPaginationModule;
-}
-
     /**
      * Traverses all conversation list pages with incremental detection and Google limit tracking
      */
@@ -307,7 +303,6 @@ export const GeminiClientPagination: GeminiClientPaginationModule = {
 };
 
 if (typeof globalThis !== "undefined" && !(globalThis as any).GeminiClientPagination) {
-    (globalThis as any).GeminiClientPagination = GeminiClientPagination;
 }
 if (typeof module === "object" && module.exports) {
     module.exports = GeminiClientPagination;

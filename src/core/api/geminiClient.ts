@@ -31,9 +31,6 @@ function getProtocol(): GeminiProtocolModule {
 }
 
 function getParser(): GeminiResponseParserFacade {
-    if (typeof globalThis !== "undefined" && (globalThis as any).GeminiResponseParserClass) {
-        return (globalThis as any).GeminiResponseParserClass;
-    }
     return GeminiResponseParserClass;
 }
 
@@ -338,19 +335,10 @@ type LoadCredMapFn = typeof loadCredMap;
 
 declare global {
     var GeminiAPIClient: typeof GeminiAPIClient;
-    var getApiUrl: GetApiUrlFn;
-    var detectSlot: DetectSlotFn;
     var resolveCred: ResolveCredFn;
-    var loadCredMap: LoadCredMapFn;
 }
 
-if (typeof globalThis !== "undefined") {
-    if (!(globalThis as any).GeminiAPIClient) (globalThis as any).GeminiAPIClient = GeminiAPIClient;
-    if (!(globalThis as any).getApiUrl) (globalThis as any).getApiUrl = getApiUrl;
-    if (!(globalThis as any).detectSlot) (globalThis as any).detectSlot = detectSlot;
-    if (!(globalThis as any).resolveCred) (globalThis as any).resolveCred = resolveCred;
-    if (!(globalThis as any).loadCredMap) (globalThis as any).loadCredMap = loadCredMap;
-}
+
 
 if (typeof module === "object" && module.exports) {
     module.exports = GeminiClientExports;

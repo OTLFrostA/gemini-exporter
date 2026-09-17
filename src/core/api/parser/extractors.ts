@@ -82,10 +82,7 @@ export interface GeminiParserExtractorsModule {
 }
 
 declare global {
-    var GeminiParserExtractors: GeminiParserExtractorsModule;
-    var GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
     var detectTurnSchemaDrift: (turn: any, convId?: string) => TurnDriftReport;
-    var hasTurnContentMarkers: (turn: any) => boolean;
 }
 
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
@@ -138,7 +135,6 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
     function getProtocol(): any {
         return GeminiProtocol;
     }
-
 
     function deepWalk(root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth: number = 50): void {
         function walk(node: unknown, depth: number) {
@@ -625,13 +621,6 @@ export const GeminiParserExtractors: GeminiParserExtractorsModule = {
     getUtils,
     getProtocol
 };
-
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).GeminiParserExtractors = GeminiParserExtractors;
-    (globalThis as any).GEMINI_JSPB_SCHEMA = GEMINI_JSPB_SCHEMA;
-    (globalThis as any).detectTurnSchemaDrift = detectTurnSchemaDrift;
-    (globalThis as any).hasTurnContentMarkers = hasTurnContentMarkers;
-}
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
 
 export default GeminiParserExtractors;

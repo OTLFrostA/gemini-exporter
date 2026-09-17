@@ -166,15 +166,6 @@ export const GeminiParser: GeminiParserModule = {
     parseDetail: detailMod
 };
 
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).GeminiResponseParserClass = GeminiResponseParserClass;
-    (globalThis as any).isRealTitle = isRealTitle;
-    (globalThis as any).cleanTitle = cleanTitle;
-    (globalThis as any).normId = normId;
-    (globalThis as any).GEMINI_JSPB_SCHEMA = GEMINI_JSPB_SCHEMA;
-    (globalThis as any).detectTurnSchemaDrift = detectTurnSchemaDrift;
-    (globalThis as any).extractListItemTimestamp = extractListItemTimestamp;
-}
 if (typeof module === 'object' && module.exports) module.exports = GeminiParser;
 
 export default GeminiParser;

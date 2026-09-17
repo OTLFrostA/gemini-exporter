@@ -16,10 +16,6 @@ export interface IdbHandleStoreModule {
     clearStoredDirHandle: () => Promise<boolean>;
 }
 
-declare global {
-    var IdbHandleStore: IdbHandleStoreModule;
-}
-
 export function openHandleDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
         if (typeof indexedDB === 'undefined') {
@@ -107,7 +103,6 @@ export const IdbHandleStore: IdbHandleStoreModule = {
     clearStoredDirHandle
 };
 
-if (typeof globalThis !== 'undefined') (globalThis as any).IdbHandleStore = IdbHandleStore;
 if (typeof module === 'object' && module.exports) module.exports = IdbHandleStore;
 
 export default IdbHandleStore;

@@ -322,9 +322,3 @@ ProviderRegistry.register(defaultChatGPTProvider);
 
 export default ChatGPTProvider;
 
-declare global {
-    var ChatGPTProvider: any;
-}
-if (typeof globalThis !== 'undefined') {
-    (globalThis as any).ChatGPTProvider = ChatGPTProvider;
-}
