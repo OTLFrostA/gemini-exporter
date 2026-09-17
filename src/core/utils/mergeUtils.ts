@@ -4,7 +4,6 @@ import { normId, isReservedRoute } from './pathUtils.js';
 import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle } from './titleUtils.js';
 
 export interface MergeConversationOptions {
-    isRpcSource?: boolean;
     source?: string;
     targetSlot?: string;
 }

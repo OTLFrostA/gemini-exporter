@@ -242,52 +242,6 @@ test('GeminiParser.parseList - accurately extracts server timestamp from index 5
     assert.strictEqual(combined[1].id, 'page2');
 });
 
-test('Conversation merge - authoritative RPC server list heals contaminated Date.now() timestamps', () => {
-    function mergeWithRpcAuthority(existing: any[], incoming: any[]) {
-        const map = new Map();
-        existing.forEach((c: any) => map.set(c.id, { ...c }));
-
-        incoming.forEach((c: any) => {
-
-            const old = map.get(c.id);
-            let cUpdated = c.updatedAt || c.timestamp || null;
-            let oldUpdated = old?.updatedAt || old?.timestamp || null;
-
-            let isRpcSource = c.titleSource === 'rpc' || c.source === 'network-list';
-            let bestUpdatedAt = oldUpdated;
-            if (cUpdated && (isRpcSource || !bestUpdatedAt || cUpdated > bestUpdatedAt)) {
-                bestUpdatedAt = cUpdated;
-            }
-
-            let bestTimestamp = isRpcSource ? (cUpdated || bestUpdatedAt) : (bestUpdatedAt || old?.timestamp || c.timestamp || null);
-
-            map.set(c.id, {
-                ...(old || {}),
-                ...c,
-                timestamp: bestTimestamp,
-                updatedAt: bestUpdatedAt || bestTimestamp
-            });
-        });
-
-        return Array.from(map.values());
-    }
-
-    // Suppose old stored item was contaminated with an inflated Date.now() timestamp (e.g. 1799999999000)
-    const contaminatedExisting = [
-        { id: 'chat_old_history', title: 'Old History', updatedAt: 1799999999000, timestamp: 1799999999000 }
-    ];
-
-    // Authoritative RPC scan returns the true historical timestamp from Google (1700000000000)
-    const rpcIncoming = [
-        { id: 'chat_old_history', title: 'Old History', titleSource: 'rpc', updatedAt: 1700000000000, timestamp: 1700000000000 }
-    ];
-
-    const merged = mergeWithRpcAuthority(contaminatedExisting, rpcIncoming);
-    assert.strictEqual(merged.length, 1);
-    assert.strictEqual(merged[0].updatedAt, 1700000000000, 'Contaminated timestamp must be corrected by authoritative RPC timestamp');
-    assert.strictEqual(merged[0].timestamp, 1700000000000, 'timestamp must be healed to true server timestamp');
-});
-
 test('GeminiUtils.compareConversations - authoritative SSoT comparator', () => {
     assert.strictEqual(typeof GeminiUtils.compareConversations, 'function', 'compareConversations must be exported');
 

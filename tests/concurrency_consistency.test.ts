@@ -99,7 +99,7 @@ test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
         source: 'network-list'
     };
 
-    const res1 = mergeConversation(existing, olderIncoming, { isRpcSource: true });
+    const res1 = mergeConversation(existing, olderIncoming);
     // updatedAt and timestamp must NOT regress to 1700000050000
     assert.strictEqual(res1.merged.updatedAt, 1700000050000, 'updatedAt must not regress');
     assert.strictEqual(res1.merged.timestamp, 1700000050000, 'timestamp must not regress');
@@ -117,7 +117,7 @@ test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
         source: 'network-list'
     };
 
-    const res2 = mergeConversation(existing, newerIncoming, { isRpcSource: true });
+    const res2 = mergeConversation(existing, newerIncoming);
     assert.strictEqual(res2.merged.updatedAt, 1700000090000, 'updatedAt must advance to newer timestamp');
     assert.strictEqual(res2.merged.timestamp, 1700000090000, 'timestamp must advance to newer timestamp');
     assert.strictEqual(res2.merged.createdAt, 1699999990000, 'createdAt must advance to earlier timestamp');

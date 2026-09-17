@@ -461,9 +461,9 @@ test('P1-057: isChanged detects message-count growth when timestamps are unchang
 test('P1-058: an older RPC timestamp never regresses updatedAt (newer-wins)', async () => {
     const old: any = { id: 'c_z', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', timestamp: 2000, updatedAt: 2000 };
     const incoming: any = { id: 'c_z', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', timestamp: 1000, updatedAt: 1000 };
-    const r = mergeConversation(old, incoming, { isRpcSource: true });
+    const r = mergeConversation(old, incoming);
     assert.strictEqual(r.merged.updatedAt, 2000, 'older RPC timestamp regressed updatedAt');
-    const r2 = mergeConversation(old, { ...incoming, timestamp: 3000, updatedAt: 3000 }, { isRpcSource: true });
+    const r2 = mergeConversation(old, { ...incoming, timestamp: 3000, updatedAt: 3000 });
     assert.strictEqual(r2.merged.updatedAt, 3000, 'newer RPC timestamp did not win');
 });
 
