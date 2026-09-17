@@ -141,8 +141,15 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
                 onTitleUpdated: () => {}
             }
         );
-        // finalizeChatExport is fire-and-forget; let its storage chain settle.
-        await new Promise(r => setTimeout(r, 25));
+        // finalizeChatExport is fire-and-forget; poll until its storage chain
+        // lands instead of a fixed sleep (flaky on slow machines).
+        const deadline = Date.now() + 2000;
+        for (;;) {
+            const ids = await StorageService.getExportedIds('u0');
+            if (ids[chatDetail.id] || ids['c_' + chatDetail.id]) break;
+            if (Date.now() > deadline) break;
+            await new Promise(r => setTimeout(r, 10));
+        }
         const exportedIds = await StorageService.getExportedIds('u0');
         return { result, onItemExportedCalls, exportedIds, chromeData: chromeMock.data };
     } finally {
@@ -262,10 +269,10 @@ test('p0-lock: staged image asset finalizes exactly once via the queue (no dupli
     );
 });
 
-test('Bug repro - pendingAssets leak on asset failure blocks finalize', () => {
+test('regression lock: asset-failure branch must decrement pendingAssetsPerChat (pendingAssets leak fix)', () => {
     const code = readSrc('../src/core/engine/export/exportOrchestrator.js');
     const failureBlocks = [...code.matchAll(/chatFailedAssetsSet\.add\(nid\)[\s\S]{0,300}pendingAssetsPerChat/g)];
-    assert.ok(failureBlocks.length >= 1, 'failure branch should also decrement pendingAssetsPerChat, but currently does not (pending leak)');
+    assert.ok(failureBlocks.length >= 1, 'failure branch must decrement pendingAssetsPerChat after chatFailedAssetsSet.add(nid); a regression would reintroduce the pendingAssets leak that blocks finalize');
 });
 
 test('regression: export_engine sanitizeZipPath must sanitize .. and preserve segments', () => {
@@ -375,29 +382,56 @@ test('p0-lock: hex ids without a GzXR5e anchor never trigger local conversation 
     assert.strictEqual(deletions.length, 0, 'list-RPC responses containing bare hex must not fire deletion events');
 });
 
-test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL payloads', () => {
-    const filterFn = (text: any) => {
-        if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) {
-            return false;
-        }
-        return true;
-    };
-
+test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL payloads', async () => {
+    // Drives the REAL filter inside hookCredentials (via the fetch-interception
+    // sandbox), not a hand copy: batchexecute response text flows through the
+    // actual broadcastBatchexecute, which only relays when the text mentions
+    // the LIST or DETAIL RPC ids.
     const prefix = String.fromCharCode(41, 93, 125, 39) + '\n';
+    const batchexecuteUrl = 'https://gemini.google.com/u/0/batchexecute';
+
+    async function relayedTypesFor(responseText: string): Promise<string[]> {
+        const { posted, win } = createHookSandbox();
+        win.__nextResponseText = responseText;
+        await win.fetch(batchexecuteUrl, { method: 'POST', body: 'f.req=[[["wrb.fr",null]]]' });
+        // The relay resolves in a few ms via the promise chain; 500ms is ample
+        // margin without making negative cases (filtered out) slow.
+        const deadline = Date.now() + 500;
+        for (;;) {
+            const types = posted.map((p: any) => p.msg.type);
+            if (types.includes('GEMINI_NETWORK_BATCHEXECUTE') || Date.now() > deadline) return types;
+            await new Promise(r => setTimeout(r, 10));
+        }
+    }
+    async function wasRelayed(responseText: string): Promise<boolean> {
+        return (await relayedTypesFor(responseText)).includes('GEMINI_NETWORK_BATCHEXECUTE');
+    }
+
     const genericBatchexecute = prefix + JSON.stringify([['wrb.fr', 'generic_rpc', '[]', null]]);
-    assert.strictEqual(filterFn(genericBatchexecute), false, 'Generic wrb.fr response must be filtered out');
+    assert.strictEqual(await wasRelayed(genericBatchexecute), false, 'Generic wrb.fr response must be filtered out');
 
     const deleteBatchexecute = prefix + JSON.stringify([['wrb.fr', 'GzXR5e', ['deleted'], null]]);
-    assert.strictEqual(filterFn(deleteBatchexecute), false, 'Delete RPC response must not pass batchexecute broadcast');
+    assert.strictEqual(await wasRelayed(deleteBatchexecute), false, 'Delete RPC response must not pass batchexecute broadcast');
 
     const listBatchexecute = prefix + JSON.stringify([['wrb.fr', Proto.RPCS.LIST, ['c_123'], null]]);
-    assert.strictEqual(filterFn(listBatchexecute), true, 'List RPC must pass filter');
+    assert.strictEqual(await wasRelayed(listBatchexecute), true, 'List RPC must pass filter');
 
     const detailBatchexecute = prefix + JSON.stringify([['wrb.fr', Proto.RPCS.DETAIL, ['c_123'], null]]);
-    assert.strictEqual(filterFn(detailBatchexecute), true, 'Detail RPC must pass filter');
+    assert.strictEqual(await wasRelayed(detailBatchexecute), true, 'Detail RPC must pass filter');
 });
 
 test('bootstrap - runSerializedCredOp serializes concurrent read-modify-write cycles', async () => {
+    // runSerializedCredOp is module-private in bootstrap.ts, so this test
+    // exercises the identical chain idiom below AND locks the source shape:
+    // if the source stops chaining through _credOpChain.then(op, op), this
+    // fails instead of silently testing a diverged copy. (readSrc returns the
+    // bundled output for bootstrap.js, hence (let|var).)
+    const src = readSrc('../src/content/bootstrap.js');
+    assert.ok(
+        /(?:let|var) _credOpChain[\s\S]*_credOpChain\.then\(op, op\)/.test(src),
+        'bootstrap.ts must keep the _credOpChain.then(op, op) serialization shape'
+    );
+
     let credOpChain: Promise<any> = Promise.resolve();
     function runSerializedCredOp(op: any) {
         const run = credOpChain.then(op, op);
