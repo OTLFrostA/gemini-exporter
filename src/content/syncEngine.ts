@@ -269,7 +269,6 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 
                     const res = mergeConversation(old, c, {
                         source,
-                        isRpcSource: source === 'network-list' || c.titleSource === 'rpc' || (typeof source === 'string' && source.startsWith('stream-')),
                         targetSlot: slot
                     });
 
