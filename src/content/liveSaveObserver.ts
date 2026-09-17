@@ -272,8 +272,4 @@ export const LiveSaveObserver = {
     flushCurrentTurnNow
 };
 
-declare global {
-    var LiveSaveObserver: any;
-}
-
 export default LiveSaveObserver;

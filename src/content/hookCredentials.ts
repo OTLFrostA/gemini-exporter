@@ -9,7 +9,7 @@ import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
         console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
         return;
     }
-    const Events = (Proto && (Proto.EVENTS || Proto.CrossWorldEvents)) || (typeof CrossWorldEvents !== 'undefined' ? CrossWorldEvents : ((window as any).CrossWorldEvents || (window as any).GeminiProtocol?.EVENTS));
+    const Events = (Proto && (Proto.EVENTS || Proto.CrossWorldEvents)) || CrossWorldEvents;
 
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;

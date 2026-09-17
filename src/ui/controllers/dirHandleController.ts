@@ -98,8 +98,4 @@ export const DirHandleController: DirHandleControllerContract = {
     setDirHandle
 };
 
-(DirHandleController as any).DirHandleController = DirHandleController;
-(DirHandleController as any).default = DirHandleController;
-
-
 export default DirHandleController;

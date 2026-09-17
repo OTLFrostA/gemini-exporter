@@ -53,10 +53,6 @@ export interface GeminiParserModule {
     parseDetail: GeminiParserParseDetailModule;
 }
 
-declare global {
-    var GeminiResponseParserClass: GeminiResponseParserFacade;
-}
-
 import * as ext from "./parser/extractors.js";
 import * as att from "./parser/attachments.js";
 import * as listMod from "./parser/parseList.js";

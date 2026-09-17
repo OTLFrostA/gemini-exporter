@@ -457,8 +457,5 @@ export const AssetFetcher = {
 };
 
 
-(AssetFetcher as any).AssetFetcher = AssetFetcher;
-(AssetFetcher as any).default = AssetFetcher;
-
 export default AssetFetcher;
 

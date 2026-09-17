@@ -140,7 +140,4 @@ export const PageObserver = {
 };
 
 
-(PageObserver as any).PageObserver = PageObserver;
-(PageObserver as any).default = PageObserver;
-
 export default PageObserver;
