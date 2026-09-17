@@ -8,11 +8,8 @@ import {
     getFormats,
     getStorage,
     getTour,
-    getUtils,
     getDirHandle as getDirHandleController,
-    getLiveStorage,
-    getFsWriter,
-    getChatFormatter
+    getLiveStorage
 } from '../optionsContext.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
@@ -21,8 +18,6 @@ import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
 import { getExtensionVersion } from '../../../core/utils/constants.js';
 
 export { normId, cleanTitle, resolveTitle };
-
-let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __clearLog: (() => void) | null = null;
 let __renderLog: (() => void) | null = null;
@@ -260,7 +255,6 @@ export function checkWalkthroughOnOpen(): void {
 export const checkOnboardingTour = checkWalkthroughOnOpen;
 
 export async function init({
-    loadStore,
     log: logFn,
     clearLog: clearFn,
     renderLog: renderFn,
@@ -269,7 +263,6 @@ export async function init({
     updateAccountSlotSelector: slotSelFn,
     getSearchFilter: filterFn
 }: OptionsSettingsOptions = {}): Promise<void> {
-    __loadStore = loadStore || null;
     __log = logFn || null;
     __clearLog = clearFn || null;
     __renderLog = renderFn || null;

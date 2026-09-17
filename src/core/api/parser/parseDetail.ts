@@ -1,8 +1,8 @@
 // parseDetail.ts - hNvQHb conversation detail RPC response parser
-import type { Message, Conversation, TitleSources } from "../../../types/index.js";
+import type { Message, TitleSources } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
-import type { GeminiParserExtractorsModule, GeminiJspbSchema, TurnDriftReport } from "./extractors.js";
-import type { GeminiParserAttachmentsModule, ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
+import type { TurnDriftReport } from "./extractors.js";
+import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
 
 export interface DetailParseResult {
     id: string;
@@ -66,7 +66,7 @@ import {
     highResVariant,
     isInternalChipUrl
 } from "./attachments.js";
-import GeminiProtocol, { WRB, RPCS } from "../../protocol/protocol.js";
+import GeminiProtocol from "../../protocol/protocol.js";
 import GeminiUtils from "../../utils/utils.js";
 import { extractInnerPayload } from "./payload.js";
 import { resolveDetailTitle } from "../../utils/titleUtils.js";
@@ -116,8 +116,6 @@ function getUtils(): any {
 function getProtocol(): any {
     return (typeof globalThis !== "undefined" && (globalThis as any).GeminiProtocol) || GeminiProtocol;
 }
-
-const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
 
 function getSchema(): any {
     return GEMINI_JSPB_SCHEMA;

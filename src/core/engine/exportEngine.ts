@@ -5,7 +5,7 @@ export type {
     ExportResult
 } from "./export/exportOrchestrator.js";
 
-import ExportOrchestratorModuleImpl, {
+import {
     ExportOrchestrator,
     AsyncQueue,
     ensureSubDir,

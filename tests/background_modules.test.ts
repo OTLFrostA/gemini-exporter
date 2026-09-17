@@ -4,7 +4,6 @@ import assert from 'node:assert';
 // 1. AbortManager unit tests
 test('abortManager - per-slot abort isolation and session storage persistence', async () => {
     const {
-        __bgAborts,
         isSlotAborted,
         setSlotAborted,
         restoreAbortFlags,
@@ -180,7 +179,7 @@ test('liveSaveHandler - directory missing and deletion detection', async () => {
 });
 
 test('liveSaveHandler - persists to gemini_export with cid6 filename and assets', async () => {
-    const { handleLiveSaveViaHandle, base64ToUint8Array } = require('../src/background/liveSaveHandler.js');
+    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
     const idbStore = require('../src/core/storage/idbHandleStore.js');
 
     let writtenFiles: Record<string, any> = {};

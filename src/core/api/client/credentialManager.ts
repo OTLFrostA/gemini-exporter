@@ -1,4 +1,4 @@
-import GeminiProtocol, { GeminiProtocolModule, TOKEN_PATTERNS, TOKENS, BL_FALLBACK } from "../../protocol/protocol.js";
+import GeminiProtocol, { GeminiProtocolModule } from "../../protocol/protocol.js";
 import { detectSlotFromUrl } from "../../utils/pathUtils.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
 import { getCredStorage } from "./credStorage.js";

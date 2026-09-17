@@ -1,6 +1,5 @@
 // formatStore.ts - Pure format validation + storage sync, zero DOM requirement
 // Depends on GeminiConstants (ALLOWED_FORMATS) if available, otherwise fallback
-import type { GeminiConstantsModule } from "../utils/constants.js";
 
 export type ExportFormat = 'markdown' | 'json_openai' | 'json' | 'json_raw' | string;
 

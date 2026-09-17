@@ -1,10 +1,8 @@
 // src/ui/options/modules/optionsSync.ts - Cloud synchronization, background progress & pruning
 import type { OptionsSyncOptions } from '../../../types/ui.js';
 import {
-    getI18n,
     t,
     getProtocol,
-    getApiClient,
     getTabService,
     getStore,
     getExportCtrl as getExportController,

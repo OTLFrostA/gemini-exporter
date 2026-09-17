@@ -1,7 +1,6 @@
 // src/ui/popup/popup.ts - Popup UI controller for Gemini Exporter
 
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
-import { I18n } from '../../core/utils/i18n.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';

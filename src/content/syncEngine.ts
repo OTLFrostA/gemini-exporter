@@ -4,7 +4,6 @@ import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
 import {
-    GeminiUtils,
     getErrorMessage,
     cleanTitle,
     isRealTitle,
@@ -572,7 +571,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         const slot = getAccountSlot();
         resetSessionSlice(slot);
         const Storage = getStorage();
-        const { useIncremental, maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
+        const { maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
 
         const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
             ? await Storage.getScanCheckpoint(slot)

@@ -1,7 +1,6 @@
 // src/ui/options/modules/optionsExport.ts - Export interaction & pipeline runner
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
-    getI18n,
     t,
     getLang,
     getStore,
@@ -14,8 +13,7 @@ import {
     getDirHandle,
     getLiveStorage,
     getStorage,
-    getUtils,
-    getProgressView
+    getUtils
 } from '../optionsContext.js';
 import { DialogView } from '../../views/dialogView.js';
 import { ProgressView } from '../../views/progressView.js';

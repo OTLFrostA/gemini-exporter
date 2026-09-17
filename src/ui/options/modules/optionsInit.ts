@@ -1,7 +1,6 @@
 // src/ui/options/modules/optionsInit.ts - Workbench initialization & state loader
 import type { OptionsInitOptions } from '../../../types/ui.js';
 import {
-    getI18n,
     t,
     getStore,
     getList,
@@ -10,8 +9,7 @@ import {
     getAccountView as getAccount,
     getExportCtrl as getController,
     getTour,
-    getStorage,
-    getUtils
+    getStorage
 } from '../optionsContext.js';
 import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';

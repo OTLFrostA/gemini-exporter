@@ -1,5 +1,4 @@
 // sessionRecovery.ts - Export indexing, developer diagnostics, and export record finalization
-import type { GeminiUtilsModule } from "../../utils/utils.js";
 
 export interface SessionLogOptions {
     landedChats?: number;

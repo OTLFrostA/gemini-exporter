@@ -1,16 +1,12 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
 
 const pathUtils = require('../src/core/utils/pathUtils.js');
 const titleUtils = require('../src/core/utils/titleUtils.js');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 const progressUtils = require('../src/core/utils/progressUtils.js');
 const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-
-const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', 'src', p), 'utf8');
 
 test('p1_h2 - P1-102: con.md is rewritten, not left as a reserved name', () => {
     const out = pathUtils.sanitizeFileName('con.md');

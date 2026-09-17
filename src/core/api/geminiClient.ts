@@ -2,32 +2,20 @@ import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode } from "../utils/utils.js";
 import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "./geminiParser.js";
 import GeminiClientCredentialManager, {
-    GeminiClientCredentialManagerModule,
-    GeminiCredentials,
     getBlFromPage,
     getAtFromPage,
     detectSlot,
-    getCredStorage,
     loadCredMap,
     resolveCred
 } from "./client/credentialManager.js";
-import GeminiClientRetryPolicy, {
-    GeminiClientRetryPolicyModule,
-    handleHttp400,
-    handleHttp401,
-    handleHttp429
-} from "./client/retryPolicy.js";
+import GeminiClientRetryPolicy from "./client/retryPolicy.js";
 import GeminiClientRpcClient, {
-    GeminiClientRpcClientModule,
     postBatchexecute,
     getApiUrl
 } from "./client/rpcClient.js";
 import GeminiClientPagination, {
-    GeminiClientPaginationModule,
-    PaginationOptions,
-    PaginationResult,
-    getAllConversations,
-    getConversationDetail
+    type PaginationOptions,
+    type PaginationResult
 } from "./client/pagination.js";
 import type { ListParseResult } from "./parser/parseList.js";
 import type { DetailParseResult } from "./parser/parseDetail.js";

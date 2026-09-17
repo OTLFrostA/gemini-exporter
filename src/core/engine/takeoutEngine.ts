@@ -1,5 +1,5 @@
 // src/core/engine/takeoutEngine.ts - Re-export facade for Takeout operations
-import MediaIndex, {
+import {
     getTakeoutOfflineChat,
     getTakeoutFallbackMedia,
     getTakeoutMediaForChat,
@@ -7,12 +7,10 @@ import MediaIndex, {
     clearTakeoutData,
     getStore,
     __slotTakeouts,
-    type MediaIndexModule,
     type TakeoutStore
 } from "./takeout/mediaIndex.js";
-import TakeoutParser, {
+import {
     parseTakeoutZip,
-    type TakeoutParserModule,
     type TakeoutParseResult
 } from "./takeout/takeoutParser.js";
 
