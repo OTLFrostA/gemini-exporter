@@ -210,11 +210,13 @@ const OptionsModule = {
 };
 
 // E2E test hooks (read by Playwright specs): __workbenchLoadStore, DialogView,
-// ConversationsStore. Other module mounts removed — use static imports.
+// ConversationsStore, TourGuide, FsWriter. Other module mounts removed — use static imports.
 if (typeof window !== 'undefined') {
     (window as any).__workbenchLoadStore = loadStore;
     (window as any).ConversationsStore = ConversationsStore;
     (window as any).DialogView = DialogView;
+    (window as any).TourGuide = TourGuide;
+    (window as any).FsWriter = FsWriter;
 }
 
 export { OptionsModule };
