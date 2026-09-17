@@ -1,4 +1,5 @@
 import type { SyncControllerContract } from '../../types/ui.js';
+import type { StopDeepScanMessage } from '../../types/messages.js';
 import GeminiProtocol from '../../core/protocol/protocol.js';
 import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
@@ -102,7 +103,8 @@ export function startDeepScan(slot: string, callbacks: any = {}): void {
 }
 
 export function stopScan(slot: string, { onStopped, onLog }: any = {}): void {
-    chrome.runtime.sendMessage({ action: 'stopDeepScan', accountSlot: slot || 'u0' }, () => {
+    const msg: StopDeepScanMessage = { action: 'stopDeepScan', accountSlot: slot || 'u0' };
+    chrome.runtime.sendMessage(msg, () => {
         const stopMsg = typeof t === 'function' ? t('stoppingSync') : '正在终止同步...';
         if (onLog) onLog(stopMsg, 'warn');
         setScanRunning(false);
