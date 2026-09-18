@@ -320,9 +320,7 @@
     <div style="display:flex; align-items:center; gap:8px;">
       <span id="takeoutLimitPromptTitle" style="font-size:15px; font-weight:700;" data-i18n="takeoutLimitPromptTitle">⚠️ 达到 Google 云端拉取上限</span>
     </div>
-    <div id="takeoutLimitPromptText" style="font-size:13px; line-height:1.6; color:var(--muted);" data-i18n="takeoutLimitPromptDesc">
-      检测到已拉取约 600 条历史会话并触发 Google 官方接口限制。Google 服务端游标链已达上限，无法通过网页在线加载更早历史。推荐使用 Google Takeout 导出完整官方归档包，并点击下方按钮一键导入全部历史数据与离线附件。
-    </div>
+    <div id="takeoutLimitPromptText" style="font-size:13px; line-height:1.6; color:var(--muted);"></div>
     <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
       <button id="btnModalImportTakeout" class="primary" style="height:36px; font-size:13px;" data-i18n="btnModalImportTakeout">📥 选择 Takeout ZIP 导入全部历史</button>
       <a id="btnModalOpenTakeoutWeb" href="https://takeout.google.com/settings/takeout/custom/gemini" target="_blank" class="ghost" style="height:36px; font-size:13px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; gap:6px;" data-i18n="btnModalOpenTakeoutWeb">🌐 前往 Google Takeout (已自动勾选 Gemini)</a>

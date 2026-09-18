@@ -1,7 +1,7 @@
 {
   "name": "gemini-exporter",
   "version": "1.5.1",
-  "description": "An open-source, privacy-first Chrome extension to batch export and archive your Google Gemini conversations.",
+  "description": "100% Free & open-source • Real-time auto-save • One-click batch export to Markdown • Reclaim full Gemini history via Takeout",
   "main": "background.js",
   "scripts": {
     "type-check": "tsc --noEmit",
