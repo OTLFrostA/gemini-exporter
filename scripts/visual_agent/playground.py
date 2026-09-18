@@ -408,6 +408,70 @@ class VisualPlayground:
             "timestamp": time.time()
         })
 
+    def press_key(self, key: str, modifiers: int = 0):
+        """
+        Hardware-grade physical keystroke dispatch primitive via CDP Input.dispatchKeyEvent.
+        Supports standard keys like Enter, Escape, Tab, Backspace, Arrow keys, etc.
+        """
+        KEY_MAP = {
+            "Enter": {"windowsVirtualKeyCode": 13, "key": "Enter", "code": "Enter"},
+            "Return": {"windowsVirtualKeyCode": 13, "key": "Enter", "code": "Enter"},
+            "Escape": {"windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"},
+            "Esc": {"windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"},
+            "Tab": {"windowsVirtualKeyCode": 9, "key": "Tab", "code": "Tab"},
+            "Backspace": {"windowsVirtualKeyCode": 8, "key": "Backspace", "code": "Backspace"},
+            "Delete": {"windowsVirtualKeyCode": 46, "key": "Delete", "code": "Delete"},
+            "ArrowDown": {"windowsVirtualKeyCode": 40, "key": "ArrowDown", "code": "ArrowDown"},
+            "Down": {"windowsVirtualKeyCode": 40, "key": "ArrowDown", "code": "ArrowDown"},
+            "ArrowUp": {"windowsVirtualKeyCode": 38, "key": "ArrowUp", "code": "ArrowUp"},
+            "Up": {"windowsVirtualKeyCode": 38, "key": "ArrowUp", "code": "ArrowUp"},
+            "ArrowLeft": {"windowsVirtualKeyCode": 37, "key": "ArrowLeft", "code": "ArrowLeft"},
+            "Left": {"windowsVirtualKeyCode": 37, "key": "ArrowLeft", "code": "ArrowLeft"},
+            "ArrowRight": {"windowsVirtualKeyCode": 39, "key": "ArrowRight", "code": "ArrowRight"},
+            "Right": {"windowsVirtualKeyCode": 39, "key": "ArrowRight", "code": "ArrowRight"},
+            "Space": {"windowsVirtualKeyCode": 32, "key": " ", "code": "Space"},
+        }
+        entry = KEY_MAP.get(key)
+        if entry:
+            vk = entry["windowsVirtualKeyCode"]
+            k = entry["key"]
+            code = entry["code"]
+        elif len(key) == 1:
+            vk = ord(key.upper()) if key.isalnum() else 0
+            k = key
+            code = f"Key{key.upper()}" if key.isalpha() else (f"Digit{key}" if key.isdigit() else "")
+        else:
+            vk = 0
+            k = key
+            code = key
+
+        self.cdp.call("Input.dispatchKeyEvent", {
+            "type": "rawKeyDown",
+            "windowsVirtualKeyCode": vk,
+            "key": k,
+            "code": code,
+            "modifiers": modifiers
+        })
+        if len(key) == 1 and not modifiers:
+            self.cdp.call("Input.dispatchKeyEvent", {
+                "type": "char",
+                "text": key
+            })
+        self.cdp.call("Input.dispatchKeyEvent", {
+            "type": "keyUp",
+            "windowsVirtualKeyCode": vk,
+            "key": k,
+            "code": code,
+            "modifiers": modifiers
+        })
+        time.sleep(0.05)
+        self.history.append({
+            "action": "press_key",
+            "key": key,
+            "modifiers": modifiers,
+            "timestamp": time.time()
+        })
+
     def wait_on(
         self,
         condition: str,

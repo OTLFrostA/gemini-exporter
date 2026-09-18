@@ -15,9 +15,9 @@ from .base import VisionProvider, VisualAction, VisualActionType
 
 
 class GeminiVisionProvider(VisionProvider):
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-        self.model = model
+        self.model = model or os.environ.get("GEMINI_MODEL") or "gemini-2.0-flash"
 
     def decide_action(
         self,
@@ -48,8 +48,9 @@ Determine the single best physical mouse or keyboard action to fulfill the instr
 Return ONLY a JSON object formatted exactly as:
 {{
   "thought": "brief explanation of what you see and what you will do",
-  "action": "CLICK" | "TYPE" | "PASTE" | "CLEAR" | "WAIT_ON" | "WAIT" | "DONE",
+  "action": "CLICK" | "TYPE" | "PASTE" | "CLEAR" | "KEY" | "WAIT_ON" | "WAIT" | "DONE",
   "box_2d": [ymin, xmin, ymax, xmax], // 0 to 1000 normalized coordinates for CLICK / TYPE target
+  "key": "Enter" | "Escape" | "Tab" | "ArrowDown" | "Backspace", // key name for KEY action
   "text": "text to type or paste",
   "condition": "stream_settled" | "zip_downloaded" | "ui_idle" // condition for WAIT_ON
 }}
@@ -102,10 +103,16 @@ Return ONLY a JSON object formatted exactly as:
                     norm_y = ((ymin + ymax) / 2.0) / 1000.0
 
                 if action_str == "CLICK":
+                    if norm_x is None or norm_y is None:
+                        return VisualAction(
+                            action_type=VisualActionType.FAIL,
+                            thought=f"CLICK 缺少有效 box_2d 定位坐标，拒绝盲点击回退: {thought}",
+                            details={"raw": parsed}
+                        )
                     return VisualAction(
                         action_type=VisualActionType.CLICK,
-                        x=norm_x or 0.5,
-                        y=norm_y or 0.5,
+                        x=norm_x,
+                        y=norm_y,
                         thought=thought,
                         details={"box_2d": box} if box else {}
                     )
@@ -125,6 +132,13 @@ Return ONLY a JSON object formatted exactly as:
                         y=norm_y,
                         thought=thought
                     )
+                elif action_str == "KEY":
+                    key = parsed.get("key") or parsed.get("text") or "Enter"
+                    return VisualAction(
+                        action_type=VisualActionType.KEY,
+                        key=key,
+                        thought=thought
+                    )
                 elif action_str == "WAIT_ON":
                     cond = parsed.get("condition", "stream_settled")
                     return VisualAction(
@@ -141,3 +155,63 @@ Return ONLY a JSON object formatted exactly as:
                 return VisualAction(action_type=VisualActionType.FAIL, thought=f"无法识别动作: {action_str}")
         except Exception as e:
             return VisualAction(action_type=VisualActionType.FAIL, thought=f"Gemini Vision 请求失败: {e}")
+
+    def review_screenshots(self, screenshots: List[Dict[str, Any]]) -> str:
+        """
+        Multimodal visual UX/UI review for --ai-review.
+        Sends key audit snapshots to Gemini Vision to inspect for layout, truncation, collision, and contrast.
+        """
+        if not self.api_key:
+            return "⚠️ 未配置 GEMINI_API_KEY，跳过多模态模型在线视觉审查。"
+
+        if not screenshots:
+            return "ℹ️ 本次运行无捕获截屏，跳过视觉审查。"
+
+        # Select up to 4 key snapshots to stay well within payload limits
+        selected = screenshots[:4]
+        parts = [
+            {
+                "text": """You are a senior UI/UX visual QA inspector reviewing a web extension's screens.
+Analyze the attached UI screenshots and provide a structured visual audit covering:
+1. Layout Truncation & Text Overflow (Check if any buttons, badges, or labels are cut off)
+2. Visual Occlusion & Collision (Check if popovers, modals, or banners collide with background elements)
+3. Dialog & Modal Backdrop (Verify backdrop masks background interaction cleanly)
+4. Overall Visual Polish & Recommendations (Rate 1-10 and note any UX risks)
+
+Format your response in concise GitHub-flavored Markdown."""
+            }
+        ]
+
+        for s in selected:
+            path = s.get("path")
+            if path and os.path.isfile(path):
+                try:
+                    with open(path, "rb") as f:
+                        img_bytes = f.read()
+                    b64 = base64.b64encode(img_bytes).decode("utf-8")
+                    parts.append({"text": f"Snapshot: {s.get('name', 'unnamed')}"})
+                    parts.append({"inline_data": {"mime_type": "image/png", "data": b64}})
+                except Exception as ex:
+                    print(f" [⚠️ 警告] 读取审查截屏失败: {path}: {ex}")
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        payload = {
+            "contents": [{"parts": parts}],
+            "generationConfig": {"temperature": 0.2}
+        }
+
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                candidates = result.get("candidates", [])
+                if candidates:
+                    return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "（模型未返回分析文本）")
+                return "（模型响应中无候选内容）"
+        except Exception as e:
+            return f"❌ 视觉审查请求失败: {e}"
