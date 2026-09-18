@@ -1,12 +1,10 @@
-// src/ui/popup/popup.ts - Enhanced Action Center Popup for Gemini Exporter
+// src/ui/popup/popup.ts - Popup UI controller for Gemini Exporter
 
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
-import { ScreenshotStitcher, type CapturedFrame } from '../../core/engine/screenshotStitcher.js';
-import { canvasToPdfBlob } from '../../core/engine/pdfWrapper.js';
 import {
     isGeminiUrl,
     detectSlotFromUrl,
@@ -18,15 +16,6 @@ import { sendTypedMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
-
-let _activeTab: chrome.tabs.Tab | null = null;
-let _activeConvId: string | null = null;
-let _activeSlot: string = 'u0';
-let _activeChatTitle: string = '';
-let _currentScreenshotBlob: Blob | null = null;
-let _currentScreenshotCanvas: HTMLCanvasElement | null = null;
-let _isCapturingScreenshot = false;
-let _isExportingCurrentPage = false;
 
 const log = (msg: string): void => {
     try {
@@ -42,365 +31,153 @@ const log = (msg: string): void => {
     } catch { /* logging must never break the popup itself */ }
 };
 
-function updateUiForTabState(isGemini: boolean): void {
-    const btnScreenshot = $('btnScreenshot') as HTMLButtonElement | null;
-    const btnCopyMarkdown = $('btnCopyMarkdown') as HTMLButtonElement | null;
-    const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
-    const formatSelect = $('format') as HTMLSelectElement | null;
-    const notGeminiNotice = $('notGeminiNotice');
-    const currentChatContent = $('currentChatContent');
-    const countBadge = $('countBadge');
-    const i18n = getI18n();
-
-    if (!isGemini) {
-        if (btnScreenshot) btnScreenshot.disabled = true;
-        if (btnCopyMarkdown) btnCopyMarkdown.disabled = true;
-        if (btnCurrent) {
-            btnCurrent.disabled = true;
-            btnCurrent.title = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
-        }
-        if (formatSelect) formatSelect.disabled = true;
-        if (notGeminiNotice) notGeminiNotice.style.display = '';
-        if (currentChatContent) currentChatContent.style.display = 'none';
-        if (countBadge) countBadge.classList.add('inactive');
-    } else {
-        if (btnScreenshot) btnScreenshot.disabled = false;
-        if (btnCopyMarkdown) btnCopyMarkdown.disabled = false;
-        if (btnCurrent) {
-            btnCurrent.disabled = false;
-            btnCurrent.title = '';
-        }
-        if (formatSelect) formatSelect.disabled = false;
-        if (notGeminiNotice) notGeminiNotice.style.display = 'none';
-        if (currentChatContent) currentChatContent.style.display = '';
-        if (countBadge) countBadge.classList.remove('inactive');
-    }
-}
-
-// Update synced count badge and tab UI state
-async function updateCount(): Promise<void> {
-    try {
-        let slot = 'u0';
-        let isGemini = false;
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        _activeTab = tab || null;
-
-        if (tab?.url && isGeminiUrl(tab.url)) {
-            isGemini = true;
-            slot = detectSlotFromUrl(tab.url);
-            _activeSlot = slot;
-            _activeConvId = extractConversationIdFromUrl(tab.url);
-        } else {
-            _activeConvId = null;
-        }
-        updateUiForTabState(isGemini);
-
-        // Update active chat info card
-        const currentChatTitleEl = $('currentChatTitle');
-        const chatSlotBadgeEl = $('chatSlotBadge');
-        const chatTurnBadgeEl = $('chatTurnBadge');
+    function updateUiForTabState(isGemini: boolean): void {
+        const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
+        const btnPdf = $('btnPdf') as HTMLButtonElement | null;
+        const formatSelect = $('format') as HTMLSelectElement | null;
+        const quickExportLabel = document.querySelector('.card:nth-of-type(2) .label');
+        const countBadge = $('countBadge');
         const i18n = getI18n();
 
-        if (chatSlotBadgeEl) chatSlotBadgeEl.textContent = slot.toUpperCase();
-
-        if (isGemini && _activeConvId) {
-            const list = getStorage() ? await getStorage().getConversations(slot) : [];
-            const found = list.find((c: any) => c.id === _activeConvId || c.id === `c_${_activeConvId}`);
-            if (found && found.title) {
-                _activeChatTitle = cleanTitle(found.title);
-            } else if (tab?.title) {
-                _activeChatTitle = cleanTitle(tab.title.replace(/ - Gemini$/, ''));
-            } else {
-                _activeChatTitle = _activeConvId;
+        if (!isGemini) {
+            if (btnCurrent) {
+                btnCurrent.disabled = true;
+                btnCurrent.title = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
             }
-
-            if (currentChatTitleEl) {
-                currentChatTitleEl.textContent = _activeChatTitle;
-                currentChatTitleEl.title = _activeChatTitle;
+            if (btnPdf) {
+                btnPdf.disabled = true;
+                btnPdf.title = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
             }
-
-            const msgCount = found?.messageCount || found?.messages?.length || 0;
-            if (chatTurnBadgeEl) {
-                chatTurnBadgeEl.textContent = msgCount > 0
-                    ? (typeof i18n !== 'undefined' ? i18n.t('chatMessagesCount', msgCount) : `${msgCount} turns`)
-                    : (typeof i18n !== 'undefined' ? i18n.t('chatNoMessages') : 'New chat');
+            if (formatSelect) {
+                formatSelect.disabled = true;
             }
-        } else if (isGemini) {
-            if (currentChatTitleEl) {
-                currentChatTitleEl.textContent = typeof i18n !== 'undefined' ? i18n.t('chatNoMessages') : 'New chat';
+            if (quickExportLabel) {
+                quickExportLabel.classList.add('disabled');
             }
-            if (chatTurnBadgeEl) {
-                chatTurnBadgeEl.textContent = typeof i18n !== 'undefined' ? i18n.t('chatNoMessages') : 'New chat';
+            if (countBadge) {
+                countBadge.classList.add('inactive');
             }
-        }
-
-        // Global count badge
-        let count = 0;
-        const convs = await getStorage().getConversations(slot);
-        count = convs.length;
-        if (!count) {
-            const syncInfo = await getStorage().getLastSync(slot);
-            count = syncInfo?.count || 0;
-        }
-        const badge = $('countBadge');
-        if (badge) {
-            const text = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', count) : `${count} synced`;
-            const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
-            const offlineLabel = (typeof i18n !== 'undefined' && typeof i18n.t === 'function') ? i18n.t('badgeOffline') : 'offline';
-            badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
-        }
-    } catch (e) {
-        console.warn('[popup] updateCount err', e);
-    }
-}
-
-const handleLangChange = async (targetLang: string): Promise<void> => {
-    const i18n = getI18n();
-    if (i18n && typeof i18n.setLang === 'function') {
-        await i18n.setLang(targetLang);
-        if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
-        if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
-        await updateCount();
-    }
-};
-
-// ==================== Long Screenshot Workflow ====================
-async function handleLongScreenshot(): Promise<void> {
-    const i18n = getI18n();
-    const btnScreenshot = $('btnScreenshot') as HTMLButtonElement | null;
-
-    if (_isCapturingScreenshot) {
-        log(typeof i18n !== 'undefined' ? i18n.t('popupExportBusy') : '正在截图中，请稍候…');
-        return;
-    }
-    if (!_activeTab || !_activeTab.id) {
-        log(typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '未找到活动 Gemini 标签页');
-        return;
-    }
-
-    _isCapturingScreenshot = true;
-    if (btnScreenshot) btnScreenshot.disabled = true;
-    ProgressView.show(5);
-    log(typeof i18n !== 'undefined' ? i18n.t('screenshotStitching') : '正在平滑滚动并拼接长图...');
-
-    try {
-        // 1. Prepare tab (hide overlays, get heights)
-        const prepRes = await chrome.tabs.sendMessage(_activeTab.id, { action: 'screenshotPrepare' });
-        if (!prepRes || !prepRes.ok) {
-            throw new Error(prepRes?.error || '无法初始化页面截图视口');
-        }
-
-        const { totalHeight, viewportHeight, viewportWidth, devicePixelRatio, originalScrollTop } = prepRes;
-        const stepSize = Math.max(100, Math.floor(viewportHeight * 0.82));
-        const totalSteps = Math.min(18, Math.max(1, Math.ceil((totalHeight - viewportHeight) / stepSize) + 1));
-        const frames: CapturedFrame[] = [];
-
-        // 2. Step through the document, scroll & capture
-        for (let i = 0; i < totalSteps; i++) {
-            const targetY = Math.min(i * stepSize, Math.max(0, totalHeight - viewportHeight));
-            await chrome.tabs.sendMessage(_activeTab.id, { action: 'screenshotScroll', targetY });
-
-            // Small delay to allow complete visual rendering & avoid capture limits
-            await new Promise((r) => setTimeout(r, 220));
-
-            // Capture visible tab via background or runtime API
-            const captureRes = await new Promise<{ ok: boolean; dataUrl?: string; error?: string }>((resolve) => {
-                chrome.runtime.sendMessage({ action: 'captureTab' }, (res) => {
-                    if (res && res.ok && res.dataUrl) {
-                        resolve(res);
-                    } else {
-                        // Fallback directly to tabs.captureVisibleTab
-                        chrome.tabs.captureVisibleTab(null as any, { format: 'png' }, (dataUrl) => {
-                            if (chrome.runtime.lastError || !dataUrl) {
-                                resolve({ ok: false, error: chrome.runtime.lastError?.message || 'Capture failed' });
-                            } else {
-                                resolve({ ok: true, dataUrl });
-                            }
-                        });
-                    }
-                });
-            });
-
-            if (!captureRes.ok || !captureRes.dataUrl) {
-                console.warn(`[popup] Step ${i} capture failed: ${captureRes.error}`);
-            } else {
-                frames.push({
-                    dataUrl: captureRes.dataUrl,
-                    scrollTop: targetY,
-                    viewportHeight,
-                    viewportWidth
-                });
-            }
-
-            const pct = Math.round(10 + ((i + 1) / totalSteps) * 70);
-            ProgressView.update(pct);
-        }
-
-        // 3. Restore page elements
-        await chrome.tabs.sendMessage(_activeTab.id, { action: 'screenshotRestore', originalScrollTop });
-
-        if (!frames.length) {
-            throw new Error('未成功捕获任何视口切片');
-        }
-
-        // 4. Stitch in Canvas
-        ProgressView.update(88);
-        const stitched = await ScreenshotStitcher.stitchFrames({
-            frames,
-            totalHeight,
-            viewportWidth,
-            viewportHeight,
-            devicePixelRatio: devicePixelRatio || 1
-        });
-
-        _currentScreenshotBlob = stitched.blob;
-        _currentScreenshotCanvas = stitched.canvas;
-
-        // 5. Present in Lightbox
-        const previewModal = $('previewModal');
-        const previewImage = $('previewImage') as HTMLImageElement | null;
-        if (previewImage) previewImage.src = stitched.dataUrl;
-        if (previewModal) previewModal.classList.add('active');
-
-        ProgressView.complete();
-        log(typeof i18n !== 'undefined' ? i18n.t('screenshotReady') : '长截图生成就绪');
-    } catch (e: any) {
-        log(`截图失败: ${e?.message || e}`);
-        ProgressView.hide();
-    } finally {
-        _isCapturingScreenshot = false;
-        if (btnScreenshot) btnScreenshot.disabled = false;
-    }
-}
-
-// ==================== Copy Markdown Workflow ====================
-async function handleCopyMarkdown(): Promise<void> {
-    const i18n = getI18n();
-    if (!_activeConvId) {
-        log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话');
-        return;
-    }
-
-    log(typeof i18n !== 'undefined' ? i18n.t('popupExporting') : '正在抓取内容…');
-    ProgressView.show(30);
-
-    try {
-        const res = await sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 30000);
-        if (!res || !res.success) {
-            throw new Error(res?.error || '抓取对话失败');
-        }
-        ProgressView.update(70);
-        const chat = res.data || res;
-        const markdown = ChatFormatter.toMarkdown(chat);
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(markdown);
-            ProgressView.complete();
-            log(typeof i18n !== 'undefined' ? i18n.t('markdownCopied') : 'Markdown 已复制到剪贴板！');
         } else {
-            throw new Error('浏览器剪贴板 API 不可用');
+            if (btnCurrent) {
+                btnCurrent.disabled = false;
+                btnCurrent.title = '';
+            }
+            if (btnPdf) {
+                btnPdf.disabled = false;
+                btnPdf.title = '';
+            }
+            if (formatSelect) {
+                formatSelect.disabled = false;
+            }
+            if (quickExportLabel) {
+                quickExportLabel.classList.remove('disabled');
+            }
+            if (countBadge) {
+                countBadge.classList.remove('inactive');
+            }
         }
-    } catch (e: any) {
-        log(`复制 Markdown 异常: ${e?.message || e}`);
-        ProgressView.hide();
     }
-}
 
-// ==================== Initialization ====================
-function initPopupEvents(): void {
+    // Update synced count badge and tab UI state
+    async function updateCount(): Promise<void> {
+        try {
+            let slot = 'u0';
+            let isGemini = false;
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tab?.url && isGeminiUrl(tab.url)) {
+                isGemini = true;
+                slot = detectSlotFromUrl(tab.url);
+            }
+            updateUiForTabState(isGemini);
+
+            let count = 0;
+            const convs = await getStorage().getConversations(slot);
+            count = convs.length;
+            if (!count) {
+                const syncInfo = await getStorage().getLastSync(slot);
+                count = syncInfo?.count || 0;
+            }
+            const badge = $('countBadge');
+            if (badge) {
+                const i18n = getI18n();
+                const text = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', count) : `${count} synced`;
+                const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
+                const offlineLabel = (typeof i18n !== 'undefined' && typeof i18n.t === 'function') ? i18n.t('badgeOffline') : 'offline';
+                badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
+            }
+        } catch (e) {
+            console.warn('[popup] updateCount err', e);
+        }
+    }
+
+    const handleLangChange = async (targetLang: string): Promise<void> => {
+        const i18n = getI18n();
+        if (i18n && typeof i18n.setLang === 'function') {
+            await i18n.setLang(targetLang);
+            if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
+            if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
+            await updateCount();
+        }
+    };
+
     const langToggle = $('langToggle') as HTMLInputElement | null;
-    langToggle?.addEventListener('change', (e: Event) => {
-        handleLangChange((e.target as HTMLInputElement).checked ? 'en' : 'zh');
+    langToggle?.addEventListener('change', async (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        handleLangChange(target.checked ? 'en' : 'zh');
     });
 
-    $('labelLangZh')?.addEventListener('click', (e) => {
+    $('labelLangZh')?.addEventListener('click', (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
-        if (langToggle) langToggle.checked = false;
+        const toggle = $('langToggle') as HTMLInputElement | null;
+        if (toggle) toggle.checked = false;
         handleLangChange('zh');
     });
 
-    $('labelLangEn')?.addEventListener('click', (e) => {
+    $('labelLangEn')?.addEventListener('click', (e: Event) => {
         e.preventDefault();
         e.stopPropagation();
-        if (langToggle) langToggle.checked = true;
+        const toggle = $('langToggle') as HTMLInputElement | null;
+        if (toggle) toggle.checked = true;
         handleLangChange('en');
     });
 
-    // Formats
     const formatStore = __resolveModule('FormatStore', FormatStore);
+    const ALLOWED_FORMATS: string[] = (typeof formatStore !== 'undefined' ? formatStore.ALLOWED_FORMATS : ['markdown', 'json_openai', 'json', 'json_raw']);
     const formatSelect = $('format') as HTMLSelectElement | null;
-    if (formatStore && formatStore.loadFormat) {
+
+    if (typeof formatStore !== 'undefined' && formatStore.loadFormat) {
         formatStore.loadFormat().then(({ format }: { format: string }) => {
             if (formatSelect) formatSelect.value = format;
         });
         formatSelect?.addEventListener('change', (e: Event) => {
-            formatStore.saveFormat((e.target as HTMLSelectElement).value);
+            const target = e.target as HTMLSelectElement;
+            formatStore.saveFormat(target.value);
+        });
+    } else {
+        chrome.storage.local.get(['gemini_export_format'], (data: any) => {
+            if (data.gemini_export_format && formatSelect) {
+                const v = String(data.gemini_export_format);
+                const valid = ALLOWED_FORMATS.includes(v) && Array.from(formatSelect.options).some(o => o.value === v);
+                if (valid) {
+                    formatSelect.value = v;
+                } else {
+                    formatSelect.value = 'markdown';
+                    chrome.storage.local.set({ gemini_export_format: 'markdown' });
+                }
+            }
+        });
+        formatSelect?.addEventListener('change', (e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            chrome.storage.local.set({ gemini_export_format: target.value });
         });
     }
 
-    // Workbench links
-    $('btnOptions')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
-
-    // Screenshot actions
-    $('btnScreenshot')?.addEventListener('click', () => handleLongScreenshot());
-    $('btnCopyMarkdown')?.addEventListener('click', () => handleCopyMarkdown());
-
-    // Preview Lightbox Buttons
-    $('btnClosePreview')?.addEventListener('click', () => {
-        $('previewModal')?.classList.remove('active');
+    // "去工作台选 批量导出" button
+    $('btnOptions')?.addEventListener('click', () => {
+        chrome.runtime.openOptionsPage();
     });
 
-    $('btnCopyImage')?.addEventListener('click', async () => {
-        const i18n = getI18n();
-        if (!_currentScreenshotBlob) return;
-        try {
-            if (navigator.clipboard && typeof (window as any).ClipboardItem !== 'undefined') {
-                const item = new (window as any).ClipboardItem({ 'image/png': _currentScreenshotBlob });
-                await navigator.clipboard.write([item]);
-                log(typeof i18n !== 'undefined' ? i18n.t('screenshotCopied') : '长图已复制到剪贴板！');
-            } else {
-                throw new Error('ClipboardItem API not supported');
-            }
-        } catch (err: any) {
-            log(typeof i18n !== 'undefined' ? i18n.t('screenshotCopyFailed') : '复制失败，请点击保存 PNG');
-        }
-    });
-
-    $('btnSaveImage')?.addEventListener('click', () => {
-        const i18n = getI18n();
-        if (!_currentScreenshotBlob) return;
-        const name = (_activeChatTitle || 'gemini_screenshot').replace(/[\\/:*?"<>|]/g, '_');
-        const fileName = `${name}_long.png`;
-        const url = URL.createObjectURL(_currentScreenshotBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-        log(typeof i18n !== 'undefined' ? i18n.t('screenshotSaved') : `已保存为 ${fileName}`);
-    });
-
-    $('btnSavePdf')?.addEventListener('click', async () => {
-        const i18n = getI18n();
-        if (!_currentScreenshotCanvas) return;
-        try {
-            const pdfBlob = await canvasToPdfBlob(_currentScreenshotCanvas);
-            const name = (_activeChatTitle || 'gemini_screenshot').replace(/[\\/:*?"<>|]/g, '_');
-            const fileName = `${name}.pdf`;
-            const url = URL.createObjectURL(pdfBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 3000);
-            log(typeof i18n !== 'undefined' ? i18n.t('screenshotPdfSaved') : `已保存为 ${fileName}`);
-        } catch (e: any) {
-            log(`PDF 导出失败: ${e?.message || e}`);
-        }
-    });
-
-    // "只导当前页" (File Download)
     let __exportingCurrentPage = false;
     $('btnCurrent')?.addEventListener('click', async () => {
         const btnCurrentEl = $('btnCurrent') as HTMLButtonElement | null;
@@ -411,46 +188,109 @@ function initPopupEvents(): void {
         }
         __exportingCurrentPage = true;
         if (btnCurrentEl) btnCurrentEl.disabled = true;
-
         const __releaseExportGuard = (): void => {
             __exportingCurrentPage = false;
             if (btnCurrentEl) btnCurrentEl.disabled = false;
         };
-
         const currentFormatSelect = $('format') as HTMLSelectElement | null;
-        let format: string = currentFormatSelect?.value || 'markdown';
+        let format: string = (typeof formatStore !== 'undefined' && formatStore.getCurrentFormat)
+            ? formatStore.getCurrentFormat(false, currentFormatSelect?.value)
+            : (currentFormatSelect?.value || 'markdown');
+        if (typeof formatStore === 'undefined' && !ALLOWED_FORMATS.includes(format)) format = 'markdown';
+
         ProgressView.show(10);
 
         try {
-            if (!_activeConvId) {
-                log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话');
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            const tab = tabs[0];
+            if (!tab || !tab.url || !isGeminiUrl(tab.url)) {
+                log(typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com，请先打开 Gemini 对话页');
                 __releaseExportGuard();
                 return;
             }
-            sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000).then(async (res: any) => {
+            const slot = detectSlotFromUrl(tab.url);
+            const convId = extractConversationIdFromUrl(tab.url);
+            if (!convId) {
+                log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话 (URL 中没找到对话 ID)');
+                __releaseExportGuard();
+                return;
+            }
+            log(typeof i18n !== 'undefined' ? i18n.t('popupFoundChat', convId) : `找到对话 ID: ${convId}，正在抓取内容…`);
+            ProgressView.update(40);
+
+            sendTypedMessage({ action: 'fetchChat', conversationId: convId, accountSlot: slot }, 40000).then(async (res: any) => {
                 try {
-                    if (!res || !res.success) {
-                        log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: ' + (res?.error || '未知错误')));
-                        return;
+                if (!res || !res.success) {
+                    log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: ' + (res?.error || '未知错误')));
+                    return;
+                }
+                ProgressView.update(80);
+                const chat = res.data || res;
+                if (!chat.id) chat.id = convId;
+                if (!chat.url) chat.url = `https://gemini.google.com/app/${convId}`;
+                chat.title = cleanTitle(chat.title);
+                if (!chat.title || chat.title === 'Untitled conversation') {
+                    try {
+                        const list = getStorage() ? await getStorage().getConversations(slot) : [];
+                        const found = list.find((c: any) => c.id === convId || c.id === `c_${convId}`);
+                        if (found && found.title) chat.title = cleanTitle(found.title);
+                    } catch (e) {
+                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:popup.js]', e);
                     }
+                }
 
-                    ProgressView.update(80);
-                    const chat = res.data || res;
-                    if (!chat.id) chat.id = _activeConvId;
-                    chat.title = cleanTitle(chat.title || _activeChatTitle);
+                const chatFormatter = ChatFormatter;
+                const formatted = (typeof chatFormatter !== 'undefined')
+                    ? chatFormatter.formatContent(chat, format)
+                    : { content: JSON.stringify(chat, null, 2), ext: 'json', mime: 'application/json' };
+                const content = formatted.content;
+                const ext = formatted.ext;
+                const mime = formatted.mime;
 
-                    const formatted = ChatFormatter.formatContent(chat, format);
-                    const fileName = buildExportFileName(chat.title || chat.id, _activeConvId, formatted.ext);
-                    const blob = new Blob([formatted.content], { type: formatted.mime });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    a.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 3000);
+                const fileName = buildExportFileName(cleanTitle(chat.title || chat.id), convId, ext);
+                const blob = new Blob([content], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 3000);
 
-                    ProgressView.complete();
-                    log(typeof i18n !== 'undefined' ? i18n.t('popupExported', fileName, chat.messages?.length || 0) : `已导出: ${fileName}`);
+                ProgressView.complete();
+                log(typeof i18n !== 'undefined' ? i18n.t('popupExported', fileName, chat.messages?.length || 0) : `已导出: ${fileName} (${chat.messages?.length || 0} 条消息)`);
+
+                try {
+                    const finalTitle = chat.title || convId;
+                    let chatTime = chat.timestamp ?? chat.updatedAt ?? null;
+                    if (typeof chatTime === 'string') chatTime = new Date(chatTime).getTime();
+                    const rec = {
+                        title: finalTitle,
+                        exportedAt: new Date().toISOString(),
+                        messageCount: chat.messages?.length || 0,
+                        chatTime: (typeof chatTime === 'number' && Number.isFinite(chatTime)) ? chatTime : null,
+                        status: 'ok'
+                    };
+                    await getStorage().saveExportRecord(slot, convId, rec);
+                    // SSOT: title write-back goes through the title-tier arbitration
+                    // inside the conversation lock. The old shape raw-assigned
+                    // item.title and blind-wrote the list outside the lock: it could
+                    // clobber a concurrent tab's sync and let a lower-tier title
+                    // overwrite a higher-tier one.
+                    if (finalTitle !== convId && getStorage() && typeof getStorage().updateConversation === 'function') {
+                        const tier = res && res.source === 'dom' ? 'dom' : 'rpc';
+                        await getStorage().updateConversation(slot, convId, (current: any) => {
+                            if (!current) return null;
+                            const item = { ...current, titles: { ...(current.titles || {}) } };
+                            const beforeTitle = item.title;
+                            const beforeSource = item.titleSource;
+                            GeminiUtils.setTitleBySource(item, tier, finalTitle);
+                            if (item.title === beforeTitle && item.titleSource === beforeSource) return null;
+                            return { title: item.title, titleSource: item.titleSource, titles: item.titles };
+                        });
+                    }
+                } catch (e) {
+                    console.warn('[GemExporter:storage] Storage operation failed:', e);
+                }
                 } finally {
                     __releaseExportGuard();
                 }
@@ -460,7 +300,59 @@ function initPopupEvents(): void {
             });
         } catch (e: any) {
             __releaseExportGuard();
-            log(typeof i18n !== 'undefined' ? i18n.t('popupExportError', e?.message) : `导出异常: ${e?.message}`);
+            log(typeof i18n !== 'undefined' ? i18n.t('popupExportError', e?.message) : ('导出异常: ' + e?.message));
+            console.error('[popup] export current err', e);
+        }
+    });
+
+    // "导出 PDF" button: opens the print page in a new tab (print pipeline).
+    // The print page is self-sufficient: it fetches the conversation itself,
+    // renders it and calls window.print(). Nothing after chrome.tabs.create
+    // may depend on the popup context (popup closes on blur).
+    let __exportingPdf = false;
+    $('btnPdf')?.addEventListener('click', async () => {
+        const btnPdfEl = $('btnPdf') as HTMLButtonElement | null;
+        const i18n = getI18n();
+        if (__exportingPdf) {
+            log(typeof i18n !== 'undefined' && typeof i18n.t === 'function' ? i18n.t('pdfBusy') : '正在打开打印页，请稍候…');
+            return;
+        }
+        __exportingPdf = true;
+        if (btnPdfEl) btnPdfEl.disabled = true;
+        const __releasePdfGuard = (): void => {
+            __exportingPdf = false;
+            if (btnPdfEl) btnPdfEl.disabled = false;
+        };
+
+        ProgressView.show(10);
+
+        try {
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            const tab = tabs[0];
+            if (!tab || !tab.url || !isGeminiUrl(tab.url)) {
+                log(typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com，请先打开 Gemini 对话页');
+                __releasePdfGuard();
+                return;
+            }
+            const slot = detectSlotFromUrl(tab.url);
+            const convId = extractConversationIdFromUrl(tab.url);
+            if (!convId) {
+                log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话 (URL 中没找到对话 ID)');
+                __releasePdfGuard();
+                return;
+            }
+            const printUrl = chrome.runtime.getURL('src/ui/print/print.html')
+                + '?conv=' + encodeURIComponent(convId)
+                + '&slot=' + encodeURIComponent(slot);
+            await chrome.tabs.create({ url: printUrl, active: true });
+            ProgressView.complete();
+            log(typeof i18n !== 'undefined' ? i18n.t('pdfOpened') : '已在新标签页打开打印页，请在其中完成打印');
+            __releasePdfGuard();
+            // NOTE: the popup closes on blur right after tabs.create; no
+            // popup-context-dependent async logic is allowed past this point.
+        } catch (e: any) {
+            __releasePdfGuard();
+            log(typeof i18n !== 'undefined' ? i18n.t('pdfOpenFailed', e?.message || String(e)) : ('打开打印页失败: ' + (e?.message || String(e))));
         }
     });
 
@@ -478,7 +370,8 @@ function initPopupEvents(): void {
         }
     });
 
-    // Init i18n
+
+    // Init i18n and count
     const i18n = getI18n();
     if (typeof i18n !== 'undefined') {
         i18n.initLanguage().then(() => {
@@ -490,10 +383,10 @@ function initPopupEvents(): void {
     } else {
         updateCount();
     }
-
+    // Event-driven refresh: storage changes + explicit tab updates replace polling
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
         chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local' && (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync)) {
+            if (area === 'local' && (changes.gemini_conversations || changes.gemini_conversations_u0 || changes.gemini_last_count || changes.gemini_last_sync)) {
                 updateCount();
             }
         });
@@ -501,8 +394,5 @@ function initPopupEvents(): void {
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.onUpdated) {
         chrome.tabs.onUpdated.addListener(() => updateCount());
     }
-}
-
-initPopupEvents();
 
 export {};

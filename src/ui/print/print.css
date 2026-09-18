@@ -1,0 +1,573 @@
+/* ============================================================================
+ * print.css — Gemini Exporter 打印页样式
+ * 本文件上半部分为屏幕态样式（工具条/提示条/错误区），下半部分 @media print
+ * 为打印输出样式（初稿 v1，2026-09-18，见文件内注释）。
+ * ========================================================================== */
+
+/* ---- 屏幕态：页面基础 ---- */
+html { color-scheme: light; background: #f5f6fa; }
+body {
+  margin: 0 auto;
+  max-width: 860px;
+  padding: 16px 20px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    "Noto Sans SC", sans-serif;
+  color: #1a1a1e;
+  background: #f5f6fa;
+  line-height: 1.6;
+}
+
+/* ---- 屏幕态：提示条 / 工具条 / 横幅 / 错误区（打印时隐藏） ---- */
+.notice {
+  background: #fffbe6;
+  border: 1px solid #f0d86e;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #6b5d1f;
+  margin-bottom: 12px;
+}
+.notice div { margin: 3px 0; }
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e2e4ec;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+#printStatus { font-size: 13px; color: #555; flex: 1; }
+.toolbar button, .banner button, .error button {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 13px;
+}
+.toolbar button:hover, .banner button:hover, .error button:hover { opacity: .92; }
+.banner {
+  background: #fff3f3;
+  border: 2px solid #e5484d;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  color: #8f1d22;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.banner span { flex: 1; font-weight: 600; }
+.error {
+  background: #fff3f3;
+  border: 1px solid #e5484d;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+  font-size: 13.5px;
+  color: #8f1d22;
+}
+.error button { margin-top: 10px; }
+
+/* ---- 屏幕态：内容区基础排版（打印样式在 @media print 内覆盖） ---- */
+#printContent {
+  background: #fff;
+  border: 1px solid #e2e4ec;
+  border-radius: 8px;
+  padding: 20px 24px;
+}
+#printContent:empty { display: none; }
+.msg { margin: 0 0 16px 0; }
+.msg-role { font-size: 12px; font-weight: 700; color: #555; margin-bottom: 6px; }
+.msg .msg-time { font-size: 11px; color: #999; margin-top: 6px; }
+.msg img { max-width: 100%; height: auto; }
+.img-broken {
+  display: inline-block;
+  border: 1px dashed #bbb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #888;
+  background: #fafafa;
+}
+/* v1 公式降级：TeX 源码展示（pitfalls ③） */
+.tex-inline {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: .92em;
+  background: #f1f3f5;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: .15em .35em;
+  color: #7a2e2e;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.tex-fallback {
+  border: 1px solid #d0d7de;
+  border-left: 3px solid #d29922;
+  border-radius: 6px;
+  background: #f6f8fa;
+  padding: 10px 14px;
+  margin: 12px 0;
+}
+.tex-fallback .tex-label { font-size: 11px; color: #8a6d1b; margin-bottom: 6px; }
+.tex-fallback pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ============================================================================
+ * print.css — Gemini Exporter 打印页打印样式（初稿 v1，2026-09-18）
+ * 用途：chrome-extension://<id>/src/ui/print/print.html 的 @media print 样式。
+ * 设计依据：~/workspace/research_notes/pdf-print-pipeline-20260918/report.md
+ *   §2.2（上一轮 CSS 草稿）、§2.3（三个坑）、§3 排版决策表 a–h。
+ *
+ * ---- 相对上一轮 §2.2 草稿的修正（本组已核实后改动）----
+ * 1. 字体栈补齐 Linux（"Source Han Sans SC" / "WenQuanYi Micro Hei" /
+ *    "Droid Sans Fallback"），CJK 名顺序按决策表 g；§2.2 缺 Linux 覆盖，
+ *    在无中文字体的 Linux 上会 tofu。
+ * 2. 代码块换行从 word-break:break-word 改为 overflow-wrap:anywhere
+ *    （决策表 b；break-word 是 overflow-wrap 的遗留别名，anywhere 更激进，
+ *    能在任意字符处断开超长 token）。
+ * 3. 新增 .code-long 逃生舱：§2.2 给 pre 一刀切 break-inside:avoid，
+ *    对超出一页的长代码块会在分页处留下大片空白（决策表 b 已指出）。
+ *    改为默认 avoid，print.ts 在渲染后检测 pre.scrollHeight 超过一页内容
+ *    高度时加 .code-long 类切换为 break-inside:auto。
+ * 4. 表格补上一级降级 table-layout:fixed + width:100% + 单元格换行
+ *    （决策表 c 的第一级；§2.2 漏了，只写了 border-collapse）。
+ * 5. 页眉从静态 "Gemini 对话导出" 扩展为决策表 h 的五盒布局（左标题/
+ *    右日期/左来源/中品牌/右页码）；但对话标题、导出日期是动态数据，
+ *    纯 CSS 无法注入——string-set()/string() 与 position:running()+
+ *    element() 在 Chrome 均不支持（见下方"未采用"），所以动态部分必须
+ *    由 print.ts 用 JS 生成 <style> 文本注入，本文件提供静态默认 +
+ *    完整注入模板（注释形式）。
+ * 6. 新增 color-scheme:light（§2.2 漏了；强制浅色是决策表 e 的要求）。
+ *
+ * ---- 未采用的特性（Chrome 不支持，不写进初稿）----
+ * - position:running() + element() 动态页眉：Chrome 不支持
+ *   （上一轮报告 §2.1；Chrome 131 只实现了 margin boxes 的 generated content）。
+ * - string-set() / string() 章节标题进页眉：Chrome 未实现，
+ *   官方博客列为 "Future possibilities" 并挂了 chromium bug
+ *   （来源：https://developer.chrome.com/blog/print-margins §Future possibilities）。
+ * - target-counter() 引用页码：Chrome 不支持（决策表 f）。
+ * ========================================================================== */
+
+/* ==========================================================================
+ * §1 @page：纸张、边距、页眉页脚
+ * 决策依据：报告 §2.2 + §2.3 第 1、2 条 + 决策表 h。
+ * --------------------------------------------------------------------------
+ * Chrome 支持 margin boxes 的来源（本组 2026-09-18 亲手核实，非抄旧教程）：
+ * ① https://developer.chrome.com/blog/print-margins（2024-10-30，Rachel Andrew）
+ *    "From Chrome 131 you can use CSS to add content to the margins of pages
+ *     when they are printed." ——16 个 margin at-rule 全可用，counter(page)/
+ *     counter(pages) 两个预定义计数器可用。
+ * ② Chrome 131 release notes：
+ *    https://developer.chrome.com/release-notes/131 —— "@page margin boxes"
+ *    列为 131 新特性。
+ * ③ chromestatus feature/5195769732923392：本轮 browser 抓取失败未能打开，
+ *    以上两条官方来源已互相印证，结论成立；chromestatus 条目存在性以
+ *    release notes 中的 "ChromeStatus.com entry" 链接为旁证。
+ * 未发现反例：未找到任何来源称 131+ 的 margin boxes 失效或回退。
+ * --------------------------------------------------------------------------
+ * 三个实操坑（来源同上博客 "Things to note" + 报告 §2.3）：
+ * 坑1：Chrome 131 以下页脚页码出不来 → 打印页提示条必须注明"请升级 Chrome"。
+ * 坑2：必须在打印对话框里手动关闭浏览器自带"页眉和页脚"，否则浏览器自动
+ *      生成的 URL/日期会和自定义页码叠加（博客原文："These automatically
+ *      generated headers and footers can be turned off in the print dialog."）。
+ * 坑3：@page 的 size 只是建议值，可能被打印对话框里的纸张设置覆盖
+ *      （报告 §2.4）。
+ * ========================================================================== */
+
+@page {
+  size: A4;                       /* 建议值；对话框纸张设置可覆盖（报告 §2.4） */
+  margin: 20mm 18mm 22mm 18mm;    /* 上 右 下 左：下边距 22mm 给页脚留呼吸 */
+}
+
+/* 第一页上边距加大：给首屏标题区留白，避免标题贴边 */
+@page :first {
+  margin-top: 30mm;
+}
+
+/* ---- 页眉页脚（margin boxes，要 Chrome 131+）----
+ * 布局按决策表 h：页眉左=对话标题（40 字截断）、右=导出日期；
+ * 页脚左=来源链接（可关）、中="Gemini Exporter"小字、右=第 X 页/共 Y 页。
+ * 注意博客的警告：margin 中间的三个盒子是 flex:auto 行为，放长字符串
+ * 不会换行而是把盒子撑大——所以标题必须先截断（print.ts 里做）。
+ * 四项开关 + 动态标题/日期无法用纯 CSS 表达，见文件头的修正说明 5：
+ * print.ts 在运行时用 JS 把下面这组规则按模板重写一遍（字符串替换标题、
+ * 日期、来源链接），CSS 里只保留静态默认，保证无 JS 时也能打出页码。 */
+@page {
+  @top-left {
+    content: "Gemini 对话导出";            /* 默认静态标题；JS 运行时替换为对话标题 */
+    font-size: 9pt;
+    color: #555;
+  }
+  @top-right {
+    content: "";                           /* 默认空；JS 运行时填入导出日期 */
+    font-size: 9pt;
+    color: #555;
+  }
+  @bottom-left {
+    content: "";                           /* 默认空；JS 运行时填入来源链接（可关） */
+    font-size: 8pt;
+    color: #888;
+  }
+  @bottom-center {
+    content: "Gemini Exporter";
+    font-size: 8pt;
+    color: #888;
+  }
+  @bottom-right {
+    /* counter(page)=当前页，counter(pages)=总页数：131+ 预定义计数器 */
+    content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+    font-size: 9pt;
+    color: #555;
+  }
+}
+
+/* print.ts 注入模板（照抄改字符串即可；标题截断 40 字、日期 YYYY-MM-DD）：
+@page {
+  @top-left    { content: "__TITLE_40__"; font-size: 9pt; color: #555; }
+  @top-right   { content: "__EXPORT_DATE__"; font-size: 9pt; color: #555; }
+  @bottom-left { content: "__SOURCE_URL__"; font-size: 8pt; color: #888; }
+  @bottom-center { content: "Gemini Exporter"; font-size: 8pt; color: #888; }
+  @bottom-right{ content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+                 font-size: 9pt; color: #555; }
+}
+   四项开关实现方式：print.ts 按用户设置删掉对应盒子的 content（置空字符串），
+   不要试图用 body class 控制 @page——@page 上下文匹配不到 body 选择器。 */
+
+@media print {
+
+/* ==========================================================================
+ * §2 字体栈与颜色调整
+ * --------------------------------------------------------------------------
+ * CJK 字体栈（决策表 g；顺序即优先级）：
+ * "Noto Sans SC"（Linux/全平台）→ "PingFang SC"（macOS）→
+ * "Hiragino Sans GB"（macOS 旧名，兜底）→ "Microsoft YaHei"（Windows）→
+ * "Source Han Sans SC"（Linux Adobe 系）→ "WenQuanYi Micro Hei"（Linux 文泉驿）
+ * → "Droid Sans Fallback"（Linux/Android 老兜底）→ "Segoe UI"（Windows 西文）
+ * → sans-serif。
+ * 为什么 CJK 名必须在前：实证坑——Chrome 打印渲染时不会把
+ * -apple-system/BlinkMacSystemFont 回退到 CJK 系统字体，中文会 tofu 或
+ * 落到难看的后备字体（来源：pandazki/pneuma-skills 2026-02-28 修复记录，
+ * 经管线报告 §2.2 转述）。所以本栈故意不写 -apple-system。
+ * 等宽栈另写（代码块用，见 §4）。
+ * ========================================================================== */
+:root {
+  --font-cjk: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB",
+              "Microsoft YaHei", "Source Han Sans SC",
+              "WenQuanYi Micro Hei", "Droid Sans Fallback",
+              "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "Cascadia Mono", Consolas,
+               "Noto Sans Mono CJK SC", "Noto Sans Mono", monospace;
+  /* SF Mono=macOS，Cascadia Mono/Consolas=Windows，
+     Noto Sans Mono CJK SC=Linux 中文等宽 */
+}
+
+/* 强制浅色 color-scheme：告诉浏览器"这页只有浅色方案"，
+ * 避免某些 UA 在打印时套用深色（决策表 e）。 */
+:root {
+  color-scheme: light;
+}
+
+/* 纸面 #fff、正文深色；print-color-adjust:exact 保证背景色/强调色
+ * 在打印时不被浏览器"省墨"逻辑洗掉（决策表 e：仅必要色块用 exact，
+ * 这里对气泡/代码块/色条用 exact，正文保持默认即可）。
+ * 来源：-webkit-print-color-adjust Chrome 17+（MDN 兼容表）；
+ * 标准属性 print-color-adjust 自 Chrome 136（来源：
+ * https://developer.chrome.com/blog/chrome-136-beta "Unprefixed
+ * print-color-adjust"；release notes 136 同）。两个都写，前缀版在前
+ * 兼容旧版 Chrome。 */
+html {
+  background: #fff;
+}
+body {
+  font-family: var(--font-cjk);
+  font-size: 10.5pt;      /* 决策表 g：正文 10–10.5pt */
+  line-height: 1.7;      /* 决策表 g：行高 1.7 */
+  color: #1a1a1e;        /* 决策表 e：正文深色（非纯黑，纸面对比柔和） */
+  background: #fff;
+  margin: 0;
+}
+.msg-user,
+.msg-assistant,
+.thoughts,
+pre,
+code {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ==========================================================================
+ * §3 用户/助手视觉区分（决策表 a：混合式）
+ * 用户消息 = 右对齐窄气泡（max-width 82%，margin-left:auto 推到右边）；
+ * 助手消息 = 整行通栏；
+ * 两种都有顶部角色标签行（.msg-role）+ 左侧 3px 强调色条；
+ * thoughts = 单独卡片（虚线边框，与正文回答视觉隔离）。
+ * 为什么不用左右双气泡：A4 下每栏只剩半宽，代码块和表格会被迫压缩且费墨
+ * （决策表 a；saveai.net 样张即此版式）。
+ * ========================================================================== */
+.msg {
+  margin: 0 0 14pt 0;
+  padding: 8pt 10pt;
+  border-radius: 6pt;
+  border-left: 3px solid transparent;   /* 强调色条位置，两角色分别着色 */
+}
+.msg-role {
+  /* 角色标签行：小字 + 字间距，"你 / Gemini / 思考过程" */
+  font-size: 8.5pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #555;
+  margin-bottom: 5pt;
+}
+.msg-user {
+  max-width: 82%;
+  margin-left: auto;              /* 右对齐：把气泡推到右半边 */
+  background: #eef4ff;            /* 浅蓝底（决策表 e 浅色系） */
+  border-left-color: #3b82f6;     /* 用户强调色：蓝 */
+}
+.msg-assistant {
+  background: #f7f7f8;            /* 浅灰底，整行通栏 */
+  border-left-color: #10a37f;     /* 助手强调色：绿 */
+}
+.msg .msg-time {
+  font-size: 7.5pt;
+  color: #999;
+  margin-top: 4pt;
+}
+/* thoughts 单独卡片：与模型正文回答区分开，避免读者把思考当结论 */
+.thoughts {
+  margin: 0 0 12pt 0;
+  padding: 8pt 10pt;
+  background: #fafafa;
+  border: 1px dashed #bbb;
+  border-radius: 6pt;
+  font-size: 9pt;
+  color: #444;
+}
+.thoughts .msg-role {
+  color: #888;
+}
+
+/* ==========================================================================
+ * §4 代码块（决策表 b）
+ * 横向超长 → 自动换行（pre-wrap + overflow-wrap:anywhere），浅底高亮，
+ * 行号默认关。选择"换行"而非"缩小字号/截断/横向滚动"的原因：
+ * 缩小字号伤可读性、截断丢信息、横向滚动在纸上根本不存在——换行是唯一
+ * 不丢信息的纸面方案（决策表 b；ChatGPT Exporter v2.2.0 同方案）。
+ * overflow-wrap:anywhere（而非 break-word）：anywhere 允许在任意字符处
+ * 断开，对超长 URL/token 更激进；break-word 只是遗留别名且对不可断
+ * 字符串效果弱（修正说明 2）。
+ * --------------------------------------------------------------------------
+ * 分页：默认 break-inside:avoid（短块不断，看 §6）；但超出一页的长块若
+ * 强行 avoid，会在分页处留下大片空白——print.ts 在渲染后检测
+ * pre.scrollHeight > 一页内容高度时给 pre 加 .code-long 类，切换为
+ * break-inside:auto 允许在行间分页（修正说明 3）。
+ * box-decoration-break:clone：跨页时每一页的片段都保留完整的背景和边框，
+ * 不会出现"第一页有底色、第二页裸奔"（来源：
+ * https://developer.chrome.com/blog/box-decoration-break，Chrome 130+）。
+ * ========================================================================== */
+pre {
+  font-family: var(--font-mono);
+  font-size: 9pt;
+  line-height: 1.6;
+  background: #f6f8fa;            /* 决策表 e：代码块浅底 */
+  color: #1f2328;
+  padding: 8pt 10pt;
+  border-radius: 6pt;
+  white-space: pre-wrap;          /* 保留换行且允许自动换行 */
+  overflow-wrap: anywhere;        /* 超长行在任意字符处断开（决策表 b） */
+  break-inside: avoid;            /* 短块尽量不拦腰断（见 §6 注释） */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+pre.code-long {
+  /* JS 检测超高后加此类：允许长块在行间分页，避免大片空白（决策表 b） */
+  break-inside: auto;
+}
+pre code {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  padding: 0;
+}
+code {
+  /* 行内代码 */
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: #f0f1f3;
+  padding: 1pt 3pt;
+  border-radius: 3pt;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+ * §5 表格：超宽三级降级（决策表 c），不断列
+ * 不断列的原因：断列破坏表格语义，没有一家竞品采用（决策表 c）。
+ * 第一级（纯 CSS）：table-layout:fixed + width:100% + 单元格换行，
+ *   让表格先按可用宽度均分、内容在格内换行。
+ * 第二级（需 JS）：print.ts 检测 table.scrollWidth > clientWidth 时加
+ *   .table-compact 类，压缩字号与内边距，下限 7.5pt（再小就看不清了）。
+ * 第三级（纯 CSS）：行间断页（tr avoid 只防拦腰）+ thead 每页重复表头。
+ * 横向页面（landscape）作为导出选项留给打印页设置，不在 CSS 里硬切。
+ * ========================================================================== */
+table {
+  table-layout: fixed;            /* 第一级：固定布局，按宽度均分 */
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8pt 0 12pt 0;
+  font-size: 9.5pt;
+}
+th, td {
+  border: 1px solid #d0d0d0;
+  padding: 4pt 6pt;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;        /* 单元格内换行，不断列 */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;    /* 跨页的单元格每页保留边框 */
+}
+th {
+  background: #eef0f2;
+  font-weight: 700;
+}
+thead {
+  display: table-header-group;     /* 第三级：每页重复表头（Chrome 支持） */
+}
+tr {
+  break-inside: avoid;            /* 行不拦腰断；超长表在行边界分页是预期行为 */
+}
+/* 第二级降级：JS 在超宽时加 .table-compact，字号/内边距压缩，下限 7.5pt */
+table.table-compact {
+  font-size: 7.5pt;
+}
+table.table-compact th,
+table.table-compact td {
+  padding: 2pt 3pt;
+}
+
+/* ==========================================================================
+ * §6 分页规则
+ * --------------------------------------------------------------------------
+ * break-inside:avoid 清单：pre / figure / img / .katex-display / .msg。
+ * 重要注释（报告 §2.3 第 3 条）：超出一页高的单个元素必然断裂，CSS 无解——
+ * avoid 只是"尽量不断"，元素本身比一页还高时浏览器只能硬断。
+ * h1–h4 用 break-after:avoid：防止标题孤零零留在页尾、正文翻页。
+ * p/li 用 orphans:3 / widows:3：段落首尾至少留 3 行，避免孤行。
+ * （以上均为 CSS Fragmentation Module Level 3；Chrome 长期支持，
+ *  详见 MDN 各属性兼容表。）
+ * 例外见 §4：pre.code-long（JS 标记的超高代码块）允许行间分页。
+ * ========================================================================== */
+pre,
+figure,
+img,
+.katex-display,
+.msg,
+.thoughts {
+  break-inside: avoid;
+}
+h1, h2, h3, h4 {
+  break-after: avoid;             /* 标题不留在页尾 */
+  line-height: 1.4;
+}
+h1 { font-size: 16pt; margin: 0 0 10pt 0; }
+h2 { font-size: 13pt; margin: 14pt 0 8pt 0; }
+h3 { font-size: 11pt; margin: 12pt 0 6pt 0; }
+h4 { font-size: 10.5pt; margin: 10pt 0 6pt 0; }
+p, li {
+  orphans: 3;
+  widows: 3;
+}
+ul, ol {
+  margin: 6pt 0 10pt 0;
+  padding-left: 18pt;
+}
+li {
+  margin-bottom: 3pt;
+}
+blockquote {
+  margin: 8pt 0;
+  padding: 6pt 10pt;
+  border-left: 3px solid #ccc;
+  color: #444;
+  background: #fafafa;
+}
+hr {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 12pt 0;
+}
+
+/* KaTeX 公式块：块级公式不拦腰断；行内公式随文本走。
+ * （决策表 d：公式保留文本渲染，不图片化；woff2 打包是 print.ts 的事） */
+.katex-display {
+  margin: 8pt 0;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+ * §7 图片与超链接
+ * img{max-width:100%;height:auto}：图片不撑破版面、等比缩放。
+ * 超链接打印展开 URL：纸上点不了链接，把目标 URL 印出来
+ * （抄自 Gutenberg _reformat.scss 的经典做法，报告 §4）。
+ * 注意：只展开 http(s) 外链；锚点/相对路径不展开，避免满页垃圾。
+ * ========================================================================== */
+img {
+  max-width: 100%;
+  height: auto;
+}
+figure {
+  margin: 8pt 0 12pt 0;
+  text-align: center;
+}
+figcaption {
+  font-size: 8.5pt;
+  color: #777;
+  margin-top: 4pt;
+}
+a {
+  color: #1a56db;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+a[href^="http"]::after {
+  content: " (" attr(href) ")";
+  font-size: 8pt;
+  color: #666;
+  text-decoration: none;
+}
+
+/* ==========================================================================
+ * §8 .no-print：打印页自身的工具条 / fallback 手动打印按钮 / 提示条，
+ * 在打印输出里全部隐藏（标准做法，报告 §2.1）。
+ * ========================================================================== */
+.no-print,
+.toolbar,
+.print-actions,
+.hint-bar {
+  display: none !important;
+}
+
+/* ==========================================================================
+ * §9 CJK 断行：<html lang="zh-CN"> 配合 line-break:strict
+ * line-break:strict 启用严格的 CJK 换行禁则（kinsoku shori）：标点符号
+ * 不出现在行首（避头）、行尾不开口括号（避尾），中文长文排版不出现
+ * "。xxx" 开头这种难看断行（决策表 g）。
+ * 来源：MDN line-break（https://developer.mozilla.org/en-US/docs/Web/CSS/line-break），
+ * Chrome 58+ 支持无前缀写法（旧版需 -webkit- 前缀，本文件目标为现代 Chrome，
+ * 不再写前缀）。
+ * 注意：html 标签必须写 lang="zh-CN"，否则禁则按默认语言行为走。
+ * ========================================================================== */
+html[lang="zh-CN"] body {
+  line-break: strict;
+}
+
+} /* @media print 结束 */
