@@ -6,36 +6,6 @@ const { applyExportTitleWriteback } = require('../src/core/engine/export/exportO
 
 const clone = (o: any) => JSON.parse(JSON.stringify(o));
 
-// ---------------------------------------------------------------------------
-// Bug documentation: exact replica of the pre-fix inline write-back that lived
-// in exportOrchestrator (~line 649). It blindly overwrote the stored record's
-// resolved title with the list snapshot's, bypassing tier arbitration.
-// ---------------------------------------------------------------------------
-function oldWriteback(existing: any, listC: any): any {
-    if (listC) {
-        if (listC.title) existing.title = listC.title;
-        if (listC.titleSource) existing.titleSource = listC.titleSource;
-        if (listC.titles) existing.titles = { ...(existing.titles || {}), ...listC.titles };
-        if (listC.messageCount) existing.messageCount = listC.messageCount;
-    }
-    return existing;
-}
-
-test('regression doc: old blind write-back downgrades a higher-authority stored title', () => {
-    const existing = { id: 'c_9f2ab41c', title: '线上RPC权威标题内容', titleSource: 'rpc', titles: { rpc: '线上RPC权威标题内容' } };
-    const listC = { id: 'c_9f2ab41c', title: 'Takeout旧标题内容', titleSource: 'takeout', titles: { takeout: 'Takeout旧标题内容' } };
-    oldWriteback(existing, listC);
-    // The bug: the stored rpc title is clobbered by the weaker takeout snapshot.
-    assert.strictEqual(existing.title, 'Takeout旧标题内容');
-    assert.strictEqual(existing.titleSource, 'takeout');
-});
-
-// ---------------------------------------------------------------------------
-// Fixed behavior: applyExportTitleWriteback routes through setTitleBySource ->
-// resolveTitle -> TITLE_TIER_RANK, so a weaker incoming source can never
-// downgrade the stored title.
-// ---------------------------------------------------------------------------
-
 test('low-authority list snapshot does NOT downgrade stored rpc title', () => {
     const existing = clone({ id: 'c_9f2ab41c', title: '线上RPC权威标题内容', titleSource: 'rpc', titles: { rpc: '线上RPC权威标题内容' } });
     const listC = { id: 'c_9f2ab41c', title: 'Takeout旧标题内容', titleSource: 'takeout', titles: { takeout: 'Takeout旧标题内容' } };

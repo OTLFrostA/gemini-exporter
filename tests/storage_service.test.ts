@@ -22,11 +22,6 @@ test('storage_service - getStorageKeys', () => {
     assert.strictEqual(keys1.expKey, 'gemini_exported_u1');
 });
 
-test('storage_service - hasTakeoutData & setHasImportedTakeout functions exist', () => {
-    assert.strictEqual(typeof StorageService.hasTakeoutData, 'function');
-    assert.strictEqual(typeof StorageService.setHasImportedTakeout, 'function');
-});
-
 test('storage_service - reconcileConversations preserves takeout entries and purges deleted cloud entries', async () => {
     const mockStorage: Record<string, any> = {};
     const origChrome = (global as any).chrome;

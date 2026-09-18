@@ -73,6 +73,21 @@ __setModuleOverride('I18n', {
 });
 
 const TourGuide = require('../src/ui/tour/tourGuide.js');
+
+// Polling waits: step advancement goes through a 250-300ms setTimeout inside
+// the tour steps, so fixed sleeps are flaky under timer jitter. Poll instead.
+async function waitForStep(expected: number, timeoutMs = 3000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (TourGuide.getCurrentStep() !== expected && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 20));
+    }
+}
+async function waitForInactive(timeoutMs = 3000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (TourGuide.isActive() && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 20));
+    }
+}
 const TabService = require('../src/core/utils/tabService.js');
 const StorageService = require('../src/core/storage/storageService.js');
 
@@ -244,30 +259,29 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
 
     // Simulate user clicking #btnIncrementalScan
     mockScanBtn.click();
-    // Wait for the micro delay (300ms)
-    await new Promise(r => setTimeout(r, 350));
+    await waitForStep(2);
     assert.strictEqual(TourGuide.getCurrentStep(), 2, 'Should advance to step 2 after sync click');
 
     // 2. In step 2 (select), simulate checking a conversation checkbox
     mockList.dispatchEvent({ type: 'change', target: { type: 'checkbox', checked: true } });
-    await new Promise(r => setTimeout(r, 300));
+    await waitForStep(3);
     assert.strictEqual(TourGuide.getCurrentStep(), 3, 'Should advance to step 3 after list checkbox toggle');
 
     // 3. In step 3 (export), simulate clicking export
     mockExportBtn.click();
-    await new Promise(r => setTimeout(r, 250));
+    await waitForStep(4);
     assert.strictEqual(TourGuide.getCurrentStep(), 4, 'Should advance to step 4 (live_save) after export click');
     assert.strictEqual(TourGuide.isActive(), true);
 
     // 4. In step 4 (live_save), simulate toggle change
     mockLiveSaveToggle.dispatchEvent({ type: 'change' });
-    await new Promise(r => setTimeout(r, 350));
+    await waitForStep(5);
     assert.strictEqual(TourGuide.getCurrentStep(), 5, 'Should advance to step 5 (feedback) after live save change');
     assert.strictEqual(TourGuide.isActive(), true);
 
     // 5. In step 5 (feedback), simulate clicking feedback
     mockFeedbackBtn.click();
-    await new Promise(r => setTimeout(r, 250));
+    await waitForInactive();
     assert.strictEqual(TourGuide.isActive(), false, 'Tour should be completed and inactive after feedback click');
 });
 
@@ -289,9 +303,11 @@ test('tourGuide - listener cleanup when navigating backwards', async () => {
     await TourGuide.prevStep();
     assert.strictEqual(TourGuide.getCurrentStep(), 1);
 
-    // Triggering step 2 event (list change) should NOT trigger advance now
+    // Triggering step 2 event (list change) should NOT trigger advance now.
+    // Negative assertion: no poll target exists, so keep a bounded wait, but
+    // longer than the 250ms internal advance delay to tolerate timer jitter.
     mockList.dispatchEvent({ type: 'change', target: { type: 'checkbox', checked: true } });
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500));
     assert.strictEqual(TourGuide.getCurrentStep(), 1, 'Should stay at step 1 because step 2 listener was cleaned up');
 
     await TourGuide.finishTour();
