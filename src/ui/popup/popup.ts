@@ -100,7 +100,6 @@ const log = (msg: string): void => {
         }
     }
 
-    // Language switch toggle
     const handleLangChange = async (targetLang: string): Promise<void> => {
         const i18n = getI18n();
         if (i18n && typeof i18n.setLang === 'function') {

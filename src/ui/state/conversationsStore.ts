@@ -86,7 +86,6 @@ export async function loadStore(slotOverride?: string): Promise<{
     setAccountSlots(slots);
 
     let incoming = storage ? await storage.getConversations(slot) : [];
-    // If the requested slot is empty, check all candidate slots for conversations
     if (!incoming || !incoming.length) {
         const candidates = ['u0', ...Object.keys(slots || {})].filter(s => s !== slot);
         for (const cand of candidates) {

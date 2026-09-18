@@ -41,7 +41,6 @@ export function flattenChatGPTMapping(raw: any, conversationId?: string): Provid
     const orderedNodes: any[] = [];
 
     if (currentNode && mapping[currentNode]) {
-        // Backtrack from current_node to root
         let curr: any = mapping[currentNode];
         while (curr) {
             orderedNodes.unshift(curr);
@@ -70,13 +69,11 @@ export function flattenChatGPTMapping(raw: any, conversationId?: string): Provid
         if (!msg) continue;
 
         const rawRole = msg.author?.role || 'assistant';
-        // Map roles to standard format ('user' | 'model' | 'system')
         let role: 'user' | 'model' | 'system' = 'model';
         if (rawRole === 'user') role = 'user';
         else if (rawRole === 'system') role = 'system';
         else role = 'model';
 
-        // Extract content parts
         let textParts: string[] = [];
         const attachments: Attachment[] = [];
         const thoughts: string[] = [];

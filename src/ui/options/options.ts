@@ -116,10 +116,8 @@ export async function initWorkbench(): Promise<void> {
         });
     }
 
-    // Initial store load
     await loadStore();
 
-    // Check for onboarding tour or feature spotlight
     if (OptionsSettings && OptionsSettings.checkOnboardingTour) {
         OptionsSettings.checkOnboardingTour();
     }
