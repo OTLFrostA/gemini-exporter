@@ -1,6 +1,6 @@
 {
   "name": "gemini-exporter",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "100% Free & open-source • Real-time auto-save • One-click batch export to Markdown • Reclaim full Gemini history via Takeout",
   "main": "background.js",
   "scripts": {

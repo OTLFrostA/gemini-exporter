@@ -17,9 +17,9 @@ const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
 const PKG_VERSION = (() => {
     try {
-        return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.5.0';
+        return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.6.0';
     } catch {
-        return '1.5.0';
+        return '1.6.0';
     }
 })();
 const DEFINE_VERSION = { __EXT_VERSION__: JSON.stringify(PKG_VERSION) };
