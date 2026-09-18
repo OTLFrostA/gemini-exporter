@@ -18,6 +18,7 @@ import '../core/provider/gemini/geminiProvider.js';
 import '../core/provider/chatgpt/chatgptProvider.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import type { GetConversationDetailMessage } from '../types/messages.js';
+import { ScreenshotCapture } from './screenshotCapture.js';
 
 const resolveProvider = () => {
     const url = (typeof location !== 'undefined' && location.href) || '';
@@ -282,6 +283,27 @@ export function init({
             if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
             if (Assets) Assets.downloadAssetDirect(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
+            return true;
+        }
+
+        if (msg.action === 'screenshotPrepare') {
+            const res = ScreenshotCapture.prepareForCapture();
+            respond(res);
+            return true;
+        }
+
+        if (msg.action === 'screenshotScroll') {
+            (async () => {
+                const targetY = typeof msg.targetY === 'number' ? msg.targetY : 0;
+                const currentY = await ScreenshotCapture.scrollToStep(targetY);
+                respond({ ok: true, scrolled: true, currentY });
+            })();
+            return true;
+        }
+
+        if (msg.action === 'screenshotRestore') {
+            const success = ScreenshotCapture.restoreAfterCapture(msg.originalScrollTop);
+            respond({ ok: success, restored: success });
             return true;
         }
 
