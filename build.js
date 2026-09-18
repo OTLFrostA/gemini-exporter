@@ -1,12 +1,13 @@
 // build.js — esbuild pure bundle build pipeline for Gemini Exporter.
 //
 // Modern Architecture (Pure Bundle Pipeline):
-// Directly builds the 5 self-contained production IIFE bundles loaded by Chrome MV3:
+// Directly builds the 6 self-contained production IIFE bundles loaded by Chrome MV3:
 //   1. content/content    -> dist/content/content.js   (ISOLATED world content script)
 //   2. content/hook       -> dist/content/hook.js      (MAIN world network interceptor)
 //   3. background/background -> dist/background/background.js (Service Worker bundle)
 //   4. ui/popup          -> dist/ui/popup.js          (Popup modal coordinator)
 //   5. ui/options        -> dist/ui/options.js        (Options workbench coordinator)
+//   6. ui/print          -> dist/ui/print.js          (Print page: conversation -> window.print() PDF)
 
 const esbuild = require('esbuild');
 const fs = require('fs');
@@ -30,6 +31,7 @@ const BUNDLE_ENTRIES = {
     'background/background': path.join(SRC, 'background', 'background.ts'),
     'ui/popup': path.join(SRC, 'ui', 'popup', 'popup.ts'),
     'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),
+    'ui/print': path.join(SRC, 'ui', 'print', 'print.ts'),
 };
 
 const EXPECTED_BUNDLES = [
@@ -38,6 +40,7 @@ const EXPECTED_BUNDLES = [
     'dist/background/background.js',
     'dist/ui/popup.js',
     'dist/ui/options.js',
+    'dist/ui/print.js',
 ];
 
 async function build() {
@@ -49,7 +52,7 @@ async function build() {
     // Clean dist to ensure zero stale files
     fs.rmSync(DIST, { recursive: true, force: true });
 
-    // Validate that all 5 bundle entrypoint source files exist
+    // Validate that all 6 bundle entrypoint source files exist
     for (const [entryName, entryFile] of Object.entries(BUNDLE_ENTRIES)) {
         if (!fs.existsSync(entryFile)) {
             throw new Error(`Bundle entrypoint source missing for ${entryName}: ${entryFile}`);

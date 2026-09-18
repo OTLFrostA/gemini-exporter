@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title data-i18n="printTitle">打印对话</title>
+<link rel="stylesheet" href="/src/ui/print/print.css">
+</head>
+<body>
+  <!-- 提示条：屏幕可见，打印时隐藏（class="no-print"） -->
+  <div id="noticeBar" class="notice no-print">
+    <div data-i18n="printNotice1">页码功能需要 Chrome 131 及以上版本；版本过低请升级浏览器。</div>
+    <div data-i18n="printNotice2">请在打印对话框中关闭浏览器自带的“页眉和页脚”，否则会与自定义页码叠加。</div>
+    <div data-i18n="printNotice3">单个元素高度超过一页时必然断裂；长表格在行边界分页是预期行为。</div>
+  </div>
+
+  <!-- 工具条：屏幕可见，打印时隐藏 -->
+  <div id="toolbar" class="toolbar no-print">
+    <span id="printStatus" data-i18n="printLoading">正在加载对话…</span>
+    <button id="btnManualPrint" data-i18n="printManual">打印 / 另存为 PDF</button>
+  </div>
+  <!-- 自动打印被抑制时的醒目横幅，默认隐藏 -->
+  <div id="manualBanner" class="banner no-print" hidden>
+    <span data-i18n="printManualHint">自动打印没有弹出？请点击按钮手动打印</span>
+    <button id="btnManualPrint2" data-i18n="printManual">打印 / 另存为 PDF</button>
+  </div>
+
+  <!-- 错误区：默认隐藏；失败分支显示，不调 print -->
+  <div id="printError" class="error no-print" hidden>
+    <div id="printErrorMsg"></div>
+    <button id="btnRetry" data-i18n="printRetry">重试</button>
+  </div>
+
+  <!-- 内容容器：分片插入目标 -->
+  <main id="printContent"></main>
+
+  <script src="/lib/marked.min.js"></script>
+  <script src="/lib/dompurify.min.js"></script>
+  <script src="/dist/ui/print.js"></script>
+</body>
+</html>
