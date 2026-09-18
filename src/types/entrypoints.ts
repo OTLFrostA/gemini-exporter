@@ -23,6 +23,7 @@ export interface BackgroundMessage {
     total?: number;
     title?: string;
     count?: number;
+    windowId?: number;
     payload?: unknown;
 }
 
@@ -41,4 +42,5 @@ export interface BackgroundResponse {
     skipped?: number;
     data?: unknown;
     chat?: unknown;
+    dataUrl?: string;
 }
