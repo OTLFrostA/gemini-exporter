@@ -411,6 +411,59 @@ tags:
         names = [f["name"] for f in self.scorecard.features_explored]
         self.assertTrue(any("目标" in n for n in names))
 
+    def test_run_objective_verify_fn_self_healing(self):
+        # 第一次 DONE 时验收未达成，触发自愈，第二次达成
+        verify_state = [False]
+        def check_verified():
+            return verify_state[0]
+
+        provider = MockCustomVisionProvider([
+            VisualAction(action_type=VisualActionType.DONE, thought="Claim premature DONE"),
+            VisualAction(action_type=VisualActionType.CLICK, x=0.5, y=0.5, thought="Self-heal click"),
+            VisualAction(action_type=VisualActionType.DONE, thought="Real DONE")
+        ])
+
+        # 在第二次调用时改变状态
+        original_decide = provider.decide_action
+        def wrapped_decide(*args, **kwargs):
+            action = original_decide(*args, **kwargs)
+            if action.thought == "Real DONE":
+                verify_state[0] = True
+            return action
+        provider.decide_action = wrapped_decide
+
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        res = agent.run_objective("测试客观断言防虚假达成", verify_fn=check_verified, max_steps=5)
+
+        self.assertTrue(res.success)
+        # 校验是否成功记录了防虚假自愈事件
+        self.assertGreaterEqual(len(self.scorecard.self_healing_events), 1)
+        self.assertIn("verify_fn", self.scorecard.self_healing_events[0].reason)
+
+    def test_run_mission_end_to_end(self):
+        mission = TestMission(
+            mission_id="m_tour",
+            name="向导全流程测试",
+            description="验证向导引导气泡",
+            instructions=["点击下一步", "完成向导"]
+        )
+        provider = MockCustomVisionProvider([
+            VisualAction(action_type=VisualActionType.CLICK, x=0.2, y=0.2, thought="Click step 1"),
+            VisualAction(action_type=VisualActionType.CLICK, x=0.3, y=0.3, thought="Click step 2")
+        ])
+        step_v = {
+            "m_tour_step_1": lambda: True,
+            "m_tour_step_2": lambda: True
+        }
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        res = agent.run_mission(mission, step_verifiers=step_v)
+
+        self.assertTrue(res.success)
+        self.assertEqual(res.steps_taken, 2)
+        mission_features = [f for f in self.scorecard.features_explored if "Mission: 向导全流程测试" in f["name"]]
+        self.assertEqual(len(mission_features), 1)
+        self.assertEqual(mission_features[0]["status"], "PASS")
+
 
 class TestGeminiVisionProvider(unittest.TestCase):
     def test_model_resolution(self):

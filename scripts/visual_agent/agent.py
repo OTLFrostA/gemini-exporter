@@ -164,14 +164,15 @@ class AutonomousVisualAgent:
         self,
         objective: str,
         max_steps: int = 25,
-        step_prefix: str = "step"
+        step_prefix: str = "step",
+        verify_fn: Optional[Any] = None
     ) -> AgentResult:
         """
-        Autonomous ReAct Loop:
+        Autonomous ReAct Loop with objective-level acceptance verification:
         1. Observe: playground.capture_screen()
         2. Reason: provider.decide_action() via vision model
         3. Act / Wait: dispatch physical action or suspend via playground.wait_on()
-        4. Evaluate: loop until agent outputs DONE or exceeds max_steps
+        4. Evaluate: loop until agent outputs DONE and passes verify_fn (if specified), or exceeds max_steps
         """
         self.log(f"🎯 启动自主目标推演: {objective}", "INFO")
         t0 = time.time()
@@ -204,10 +205,35 @@ class AutonomousVisualAgent:
             }
             self.action_history.append(step_record)
 
-            # 3. 目标达成判定
+            # 3. 目标达成判定与独立断言闭环
             if action.action_type == VisualActionType.DONE:
                 elapsed = time.time() - t0
-                self.log(f"🎉 Agent 自主判定目标达成！(耗时 {elapsed:.1f}s, 共 {step} 步)", "PASS")
+                if verify_fn:
+                    time.sleep(0.15)
+                    verified = False
+                    try:
+                        verified = bool(verify_fn())
+                    except Exception as e:
+                        self.log(f"验收函数执行异常: {e}", "WARN")
+                        verified = False
+
+                    if not verified:
+                        self.log(f"⚠️ Agent 宣称达成但验收断言未通过 (步进 {step})！触发纠偏自愈...", "WARN")
+                        if self.scorecard:
+                            self.scorecard.record_self_healing(SelfHealingEvent(
+                                step_name=step_name,
+                                instruction=objective,
+                                attempt=step,
+                                reason="模型宣称 DONE 但未通过框架独立验收断言 (verify_fn)",
+                                action_taken="向 Agent 注入纠偏反馈并继续自主推演",
+                                duration_seconds=0.15,
+                                resolved=False
+                            ))
+                        step_record["verification"] = "FAILED"
+                        step_record["thought"] = f"验收断言未达成: {thought}。请观察界面并继续操作。"
+                        continue
+
+                self.log(f"🎉 Agent 自主判定目标达成并通过验收！(耗时 {elapsed:.1f}s, 共 {step} 步)", "PASS")
                 if self.scorecard:
                     self.scorecard.record_feature(
                         name=f"目标: {objective[:32]}",
@@ -304,7 +330,7 @@ class AutonomousVisualAgent:
                     notes=thought[:60]
                 )
 
-            time.sleep(0.5)
+            time.sleep(0.2)
 
         elapsed = time.time() - t0
         self.log(f"⚠️ 达到最大步数上限 ({max_steps})，目标未完全达成", "WARN")
@@ -329,6 +355,59 @@ class AutonomousVisualAgent:
             steps_taken=max_steps,
             elapsed_seconds=elapsed,
             message="Exceeded max steps",
+            history=self.action_history
+        )
+
+    def run_mission(
+        self,
+        mission: TestMission,
+        step_verifiers: Optional[Dict[str, Any]] = None
+    ) -> AgentResult:
+        """
+        Executes a structured mission with step-by-step instructions and verifications
+        via `execute_visual_step` self-healing loops.
+        """
+        self.log(f"🎯 启动结构化引导任务 (Mission): {mission.name} ({mission.mission_id})", "INFO")
+        t0 = time.time()
+        verifiers = step_verifiers or {}
+        all_passed = True
+        steps_executed = 0
+
+        for idx, instruction in enumerate(mission.instructions, 1):
+            step_name = f"{mission.mission_id}_step_{idx}"
+            verify_fn = verifiers.get(step_name) or verifiers.get(str(idx))
+            self.log(f"执行阶段 [{idx}/{len(mission.instructions)}]: {instruction}", "INFO")
+
+            success = self.execute_visual_step(
+                step_name=step_name,
+                instruction=instruction,
+                verify_fn=verify_fn,
+                context=mission.context
+            )
+            steps_executed += 1
+
+            if not success:
+                self.log(f"❌ 任务步骤 [{step_name}] 未能达成并退出自愈", "FAIL")
+                all_passed = False
+                break
+
+        elapsed = time.time() - t0
+        status_str = "PASS" if all_passed else "FAIL"
+        if self.scorecard:
+            self.scorecard.record_feature(
+                name=f"Mission: {mission.name}",
+                domain="StructuredMission",
+                status=status_str,
+                duration=elapsed,
+                notes=f"执行步骤: {steps_executed}/{len(mission.instructions)}"
+            )
+
+        return AgentResult(
+            success=all_passed,
+            objective=mission.name,
+            steps_taken=steps_executed,
+            elapsed_seconds=elapsed,
+            message="Mission completed successfully" if all_passed else "Mission step failed",
             history=self.action_history
         )
 
