@@ -200,7 +200,8 @@ export interface ChatFormatterModule {
     }
 
     /**
-     * Intelligently detect and encapsulate unfenced raw code in user messages.
+     * Wrap raw userscript blocks in a javascript fence. Natural-language prompts are left untouched
+     * (the old >400-char code-keyword heuristic was removed in #454 for mangling plain prose).
      */
     function sanitizeUserPrompt(text?: string | null): string {
         if (!text || typeof text !== 'string') return '';

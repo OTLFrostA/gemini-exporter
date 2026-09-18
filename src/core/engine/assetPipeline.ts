@@ -161,6 +161,8 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                 }
             }
 
+            // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
+            // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
             if (r && r.success && !hasValidBuffer(r) && !hasValidB64(r) && typeof chrome !== 'undefined' && chrome.tabs) {
                 const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                 if (fallbackTab && fallbackTab.id) {
