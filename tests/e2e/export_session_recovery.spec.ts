@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures';
 
-test.describe('E2E: Export Title Update & Session Interruption Recovery', () => {
+test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () => {
   test('should update chat title in storage & workbench during export, and restore session banner on reload', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);

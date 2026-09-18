@@ -356,6 +356,22 @@ import type {
     }
 
     if (isDev()) console.log('[Gemini Exporter] MAIN world credentials hook initialized');
+
+    // Playwright/e2e test hook (test-only, NOT for production use):
+    // exposes a syncOnce trigger on window so specs can drive a real DOM-tier
+    // sync against the live page. This script runs in the MAIN world, so the
+    // hook is callable from page.evaluate; it only dispatches a DOM event, and
+    // the ISOLATED-world content script listens for it and runs the real
+    // Sync.syncOnce(). Precedent: window.TakeoutController /
+    // window.SyncController in options.ts (documented Playwright/live-harness
+    // hooks, kept by user decision).
+    try {
+        (window as any).__geminiExporterSyncOnce = () => {
+            document.dispatchEvent(new CustomEvent('gemini-exporter:test-sync-once'));
+        };
+    } catch (e) {
+        if (isDev()) console.debug('[GemExporter:hook]', e);
+    }
 })();
 
 export {};

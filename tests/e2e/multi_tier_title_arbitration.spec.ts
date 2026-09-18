@@ -67,12 +67,20 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
       document.body.appendChild(h1);
     });
 
-    // Trigger sync
+    // Trigger a REAL DOM-tier sync via the test hook (__geminiExporterSyncOnce
+    // is mounted by the MAIN-world content script; previously this step was a
+    // silent no-op). Poll storage until the DOM title lands, proving the step
+    // actually executed before the authoritative RPC arrives.
     await geminiPage.evaluate(async () => {
-      if (typeof window.__geminiExporterSyncOnce === 'function') {
-        await window.__geminiExporterSyncOnce();
-      }
+      await (window as any).__geminiExporterSyncOnce();
     });
+    await expect.poll(async () => {
+      const data = await optionsPage.evaluate(async () => {
+        return await chrome.storage.local.get(['gemini_conversations']);
+      }) as Record<string, any>;
+      const c = (data.gemini_conversations || []).find((x: any) => x.id === 'arbitration_chat_999');
+      return c && c.titles ? c.titles.dom : undefined;
+    }, { timeout: 10000 }).toBe('页面显式渲染的DOM标题');
 
     // 4. Simulate authoritative RPC arriving (Tier: rpc)
     await geminiPage.evaluate(async () => {
