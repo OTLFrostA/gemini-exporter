@@ -61,7 +61,13 @@ export async function parseTakeoutZip(
         guard.validateZipFile(file);
     }
 
-    if (onProgress) onProgress(15, '正在解压 Takeout 压缩包...');
+    const i18nInstance = __resolveModule('I18n', I18nStatic);
+    if (onProgress) {
+        const unzippingMsg = (i18nInstance && typeof i18nInstance.t === 'function')
+            ? i18nInstance.t('takeoutUnzipping')
+            : '正在解压 Takeout 压缩包...';
+        onProgress(15, unzippingMsg);
+    }
 
     const zip = (file && typeof file.file === 'function' && file.files)
         ? file
@@ -70,7 +76,6 @@ export async function parseTakeoutZip(
         guard.validateZipEntries(zip);
     }
 
-    const i18nInstance = __resolveModule('I18n', I18nStatic);
     if (onProgress) onProgress(40, i18nInstance.t('takeoutParsingStructure'));
 
     let activityFile: any = null;
@@ -179,7 +184,12 @@ export async function parseTakeoutZip(
     correlateFn(watermarkedImages, genBlocks, localMediaMap, localConvCache, extractedMap);
 
     const conversations: Conversation[] = Object.values(extractedMap);
-    if (onProgress) onProgress(100, `Takeout 解析完成，共发现 ${conversations.length} 条对话与 ${totalMediaCount} 个离线资源`);
+    if (onProgress) {
+        const doneMsg = (i18nInstance && typeof i18nInstance.t === 'function')
+            ? i18nInstance.t('takeoutSuccessSummary', conversations.length, totalMediaCount)
+            : `Takeout 解析完成，共发现 ${conversations.length} 条对话与 ${totalMediaCount} 个离线资源`;
+        onProgress(100, doneMsg);
+    }
 
     if (mediaIdx && mediaIdx.commitTakeoutData) {
         mediaIdx.commitTakeoutData(slot, {

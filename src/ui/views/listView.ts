@@ -177,7 +177,7 @@ export function render(
                     ${badgeHtml}
                 </div>
                 <span style="font-size:11px; color:var(--muted); margin-left:12px; white-space:nowrap;">${escapeHtml(dateStr)}</span>
-                <a href="${escapeHtml(url)}" target="_blank" class="open-link" style="color:var(--muted); margin-left:10px; text-decoration:none; font-size:12px;" title="Open in Gemini">↗</a>
+                <a href="${escapeHtml(url)}" target="_blank" class="open-link" style="color:var(--muted); margin-left:10px; text-decoration:none; font-size:12px;" title="${escapeHtml(typeof t === 'function' ? t('openInGemini') : 'Open in Gemini')}">↗</a>
             </div>
         `);
     });

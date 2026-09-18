@@ -25,6 +25,7 @@ import { TakeoutController } from '../controllers/takeoutController.js';
 import { SyncController } from '../controllers/syncController.js';
 import { ExportController } from '../controllers/exportController.js';
 import { TourGuide } from '../tour/tourGuide.js';
+import { t } from '../uiCommon.js';
 
 // Logging helpers
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
@@ -136,7 +137,8 @@ function startWorkbench(): void {
                     if (el) {
                         const div = document.createElement('div');
                         div.className = 'log-line log-error';
-                        div.textContent = `工作台初始化失败: ${(e && (e as Error).message) || e}`;
+                        const errText = (e && (e as Error).message) || String(e);
+                        div.textContent = typeof t === 'function' ? t('workbenchInitFailed', errText) : `工作台初始化失败: ${errText}`;
                         el.prepend(div);
                     }
                 } catch { /* last-resort: console.error above already recorded it */ }

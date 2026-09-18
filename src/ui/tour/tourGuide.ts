@@ -202,7 +202,7 @@ async function updateStepContent(step: any): Promise<void> {
         popoverEl.innerHTML = `
             <div class="tour-header">
                 <span class="tour-step-badge tour-feature-badge">✨ ${badgeLabel} v${activeSpotlightVersion}</span>
-                <button class="tour-close-btn" id="tourCloseBtn" title="Close (ESC)">✕</button>
+                <button class="tour-close-btn" id="tourCloseBtn" title="${t('tourCloseTip') || 'Close (ESC)'}">✕</button>
             </div>
             <div class="tour-title">${titleHtml}</div>
             ${bodyHtml}
@@ -296,7 +296,7 @@ async function updateStepContent(step: any): Promise<void> {
     popoverEl.innerHTML = `
         <div class="tour-header">
             <span class="tour-step-badge">${stepNum} / ${totalSteps}</span>
-            <button class="tour-close-btn" id="tourCloseBtn" title="Close (ESC)">✕</button>
+            <button class="tour-close-btn" id="tourCloseBtn" title="${t('tourCloseTip') || 'Close (ESC)'}">✕</button>
         </div>
         <div class="tour-title">${titleHtml}</div>
         ${bodyHtml}

@@ -120,6 +120,53 @@ def test_i18n_keys():
     assert len(zh_dict) >= 100, f"zh locale should have 100+ keys, got {len(zh_dict)}"
     assert len(en_dict) >= 100, f"en locale should have 100+ keys, got {len(en_dict)}"
 
+    from html.parser import HTMLParser
+    void_tags = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'}
+    zh_regex = re.compile(r'[\u4e00-\u9fa5]')
+
+    class StrictHTMLChecker(HTMLParser):
+        def __init__(self, filepath):
+            super().__init__()
+            self.filepath = filepath
+            self.tag_stack = []
+            self.errors = []
+
+        def handle_starttag(self, tag, attrs):
+            attr_dict = dict(attrs)
+            has_i18n = any(k.startswith('data-i18n') for k in attr_dict.keys())
+            for k in ['title', 'placeholder']:
+                if k in attr_dict:
+                    v = attr_dict[k]
+                    if 'Switch Language' in v or 'Developer Mode' in v:
+                        continue
+                    if f'data-i18n-{k}' not in attr_dict:
+                        self.errors.append((self.getpos(), tag, f'attr {k}="{v}" missing data-i18n-{k}'))
+            if tag not in void_tags:
+                self.tag_stack.append((tag, attr_dict, has_i18n))
+
+        def handle_endtag(self, tag):
+            if tag in void_tags:
+                return
+            for i in range(len(self.tag_stack) - 1, -1, -1):
+                if self.tag_stack[i][0] == tag:
+                    self.tag_stack = self.tag_stack[:i]
+                    break
+
+        def handle_data(self, data):
+            clean = data.strip()
+            if not clean or clean == '中':
+                return
+            if zh_regex.search(clean):
+                in_script = any(item[0] in ('script', 'style') for item in self.tag_stack)
+                if in_script:
+                    return
+                if self.tag_stack:
+                    curr_tag, curr_attrs, curr_has_i18n = self.tag_stack[-1]
+                    if not curr_has_i18n:
+                        has_parent_html = any(attrs.get('data-i18n-html') for _, attrs, _ in self.tag_stack)
+                        if not has_parent_html:
+                            self.errors.append((self.getpos(), curr_tag, f'text: "{clean[:40]}" missing data-i18n'))
+
     for html_file in ["src/ui/options/options.html", "src/ui/popup/popup.html"]:
         with open(os.path.join(BASE_DIR, html_file), "r", encoding="utf-8") as f:
             content = f.read()
@@ -128,6 +175,11 @@ def test_i18n_keys():
         missing_en = html_keys - set(en_dict.keys())
         assert not missing_zh, f"Missing in zh ({html_file}): {missing_zh}"
         assert not missing_en, f"Missing in en ({html_file}): {missing_en}"
+
+        checker = StrictHTMLChecker(html_file)
+        checker.feed(content)
+        assert not checker.errors, f"HTML i18n coverage errors in {html_file}: {checker.errors}"
+
     print("  ✓ i18n keys complete and matched across all HTML templates")
 
 def test_javascript_syntax():

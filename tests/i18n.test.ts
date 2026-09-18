@@ -34,6 +34,28 @@ test('i18n - check all HTML data-i18n attributes are present in i18n.js', () => 
     }
 });
 
+test('i18n - check all HTML title and placeholder attributes have data-i18n attributes', () => {
+    for (const htmlFile of ['src/ui/options/options.html', 'src/ui/popup/popup.html']) {
+        const htmlPath = path.join(__dirname, '..', htmlFile);
+        const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+        const titleRegex = /<([a-zA-Z0-9]+)\s+([^>]*?\s)title=["']([^"']+)["']([^>]*)>/g;
+        let m;
+        while ((m = titleRegex.exec(htmlContent)) !== null) {
+            const [, tag, pre, titleVal, post] = m;
+            const attrs = pre + ' ' + post;
+            if (titleVal.includes('Switch Language') || titleVal.includes('Developer Mode')) continue;
+            assert.ok(attrs.includes('data-i18n-title'), `Missing data-i18n-title on <${tag}> in ${htmlFile} with title="${titleVal}"`);
+        }
+
+        const phRegex = /<([a-zA-Z0-9]+)\s+([^>]*?\s)placeholder=["']([^"']+)["']([^>]*)>/g;
+        while ((m = phRegex.exec(htmlContent)) !== null) {
+            const [, tag, pre, phVal, post] = m;
+            const attrs = pre + ' ' + post;
+            assert.ok(attrs.includes('data-i18n-placeholder'), `Missing data-i18n-placeholder on <${tag}> in ${htmlFile} with placeholder="${phVal}"`);
+        }
+    }
+});
+
 test('i18n - parametric interpolation and language switching', async () => {
     await I18n.setLang('zh');
     assert.strictEqual(I18n.getLang(), 'zh');

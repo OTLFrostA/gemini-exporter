@@ -299,7 +299,8 @@ export function renderExportFailureBanner(failedList: any[], onRetry?: () => voi
         if (_lastFailedChats.length > 20) {
             const more = document.createElement('div');
             more.style.fontStyle = 'italic';
-            more.textContent = `... 以及其他 ${_lastFailedChats.length - 20} 项`;
+            const extraCount = _lastFailedChats.length - 20;
+            more.textContent = typeof t === 'function' ? t('failedChatsMore', extraCount) : `... 以及其他 ${extraCount} 项`;
             listEl.appendChild(more);
         }
     }

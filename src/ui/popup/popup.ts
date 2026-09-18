@@ -93,7 +93,8 @@ const log = (msg: string): void => {
                 const i18n = getI18n();
                 const text = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', count) : `${count} synced`;
                 const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
-                badge.textContent = isGemini ? label : `${label} (${typeof i18n !== 'undefined' && i18n.getLang?.() === 'zh' ? '离线' : 'offline'})`;
+                const offlineLabel = (typeof i18n !== 'undefined' && typeof i18n.t === 'function') ? i18n.t('badgeOffline') : 'offline';
+                badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
             }
         } catch (e) {
             console.warn('[popup] updateCount err', e);

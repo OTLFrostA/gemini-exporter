@@ -12,6 +12,13 @@ export const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
 export const MAX_ENTRY_COUNT = 10000; // 10,000 files
 export const MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024; // 1GB uncompressed estimate
 
+import { __resolveModule } from '../../utils/moduleOverrides.js';
+import * as I18nStatic from '../../utils/i18n.js';
+
+function getI18n() {
+    return __resolveModule('I18n', I18nStatic);
+}
+
 export function validateZipFile(file?: { size?: number } | null): void {
     // Handle pre-loaded JSZip instances
     if (file && typeof (file as any).file === 'function' && (file as any).files) {
@@ -27,10 +34,20 @@ export function validateZipFile(file?: { size?: number } | null): void {
         : NaN;
     // Fail closed when size cannot be determined
     if (!Number.isFinite(byteSize)) {
-        throw new Error('无法确认 Takeout ZIP 体积，已中止以防 ZipBomb');
+        const i18n = getI18n();
+        const msg = (i18n && typeof i18n.t === 'function')
+            ? i18n.t('zipSizeUnknown')
+            : '无法确认 Takeout ZIP 体积，已中止以防 ZipBomb';
+        throw new Error(msg);
     }
     if (byteSize > MAX_ZIP_SIZE) {
-        throw new Error(`Takeout ZIP 体积过大 (${(byteSize / 1024 / 1024).toFixed(1)}MB)，超过 ${MAX_ZIP_SIZE / 1024 / 1024}MB 上限，请确认是否为完整 Takeout 归档`);
+        const curMb = (byteSize / 1024 / 1024).toFixed(1);
+        const maxMb = (MAX_ZIP_SIZE / 1024 / 1024).toFixed(0);
+        const i18n = getI18n();
+        const msg = (i18n && typeof i18n.t === 'function')
+            ? i18n.t('zipSizeTooLarge', curMb, maxMb)
+            : `Takeout ZIP 体积过大 (${curMb}MB)，超过 ${maxMb}MB 上限，请确认是否为完整 Takeout 归档`;
+        throw new Error(msg);
     }
 }
 
@@ -38,7 +55,11 @@ export function validateZipEntries(zip?: any): void {
     if (!zip || !zip.files) return;
     const entryCount = Object.keys(zip.files).length;
     if (entryCount > MAX_ENTRY_COUNT) {
-        throw new Error(`ZIP 条目数过多 (${entryCount})，超过 ${MAX_ENTRY_COUNT} 上限，疑似 ZipBomb，已中止`);
+        const i18n = getI18n();
+        const msg = (i18n && typeof i18n.t === 'function')
+            ? i18n.t('zipTooManyEntries', entryCount, MAX_ENTRY_COUNT)
+            : `ZIP 条目数过多 (${entryCount})，超过 ${MAX_ENTRY_COUNT} 上限，疑似 ZipBomb，已中止`;
+        throw new Error(msg);
     }
 
     let approxUncompressed = 0;
@@ -56,11 +77,19 @@ export function validateZipEntries(zip?: any): void {
         }
         approxUncompressed += sz;
         if (approxUncompressed > MAX_TOTAL_UNCOMPRESSED) {
-            throw new Error(`ZIP 未压缩体积估算超过 1GB，已中止以防 OOM`);
+            const i18n = getI18n();
+            const msg = (i18n && typeof i18n.t === 'function')
+                ? i18n.t('zipUncompressedTooLarge')
+                : `ZIP 未压缩体积估算超过 1GB，已中止以防 OOM`;
+            throw new Error(msg);
         }
     }
     if (unknownSizeEntries > 0) {
-        throw new Error(`ZIP 中有 ${unknownSizeEntries} 个条目无法确认未压缩大小，已中止以防 ZipBomb`);
+        const i18n = getI18n();
+        const msg = (i18n && typeof i18n.t === 'function')
+            ? i18n.t('zipUnknownSizeEntries', unknownSizeEntries)
+            : `ZIP 中有 ${unknownSizeEntries} 个条目无法确认未压缩大小，已中止以防 ZipBomb`;
+        throw new Error(msg);
     }
 }
 

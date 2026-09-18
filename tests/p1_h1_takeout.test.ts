@@ -46,13 +46,13 @@ test('p1_h1 - P1-113: unknown slot never falls back to another slot\'s data', ()
 
 // ---------- P1-114: zip bomb guards fail closed ----------
 test('p1_h1 - P1-114: zip guards fail closed on unknown size', () => {
-    assert.throws(() => zipBombGuard.validateZipFile(undefined), /无法确认/);
-    assert.throws(() => zipBombGuard.validateZipFile({} as any), /无法确认/);
-    assert.throws(() => zipBombGuard.validateZipFile({ size: 600 * 1024 * 1024 }), /过大/);
+    assert.throws(() => zipBombGuard.validateZipFile(undefined), /无法确认|Cannot determine/);
+    assert.throws(() => zipBombGuard.validateZipFile({} as any), /无法确认|Cannot determine/);
+    assert.throws(() => zipBombGuard.validateZipFile({ size: 600 * 1024 * 1024 }), /过大|too large/i);
     assert.doesNotThrow(() => zipBombGuard.validateZipFile(Buffer.alloc(10) as any), 'Buffer uses .length');
     assert.throws(
         () => zipBombGuard.validateZipEntries({ files: { 'a.txt': { dir: false } } } as any),
-        /无法确认未压缩大小/
+        /无法确认未压缩大小|unverified sizes/i
     );
     assert.doesNotThrow(
         () => zipBombGuard.validateZipEntries({ files: { 'a.txt': { dir: false, _data: { uncompressedSize: 10 } } } } as any)
