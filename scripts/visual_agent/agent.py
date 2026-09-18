@@ -135,6 +135,9 @@ class AutonomousVisualAgent:
                 if not wait_res.success:
                     return False
 
+            elif action.action_type == VisualActionType.KEY:
+                self.playground.press_key(action.key or "Enter")
+
             elif action.action_type == VisualActionType.WAIT:
                 time.sleep(1.0)
 
@@ -205,6 +208,14 @@ class AutonomousVisualAgent:
             if action.action_type == VisualActionType.DONE:
                 elapsed = time.time() - t0
                 self.log(f"🎉 Agent 自主判定目标达成！(耗时 {elapsed:.1f}s, 共 {step} 步)", "PASS")
+                if self.scorecard:
+                    self.scorecard.record_feature(
+                        name=f"目标: {objective[:32]}",
+                        domain="Autonomous",
+                        status="PASS",
+                        duration=elapsed,
+                        notes=thought
+                    )
                 return AgentResult(
                     success=True,
                     objective=objective,
@@ -217,6 +228,21 @@ class AutonomousVisualAgent:
             elif action.action_type == VisualActionType.FAIL:
                 elapsed = time.time() - t0
                 self.log(f"❌ Agent 自主判定目标失败: {thought}", "FAIL")
+                if self.scorecard:
+                    self.scorecard.record_feature(
+                        name=f"目标: {objective[:32]}",
+                        domain="Autonomous",
+                        status="FAIL",
+                        duration=elapsed,
+                        notes=thought
+                    )
+                    self.scorecard.record_risk(VisualRisk(
+                        category="AutonomousFailure",
+                        element_description=f"Step {step}",
+                        risk_level="HIGH",
+                        details=thought,
+                        screenshot_ref=obs.file_path
+                    ))
                 return AgentResult(
                     success=False,
                     objective=objective,
@@ -238,6 +264,10 @@ class AutonomousVisualAgent:
             elif action.action_type == VisualActionType.CLEAR:
                 self.log("物理清空当前输入区域", "ACT")
                 self.playground.input_text(x=action.x, y=action.y, clear_first=True)
+
+            elif action.action_type == VisualActionType.KEY:
+                self.log(f"物理按键触发 -> '{action.key}'", "ACT")
+                self.playground.press_key(action.key or "Enter")
 
             elif action.action_type == VisualActionType.SCROLL:
                 delta = action.details.get("delta_y", 300)
@@ -265,10 +295,34 @@ class AutonomousVisualAgent:
             elif action.action_type == VisualActionType.WAIT:
                 time.sleep(1.0)
 
+            if self.scorecard:
+                self.scorecard.record_feature(
+                    name=f"{step_name}: {action.action_type.value}",
+                    domain="ActionDispatch",
+                    status="PASS",
+                    duration=0.5,
+                    notes=thought[:60]
+                )
+
             time.sleep(0.5)
 
         elapsed = time.time() - t0
         self.log(f"⚠️ 达到最大步数上限 ({max_steps})，目标未完全达成", "WARN")
+        if self.scorecard:
+            self.scorecard.record_feature(
+                name=f"目标: {objective[:32]}",
+                domain="Autonomous",
+                status="FAIL",
+                duration=elapsed,
+                notes=f"Exceeded max steps ({max_steps})"
+            )
+            self.scorecard.record_risk(VisualRisk(
+                category="StepTimeout",
+                element_description="Objective",
+                risk_level="MEDIUM",
+                details=f"在设定的 {max_steps} 步内未能完成目标",
+                screenshot_ref=obs.file_path if 'obs' in locals() else None
+            ))
         return AgentResult(
             success=False,
             objective=objective,

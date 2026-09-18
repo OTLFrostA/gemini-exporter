@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.visual_agent.sandbox import VisualSandbox, ScreenObservation, WaitResult
 from scripts.visual_agent.providers.base import VisionProvider, VisualAction, VisualActionType
+from scripts.visual_agent.providers.gemini_vision_provider import GeminiVisionProvider
 from scripts.visual_agent.agent import VisualQAAgent, TestMission
 from scripts.visual_agent.scorecard import VisualUXScorecard, SelfHealingEvent, VisualRisk
 
@@ -151,6 +152,15 @@ class TestVisualSandbox(unittest.TestCase):
         self.assertTrue(res.success)
         self.assertIn("gemini_export_2026.zip", res.message)
         self.assertEqual(res.data["file_path"], fake_zip)
+
+    def test_press_key_primitive(self):
+        self.sandbox.press_key("Enter")
+        key_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Input.dispatchKeyEvent"]
+        self.assertTrue(any(c["params"].get("key") == "Enter" and c["params"].get("type") == "rawKeyDown" for c in key_calls))
+        self.assertTrue(any(c["params"].get("key") == "Enter" and c["params"].get("type") == "keyUp" for c in key_calls))
+
+        self.sandbox.press_key("Escape")
+        self.assertTrue(any(c["params"].get("key") == "Escape" for c in self.mock_cdp.call_history))
 
 
 class TestVisualQAAgent(unittest.TestCase):
@@ -377,6 +387,78 @@ tags:
         pg = open_visual_playground(port=9222, target_page="options", reinstall=True)
         mock_reinstall.assert_called_once()
         self.assertIsNotNone(pg)
+
+    def test_agent_key_dispatch(self):
+        provider = MockCustomVisionProvider([
+            VisualAction(action_type=VisualActionType.KEY, key="Escape", thought="Press Escape to dismiss"),
+            VisualAction(action_type=VisualActionType.DONE, thought="Goal reached")
+        ])
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        res = agent.run_objective("测试物理按键派发")
+        self.assertTrue(res.success)
+        key_calls = [c for c in self.mock_cdp.call_history if c["method"] == "Input.dispatchKeyEvent" and c["params"].get("key") == "Escape"]
+        self.assertGreater(len(key_calls), 0)
+
+    def test_run_objective_populates_scorecard(self):
+        provider = MockCustomVisionProvider([
+            VisualAction(action_type=VisualActionType.CLICK, x=0.1, y=0.1, thought="Click something"),
+            VisualAction(action_type=VisualActionType.DONE, thought="Completed objective")
+        ])
+        agent = VisualQAAgent(sandbox=self.sandbox, provider=provider, scorecard=self.scorecard)
+        res = agent.run_objective("测试特性与证据沉淀")
+        self.assertTrue(res.success)
+        self.assertGreater(len(self.scorecard.features_explored), 0)
+        names = [f["name"] for f in self.scorecard.features_explored]
+        self.assertTrue(any("目标" in n for n in names))
+
+
+class TestGeminiVisionProvider(unittest.TestCase):
+    def test_model_resolution(self):
+        # 1. 默认降级 gemini-2.0-flash
+        with patch.dict(os.environ, {}, clear=True):
+            p1 = GeminiVisionProvider(api_key="mock")
+            self.assertEqual(p1.model, "gemini-2.0-flash")
+
+        # 2. 从 GEMINI_MODEL 环境变量动态继承
+        with patch.dict(os.environ, {"GEMINI_MODEL": "gemini-1.5-pro"}):
+            p2 = GeminiVisionProvider(api_key="mock")
+            self.assertEqual(p2.model, "gemini-1.5-pro")
+
+        # 3. 构造参数显式指定覆盖环境变量
+        with patch.dict(os.environ, {"GEMINI_MODEL": "gemini-1.5-pro"}):
+            p3 = GeminiVisionProvider(api_key="mock", model="gemini-2.5-flash")
+            self.assertEqual(p3.model, "gemini-2.5-flash")
+
+    @patch("urllib.request.urlopen")
+    def test_reject_blind_click_without_box(self, mock_urlopen):
+        import io
+        from unittest.mock import MagicMock
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value.read.return_value = b'{"candidates": [{"content": {"parts": [{"text": "{\\"action\\": \\"CLICK\\", \\"thought\\": \\"no box\\"}"}]}}]}'
+        mock_urlopen.return_value = mock_cm
+
+        p = GeminiVisionProvider(api_key="test-key")
+        action = p.decide_action(b"fake_png", "Click button", [])
+        self.assertEqual(action.action_type, VisualActionType.FAIL)
+        self.assertIn("缺少有效 box_2d", action.thought)
+
+    @patch("urllib.request.urlopen")
+    def test_parse_key_action(self, mock_urlopen):
+        import io
+        from unittest.mock import MagicMock
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value.read.return_value = b'{"candidates": [{"content": {"parts": [{"text": "{\\"action\\": \\"KEY\\", \\"key\\": \\"Enter\\", \\"thought\\": \\"press enter\\"}"}]}}]}'
+        mock_urlopen.return_value = mock_cm
+
+        p = GeminiVisionProvider(api_key="test-key")
+        action = p.decide_action(b"fake_png", "Submit search", [])
+        self.assertEqual(action.action_type, VisualActionType.KEY)
+        self.assertEqual(action.key, "Enter")
+
+    def test_review_screenshots_without_key(self):
+        p = GeminiVisionProvider(api_key=None)
+        review = p.review_screenshots([])
+        self.assertIn("未配置 GEMINI_API_KEY", review)
 
 
 if __name__ == "__main__":

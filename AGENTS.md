@@ -68,11 +68,13 @@
 
 ---
 
-### 第三层：纯视觉 AI 盲测与 UI 质检体系 (Visual Inspection & Feature Parity)
-* **执行命令**：
-  - `npm run test:visual`（对应 `python3 scripts/test_visual_agent.py`）：纯视觉全流程闭环实测。涵盖新手向导碰撞与 0 遮挡检测、排版截断、弹窗背景遮罩全屏防穿透、老会话置顶升权物理 Hit-Testing、瞬态自毁会话实时剥离布局无损审计，并闭环执行 Google Takeout 导入、全量历史扫描与标题权威升级、4 大核心分类黄金会话物理光标逐项勾选、物理导出 ZIP、解压资产校验与 4 大分类多模态规范断言（`ExportSpecificationAsserter`）。
-  - 带多模态 AI 审查：`python3 scripts/test_visual_agent.py --ai-review`（可选通过 Gemini 2.0 Flash 视觉模型对全流程截屏出具质检报告）。
-* **功能一致性保证**：纯视觉测试套件已与全流程实跑测试达成 100% 业务生命周期对齐，在视觉质检（0 遮挡、文本截断、背景遮罩、Hit-Testing）的基础上，物理穿透验证老会话置顶、瞬态删除清理、Takeout 合流与 4 大黄金多模态分类（Imagen 生图、Python 装饰器、量子对比表格、深空探测科学报告）物理导出规范落地。
+### 第三层：纯视觉 AI 盲测与 UI 质检体系 (Tier 3: Pure Visual Playground & Autonomous QA Agent)
+* **架构定位**：Tier 3 采用**纯截屏感知（0 DOM 树泄露）**与硬件级鼠标/键盘物理驱动，复用 Tier 2 的确定性阻塞挂起机制，提供黑盒环境下的自主 UI 体验体检与 AI 协作靶场。注：确定性向导防撞与文本截断的精确几何断言已在 Tier 1 Playwright (`tests/e2e/visual_inspector.spec.ts`) 中实现自动化门禁。
+* **执行命令与模式**：
+  - **默认交互靶场与原语自检**：`npm run test:visual`（对应 `python3 scripts/test_visual_agent.py`）。自动执行 6 大核心原子原语自检（0 污染安全还原模式）并就绪交互靶场。
+  - **交互控制模式**：`python3 scripts/test_visual_agent.py --playground`。开启靶场供人类或外部 AI Subagent 通过 `scripts/visual_agent/cli.py` 工具集（click/type/key/scroll/wait-on/screenshot）进行闭环探索。
+  - **多模态自主盲测与 AI 视觉审查**：`python3 scripts/test_visual_agent.py --autonomous --ai-review`（亦可直接 `python3 scripts/test_visual_agent.py --ai-review`）。自主推演指定目标任务，在推演中如实向 Scorecard 沉淀特性操作流与自愈记录，并驱动 Gemini Vision 多模态模型（支持通过 `GEMINI_MODEL` 环境变量或 `--model` 覆盖）对全流程截屏画廊出具深度质检报告（输出 `visual_audit_report.html` 与 `visual_audit_scorecard.md`）。
+  - **独立原语无害自检**：`python3 scripts/test_visual_agent.py --smoke`。秒级自检截屏感知、安全点击、键盘键入自愈清理、按键派发、滚轮复位与确定性挂起 6 大原语。
 
 ---
 
@@ -110,8 +112,9 @@ npm run test:live:local
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
-# 运行纯视觉全流程闭环盲测与 UI 质检套件 (全量闭环：向导 0 遮挡 ➔ Takeout 导入 ➔ 标题权威升级 ➔ 4 大分类物理勾选 ➔ 导出 ZIP ➔ 规范断言)
+# 运行纯视觉交互靶场就绪与原子原语无害自检
 npm run test:visual
-# 或带多模态模型审查: python3 scripts/test_visual_agent.py --ai-review
+# 运行自主盲测与多模态模型在线质检审查
+python3 scripts/test_visual_agent.py --ai-review
 ```
 
