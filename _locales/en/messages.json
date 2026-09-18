@@ -4,7 +4,7 @@
     "description": "The name of the extension."
   },
   "extDesc": {
-    "message": "Open-source & private: bulk export Google Gemini chats & Takeout archives to Markdown, JSON or ZIP with images. 100% client-side.",
+    "message": "100% Free & open-source • Real-time auto-save • One-click batch export to Markdown • Reclaim full Gemini history via Takeout",
     "description": "The description of the extension."
   }
 }
