@@ -98,9 +98,9 @@ export async function exportDiagnostics(): Promise<void> {
         a.download = `gemini_diagnostics_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 3000);
-        log('已生成诊断数据文件', 'info');
+        log(typeof t === 'function' ? t('diagExportSuccess') : '已生成诊断数据文件', 'info');
     } catch (e: any) {
-        log('导出诊断失败: ' + e.message, 'error');
+        log(typeof t === 'function' ? t('diagExportFailed', e?.message || String(e)) : ('导出诊断失败: ' + (e?.message || String(e))), 'error');
     }
 }
 
@@ -388,7 +388,7 @@ export async function initLiveSaveSettings(): Promise<void> {
                 }
             } else {
                 await liveStorage.setLiveConfig({ enabledDisk: false });
-                log('[LiveSave] Live disk sync disabled');
+                log(typeof t === 'function' ? t('logLiveSaveDisabled') : '[LiveSave] Live disk sync disabled');
             }
             if (__updateZipUi) __updateZipUi();
         });
@@ -412,7 +412,7 @@ export async function initLiveSaveSettings(): Promise<void> {
                         const timeStr = new Date(val.lastSavedAt).toLocaleTimeString();
                         statusTagEl.textContent = `${t('liveSaveActive')} (${timeStr})`;
                     }
-                    log(`[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
+                    log(typeof t === 'function' ? t('logLiveSaveSuccess', val.lastSavedTitle) : `[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
                 }
             }
             if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {

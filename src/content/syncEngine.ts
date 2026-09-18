@@ -612,20 +612,27 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 }
             },
             onProgress: (prog: any) => {
+                const zh = isZh();
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) {
-                    if (prog.stoppedEarly) badge.textContent = `已同步 ${prog.total} 条 ✓`;
-                    else badge.textContent = `正在同步: 已获取 ${prog.total} 条${prog.hasMore ? '…' : ''}`;
+                    if (prog.stoppedEarly) {
+                        badge.textContent = zh ? `已同步 ${prog.total} 条 ✓` : `${prog.total} synced ✓`;
+                    } else {
+                        badge.textContent = zh ? `正在同步: 已获取 ${prog.total} 条${prog.hasMore ? '…' : ''}` : `Syncing: ${prog.total} fetched${prog.hasMore ? '…' : ''}`;
+                    }
                 }
                 try {
                     const page = prog.page || 1;
                     const estPercent = prog.hasMore ? Math.min(5 + page * 2, 95) : 98;
+                    const progressTitle = zh
+                        ? `正在同步第 ${page} 页 (已获取 ${prog.total} 条)${prog.hasMore ? '…' : ''}`
+                        : `Syncing page ${page} (${prog.total} fetched)${prog.hasMore ? '…' : ''}`;
                     const _p = chrome.runtime.sendMessage({
                         action: 'scanProgress',
                         done: page,
                         count: prog.total,
                         percent: estPercent,
-                        title: `正在同步第 ${page} 页 (已获取 ${prog.total} 条)${prog.hasMore ? '…' : ''}`
+                        title: progressTitle
                     });
                     if (_p && _p.catch) _p.catch(() => {});
                 } catch (e) {
@@ -671,8 +678,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             const Proto = getProtocol();
             const slidingLimit = Proto?.LIMITS?.SLIDING_WINDOW || 600;
             const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (effectiveForceFull && mergedLen >= slidingLimit));
+            const zh = isZh();
             const badge = document.getElementById('geminiExportBadgeText');
-            if (badge) badge.textContent = `已同步 ${mergedLen} 条 ✓`;
+            if (badge) badge.textContent = zh ? `已同步 ${mergedLen} 条 ✓` : `${mergedLen} synced ✓`;
             if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 try {
                     const existing = await chrome.storage.local.get(['has_completed_takeout_prompt']);
@@ -691,6 +699,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 }
             }
             try {
+                const completeTitle = zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`;
                 const _p = chrome.runtime.sendMessage({
                     action: 'scanProgress',
                     done: 1,
@@ -698,7 +707,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                     percent: 100,
                     count: mergedLen,
                     hitGoogleLimit: isLimit,
-                    title: `同步完成，共 ${mergedLen} 条`
+                    title: completeTitle
                 });
                 if (_p && _p.catch) _p.catch(() => {});
             } catch (e) {

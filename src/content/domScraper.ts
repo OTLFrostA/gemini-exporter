@@ -231,7 +231,7 @@ export function getConversationLinks(): any[] {
             if (isReal) titlesObj.dom = title;
             items.push({
                 id,
-                title: isReal ? title : '未命名对话',
+                title: isReal ? title : (contentContext.isZh() ? '未命名对话' : 'Untitled Chat'),
                 titleSource: isReal ? 'dom' : 'default',
                 titles: titlesObj,
                 url: `https://gemini.google.com/app/${id}`,

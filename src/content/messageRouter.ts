@@ -243,7 +243,9 @@ export function init({
                                 }
                             }
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
-                            respond({ success: true, data: { ...chat, _empty: true, isDeleted: isConfirmedDeleted, error: isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat?.error || 'DOM 返回内容为空'), _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
+                            const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
+                            const errDomEmpty = contentContext.isZh() ? 'DOM 返回内容为空' : 'DOM returned empty content';
+                            respond({ success: true, data: { ...chat, _empty: true, isDeleted: isConfirmedDeleted, error: isConfirmedDeleted ? errDeleted : (chat?.error || errDomEmpty), _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
                             return;
                         }
                     }

@@ -204,7 +204,7 @@ export async function startExportPipeline(
         : `Starting export: ${selected.length} chats | Format: ${format.toUpperCase()} | Target: ${includeZip ? 'ZIP' : 'Folder'}`);
 
     if (!Controller) {
-        log('ExportController not available', 'error');
+        log(typeof t === 'function' ? t('exportControllerUnavailable') : 'ExportController not available', 'error');
         return;
     }
 
@@ -346,7 +346,7 @@ export async function startExportPipeline(
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
         log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
-        ProgressView.complete(`Error: ${errMsg}`);
+        ProgressView.complete(typeof t === 'function' ? t('exportFailedWithMessage', errMsg) : `Error: ${errMsg}`);
     } finally {
         ProgressView.hide(3000);
         if (__loadStore) await __loadStore(true);
