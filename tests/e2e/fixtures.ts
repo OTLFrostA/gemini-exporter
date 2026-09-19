@@ -14,7 +14,7 @@ export const test = base.extend<{
       channel: 'chromium', // Use full Chromium binary to support extensions in true headless
       headless: !isHeaded,
       args: [
-        ...(isHeaded ? [] : ['--headless=new']),
+        ...(isHeaded ? [] : ['--headless=new', '--no-startup-window', '--window-position=-20000,-20000']),
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
         '--no-sandbox',
