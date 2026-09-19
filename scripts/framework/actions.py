@@ -43,6 +43,12 @@ class ExtensionActions:
     def reinstall_extension(port: int = 9222, repo_path: Optional[str] = None) -> Optional[str]:
         """通过 CDP Extensions 域指令彻底卸载并纯净重新安装插件"""
         repo_path = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), "..", ".."))
+        try:
+            import subprocess
+            subprocess.run(["node", "build.js"], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"   ⚠️ 自动构建提示: {e}")
+
         browser_ws = get_browser_ws_url(port)
         if not browser_ws:
             print(f"❌ 无法获取 Chrome Browser WebSocket (端口 {port})")

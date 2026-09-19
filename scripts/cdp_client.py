@@ -220,6 +220,11 @@ def ensure_extension_loaded(port=CDP_DEFAULT_PORT, repo_path=None):
     调用 Extensions.loadUnpacked 原生静默挂载当前 repo_path，返回权威 extension ID。
     """
     repo_path = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), ".."))
+    try:
+        import subprocess
+        subprocess.run(["node", "build.js"], cwd=repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
     browser_ws = get_browser_ws_url(port)
     if browser_ws:
         cdp = None
