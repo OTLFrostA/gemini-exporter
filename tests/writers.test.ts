@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { FsWriter, ensureSubDir, sanitizeFileName } = require('../src/core/engine/writers/fsWriter.js');
-const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
+const { ZipWriter, isPrecompressedAsset } = require('../src/core/engine/writers/zipWriter.js');
 const WriterInterface = require('../src/core/engine/writers/writerInterface.js');
 const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
@@ -184,3 +184,78 @@ test('zipWriter - supports 3-argument (subDir, fileName, content) signature matc
     assert.strictEqual(path, 'assets/img.png');
     assert.strictEqual(writer.getTotalBytes(), 9);
 });
+
+test('zipWriter - isPrecompressedAsset identifies media vs text correctly', () => {
+    assert.strictEqual(isPrecompressedAsset('photo.png'), true);
+    assert.strictEqual(isPrecompressedAsset('image.JPG'), true);
+    assert.strictEqual(isPrecompressedAsset('assets/graphic.webp'), true);
+    assert.strictEqual(isPrecompressedAsset('audio.mp3'), true);
+    assert.strictEqual(isPrecompressedAsset('video.mp4'), true);
+    assert.strictEqual(isPrecompressedAsset('archive.zip'), true);
+    assert.strictEqual(isPrecompressedAsset('doc.pdf'), true);
+
+    assert.strictEqual(isPrecompressedAsset('chat.md'), false);
+    assert.strictEqual(isPrecompressedAsset('data.json'), false);
+    assert.strictEqual(isPrecompressedAsset('script.py'), false);
+    assert.strictEqual(isPrecompressedAsset('index.html'), false);
+    assert.strictEqual(isPrecompressedAsset(''), false);
+});
+
+test('zipWriter - selective compression uses STORE for media and DEFLATE for text', () => {
+    const recordedOpts: Record<string, any> = {};
+    __setModuleOverride('JSZip', class MockJSZip {
+        files: Record<string, any> = {};
+        constructor() { this.files = {}; }
+        folder(_name: string) {
+            return {
+                file: (path: string, content: any, opts: any) => {
+                    this.files[path] = content;
+                    recordedOpts[path] = opts;
+                }
+            };
+        }
+        async generateAsync() { return new Blob(['']); }
+    });
+
+    const writer = new ZipWriter('export_selective');
+    writer.writeFile('assets', 'picture.png', 'png_bytes');
+    writer.writeFile('', 'conversation.md', '# Chat content');
+
+    assert.strictEqual(recordedOpts['assets/picture.png']?.compression, 'STORE');
+    assert.strictEqual(recordedOpts['conversation.md']?.compression, 'DEFLATE');
+});
+
+test('zipWriter - generateBlob uses generateInternalStream when available', async () => {
+    let internalStreamUsed = false;
+    let asyncUsed = false;
+
+    __setModuleOverride('JSZip', class MockJSZipWithStream {
+        folder(_name: string) {
+            return { file: () => {} };
+        }
+        generateInternalStream(opts: any) {
+            internalStreamUsed = true;
+            assert.strictEqual(opts.type, 'blob');
+            return {
+                accumulate: async (onUpdate: any) => {
+                    if (onUpdate) onUpdate({ percent: 100 });
+                    return new Blob(['stream-zip']);
+                }
+            };
+        }
+        async generateAsync() {
+            asyncUsed = true;
+            return new Blob(['async-zip']);
+        }
+    });
+
+    const writer = new ZipWriter('export_stream');
+    let pctReceived = 0;
+    const blob = await writer.generateBlob((pct: number) => { pctReceived = pct; });
+
+    assert.strictEqual(internalStreamUsed, true);
+    assert.strictEqual(asyncUsed, false);
+    assert.strictEqual(pctReceived, 100);
+    assert.ok(blob);
+});
+

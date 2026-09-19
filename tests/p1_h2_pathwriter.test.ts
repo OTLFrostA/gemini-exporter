@@ -97,15 +97,15 @@ test('p1_h2 - P1-110: fenced/inline code keeps HTML-like content', () => {
 });
 
 // ---------- P1-112: no substring cross-file matching ----------
-// ---------- P1-115: ZipWriter 500MB hard fail ----------
-test('p1_h2 - P1-115: ZipWriter refuses beyond 500MB instead of warning', async () => {
+// ---------- P1-115: ZipWriter 200MB hard fail ----------
+test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', async () => {
     (globalThis as any).self = (globalThis as any).self || {};
     (globalThis as any).self.JSZip = (globalThis as any).self.JSZip || require('../lib/jszip.min.js');
     const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
     const w = new ZipWriter('test');
     assert.throws(
-        () => w.writeFile('big.bin', { byteLength: 600 * 1024 * 1024 } as any),
-        /500MB/
+        () => w.writeFile('big.bin', { byteLength: 300 * 1024 * 1024 } as any),
+        /200MB/
     );
 });
 

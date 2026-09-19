@@ -1,4 +1,4 @@
-// src/core/engine/writers/zipWriter.ts - JSZip Packaging Writer
+// src/core/engine/writers/zipWriter.ts - JSZip Packaging Writer with Selective STORE Compression and Stream Generation
 
 import type { IExportWriter } from './writerInterface.js';
 import { sanitizeRelativePath } from '../../utils/utils.js';
@@ -7,6 +7,15 @@ import { __resolveModule } from '../../utils/moduleOverrides.js';
 export interface ZipWriterClass {
     new (folderName?: string): ZipWriter;
     ZipWriter: typeof ZipWriter;
+}
+
+/**
+ * Identify already-compressed binary media assets where DEFLATE provides 0% gain
+ * but wastes massive CPU and memory.
+ */
+export function isPrecompressedAsset(path: string): boolean {
+    if (!path) return false;
+    return /\.(png|jpe?g|webp|gif|bmp|mp3|mp4|m4a|wav|ogg|zip|gz|tar|pdf)$/i.test(path);
 }
 
 class ZipWriter implements IExportWriter {
@@ -27,7 +36,7 @@ class ZipWriter implements IExportWriter {
         this.zip = new JSZipLib();
         this.folder = this.zip.folder(folderName);
         this.totalBytes = 0;
-        this.MAX_SAFE_ZIP_BYTES = 500 * 1024 * 1024; // 500MB safe memory warning threshold
+        this.MAX_SAFE_ZIP_BYTES = 200 * 1024 * 1024; // 200MB safe memory warning threshold to prevent V8 tab OOM
     }
 
     sanitizePath(p?: string | null): string {
@@ -61,9 +70,17 @@ class ZipWriter implements IExportWriter {
         }
         // Guard against memory exhaustion when building large ZIP archives
         if (this.totalBytes > this.MAX_SAFE_ZIP_BYTES) {
-            throw new Error(`[ZipWriter] 未压缩内容超过 ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB 上限，已中止导出以防内存溢出。请减少所选会话数量后重试。`);
+            throw new Error(`[ZipWriter] 未压缩内容超过 ${(this.MAX_SAFE_ZIP_BYTES / 1024 / 1024).toFixed(0)}MB 上限，已中止导出以防内存溢出。请减少所选会话数量后重试，或在设置中选择保存到本地目录。`);
         }
-        this.folder.file(cleanPath, content, options);
+
+        // Selective compression: bypass DEFLATE on already-compressed media (png, jpg, webp, etc.)
+        // to avoid duplicating memory in V8 during zip generation.
+        const fileOpts: any = { ...options };
+        if (!fileOpts.compression) {
+            fileOpts.compression = isPrecompressedAsset(cleanPath) ? 'STORE' : 'DEFLATE';
+        }
+
+        this.folder.file(cleanPath, content, fileOpts);
         return cleanPath;
     }
 
@@ -72,6 +89,24 @@ class ZipWriter implements IExportWriter {
     }
 
     async generateBlob(onUpdate?: (pct: number) => void): Promise<Blob> {
+        // Stream generation: use generateInternalStream if available to stream chunks
+        // with significantly lower peak buffer overhead than full in-memory generation.
+        if (typeof this.zip.generateInternalStream === 'function') {
+            try {
+                return await this.zip.generateInternalStream({
+                    type: 'blob',
+                    compression: 'DEFLATE',
+                    compressionOptions: { level: 6 }
+                }).accumulate((meta: any) => {
+                    if (onUpdate && typeof onUpdate === 'function') {
+                        onUpdate(meta.percent);
+                    }
+                });
+            } catch (streamErr) {
+                console.warn('[ZipWriter] generateInternalStream failed, falling back to generateAsync:', streamErr);
+            }
+        }
+
         return await this.zip.generateAsync({
             type: 'blob',
             compression: 'DEFLATE',
@@ -86,4 +121,3 @@ class ZipWriter implements IExportWriter {
 
 export { ZipWriter };
 export default ZipWriter;
-

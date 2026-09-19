@@ -59,6 +59,7 @@ const __zhFactory = (): LocaleDictionary => {
             dirNotSet: "未设置目录",
             dirCurrent: "已选目录: {0}",
             dirNotFound: "所选目录已被删除或失效，请重新选择",
+            dirPromptNeeded: "目录权限待续期: {0}（点击恢复授权）",
             liveSaveTitle: "实时自动保存",
             liveSaveActive: "已就绪",
             liveSaveDb: "实时快照备份",

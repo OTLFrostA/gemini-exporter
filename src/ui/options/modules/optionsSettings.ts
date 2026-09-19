@@ -336,6 +336,31 @@ export async function initLiveSaveSettings(): Promise<void> {
         if (savedHandle && dirLabel) {
             dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', savedHandle.name || cfg.dirName || 'Folder') : `已选目录: ${savedHandle.name || cfg.dirName || 'Folder'}`;
             if (dirLabel.style) dirLabel.style.color = '';
+        } else if (cfg.dirError === 'permission_prompt_needed' || (DirHandle && typeof DirHandle.getPendingPermissionHandle === 'function' && DirHandle.getPendingPermissionHandle())) {
+            if (dirLabel) {
+                const folderName = cfg.dirName || 'Folder';
+                dirLabel.textContent = typeof t === 'function' ? t('dirPromptNeeded', folderName) : `目录权限待续期: ${folderName}（点击恢复授权）`;
+                if (dirLabel.style) {
+                    dirLabel.style.color = '#f59e0b';
+                    dirLabel.style.cursor = 'pointer';
+                }
+                dirLabel.onclick = async () => {
+                    if (DirHandle && typeof DirHandle.reauthorizeDirHandle === 'function') {
+                        const ok = await DirHandle.reauthorizeDirHandle();
+                        if (ok) {
+                            const h = DirHandle.getDirHandle();
+                            if (h && dirLabel) {
+                                dirLabel.textContent = typeof t === 'function' ? t('dirCurrent', h.name) : `已选目录: ${h.name}`;
+                                dirLabel.style.color = '';
+                                dirLabel.style.cursor = 'default';
+                                dirLabel.onclick = null;
+                                await liveStorage.setLiveConfig({ enabledDisk: true, dirName: h.name, dirError: null });
+                                log(typeof t === 'function' ? t('logFolderSelected', h.name) : `已恢复目录权限: ${h.name}`);
+                            }
+                        }
+                    }
+                };
+            }
         } else if (cfg.dirError === 'not_found' || (!savedHandle && cfg.dirName)) {
             if (diskToggle) diskToggle.checked = false;
             if (dirLabel) {
@@ -402,7 +427,17 @@ export async function initLiveSaveSettings(): Promise<void> {
         chrome.storage.onChanged.addListener((changes: any, area: string) => {
             if (area === 'local' && changes.live_save_config?.newValue) {
                 const val = changes.live_save_config.newValue;
-                if (val.dirError === 'not_found') {
+                if (val.dirError === 'permission_prompt_needed') {
+                    if (dirLabel) {
+                        const folderName = val.dirName || 'Folder';
+                        dirLabel.textContent = typeof t === 'function' ? t('dirPromptNeeded', folderName) : `目录权限待续期: ${folderName}（点击恢复授权）`;
+                        if (dirLabel.style) {
+                            dirLabel.style.color = '#f59e0b';
+                            dirLabel.style.cursor = 'pointer';
+                        }
+                    }
+                    log(typeof t === 'function' ? t('dirPromptNeeded', val.dirName || 'Folder') : `目录权限待续期: ${val.dirName || 'Folder'}，已暂存至下载目录`, 'warn');
+                } else if (val.dirError === 'not_found') {
                     if (diskToggle) diskToggle.checked = false;
                     if (dirLabel) {
                         dirLabel.textContent = typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，请重新选择';
