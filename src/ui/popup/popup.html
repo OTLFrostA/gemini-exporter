@@ -102,10 +102,9 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <button id="btnOptions" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>
   </div>
 
-  <!-- Row 2: Long Screenshot Button (+ subtle Markdown copy tool) -->
-  <div style="display:flex;gap:6px;margin-bottom:2px;">
-    <button id="btnScreenshot" class="ghost" style="flex:1;font-size:11px;padding:8px 8px;display:flex;align-items:center;justify-content:center;gap:6px;border-color:rgba(79,70,229,0.35);background:rgba(79,70,229,0.08);" data-i18n="btnLongScreenshot">📸 一键导出长截图</button>
-    <button id="btnCopyMarkdown" class="ghost" style="flex:none;width:34px;padding:0;font-size:13px;display:flex;align-items:center;justify-content:center;" title="复制 Markdown" data-i18n-title="btnCopyMarkdownTip">📋</button>
+  <!-- Row 2: Long Screenshot Button (Full width) -->
+  <div class="row" style="margin-bottom:2px;">
+    <button id="btnScreenshot" class="ghost" style="width:100%;font-size:11px;padding:9px 8px;display:flex;align-items:center;justify-content:center;gap:6px;border-color:rgba(79,70,229,0.35);background:rgba(79,70,229,0.08);" data-i18n="btnLongScreenshot">📸 一键导出长截图</button>
   </div>
 
   <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>

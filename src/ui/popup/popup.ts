@@ -71,7 +71,6 @@ const log = (msg: string): void => {
 
 function updateUiForTabState(isGemini: boolean): void {
     const btnScreenshot = $('btnScreenshot') as HTMLButtonElement | null;
-    const btnCopyMarkdown = $('btnCopyMarkdown') as HTMLButtonElement | null;
     const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
     const notGeminiNotice = $('notGeminiNotice');
     const currentChatContent = $('currentChatContent');
@@ -84,10 +83,6 @@ function updateUiForTabState(isGemini: boolean): void {
             btnScreenshot.disabled = true;
             btnScreenshot.title = notGeminiTip;
         }
-        if (btnCopyMarkdown) {
-            btnCopyMarkdown.disabled = true;
-            btnCopyMarkdown.title = notGeminiTip;
-        }
         if (btnCurrent) {
             btnCurrent.disabled = true;
             btnCurrent.title = notGeminiTip;
@@ -99,10 +94,6 @@ function updateUiForTabState(isGemini: boolean): void {
         if (btnScreenshot) {
             btnScreenshot.disabled = false;
             btnScreenshot.title = '';
-        }
-        if (btnCopyMarkdown) {
-            btnCopyMarkdown.disabled = false;
-            btnCopyMarkdown.title = '';
         }
         if (btnCurrent) {
             btnCurrent.disabled = false;
@@ -312,38 +303,6 @@ async function handleLongScreenshot(): Promise<void> {
     }
 }
 
-// ==================== Copy Markdown Workflow ====================
-async function handleCopyMarkdown(): Promise<void> {
-    const i18n = getI18n();
-    if (!_activeConvId) {
-        log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话');
-        return;
-    }
-
-    log(typeof i18n !== 'undefined' ? i18n.t('popupExporting') : '正在抓取内容…');
-    ProgressView.show(30);
-
-    try {
-        const res = await sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 30000);
-        if (!res || !res.success) {
-            throw new Error(res?.error || '抓取对话失败');
-        }
-        ProgressView.update(70);
-        const chat = res.data || res;
-        const markdown = ChatFormatter.toMarkdown(chat);
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(markdown);
-            ProgressView.complete();
-            log(typeof i18n !== 'undefined' ? i18n.t('markdownCopied') : 'Markdown 已复制到剪贴板！');
-        } else {
-            throw new Error('浏览器剪贴板 API 不可用');
-        }
-    } catch (e: any) {
-        log(`复制 Markdown 异常: ${e?.message || e}`);
-        ProgressView.hide();
-    }
-}
 
 // ==================== Initialization ====================
 function initPopupEvents(): void {
@@ -418,7 +377,6 @@ function initPopupEvents(): void {
 
     // Screenshot actions
     $('btnScreenshot')?.addEventListener('click', () => handleLongScreenshot());
-    $('btnCopyMarkdown')?.addEventListener('click', () => handleCopyMarkdown());
 
     // Preview Lightbox Buttons
     $('btnClosePreview')?.addEventListener('click', () => {
