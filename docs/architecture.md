@@ -33,6 +33,7 @@ graph TD
 
         subgraph ContentScriptIsolated ["扩展隔离区内容脚本 (ISOLATED World)"]
             CS_Entry["content.ts<br/>(内容脚本总协调入口)"]
+            CS_Sniffer["accountSniffer.ts<br/>(Google 真实账号/邮箱/GaiaID 身份嗅探器)"]
             CS_Bridge["messageBridge.ts<br/>(跨世界事件桥接器)"]
             CS_LiveObs["liveSaveObserver.ts<br/>(流式输出/DOM 变更监视器)"]
             CS_LiveCoord["liveSaveCoordinator.ts<br/>(实时无感保存调度器)"]
@@ -47,7 +48,8 @@ graph TD
             BG_KeepAlive["keepAlive.ts<br/>(长任务心跳保活机制)"]
             BG_Abort["abortManager.ts<br/>(多账号 Slot 中断状态管理器)"]
             BG_Batch["batchFetcher.ts<br/>(后台并发批处理请求器)"]
-            BG_LiveHandler["liveSaveHandler.ts<br/>(后台原生目录句柄写入代理)"]
+            BG_LiveHandler["liveSaveHandler.ts<br/>(后台目录句柄写入代理 & prompt 降权转 Downloads 零损回退)"]
+            BG_Downloads["Chrome Downloads API<br/>(无头权限过期零损兜底落盘 gemini_export/)"]
             BG_TabAction["tabAction.ts<br/>(图标动态着色与激活状态感知)"]
         end
 
@@ -59,9 +61,9 @@ graph TD
             subgraph OptionsWorkbench ["批量管理工作台 (Options Workbench)"]
                 OPT_Main["options.ts / options.html<br/>(工作台总入口 & 协调器)"]
                 OPT_Modules["optionsInit / optionsExport / optionsSync<br/>optionsTakeout / optionsSettings"]
-                OPT_Store["conversationsStore.ts<br/>(响应式状态机 & 筛选排序)"]
+                OPT_Store["conversationsStore.ts<br/>(响应式状态机 & 严格账号槽位隔离)"]
                 OPT_Views["listView / logView / accountView<br/>dialogView / progressView"]
-                OPT_Controllers["exportController / syncController<br/>takeoutController / dirHandleController"]
+                OPT_Controllers["exportController / syncController<br/>takeoutController / dirHandleController (一键重授权)"]
                 OPT_Tour["tourGuide.ts / tourSteps.ts<br/>(5步沉浸式新手引导与高亮遮罩)"]
             end
         end
@@ -75,7 +77,7 @@ graph TD
         end
 
         subgraph ApiParserLayer ["协议通信与反序列化层 (src/core/api/)"]
-            API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager"]
+            API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager (严格单向隔离)"]
             API_Parser["GeminiParser (facade)<br/>parseList / parseDetail / extractors / attachments"]
         end
 
@@ -88,17 +90,18 @@ graph TD
             ENG_LiveWriter["liveSaveWriter.ts<br/>(实时 Markdown / JSON 文件流写入器)"]
             ENG_Stitcher["screenshotStitcher.ts<br/>(长截图重叠消除与画布拼接)"]
             ENG_PDF["pdfWrapper.ts<br/>(零依赖单页 PDF 1.4 二进制封装器)"]
-            ENG_Writers["Writers: zipWriter (JSZip) / fsWriter (FileSystem API)"]
+            ENG_Writers["Writers: zipWriter (JSZip STORE流式防OOM) / fsWriter (FileSystem API)"]
         end
 
         subgraph CoreUtils ["工具库与单点真理 (src/core/utils/)"]
             UT_SSoT["utils.ts / titleUtils.ts / mergeUtils.ts<br/>(权威标题仲裁、去重、时间戳排序)"]
-            UT_Path["pathUtils.ts / chipUtils.ts / progressUtils.ts"]
+            UT_Path["pathUtils.ts / chipUtils.ts / progressUtils.ts / tabService.ts (Strict Tab Routing)"]
             UT_I18n["i18n.ts (locales/zh.ts, locales/en.ts)"]
         end
 
-        subgraph StorageLayer ["存储抽象与持久化层 (src/core/storage/)"]
-            ST_Service["StorageService<br/>(chrome.storage.local 多账号 Slot 隔离存储)"]
+        subgraph StorageLayer ["两级存储与持久化层 (src/core/storage/)"]
+            ST_Service["StorageService<br/>(两级主控: chrome.storage.local 轻量元数据索引 & Slot 隔离)"]
+            ST_Detail["conversationsDetailStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
             ST_Live["LiveStorageManager<br/>(IndexedDB 实时会话镜像库)"]
             ST_IDB["idbHandleStore.ts<br/>(FileSystemDirectoryHandle 跨会话持久化)"]
             ST_Session["SessionStore.ts<br/>(内存/chrome.storage.session 缓存)"]
@@ -110,12 +113,15 @@ graph TD
     CS_Bridge --> CS_LiveObs
     CS_LiveObs --> CS_LiveCoord
     CS_Bridge --> CS_SyncEng
+    CS_Entry --> CS_Sniffer
+    CS_Sniffer --> ST_Service
 
     %% 内容脚本与后台通信
     CS_LiveCoord -- "runtime.sendMessage (handleLiveSaveViaHandle)" --> BG_LiveHandler
     CS_SyncEng -- "runtime.sendMessage (fetchBatch / keepAlive)" --> BG_SW
     POP_Main -- "tabs.sendMessage / runtime.sendMessage" --> CS_Shot
     OPT_Controllers -- "runtime.sendMessage" --> BG_SW
+    BG_LiveHandler -- "句柄降权 prompt 回退" --> BG_Downloads
 
     %% 模块连接到核心逻辑
     CS_SyncEng --> PROV_Gemini
@@ -139,6 +145,7 @@ graph TD
 
     %% 存储与工具支持
     ENG_Orchestrator --> ST_Service
+    ST_Service <--> ST_Detail
     ENG_Takeout --> UT_SSoT
     ENG_Orchestrator --> UT_SSoT
     CS_SyncEng --> UT_SSoT
@@ -148,7 +155,7 @@ graph TD
 
 ## 二、AST 逻辑分布与架构映射矩阵 (AST Logical Distribution & Architecture Mapping)
 
-下表呈现整个代码库 `src/` 目录下全部 62 个核心源码文件的抽象语法树 (AST) 逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
+下表呈现整个代码库 `src/` 目录下全部 64 个核心源码文件的抽象语法树 (AST) 逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
 
 | 物理源码路径 (File Path) | 架构分层 / 子系统 | 核心 AST 导出实体 (Classes / Functions / Interfaces) | 模块职责与设计不变量 (Role & Invariants) | 上游调用源 (Inflow) | 下游承接汇 (Outflow) | 架构图映射节点 |
 |---|---|---|---|---|---|---|
@@ -157,9 +164,10 @@ graph TD
 | `src/background/keepAlive.ts` | Background SW | `startKeepAlive`, `stopKeepAlive` | 在耗时较长的批量导出与全量扫描期间派发微型心跳，防止 MV3 Service Worker 意外挂起。 | `background.ts` | Chrome runtime 端口心跳 | `BG_KeepAlive` |
 | `src/background/abortManager.ts` | Background SW | `isSlotAborted`, `setSlotAborted`, `restoreAbortFlags` | 维护多账号 Slot 级别的中断标记，并在 session storage 中跨唤醒持久化。 | `background.ts`, `syncController.ts` | `chrome.storage.session` | `BG_Abort` |
 | `src/background/batchFetcher.ts` | Background SW | `fetchBatch`, `sendToGeminiTab`, `getGeminiTab` | 后台代理并发抓取 batchexecute 请求，跨标签页消息转发。 | `background.ts` | `chrome.tabs.sendMessage` | `BG_Batch` |
-| `src/background/liveSaveHandler.ts` | Background SW | `handleLiveSaveViaHandle`, `markDirDeletedInConfig` | 接收 Content 脚本发来的实时保存数据，从 IndexedDB 取出目录句柄执行写入。 | `background.ts` (runtime.onMessage) | `idbHandleStore`, `liveSaveWriter` | `BG_LiveHandler` |
+| `src/background/liveSaveHandler.ts` | Background SW | `handleLiveSaveViaHandle`, `markDirDeletedInConfig` | 接收实时保存数据执行写入；当 SW 无头权限退化为 prompt 时，自动触发零损 downloads API 兜底落盘并通知前台重授权。 | `background.ts` (runtime.onMessage) | `idbHandleStore`, `liveSaveWriter`, `chrome.downloads` | `BG_LiveHandler` |
 | `src/background/tabAction.ts` | Background SW | `updateTabActionState`, `initTabActionListeners` | 监视激活标签页 URL 是否为 Gemini 域名，动态切换彩色/灰色图标状态。 | `background.ts`, tabs 事件 | `chrome.action.setIcon` | `BG_TabAction` |
-| `src/content/content.ts` | Content Script | `content.ts` (Entrypoint) | 隔离区主入口，统筹初始化 Observer、Bridge、SyncEngine、LiveSave 与徽章视图。 | Chrome Content Script 注入 | `cleanupRegistry`, `messageBridge`, `pageObserver`, `syncEngine` | `CS_Entry` |
+| `src/content/content.ts` | Content Script | `content.ts` (Entrypoint) | 隔离区主入口，统筹初始化 Observer、Bridge、SyncEngine、LiveSave、身份嗅探与徽章视图。 | Chrome Content Script 注入 | `cleanupRegistry`, `messageBridge`, `pageObserver`, `syncEngine` | `CS_Entry` |
+| `src/content/accountSniffer.ts` | Content Script | `extractEmailFromText`, `extractNameFromLabel`, `sniffUserProfileFromDom` | 从 DOM 头像标签、aria-label 与全局 WIZ 数据安全嗅探 Google 真实账号邮箱、显示名与 Gaia ID，终结易变 URL 序号伪身份。 | `bootstrap.ts`, `syncEngine.ts` | `storageService.updateAccountSlot` | `CS_Sniffer` |
 | `src/content/hookCredentials.ts` | Content Script (MAIN) | `hookCredentials.ts` (IIFE) | 注入页面主世界，拦截原生 `fetch` 与 `XMLHttpRequest`，嗅探网络凭据、删除 RPC 与流式事件。 | 原生 Gemini 页面交互 | `window.postMessage` (锁定 origin) | `MAIN_Hook` |
 | `src/content/messageBridge.ts` | Content Script | `MessageBridge`, `handleWindowMessage` | 监听主世界 `postMessage`，校验来源，解包凭据、流式事件、删除 RPC 并分发给内部引擎。 | `hookCredentials.ts` | `syncEngine`, `liveSaveCoordinator`, `liveSaveObserver` | `CS_Bridge` |
 | `src/content/liveSaveObserver.ts` | Content Script | `LiveSaveObserver`, `init`, `cleanup` | 监听 Gemini 对话流式生成与 DOM 变更，在生成结束时触发冷却防抖并调用协调器。 | `messageBridge`, DOM MutationObserver | `liveSaveCoordinator` | `CS_LiveObs` |
@@ -180,7 +188,7 @@ graph TD
 | `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器，支持对话列表抓取与结构转换。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
 | `src/core/api/geminiClient.ts` | Core: API | `GeminiAPIClient` (Facade) | 统一客户端入口，封装身份认证、分页抓取、指数退避重试与 AbortSignal 控制。 | `geminiProvider`, `syncEngine`, `exportWorker` | `client/*` 子模块 | `API_Client` |
 | `src/core/api/geminiParser.ts` | Core: API | `GeminiResponseParserClass` (Facade) | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |
-| `src/core/api/client/credentialManager.ts` | Core: API Client | `resolveCred`, `getAtFromPage`, `detectSlot` | 统一管理 SNlM0e、at、sid 等鉴权凭据的获取、缓存与多账号槽位推断。 | `geminiClient.ts` | `credStorage.ts` | `API_Client` |
+| `src/core/api/client/credentialManager.ts` | Core: API Client | `resolveCred`, `getAtFromPage`, `detectSlot` | 统一管理 SNlM0e、at、sid 等鉴权凭据；严格按账号 Slot 单向解析，严禁跨账号借调偷用 Token。 | `geminiClient.ts` | `credStorage.ts` | `API_Client` |
 | `src/core/api/client/pagination.ts` | Core: API Client | `paginateList`, `fetchDetailWithRetry` | 封装 batchexecute 游标翻页机制与超时控制。 | `geminiClient.ts` | `rpcClient.ts` | `API_Client` |
 | `src/core/api/client/retryPolicy.ts` | Core: API Client | `executeWithRetry`, `isTransientError` | 处理 HTTP 400（XSRF 过期刷新）、429（频率限制）的指数退避与重试策略。 | `geminiClient.ts` | 网络请求调用 | `API_Client` |
 | `src/core/api/client/rpcClient.ts` | Core: API Client | `postBatchexecute`, `getApiUrl` | 构造 batchexecute 原始 POST 请求负载、组装 RPC 封包并处理响应转义。 | `geminiClient.ts` | `window.fetch` | `API_Client` |
@@ -204,10 +212,11 @@ graph TD
 | `src/core/engine/screenshotStitcher.ts` | Core: Engine | `calculateFrameLayouts`, `stitchFramesToCanvas` | 计算多滚动帧视口重叠消除坐标布局，在离屏 Canvas 上高精度缝合超长截图。 | `popup.ts` | 拼接完成的 HTMLCanvasElement | `ENG_Stitcher` |
 | `src/core/engine/pdfWrapper.ts` | Core: Engine | `wrapJpegToPdf`, `canvasToPdfBlob` | 零第三方依赖的纯二进制 PDF 1.4 生成器，使用 DCTDecode 流原生打包图像。 | `popup.ts` | 标准 `application/pdf` Blob | `ENG_PDF` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
-| `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在浏览器内存中构建多级目录树并流式压缩导出 ZIP 归档。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
+| `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
 | `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`, `downloadAttachment` | 导出时并发下载媒体附件、执行 C2PA 签名校验并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
-| `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，封装 `chrome.storage.local`，管理会话索引与已导出标记。 | UI Store, Controllers, SyncEngine | `chrome.storage.local` | `ST_Service` |
+| `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `conversationsDetailStore` | `ST_Service` |
+| `src/core/storage/conversationsDetailStore.ts` | Core: Storage | `saveConversationDetail`, `getConversationDetail`, `deleteConversationDetail` | 两级存储架构之 IndexedDB 实体详情仓储，承接全量 turns 与重消息体，保障 chrome.storage.local 永远处于安全轻量区。 | `storageService.ts` | IndexedDB (`gemini_conversation_details`) | `ST_Detail` |
 | `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理与本地会话快照持久化，无缝代理 `idbHandleStore` 目录句柄。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
 | `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `saveStoredDirHandle`, `getMemoryDirHandle`, `setMemoryDirHandle` | `FileSystemDirectoryHandle` 在 IndexedDB 与内存缓存中的唯一真理源 (SSoT)。 | `dirHandleController`, `liveStorageManager`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
 | `src/core/storage/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
@@ -215,9 +224,9 @@ graph TD
 | `src/core/utils/utils.ts` | Core: Utils | `GeminiUtils` (单点真理 SSoT 集合) | 汇聚全局路径清理、标题仲裁与列表合并去重逻辑的统一门面。 | 全系统所有模块 | 格式规范与仲裁结果 | `UT_SSoT` |
 | `src/core/utils/titleUtils.ts` | Core: Utils | `resolveTitle`, `resolveDetailTitle`, `cleanTitle` | 权威标题仲裁中心，实现多源标题优先级排序（RPC > 网络详情 > 前缀提问 > Takeout）。 | `utils.ts`, `geminiParser`, `syncEngine` | 统一规范标题字符串 | `UT_SSoT` |
 | `src/core/utils/mergeUtils.ts` | Core: Utils | `mergeConversation`, `deduplicateConversations` | 负责多源会话合并与去重，保证高权标题与最新更新时间戳永不倒退。 | `utils.ts`, `syncEngine`, `takeoutEngine` | 合并后的稳定会话数组 | `UT_SSoT` |
-| `src/core/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId` | 严格清洗相对路径与文件名，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator` | 安全合法的文件名与路径 | `UT_Path` |
+| `src/core/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId`, `AccountProfile` | 严格清洗相对路径与文件名，定义多账号用户画像契约，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator`, `bootstrap` | 安全合法的文件名与路径 | `UT_Path` |
 | `src/core/utils/progressUtils.ts` | Core: Utils | `formatETA`, `formatByteSize`, `calculateRate` | 计算传输速率、剩余时间人类可读格式化。 | `progressReporter.ts` | 格式化文本输出 | `UT_Path` |
-| `src/core/utils/tabService.ts` | Core: Utils | `TabService`, `getOrOpenGeminiTab`, `sendTabMessage` | 查找当前存活的 Gemini 标签页，支持跨标签页消息安全容灾回退。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
+| `src/core/utils/tabService.ts` | Core: Utils | `TabService`, `getGeminiTab`, `sendToGeminiTab` | 严格按账号 Slot 定向检索 Gemini 标签页并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝串账号盲投。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
 | `src/core/utils/i18n.ts` | Core: Utils | `I18nClass`, `getI18n` | 中英双语轻量翻译引擎，支持动态语言切换与多级占位符替换。 | UI Views, Controllers, Tour | 国际化本地化字典 | `UT_I18n` |
 | `src/core/protocol/protocol.ts` | Core: Protocol | `GeminiProtocol`, `CrossWorldEvents` | 定义 wire 级 RPC 标识符 (`RPCS.LIST`, `RPCS.DELETE`)、跨世界事件名与关键断言。 | `hookCredentials`, `messageBridge` | 协议契约常量 | `MAIN_Hook`, `CS_Bridge` |
 | `src/core/protocol/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |
@@ -254,31 +263,36 @@ graph TD
   - 负载：RPC 编码 payload `[[["xdAcqd","[\"...\",...]",null,"generic"]]]`；
   - 鉴权参数：从当前活跃 Cookie 与 Session 提取的 `at` (XSRF)、`f.sid`、`bl`。
 * **数据汇 (Data Sink)**：
-  - `chrome.storage.local`：写入对应的账号 Slot 命名空间（键名 `gemini_conversations_${slot}`）；
+  - `chrome.storage.local`：写入对应的账号 Slot **轻量元数据索引**（键名 `gemini_conversations_${slot}`，只保留 `id`、`title`、`timestamp`、`updatedAt`、`snippet`、`count`，彻底解除 10MB 配额瓶颈）；
+  - `IndexedDB` (`gemini_conversation_details` 实体仓库)：透明承载完整对话轮次（`turns`）与附件元数据；
   - Options 工作台 DOM：响应式更新 `ConversationsStore`，驱动 `ListView` 增量刷新。
 * **核心处理与容错逻辑**：
-  1. `GeminiClient` 携带分页游标发送请求；
-  2. 若遇到 HTTP 400 且返回报文包含 XSRF 凭据失效特征，`RetryPolicy` 自动触发主世界重新抓取 Token 并进行退避重试；
-  3. `parseList` 解析返回的嵌套多维 JSPB 数组，提取会话 ID、标题及时间戳；
-  4. `TitleUtils.resolveTitle` 与 `MergeUtils.mergeConversation` 作为 **单点真理 (SSoT)** 执行多源合并，若远端权威标题存在则自动替换 Takeout 临时标题；
-  5. 检测用户或后台发送的 `AbortSignal`，若中断则立即保存已拉取的游标并优雅终止。
+  1. `TabService.getGeminiTab(slot)` 严格查找目标 slot 标签页，杜绝跨账号盲投；
+  2. `GeminiClient` 携带分页游标发送请求；
+  3. 若遇到 HTTP 400 且返回报文包含 XSRF 凭据失效特征，`RetryPolicy` 自动触发主世界重新抓取 Token 并进行退避重试；
+  4. `parseList` 解析返回的嵌套多维 JSPB 数组，提取会话 ID、标题及时间戳；
+  5. `TitleUtils.resolveTitle` 与 `MergeUtils.mergeConversation` 作为 **单点真理 (SSoT)** 执行多源合并，若远端权威标题存在则自动替换 Takeout 临时标题；
+  6. **两级存储分离写入**：`StorageService` 拆分轻量列表索引至 `chrome.storage.local`，将实体对话轮次下沉至 IndexedDB `conversationsDetailStore`；
+  7. 检测用户或后台发送的 `AbortSignal`，若中断则立即保存已拉取的游标并优雅终止。
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant UI as Options/Popup (UI)
     participant Sync as SyncController
-    participant Tab as TabService
+    participant Tab as TabService (Strict Slot Match)
     participant CS as SyncEngine (Content Script)
     participant Client as GeminiClient & RetryPolicy
     participant RPC as Google Gemini batchexecute RPC
     participant SSoT as TitleUtils & MergeUtils (SSoT)
-    participant Store as StorageService & chrome.storage
+    participant Store as StorageService (两级存储主控)
+    participant Local as chrome.storage.local (轻量索引)
+    participant IDB as conversationsDetailStore (IndexedDB 详情库)
 
     UI->>Sync: 用户点击【全量拉取历史】(Deep Scan)
-    Sync->>Tab: 查找存活的 Gemini 标签页
-    alt 存在存活标签页
-        Tab->>CS: 派发 START_DEEP_SCAN 消息
+    Sync->>Tab: getGeminiTab(slot) 严格匹配目标账号标签页
+    alt 找到对应账号的存活标签页
+        Tab->>CS: 派发 START_DEEP_SCAN 消息 (附带 slot)
         loop 分页抓取直到游标为空或遇到已拉取锚点
             CS->>Client: listConversations(cursor, slot)
             Client->>RPC: POST batchexecute (xdAcqd)
@@ -289,35 +303,44 @@ sequenceDiagram
             RPC-->>Client: 返回原始 Protobuf/JSPB 文本
             Client-->>CS: parseList 结构化会话列表项
             CS->>SSoT: mergeConversation (去重与权威标题仲裁)
-            CS->>Store: 写入批次数据到 chrome.storage.local
+            CS->>Store: saveConversations(slot, list) 两级持久化
+            par 两级存储分离写入
+                Store->>Local: 写入轻量会话元数据索引 (去除 turns, < 10MB 配额安全)
+                Store->>IDB: 实体详情下沉入库 (持久化完整 turns 与消息体)
+            end
             CS-->>UI: 实时回传扫描进度 (更新 ProgressView)
         end
         CS-->>Sync: 扫描完成 (返回最新会话全量数据)
-    else 标签页不存在
-        Sync->>Client: 切换至后台无头 RPC 抓取流程
+    else 标签页不存在或槽位不匹配
+        Sync->>UI: 提示请在浏览器中打开对应 slot 账号标签页
     end
     Sync->>UI: 触发 ConversationsStore 刷新，ListView 重新渲染
 ```
 
 ---
 
-### 3.2 实时无感自动保存数据流 (Real-Time Live Auto-Save Flow)
+### 3.2 实时无感自动保存与无头权限死锁降权数据流 (Real-Time Live Auto-Save Flow with Zero-Loss Downloads Fallback)
 
-本数据流负责在用户使用官方 Gemini 对话时，完全无感、实时地将新生成的回复写入本地指定目录或持久化镜像库。
+本数据流负责在用户使用官方 Gemini 对话时，完全无感、实时地将新生成的回复写入本地指定目录或持久化镜像库，并在后台环境句柄权限过期时实施零损兜底。
 
 * **数据源 (Data Source)**：
   - 宿主网页网络请求（MAIN World 拦截到的 batchexecute 流式响应或完成包）；
   - DOM 树变更（`liveSaveObserver` 监听的回复渲染 DOM 节点）。
 * **数据汇 (Data Sink)**：
   - 本地磁盘文件系统：通过用户授权的 `FileSystemDirectoryHandle`，调用 `liveSaveWriter` 生成物理 `.md` 文件及 `assets/` 附件；
+  - 浏览器下载流（降权兜底）：`chrome.downloads` API，直接写入系统下载目录的 `gemini_export/` 子文件夹；
   - 本地 IndexedDB：`gemini_live_conversations` 对象存储，持久化最近一次结构化快照；
-  - 页面浮动徽章：`BadgeView` 动态展现“保存中...”、“已同步”或目录失效告警。
+  - 页面浮动徽章：`BadgeView` 动态展现“保存中...”、“已同步”或权限过期/目录失效告警。
 * **核心处理与容错逻辑**：
   1. 主世界拦截器 `hookCredentials.ts` 捕获到流式生成开始与结束事件（`STREAM_COMPLETE`）；
-  2. 隔离区 `MessageBridge` 接收到消息后唤醒 `LiveSaveObserver`；
-  3. 执行 **800ms 防抖冷却 (Debounce & Cooldown)**，规避同一轮次频繁触发多次写入；
-  4. 调度器拉取当前会话最新轮次数据（RPC 优先，DOM Scraper 容灾回退）；
-  5. 校验目标目录物理句柄，若目录在磁盘上被物理删除，捕获 `NotFoundError` 并标记 `dir_deleted`，徽章展示友好警示且自动暂停同步，绝不抛出未捕获异常。
+  2. 隔离区 `MessageBridge` 接收到消息后唤醒 `LiveSaveObserver`，启动 800ms 防抖冷却；
+  3. 调度器 `LiveSaveCoordinator` 拉取当前会话最新轮次数据，格式化为 CommonMark + Frontmatter；
+  4. **无头环境权限降权检测与零损回退 (P0 容灾)**：
+     - 若通过 Background SW 代理写入且浏览器重启导致句柄权限回退为 `'prompt'` 时，由于 MV3 Service Worker 属于无头环境，无法直接触发 `requestPermission()`（浏览器强制要求前台显式用户手势）；
+     - 此时 SW 绝不死锁抛错，而是自动无缝激活 **Chrome Downloads 零损兜底**（`chrome.downloads.download` 将文件及图片直接保存至 `Downloads/gemini_export/`），实现数据 0 丢失；
+     - 同时向 Options 工作台广播降权事件，UI 暂存 `pendingPermissionHandle` 并展示优雅提示横幅；
+     - 用户在前端页面点击即可通过真实手势执行 `reauthorizeDirHandle()` 一键恢复原生目录直写权限；
+  5. 若目标目录物理句柄在磁盘上被删除，捕获 `NotFoundError` 并标记 `dir_deleted`，徽章展示友好警示且自动暂停同步。
 
 ```mermaid
 sequenceDiagram
@@ -327,9 +350,10 @@ sequenceDiagram
     participant Bridge as messageBridge.ts (ISOLATED)
     participant Obs as liveSaveObserver.ts
     participant Coord as liveSaveCoordinator.ts
-    participant Formatter as ChatFormatter
-    participant Writer as liveSaveWriter.ts (FsWriter)
+    participant SW as Background SW (liveSaveHandler.ts)
+    participant Down as chrome.downloads API (零损兜底)
     participant Disk as 用户本地磁盘目录 (Native FS)
+    participant UI as Options 选项页 (dirHandleController)
     participant Badge as badgeView.ts (UI 徽章)
 
     Host->>Host: AI 回复生成完毕 (流式网络传输结束)
@@ -339,15 +363,25 @@ sequenceDiagram
     Obs->>Obs: 启动 800ms 防抖冷却 (合并短时间内重复事件)
     Obs->>Coord: 触发实时同步请求 (executeLiveSave)
     Coord->>Badge: 切换状态为【正在保存...】
-    Coord->>Coord: 获取完整会话详情 (RPC / DOM 回退)
-    Coord->>Formatter: 格式化为 CommonMark + Frontmatter
-    Coord->>Writer: 写入数据 (writeLiveSaveMarkdown)
-    alt 磁盘目录句柄正常
-        Writer->>Disk: FileSystemWritableFileStream 物理写入文件及图片
-        Writer-->>Coord: 写入成功
+    Coord->>Coord: 获取完整会话详情并格式化 Markdown
+    alt 前台持有活动句柄且权限有效 (queryPermission == 'granted')
+        Coord->>Disk: FileSystemWritableFileStream 直写文件与图片附件
         Coord->>Badge: 切换状态为【已实时同步 (时间戳)】
+    else 由后台 SW 代理写入且权限退化 (queryPermission == 'prompt')
+        Coord->>SW: runtime.sendMessage(handleLiveSaveViaHandle)
+        SW->>SW: 检测到无头环境无法触发 requestPermission (User Gesture 限制)
+        Note over SW,Down: 激活 P0 容灾零损回退 (Zero-Loss Downloads Fallback)
+        SW->>Down: chrome.downloads.download(filename: 'gemini_export/...')
+        Down->>Disk: 自动安全保存至系统 Downloads/gemini_export/
+        SW-->>Coord: 回传降权通知 (degraded: true)
+        Coord->>Badge: 显示【已通过下载落盘 (点击选项页恢复直写)】
+        SW->>UI: 广播 DIR_HANDLE_PERMISSION_DEGRADED
+        UI->>UI: 记录 pendingPermissionHandle 并呈现【一键恢复直写权限】提示
+        opt 用户在前台点击一键重授权
+            UI->>UI: 用户手势触发 handle.requestPermission({ mode: 'readwrite' })
+            UI->>Disk: 权限恢复为 'granted'，后续会话无缝恢复目录直写
+        end
     else 目录在外部被删除 (NotFoundError)
-        Writer-->>Coord: 抛出 dir_not_found
         Coord->>Badge: 显示【⚠ 目标目录已删除，实时同步已暂停】
         Coord->>Coord: 停用实时磁盘同步标记，等待用户重新选目
     end
@@ -355,13 +389,13 @@ sequenceDiagram
 
 ---
 
-### 3.3 批量并发导出与流式打包数据流 (Batch Export Pipeline Flow)
+### 3.3 批量并发导出与流式打包数据流 (Batch Export Pipeline Flow with JSZip OOM Prevention)
 
-本数据流负责将多选的大量历史会话一次性导出为带有相对路径图片引用的 ZIP 压缩包或直接写入本地文件夹。
+本数据流负责将多选的大量历史会话一次性导出为带有相对路径图片引用的 ZIP 压缩包或直接写入本地文件夹，并通过多模态二进制资产 STORE 模式彻底杜绝大批量导出时的 JSZip 内存 OOM 崩溃。
 
 * **数据源 (Data Source)**：
   - 用户在 Options 工作台中勾选的会话 ID 集合；
-  - `StorageService` 中的历史元数据；
+  - `StorageService` 与 `ConversationsDetailStore` 中的两级历史详情；
   - Google Gemini 详细内容 RPC（或 Takeout 离线媒体池）。
 * **数据汇 (Data Sink)**：
   - 模式 A：JSZip 内存打包生成的 `application/zip` Blob，触发 Chrome 下载管理器；
@@ -371,7 +405,11 @@ sequenceDiagram
   2. `RateLimiter` 动态监控网络延迟与响应状态，遭遇异常自动激活退避；
   3. `BatchWorker` 逐个处理单会话：拉取会话详情、调用 `AssetPipeline` 解析附件 URL、并发抓取图片 Blob；
   4. 图片文件名经 C2PA 签名和哈希去重规范化，存入 `assets/` 子目录；
-  5. `ChatFormatter` 生成纯净 Markdown 文本，相对引用指向 `assets/`；
+  5. **多模态附件 STORE 流式防 OOM 机制 (P0 容灾)**：
+     - 调用 `isPrecompressedAsset(path)` 检测图片/媒体文件扩展名（`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`）；
+     - 对已高度压缩的二进制媒体强制使用 `compression: 'STORE'` 模式添加进 `ZipWriter`，**物理绕过 JSZip 在内存中反复膨胀 (Inflate) 和二次压缩 (Deflate) 的巨大内存/CPU 开销**；
+     - 仅对纯文本 Markdown、JSON 使用 `compression: 'DEFLATE'`；
+     - 结合 200MB 内存防线与 `generateInternalStream` 流式分块生成 Blob，彻底杜绝大批量导出（1000+ 对话）时的浏览器标签页 OOM 崩溃；
   6. 写入器（`ZipWriter` 或 `FsWriter`）写入，`ProgressReporter` 实时计算吞吐量与 ETA，完成时将导出记录写入 `exportedIds` 避免重复导出。
 
 ```mermaid
@@ -384,7 +422,7 @@ sequenceDiagram
     participant Worker as BatchWorker
     participant Asset as AssetPipeline
     participant Format as ChatFormatter
-    participant Writer as ZipWriter / FsWriter
+    participant Writer as ZipWriter (JSZip STORE 流式防 OOM)
     participant Store as StorageService
 
     UI->>Ctrl: 用户选中 50 条会话，点击【导出选中 → ZIP】
@@ -395,22 +433,24 @@ sequenceDiagram
         Limit-->>Orch: 允许派发任务
         Orch->>Worker: 分配单会话处理任务 (processSingleConversation)
         Worker->>Worker: 拉取会话详情 (RPC / Takeout 本地池)
-        Worker->>Asset: 提取图片/附件列表并下载
-        Asset-->>Worker: 返回附件二进制流及本地相对路径 (assets/xxx.png)
+        Worker->>Asset: 提取图片/附件列表并下载 Blob
+        Asset-->>Worker: 返回附件二进制流及本地相对路径
         Worker->>Format: 组装 Markdown (嵌入 Frontmatter 与图片相对链接)
         Format-->>Worker: 输出规范 Markdown 文本
         Worker->>Writer: 添加文件 (index.md 与 assets/ 资源)
+        alt 附件属于二进制图片 (isPrecompressedAsset)
+            Writer->>Writer: 以 compression: 'STORE' 模式存入 (0 内存膨胀/0 CPU 压缩浪费)
+        else 文本文件 (Markdown / JSON)
+            Writer->>Writer: 以 compression: 'DEFLATE' 模式压缩存入
+        end
         Worker-->>Orch: 单会话导出完成
         Orch->>Store: 单会话就绪即刻持久化 (StorageService.saveExportRecord)
         Orch->>UI: 回传进度与单条状态 (onItemExported 刷新列表)
     end
-    Orch->>Writer: 完成打包写入 (generateBlob / closeStream)
-    alt ZIP 模式
-        Writer-->>Ctrl: 返回 ZIP Blob 对象
-        Ctrl->>UI: downloadHandler 触发浏览器底层下载 (a.download / blobUrl)
-    else 本地文件夹直写模式
-        Writer-->>Ctrl: 目录流写入关闭确认
-    end
+    Orch->>Writer: 完成打包写入 (generateInternalStream 流式分块)
+    Writer->>Writer: 保持在 200MB 安全内存水位内生成最终 Blob
+    Writer-->>Ctrl: 返回 ZIP Blob 对象
+    Ctrl->>UI: downloadHandler 触发浏览器底层下载 (a.download / blobUrl)
     Ctrl->>UI: 进度条完成，展示成功完成统计
 ```
 
@@ -520,43 +560,73 @@ sequenceDiagram
 
 ---
 
-### 3.6 网络凭据嗅探与跨隔离区握手数据流 (Credential Sniffing & Cross-World Bridge Flow)
+### 3.6 多账号真实身份嗅探、凭据隔离与严格路由数据流 (Multi-Account Identity Sniffing, Strict Credential Isolation & Tab Routing Flow)
 
-本数据流负责在网页加载与正常使用过程中，安全合规地提取调用 Gemini 底层 batchexecute RPC 所需的鉴权凭据与会话删除事件。
+本数据流负责在网页加载与正常使用过程中，安全嗅探真实的 Google 账号用户画像，彻底废除脆弱易变的 `u0/u1` 登录序号依赖，并实施严格的跨槽位凭据隔离与定向标签页通信。
 
 * **数据源 (Data Source)**：
-  - 页面初次加载时内嵌在 HTML 内的 `WIZ_global_data` 脚本变量；
+  - 页面 DOM 头像按钮与属性（`aria-label`、`data-email`、`data-identifier`）；
+  - 页面初次加载时内嵌在 HTML 内的 `WIZ_global_data` 脚本变量（提取 `oTI7oc` 作为 Gaia ID）；
   - 页面发起的所有包含 `batchexecute` 的 XHR/Fetch URL 查询参数与请求体（含 `at`、`f.sid`、`bl`、`accountSlot`）。
 * **数据汇 (Data Sink)**：
+  - `accountSlots` 存储：`StorageService.updateAccountSlot(slot, profile)`，持久化真实邮箱、用户名与 Gaia ID；
   - 隔离区 `CredentialManager` 内部缓存；
-  - `chrome.storage.session`（受保护的扩展会话存储，Service Worker 可直接读取）。
+  - `chrome.storage.session`（受保护的扩展会话存储，Service Worker 可直接读取）；
+  - Options 工作台账号下拉框：直接渲染真实身份（如 `张三 (zhangsan@gmail.com) [u0]`）。
 * **核心处理与容错逻辑**：
-  1. `hookCredentials.ts` 运行于 MAIN World，对原生网络请求进行只读包装（Proxy/Monkey Patch），遇到任何异常均在 `try...catch` 中吞并，**物理保证绝不破坏宿主网页正常网络交互**；
-  2. 提取出有效凭据后，通过 `window.postMessage` 派发自定义事件；
-  3. `postMessage` 强制指定 `targetOrigin = location.origin`，杜绝跨源泄露；
-  4. 隔离区 `MessageBridge` 严格校验 `event.origin` 与 `event.source === window`，确认来源合法后解包数据；
-  5. 监视如果包含 `Proto.RPCS.DELETE` 删除事件，精准提取被删除的会话 ID 并通知 Options 工作台无需刷新实时剔除该项，实现瞬态删除与本地存储的一致性同步。
+  1. `accountSniffer.ts` 从 DOM 标签与全局变量安全嗅探真实的 Google 账号身份，形成唯一的 `accountId`；
+  2. `hookCredentials.ts` 运行于 MAIN World，对原生网络请求进行只读包装（Proxy/Monkey Patch），遇到任何异常均在 `try...catch` 中吞并；
+  3. 提取出有效凭据后，通过 `window.postMessage` 派发自定义事件；
+  4. 隔离区 `MessageBridge` 严格校验来源合法后解包数据，分别绑定至对应 `accountSlot`；
+  5. **凭据防偷调与严格隔离机制**：
+     - `CredentialManager.resolveCred(slot)` 实行单向封闭解析，若目标 Slot 无可用凭据直接返回空 Token，**严禁跨槽位偷用其他账号的 Token**，彻底消除串号 403 风险；
+  6. **严格槽位标签页定向路由机制**：
+     - `TabService.getGeminiTab(slot)` 与 `sendToGeminiTab(msg, slot)` 严格基于 URL 中的 Slot 进行过滤；若目标 Slot 的标签页未打开，**强制抛出明确错误**，绝不盲目回退到其他账号的标签页执行请求；
+  7. **空账号状态防劫持**：
+     - `ConversationsStore.loadStore(slot)` 保证在切换到 0 条会话的新账号时，绝不自动跳回 `u0`；
+  8. 监视如果包含 `Proto.RPCS.DELETE` 删除事件，精准提取被删除的会话 ID 并通知 Options 工作台无需刷新实时剔除该项，实现瞬态删除与本地存储的一致性同步。
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant GeminiWeb as Gemini 官方页面逻辑
-    participant MainHook as hookCredentials.ts (MAIN World)
+    participant Page as Gemini 官方页面 (DOM & Context)
+    participant Sniffer as accountSniffer.ts (Identity Sniffer)
+    participant Hook as hookCredentials.ts (MAIN World)
     participant Bridge as messageBridge.ts (ISOLATED World)
-    participant CredMgr as CredentialManager
-    participant Session as chrome.storage.session
-    participant UI as Options 工作台
+    participant CredMgr as CredentialManager (Strict Isolation)
+    participant Tab as TabService (Strict Tab Routing)
+    participant Store as StorageService (Slot SSoT)
+    participant UI as Options 工作台 (AccountView)
 
-    GeminiWeb->>GeminiWeb: 网页发起 batchexecute RPC 请求
-    MainHook->>MainHook: 拦截 URL 与请求体，正则提取 at, f.sid, bl, slot
-    MainHook->>Bridge: window.postMessage(CrossWorldEvents.CREDENTIALS, origin)
-    Note over Bridge: 校验 event.origin === location.origin<br/>且 event.source === window
-    Bridge->>CredMgr: 缓存最新凭据映射
-    Bridge->>Session: 写入当前账号 Slot 凭据
-    
+    Page->>Sniffer: 页面渲染头像与账号信息
+    Sniffer->>Sniffer: 嗅探 aria-label, data-email, WIZ_global_data.oTI7oc
+    Sniffer-->>Store: updateAccountSlot(slot, { email, name, gaiaId, accountId })
+    Store->>UI: 渲染账号下拉列表 (展示 "姓名 (邮箱) [slot]")
+
+    Page->>Hook: 发起网络请求 (batchexecute)
+    Hook->>Bridge: window.postMessage(CrossWorldEvents.CREDENTIALS, { at, sid, slot })
+    Bridge->>CredMgr: 保存当前 Slot 凭据映射 (slot -> cred)
+
+    opt 用户在 Options 工作台对账号 Slot u1 发起操作
+        UI->>Tab: sendToGeminiTab(action, slot='u1')
+        Tab->>Tab: filterTabsBySlot(tabs, 'u1')
+        alt 存在匹配 u1 的标签页
+            Tab->>Page: 派发指令至 u1 专属标签页
+        else 缺少 u1 标签页
+            Tab-->>UI: 抛出异常: "未找到多账号 slot u1 对应的 Gemini 标签页"
+            Note over Tab,UI: 绝对禁止盲目回退并向 u0 标签页派发错误指令
+        end
+        UI->>CredMgr: resolveCred(slot='u1')
+        alt u1 拥有已认证凭据
+            CredMgr-->>UI: 返回 u1 专属 Token
+        else u1 凭据缺失
+            CredMgr-->>UI: 返回空 Token (绝对禁止借调 u0 凭据，杜绝串号污染)
+        end
+    end
+
     opt 用户在网页端删除了某条会话
-        GeminiWeb->>MainHook: 发送包含 Gz00ic (DELETE RPC) 的网络请求
-        MainHook->>Bridge: window.postMessage(CrossWorldEvents.CONVERSATION_DELETED, { id })
+        Page->>Hook: 发送包含 Gz00ic (DELETE RPC) 的网络请求
+        Hook->>Bridge: window.postMessage(CrossWorldEvents.CONVERSATION_DELETED, { id })
         Bridge->>UI: 触发本地 Storage 剔除与 DOM 节点淡出清理
     end
 ```
@@ -582,6 +652,12 @@ sequenceDiagram
    彻底杜绝 `setInterval` 轮询与无序并发请求。所有批量导出与下载均通过 `AsyncQueue` 任务队列驱动，结合 `RateLimiter` 指数退避状态机，智能规避 Google 接口的 HTTP 429 访问受限。
 6. **MV3 Service Worker 保活机制 (Keepalive Resilience)**：
    在耗时较长的大批量扫描或附件打包过程中，定期向后台派发轻量保活心跳，彻底解决 Chromium 浏览器可能在后台静默终止 Service Worker 导致导出任务异常中断的问题。
+7. **两级存储架构与配额安全隔离 (Two-Tier Storage & Quota Isolation)**：
+   `chrome.storage.local` 严格仅存轻量列表元数据索引（`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `conversationsDetailStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
+8. **无头环境写盘降权零损回退 (Headless FileSystem Permission Fallback)**：
+   Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时后台绝不允许抛错中断或静默丢弃用户数据，必须自动无感激活 `chrome.downloads` 零损兜底落盘至 `Downloads/gemini_export/`，并向前端派发事件由用户手势通过 `reauthorizeDirHandle()` 一键恢复物理直写。
+9. **多账号单向隔离与凭据零借调 (Multi-Account Strict Isolation & Zero Token Stealing)**：
+   系统的账号体系以真实 Google Profile（邮箱与 Gaia ID）为锚点。各账号 Slot 之间具有完全物理隔离的凭据命名空间与会话空间，严禁跨槽位借调或回退 Token；跨标签页指令分发必须严格匹配当前激活账户的 Slot，若目标标签页不存在必须显式抛错拦截，绝不向不匹配账号的页面盲投任何 RPC 指令。
 
 ---
 
@@ -593,9 +669,9 @@ sequenceDiagram
 flowchart TD
     subgraph Tier1 ["第一层：CI 自动化极速门禁 (Tier 1: Fast & Headless Gate)"]
         T1_Type["TypeScript 严格类型检查 (tsc --noEmit)"]
-        T1_Unit["Python 驱动 84 个核心单元测试 (tests/run_tests.py)"]
+        T1_Unit["Python 驱动 73+ 个核心单元与系统测试套件 (tests/run_tests.py)"]
         T1_Build["esbuild 5 大 Bundle 纯打包校验 (node build.js)"]
-        T1_E2E["Playwright 14 个 Spec / 35 个无头集成测试 (playwright test)"]
+        T1_E2E["Playwright 15 个 Spec / 37 个无头集成测试 (playwright test)"]
         T1_Type --> T1_Unit --> T1_Build --> T1_E2E --> T1_PASS["CI 门禁通过 (~20-40秒)"]
     end
 
