@@ -65,6 +65,7 @@ import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import TabService from "../../utils/tabService.js";
+import { getConversationDetail } from "../../storage/conversationDetailStore.js";
 
 const injectedUtils = (): any => __resolveModule('GeminiUtils', null);
 
@@ -243,19 +244,41 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
         let convsNeedSave = false;
 
         // 1. Takeout offline chat fallback
-        if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0) && takeoutEngine) {
-            const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
-            if (fbChat && fbChat.messages && fbChat.messages.length > 0) {
-                chat = {
-                    ...fbChat,
-                    id: nid,
-                    title: isRealTitle(chat.title, nid) ? chat.title : fbChat.title,
-                    url: `https://gemini.google.com/app/${nid}`
-                };
-                delete chat.error;
-                delete chat._empty;
-                const I18n = __resolveModule('I18n', I18nStatic);
-                onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
+        if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0)) {
+            if (takeoutEngine) {
+                const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
+                if (fbChat && fbChat.messages && fbChat.messages.length > 0) {
+                    chat = {
+                        ...fbChat,
+                        id: nid,
+                        title: isRealTitle(chat.title, nid) ? chat.title : fbChat.title,
+                        url: `https://gemini.google.com/app/${nid}`
+                    };
+                    delete chat.error;
+                    delete chat._empty;
+                    const I18n = __resolveModule('I18n', I18nStatic);
+                    onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
+                }
+            }
+            // 1b. IndexedDB detail fallback
+            if (chat.error || chat._empty || !chat.messages || chat.messages.length === 0) {
+                try {
+                    const detail = await getConversationDetail(nid);
+                    if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+                        chat = {
+                            ...(listConversation || {}),
+                            id: nid,
+                            title: isRealTitle(chat.title, nid) ? chat.title : (listConversation?.title || nid),
+                            messages: detail.messages,
+                            turns: detail.turns,
+                            url: (listConversation && listConversation.url) || `https://gemini.google.com/app/${nid}`
+                        };
+                        delete chat.error;
+                        delete chat._empty;
+                        const I18n = __resolveModule('I18n', I18nStatic);
+                        onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
+                    }
+                } catch { /* intentional */ }
             }
         }
 
