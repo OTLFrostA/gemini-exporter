@@ -15,14 +15,6 @@ import { GeminiUtils } from '../../core/utils/utils.js';
 import { GeminiConstants } from '../../core/utils/constants.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { GeminiProtocol } from '../../core/protocol/protocol.js';
-import { ProviderRegistry } from '../../core/provider/providerRegistry.js';
-// Side-effect imports kept intentionally: geminiProvider/chatgptProvider self-register
-// into ProviderRegistry on module evaluation (see the "Auto-register" blocks at the
-// bottom of each file), and nothing else in the static import graph pulls them in —
-// without these, ProviderRegistry would stay empty at runtime. Importing the two
-// provider modules directly (rather than provider/index.js) keeps the intent precise.
-import '../../core/provider/gemini/geminiProvider.js';
-import '../../core/provider/chatgpt/chatgptProvider.js';
 import { TabService } from '../../core/utils/tabService.js';
 import { TakeoutEngine } from '../../core/engine/takeoutEngine.js';
 import { TourGuide } from '../tour/tourGuide.js';
@@ -58,15 +50,6 @@ export const getLiveStorage = () => __resolveModule('LiveStorageManager', LiveSt
 export const getUtils = () => __resolveModule('GeminiUtils', GeminiUtils);
 export const getConstants = () => __resolveModule('GeminiConstants', GeminiConstants);
 export const getProtocol = () => __resolveModule('GeminiProtocol', GeminiProtocol);
-const resolveProvider = () => {
-    const url = (typeof location !== 'undefined' && location.href) || '';
-    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
-};
-// NOTE: the legacy `(globalThis as any).GeminiAPIClient` primary was intentionally
-// dropped: geminiClient self-registers on globalThis whenever it loads (including
-// transitively via the provider chain above), so keeping it as primary would
-// silently bypass the registry and the provider wiring would never take effect.
-export const getApiClient = () => resolveProvider();
 export const getTabService = () => __resolveModule('TabService', TabService);
 export const getTakeoutEngine = () => __resolveModule('TakeoutEngine', TakeoutEngine);
 export const getTour = () => __resolveModule('TourGuide', TourGuide);

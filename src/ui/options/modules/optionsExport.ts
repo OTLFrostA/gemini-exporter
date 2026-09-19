@@ -224,7 +224,19 @@ export async function startExportPipeline(
             currentSlot,
             conversations: convs,
             exportedIds,
-            takeoutEngine
+            takeoutEngine,
+            downloadHandler: async (blob: Blob, filename: string) => {
+                if (typeof document !== 'undefined' && document.createElement && document.body) {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+                }
+            }
         }, {
             onProgress: (progress: any, txt: string) => {
                 const isEn = typeof getLang === 'function' && getLang() === 'en';
@@ -253,8 +265,6 @@ export async function startExportPipeline(
                     const ck = normId(chatId);
                     if (ck) cur[ck] = exportRecord;
                     Store.setExportedIds(cur);
-                    const cSlot = Store.getCurrentSlot()!;
-                    await Store!.saveExportedIds(cSlot, cur);
                     const currentConvs = Store.getConversations();
                     if (List) {
                         if (typeof List.updateItemExportStatus === 'function') {

@@ -2,7 +2,12 @@
 import type { DirHandleControllerContract } from '../../types/ui.js';
 import { t } from '../uiCommon.js';
 
-import { getStoredDirHandle, saveStoredDirHandle } from '../../core/storage/idbHandleStore.js';
+import {
+    getStoredDirHandle,
+    saveStoredDirHandle,
+    getMemoryDirHandle,
+    setMemoryDirHandle
+} from '../../core/storage/idbHandleStore.js';
 export { getStoredDirHandle, saveStoredDirHandle };
 
 let currentDirHandle: any = null;
@@ -54,6 +59,7 @@ export async function restoreSavedDirHandle(): Promise<any> {
             const r = await verifyDirPermissionDetailed(handle);
             if (!r.ok) {
                 currentDirHandle = null;
+                setMemoryDirHandle(null);
                 if (r.notFound) {
                     // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
                     await saveStoredDirHandle(null);
@@ -62,6 +68,7 @@ export async function restoreSavedDirHandle(): Promise<any> {
                 return null;
             }
             currentDirHandle = handle;
+            setMemoryDirHandle(handle);
             return handle;
         }
     } catch (e) {
@@ -76,16 +83,18 @@ export async function requestDirHandle(): Promise<any> {
     }
     const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
     currentDirHandle = handle;
+    setMemoryDirHandle(handle);
     await saveStoredDirHandle(handle);
     return handle;
 }
 
 export function getDirHandle(): any {
-    return currentDirHandle;
+    return currentDirHandle || getMemoryDirHandle();
 }
 
 export function setDirHandle(handle: any): void {
     currentDirHandle = handle;
+    setMemoryDirHandle(handle);
 }
 
 export const DirHandleController: DirHandleControllerContract = {

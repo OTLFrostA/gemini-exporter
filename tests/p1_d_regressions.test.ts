@@ -293,39 +293,34 @@ function fakeIDB() {
 }
 
 test('P1-052: dir handle is published to memory only after the IDB write succeeds', async () => {
-    const mem: any = {
-        handle: 'sentinel',
-        setDirHandle(h: any) { this.handle = h; },
-        getDirHandle() { return this.handle; },
-    };
-    __setModuleOverride('DirHandleController', mem);
+    IdbHandleStore.setMemoryDirHandle('sentinel');
     const prevIDB = (globalThis as any).indexedDB;
     try {
         // Failure path: no IndexedDB -> saveStoredDirHandle returns false.
         delete (globalThis as any).indexedDB;
         const okFail = await LiveStorageManager.saveLiveDirHandle({ name: 'nope' });
         assert.strictEqual(okFail, false);
-        assert.strictEqual(mem.handle, 'sentinel', 'memory updated although the IDB write failed');
+        assert.strictEqual(IdbHandleStore.getMemoryDirHandle(), 'sentinel', 'memory updated although the IDB write failed');
 
         // Success path.
         (globalThis as any).indexedDB = fakeIDB();
         const ok = await LiveStorageManager.saveLiveDirHandle({ name: 'mydir' });
         assert.strictEqual(ok, true);
-        assert.deepStrictEqual(mem.handle, { name: 'mydir' });
+        assert.deepStrictEqual(IdbHandleStore.getMemoryDirHandle(), { name: 'mydir' });
 
         // Clear failure path: memory must not be cleared when the IDB delete fails.
         delete (globalThis as any).indexedDB;
         const okClearFail = await LiveStorageManager.clearLiveDirHandle();
         assert.strictEqual(okClearFail, false);
-        assert.deepStrictEqual(mem.handle, { name: 'mydir' }, 'memory cleared although the IDB delete failed');
+        assert.deepStrictEqual(IdbHandleStore.getMemoryDirHandle(), { name: 'mydir' }, 'memory cleared although the IDB delete failed');
 
         // Clear success path.
         (globalThis as any).indexedDB = fakeIDB();
         const okClear = await LiveStorageManager.clearLiveDirHandle();
         assert.strictEqual(okClear, true);
-        assert.strictEqual(mem.handle, null);
+        assert.strictEqual(IdbHandleStore.getMemoryDirHandle(), null);
     } finally {
-        __setModuleOverride('DirHandleController', undefined);
+        IdbHandleStore.setMemoryDirHandle(null);
         if (prevIDB === undefined) delete (globalThis as any).indexedDB;
         else (globalThis as any).indexedDB = prevIDB;
     }

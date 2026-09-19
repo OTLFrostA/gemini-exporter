@@ -88,7 +88,7 @@ const DEFAULT = DEFAULT_FORMAT;
     }
 
     function getFormatFromSelect(selectEl: any, isDev?: boolean): string {
-        const devMode = isDev !== undefined ? isDev : (typeof document !== 'undefined' && document.body && document.body.classList.contains('dev-mode'));
+        const devMode = isDev !== undefined ? isDev : false;
         return normalizeFormat(selectEl ? selectEl.value : DEFAULT, devMode);
     }
 
