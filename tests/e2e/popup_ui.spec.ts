@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 test.describe('Popup UI & Action Center Localization', () => {
-  test('should render properly localized UI and handle language toggle across controls and storage sync', async ({ context, extensionId }) => {
+  test('should render properly localized UI, format tabs, and handle language toggle across controls and storage sync', async ({ context, extensionId }) => {
     const page = await context.newPage();
 
     // 1. Navigate to popup page
@@ -28,13 +28,14 @@ test.describe('Popup UI & Action Center Localization', () => {
 
     // 3. Test explicit switch to English by clicking labelLangEn
     await page.click('#labelLangEn');
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Generate Long Screenshot');
-    await expect(page.locator('#btnCopyMarkdown')).toHaveText('📋 Copy Markdown');
-    await expect(page.locator('#btnCurrent')).toHaveText('📥 Download File');
+    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Export Long Screenshot');
+    await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Page');
+    await expect(page.locator('#btnOptions')).toHaveText('Batch Export in Console ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('Current Conversation');
-    await expect(page.locator('#btnOptions')).toHaveText('Open Workbench ↗');
     await expect(page.locator('#historyTotalSynced')).toHaveText('History synced:');
-    await expect(page.locator('#format option[value="json_openai"]')).toHaveText('JSON (OpenAI format)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (Std)');
     expect(await page.locator('#langToggle').isChecked()).toBe(true);
 
     const enStorageLang = await page.evaluate(async () => {
@@ -45,13 +46,14 @@ test.describe('Popup UI & Action Center Localization', () => {
 
     // 4. Test explicit switch to Chinese by clicking labelLangZh
     await page.click('#labelLangZh');
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 一键生成高清长截图');
-    await expect(page.locator('#btnCopyMarkdown')).toHaveText('📋 复制 Markdown');
-    await expect(page.locator('#btnCurrent')).toHaveText('📥 下载文件');
+    await expect(page.locator('#btnScreenshot')).toHaveText('📸 一键导出长截图');
+    await expect(page.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
+    await expect(page.locator('#btnOptions')).toHaveText('去控制台批量导出 ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('当前会话');
-    await expect(page.locator('#btnOptions')).toHaveText('打开完整工作台 ↗');
     await expect(page.locator('#historyTotalSynced')).toHaveText('历史已同步:');
-    await expect(page.locator('#format option[value="json_openai"]')).toHaveText('JSON (OpenAI格式)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (标准)');
     expect(await page.locator('#langToggle').isChecked()).toBe(false);
 
     const zhStorageLang = await page.evaluate(async () => {
@@ -60,25 +62,43 @@ test.describe('Popup UI & Action Center Localization', () => {
     });
     expect(zhStorageLang).toBe('zh');
 
-    // 5. Test clicking the checkbox toggle directly
-    await page.locator('#langToggle').click();
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Generate Long Screenshot');
+    // 5. Test clicking the outer capsule pill container (#langTogglePill)
+    await page.locator('#langTogglePill').click({ position: { x: 2, y: 2 } });
+    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Export Long Screenshot');
     expect(await page.locator('#langToggle').isChecked()).toBe(true);
 
-    // 6. Test clicking the outer capsule pill container (#langTogglePill)
     await page.locator('#langTogglePill').click({ position: { x: 2, y: 2 } });
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 一键生成高清长截图');
+    await expect(page.locator('#btnScreenshot')).toHaveText('📸 一键导出长截图');
     expect(await page.locator('#langToggle').isChecked()).toBe(false);
 
-    // 7. Test cross-view sync via storage.onChanged
-    await page.evaluate(async () => {
-      await chrome.storage.local.set({ gemini_exporter_lang: 'en' });
+    // 6. Test Format Tabs click selection and storage persistence
+    await page.click('#formatTabs .tab-btn[data-value="json_openai"]');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveClass(/active/);
+    await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).not.toHaveClass(/active/);
+    await expect(page.locator('#activeFormatLabel')).toHaveText('JSON (OpenAI)');
+
+    const savedFmt = await page.evaluate(async () => {
+      const d = await chrome.storage.local.get('gemini_export_format');
+      return d.gemini_export_format;
     });
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Generate Long Screenshot');
-    expect(await page.locator('#langToggle').isChecked()).toBe(true);
+    expect(savedFmt).toBe('json_openai');
+
+    // 7. Test dev-mode raw json tab visibility
+    const rawTabBefore = page.locator('#formatTabs .tab-btn[data-value="json_raw"]');
+    await expect(rawTabBefore).toBeHidden();
+
+    await page.evaluate(async () => {
+      await chrome.storage.local.set({ gemini_dev_mode: true });
+    });
+    await expect(rawTabBefore).toBeVisible();
+
+    await page.evaluate(async () => {
+      await chrome.storage.local.set({ gemini_dev_mode: false });
+    });
+    await expect(rawTabBefore).toBeHidden();
   });
 
-  test('should synchronize language changes bidirectionally between options workbench and popup', async ({ context, extensionId }) => {
+  test('should synchronize format and language bidirectionally between options workbench and popup', async ({ context, extensionId }) => {
     const popupPage = await context.newPage();
     const optionsPage = await context.newPage();
 
@@ -90,14 +110,23 @@ test.describe('Popup UI & Action Center Localization', () => {
     await popupPage.waitForTimeout(400);
     await optionsPage.waitForTimeout(400);
 
-    // 1. Switch language in popup to English -> options workbench should update
+    // 1. Language: Switch in popup to English -> options workbench updates
     await popupPage.click('#labelLangEn');
-    await expect(popupPage.locator('#btnScreenshot')).toHaveText('📸 Generate Long Screenshot');
+    await expect(popupPage.locator('#btnScreenshot')).toHaveText('📸 Export Long Screenshot');
     await expect(optionsPage.locator('#btnSelectAll')).toHaveText('All');
 
-    // 2. Switch language in options workbench to Chinese -> popup should update
+    // 2. Language: Switch in options to Chinese -> popup updates
     await optionsPage.click('#labelLangZh');
     await expect(optionsPage.locator('#btnSelectAll')).toHaveText('全选');
-    await expect(popupPage.locator('#btnScreenshot')).toHaveText('📸 一键生成高清长截图');
+    await expect(popupPage.locator('#btnScreenshot')).toHaveText('📸 一键导出长截图');
+
+    // 3. Format: Switch in popup to json_openai -> options workbench format select updates
+    await popupPage.click('#formatTabs .tab-btn[data-value="json_openai"]');
+    await expect(optionsPage.locator('#format')).toHaveValue('json_openai');
+
+    // 4. Format: Switch in options to json -> popup format tabs active state updates
+    await optionsPage.selectOption('#format', 'json');
+    await expect(popupPage.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveClass(/active/);
+    await expect(popupPage.locator('#activeFormatLabel')).toHaveText('JSON (标准)');
   });
 });

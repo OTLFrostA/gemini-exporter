@@ -28,6 +28,32 @@ let _currentScreenshotBlob: Blob | null = null;
 let _currentScreenshotCanvas: HTMLCanvasElement | null = null;
 let _isCapturingScreenshot = false;
 let _isExportingCurrentPage = false;
+let _activeFormat = 'markdown';
+
+function updateFormatTabsUI(targetFormat: string, isDev?: boolean): void {
+    _activeFormat = targetFormat || 'markdown';
+    const tabBtns = document.querySelectorAll('#formatTabs .tab-btn') as NodeListOf<HTMLButtonElement>;
+    tabBtns.forEach(btn => {
+        const val = btn.getAttribute('data-value');
+        if (val === _activeFormat) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+        if (val === 'json_raw') {
+            btn.style.display = isDev ? '' : 'none';
+        }
+    });
+    const activeLabel = $('activeFormatLabel');
+    if (activeLabel) {
+        const activeBtn = document.querySelector(`#formatTabs .tab-btn[data-value="${_activeFormat}"]`) as HTMLButtonElement | null;
+        activeLabel.textContent = activeBtn?.textContent?.trim() || _activeFormat;
+    }
+    const formatSelect = $('format') as HTMLSelectElement | null;
+    if (formatSelect && formatSelect.value !== _activeFormat) {
+        formatSelect.value = _activeFormat;
+    }
+}
 
 const log = (msg: string): void => {
     try {
@@ -47,7 +73,6 @@ function updateUiForTabState(isGemini: boolean): void {
     const btnScreenshot = $('btnScreenshot') as HTMLButtonElement | null;
     const btnCopyMarkdown = $('btnCopyMarkdown') as HTMLButtonElement | null;
     const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
-    const formatSelect = $('format') as HTMLSelectElement | null;
     const notGeminiNotice = $('notGeminiNotice');
     const currentChatContent = $('currentChatContent');
     const countBadge = $('countBadge');
@@ -67,7 +92,6 @@ function updateUiForTabState(isGemini: boolean): void {
             btnCurrent.disabled = true;
             btnCurrent.title = notGeminiTip;
         }
-        if (formatSelect) formatSelect.disabled = true;
         if (notGeminiNotice) notGeminiNotice.style.display = '';
         if (currentChatContent) currentChatContent.style.display = 'none';
         if (countBadge) countBadge.classList.add('inactive');
@@ -84,7 +108,6 @@ function updateUiForTabState(isGemini: boolean): void {
             btnCurrent.disabled = false;
             btnCurrent.title = '';
         }
-        if (formatSelect) formatSelect.disabled = false;
         if (notGeminiNotice) notGeminiNotice.style.display = 'none';
         if (currentChatContent) currentChatContent.style.display = '';
         if (countBadge) countBadge.classList.remove('inactive');
@@ -163,6 +186,10 @@ async function updateCount(): Promise<void> {
             const offlineLabel = (typeof i18n !== 'undefined' && typeof i18n.t === 'function') ? i18n.t('badgeOffline') : 'offline';
             badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
         }
+        const historyCountBadge = $('historyCountBadge');
+        if (historyCountBadge) {
+            historyCountBadge.textContent = `${count} chats`;
+        }
     } catch (e) {
         console.warn('[popup] updateCount err', e);
     }
@@ -177,6 +204,8 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
         }
         if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
         if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
+        const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+        updateFormatTabsUI(_activeFormat, isDev);
         await updateCount();
     }
 };
@@ -356,17 +385,40 @@ function initPopupEvents(): void {
         handleLangChange(nextLang);
     });
 
-    // Formats
+    // Formats & Segmented Tabs
     const formatStore = __resolveModule('FormatStore', FormatStore);
     const formatSelect = $('format') as HTMLSelectElement | null;
     if (formatStore && formatStore.loadFormat) {
-        formatStore.loadFormat().then(({ format }: { format: string }) => {
-            if (formatSelect) formatSelect.value = format;
-        });
-        formatSelect?.addEventListener('change', (e: Event) => {
-            formatStore.saveFormat((e.target as HTMLSelectElement).value);
+        formatStore.loadFormat(formatSelect).then(({ format, isDev }: { format: string; isDev: boolean }) => {
+            if (isDev && typeof document !== 'undefined') document.body.classList.add('dev-mode');
+            updateFormatTabsUI(format, isDev);
         });
     }
+
+    const tabBtns = document.querySelectorAll('#formatTabs .tab-btn') as NodeListOf<HTMLButtonElement>;
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const val = btn.getAttribute('data-value');
+            if (val) {
+                const fStore = __resolveModule('FormatStore', FormatStore);
+                if (fStore && typeof fStore.saveFormat === 'function') {
+                    await fStore.saveFormat(val);
+                }
+                const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+                updateFormatTabsUI(val, isDev);
+            }
+        });
+    });
+
+    formatSelect?.addEventListener('change', (e: Event) => {
+        const val = (e.target as HTMLSelectElement).value;
+        const fStore = __resolveModule('FormatStore', FormatStore);
+        if (fStore && typeof fStore.saveFormat === 'function') {
+            fStore.saveFormat(val);
+        }
+        const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+        updateFormatTabsUI(val, isDev);
+    });
 
     // Workbench links
     $('btnOptions')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
@@ -447,7 +499,7 @@ function initPopupEvents(): void {
         };
 
         const currentFormatSelect = $('format') as HTMLSelectElement | null;
-        let format: string = currentFormatSelect?.value || 'markdown';
+        let format: string = _activeFormat || currentFormatSelect?.value || 'markdown';
         ProgressView.show(10);
 
         try {
@@ -529,6 +581,19 @@ function initPopupEvents(): void {
                     if (i18nInst && typeof i18nInst.getLang === 'function' && i18nInst.getLang() !== newLang) {
                         handleLangChange(newLang);
                     }
+                }
+                if (changes[STORAGE_KEYS.FORMAT]) {
+                    const newFmt = String(changes[STORAGE_KEYS.FORMAT].newValue || 'markdown');
+                    const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+                    updateFormatTabsUI(newFmt, isDev);
+                }
+                if (changes[STORAGE_KEYS.DEV_MODE]) {
+                    const isDev = !!changes[STORAGE_KEYS.DEV_MODE].newValue;
+                    if (typeof document !== 'undefined') {
+                        if (isDev) document.body.classList.add('dev-mode');
+                        else document.body.classList.remove('dev-mode');
+                    }
+                    updateFormatTabsUI(_activeFormat, isDev);
                 }
                 if (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync) {
                     updateCount();

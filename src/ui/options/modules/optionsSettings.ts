@@ -425,6 +425,13 @@ export async function initLiveSaveSettings(): Promise<void> {
                     handleLangChange(newLang as 'zh' | 'en');
                 }
             }
+            if (area === 'local' && changes[STORAGE_KEYS.FORMAT]) {
+                const newFmt = String(changes[STORAGE_KEYS.FORMAT].newValue || 'markdown');
+                const fmtSelect = $('format') as HTMLSelectElement | null;
+                if (fmtSelect && fmtSelect.value !== newFmt) {
+                    fmtSelect.value = newFmt;
+                }
+            }
             if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {
                 if (typeof (window as any).__workbenchLoadStore === 'function') {
                     (window as any).__workbenchLoadStore();
