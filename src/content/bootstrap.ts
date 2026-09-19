@@ -6,6 +6,8 @@ import {
     getCredStorage as sharedGetCredStorage,
     markCredSessionAccessFailed as sharedMarkFailed,
 } from '../core/api/client/credStorage.js';
+import { sniffUserProfileFromDom } from './accountSniffer.js';
+import { StorageService } from '../core/storage/storageService.js';
 
 export function getCredStorage(): chrome.storage.StorageArea | null {
     return sharedGetCredStorage();
@@ -124,7 +126,7 @@ export function detectSlotFromUrl(url?: string): string {
     } catch (e) {
         if (isDev()) console.debug('[GemExporter:bootstrap.ts]', e);
     }
-    return 'default';
+    return 'u0';
 }
 
 export function isExtAlive(): boolean {
@@ -305,13 +307,17 @@ if (typeof window !== 'undefined') {
                     const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
                     const sid = p.sid || '';
                     if (!sid) return;
-                    const slot = p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'default';
+                    const slot = p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';
+                    const profile = sniffUserProfileFromDom();
                     const map = await loadCredentialsMap();
                     const old = map[sid] || {};
                     map[sid] = {
                         at: p.at || old.at || extractAtFromPage() || '',
                         sid,
-                        accountSlot: slot || old.accountSlot || 'default',
+                        accountSlot: slot || old.accountSlot || 'u0',
+                        accountId: profile?.accountId || (old as any).accountId || slot,
+                        email: profile?.email || (old as any).email,
+                        name: profile?.name || (old as any).name,
                         lastUsed: Date.now(),
                         bl: old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
                     };
@@ -320,6 +326,16 @@ if (typeof window !== 'undefined') {
                         sid
                     });
                     updateContextCreds(map[sid]);
+                    if (profile?.email || profile?.name) {
+                        try {
+                            const slotUpdate: Record<string, any> = { slot };
+                            if (profile.accountId) slotUpdate.accountId = profile.accountId;
+                            if (profile.email) slotUpdate.email = profile.email;
+                            if (profile.name) slotUpdate.name = profile.name;
+                            if (profile.gaiaId) slotUpdate.gaiaId = profile.gaiaId;
+                            await StorageService.updateAccountSlot(slot, slotUpdate);
+                        } catch { /* best effort */ }
+                    }
                     if (isDev()) {
                         console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
                     }

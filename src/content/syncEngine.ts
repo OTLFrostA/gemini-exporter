@@ -24,6 +24,7 @@ import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/gemini/geminiProvider.js';
 import '../core/provider/chatgpt/chatgptProvider.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
+import { sniffUserProfileFromDom } from './accountSniffer.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getScraper = () => DomScraper;
@@ -307,12 +308,17 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             }
 
             await Storage.setLastSync(slot, Date.now(), mergedLength);
-            await Storage.updateAccountSlot(slot, {
+            const profile = sniffUserProfileFromDom();
+            const slotUpdate: Record<string, any> = {
                 slot,
-                name: slot === 'u0' ? 'Default Account (u0)' : `Account ${slot.toUpperCase()}`,
                 count: mergedLength,
                 lastSync: new Date().toISOString()
-            });
+            };
+            if (profile?.accountId) slotUpdate.accountId = profile.accountId;
+            if (profile?.email) slotUpdate.email = profile.email;
+            if (profile?.name) slotUpdate.name = profile.name;
+            if (profile?.gaiaId) slotUpdate.gaiaId = profile.gaiaId;
+            await Storage.updateAccountSlot(slot, slotUpdate);
 
             try {
                 const p = chrome.runtime.sendMessage({

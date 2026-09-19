@@ -85,8 +85,9 @@ export async function loadStore(slotOverride?: string): Promise<{
     const slots = storage ? await storage.getAccountSlots() : ((await chrome.storage.local.get(['gemini_account_slots'])).gemini_account_slots || {});
     setAccountSlots(slots);
 
-    let incoming = storage ? await storage.getConversations(slot) : [];
-    if (!incoming || !incoming.length) {
+    let incoming = (storage ? await storage.getConversations(slot) : []) || [];
+    // Only fall back to another slot on initial cold launch if no slot was requested
+    if (!slotOverride && !currentSlot && (!incoming || !incoming.length)) {
         const candidates = ['u0', ...Object.keys(slots || {})].filter(s => s !== slot);
         for (const cand of candidates) {
             const candConvs = storage ? await storage.getConversations(cand) : [];

@@ -14,12 +14,18 @@ import { detectSlotFromUrl } from './pathUtils.js';
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return null;
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) return null;
-        if (slot && slot !== 'u0') {
+        if (slot) {
             const match = filterTabsBySlot(tabs, slot);
-            return match[0] || null;
-        } else if (slot === 'u0') {
-            const defMatch = filterTabsBySlot(tabs, 'u0');
-            return defMatch[0] || tabs.find(t => t.active) || tabs[0];
+            if (match.length > 0) {
+                return match.find(t => t.active) || match[0];
+            }
+            if (slot === 'u0') {
+                const nonOtherSlotTabs = tabs.filter(t => !t.url || detectSlotFromUrl(t.url) === 'u0');
+                if (nonOtherSlotTabs.length > 0) {
+                    return nonOtherSlotTabs.find(t => t.active) || nonOtherSlotTabs[0];
+                }
+            }
+            return null;
         }
         return tabs.find(t => t.active) || tabs[0];
     }
@@ -35,14 +41,14 @@ import { detectSlotFromUrl } from './pathUtils.js';
         if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
 
         let candidates: chrome.tabs.Tab[] = [];
-        if (slot && slot !== 'u0') {
+        if (slot) {
             candidates = filterTabsBySlot(tabs, slot);
+            if (!candidates.length && slot === 'u0') {
+                candidates = tabs.filter(t => !t.url || detectSlotFromUrl(t.url) === 'u0');
+            }
             if (!candidates.length) {
                 throw new Error(`未找到多账号 slot ${slot} 对应的 Gemini 标签页，请在浏览器中打开该账号标签页`);
             }
-        } else if (slot === 'u0') {
-            candidates = filterTabsBySlot(tabs, 'u0');
-            if (!candidates.length) candidates = tabs;
         } else {
             candidates = tabs;
         }

@@ -20,7 +20,7 @@ export interface GeminiClientCredentialManagerModule {
     detectSlot: () => string | null;
     getCredStorage: () => any;
     loadCredMap: () => Promise<GeminiCredentialsMap>;
-    resolveCred: (targetSid?: string | null, overrides?: { at?: string; bl?: string; } | null) => Promise<GeminiCredentials>;
+    resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
 
@@ -148,13 +148,28 @@ function getProtocol(): GeminiProtocolModule {
         }
     }
 
-    async function resolveCred(targetSid?: string | null, overrides?: { at?: string; bl?: string; } | null): Promise<GeminiCredentials> {
+    async function resolveCred(
+        targetSidOrSlot?: string | null,
+        overrides?: { at?: string; bl?: string; accountSlot?: string } | null
+    ): Promise<GeminiCredentials> {
         let map = await loadCredMap();
         let vals = Object.values(map);
         let pageAt = getAtFromPage();
         let pageBl = getBlFromPage();
+
+        const normSlot = (s?: string | null) => (s === "u0" || !s ? "default" : s);
+
+        // Detect if targetSidOrSlot is actually a slot or an email/accountId
+        const isSlotParam = targetSidOrSlot && (
+            /^u\d+$/i.test(targetSidOrSlot) ||
+            targetSidOrSlot.includes('@') ||
+            targetSidOrSlot === 'default'
+        );
+        const targetSid = (!isSlotParam && targetSidOrSlot && map[targetSidOrSlot]) ? targetSidOrSlot : null;
+        const requestedSlot = overrides?.accountSlot || (isSlotParam ? targetSidOrSlot : null);
+
         if ((!vals.length || !vals[0].at) && pageAt) {
-            let slot = detectSlot() || "default";
+            let slot = requestedSlot || detectSlot() || "default";
             let sid = vals[0]?.sid || ("page_" + Date.now());
             let entry: GeminiCredentials = {
                 sid,
@@ -181,9 +196,9 @@ function getProtocol(): GeminiProtocolModule {
                 }
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
         } else if (pageBl) {
-            // Heal only the entry belonging to the current tab's slot
-            const curSlot = detectSlot() || "default";
-            const target = vals.find(v => !v.bl && (v.accountSlot || "default") === curSlot);
+            // Heal only the entry belonging to the requested slot or current tab's slot
+            const curSlot = normSlot(requestedSlot || detectSlot());
+            const target = vals.find(v => !v.bl && normSlot(v.accountSlot) === curSlot);
             if (target) {
                 target.bl = pageBl;
                 try {
@@ -192,7 +207,7 @@ function getProtocol(): GeminiProtocolModule {
                 } catch (e) { /* keep in-memory copy; retried on next resolveCred */ }
             }
         }
-        const normSlot = (s?: string | null) => (s === "u0" || !s ? "default" : s);
+
         let result: GeminiCredentials;
         if (targetSid && map[targetSid]) {
             result = {
@@ -201,21 +216,24 @@ function getProtocol(): GeminiProtocolModule {
                 at: map[targetSid].at || pageAt || ""
             };
         } else {
-            let cur = normSlot(detectSlot());
+            let cur = normSlot(requestedSlot || detectSlot());
             let f = vals.filter(v => normSlot(v.accountSlot) === cur);
-            let arr = f.length ? f : vals;
+            // CRITICAL SECURITY FIX: Do NOT fall back to `vals` when `f` is empty!
+            // Borrowing other accounts' credentials causes silent cross-account token pollution.
+            let arr = f;
             arr.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
             if (arr[0]) {
                 result = {
                     ...arr[0],
                     bl: arr[0].bl || pageBl || getProtocol().BL_FALLBACK,
-                    at: arr[0].at || pageAt || ""
+                    at: arr[0].at || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
                 };
             } else {
+                const isCurrentPageMatch = cur === normSlot(detectSlot());
                 result = {
                     sid: generateFallbackSid(),
-                    at: pageAt || "",
-                    accountSlot: "default",
+                    at: isCurrentPageMatch ? (pageAt || "") : "",
+                    accountSlot: cur,
                     bl: pageBl || getProtocol().BL_FALLBACK
                 };
             }
@@ -223,6 +241,7 @@ function getProtocol(): GeminiProtocolModule {
         if (overrides) {
             if (overrides.at) result.at = overrides.at;
             if (overrides.bl) result.bl = overrides.bl;
+            if (overrides.accountSlot) result.accountSlot = overrides.accountSlot;
         }
         return result;
     }

@@ -584,7 +584,15 @@ export interface StorageServiceModule {
         return withSlotLock(async () => {
             const s = normSlot(slot);
             const map = await getAccountSlots();
-            map[s] = { ...(map[s] || {}), ...(info || {}) };
+            const cleanInfo: Record<string, any> = {};
+            if (info && typeof info === 'object') {
+                for (const [k, v] of Object.entries(info)) {
+                    if (v !== undefined) {
+                        cleanInfo[k] = v;
+                    }
+                }
+            }
+            map[s] = { ...(map[s] || {}), ...cleanInfo };
             await setAccountSlots(map);
             return map;
         });
