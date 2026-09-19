@@ -134,11 +134,8 @@ async function updateCount(): Promise<void> {
 
         // Update active chat info card
         const currentChatTitleEl = $('currentChatTitle');
-        const chatSlotBadgeEl = $('chatSlotBadge');
         const chatTurnBadgeEl = $('chatTurnBadge');
         const i18n = getI18n();
-
-        if (chatSlotBadgeEl) chatSlotBadgeEl.textContent = slot.toUpperCase();
 
         if (isGemini && _activeConvId) {
             const list = getStorage() ? await getStorage().getConversations(slot) : [];
@@ -185,10 +182,6 @@ async function updateCount(): Promise<void> {
             const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
             const offlineLabel = (typeof i18n !== 'undefined' && typeof i18n.t === 'function') ? i18n.t('badgeOffline') : 'offline';
             badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
-        }
-        const historyCountBadge = $('historyCountBadge');
-        if (historyCountBadge) {
-            historyCountBadge.textContent = `${count} chats`;
         }
     } catch (e) {
         console.warn('[popup] updateCount err', e);
