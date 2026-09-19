@@ -71,6 +71,32 @@ def test_build_pipeline():
 
     print("  ✓ esbuild build pipeline verified (build.js + npm script + devDependency)")
 
+def test_test_runner_silence_guard():
+    fixtures_path = os.path.join(BASE_DIR, "tests", "e2e", "fixtures.ts")
+    assert os.path.isfile(fixtures_path), "fixtures.ts must exist"
+    with open(fixtures_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Enforce channel: 'chromium' to ensure full binary in true headless
+    assert "channel: 'chromium'" in content or 'channel: "chromium"' in content, (
+        "tests/e2e/fixtures.ts must specify channel: 'chromium' to support extensions in true headless without stealing macOS focus"
+    )
+
+    # 2. Prevent accidental hardcoded headless: false regression
+    assert not re.search(r'headless:\s*false\s*[,/]', content), (
+        "tests/e2e/fixtures.ts must not hardcode headless: false. Use headless: !isHeaded to prevent stealing focus on macOS"
+    )
+
+    # 3. Ensure playwright.config.ts has headless: true by default
+    config_path = os.path.join(BASE_DIR, "playwright.config.ts")
+    if os.path.isfile(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg_content = f.read()
+        assert re.search(r'headless:\s*true', cfg_content), (
+            "playwright.config.ts must have headless: true by default"
+        )
+    print("  ✓ test architecture silence & focus guard verified")
+
 def test_html_includes():
     for opt_path in ["src/ui/options/options.html"]:
         with open(os.path.join(BASE_DIR, opt_path), "r", encoding="utf-8") as f:
@@ -1032,6 +1058,7 @@ def run_all():
     test_json_files()
     test_manifest_structure()
     test_build_pipeline()
+    test_test_runner_silence_guard()
     test_html_includes()
     test_i18n_keys()
     test_content_badge_flicker_prevention()
