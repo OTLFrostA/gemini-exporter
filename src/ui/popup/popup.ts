@@ -16,6 +16,7 @@ import {
 import { $, getI18n } from '../uiCommon.js';
 import { sendTypedMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
+import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 
@@ -53,19 +54,32 @@ function updateUiForTabState(isGemini: boolean): void {
     const i18n = getI18n();
 
     if (!isGemini) {
-        if (btnScreenshot) btnScreenshot.disabled = true;
-        if (btnCopyMarkdown) btnCopyMarkdown.disabled = true;
+        const notGeminiTip = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
+        if (btnScreenshot) {
+            btnScreenshot.disabled = true;
+            btnScreenshot.title = notGeminiTip;
+        }
+        if (btnCopyMarkdown) {
+            btnCopyMarkdown.disabled = true;
+            btnCopyMarkdown.title = notGeminiTip;
+        }
         if (btnCurrent) {
             btnCurrent.disabled = true;
-            btnCurrent.title = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
+            btnCurrent.title = notGeminiTip;
         }
         if (formatSelect) formatSelect.disabled = true;
         if (notGeminiNotice) notGeminiNotice.style.display = '';
         if (currentChatContent) currentChatContent.style.display = 'none';
         if (countBadge) countBadge.classList.add('inactive');
     } else {
-        if (btnScreenshot) btnScreenshot.disabled = false;
-        if (btnCopyMarkdown) btnCopyMarkdown.disabled = false;
+        if (btnScreenshot) {
+            btnScreenshot.disabled = false;
+            btnScreenshot.title = '';
+        }
+        if (btnCopyMarkdown) {
+            btnCopyMarkdown.disabled = false;
+            btnCopyMarkdown.title = '';
+        }
         if (btnCurrent) {
             btnCurrent.disabled = false;
             btnCurrent.title = '';
@@ -158,6 +172,9 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
     const i18n = getI18n();
     if (i18n && typeof i18n.setLang === 'function') {
         await i18n.setLang(targetLang);
+        if (typeof document !== 'undefined') {
+            document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
+        }
         if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
         if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
         await updateCount();
@@ -327,6 +344,18 @@ function initPopupEvents(): void {
         handleLangChange('en');
     });
 
+    $('langTogglePill')?.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.id === 'langToggle' || target.id === 'labelLangZh' || target.id === 'labelLangEn')) {
+            return;
+        }
+        const i18n = getI18n();
+        const current = i18n && typeof i18n.getLang === 'function' ? i18n.getLang() : 'zh';
+        const nextLang = current === 'zh' ? 'en' : 'zh';
+        if (langToggle) langToggle.checked = (nextLang === 'en');
+        handleLangChange(nextLang);
+    });
+
     // Formats
     const formatStore = __resolveModule('FormatStore', FormatStore);
     const formatSelect = $('format') as HTMLSelectElement | null;
@@ -493,8 +522,17 @@ function initPopupEvents(): void {
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
         chrome.storage.onChanged.addListener((changes, area) => {
-            if (area === 'local' && (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync)) {
-                updateCount();
+            if (area === 'local') {
+                if (changes[STORAGE_KEYS.LANG]) {
+                    const newLang = String(changes[STORAGE_KEYS.LANG].newValue || 'zh');
+                    const i18nInst = getI18n();
+                    if (i18nInst && typeof i18nInst.getLang === 'function' && i18nInst.getLang() !== newLang) {
+                        handleLangChange(newLang);
+                    }
+                }
+                if (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync) {
+                    updateCount();
+                }
             }
         });
     }

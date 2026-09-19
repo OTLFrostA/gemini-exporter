@@ -15,7 +15,7 @@ import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
-import { getExtensionVersion } from '../../../core/utils/constants.js';
+import { getExtensionVersion, STORAGE_KEYS } from '../../../core/utils/constants.js';
 
 export { normId, cleanTitle, resolveTitle };
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -40,6 +40,9 @@ export async function handleLangChange(targetLang: 'zh' | 'en'): Promise<void> {
     const i18n = getI18n();
     if (i18n && i18n.setLang) {
         await i18n.setLang(targetLang);
+    }
+    if (typeof document !== 'undefined') {
+        document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
     }
 
     if (__updateAccountSlotSelector) __updateAccountSlotSelector();
@@ -413,6 +416,13 @@ export async function initLiveSaveSettings(): Promise<void> {
                         statusTagEl.textContent = `${t('liveSaveActive')} (${timeStr})`;
                     }
                     log(typeof t === 'function' ? t('logLiveSaveSuccess', val.lastSavedTitle) : `[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
+                }
+            }
+            if (area === 'local' && changes[STORAGE_KEYS.LANG]) {
+                const newLang = changes[STORAGE_KEYS.LANG].newValue;
+                const i18n = getI18n();
+                if (newLang && i18n && typeof i18n.getLang === 'function' && i18n.getLang() !== newLang) {
+                    handleLangChange(newLang as 'zh' | 'en');
                 }
             }
             if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {
