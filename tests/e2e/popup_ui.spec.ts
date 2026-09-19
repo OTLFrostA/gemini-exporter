@@ -28,6 +28,7 @@ test.describe('Popup UI & Action Center Localization', () => {
     expect(await page.locator('#chatSlotBadge').count()).toBe(0);
     expect(await page.locator('#historyTotalSynced').count()).toBe(0);
     expect(await page.locator('#historyCountBadge').count()).toBe(0);
+    expect(await page.locator('#btnCopyMarkdown').count()).toBe(0);
 
     // 3. Test explicit switch to English by clicking labelLangEn
     await page.click('#labelLangEn');
