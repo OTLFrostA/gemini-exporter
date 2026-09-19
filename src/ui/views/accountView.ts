@@ -18,8 +18,14 @@ export function render(accountSlots: Record<string, any>, currentSlot: string): 
     for (const s of sorted) {
         const info = accountSlots[s];
         const rawName = info?.name || '';
+        const email = info?.email || '';
         const isDefaultAutoName = !rawName || /^账号\s*u\d+/i.test(rawName) || /^account\s*u\d+/i.test(rawName) || /^默认账号/i.test(rawName) || /^default account/i.test(rawName);
-        const label = isDefaultAutoName ? (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`) : rawName;
+        let label: string;
+        if (email) {
+            label = (!isDefaultAutoName && rawName) ? `${rawName} (${email})` : `${email} [${s}]`;
+        } else {
+            label = isDefaultAutoName ? (s === 'u0' ? defLabel : `${accLabel} ${s.toUpperCase()}`) : rawName;
+        }
         const count = typeof info?.count === 'number' ? ` (${info.count})` : '';
         const opt = document.createElement('option');
         opt.value = s;

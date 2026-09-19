@@ -72,6 +72,16 @@ export function isGeminiUrl(urlStr?: string | null): boolean {
     }
 }
 
+export interface AccountProfile {
+    slot: string;
+    accountId: string;
+    email?: string;
+    name?: string;
+    gaiaId?: string;
+    lastSync?: string;
+    count?: number;
+}
+
 /**
  * Extract multi-account slot from URL or pathname (e.g. /u/1/app -> u1). Defaults to 'u0'.
  */
