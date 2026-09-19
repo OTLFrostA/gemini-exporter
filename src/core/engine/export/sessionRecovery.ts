@@ -52,6 +52,9 @@ import { normId as utilsNormId } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { SessionStore } from "../../storage/sessionStore.js";
+import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
+
+const getStorageService = () => __resolveModule('StorageService', StorageServiceStatic);
 
 const normId = (id?: string | number | null): string => {
     return (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
@@ -218,7 +221,7 @@ export { EXT_VERSION, getExtensionVersion };
             if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
                 await storageAdapter.saveExportRecord(slot, targetId, rec);
             } else if (storageAdapter && typeof storageAdapter.set === 'function') {
-                // Fallback: read-modify-write using canonical key
+                // Fallback: read-modify-write using canonical key for mock adapters
                 const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
                 const ck = normId(targetId);
                 let cur: Record<string, any> = { ...(curIds || {}) };
@@ -236,16 +239,10 @@ export { EXT_VERSION, getExtensionVersion };
                 if (ck) next[ck] = rec;
                 await storageAdapter.set({ [expKey]: next });
             } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                const ck = normId(targetId);
-                const got = await chrome.storage.local.get([expKey]);
-                const cur: Record<string, any> = (got && got[expKey] && typeof got[expKey] === 'object') ? got[expKey] : {};
-                const next: Record<string, any> = { ...cur };
-                delete next[targetId];
-                delete next[targetNid];
-                delete next['c_' + targetNid];
-                if (ck) next[ck] = rec;
-                await chrome.storage.local.set({ [expKey]: next });
+                const svc = (Storage && typeof Storage.saveExportRecord === 'function') ? Storage : getStorageService();
+                if (svc && typeof svc.saveExportRecord === 'function') {
+                    await svc.saveExportRecord(slot, targetId, rec);
+                }
             }
         } catch (e) {
             if (typeof console !== 'undefined' && console.error) {

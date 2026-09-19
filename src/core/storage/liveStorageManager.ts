@@ -1,6 +1,5 @@
 // src/core/storage/liveStorageManager.ts - Live Auto-Save configuration and Directory Handle persistence
 import type { LiveSaveConfig } from '../../types/liveSave.js';
-import { __resolveModule } from '../utils/moduleOverrides.js';
 import {
     getStoredDirHandle,
     saveStoredDirHandle,
@@ -56,30 +55,15 @@ export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<Liv
 }
 
 export async function saveLiveDirHandle(handle: any): Promise<boolean> {
-    const ok = await saveStoredDirHandle(handle);
-    const dhc = __resolveModule('DirHandleController', null);
-    if (ok && dhc?.setDirHandle) {
-        dhc.setDirHandle(handle);
-    }
-    return ok;
+    return saveStoredDirHandle(handle);
 }
 
 export async function getLiveDirHandle(): Promise<any> {
-    const dhc = __resolveModule('DirHandleController', null);
-    if (dhc?.getDirHandle) {
-        const memHandle = dhc.getDirHandle();
-        if (memHandle) return memHandle;
-    }
     return getStoredDirHandle();
 }
 
 export async function clearLiveDirHandle(): Promise<boolean> {
-    const ok = await clearStoredDirHandle();
-    const dhc = __resolveModule('DirHandleController', null);
-    if (ok && dhc?.setDirHandle) {
-        dhc.setDirHandle(null);
-    }
-    return ok;
+    return clearStoredDirHandle();
 }
 
 export const LiveStorageManager = {
