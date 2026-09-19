@@ -11,7 +11,7 @@ test.describe('Popup UI & Action Center Localization', () => {
     // Wait for async initLanguage
     await page.waitForTimeout(400);
 
-    // 2. Ensure zero raw i18n keys are exposed on the page
+    // 2. Ensure zero raw i18n keys are exposed on the page and unwanted debug elements are absent
     const rawKeyCheck = await page.evaluate(() => {
       const elements = Array.from(document.querySelectorAll('[data-i18n]'));
       const violations: { id: string; key: string; text: string }[] = [];
@@ -25,6 +25,9 @@ test.describe('Popup UI & Action Center Localization', () => {
       return violations;
     });
     expect(rawKeyCheck).toEqual([]);
+    expect(await page.locator('#chatSlotBadge').count()).toBe(0);
+    expect(await page.locator('#historyTotalSynced').count()).toBe(0);
+    expect(await page.locator('#historyCountBadge').count()).toBe(0);
 
     // 3. Test explicit switch to English by clicking labelLangEn
     await page.click('#labelLangEn');
@@ -32,7 +35,6 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Page');
     await expect(page.locator('#btnOptions')).toHaveText('Batch Export in Console ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('Current Conversation');
-    await expect(page.locator('#historyTotalSynced')).toHaveText('History synced:');
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI)');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (Std)');
@@ -50,7 +52,6 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(page.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
     await expect(page.locator('#btnOptions')).toHaveText('去控制台批量导出 ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('当前会话');
-    await expect(page.locator('#historyTotalSynced')).toHaveText('历史已同步:');
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI)');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (标准)');
