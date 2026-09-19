@@ -72,12 +72,14 @@ function isDev(): boolean {
     return contentContext.isDevMode();
 }
 
-function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle' | 'payload_too_large'): void {
+function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle' | 'payload_too_large' | 'permission_prompt_needed'): void {
     const isZh = contentContext.isZh();
     const Badge = getBadge();
     let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
     if (errorType === 'permission_not_granted') {
         warnMsg = isZh ? '⚠ 目录未授权，实时同步已暂停' : '⚠ Folder permission denied, sync paused';
+    } else if (errorType === 'permission_prompt_needed') {
+        warnMsg = isZh ? '⚠ 目录权限待续期，已暂存下载目录' : '⚠ Folder permission degraded, saved to Downloads';
     } else if (errorType === 'no_dir_handle') {
         warnMsg = isZh ? '⚠ 目录未就绪，实时同步已暂停' : '⚠ Folder not ready, sync paused';
     } else if (errorType === 'payload_too_large') {
@@ -250,7 +252,12 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         });
                         if (resp && resp.ok) {
                             writeSucceeded = true;
-                            if (isDev()) {
+                            if (resp.fallback === 'downloads') {
+                                if (isDev()) {
+                                    console.log(`[LiveSaveCoordinator] Conversation ${nid} saved via downloads fallback (${resp.targetFile})`);
+                                }
+                                notifyLiveSaveWarning('permission_prompt_needed');
+                            } else if (isDev()) {
                                 console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName})`);
                             }
                         } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || (resp.error === 'no_dir_handle' && config.dirName))) {

@@ -98,11 +98,13 @@ export interface ILogView {
 export interface DirHandleControllerContract {
     saveStoredDirHandle: (handle: any) => Promise<boolean>;
     getStoredDirHandle: () => Promise<any>;
-    verifyDirPermission: (handle: any) => Promise<boolean>;
+    verifyDirPermission: (handle: any, options?: { allowRequest?: boolean }) => Promise<boolean>;
     restoreSavedDirHandle: () => Promise<any>;
     requestDirHandle: () => Promise<any>;
     getDirHandle: () => any;
     setDirHandle: (handle: any) => void;
+    getPendingPermissionHandle?: () => any;
+    reauthorizeDirHandle?: () => Promise<boolean>;
 }
 
 export interface TakeoutControllerContract {

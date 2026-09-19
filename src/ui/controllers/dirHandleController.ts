@@ -11,6 +11,7 @@ import {
 export { getStoredDirHandle, saveStoredDirHandle };
 
 let currentDirHandle: any = null;
+let pendingPermissionHandle: any = null;
 
 export async function verifyDirPermission(handle: any, options?: { allowRequest?: boolean }): Promise<boolean> {
     const r = await verifyDirPermissionDetailed(handle, options);
@@ -63,11 +64,18 @@ export async function restoreSavedDirHandle(): Promise<any> {
                 if (r.notFound) {
                     // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
                     await saveStoredDirHandle(null);
+                    pendingPermissionHandle = null;
                     console.warn('[DirHandle] Restored handle invalid or deleted on disk, cleared from storage');
+                } else {
+                    // Not found is false -> Directory exists on disk, but permission is 'prompt' (degraded by browser)!
+                    // Preserve the handle in pendingPermissionHandle and DO NOT delete from IndexedDB!
+                    pendingPermissionHandle = handle;
+                    console.info('[DirHandle] Stored handle permission is prompt. Preserving handle for 1-click reauthorization.');
                 }
                 return null;
             }
             currentDirHandle = handle;
+            pendingPermissionHandle = null;
             setMemoryDirHandle(handle);
             return handle;
         }
@@ -77,12 +85,38 @@ export async function restoreSavedDirHandle(): Promise<any> {
     return null;
 }
 
+export function getPendingPermissionHandle(): any {
+    return pendingPermissionHandle;
+}
+
+export async function reauthorizeDirHandle(): Promise<boolean> {
+    const handle = pendingPermissionHandle || (await getStoredDirHandle());
+    if (!handle) return false;
+    try {
+        const opts = { mode: 'readwrite' };
+        if (typeof handle.requestPermission === 'function') {
+            const perm = await handle.requestPermission(opts);
+            if (perm === 'granted') {
+                currentDirHandle = handle;
+                pendingPermissionHandle = null;
+                setMemoryDirHandle(handle);
+                await saveStoredDirHandle(handle);
+                return true;
+            }
+        }
+    } catch (err) {
+        console.warn('[DirHandle] reauthorizeDirHandle failed:', err);
+    }
+    return false;
+}
+
 export async function requestDirHandle(): Promise<any> {
     if (typeof window === 'undefined' || !(window as any).showDirectoryPicker) {
         throw new Error(typeof t === 'function' ? t('browserNoDirPicker') : '当前浏览器不支持 FileSystem Access API 目录选择');
     }
     const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
     currentDirHandle = handle;
+    pendingPermissionHandle = null;
     setMemoryDirHandle(handle);
     await saveStoredDirHandle(handle);
     return handle;
@@ -94,6 +128,7 @@ export function getDirHandle(): any {
 
 export function setDirHandle(handle: any): void {
     currentDirHandle = handle;
+    if (handle) pendingPermissionHandle = null;
     setMemoryDirHandle(handle);
 }
 
@@ -104,7 +139,9 @@ export const DirHandleController: DirHandleControllerContract = {
     restoreSavedDirHandle,
     requestDirHandle,
     getDirHandle,
-    setDirHandle
+    setDirHandle,
+    getPendingPermissionHandle,
+    reauthorizeDirHandle
 };
 
 export default DirHandleController;
