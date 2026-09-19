@@ -4,6 +4,12 @@ import { normId, isVersionGreater as utilsIsVersionGreater } from "../utils/path
 import { isTakeoutConversation } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
 import { getCredStorage } from "../api/client/credStorage.js";
+import {
+    saveConversationDetailsBatch,
+    removeConversationDetails,
+    getConversationDetail,
+    type ConversationDetailRecord
+} from './conversationDetailStore.js';
 
 
 export interface StorageKeys {
@@ -50,6 +56,8 @@ export interface StorageServiceModule {
     ) => Promise<boolean>;
     removeConversation: (slot: string | null | undefined, conversationId: string) => Promise<boolean>;
     reconcileConversations: (slot: string | null | undefined, activeCloudList: any[], options?: any) => Promise<ReconcileResult>;
+    getConversationDetail: (id: string) => Promise<ConversationDetailRecord | null>;
+    getConversationWithDetail: (slot: string | null | undefined, id: string) => Promise<Conversation | null>;
     getExportedIds: (slot?: string | null) => Promise<Record<string, any>>;
     setExportedIds: (slot: string | null | undefined, map: Record<string, any>) => Promise<void>;
     saveExportRecord: (slot: string | null | undefined, id: string, record: any) => Promise<Record<string, any>>;
@@ -98,6 +106,22 @@ export interface StorageServiceModule {
         };
     }
 
+    const _migratingSlots = new Set<string>();
+    async function _migrateLegacyConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
+        const s = normSlot(slot);
+        if (_migratingSlots.has(s)) return;
+        _migratingSlots.add(s);
+        try {
+            await withConversationLock(async () => {
+                await _setConversationsRaw(slot, list);
+            });
+        } catch (e) {
+            console.warn('[StorageService] Legacy conversation migration error:', e);
+        } finally {
+            _migratingSlots.delete(s);
+        }
+    }
+
     async function getConversations(slot?: string | null): Promise<Conversation[]> {
         const { convKey, slot: s } = getStorageKeys(slot);
         const keys = [convKey];
@@ -105,7 +129,15 @@ export interface StorageServiceModule {
             keys.push('gemini_conversations_u0');
         }
         const data = await chrome.storage.local.get(keys);
-        return ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
+        const list = ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
+
+        // Auto-migration: If any item in the stored list still carries raw messages/turns arrays,
+        // offload them to IndexedDB and slim down chrome.storage.local.
+        if (Array.isArray(list) && list.some(c => c && (Array.isArray(c.messages) || Array.isArray(c.turns)))) {
+            _migrateLegacyConversations(slot, list).catch(() => {});
+        }
+
+        return list;
     }
 
     let _convChain: Promise<any> = Promise.resolve();
@@ -165,13 +197,50 @@ export interface StorageServiceModule {
         return p;
     }
 
-    async function _setConversationsRaw(slot: string | null | undefined, list: Conversation[]): Promise<void> {
+    async function _setConversationsRaw(slot: string | null | undefined, list: Conversation[]): Promise<Conversation[]> {
         const { convKey } = getStorageKeys(slot);
-        await chrome.storage.local.set({ [convKey]: list || [] });
+        const detailsToSave: ConversationDetailRecord[] = [];
+        const slimList: Conversation[] = (list || []).map(c => {
+            if (!c) return c;
+            const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
+            const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
+            if (hasMessages || hasTurns) {
+                detailsToSave.push({
+                    id: normId(c.id),
+                    messages: c.messages,
+                    turns: c.turns,
+                    updatedAt: c.updatedAt || c.timestamp || Date.now(),
+                    savedAt: Date.now()
+                });
+            }
+            const bestCount = Math.max(
+                Number(c.messageCount) || 0,
+                Array.isArray(c.messages) ? c.messages.length : 0,
+                Array.isArray(c.turns) ? c.turns.length : 0
+            );
+            const copy = { ...c };
+            if (bestCount > 0) {
+                copy.messageCount = bestCount;
+            }
+            delete copy.messages;
+            delete copy.turns;
+            return copy;
+        });
+
+        if (detailsToSave.length > 0) {
+            try {
+                await saveConversationDetailsBatch(detailsToSave);
+            } catch (e) {
+                console.warn('[StorageService] Failed to offload conversation details to IndexedDB:', e);
+            }
+        }
+
+        await chrome.storage.local.set({ [convKey]: slimList });
+        return slimList;
     }
 
     async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
-        return withConversationLock(() => _setConversationsRaw(slot, list));
+        await withConversationLock(() => _setConversationsRaw(slot, list));
     }
 
     // Atomic read-merge-write for the conversation list.
@@ -194,8 +263,8 @@ export interface StorageServiceModule {
             if (!res || !Array.isArray(res.list)) {
                 return { list: existing, changed: 0, written: false };
             }
-            await _setConversationsRaw(slot, res.list);
-            return { list: res.list, changed: res.changed || 0, written: true };
+            const writtenList = await _setConversationsRaw(slot, res.list);
+            return { list: writtenList, changed: res.changed || 0, written: true };
         });
     }
 
@@ -246,6 +315,7 @@ export interface StorageServiceModule {
                 });
                 await updateAccountSlot(slot, { count: filtered.length });
                 await removeExportRecords(slot, [conversationId]);
+                await removeConversationDetails([conversationId]);
                 return true;
             }
             return false;
@@ -290,6 +360,7 @@ export interface StorageServiceModule {
                 });
                 await updateAccountSlot(slot, { count: kept.length });
                 await removeExportRecords(slot, removedIds);
+                await removeConversationDetails(removedIds);
             }
 
             return {
@@ -656,6 +727,20 @@ export interface StorageServiceModule {
         }
     }
 
+    async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<Conversation | null> {
+        if (!id) return null;
+        const targetId = normId(id);
+        const list = await getConversations(slot);
+        const meta = list.find(c => c && normId(c.id) === targetId);
+        if (!meta) return null;
+        const detail = await getConversationDetail(targetId);
+        return {
+            ...meta,
+            messages: detail?.messages || meta.messages || [],
+            turns: detail?.turns || meta.turns || []
+        };
+    }
+
 export {
     normSlot,
     normId,
@@ -666,6 +751,8 @@ export {
     updateConversation,
     removeConversation,
     reconcileConversations,
+    getConversationDetail,
+    getConversationWithDetail,
     getExportedIds,
     setExportedIds,
     saveExportRecord,
@@ -704,6 +791,8 @@ export const StorageService: StorageServiceModule = {
     updateConversation,
     removeConversation,
     reconcileConversations,
+    getConversationDetail,
+    getConversationWithDetail,
     getExportedIds,
     setExportedIds,
     saveExportRecord,
