@@ -123,6 +123,8 @@ graph TD
     CS_LiveCoord --> ST_Live
     BG_LiveHandler --> ST_IDB
     BG_LiveHandler --> ENG_LiveWriter
+    ST_Live --> ST_IDB
+    OPT_Controllers --> ST_IDB
 
     OPT_Controllers --> ENG_Orchestrator
     OPT_Controllers --> ENG_Takeout
@@ -191,7 +193,7 @@ graph TD
 | `src/core/engine/export/batchWorker.ts` | Core: Engine | `processSingleConversation` | 独立执行单条会话抓取：RPC 请求、附件下载、格式转换与文件写入。 | `exportOrchestrator.ts` | `geminiClient`, `chatFormatter`, `writers` | `ENG_Worker` |
 | `src/core/engine/export/rateLimiter.ts` | Core: Engine | `isRateLimited`, `recordSuccess`, `recordThrottle` | 自适应限流器状态机，根据响应延迟与 429 频率动态调整请求间隔与并发数。 | `exportOrchestrator.ts` | 延迟休眠控制 | `ENG_Rate` |
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
-| `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `saveRecoveryPoint`, `loadRecoveryPoint` | 记录导出中断检查点，支持异常退出后的断点续传。 | `exportOrchestrator.ts` | `sessionStore.ts` | `ENG_Orchestrator` |
+| `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
 | `src/core/engine/takeoutEngine.ts` | Core: Engine | `TakeoutEngine` (Facade) | Google Takeout 历史导入与脱机解析统一门面。 | UI 控制器、测试用例 | `takeout/*` 子模块 | `ENG_Takeout` |
 | `src/core/engine/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 流式解析官方 Takeout ZIP 归档，提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
 | `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtml` | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
@@ -206,8 +208,8 @@ graph TD
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
 | `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`, `downloadAttachment` | 导出时并发下载媒体附件、执行 C2PA 签名校验并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
 | `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，封装 `chrome.storage.local`，管理会话索引与已导出标记。 | UI Store, Controllers, SyncEngine | `chrome.storage.local` | `ST_Service` |
-| `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager` (基于 IndexedDB) | 实时保存专用本地镜像数据库，持久化最近保存的会话快照与配置状态。 | `liveSaveCoordinator` | IndexedDB (`gemini_live_conversations`) | `ST_Live` |
-| `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `setStoredDirHandle` | 在 IndexedDB 中安全持久化跨页面可用的 `FileSystemDirectoryHandle`。 | `dirHandleController`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
+| `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理与本地会话快照持久化，无缝代理 `idbHandleStore` 目录句柄。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
+| `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `saveStoredDirHandle`, `getMemoryDirHandle`, `setMemoryDirHandle` | `FileSystemDirectoryHandle` 在 IndexedDB 与内存缓存中的唯一真理源 (SSoT)。 | `dirHandleController`, `liveStorageManager`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
 | `src/core/storage/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/core/storage/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
 | `src/core/utils/utils.ts` | Core: Utils | `GeminiUtils` (单点真理 SSoT 集合) | 汇聚全局路径清理、标题仲裁与列表合并去重逻辑的统一门面。 | 全系统所有模块 | 格式规范与仲裁结果 | `UT_SSoT` |
@@ -220,6 +222,7 @@ graph TD
 | `src/core/protocol/protocol.ts` | Core: Protocol | `GeminiProtocol`, `CrossWorldEvents` | 定义 wire 级 RPC 标识符 (`RPCS.LIST`, `RPCS.DELETE`)、跨世界事件名与关键断言。 | `hookCredentials`, `messageBridge` | 协议契约常量 | `MAIN_Hook`, `CS_Bridge` |
 | `src/core/protocol/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |
 | `src/ui/options/options.ts` | UI: Options | `options.ts` (Entrypoint) | 工作台初始化编排器，挂载上下文并装配初始化子模块。 | 用户访问 `options.html` | UI 子模块协调 | `OPT_Main` |
+| `src/ui/options/optionsContext.ts` | UI: Options | `optionsContext.ts` (Dependency Container) | 工作台集中式依赖注入与上下文访问器，解耦各 UI 子模块与核心单例，提供纯净的向下单向依赖。 | `options.ts`, `options/*.ts` | 各 UI Views, Controllers, StorageService | `OPT_Main` |
 | `src/ui/options/modules/optionsInit.ts` | UI: Options Module | `initOptionsPage` | 负责加载存储配置、渲染多账号选择器、初始化列表视图与绑定按键事件。 | `options.ts` | `conversationsStore`, `listView` | `OPT_Modules` |
 | `src/ui/options/modules/optionsExport.ts` | UI: Options Module | `initExportModule` | 绑定导出按钮点击事件，驱动 `ExportController` 并展示进度弹窗。 | `options.ts` | `exportController.ts` | `OPT_Modules` |
 | `src/ui/options/modules/optionsSync.ts` | UI: Options Module | `initSyncModule` | 绑定“同步最新”与“全量拉取历史”按钮，驱动 `SyncController` 执行扫描。 | `options.ts` | `syncController.ts` | `OPT_Modules` |
@@ -398,16 +401,16 @@ sequenceDiagram
         Format-->>Worker: 输出规范 Markdown 文本
         Worker->>Writer: 添加文件 (index.md 与 assets/ 资源)
         Worker-->>Orch: 单会话导出完成
-        Orch->>UI: 回传进度数据 (百分比、成功数、ETA)
+        Orch->>Store: 单会话就绪即刻持久化 (StorageService.saveExportRecord)
+        Orch->>UI: 回传进度与单条状态 (onItemExported 刷新列表)
     end
     Orch->>Writer: 完成打包写入 (generateBlob / closeStream)
     alt ZIP 模式
         Writer-->>Ctrl: 返回 ZIP Blob 对象
-        Ctrl->>UI: 触发浏览器底层下载 (chrome.downloads / a.download)
+        Ctrl->>UI: downloadHandler 触发浏览器底层下载 (a.download / blobUrl)
     else 本地文件夹直写模式
         Writer-->>Ctrl: 目录流写入关闭确认
     end
-    Orch->>Store: 更新已导出标记集合 (gemini_exported_ids)
     Ctrl->>UI: 进度条完成，展示成功完成统计
 ```
 
