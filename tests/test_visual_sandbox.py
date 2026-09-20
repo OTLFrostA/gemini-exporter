@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from scripts.visual_agent.sandbox import VisualSandbox, ScreenObservation, WaitResult
 from scripts.visual_agent.providers.base import VisionProvider, VisualAction, VisualActionType
-from scripts.visual_agent.providers.gemini_vision_provider import GeminiVisionProvider
+from scripts.visual_agent.providers.custom_ai_provider import CustomAIVisionProvider
 from scripts.visual_agent.agent import VisualQAAgent, TestMission
 from scripts.visual_agent.scorecard import VisualUXScorecard, SelfHealingEvent, VisualRisk
 
@@ -465,53 +465,73 @@ tags:
         self.assertEqual(mission_features[0]["status"], "PASS")
 
 
-class TestGeminiVisionProvider(unittest.TestCase):
-    def test_model_resolution(self):
-        # 1. 默认降级 gemini-2.0-flash
+class TestCustomAIVisionProvider(unittest.TestCase):
+    def test_endpoint_and_model_resolution(self):
+        # 1. 默认模型与空 endpoint
         with patch.dict(os.environ, {}, clear=True):
-            p1 = GeminiVisionProvider(api_key="mock")
-            self.assertEqual(p1.model, "gemini-2.0-flash")
+            p1 = CustomAIVisionProvider()
+            self.assertEqual(p1.model, "default-vlm")
+            self.assertIsNone(p1.endpoint)
 
-        # 2. 从 GEMINI_MODEL 环境变量动态继承
-        with patch.dict(os.environ, {"GEMINI_MODEL": "gemini-1.5-pro"}):
-            p2 = GeminiVisionProvider(api_key="mock")
-            self.assertEqual(p2.model, "gemini-1.5-pro")
+        # 2. 从环境变量继承
+        with patch.dict(os.environ, {"CUSTOM_AI_ENDPOINT": "http://mock-ai:8000/v1", "CUSTOM_AI_MODEL": "test-vlm-v1"}):
+            p2 = CustomAIVisionProvider()
+            self.assertEqual(p2.endpoint, "http://mock-ai:8000/v1")
+            self.assertEqual(p2.model, "test-vlm-v1")
 
-        # 3. 构造参数显式指定覆盖环境变量
-        with patch.dict(os.environ, {"GEMINI_MODEL": "gemini-1.5-pro"}):
-            p3 = GeminiVisionProvider(api_key="mock", model="gemini-2.5-flash")
-            self.assertEqual(p3.model, "gemini-2.5-flash")
+        # 3. 构造参数覆盖环境变量
+        with patch.dict(os.environ, {"CUSTOM_AI_MODEL": "test-vlm-v1"}):
+            p3 = CustomAIVisionProvider(endpoint="http://custom:9000", model="override-vlm")
+            self.assertEqual(p3.endpoint, "http://custom:9000")
+            self.assertEqual(p3.model, "override-vlm")
 
-    @patch("urllib.request.urlopen")
-    def test_reject_blind_click_without_box(self, mock_urlopen):
-        import io
-        from unittest.mock import MagicMock
-        mock_cm = MagicMock()
-        mock_cm.__enter__.return_value.read.return_value = b'{"candidates": [{"content": {"parts": [{"text": "{\\"action\\": \\"CLICK\\", \\"thought\\": \\"no box\\"}"}]}}]}'
-        mock_urlopen.return_value = mock_cm
-
-        p = GeminiVisionProvider(api_key="test-key")
+    def test_no_endpoint_fails_cleanly(self):
+        p = CustomAIVisionProvider(endpoint=None)
         action = p.decide_action(b"fake_png", "Click button", [])
         self.assertEqual(action.action_type, VisualActionType.FAIL)
-        self.assertIn("缺少有效 box_2d", action.thought)
+        self.assertIn("未配置 CUSTOM_AI_ENDPOINT", action.thought)
+
+    @patch("urllib.request.urlopen")
+    def test_reject_blind_click_without_coordinates(self, mock_urlopen):
+        from unittest.mock import MagicMock
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value.read.return_value = b'{"choices": [{"message": {"content": "{\\"action\\": \\"CLICK\\", \\"thought\\": \\"no coords\\"}"}}]}'
+        mock_urlopen.return_value = mock_cm
+
+        p = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
+        action = p.decide_action(b"fake_png", "Click button", [])
+        self.assertEqual(action.action_type, VisualActionType.FAIL)
+        self.assertIn("缺少有效定位坐标", action.thought)
 
     @patch("urllib.request.urlopen")
     def test_parse_key_action(self, mock_urlopen):
-        import io
         from unittest.mock import MagicMock
         mock_cm = MagicMock()
-        mock_cm.__enter__.return_value.read.return_value = b'{"candidates": [{"content": {"parts": [{"text": "{\\"action\\": \\"KEY\\", \\"key\\": \\"Enter\\", \\"thought\\": \\"press enter\\"}"}]}}]}'
+        mock_cm.__enter__.return_value.read.return_value = b'{"choices": [{"message": {"content": "{\\"action\\": \\"KEY\\", \\"key\\": \\"Enter\\", \\"thought\\": \\"press enter\\"}"}}]}'
         mock_urlopen.return_value = mock_cm
 
-        p = GeminiVisionProvider(api_key="test-key")
+        p = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
         action = p.decide_action(b"fake_png", "Submit search", [])
         self.assertEqual(action.action_type, VisualActionType.KEY)
         self.assertEqual(action.key, "Enter")
 
-    def test_review_screenshots_without_key(self):
-        p = GeminiVisionProvider(api_key=None)
+    @patch("urllib.request.urlopen")
+    def test_parse_box_2d_action(self, mock_urlopen):
+        from unittest.mock import MagicMock
+        mock_cm = MagicMock()
+        mock_cm.__enter__.return_value.read.return_value = b'{"choices": [{"message": {"content": "{\\"action\\": \\"CLICK\\", \\"box_2d\\": [100, 200, 300, 400], \\"thought\\": \\"click box\\"}"}}]}'
+        mock_urlopen.return_value = mock_cm
+
+        p = CustomAIVisionProvider(endpoint="http://mock-ai:8000/v1/chat")
+        action = p.decide_action(b"fake_png", "Click target", [])
+        self.assertEqual(action.action_type, VisualActionType.CLICK)
+        self.assertAlmostEqual(action.x, 0.3)
+        self.assertAlmostEqual(action.y, 0.2)
+
+    def test_review_screenshots_without_endpoint(self):
+        p = CustomAIVisionProvider(endpoint=None)
         review = p.review_screenshots([])
-        self.assertIn("未配置 GEMINI_API_KEY", review)
+        self.assertIn("未配置 CUSTOM_AI_ENDPOINT", review)
 
 
 if __name__ == "__main__":

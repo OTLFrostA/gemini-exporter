@@ -69,12 +69,14 @@
 ---
 
 ### 第三层：纯视觉 AI 盲测与 UI 质检体系 (Tier 3: Pure Visual Playground & Autonomous QA Agent)
-* **架构定位**：Tier 3 采用**纯截屏感知（0 DOM 树泄露）**与硬件级鼠标/键盘物理驱动，复用 Tier 2 的确定性阻塞挂起机制，提供黑盒环境下的自主 UI 体验体检与 AI 协作靶场。注：确定性向导防撞与文本截断的精确几何断言已在 Tier 1 Playwright (`tests/e2e/visual_inspector.spec.ts`) 中实现自动化门禁。
-* **执行命令与模式**：
-  - **默认交互靶场与原语自检**：`npm run test:visual`（对应 `python3 scripts/test_visual_agent.py`）。自动执行 6 大核心原子原语自检（0 污染安全还原模式）并就绪交互靶场。
-  - **交互控制模式**：`python3 scripts/test_visual_agent.py --playground`。开启靶场供人类或外部 AI Subagent 通过 `scripts/visual_agent/cli.py` 工具集（click/type/key/scroll/wait-on/screenshot）进行闭环探索。
-  - **多模态自主盲测与 AI 视觉审查**：`python3 scripts/test_visual_agent.py --autonomous --ai-review`（亦可直接 `python3 scripts/test_visual_agent.py --ai-review`）。自主推演指定目标任务，在推演中如实向 Scorecard 沉淀特性操作流与自愈记录，并驱动 Gemini Vision 多模态模型（支持通过 `GEMINI_MODEL` 环境变量或 `--model` 覆盖）对全流程截屏画廊出具深度质检报告（输出 `visual_audit_report.html` 与 `visual_audit_scorecard.md`）。
-  - **独立原语无害自检**：`python3 scripts/test_visual_agent.py --smoke`。秒级自检截屏感知、安全点击、键盘键入自愈清理、按键派发、滚轮复位与确定性挂起 6 大原语。
+* **架构定位**：Tier 3 采用**纯截屏感知（0 DOM 树泄露）**与硬件级鼠标/键盘物理驱动，复用 Tier 2 的确定性阻塞挂起机制，提供黑盒环境下的自主 UI 体验体检与 AI 协作靶场。**已物理彻底删除所有硬编码坐标与假 exit-0 捷径**，仅支持且必须通过两大途径执行：
+  - **途径一：无 Context 子智能体自主探索 (Subagent Mode, 首选推荐)**：宿主 Agent 通过 `invoke_subagent` 拉起一个无上下文历史污染的子智能体，由子智能体基于纯视觉截屏在黑盒环境中自主探索；
+  - **途径二：自定义 / 第三方 AI 接口驱动 (Custom AI API Mode)**：通过 `CustomAIVisionProvider` 连接兼容 OpenAI 或自建多模态端点，由外部大模型驱动 `AutonomousVisualAgent` 自动推演。
+* **《Tier 3 AI 助手纯视觉执行铁律》**：
+  1. **严禁凭空写死坐标或伪造退出**：所有 `--smoke`、硬编码坐标点击等捷径已物理删除，严禁任何 AI 助手以静态点击或假 exit 0 冒充 Tier 3 测试；
+  2. **宿主 Agent 必须通过 `invoke_subagent` 拉起无 Context 子智能体**：当宿主 Agent（如 Antigravity）被指派执行 Tier 3 视觉体检任务时，**必须开启一个全新无历史上下文污染的子智能体 (`Tier 3 Visual QA Explorer`)**；
+  3. **受测智能体严格隔离于 7 大受控 CLI 接口**：受测子智能体只能且仅能调用 `scripts/visual_agent/cli.py` 的 7 大原语（`screenshot`, `click`, `type`, `scroll`, `wait-on`, `reset`, `evaluate-export`），0 DOM 泄露，严禁直接注入 JS 或查询 DOM 树选择器；
+  4. **必须以纯视觉截屏闭环推演并真实产出 Scorecard 与 HTML 审计报告**（保存于 `tests/output/visual_audit/` 目录）。
 
 ---
 
@@ -112,9 +114,13 @@ npm run test:live:local
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
-# 运行纯视觉交互靶场就绪与原子原语无害自检
+# 途径一：就绪交互靶场 (供人类或无 Context 子智能体 Subagent 探索)
 npm run test:visual
-# 运行自主盲测与多模态模型在线质检审查
-python3 scripts/test_visual_agent.py --ai-review
+# 或: python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini]
+
+# 途径二：通过自定义 AI 接口驱动自主推演
+npm run test:visual:custom -- --endpoint <url> [--goal "<目标>"]
+# 或: python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
 ```
+
 
