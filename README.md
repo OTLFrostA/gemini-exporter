@@ -8,7 +8,7 @@
   <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Web Store">
   </a>
-  <img src="https://img.shields.io/badge/Version-1.6.0-orange.svg?style=for-the-badge" alt="Version: 1.6.0">
+  <img src="https://img.shields.io/badge/Version-1.6.1-orange.svg?style=for-the-badge" alt="Version: 1.6.1">
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT">
 </p>
 
