@@ -224,15 +224,18 @@ export function init({
                                 try {
                                     if (Storage && typeof Storage.removeConversation === 'function') {
                                         await Storage.removeConversation(slot, cid);
-                                        const updatedList = await Storage.getConversations(slot);
+                                        const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
+                                            ? await Storage.getLastSync(slot)
+                                            : { count: (await Storage.getConversations(slot)).length };
+                                        const count = syncMeta.count;
                                         if (Sync && Sync.updateBadge) {
-                                            Sync.updateBadge(updatedList.length, 0);
+                                            Sync.updateBadge(count, 0);
                                         }
                                         try {
                                             chrome.runtime.sendMessage({
                                                 action: 'syncUpdate',
                                                 slot,
-                                                count: updatedList.length,
+                                                count,
                                                 from: 'prune-dead-chat'
                                             });
                                         } catch (e) {

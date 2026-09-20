@@ -231,7 +231,8 @@ export interface StorageServiceModule {
             try {
                 await saveConversationDetailsBatch(detailsToSave);
             } catch (e) {
-                console.warn('[StorageService] Failed to offload conversation details to IndexedDB:', e);
+                console.error('[StorageService] Critical: failed to persist conversation details to IndexedDB, aborting write to prevent data truncation:', e);
+                throw e;
             }
         }
 

@@ -129,9 +129,9 @@ export async function saveConversationDetail(id: string, detail: Partial<Convers
             return true;
         });
     } catch (e) {
-        console.warn('[ConversationDetailStore] saveConversationDetail failed, falling back to memory:', e);
+        console.error('[ConversationDetailStore] saveConversationDetail failed:', e);
         _memoryDetailStore.set(nid, record);
-        return false;
+        throw e;
     }
 }
 
@@ -185,11 +185,11 @@ export async function saveConversationDetailsBatch(
             return true;
         });
     } catch (e) {
-        console.warn('[ConversationDetailStore] saveConversationDetailsBatch failed, falling back to memory:', e);
+        console.error('[ConversationDetailStore] saveConversationDetailsBatch failed:', e);
         for (const entry of entries) {
             _memoryDetailStore.set(entry.id, entry);
         }
-        return false;
+        throw e;
     }
 }
 
