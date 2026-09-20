@@ -46,7 +46,7 @@ export interface GeminiConstantsModule {
 
 export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'json_openai', 'json', 'json_raw'];
 export const DEFAULT_FORMAT: AllowedFormat = 'markdown';
-export const DIRECT_WRITE_THRESHOLD = 50;
+export const DIRECT_WRITE_THRESHOLD = 20;
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';
 
 export const EXT_VERSION: string = typeof __EXT_VERSION__ !== 'undefined' ? __EXT_VERSION__ : '';

@@ -17,14 +17,12 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     const diskToggle = optionsPage.locator('#liveSaveDiskToggle');
     const dirBox = optionsPage.locator('#dirBox');
     const dirLabel = optionsPage.locator('#dirLabel');
-    const statusTag = optionsPage.locator('#liveSaveStatusTag');
-
     await expect(optionsPage.locator('#includeIndex')).toHaveCount(0);
     await expect(optionsPage.locator('#liveSaveDbToggle')).toHaveCount(0);
     await expect(optionsPage.locator('#liveSaveDiskBox')).toHaveCount(0);
+    await expect(optionsPage.locator('#liveSaveStatusTag')).toHaveCount(0);
     await expect(diskToggle).toBeVisible();
     await expect(dirBox).toBeVisible();
-    await expect(statusTag).toBeVisible();
     await expect(diskToggle).not.toBeChecked();
 
     // 2. Mock showDirectoryPicker to abort first

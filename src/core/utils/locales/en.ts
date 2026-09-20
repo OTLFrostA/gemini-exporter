@@ -61,7 +61,6 @@ const __enFactory = (): LocaleDictionary => {
             dirNotFound: "Selected folder was deleted or missing, please re-select",
             dirPromptNeeded: "Folder permission expired: {0} (Click to reauthorize)",
             liveSaveTitle: "Live Auto-Save",
-            liveSaveActive: "Ready",
             liveSaveDb: "Live Snapshot Backup",
             liveSaveDbTip: "Automatically backup complete conversation turns to local IndexedDB upon completion",
             liveSaveDisk: "Live Save Local",

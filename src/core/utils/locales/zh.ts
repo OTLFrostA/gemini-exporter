@@ -61,7 +61,6 @@ const __zhFactory = (): LocaleDictionary => {
             dirNotFound: "所选目录已被删除或失效，请重新选择",
             dirPromptNeeded: "目录权限待续期: {0}（点击恢复授权）",
             liveSaveTitle: "实时自动保存",
-            liveSaveActive: "已就绪",
             liveSaveDb: "实时快照备份",
             liveSaveDbTip: "每轮对话完成后自动将完整正文增量备份在本地数据库中，无需任何权限，防丢失容灾",
             liveSaveDisk: "实时落盘本地",
