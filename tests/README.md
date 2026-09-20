@@ -24,9 +24,9 @@ flowchart TD
     end
 
     subgraph Tier3 [第三层：纯视觉 Agent 盲测 Tier 3 - Pure Visual Agent]
-        T3_Provider["可插拔模型驱动 (VisionProvider)<br>Gemini Vision / SubAgent / Heuristic 插件化"]
-        T3_Loop["看-想-动-验 物理事件闭环<br>截屏 PNG -> 模型推算坐标 -> CDP 硬件级鼠标事件"]
-        T3_SelfHeal["自愈引擎 (Self-Healing Engine)<br>感知阻碍 -> 自动退避等待 -> 重新识别重试"]
+        T3_Provider["双途径架构驱动 (Two Pathways)<br>途径 1: 无 Context 子智能体 (Subagent)<br>途径 2: 自定义/第三方 AI 接口 (Custom AI)"]
+        T3_Loop["看-想-动-验 物理事件闭环<br>纯截屏 PNG ➔ 模型视觉推算 ➔ CDP 硬件级键鼠派发"]
+        T3_SelfHeal["自愈引擎 (Self-Healing Engine)<br>感知阻碍 ➔ 自动退避等待 ➔ 重新感知重试"]
         T3_Report["结构化 UX 体验报告<br>visual_audit_scorecard.md + visual_audit_report.html"]
         T3_Provider --> T3_Loop --> T3_SelfHeal --> T3_Report
     end
@@ -82,18 +82,35 @@ npm run test:live:local
 ---
 
 ## 四、第三层：纯视觉 AI 盲测与 UX 质检体系 (Tier 3: Pure Visual Agent)
+ 
+### 1. 定位与双途径架构 (Two Pathways Only)
+Tier 3 纯视觉测试专为评估黑盒环境下的真实视觉交互与自主探索而设计。**物理彻底删除了所有硬编码坐标点击与假退出捷径**，仅支持且必须通过以下两大标准途径执行：
 
-### 1. 定位与设计原则
-* **可插拔 VisionProvider 驱动**：彻底剥离 DOM `querySelector` / `getBoundingClientRect` 坐标偷取与控制台写库后门，定义通用的 `VisionProvider` 抽象基类，支持 `GeminiVisionProvider`、`SubAgentVisionProvider` 与 `HeuristicVisionProvider`。
-* **物理级事件派发**：完全由视觉识别给出归一化坐标，由 CDP 派发硬件级物理事件（`mouseMoved` ➔ `mousePressed` ➔ `mouseReleased`）。
-* **自愈引擎 (Self-Healing Engine)**：若操作遇阻（如遮罩延迟、过渡动画未就绪），Agent 自动记录自愈日志，执行退避等待（500ms），重新截屏重试。
-* **结构化 UX 体检报告**：自动生成 `tests/output/visual_audit/visual_audit_scorecard.md` 与 `visual_audit_report.html`，包含实际体验功能清单、排版截断/视觉风险，以及完整的自愈重试轨迹。
+* **途径一：无 Context 子智能体自主探索 (Subagent Mode, 首选推荐)**：
+  - 由宿主 Agent（如 Antigravity）通过 `invoke_subagent` 拉起一个全新的、**无任何历史上下文污染的子智能体 (`Tier 3 Visual QA Explorer`)**；
+  - 子智能体基于纯截屏视觉感知（0 DOM 树访问、0 JS 注入），自主推导目标、调度硬件级鼠标/键盘动作，并在推演完毕后如实沉淀特性清单、自愈轨迹与 UX 风险。
+* **途径二：自定义 / 第三方 AI 接口驱动 (Custom AI API Mode)**：
+  - 面向未来或外部第三方多模态 AI 接入，通过通用 `CustomAIVisionProvider` 连接兼容 OpenAI 或自建多模态视觉端点（`CUSTOM_AI_ENDPOINT`）；
+  - 自动驱动 `AutonomousVisualAgent` 的 ReAct 推演循环完成指定自然语言目标，并可生成在线视觉体检审查报告。
 
-### 2. 运行命令
+### 2. 受测 AI 受控交互接口 (Strict Interface Isolation - 7 大 CLI 原语)
+受测智能体与宿主环境绝对物理隔离，**只能且仅能**通过调用 `scripts/visual_agent/cli.py` 提供的 7 个原子命令来感知和操作界面（0 DOM 泄露，严禁控制台后门）：
+1. 📸 **截屏感知**：`python3 scripts/visual_agent/cli.py screenshot --target <options|popup|gemini> [--name <name>]`
+2. 🖱️ **物理鼠标点击**：`python3 scripts/visual_agent/cli.py click --target <target> --x <0.0-1.0> --y <0.0-1.0>`
+3. ⌨️ **物理键盘键入**：`python3 scripts/visual_agent/cli.py type --target <target> --text "<text>" [--x <x> --y <y>]`
+4. 📜 **物理滚轮滚动**：`python3 scripts/visual_agent/cli.py scroll --target <target> --delta <pixels>`
+5. ⏳ **确定性挂起等待**：`python3 scripts/visual_agent/cli.py wait-on --condition <stream_settled|zip_downloaded|ui_idle>`
+6. 🔄 **环境重置**：`python3 scripts/visual_agent/cli.py reset --target <target> [--reinstall]`
+7. 📦 **导出规范评测**：`python3 scripts/visual_agent/cli.py evaluate-export --zip <path>`
+
+### 3. 运行命令
 ```bash
-# 运行纯视觉全流程闭环实测 (向导 ➔ Takeout 导入 ➔ 物理勾选 ➔ 物理导出 ➔ 规范断言)
+# 途径一：就绪交互靶场 (供人类或无 Context 子智能体 Subagent 探索)
 npm run test:visual
+# 或: python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini]
 
-# 启用 Gemini 2.0 Flash 视觉大模型多模态深度体检报告
-python3 scripts/test_visual_agent.py --ai-review
+# 途径二：通过自定义 AI 接口执行推演
+npm run test:visual:custom -- --endpoint <url> [--model <name>] [--goal "<测试目标>"]
+# 或: python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
 ```
+

@@ -1,5 +1,5 @@
 from .providers.base import VisionProvider, VisualAction, VisualActionType
-from .providers.gemini_vision_provider import GeminiVisionProvider
+from .providers.custom_ai_provider import CustomAIVisionProvider
 from .providers.subagent_provider import SubAgentVisionProvider
 from .scorecard import VisualUXScorecard, SelfHealingEvent, VisualRisk
 from .playground import (
@@ -16,7 +16,7 @@ __all__ = [
     "VisionProvider",
     "VisualAction",
     "VisualActionType",
-    "GeminiVisionProvider",
+    "CustomAIVisionProvider",
     "SubAgentVisionProvider",
     "VisualUXScorecard",
     "SelfHealingEvent",
