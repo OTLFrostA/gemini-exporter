@@ -186,7 +186,7 @@ export function render(
 }
 
 export function updateItemExportStatus(chatId: string, exportRecord?: ExportRecord | null): void {
-    if (!chatId || typeof document === 'undefined') return;
+    if (!chatId) return;
     const nid = normId(chatId);
     const esc = (v: string): string =>
         (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&');
@@ -228,7 +228,7 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
 
 export function updateStat(conversations?: Conversation[]): void {
     const list = $('list');
-    if (!list || typeof document === 'undefined') return;
+    if (!list) return;
     const total = (conversations || currentConversationsRef || []).length;
     const checked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
     const statEl = $('selectedStat') || $('stat');
@@ -238,7 +238,6 @@ export function updateStat(conversations?: Conversation[]): void {
 }
 
 export function getSelected(conversations?: Conversation[]): Conversation[] {
-    if (typeof document === 'undefined') return [];
     const convs = conversations || currentConversationsRef || [];
     const selected: Conversation[] = [];
     document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
@@ -261,7 +260,6 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
 
 export function getSelectedIds(): Set<string> {
     const ids = new Set<string>();
-    if (typeof document === 'undefined') return ids;
     document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
         const item = cb.closest('.item') as HTMLElement | null;
         const chatId = item?.dataset?.chatId;
@@ -271,7 +269,6 @@ export function getSelectedIds(): Set<string> {
 }
 
 export function selectAll(conversations?: Conversation[]): void {
-    if (typeof document === 'undefined') return;
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
         (cb as HTMLInputElement).checked = true;
     });
@@ -279,7 +276,6 @@ export function selectAll(conversations?: Conversation[]): void {
 }
 
 export function deselectAll(conversations?: Conversation[]): void {
-    if (typeof document === 'undefined') return;
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
         (cb as HTMLInputElement).checked = false;
     });
@@ -287,7 +283,6 @@ export function deselectAll(conversations?: Conversation[]): void {
 }
 
 export function selectUnexported(conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>): void {
-    if (typeof document === 'undefined') return;
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
@@ -306,7 +301,6 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
 }
 
 export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>): void {
-    if (typeof document === 'undefined') return;
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
@@ -325,7 +319,6 @@ export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: 
 }
 
 export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
-    if (typeof document === 'undefined') return;
     const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
         const item = cb.closest('.item') as HTMLElement | null;

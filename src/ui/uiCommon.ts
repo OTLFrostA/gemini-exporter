@@ -3,11 +3,18 @@ import { normId, cleanTitle, isRealTitle } from '../core/utils/utils.js';
 import { I18n as I18nStatic } from '../core/utils/i18n.js';
 import { __resolveModule } from '../core/utils/moduleOverrides.js';
 
+import { applyI18n, applyLangToggleUI } from './utils/domI18n.js';
+
 export const $ = (id: string): HTMLElement | null =>
     typeof document !== 'undefined' ? document.getElementById(id) : null;
 
 export const getI18n = (): any => {
-    return __resolveModule('I18n', I18nStatic);
+    const base = __resolveModule('I18n', I18nStatic);
+    return {
+        ...base,
+        applyI18n,
+        applyLangToggleUI
+    };
 };
 
 export const t = (key: string, ...args: any[]): string => {
@@ -36,11 +43,11 @@ export const WORKBENCH_ACTION_BUTTON_IDS = [
 ] as const;
 
 export function setWorkbenchControlsDisabled(disabled: boolean): void {
-    if (typeof document === 'undefined') return;
     for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
         const el = document.getElementById(id) as HTMLButtonElement | null;
         if (el) el.disabled = !!disabled;
     }
 }
 
+export { applyI18n, applyLangToggleUI, setSafeFormattedContent } from './utils/domI18n.js';
 export { normId, cleanTitle, isRealTitle };

@@ -23,6 +23,15 @@ const SyncController = require('../src/ui/controllers/syncController.js');
 const TakeoutController = require('../src/ui/controllers/takeoutController.js');
 const GeminiUtils = require('../src/core/utils/utils.js');
 
+// Headless Node environment test harness: provide lightweight mock document for UI controllers
+if (typeof (globalThis as any).document === 'undefined') {
+    (globalThis as any).document = {
+        getElementById: () => null,
+        querySelectorAll: () => [],
+        createElement: () => ({})
+    };
+}
+
 // ---------------------------------------------------------------------------
 // DirHandleController
 // ---------------------------------------------------------------------------

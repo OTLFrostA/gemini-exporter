@@ -449,15 +449,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
             if (options.downloadHandler && typeof options.downloadHandler === 'function') {
                 await options.downloadHandler(blob, zipFileName);
-            } else if (typeof document !== 'undefined' && document.createElement && document.body) {
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobUrl;
-                a.download = zipFileName;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
             }
         }
 

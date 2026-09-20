@@ -58,7 +58,7 @@ function updateFormatTabsUI(targetFormat: string, isDev?: boolean): void {
 const log = (msg: string): void => {
     try {
         if (typeof console !== 'undefined') console.log('[GemExporter:popup]', msg);
-        const el = (typeof document !== 'undefined' ? document.getElementById('log') : null) as HTMLElement | null;
+        const el = document.getElementById('log');
         if (el) {
             el.style.display = '';
             const line = document.createElement('div');
@@ -183,12 +183,10 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
     const i18n = getI18n();
     if (i18n && typeof i18n.setLang === 'function') {
         await i18n.setLang(targetLang);
-        if (typeof document !== 'undefined') {
-            document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
-        }
+        document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
         if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
         if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
-        const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+        const isDev = document.body.classList.contains('dev-mode');
         updateFormatTabsUI(_activeFormat, isDev);
         await updateCount();
     }
@@ -342,7 +340,7 @@ function initPopupEvents(): void {
     const formatSelect = $('format') as HTMLSelectElement | null;
     if (formatStore && formatStore.loadFormat) {
         formatStore.loadFormat(formatSelect).then(({ format, isDev }: { format: string; isDev: boolean }) => {
-            if (isDev && typeof document !== 'undefined') document.body.classList.add('dev-mode');
+            if (isDev) document.body.classList.add('dev-mode');
             updateFormatTabsUI(format, isDev);
         });
     }
@@ -356,7 +354,7 @@ function initPopupEvents(): void {
                 if (fStore && typeof fStore.saveFormat === 'function') {
                     await fStore.saveFormat(val);
                 }
-                const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+                const isDev = document.body.classList.contains('dev-mode');
                 updateFormatTabsUI(val, isDev);
             }
         });
@@ -368,7 +366,7 @@ function initPopupEvents(): void {
         if (fStore && typeof fStore.saveFormat === 'function') {
             fStore.saveFormat(val);
         }
-        const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+        const isDev = document.body.classList.contains('dev-mode');
         updateFormatTabsUI(val, isDev);
     });
 
@@ -535,15 +533,13 @@ function initPopupEvents(): void {
                 }
                 if (changes[STORAGE_KEYS.FORMAT]) {
                     const newFmt = String(changes[STORAGE_KEYS.FORMAT].newValue || 'markdown');
-                    const isDev = (typeof document !== 'undefined' && document.body.classList.contains('dev-mode'));
+                    const isDev = document.body.classList.contains('dev-mode');
                     updateFormatTabsUI(newFmt, isDev);
                 }
                 if (changes[STORAGE_KEYS.DEV_MODE]) {
                     const isDev = !!changes[STORAGE_KEYS.DEV_MODE].newValue;
-                    if (typeof document !== 'undefined') {
-                        if (isDev) document.body.classList.add('dev-mode');
-                        else document.body.classList.remove('dev-mode');
-                    }
+                    if (isDev) document.body.classList.add('dev-mode');
+                    else document.body.classList.remove('dev-mode');
                     updateFormatTabsUI(_activeFormat, isDev);
                 }
                 if (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync) {

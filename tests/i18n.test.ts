@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as I18n from '../src/core/utils/i18n.js';
+import { applyI18n, applyLangToggleUI } from '../src/ui/utils/domI18n.js';
 import zh from '../src/core/utils/locales/zh.js';
 import en from '../src/core/utils/locales/en.js';
 
@@ -154,7 +155,7 @@ test('i18n - applyI18n translates root element and descendants safely', async ()
     };
 
     try {
-        I18n.applyI18n(rootEl as any);
+        applyI18n(rootEl as any);
         assert.strictEqual(rootEl.textContent, 'Gemini Exporter', 'Root element data-i18n should be translated');
         assert.strictEqual(childEl.title, '设置目录...', 'Child element data-i18n-title should be translated');
         assert.strictEqual(childEl.placeholder, '搜索标题 / ID...', 'Child element data-i18n-placeholder should be translated');
@@ -170,7 +171,7 @@ test('i18n - applyLangToggleUI operates with injected elements without DOM coupl
     const mockZh = { style: { opacity: '' } };
     const mockEn = { style: { opacity: '' } };
 
-    I18n.applyLangToggleUI({
+    applyLangToggleUI({
         toggle: mockToggle as any,
         labelZh: mockZh as any,
         labelEn: mockEn as any
@@ -181,7 +182,7 @@ test('i18n - applyLangToggleUI operates with injected elements without DOM coupl
     assert.strictEqual(mockEn.style.opacity, '0.6', 'en label should be muted opacity');
 
     await I18n.setLang('en');
-    I18n.applyLangToggleUI({
+    applyLangToggleUI({
         toggle: mockToggle as any,
         labelZh: mockZh as any,
         labelEn: mockEn as any
@@ -189,6 +190,11 @@ test('i18n - applyLangToggleUI operates with injected elements without DOM coupl
     assert.strictEqual(mockToggle.checked, true, 'en language should have toggle checked');
     assert.strictEqual(mockEn.style.opacity, '1', 'en label should be full opacity');
     assert.strictEqual(mockZh.style.opacity, '0.6', 'zh label should be muted opacity');
+});
+
+test('i18n - core module must remain zero DOM without leaked UI methods', () => {
+    assert.strictEqual((I18n as any).applyI18n, undefined, 'Core I18n should not contain applyI18n');
+    assert.strictEqual((I18n as any).applyLangToggleUI, undefined, 'Core I18n should not contain applyLangToggleUI');
 });
 
 

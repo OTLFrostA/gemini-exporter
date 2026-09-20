@@ -41,8 +41,9 @@ export async function handleLangChange(targetLang: 'zh' | 'en'): Promise<void> {
     if (i18n && i18n.setLang) {
         await i18n.setLang(targetLang);
     }
-    if (typeof document !== 'undefined') {
-        document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
+    document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
+    if (i18n && typeof i18n.applyI18n === 'function') {
+        i18n.applyI18n();
     }
 
     if (__updateAccountSlotSelector) __updateAccountSlotSelector();

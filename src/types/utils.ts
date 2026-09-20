@@ -28,16 +28,16 @@ export type SupportedLang = 'zh' | 'en';
 export type LocaleDictionary = Record<string, string>;
 
 export interface I18nModule {
-    applyLangToggleUI(opts?: {
-        toggle?: HTMLInputElement | null;
-        labelZh?: HTMLElement | null;
-        labelEn?: HTMLElement | null;
-    }): void;
     LOCALES: Record<string, LocaleDictionary | null>;
     initLanguage(): Promise<string>;
     getLang(): string;
     setLang(lang: string): Promise<void>;
     onLanguageChange(fn: (lang: string) => void): void;
     t(key: string, ...args: any[]): string;
-    applyI18n(container?: Element | Document): void;
+    applyLangToggleUI?(opts?: {
+        toggle?: HTMLInputElement | null;
+        labelZh?: HTMLElement | null;
+        labelEn?: HTMLElement | null;
+    }): void;
+    applyI18n?(container?: Element | Document): void;
 }
