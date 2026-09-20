@@ -143,11 +143,43 @@ class TestEnvironment:
                 print(f"   ⚠️ 自动创建 Options 标签页异常: {e}")
         return tab or self.get_options_tab()
 
+    def get_popup_tab(self) -> Optional[Dict[str, Any]]:
+        """获取当前活跃的 Popup 标签页"""
+        ext_id = self.get_extension_id()
+        tabs = self.get_tabs()
+        if ext_id:
+            popup_url = f"chrome-extension://{ext_id}/src/ui/popup/popup.html"
+            tab = next((t for t in tabs if t.get("type", "page") == "page" and popup_url in t.get("url", "")), None)
+            if tab:
+                return tab
+        return next((t for t in tabs if t.get("type", "page") == "page" and "popup.html" in t.get("url", "")), None)
+
+    def ensure_popup_tab(self) -> Optional[Dict[str, Any]]:
+        """发现或幂等创建 Popup 动作中心标签页"""
+        tab = self.get_popup_tab()
+        if not tab:
+            ext_id = self.get_extension_id()
+            if ext_id:
+                base_url = f"chrome-extension://{ext_id}/src/ui/popup/popup.html"
+            else:
+                base_url = "src/ui/popup/popup.html"
+            try:
+                new_url = f"http://127.0.0.1:{self.port}/json/new?{base_url}"
+                req = urllib.request.Request(new_url, method="PUT")
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    tab = json.loads(resp.read().decode("utf-8"))
+                    time.sleep(1.0)
+            except Exception as e:
+                print(f"   ⚠️ 自动创建 Popup 标签页异常: {e}")
+        return tab or self.get_popup_tab()
+
     def ensure_tab(self, target: str) -> Optional[Dict[str, Any]]:
-        """统一按逻辑名解析并确保标签页就绪 (gemini|chat 或 options|workbench)"""
-        norm = "gemini" if target.lower() in ("gemini", "chat") else "options"
-        if norm == "gemini":
+        """统一按逻辑名解析并确保标签页就绪 (gemini|chat, options|workbench, 或 popup)"""
+        t_lower = target.lower()
+        if t_lower in ("gemini", "chat"):
             return self.ensure_gemini_tab()
+        elif t_lower in ("popup",):
+            return self.ensure_popup_tab()
         return self.ensure_options_tab()
 
     def connect_tab(self, target: str) -> CDPConnection:
@@ -162,6 +194,9 @@ class TestEnvironment:
 
     def connect_options(self) -> CDPConnection:
         return self.connect_tab("options")
+
+    def connect_popup(self) -> CDPConnection:
+        return self.connect_tab("popup")
 
     def setup_viewport(self, cdp: Any, size: Optional[Tuple[int, int]] = None):
         """锁定标准化物理视口尺寸并清除缩放畸变"""

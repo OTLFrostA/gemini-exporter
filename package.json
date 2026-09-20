@@ -21,6 +21,7 @@
     "pool:validate": "python3 scripts/manage_scenario_pool.py validate",
     "test:visual": "python3 scripts/test_visual_agent.py",
     "test:visual:smoke": "python3 scripts/test_visual_agent.py --smoke",
+    "test:visual:popup": "python3 scripts/test_visual_agent.py --popup",
     "test:visual:review": "python3 scripts/test_visual_agent.py --ai-review",
     "release": "gh workflow run release.yml --ref main"
   },
