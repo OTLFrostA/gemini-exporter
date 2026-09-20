@@ -17,7 +17,9 @@ test.describe('E2E: Legacy Dirty Data Self-Healing & Migration', () => {
       ];
       await chrome.storage.local.set({
         gemini_conversations: dirtyLegacyConvs,
-        exportedIds: {}
+        exportedIds: {},
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
       });
       // Trigger loadStore to simulate user opening options workbench on upgrade
       if (typeof window.__workbenchLoadStore === 'function') {

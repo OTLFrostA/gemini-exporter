@@ -6,6 +6,13 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
+    await optionsPage.evaluate(async () => {
+      await chrome.storage.local.set({
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
+      });
+    });
+
     // 1. Verify card elements exist (and legacy/removed boxes are absent)
     const diskToggle = optionsPage.locator('#liveSaveDiskToggle');
     const dirBox = optionsPage.locator('#dirBox');

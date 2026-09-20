@@ -274,6 +274,7 @@ export function checkWalkthroughOnOpen(): void {
         if (typeof window === 'undefined') return;
         const urlParams = new URLSearchParams(window.location.search);
         const isExplicitTour = urlParams.get('tour') === '1';
+        if (urlParams.get('notour') === '1') return;
 
         setTimeout(async () => {
             const Storage = getStorage();

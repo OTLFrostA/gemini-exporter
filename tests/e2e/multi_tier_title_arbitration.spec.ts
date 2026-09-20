@@ -17,7 +17,12 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
           timestamp: 1670000000000
         }
       ];
-      await chrome.storage.local.set({ gemini_conversations: initialConvs, exportedIds: {} });
+      await chrome.storage.local.set({
+        gemini_conversations: initialConvs,
+        exportedIds: {},
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
+      });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }
@@ -186,7 +191,12 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
           timestamp: 1670000000000
         }
       ];
-      await chrome.storage.local.set({ gemini_conversations: initialConvs, exportedIds: {} });
+      await chrome.storage.local.set({
+        gemini_conversations: initialConvs,
+        exportedIds: {},
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
+      });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }

@@ -71,7 +71,9 @@ test.describe('Deep E2E: Real Export to JSON (OpenAI format) & Structure Verific
       ];
       await chrome.storage.local.set({
         gemini_conversations: convs,
-        exportedIds: {}
+        exportedIds: {},
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
       });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
