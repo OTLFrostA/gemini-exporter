@@ -743,7 +743,7 @@ def test_takeout_limit_modal_and_wall_detection():
     storage_path = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
     with open(storage_path, "r", encoding="utf-8") as f:
         storage_code = f.read()
-    assert "has_completed_takeout_prompt" in storage_code, "storageService should track has_completed_takeout_prompt"
+    assert "has_completed_takeout_prompt" in storage_code or "STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT" in storage_code, "storageService should track has_completed_takeout_prompt"
     assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService should export takeout prompt completion helpers"
 
     dialog_ts = os.path.join(BASE_DIR, "src/ui/views/dialogView.ts")
@@ -803,6 +803,66 @@ def test_stage1_architecture_ssot_and_state_isolation():
     assert "sanitizeFileName" in export_code, "exportEngine sanitizeFileName must delegate to GeminiUtils SSoT"
 
     print("  ✓ Stage 1 Architecture: SSoT consolidation and per-slot state isolation verified")
+
+def test_storage_keys_and_constants_ssot():
+    constants_path = os.path.join(BASE_DIR, "src/core/utils/constants.ts")
+    with open(constants_path, "r", encoding="utf-8") as f:
+        constants_code = f.read()
+
+    # 1. Verify STORAGE_KEYS completeness in constants.ts
+    required_keys = [
+        "FORMAT", "ZIP", "DEV_MODE", "LANG", "PENDING_TAKEOUT_PROMPT",
+        "SUPPRESS_DIRECT_WRITE_PROMPT", "CREDENTIALS_MAP", "CREDENTIALS",
+        "ACCOUNT_SLOTS", "LAST_SYNC_DIAGNOSTICS", "LAST_EXPORT_SESSION",
+        "LIVE_SAVE_CONFIG", "HAS_COMPLETED_TOUR", "LAST_SEEN_FEATURE_VERSION",
+        "BADGE_POS", "HAS_COMPLETED_TAKEOUT_PROMPT", "HAS_IMPORTED_TAKEOUT"
+    ]
+    for k in required_keys:
+        assert f"{k}:" in constants_code, f"STORAGE_KEYS in constants.ts must define {k}"
+
+    assert "DEFAULT_EXPORT_FOLDER_NAME" in constants_code, "constants.ts must define DEFAULT_EXPORT_FOLDER_NAME"
+    assert "IDB_DATABASES" in constants_code, "constants.ts must define IDB_DATABASES"
+
+    # 2. Verify build.js supports --pack and package script exists in package.json
+    build_path = os.path.join(BASE_DIR, "build.js")
+    with open(build_path, "r", encoding="utf-8") as f:
+        build_code = f.read()
+    assert "--pack" in build_code, "build.js must implement --pack packaging support"
+
+    pkg_path = os.path.join(BASE_DIR, "package.json")
+    with open(pkg_path, "r", encoding="utf-8") as f:
+        pkg_code = f.read()
+    assert '"package":' in pkg_code, 'package.json must declare "package" script'
+
+    # 3. Static Linter: ensure no raw string literals in src/ bypass STORAGE_KEYS
+    forbidden_literals = [
+        ("gemini_dev_mode", "STORAGE_KEYS.DEV_MODE"),
+        ("gemini_export_zip", "STORAGE_KEYS.ZIP"),
+        ("gemini_export_format", "STORAGE_KEYS.FORMAT"),
+        ("gemini_account_slots", "STORAGE_KEYS.ACCOUNT_SLOTS"),
+        ("gemini_last_sync_diagnostics", "STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS"),
+        ("gemini_export_badge_pos", "STORAGE_KEYS.BADGE_POS"),
+        ("has_completed_tour", "STORAGE_KEYS.HAS_COMPLETED_TOUR"),
+        ("last_seen_feature_version", "STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION"),
+        ("has_completed_takeout_prompt", "STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT"),
+        ("has_imported_takeout", "STORAGE_KEYS.HAS_IMPORTED_TAKEOUT")
+    ]
+
+    src_dir = os.path.join(BASE_DIR, "src")
+    violations = []
+    for root, _, files in os.walk(src_dir):
+        for f in files:
+            if f.endswith(".ts") and f != "constants.ts":
+                full_p = os.path.join(root, f)
+                with open(full_p, "r", encoding="utf-8") as fp:
+                    content = fp.read()
+                rel_p = os.path.relpath(full_p, BASE_DIR).replace("\\", "/")
+                for lit, s_key in forbidden_literals:
+                    if f"'{lit}'" in content or f'"{lit}"' in content:
+                        violations.append(f"{rel_p}: contains raw literal '{lit}', must use {s_key}")
+
+    assert not violations, "SSoT Storage Key Violations found:\n" + "\n".join(violations)
+    print("  ✓ Storage Keys and Constants SSoT integrity verified (0 raw literals in src/)")
 
 def test_stage2_architecture_improvements():
     # 1. Verify sanitizeRelativePath in utils, zipWriter, fsWriter, and exportEngine
@@ -1042,6 +1102,7 @@ def run_all():
     test_tour_status_indicator_styling()
     test_takeout_limit_modal_and_wall_detection()
     test_stage1_architecture_ssot_and_state_isolation()
+    test_storage_keys_and_constants_ssot()
     test_stage2_architecture_improvements()
     test_serial_pipeline_suite()
     test_gemini_driver_suite()

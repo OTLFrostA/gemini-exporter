@@ -852,18 +852,22 @@ test('regression: background Receiving end error must hint refresh', () => {
 });
 
 test('release workflow - release package excludes TypeScript source and sourcemaps', () => {
+    const buildPath = path.join(__dirname, '../build.js');
+    const buildContent = fs.readFileSync(buildPath, 'utf8');
     const workflowPath = path.join(__dirname, '../.github/workflows/release.yml');
     const workflowContent = fs.readFileSync(workflowPath, 'utf8');
 
-    assert.ok(workflowContent.includes("src -x 'src/*.ts'"), "release.yml must exclude src/*.ts");
-    assert.ok(workflowContent.includes("'src/*/*/*/*.ts'"), "release.yml must exclude nested .ts files");
-    assert.ok(workflowContent.includes('dist \\'), 'release.yml must package dist with whitelist');
-    assert.ok(workflowContent.includes("'dist/background/background.js'"), 'release.yml must include background.js bundle');
-    assert.ok(workflowContent.includes("'dist/content/content.js'"), 'release.yml must include content.js bundle');
-    assert.ok(workflowContent.includes("'dist/content/hook.js'"), 'release.yml must include hook.js bundle');
-    assert.ok(workflowContent.includes("'dist/ui/options.js'"), 'release.yml must include options.js bundle');
-    assert.ok(workflowContent.includes("'dist/ui/popup.js'"), 'release.yml must include popup.js bundle');
-    assert.ok(!workflowContent.includes('\n            dist \\\n            src'), 'release.yml must not blindly zip entire dist/ and src/');
+    // SSoT: build.js defines the exact packaging rules
+    assert.ok(buildContent.includes("src -x 'src/*.ts'"), "build.js must exclude src/*.ts");
+    assert.ok(buildContent.includes("'src/*/*/*/*.ts'"), "build.js must exclude nested .ts files");
+    assert.ok(buildContent.includes("'dist/background/background.js'"), 'build.js must include background.js bundle');
+    assert.ok(buildContent.includes("'dist/content/content.js'"), 'build.js must include content.js bundle');
+    assert.ok(buildContent.includes("'dist/content/hook.js'"), 'build.js must include hook.js bundle');
+    assert.ok(buildContent.includes("'dist/ui/options.js'"), 'build.js must include options.js bundle');
+    assert.ok(buildContent.includes("'dist/ui/popup.js'"), 'build.js must include popup.js bundle');
+
+    // release.yml delegates packaging to npm run package SSoT
+    assert.ok(workflowContent.includes('npm run package'), 'release.yml must delegate packaging to npm run package');
 });
 
 test('architecture doc - all referenced src/ file paths must exist on disk', () => {

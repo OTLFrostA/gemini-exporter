@@ -141,6 +141,28 @@ async function build() {
     })(DIST);
 
     console.log(`[build] ${jsFiles.length} JS bundle(s) -> dist/ in ${Date.now() - t0}ms (${warnings} warning(s))`);
+
+    if (process.argv.includes('--pack')) {
+        packageExtension();
+    }
+}
+
+function packageExtension() {
+    const t0 = Date.now();
+    const zipName = `gemini-exporter-v${EXT_VERSION}.zip`;
+    const zipPath = path.join(ROOT, zipName);
+    if (fs.existsSync(zipPath)) {
+        fs.unlinkSync(zipPath);
+    }
+
+    const { execSync } = require('child_process');
+    execSync(`zip -r "${zipName}" manifest.json _locales icons lib LICENSE THIRD_PARTY_NOTICES.md README.md README_zh.md`, { cwd: ROOT, stdio: 'ignore' });
+    execSync(`zip -r "${zipName}" src -x 'src/*.ts' 'src/*/*.ts' 'src/*/*/*.ts' 'src/*/*/*/*.ts' 'src/README.md'`, { cwd: ROOT, stdio: 'ignore' });
+    execSync(`zip -r "${zipName}" dist -i 'dist/background/background.js' 'dist/content/content.js' 'dist/content/hook.js' 'dist/ui/options.js' 'dist/ui/popup.js'`, { cwd: ROOT, stdio: 'ignore' });
+
+    const stats = fs.statSync(zipPath);
+    const kb = (stats.size / 1024).toFixed(1);
+    console.log(`[package] Created production zip: ${zipName} (${kb} KB) in ${Date.now() - t0}ms`);
 }
 
 build().catch((err) => {

@@ -70,7 +70,7 @@ import { ChatFormatter } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 
-import { EXT_VERSION, getExtensionVersion, exportedIdsKey } from "../../utils/constants.js";
+import { EXT_VERSION, getExtensionVersion, exportedIdsKey, STORAGE_KEYS, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
 const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', GeminiUtils);
@@ -361,7 +361,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
         async _initWriter(options: ExportOptions, onLog: (msg: string, level?: string) => void): Promise<any> {
             const { useZip = true, dirHandle = null } = options;
-            const exportFolderName = 'gemini_export';
+            const exportFolderName = DEFAULT_EXPORT_FOLDER_NAME;
             let batchDirHandle: any = null;
             let zip: any = null;
             let folder: any = null;
@@ -942,8 +942,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             let isDevMode = false;
             try {
                 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    const devData = await chrome.storage.local.get(['gemini_dev_mode']);
-                    isDevMode = !!devData?.gemini_dev_mode;
+                    const devData = await chrome.storage.local.get([STORAGE_KEYS.DEV_MODE]);
+                    isDevMode = !!devData?.[STORAGE_KEYS.DEV_MODE];
                 }
             } catch (e) {
                 if (typeof console !== 'undefined' && console.warn) console.warn('[GemExporter:storage] Storage operation failed:', e);

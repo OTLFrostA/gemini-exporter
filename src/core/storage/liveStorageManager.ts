@@ -6,13 +6,15 @@ import {
     clearStoredDirHandle
 } from './idbHandleStore.js';
 
+import { STORAGE_KEYS } from '../utils/constants.js';
+
 export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
     enabledDisk: false,
     format: 'markdown',
     includeAssets: true
 };
 
-const KEY_CONFIG = 'live_save_config';
+const KEY_CONFIG = STORAGE_KEYS.LIVE_SAVE_CONFIG;
 let _memConfig: LiveSaveConfig = { ...DEFAULT_LIVE_CONFIG };
 
 export async function getLiveConfig(): Promise<LiveSaveConfig> {

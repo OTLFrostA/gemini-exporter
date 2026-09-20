@@ -660,7 +660,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
 
         if (all && all.diagnostics) {
             try {
-                await chrome.storage.local.set({ gemini_last_sync_diagnostics: all.diagnostics });
+                await chrome.storage.local.set({ [STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS]: all.diagnostics });
             } catch (e) { console.warn('[GemExporter:storage] Storage operation failed:', e); }
         }
 
@@ -689,8 +689,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             if (badge) badge.textContent = zh ? `已同步 ${mergedLen} 条 ✓` : `${mergedLen} synced ✓`;
             if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 try {
-                    const existing = await chrome.storage.local.get(['has_completed_takeout_prompt']);
-                    if (!existing?.has_completed_takeout_prompt) {
+                    const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
+                    if (!existing?.[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]) {
                         chrome.storage.local.set({
                             [STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]: {
                                 slot,

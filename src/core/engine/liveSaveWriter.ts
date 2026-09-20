@@ -16,6 +16,7 @@
 import { FsWriter } from './writers/fsWriter.js';
 import { ChatFormatter } from './chatFormatter.js';
 import { buildExportFileName } from '../utils/pathUtils.js';
+import { DEFAULT_EXPORT_FOLDER_NAME } from '../utils/constants.js';
 
 export interface LiveSaveWriteInput {
     chat: any;
@@ -37,7 +38,7 @@ export interface LiveSaveWriter {
     writeFile(subDir: string, fileName: string, data: string | Uint8Array): Promise<void>;
 }
 
-const LIVE_SAVE_ROOT_DIR = 'gemini_export';
+const LIVE_SAVE_ROOT_DIR = DEFAULT_EXPORT_FOLDER_NAME;
 
 /**
  * Create and init the FsWriter for the live-save root folder.

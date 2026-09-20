@@ -13,7 +13,9 @@ export interface ExportSessionData {
     [key: string]: any;
 }
 
-export const EXPORT_SESSION_KEY = 'gemini_last_export_session';
+import { STORAGE_KEYS } from '../utils/constants.js';
+
+export const EXPORT_SESSION_KEY = STORAGE_KEYS.LAST_EXPORT_SESSION;
 
 /**
  * Retrieves the current active or last recorded export session from Chrome local storage.

@@ -28,7 +28,7 @@ export interface FormatStoreModule {
     handleDevToggle: (devOn: boolean, currentFormatOrSelect: any) => DevToggleResult;
 }
 
-import { ALLOWED_FORMATS as CONST_ALLOWED_FORMATS, DEFAULT_FORMAT as CONST_DEFAULT_FORMAT } from "../utils/constants.js";
+import { ALLOWED_FORMATS as CONST_ALLOWED_FORMATS, DEFAULT_FORMAT as CONST_DEFAULT_FORMAT, STORAGE_KEYS } from "../utils/constants.js";
 
 export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'json_openai', 'json', 'json_raw'];
 export const DEFAULT_FORMAT: string = CONST_DEFAULT_FORMAT || 'markdown';
@@ -56,15 +56,15 @@ const DEFAULT = DEFAULT_FORMAT;
     async function loadFormat(selectEl?: any): Promise<FormatStoreLoadResult> {
         try {
             const data = (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local)
-                ? await chrome.storage.local.get(['gemini_export_format', 'gemini_dev_mode'])
+                ? await chrome.storage.local.get([STORAGE_KEYS.FORMAT, STORAGE_KEYS.DEV_MODE])
                 : {};
-            const isDev = !!data.gemini_dev_mode;
-            const stored = (data.gemini_export_format as string) || null;
+            const isDev = !!data[STORAGE_KEYS.DEV_MODE];
+            const stored = (data[STORAGE_KEYS.FORMAT] as string) || null;
             if (!stored) return { format: DEFAULT, isDev, stored: null };
             const normalized = normalizeFormat(stored, isDev);
             const finalVal = (selectEl && !validateAgainstSelect(normalized, selectEl)) ? DEFAULT : normalized;
             if (finalVal !== stored && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                await chrome.storage.local.set({ gemini_export_format: finalVal });
+                await chrome.storage.local.set({ [STORAGE_KEYS.FORMAT]: finalVal });
             }
             if (selectEl) selectEl.value = finalVal;
             return { format: finalVal, isDev, stored };
@@ -78,7 +78,7 @@ const DEFAULT = DEFAULT_FORMAT;
     async function saveFormat(val: string): Promise<string> {
         const toSave = isAllowed(val) ? val : DEFAULT;
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            await chrome.storage.local.set({ gemini_export_format: toSave });
+            await chrome.storage.local.set({ [STORAGE_KEYS.FORMAT]: toSave });
         }
         return toSave;
     }

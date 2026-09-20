@@ -1,12 +1,13 @@
 // src/content/badgeView.ts - Draggable Badge UI & Position Management
 
 import type { OpenOptionsMessage } from '../types/messages.js';
+import { STORAGE_KEYS } from '../core/utils/constants.js';
 let __lastKnownCount: number | null = null;
 
 export function applyStoredBadgePosition(el: HTMLElement | null): void {
     if (!el) return;
     try {
-        const raw = localStorage.getItem('gemini_export_badge_pos');
+        const raw = localStorage.getItem(STORAGE_KEYS.BADGE_POS);
         if (raw) {
             const pos = JSON.parse(raw);
             if (typeof pos.left === 'number' && typeof pos.top === 'number') {
@@ -87,9 +88,9 @@ export function makeBadgeDraggable(div: HTMLElement, onClick?: (e: MouseEvent) =
             const rect = div.getBoundingClientRect();
             const pos = { left: Math.round(rect.left), top: Math.round(rect.top) };
             try {
-                localStorage.setItem('gemini_export_badge_pos', JSON.stringify(pos));
+                localStorage.setItem(STORAGE_KEYS.BADGE_POS, JSON.stringify(pos));
                 if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.set({ gemini_export_badge_pos: pos }).catch?.(() => {});
+                    chrome.storage.local.set({ [STORAGE_KEYS.BADGE_POS]: pos }).catch?.(() => {});
                 }
             } catch (e) {
                 console.warn('[GemExporter:storage] Storage operation failed:', e);

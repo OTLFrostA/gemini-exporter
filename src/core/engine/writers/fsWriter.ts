@@ -2,6 +2,7 @@
 
 import type { IExportWriter } from './writerInterface.js';
 import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';
+import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 
 export interface FsWriterModule {
     FsWriter: typeof FsWriter;
@@ -46,7 +47,7 @@ class FsWriter implements IExportWriter {
     static sanitizeFileName = sanitizeFileName;
     static sanitizeRelativePath = sanitizeRelativePath;
 
-    constructor(dirHandle: any, folderName: string = 'gemini_export') {
+    constructor(dirHandle: any, folderName: string = DEFAULT_EXPORT_FOLDER_NAME) {
         if (!dirHandle) throw new Error('Directory handle is required for FsWriter');
         this.rootDirHandle = dirHandle;
         this.folderName = folderName;
