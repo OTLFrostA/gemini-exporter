@@ -101,8 +101,8 @@ graph TD
 
         subgraph StorageLayer ["两级存储与持久化层 (src/core/storage/)"]
             ST_Service["StorageService<br/>(两级主控: chrome.storage.local 轻量元数据索引 & Slot 隔离)"]
-            ST_Detail["conversationsDetailStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
-            ST_Live["LiveStorageManager<br/>(IndexedDB 实时会话镜像库)"]
+            ST_Detail["conversationDetailStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
+            ST_Live["liveStorageManager.ts<br/>(实时保存配置与目录句柄代理)"]
             ST_IDB["idbHandleStore.ts<br/>(FileSystemDirectoryHandle 跨会话持久化)"]
             ST_Session["SessionStore.ts<br/>(内存/chrome.storage.session 缓存)"]
         end
@@ -155,7 +155,7 @@ graph TD
 
 ## 二、AST 逻辑分布与架构映射矩阵 (AST Logical Distribution & Architecture Mapping)
 
-下表呈现整个代码库 `src/` 目录下全部 64 个核心源码文件的抽象语法树 (AST) 逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
+下表呈现整个代码库 `src/` 目录下系统核心主干骨架模块（Core Backbone AST，全仓 113 个 TS 源文件，涵盖核心业务主干、子解析器与视图控制器）的抽象语法树逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
 
 | 物理源码路径 (File Path) | 架构分层 / 子系统 | 核心 AST 导出实体 (Classes / Functions / Interfaces) | 模块职责与设计不变量 (Role & Invariants) | 上游调用源 (Inflow) | 下游承接汇 (Outflow) | 架构图映射节点 |
 |---|---|---|---|---|---|---|
@@ -215,9 +215,9 @@ graph TD
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
 | `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`, `downloadAttachment` | 导出时并发下载媒体附件、执行 C2PA 签名校验并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
-| `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `conversationsDetailStore` | `ST_Service` |
-| `src/core/storage/conversationsDetailStore.ts` | Core: Storage | `saveConversationDetail`, `getConversationDetail`, `deleteConversationDetail` | 两级存储架构之 IndexedDB 实体详情仓储，承接全量 turns 与重消息体，保障 chrome.storage.local 永远处于安全轻量区。 | `storageService.ts` | IndexedDB (`gemini_conversation_details`) | `ST_Detail` |
-| `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理与本地会话快照持久化，无缝代理 `idbHandleStore` 目录句柄。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
+| `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `conversationDetailStore` | `ST_Service` |
+| `src/core/storage/conversationDetailStore.ts` | Core: Storage | `saveConversationDetail`, `getConversationDetail`, `deleteConversationDetail` | 两级存储架构之 IndexedDB 实体详情仓储，承接全量 turns 与重消息体，保障 chrome.storage.local 永远处于安全轻量区。 | `storageService.ts` | IndexedDB (`gemini_conversation_details`) | `ST_Detail` |
+| `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理（enabledDisk/format/includeAssets）并代理 `idbHandleStore` 目录句柄。真正实体快照落盘由 `liveSaveHandler`/`liveSaveWriter` 承载。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
 | `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `saveStoredDirHandle`, `getMemoryDirHandle`, `setMemoryDirHandle` | `FileSystemDirectoryHandle` 在 IndexedDB 与内存缓存中的唯一真理源 (SSoT)。 | `dirHandleController`, `liveStorageManager`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
 | `src/core/storage/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/core/storage/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
@@ -248,6 +248,7 @@ graph TD
 | `src/ui/controllers/takeoutController.ts` | UI: Controller | `TakeoutController`, `importTakeoutZip` | Takeout 控制器，驱动 `TakeoutEngine` 进行离线解压并将合并结果入库。 | `optionsTakeout.ts` | `takeoutEngine.ts`, `storageService.ts` | `OPT_Controllers` |
 | `src/ui/controllers/dirHandleController.ts` | UI: Controller | `DirHandleController`, `pickDirectory` | 调用原生 `window.showDirectoryPicker()`，保存句柄至 IndexedDB 并检验读写权限。 | `optionsExport.ts` | `idbHandleStore.ts` | `OPT_Controllers` |
 | `src/ui/tour/tourGuide.ts` | UI: Tour | `TourGuide`, `startTour`, `nextStep` | 5 步交互式新手向导引擎，计算遮罩镂空高亮与气泡定位。 | `optionsInit.ts` | 引导蒙层与定位计算 | `OPT_Tour` |
+| `src/ui/utils/domI18n.ts` | UI: Utils | `applyI18n`, `applyLangToggleUI`, `setSafeFormattedContent` | UI 专属 DOM 国际化渲染引擎与语言切换控件绑定，将 DOM 渲染彻底剥离出 Core 层。 | `uiCommon.ts`, `popup.ts`, `optionsSettings.ts` | 前台各页面真实 DOM 树 | `UI_Common` |
 | `src/ui/popup/popup.ts` | UI: Popup | `popup.ts` (Entrypoint) | 扩展浮窗交互中心：当前页单篇导出、长截图捕获、单页 PDF 生成、一键复制 Markdown。 | 用户点击扩展图标 | `screenshotStitcher`, `pdfWrapper`, `chatFormatter` | `POP_Main` |
 
 ---
@@ -272,7 +273,7 @@ graph TD
   3. 若遇到 HTTP 400 且返回报文包含 XSRF 凭据失效特征，`RetryPolicy` 自动触发主世界重新抓取 Token 并进行退避重试；
   4. `parseList` 解析返回的嵌套多维 JSPB 数组，提取会话 ID、标题及时间戳；
   5. `TitleUtils.resolveTitle` 与 `MergeUtils.mergeConversation` 作为 **单点真理 (SSoT)** 执行多源合并，若远端权威标题存在则自动替换 Takeout 临时标题；
-  6. **两级存储分离写入**：`StorageService` 拆分轻量列表索引至 `chrome.storage.local`，将实体对话轮次下沉至 IndexedDB `conversationsDetailStore`；
+  6. **两级存储分离写入**：`StorageService` 拆分轻量列表索引至 `chrome.storage.local`，将实体对话轮次下沉至 IndexedDB `conversationDetailStore`；
   7. 检测用户或后台发送的 `AbortSignal`，若中断则立即保存已拉取的游标并优雅终止。
 
 ```mermaid
@@ -287,7 +288,7 @@ sequenceDiagram
     participant SSoT as TitleUtils & MergeUtils (SSoT)
     participant Store as StorageService (两级存储主控)
     participant Local as chrome.storage.local (轻量索引)
-    participant IDB as conversationsDetailStore (IndexedDB 详情库)
+    participant IDB as conversationDetailStore (IndexedDB 详情库)
 
     UI->>Sync: 用户点击【全量拉取历史】(Deep Scan)
     Sync->>Tab: getGeminiTab(slot) 严格匹配目标账号标签页
@@ -395,13 +396,13 @@ sequenceDiagram
 
 * **数据源 (Data Source)**：
   - 用户在 Options 工作台中勾选的会话 ID 集合；
-  - `StorageService` 与 `ConversationsDetailStore` 中的两级历史详情；
+  - `StorageService` 与 `conversationDetailStore` 中的两级历史详情；
   - Google Gemini 详细内容 RPC（或 Takeout 离线媒体池）。
 * **数据汇 (Data Sink)**：
   - 模式 A：JSZip 内存打包生成的 `application/zip` Blob，触发 Chrome 下载管理器；
   - 模式 B：FileSystem Access API 直写的本地笔记目录树（如 Obsidian/Logseq 根目录）。
 * **核心处理与容错逻辑**：
-  1. `ExportOrchestrator` 初始化并发限制队列 `AsyncQueue`（默认并发数 2，避免触发 Google 429 限流）；
+  1. `ExportOrchestrator` 初始化并发限制队列 `AsyncQueue`（默认并发数 3，与 `exportOrchestrator.ts` 生产代码一致，兼顾批处理吞吐与 Google 429 防护）；
   2. `RateLimiter` 动态监控网络延迟与响应状态，遭遇异常自动激活退避；
   3. `BatchWorker` 逐个处理单会话：拉取会话详情、调用 `AssetPipeline` 解析附件 URL、并发抓取图片 Blob；
   4. 图片文件名经 C2PA 签名和哈希去重规范化，存入 `assets/` 子目录；
@@ -428,7 +429,7 @@ sequenceDiagram
     UI->>Ctrl: 用户选中 50 条会话，点击【导出选中 → ZIP】
     Ctrl->>Orch: startExport(selectedIds, options)
     Orch->>UI: 弹出全屏进度浮层 (ProgressView)
-    loop AsyncQueue 并发调度 (Concurrency = 2)
+    loop AsyncQueue 并发调度 (Concurrency = 3)
         Orch->>Limit: 检查当前限流状态与退避间隔
         Limit-->>Orch: 允许派发任务
         Orch->>Worker: 分配单会话处理任务 (processSingleConversation)
@@ -637,8 +638,10 @@ sequenceDiagram
 
 在系统演进过程中，所有开发者与 AI 助手必须严格维护以下设计不变量：
 
-1. **核心逻辑零 DOM 依赖 (Zero DOM Dependencies in Core)**：
-   `src/core/` 目录下的所有解析器（`geminiParser`）、格式化器（`chatFormatter`）、工具库（`pathUtils`、`titleUtils`、`mergeUtils`）、提供商（`provider`）与导出编排引擎（`exportOrchestrator`）严禁导入任何浏览器专属 DOM 变量（如 `document`、`HTMLElement`、`window`）。这保证了核心算法可在 Node.js 测试环境、MV3 Service Worker、Web Worker 与前端页面中完全无差异复用。
+1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Controlled Exceptions)**：
+   `src/core/` 目录下的纯解析器（`geminiParser`）、格式化器（`chatFormatter`）、工具库（`pathUtils`、`titleUtils`、`mergeUtils`）、提供商（`provider`）、两级存储（`storageService`、`conversationDetailStore`）与导出编排引擎（`exportOrchestrator`）必须严格保持物理零 DOM，严禁导入或依赖任何浏览器专属 DOM 变量（`document`、`HTMLElement`）。PR #477 已彻底消除了 `exportOrchestrator` 的 DOM 下载回退与 `i18n.ts` 的 DOM 操作。针对极少数跨环境历史交互建立明确的受控例外清单：
+   - **历史页面中断信号 fallback**：`geminiClient.ts` / `pagination.ts` 读取 `(window as any).__gemExporterAborted` 仅作为旧版 Content Script 页面中断标记的只读兼容 fallback，核心中断已全量采用标准的 `AbortSignal`；
+   - **离屏长图绘制**：`screenshotStitcher.ts` 优先使用无头/Worker 环境原生的 `OffscreenCanvas`，在浏览器前端环境下安全回退至标准 Canvas。
 2. **严格的 UI 分层关注点分离 (Strict UI Separation of Concerns)**：
    - `state/`：单向数据流与响应式存储数据状态管理；
    - `views/`：无状态 DOM 模版生成、虚拟列表渲染与事件冒泡绑定；
@@ -653,7 +656,7 @@ sequenceDiagram
 6. **MV3 Service Worker 保活机制 (Keepalive Resilience)**：
    在耗时较长的大批量扫描或附件打包过程中，定期向后台派发轻量保活心跳，彻底解决 Chromium 浏览器可能在后台静默终止 Service Worker 导致导出任务异常中断的问题。
 7. **两级存储架构与配额安全隔离 (Two-Tier Storage & Quota Isolation)**：
-   `chrome.storage.local` 严格仅存轻量列表元数据索引（`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `conversationsDetailStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
+   `chrome.storage.local` 严格仅存轻量列表元数据索引（`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `conversationDetailStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
 8. **无头环境写盘降权零损回退 (Headless FileSystem Permission Fallback)**：
    Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时后台绝不允许抛错中断或静默丢弃用户数据，必须自动无感激活 `chrome.downloads` 零损兜底落盘至 `Downloads/gemini_export/`，并向前端派发事件由用户手势通过 `reauthorizeDirHandle()` 一键恢复物理直写。
 9. **多账号单向隔离与凭据零借调 (Multi-Account Strict Isolation & Zero Token Stealing)**：

@@ -865,3 +865,31 @@ test('release workflow - release package excludes TypeScript source and sourcema
     assert.ok(workflowContent.includes("'dist/ui/popup.js'"), 'release.yml must include popup.js bundle');
     assert.ok(!workflowContent.includes('\n            dist \\\n            src'), 'release.yml must not blindly zip entire dist/ and src/');
 });
+
+test('architecture doc - all referenced src/ file paths must exist on disk', () => {
+    const docPath = path.join(__dirname, '../docs/architecture.md');
+    const docContent = fs.readFileSync(docPath, 'utf8');
+
+    // Extract all `src/.../*.ts` file references from architecture.md
+    const matches = docContent.matchAll(/`src\/([^`]+\.ts)`/g);
+    const referencedFiles: string[] = [];
+    for (const m of matches) {
+        referencedFiles.push(m[1]);
+    }
+
+    assert.ok(referencedFiles.length >= 60, `architecture.md should reference at least 60 src files (found ${referencedFiles.length})`);
+
+    const missingFiles: string[] = [];
+    for (const relPath of referencedFiles) {
+        const fullPath = path.join(__dirname, '../src', relPath);
+        if (!fs.existsSync(fullPath)) {
+            missingFiles.push(`src/${relPath}`);
+        }
+    }
+
+    assert.deepStrictEqual(
+        missingFiles,
+        [],
+        `The following files referenced in docs/architecture.md do not exist on disk:\n${missingFiles.join('\n')}`
+    );
+});
