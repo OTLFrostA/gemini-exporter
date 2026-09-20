@@ -80,9 +80,26 @@ function createElements(): void {
 
     popoverEl = document.createElement('div');
     popoverEl.className = 'tour-popover';
+    popoverEl.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+    });
 
     overlayEl.appendChild(spotlightEl);
     overlayEl.appendChild(popoverEl);
+
+    overlayEl.addEventListener('click', (e: MouseEvent) => {
+        if (popoverEl && popoverEl.contains(e.target as Node)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        if (spotlightMode) {
+            dismissFeatureSpotlight();
+        } else {
+            finishTour();
+        }
+    });
+
     document.body.appendChild(overlayEl);
 
     document.removeEventListener('keydown', handleKeydown as any);

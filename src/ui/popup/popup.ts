@@ -44,6 +44,7 @@ function updateFormatTabsUI(targetFormat: string, isDev?: boolean): void {
             btn.style.display = isDev ? '' : 'none';
         }
     });
+    $('formatTabs')?.classList.toggle('has-dev', !!isDev);
     const activeLabel = $('activeFormatLabel');
     if (activeLabel) {
         const activeBtn = document.querySelector(`#formatTabs .tab-btn[data-value="${_activeFormat}"]`) as HTMLButtonElement | null;
