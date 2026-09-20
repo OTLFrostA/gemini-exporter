@@ -51,6 +51,7 @@ export interface GeminiClientPaginationModule {
         const incremental = !!opts.incremental;
         let all: ConversationListItem[] = [],
             seen = new Set<string>(),
+            seenTokens = new Set<string>(),
             token: string | null = null;
         const diagLog: any = {
             startTime: new Date().toISOString(),
@@ -184,6 +185,13 @@ export interface GeminiClientPaginationModule {
                 console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, hitGoogleLimit: ${diagLog.hitGoogleLimit}`);
                 break;
             }
+            if (seenTokens.has(res.nextPageToken)) {
+                diagLog.stopReason = `检测到 Google 服务端游标回环重复 (Token Loop)，提前安全终止同步 (已拉取 ${i + 1} 页，共 ${all.length} 条)`;
+                console.warn(`[Gemini Exporter] getAllConversations token loop detected at page ${i + 1}`);
+                reachedMax = false;
+                break;
+            }
+            seenTokens.add(res.nextPageToken);
             token = res.nextPageToken;
             const pageDelay = incremental ? 50 : 120;
             await new Promise(r => setTimeout(r, pageDelay));

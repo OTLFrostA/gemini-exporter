@@ -19,23 +19,17 @@ export interface MediaIndexModule {
 }
 
 const __slotTakeouts = new Map<string, TakeoutStore>();
-let __takeoutMediaMap: Record<string, any> = {};
-let __takeoutGlobalMedia: Record<string, any> = {};
-let __takeoutConvCache: Record<string, any> = {};
+
+function normSlot(slot?: string | null): string {
+    return (slot && typeof slot === 'string' && slot.trim()) ? slot.trim() : 'u0';
+}
 
 export function getStore(slot?: string | null): TakeoutStore {
-    if (slot && __slotTakeouts.has(slot)) {
-        return __slotTakeouts.get(slot)!;
+    const s = normSlot(slot);
+    if (__slotTakeouts.has(s)) {
+        return __slotTakeouts.get(s)!;
     }
-    if (slot) {
-        // Return empty isolated store if slot has no Takeout data
-        return { mediaMap: {}, globalMedia: {}, convCache: {} };
-    }
-    return {
-        mediaMap: __takeoutMediaMap,
-        globalMedia: __takeoutGlobalMedia,
-        convCache: __takeoutConvCache
-    };
+    return { mediaMap: {}, globalMedia: {}, convCache: {} };
 }
 
 export const normId = utilsNormId;
@@ -201,37 +195,19 @@ export const normId = utilsNormId;
     }
 
     function commitTakeoutData(slot: string | null | undefined, { mediaMap, globalMedia, convCache }: TakeoutStore): void {
-        __takeoutMediaMap = mediaMap;
-        __takeoutGlobalMedia = globalMedia;
-        __takeoutConvCache = convCache;
-        if (slot) {
-            __slotTakeouts.set(slot, {
-                mediaMap,
-                globalMedia,
-                convCache
-            });
-        }
+        const s = normSlot(slot);
+        __slotTakeouts.set(s, {
+            mediaMap: mediaMap || {},
+            globalMedia: globalMedia || {},
+            convCache: convCache || {}
+        });
     }
 
     function clearTakeoutData(slot?: string | null): void {
-        if (slot && __slotTakeouts.has(slot)) {
-            const slotData = __slotTakeouts.get(slot);
-            if (slotData) {
-                if (__takeoutMediaMap === slotData.mediaMap) __takeoutMediaMap = {};
-                if (__takeoutGlobalMedia === slotData.globalMedia) __takeoutGlobalMedia = {};
-                if (__takeoutConvCache === slotData.convCache) __takeoutConvCache = {};
-            }
-            __slotTakeouts.delete(slot);
+        if (slot) {
+            __slotTakeouts.delete(normSlot(slot));
         } else {
             __slotTakeouts.clear();
-            __takeoutMediaMap = {};
-            __takeoutGlobalMedia = {};
-            __takeoutConvCache = {};
-        }
-        if (__slotTakeouts.size === 0) {
-            __takeoutMediaMap = {};
-            __takeoutGlobalMedia = {};
-            __takeoutConvCache = {};
         }
     }
 

@@ -114,26 +114,6 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         }
                         let titlesObj = detailRes.titles || {};
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        if (sourceTier === 'sniff') {
-                            try {
-                                const storageInst = Storage && typeof Storage.getConversations === 'function'
-                                    ? Storage
-                                    : (StorageService && typeof StorageService.getConversations === 'function' ? StorageService : null);
-                                const existingList = storageInst ? await storageInst.getConversations(targetSlot) : [];
-                                const existingConv = (existingList || []).find((c: any) => normId(c.id) === nid);
-                                if (existingConv && (isRealTitle ? isRealTitle(existingConv.title, nid) : true)) {
-                                    const exRank = TITLE_TIER_RANK[((existingConv.titleSource as TitleSource) || 'default')];
-                                    const sniffRank = TITLE_TIER_RANK.sniff;
-                                    if (exRank >= sniffRank) {
-                                        title = existingConv.title;
-                                        sourceTier = existingConv.titleSource || 'dom';
-                                        titlesObj = { ...(existingConv.titles || {}) };
-                                    }
-                                }
-                            } catch (e) {
-                                if (contentContext.isDevMode()) console.debug('[MessageBridge] Storage check err', e);
-                            }
-                        }
 
                         if (isRealTitle(title, nid)) {
                             titlesObj[sourceTier] = title;
@@ -170,14 +150,17 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 if (Storage && typeof Storage.removeConversation === 'function') {
                     const removed = await Storage.removeConversation(targetSlot, id);
                     if (removed) {
-                        const updatedList = await Storage.getConversations(targetSlot);
-                        if (updateBadge) updateBadge(updatedList.length, 0);
+                        const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
+                            ? await Storage.getLastSync(targetSlot)
+                            : { count: (await Storage.getConversations(targetSlot)).length };
+                        const count = syncMeta.count;
+                        if (updateBadge) updateBadge(count, 0);
                         try {
                             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
                                 chrome.runtime.sendMessage({
                                     action: 'syncUpdate',
                                     slot: targetSlot,
-                                    count: updatedList.length,
+                                    count,
                                     from: 'delete-event'
                                 });
                             }
