@@ -26,7 +26,7 @@
   .sub{color:var(--muted);font-size:12px;margin-top:4px}
   .row{display:flex;gap:14px;flex:1;overflow:hidden;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:0;display:flex;flex-direction:column;}
-  .card-left{flex:0 0 350px !important;width:350px !important;min-width:350px !important;max-width:350px !important;gap:12px;overflow:hidden;}
+  .card-left{flex:0 0 365px !important;width:365px !important;min-width:365px !important;max-width:365px !important;gap:12px;overflow:hidden;}
   .card-right{flex:1 1 0 !important;min-width:0 !important;overflow:hidden;}
   .label{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.02em}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
@@ -179,7 +179,7 @@
       <span id="liveSaveStatusTag" class="badge" style="font-size:10px; color:#10b981; border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.08); margin-left:auto;" data-i18n="liveSaveActive">已就绪</span>
     </div>
     
-    <div style="display:grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); gap:10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
+    <div style="display:grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap:8px 10px; background:var(--card-inner); padding:12px; border-radius:10px; border:1px solid var(--border);">
       <label style="grid-column: 1 / -1; display:flex; align-items:center; gap:8px; font-size:13px; height:32px;">
         <span style="color:var(--muted); white-space:nowrap;" data-i18n="format">格式</span>
         <select id="format" style="flex:1; height:32px; padding:4px 8px;">
@@ -189,20 +189,20 @@
           <option value="json_raw" id="optFormatRaw" class="dev-only" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
         </select>
       </label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap; overflow:hidden;">
+      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap; overflow:hidden;">
         <input type="checkbox" id="skipExported" class="toggle" checked>
         <span data-i18n="skipExported" style="overflow:hidden; text-overflow:ellipsis;">跳过已导出</span>
         <button id="btnClearExported" class="ghost" style="padding:1px 6px; font-size:10px; height:20px; line-height:18px; margin-left:auto; border-radius:4px; flex:none;" data-i18n="btnClearExported" data-i18n-title="btnClearExportedTip" title="清除历史导出标记，允许重新导出全部">清除</button>
       </label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeAssetsTip" title="下载对话中的图片与文件附件">
+      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeAssetsTip" title="下载对话中的图片与文件附件">
         <input type="checkbox" id="includeAssets" class="toggle" checked>
         <span data-i18n="includeAssets">下载附件</span>
       </label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeZipTip" title="打包为 ZIP 文件下载">
+      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeZipTip" title="打包为 ZIP 文件下载">
         <input type="checkbox" id="includeZip" class="toggle" checked>
         <span data-i18n="includeZip">打包成 ZIP</span>
       </label>
-      <label style="display:flex; gap:8px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
+      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="liveSaveDiskTip" title="每轮对话完成后自动调用本地文件写入器，将单篇 Markdown 直接同步写入指定文件夹">
         <input type="checkbox" id="liveSaveDiskToggle" class="toggle">
         <span data-i18n="liveSaveDisk">实时落盘本地</span>
       </label>
@@ -223,7 +223,7 @@
     </div>
     
     <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
-    <div id="progText" class="stat" style="text-align:center; min-height:16px; line-height:16px;"></div>
+    <div id="progText" class="stat" style="text-align:center; min-height:20px; line-height:1.5; word-break:break-word; padding:2px 0;"></div>
 
     <div id="exportFailureCard" style="display:none; margin-top:6px; padding:8px 10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:8px; font-size:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
