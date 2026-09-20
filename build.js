@@ -15,14 +15,56 @@ const path = require('path');
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
 const DIST = path.join(ROOT, 'dist');
-const PKG_VERSION = (() => {
+const MANIFEST_PATH = path.join(ROOT, 'manifest.json');
+const PKG_PATH = path.join(ROOT, 'package.json');
+
+const EXT_VERSION = (() => {
     try {
-        return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.6.0';
-    } catch {
-        return '1.6.0';
+        const parsed = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
+        if (!parsed.version) {
+            throw new Error('manifest.json does not contain a "version" property');
+        }
+        return parsed.version;
+    } catch (err) {
+        console.error('[build] Failed to read version from manifest.json:', err.message);
+        process.exit(1);
     }
 })();
-const DEFINE_VERSION = { __EXT_VERSION__: JSON.stringify(PKG_VERSION) };
+
+// Keep package.json version in sync with manifest.json (Single Source of Truth)
+try {
+    if (fs.existsSync(PKG_PATH)) {
+        const pkg = JSON.parse(fs.readFileSync(PKG_PATH, 'utf8'));
+        if (pkg.version !== EXT_VERSION) {
+            pkg.version = EXT_VERSION;
+            fs.writeFileSync(PKG_PATH, JSON.stringify(pkg, null, 2) + '\n');
+            console.log(`[build] Synced package.json version to manifest.json (${EXT_VERSION})`);
+        }
+    }
+} catch (err) {
+    console.warn('[build] Warning: Could not auto-sync package.json version:', err.message);
+}
+
+// Keep README version badges in sync with manifest.json
+for (const readmeFile of ['README.md', 'README_zh.md']) {
+    const readmePath = path.join(ROOT, readmeFile);
+    if (fs.existsSync(readmePath)) {
+        try {
+            const content = fs.readFileSync(readmePath, 'utf8');
+            const updated = content
+                .replace(/(https:\/\/img\.shields\.io\/badge\/(?:%E7%89%88%E6%9C%AC|Version)-)[0-9.]+(-orange\.svg\?style=for-the-badge)/g, `$1${EXT_VERSION}$2`)
+                .replace(/(alt="(?:版本|Version): )[0-9.]+(")/g, `$1${EXT_VERSION}$2`);
+            if (updated !== content) {
+                fs.writeFileSync(readmePath, updated);
+                console.log(`[build] Synced ${readmeFile} version badge to ${EXT_VERSION}`);
+            }
+        } catch (err) {
+            console.warn(`[build] Warning: Could not auto-sync ${readmeFile} badge:`, err.message);
+        }
+    }
+}
+
+const DEFINE_VERSION = { __EXT_VERSION__: JSON.stringify(EXT_VERSION) };
 
 const BUNDLE_ENTRIES = {
     'content/content': path.join(SRC, 'content', 'content.ts'),
