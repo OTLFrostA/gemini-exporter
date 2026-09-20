@@ -394,8 +394,8 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     const dirHandle = DirHandle ? DirHandle.getDirHandle() : null;
 
     const constants = getConstants();
-    const threshold = (constants && constants.DIRECT_WRITE_THRESHOLD) ? constants.DIRECT_WRITE_THRESHOLD : 50;
-    if (includeZip && !dirHandle && selected.length >= threshold && Dialogs && Dialogs.showDirectWritePrompt) {
+    const threshold = (constants && constants.DIRECT_WRITE_THRESHOLD) ? constants.DIRECT_WRITE_THRESHOLD : 20;
+    if (includeZip && !dirHandle && selected.length > threshold && Dialogs && Dialogs.showDirectWritePrompt) {
         const suppressKey = (constants && constants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
         let isSuppressed = false;
         try {

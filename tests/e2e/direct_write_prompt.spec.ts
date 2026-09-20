@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () => {
-  test('should show suggestion modal only once when exporting >= 50 conversations and never prompt again', async ({ context, extensionId }) => {
+  test('should show suggestion modal only once when exporting > 20 conversations and never prompt again', async ({ context, extensionId }) => {
     const page = await context.newPage();
 
     // 1. Navigate to options page
@@ -34,7 +34,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
     const listItems = page.locator('#list .item');
     await expect(listItems).toHaveCount(55);
 
-    // 3. Select all items (55 items >= 50 threshold)
+    // 3. Select all items (55 items > 20 threshold)
     await page.click('#btnSelectAll');
     await expect(page.locator('#selectedStat')).toHaveText(/\b55\b/);
 

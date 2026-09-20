@@ -348,7 +348,6 @@ export async function initLiveSaveSettings(): Promise<void> {
 
     const diskToggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
     const dirLabel = $('dirLabel');
-    const statusTag = $('liveSaveStatusTag');
     const DirHandle = getDirHandleController();
 
     try {
@@ -393,11 +392,6 @@ export async function initLiveSaveSettings(): Promise<void> {
                 dirLabel.textContent = typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，请重新选择';
                 if (dirLabel.style) dirLabel.style.color = '#f59e0b';
             }
-        }
-
-        if (statusTag && cfg.lastSavedAt) {
-            const timeStr = new Date(cfg.lastSavedAt).toLocaleTimeString();
-            statusTag.textContent = `${t('liveSaveActive')} (${timeStr})`;
         }
     } catch (e) {
         if (typeof console !== 'undefined' && console.debug) console.debug('[OptionsSettings] initLiveSaveSettings error:', e);
@@ -471,11 +465,6 @@ export async function initLiveSaveSettings(): Promise<void> {
                     }
                     log(typeof t === 'function' ? t('dirNotFound') : '所选目录已被删除或失效，实时落盘已暂停', 'warn');
                 } else if (val.lastSavedAt && val.lastSavedTitle) {
-                    const statusTagEl = $('liveSaveStatusTag');
-                    if (statusTagEl) {
-                        const timeStr = new Date(val.lastSavedAt).toLocaleTimeString();
-                        statusTagEl.textContent = `${t('liveSaveActive')} (${timeStr})`;
-                    }
                     log(typeof t === 'function' ? t('logLiveSaveSuccess', val.lastSavedTitle) : `[实时落盘] 自动保存成功: ${val.lastSavedTitle}`);
                 }
             }
