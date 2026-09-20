@@ -893,3 +893,46 @@ test('architecture doc - all referenced src/ file paths must exist on disk', () 
         `The following files referenced in docs/architecture.md do not exist on disk:\n${missingFiles.join('\n')}`
     );
 });
+
+test('src/README.md - all referenced files in source tree must exist on disk', () => {
+    const docPath = path.join(__dirname, '../src/README.md');
+    const docContent = fs.readFileSync(docPath, 'utf8');
+
+    // Extract all file names matching *.ts, *.css, *.html
+    const fileMatches = docContent.matchAll(/([a-zA-Z0-9_-]+\.(?:ts|css|html))/g);
+    const referencedFiles = new Set<string>();
+    for (const m of fileMatches) {
+        referencedFiles.add(m[1]);
+    }
+
+    assert.ok(referencedFiles.size >= 50, `src/README.md should reference at least 50 src files (found ${referencedFiles.size})`);
+
+    const missingFiles: string[] = [];
+    for (const fileName of referencedFiles) {
+        let found = false;
+        const findRecursive = (dir: string) => {
+            if (found) return;
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (found) return;
+                if (entry.isDirectory()) {
+                    findRecursive(path.join(dir, entry.name));
+                } else if (entry.name === fileName) {
+                    found = true;
+                    return;
+                }
+            }
+        };
+        findRecursive(path.join(__dirname, '../src'));
+        if (!found) {
+            missingFiles.push(fileName);
+        }
+    }
+
+    assert.deepStrictEqual(
+        missingFiles,
+        [],
+        `The following files referenced in src/README.md do not exist on disk:\n${missingFiles.join('\n')}`
+    );
+});
+

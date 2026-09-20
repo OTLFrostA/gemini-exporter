@@ -27,6 +27,7 @@
   - 支持通过浏览器原生 FileSystem Access API 或本地 IndexedDB，在对话生成结束时**自动将最新轮次写入本地指定磁盘文件夹**。
   - 无需手动点击、零感知延迟：在网页端正常聊 Gemini，本地笔记文件夹内的 Markdown 与配图即刻同步更新！
   - 网页右下角配备无侵入式浮动徽章，实时反馈“保存中...”与“已同步”状态，目录异常时优雅提示。
+  - **无头环境写盘降权零损回退**：浏览器重启后，若后台 Service Worker 因 Chromium 无头环境限制无法弹出目录授权窗，自动无感激活 `chrome.downloads`（落盘至 `Downloads/gemini_export/`）保障数据 100% 落地，并在 UI 提供一键手势恢复物理直写。
 - 📸 **全对话超长长截图与单页 PDF 打印 (v1.6.0 重磅特性)**：
   - 一键自动逐屏滚动、精准消除视口重叠、缝合生成高分辨率全景长截图 (`.png`)。
   - 内置纯二进制无依赖的 PDF 1.4 生成引擎，秒级输出可矢量缩放打印的单页无缝 `.pdf` 文件。
@@ -40,6 +41,10 @@
   - 自动保存 AI 生成的高清画作（Imagen）。
   - 完整备份深度研究（Deep Research）独立长篇报告。
   - 所有图片与资源自动存放于 `assets/` 文件夹，并在 Markdown 中使用相对链接规范引用。
+  - **STORE 模式零压缩内存保护**：高清二进制媒体附件在打包进入 ZIP 时采用 STORE 原样存储模式，彻底规避 200MB+ 批量多模态导出时因多重 Deflate 压缩导致的浏览器标签页内存溢出崩溃（OOM）。
+- 🗄️ **两级存储架构与配额安全隔离**：
+  - 突破 Chrome `chrome.storage.local` 的 10MB 配额硬限制：顶层仅保存轻量索引（严格控制在安全水位内），全量对话多轮次与消息正文实体安全沉淀至 IndexedDB（`conversationDetailStore.ts`）。
+  - 支持轻松承载成千上万条深度对话，彻底杜绝数据截断或存储满载崩溃。
 - 📊 **可视化批量管理工作台 (Workbench)**：
   - 沉浸式深色模式面板，轻松浏览、搜索与管理数百条历史对话。
   - 支持按状态智能筛选：*全部*、*未导出*、*有新回复待更新* 或 *已导出*。
@@ -49,8 +54,10 @@
   - 只备份新内容！当旧会话收到新的提问或回复时，工作台会自动将其标记为“待更新”，一键即可增量导出，省时省力。
 - 📥 **支持 Google Takeout 历史归档导入**：
   - 轻松导入官方 Google Takeout 导出的历史数据压缩包，帮你找回因 Gemini 网页侧边栏滚动上限（约 600 条）而无法直接拉取的更早历史对话。
-- 👥 **支持多账号顺畅切换**：
-  - 可以在工作台内轻松切换不同 Google 账号，各账号数据完全独立隔离（`u0`、`u1` 等）。
+- 👥 **真实多账号身份隔离与凭据零借调**：
+  - 基于 `accountSniffer.ts` 智能嗅探当前会话的真实 Google 邮箱、显示名称与 Gaia ID。
+  - 工作台下拉菜单直观展示真实账户邮箱，告别冰冷生涩的抽象槽位 ID。
+  - 各账号间凭据命名空间与会话实体物理隔离，多标签页通信严格绑定 Slot，绝不跨账号借调 Token 或错发 RPC。
 - 🌐 **通用 AI Provider 架构**：
   - 底层基于模型无关的 `AIProvider` 规范构建，预留多模型平台生态接入能力。
 
@@ -64,32 +71,36 @@ Gemini Exporter 严格遵循 Chrome Extension MV3 分层解耦设计，核心业
 graph LR
     subgraph 注入层 ["页面注入层 (Injection)"]
         HOOK["hookCredentials.ts<br/>(主世界 MAIN 凭据拦截器)"]
+        SNIFFER["accountSniffer.ts<br/>(真实账号身份嗅探)"]
         CS["content.ts & messageBridge<br/>(隔离世界 ISOLATED 桥接)"]
     end
 
     subgraph 后台服务 ["Service Worker"]
-        SW["background.ts<br/>(保活心跳 / 生命周期)"]
+        SW["background.ts<br/>(保活心跳 / 终止管理 / 生命周期)"]
+        LH["liveSaveHandler.ts<br/>(文件直写与 Downloads 兜底)"]
     end
 
     subgraph 核心引擎 ["核心领域引擎 (零 DOM 依赖)"]
         PROV["通用 AI Provider<br/>(Gemini & ChatGPT)"]
         API["RPC 客户端 & 解析器<br/>(batchexecute & JSPB)"]
-        ENG["导出编排与格式化<br/>(AsyncQueue & Formatter)"]
+        ENG["导出编排与格式化<br/>(AsyncQueue & STORE 模式)"]
         TAKEOUT["Takeout 离线合流<br/>(ZipBombGuard & MediaIndex)"]
         MEDIA["视觉渲染引擎<br/>(长截图拼接 & PDF 封装)"]
         SSOT["单点真理工具库<br/>(权威标题仲裁 & 去重)"]
     end
 
-    subgraph 展现与存储 ["UI 展现与持久化"]
+    subgraph 展现与存储 ["UI 展现与两级存储"]
         WORKBENCH["Options 工作台<br/>(MVC 架构 & 虚拟列表)"]
         POPUP["Popup 快捷操作中心<br/>(单篇导出 / 截图 / PDF)"]
-        STORAGE["chrome.storage & IndexedDB"]
+        STORAGE["两级存储引擎<br/>(chrome.storage.local & IndexedDB 详情仓储)"]
     end
 
     HOOK --> CS
+    SNIFFER --> CS
     CS <--> SW
     CS --> PROV
     SW --> ENG
+    SW --> LH
     WORKBENCH --> ENG
     WORKBENCH --> TAKEOUT
     POPUP --> MEDIA
@@ -207,7 +218,17 @@ graph LR
 
 <details>
 <summary><b>实时自动保存在不打开工作台时能工作吗？</b></summary>
-可以。实时自动保存由 Gemini 网页内的流式监视器感知，并通过持久化在 IndexedDB 中的 FileSystem 目录句柄由 Background 线程直接调度写入，无需常驻打开 Options 工作台。
+可以。实时自动保存由 Gemini 网页内的流式监视器感知，并通过持久化在 IndexedDB 中的 FileSystem 目录句柄由 Background 线程直接调度写入，无需常驻打开 Options 工作台。若浏览器重启导致目录句柄降权且处于无头环境，后台会自动降级保存至 <code>Downloads/gemini_export/</code>，确保轮次数据永不丢失，并在工作台中提示 1 键手势重授权。
+</details>
+
+<details>
+<summary><b>插件能承受上千条长对话吗？会不会超出浏览器存储配额？</b></summary>
+完全可以！得益于我们的<b>两级存储架构</b>，快速索引保存在 <code>chrome.storage.local</code> 中（严格压制在 10MB 配额安全水位以内），而完整的对话轮次与重消息体则下沉持久化至本地 IndexedDB（<code>conversationDetailStore</code>）。你可以放心保存成千上万条对话而无需担心存储满载或数据截断。
+</details>
+
+<details>
+<summary><b>多账号切换是如何工作的？</b></summary>
+Gemini Exporter 会基于 <code>accountSniffer.ts</code> 自动嗅探当前激活标签页的真实 Google 账户邮箱与 Gaia ID。每个账号被分配完全独立的物理隔离存储空间与凭据 Slot。你可以在工作台右上角按邮箱直接切换，完全杜绝账号间凭据借调与命令错发。
 </details>
 
 ---
