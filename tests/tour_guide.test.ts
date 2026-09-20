@@ -12,9 +12,11 @@ const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
     open: () => {}
 };
 
+let lastCreatedOverlay: any = null;
 const mockElements = new Map<string, any>();
 (global as any).document = {
     createElement: (tag: string) => {
+        const listeners = new Map<string, Function[]>();
         const el: any = {
             tagName: tag.toUpperCase(),
             className: '',
@@ -32,8 +34,24 @@ const mockElements = new Map<string, any>();
                 el.children = el.children.filter((c: any) => c !== child);
             },
             setAttribute: () => {},
-            addEventListener: () => {},
-            removeEventListener: () => {},
+            addEventListener: (ev: string, fn: Function) => {
+                if (!listeners.has(ev)) listeners.set(ev, []);
+                listeners.get(ev)!.push(fn);
+                if (el.className.includes('tour-overlay-container')) {
+                    lastCreatedOverlay = el;
+                }
+            },
+            removeEventListener: (ev: string, fn: Function) => {
+                if (listeners.has(ev)) {
+                    listeners.set(ev, listeners.get(ev)!.filter((f: any) => f !== fn));
+                }
+            },
+            dispatchEvent: (event: any) => {
+                const list = listeners.get(event.type) || [];
+                list.forEach((f: any) => f(event));
+                return true;
+            },
+            contains: (target: any) => el.children.includes(target),
             getBoundingClientRect: () => ({ top: 100, left: 100, width: 200, height: 50, bottom: 150, right: 300 }),
             scrollIntoView: () => {},
             isConnected: true,
@@ -311,5 +329,25 @@ test('tourGuide - listener cleanup when navigating backwards', async () => {
     assert.strictEqual(TourGuide.getCurrentStep(), 1, 'Should stay at step 1 because step 2 listener was cleaned up');
 
     await TourGuide.finishTour();
+});
+
+test('tourGuide - clicking backdrop overlay skips tour cleanly', async () => {
+    await TourGuide.startTour(0);
+    assert.strictEqual(TourGuide.isActive(), true);
+
+    assert.ok(lastCreatedOverlay, 'Overlay element should be created');
+    let prevented = false;
+    let stopped = false;
+    lastCreatedOverlay.dispatchEvent({
+        type: 'click',
+        target: lastCreatedOverlay,
+        preventDefault: () => { prevented = true; },
+        stopPropagation: () => { stopped = true; }
+    });
+
+    await waitForInactive();
+    assert.strictEqual(TourGuide.isActive(), false, 'Tour should be dismissed when backdrop is clicked');
+    assert.strictEqual(prevented, true, 'Click should be prevented from penetrating to background');
+    assert.strictEqual(stopped, true, 'Click propagation should be stopped');
 });
 

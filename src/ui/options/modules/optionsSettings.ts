@@ -16,6 +16,7 @@ import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../../../core/utils/constants.js';
+import { isLocalDevelopment } from '../../../core/utils/environment.js';
 
 export { normId, cleanTitle, resolveTitle };
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -237,6 +238,23 @@ async function initLanguage(): Promise<void> {
 
 async function initDevMode(): Promise<void> {
     try {
+        const isDevEnv = isLocalDevelopment();
+        const devWrapper = $('devModeWrapper');
+        if (!isDevEnv) {
+            if (devWrapper) {
+                devWrapper.style.setProperty('display', 'none', 'important');
+            }
+            document.body.classList.remove('dev-mode');
+            const Store = getStore();
+            if (Store && Store.setDevMode) {
+                await Store.setDevMode(false);
+            }
+            return;
+        }
+
+        if (devWrapper) {
+            devWrapper.style.display = 'inline-flex';
+        }
         const Store = getStore();
         const devOn = Store ? await Store.getDevMode() : false;
         const devToggle = $('devToggle') as HTMLInputElement | null;

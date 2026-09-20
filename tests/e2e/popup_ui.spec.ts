@@ -105,6 +105,12 @@ test.describe('Popup UI & Action Center Localization', () => {
     const optionsPage = await context.newPage();
 
     await popupPage.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
+    await popupPage.evaluate(async () => {
+      await chrome.storage.local.set({
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
+      });
+    });
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
 
     await popupPage.waitForLoadState('domcontentloaded');
