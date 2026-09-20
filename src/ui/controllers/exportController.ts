@@ -66,7 +66,7 @@ export function abort(): void {
 
 
 export async function runExport(
-    { selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }: any,
+    options: any,
     callbacks: any
 ): Promise<any> {
     setRunning(true);
@@ -78,7 +78,7 @@ export async function runExport(
     }
     try {
         activeEngine = new engineClass();
-        const result = await activeEngine.run({ selected, format, skip, includeIndex, includeAssets, useZip, dirHandle, currentSlot, conversations, exportedIds, takeoutEngine }, callbacks);
+        const result = await activeEngine.run(options, callbacks);
         return result;
     } finally {
         setRunning(false);

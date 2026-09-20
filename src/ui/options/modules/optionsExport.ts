@@ -226,16 +226,14 @@ export async function startExportPipeline(
             exportedIds,
             takeoutEngine,
             downloadHandler: async (blob: Blob, filename: string) => {
-                if (typeof document !== 'undefined' && document.createElement && document.body) {
-                    const blobUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = blobUrl;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
-                }
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
             }
         }, {
             onProgress: (progress: any, txt: string) => {

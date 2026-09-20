@@ -34,15 +34,16 @@ function getProtocol(): GeminiProtocolModule {
     let _atCache: { v: string; ts: number; len: number } | null = null;
     const CRED_CACHE_TTL = 30000;
 
-    // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
-    function getBlFromPage(): string | null {
-        if (typeof document === "undefined") return null;
+    // Page DOM credential extractor - accepts optional doc for decoupling and testing
+    function getBlFromPage(doc?: any): string | null {
         try {
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
-            const htmlLen = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML || "").length;
+            const targetDoc = doc || glob.document;
+            if (!targetDoc) return null;
+            const htmlLen = (targetDoc.documentElement && targetDoc.documentElement.innerHTML || "").length;
             if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) return _blCache.v;
             const P = getProtocol();
-            let html = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML) || "";
+            let html = (targetDoc.documentElement && targetDoc.documentElement.innerHTML) || "";
             let m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
             let res: string | null = null;
             if (m) res = m[1];
@@ -53,16 +54,17 @@ function getProtocol(): GeminiProtocolModule {
         return null;
     }
 
-    // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
-    function getAtFromPage(): string {
-        if (typeof document === "undefined") return "";
+    // Page DOM credential extractor - accepts optional doc for decoupling and testing
+    function getAtFromPage(doc?: any): string {
         try {
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
             if (glob.__gemExporterExtractAt) {
                 let a = glob.__gemExporterExtractAt();
                 if (a) return a;
             }
-            const htmlLen = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML || "").length;
+            const targetDoc = doc || glob.document;
+            if (!targetDoc) return "";
+            const htmlLen = (targetDoc.documentElement && targetDoc.documentElement.innerHTML || "").length;
             if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) return _atCache.v;
             const P = getProtocol();
             if (glob._WIZ_global_data && glob._WIZ_global_data[P.TOKENS.AT]) {
@@ -75,7 +77,7 @@ function getProtocol(): GeminiProtocolModule {
                 _atCache = { v, ts: Date.now(), len: htmlLen };
                 return v;
             }
-            let scripts = glob.document ? glob.document.querySelectorAll("script") : [];
+            let scripts = targetDoc.querySelectorAll ? targetDoc.querySelectorAll("script") : [];
             for (let s of scripts) {
                 let txt = s.textContent || "";
                 let m = txt.match(P.TOKEN_PATTERNS.atFromScript);
@@ -84,7 +86,7 @@ function getProtocol(): GeminiProtocolModule {
                     return m[1];
                 }
             }
-            let html = (glob.document && glob.document.documentElement && glob.document.documentElement.innerHTML) || "";
+            let html = (targetDoc.documentElement && targetDoc.documentElement.innerHTML) || "";
             let mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
             if (mHtml) {
                 _atCache = { v: mHtml[1], ts: Date.now(), len: htmlLen };
@@ -94,12 +96,10 @@ function getProtocol(): GeminiProtocolModule {
         return "";
     }
 
-    // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
-    function detectSlot(): string | null {
-        if (typeof document === "undefined") return null;
+    function detectSlot(urlOrPath?: string): string | null {
         try {
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
-            const path = (glob.location && glob.location.pathname) || "";
+            const path = urlOrPath || (glob.location && glob.location.pathname) || "";
             const slot = detectSlotFromUrl(path);
             return slot === "u0" ? "default" : slot;
         } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }

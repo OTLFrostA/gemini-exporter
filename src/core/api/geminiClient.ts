@@ -1,5 +1,6 @@
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode } from "../utils/utils.js";
+import { extractConversationIdFromUrl } from "../utils/pathUtils.js";
 import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "./geminiParser.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
@@ -286,21 +287,10 @@ const pagination = GeminiClientPagination;
             throw new Error("pagination module not found");
         }
 
-        // @contentScriptOnly — requires live page DOM, guarded for non-DOM environments
-        getCurrentConversationId(): string | null {
-            if (typeof document === "undefined") return null;
-            try {
-                const glob: any = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {});
-                let u = new URL(glob.location.href);
-                let parts = u.pathname.split("/");
-                let idx = parts.indexOf("app");
-                if (idx !== -1 && idx < parts.length - 1) return parts[idx + 1];
-                let g = parts.indexOf("gem");
-                if (g !== -1 && g < parts.length - 2) return parts[g + 2];
-                return null;
-            } catch {
-                return null;
-            }
+        getCurrentConversationId(url?: string): string | null {
+            const targetUrl = url || (typeof window !== "undefined" && window.location ? window.location.href : null);
+            if (!targetUrl) return null;
+            return extractConversationIdFromUrl(targetUrl);
         }
     }
 
