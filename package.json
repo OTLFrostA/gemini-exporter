@@ -6,6 +6,7 @@
   "scripts": {
     "type-check": "tsc --noEmit",
     "build": "node build.js",
+    "package": "node build.js --pack",
     "test:unit": "python3 tests/run_tests.py",
     "test:e2e": "node build.js && playwright test",
     "test": "npm run type-check && python3 tests/run_tests.py && node build.js && playwright test",

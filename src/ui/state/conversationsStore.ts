@@ -9,6 +9,7 @@ import GeminiUtils, {
     deduplicateConversations as utilsDeduplicateConversations,
     isTakeoutConversation
 } from '../../core/utils/utils.js';
+import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
 let conversations: Conversation[] = [];
 let exportedIds: Record<string, ExportRecord> = {};
@@ -82,7 +83,7 @@ export async function loadStore(slotOverride?: string): Promise<{
 }> {
     let slot = slotOverride || currentSlot || 'u0';
     const storage = getStorage();
-    const slots = storage ? await storage.getAccountSlots() : ((await chrome.storage.local.get(['gemini_account_slots'])).gemini_account_slots || {});
+    const slots = storage ? await storage.getAccountSlots() : ((await chrome.storage.local.get([STORAGE_KEYS.ACCOUNT_SLOTS]))[STORAGE_KEYS.ACCOUNT_SLOTS] || {});
     setAccountSlots(slots);
 
     let incoming = (storage ? await storage.getConversations(slot) : []) || [];

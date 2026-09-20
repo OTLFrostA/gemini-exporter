@@ -18,6 +18,8 @@ export function isPrecompressedAsset(path: string): boolean {
     return /\.(png|jpe?g|webp|gif|bmp|mp3|mp4|m4a|wav|ogg|zip|gz|tar|pdf)$/i.test(path);
 }
 
+import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
+
 class ZipWriter implements IExportWriter {
     zip: any;
     folder: any;
@@ -26,7 +28,7 @@ class ZipWriter implements IExportWriter {
 
     static ZipWriter = ZipWriter;
 
-    constructor(folderName: string = 'gemini_export') {
+    constructor(folderName: string = DEFAULT_EXPORT_FOLDER_NAME) {
         const JSZipLib = __resolveModule('JSZip', null)
             || (typeof self !== 'undefined' ? (self as any).JSZip : null)
             || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null);

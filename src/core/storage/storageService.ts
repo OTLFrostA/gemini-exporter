@@ -573,12 +573,12 @@ export interface StorageServiceModule {
     }
 
     async function getAccountSlots(): Promise<Record<string, any>> {
-        const data = await chrome.storage.local.get(['gemini_account_slots']);
-        return data.gemini_account_slots || {};
+        const data = await chrome.storage.local.get([STORAGE_KEYS.ACCOUNT_SLOTS]);
+        return data[STORAGE_KEYS.ACCOUNT_SLOTS] || {};
     }
 
     async function setAccountSlots(map: Record<string, any>): Promise<void> {
-        await chrome.storage.local.set({ gemini_account_slots: map || {} });
+        await chrome.storage.local.set({ [STORAGE_KEYS.ACCOUNT_SLOTS]: map || {} });
     }
 
     async function updateAccountSlot(slot: string | null | undefined, info: any): Promise<Record<string, any>> {
@@ -660,8 +660,8 @@ export interface StorageServiceModule {
     async function isTourCompleted(): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
-            const data = await chrome.storage.local.get(['has_completed_tour']);
-            return !!data.has_completed_tour;
+            const data = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TOUR]);
+            return !!data[STORAGE_KEYS.HAS_COMPLETED_TOUR];
         } catch {
             return false;
         }
@@ -670,7 +670,7 @@ export interface StorageServiceModule {
     async function setTourCompleted(completed: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
-            await chrome.storage.local.set({ has_completed_tour: !!completed });
+            await chrome.storage.local.set({ [STORAGE_KEYS.HAS_COMPLETED_TOUR]: !!completed });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
@@ -686,8 +686,8 @@ export interface StorageServiceModule {
     async function getLastSeenFeatureVersion(): Promise<string> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return '0.0.0';
         try {
-            const data = await chrome.storage.local.get(['last_seen_feature_version']);
-            return String(data.last_seen_feature_version || '0.0.0');
+            const data = await chrome.storage.local.get([STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION]);
+            return String(data[STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION] || '0.0.0');
         } catch {
             return '0.0.0';
         }
@@ -696,15 +696,15 @@ export interface StorageServiceModule {
     async function setLastSeenFeatureVersion(version: string): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
-            await chrome.storage.local.set({ last_seen_feature_version: version });
+            await chrome.storage.local.set({ [STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION]: version });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function isTakeoutPromptCompleted(): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
-            const data = await chrome.storage.local.get(['has_completed_takeout_prompt']);
-            return !!data.has_completed_takeout_prompt;
+            const data = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
+            return !!data[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT];
         } catch {
             return false;
         }
@@ -713,22 +713,22 @@ export interface StorageServiceModule {
     async function setTakeoutPromptCompleted(completed: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
-            await chrome.storage.local.set({ has_completed_takeout_prompt: !!completed });
+            await chrome.storage.local.set({ [STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]: !!completed });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
-            await chrome.storage.local.set({ has_imported_takeout: !!imported });
+            await chrome.storage.local.set({ [STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]: !!imported });
         } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
         try {
-            const data = await chrome.storage.local.get(['has_imported_takeout']);
-            if (data && data.has_imported_takeout) return true;
+            const data = await chrome.storage.local.get([STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]);
+            if (data && data[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]) return true;
             const convs = await getConversations(slot);
             return (convs || []).some(c => c && isTakeoutConversation(c));
         } catch {

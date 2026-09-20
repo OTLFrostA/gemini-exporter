@@ -83,11 +83,11 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     // Language & Dev mode synchronization
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            chrome.storage.local.get([STORAGE_KEYS.LANG, 'gemini_dev_mode'], d => {
+            chrome.storage.local.get([STORAGE_KEYS.LANG, STORAGE_KEYS.DEV_MODE], d => {
                 const lang = String(d[STORAGE_KEYS.LANG] || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'));
                 if (Sync && Sync.setLanguage) Sync.setLanguage(lang);
-                contentContext.setDevMode(!!d.gemini_dev_mode);
-                w.__gemExporterDevMode = !!d.gemini_dev_mode;
+                contentContext.setDevMode(!!d[STORAGE_KEYS.DEV_MODE]);
+                w.__gemExporterDevMode = !!d[STORAGE_KEYS.DEV_MODE];
                 if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
             });
             const onStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
@@ -96,8 +96,8 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
                     if (Sync && Sync.setLanguage) Sync.setLanguage(newLang);
                     if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
                 }
-                if (area === 'local' && changes.gemini_dev_mode) {
-                    const devMode = !!changes.gemini_dev_mode.newValue;
+                if (area === 'local' && changes[STORAGE_KEYS.DEV_MODE]) {
+                    const devMode = !!changes[STORAGE_KEYS.DEV_MODE].newValue;
                     contentContext.setDevMode(devMode);
                     w.__gemExporterDevMode = devMode;
                 }

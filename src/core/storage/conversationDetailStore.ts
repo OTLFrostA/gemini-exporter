@@ -1,8 +1,9 @@
 // src/core/storage/conversationDetailStore.ts - IndexedDB persistence for full conversation details (messages & turns)
 import type { ChatMessage, Turn } from '../../types/conversation.js';
 import { normId } from '../utils/pathUtils.js';
+import { IDB_DATABASES } from '../utils/constants.js';
 
-export const DETAIL_DB_NAME = 'gemini_exporter_details_idb';
+export const DETAIL_DB_NAME = IDB_DATABASES.DETAILS;
 export const DETAIL_DB_VERSION = 1;
 export const DETAIL_STORE = 'conversation_details';
 

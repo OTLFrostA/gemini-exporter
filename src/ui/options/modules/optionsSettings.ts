@@ -94,8 +94,8 @@ export async function handleDevChange(devOn: boolean): Promise<void> {
 
 export async function exportDiagnostics(): Promise<void> {
     try {
-        const d = await chrome.storage.local.get(['gemini_last_sync_diagnostics']);
-        const diag = d.gemini_last_sync_diagnostics;
+        const d = await chrome.storage.local.get([STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS]);
+        const diag = d[STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS];
         if (!diag) {
             const noDataMsg = typeof t === 'function' ? t('noDiagData') : 'No diagnostic data yet.';
             log(noDataMsg, 'info');
@@ -451,8 +451,8 @@ export async function initLiveSaveSettings(): Promise<void> {
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged && !(globalThis as any).__liveSaveStorageWatcherBound) {
         (globalThis as any).__liveSaveStorageWatcherBound = true;
         chrome.storage.onChanged.addListener((changes: any, area: string) => {
-            if (area === 'local' && changes.live_save_config?.newValue) {
-                const val = changes.live_save_config.newValue;
+            if (area === 'local' && changes[STORAGE_KEYS.LIVE_SAVE_CONFIG]?.newValue) {
+                const val = changes[STORAGE_KEYS.LIVE_SAVE_CONFIG].newValue;
                 if (val.dirError === 'permission_prompt_needed') {
                     if (dirLabel) {
                         const folderName = val.dirName || 'Folder';

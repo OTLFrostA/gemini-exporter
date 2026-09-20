@@ -1,6 +1,6 @@
-// src/core/storage/idbHandleStore.ts - Single Source of Truth for FileSystemDirectoryHandle in IndexedDB
+import { IDB_DATABASES } from '../utils/constants.js';
 
-export const IDB_NAME = 'gemini_exporter_idb';
+export const IDB_NAME = IDB_DATABASES.HANDLES;
 export const IDB_VERSION = 1;
 export const IDB_STORE = 'handles';
 export const IDB_KEY = 'export_dir_handle';

@@ -19,6 +19,7 @@ import { DialogView } from '../../views/dialogView.js';
 import { ProgressView } from '../../views/progressView.js';
 import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
 import { normId } from '../../../core/utils/pathUtils.js';
+import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 import { $ } from '../../uiCommon.js';
 
 export { normId, isRealTitle };
@@ -465,7 +466,7 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
                                 zipCh.checked = false;
                                 updateZipUi();
                                 try {
-                                    await chrome.storage.local.set({ gemini_export_zip: false });
+                                    await chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: false });
                                 } catch (e) {
                                     console.warn('[GemExporter:storage] Storage operation failed:', e);
                                 }
@@ -534,16 +535,16 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
     }
 
     if (zipCheck) {
-        const d = await chrome.storage.local.get(['gemini_export_zip']);
-        if (typeof (d as any).gemini_export_zip !== 'undefined') {
-            zipCheck.checked = (d as any).gemini_export_zip as boolean;
+        const d = await chrome.storage.local.get([STORAGE_KEYS.ZIP]);
+        if (typeof (d as any)[STORAGE_KEYS.ZIP] !== 'undefined') {
+            zipCheck.checked = (d as any)[STORAGE_KEYS.ZIP] as boolean;
         } else {
             zipCheck.checked = true;
         }
         updateZipUi();
         zipCheck.addEventListener('change', () => {
             updateZipUi();
-            chrome.storage.local.set({ gemini_export_zip: zipCheck.checked });
+            chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: zipCheck.checked });
         });
     }
 
