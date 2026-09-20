@@ -9,7 +9,8 @@ import {
     getStorage,
     getTour,
     getDirHandle as getDirHandleController,
-    getLiveStorage
+    getLiveStorage,
+    getProgressView
 } from '../optionsContext.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
@@ -45,6 +46,11 @@ export async function handleLangChange(targetLang: 'zh' | 'en'): Promise<void> {
     document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
     if (i18n && typeof i18n.applyI18n === 'function') {
         i18n.applyI18n();
+    }
+
+    const Progress = getProgressView();
+    if (Progress && typeof Progress.reset === 'function') {
+        Progress.reset();
     }
 
     if (__updateAccountSlotSelector) __updateAccountSlotSelector();
