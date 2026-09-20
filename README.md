@@ -25,6 +25,7 @@
   - Automatically saves newly completed chat turns directly to your selected local folder via the native FileSystem Access API or local IndexedDB.
   - Zero lag, zero clicks required — chat on Gemini, and your local notes are instantly up to date.
   - Floating unobtrusive sync badge in the bottom-right corner displays real-time saving status.
+  - **Headless Resilient Fallback**: If browser restart resets directory handle permissions to `prompt`, background worker automatically falls back to `chrome.downloads` (`Downloads/gemini_export/`) with zero data loss and 1-click UI reauthorization.
 - 📸 **Long Scrolling Screenshot & Single-Page PDF (New in v1.6.0)**:
   - Generate pixel-perfect full conversation long screenshots (`.png`) with intelligent frame-overlap elimination.
   - Export ultra-crisp, printable single-page PDFs (`.pdf`) powered by an internal zero-dependency native PDF 1.4 binary engine.
@@ -38,6 +39,10 @@
   - Downloads AI-generated high-resolution images (Imagen).
   - Preserves Deep Research reports and documents.
   - Images and attachments are neatly placed in an `assets/` folder with relative Markdown links.
+  - **STORE Mode 0-Deflate Protection**: High-res binary media bypasses redundant ZIP compression, preventing tab memory crashes (OOM) during 200MB+ large batch exports.
+- 🗄️ **Two-Tier Storage Architecture**:
+  - Breaks Chrome's 10MB `chrome.storage.local` quota ceiling by splitting state into a high-speed metadata index in local storage and full turn/message bodies in IndexedDB (`conversationDetailStore.ts`).
+  - Effortlessly manages thousands of long multi-turn conversations without data truncation or storage errors.
 - 📊 **Visual Batch Workbench**:
   - Intuitive dark-mode dashboard to search, filter, and manage all your conversations.
   - Filter chats by status: *All*, *Unexported*, *Needs Re-export*, or *Exported*.
@@ -47,8 +52,10 @@
   - Only export what is new! When an older chat receives new replies, it is automatically flagged so you can back it up in seconds without re-exporting everything.
 - 📥 **Google Takeout Support**:
   - Easily import your official Google Takeout ZIP archive to recover older historical chats that Google's web sidebar no longer displays (bypassing Google's ~600 chat sidebar limitation).
-- 👥 **Multi-Account Friendly**:
-  - Seamlessly switch between different Google accounts in the Workbench with isolated storage for each (`u0`, `u1`, etc.).
+- 👥 **True Multi-Account Identity Isolation**:
+  - Auto-sniffs real Google Profile (email address, display name, and Gaia ID) from web avatar & WIZ data via `accountSniffer.ts`.
+  - Workbench dropdown shows actual Google emails instead of cryptic slot IDs.
+  - Strict physical credential namespace isolation and tab routing ensure zero token leakage or cross-account command dispatching.
 - 🌐 **Extensible AI Provider Architecture**:
   - Built on a decoupled provider-neutral foundation (`AIProvider`), paving the way for multi-platform AI conversation management.
 
@@ -62,32 +69,36 @@ Gemini Exporter is engineered using a robust 4-tier Chrome Manifest V3 modular a
 graph LR
     subgraph Injection ["Injection Layer"]
         HOOK["hookCredentials.ts<br/>(MAIN World Sniffer)"]
+        SNIFFER["accountSniffer.ts<br/>(Profile & Identity)"]
         CS["content.ts & messageBridge<br/>(ISOLATED World)"]
     end
 
     subgraph ServiceWorker ["Service Worker"]
-        SW["background.ts<br/>(KeepAlive & Lifecycle)"]
+        SW["background.ts<br/>(KeepAlive, Abort & Lifecycle)"]
+        LH["liveSaveHandler.ts<br/>(FileSystem & Downloads Fallback)"]
     end
 
     subgraph CoreEngine ["Core Engine (Zero DOM)"]
         PROV["AI Provider<br/>(Gemini & ChatGPT)"]
         API["RPC Client & Parser<br/>(batchexecute & JSPB)"]
-        ENG["Export & Packaging<br/>(AsyncQueue & Formatter)"]
+        ENG["Export & Packaging<br/>(AsyncQueue & STORE Mode)"]
         TAKEOUT["Takeout Engine<br/>(ZipBombGuard & MediaIndex)"]
         MEDIA["Visual Engines<br/>(Screenshot & PDF Wrapper)"]
         SSOT["SSoT Utils<br/>(Title Arbitration & Merge)"]
     end
 
-    subgraph Presentation ["UI & Storage"]
+    subgraph Presentation ["UI & Two-Tier Storage"]
         WORKBENCH["Options Workbench<br/>(MVC & Virtual List)"]
         POPUP["Popup Action Center<br/>(Quick Export & Screenshot)"]
-        STORAGE["chrome.storage & IndexedDB"]
+        STORAGE["Two-Tier Storage<br/>(chrome.storage.local & IndexedDB)"]
     end
 
     HOOK --> CS
+    SNIFFER --> CS
     CS <--> SW
     CS --> PROV
     SW --> ENG
+    SW --> LH
     WORKBENCH --> ENG
     WORKBENCH --> TAKEOUT
     POPUP --> MEDIA
@@ -205,7 +216,17 @@ Google Gemini's web interface enforces a server-side limitation on how far back 
 
 <details>
 <summary><b>How does Live Auto-Save work without an open Workbench?</b></summary>
-Live Auto-Save is powered by an in-page stream observer and Chrome's FileSystem Access API directory handle persisted securely in local IndexedDB. When a generation completes, the background handler writes directly to the authorized folder without needing the Options page open.
+Live Auto-Save is powered by an in-page stream observer and Chrome's FileSystem Access API directory handle persisted securely in local IndexedDB. When a generation completes, the background handler writes directly to the authorized folder without needing the Options page open. If Chrome restarts and directory permissions are downgraded to prompt, the background worker automatically falls back to saving via <code>chrome.downloads</code> (into <code>Downloads/gemini_export/</code>) so no turns are ever lost, and prompts 1-click reauthorization in the UI.
+</details>
+
+<details>
+<summary><b>Can it handle thousands of long conversations without hitting storage limits?</b></summary>
+Yes! Thanks to our <b>Two-Tier Storage Architecture</b>, fast conversation indexing is kept in <code>chrome.storage.local</code> (strictly under 10MB quota safe limits), while full multi-turn dialogs and message bodies are stored in local IndexedDB (<code>conversationDetailStore</code>). There is no practical limit to the number of conversations you can preserve.
+</details>
+
+<details>
+<summary><b>How does Multi-Account switching work?</b></summary>
+Gemini Exporter automatically sniffs the active Google account's email and Gaia ID (via <code>accountSniffer.ts</code>). Each account is assigned an isolated storage namespace and credential slot. You can switch between accounts seamlessly in the Workbench dropdown with complete privacy, zero cross-slot token borrowing, and strict tab routing.
 </details>
 
 ---

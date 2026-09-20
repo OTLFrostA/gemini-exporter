@@ -25,6 +25,7 @@ src/
     content.ts                 ISOLATED world entrypoint & subsystem coordinator (bundled to dist/content/content.js)
     content.css                Floating badge styling & live save UI animation
     hookCredentials.ts         MAIN world network interceptor & credential sniffer (bundled to dist/content/hook.js)
+    accountSniffer.ts          Real Google profile sniffer (email, name, gaiaId) from DOM avatar & WIZ data
     messageBridge.ts           Cross-world window.postMessage bridge (MAIN -> ISOLATED)
     liveSaveObserver.ts        Gemini generation completion & DOM mutation debounced observer
     liveSaveCoordinator.ts     Real-time live auto-save coordinator (RPC/DOM -> IndexedDB & Disk)
@@ -89,8 +90,9 @@ src/
         fsWriter.ts            FileSystem Access API directory tree writer
 
     storage/                   Storage Abstraction & Persistence Layer
-      storageService.ts        Multi-account slot chrome.storage.local abstraction
-      liveStorageManager.ts    IndexedDB mirror database for real-time live save (gemini_live_conversations)
+      storageService.ts        Multi-account slot chrome.storage.local abstraction & two-tier storage coordinator
+      conversationDetailStore.ts IndexedDB heavy turn & message body detail store for two-tier storage architecture
+      liveStorageManager.ts    Live auto-save configuration and FileSystem Directory Handle proxy
       idbHandleStore.ts        FileSystemDirectoryHandle IndexedDB persistence across sessions
       sessionStore.ts          In-memory and chrome.storage.session recovery cache
       formatStore.ts           Export format preferences & template persistence
@@ -145,6 +147,8 @@ src/
       tourPosition.ts          Tooltip dynamic geometry & anchor position calculations
       tourGuide.css            Onboarding spotlight & callout styling
       featureReleases.ts       Release notes & new feature banners
+    utils/
+      domI18n.ts               DOM-based i18n renderer & language switch UI bindings (isolated from Core)
     uiCommon.ts                DOM helpers ($) and i18n bridging
 ```
 
@@ -168,11 +172,26 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 
 ## 🛡️ Architectural Rules & Invariants
 
-1. **Zero DOM Dependencies in Core**:
-   `src/core/` algorithms (parsing, formatting, title arbitration, rate limiting, takeout parsing, PDF binary stream generation) must never touch browser DOM elements. They execute identically in Node.js unit tests, Web Workers, Service Workers, and UI pages.
-2. **Single Source of Truth (SSoT)**:
-   Path sanitization (`pathUtils.ts`), title arbitration (`titleUtils.ts`), and list merging (`mergeUtils.ts`) reside exclusively in `src/core/utils/`. No module may roll its own regexes for title cleaning or sorting.
-3. **Pluggable AI Provider**:
-   New AI engines must implement the `AIProvider` contract in `src/core/provider/aiProvider.ts` and register with `ProviderRegistry`.
-4. **Sandboxed Interceptors**:
+1. **Zero DOM Dependencies in Core (Zero DOM Baseline & Controlled Exceptions)**:
+   `src/core/` algorithms (parsing `geminiParser.ts`, formatting `chatFormatter.ts`, title arbitration `titleUtils.ts`, list merging `mergeUtils.ts`, two-tier storage `storageService.ts` / `conversationDetailStore.ts`, rate limiting `rateLimiter.ts`, takeout parsing `takeoutEngine.ts`, PDF binary stream generation `pdfWrapper.ts`, export orchestrator `exportOrchestrator.ts`) must strictly maintain zero browser DOM dependencies (`document`, `HTMLElement`). They execute identically in Node.js unit tests, Web Workers, Service Workers, and UI pages. DOM rendering and mutation logic for i18n is completely isolated in `src/ui/utils/domI18n.ts`. Controlled exceptions are strictly limited to:
+   - Read-only legacy fallback for abort flag: `(window as any).__gemExporterAborted` in `geminiClient.ts`/`pagination.ts` (with `AbortSignal` as primary);
+   - OffscreenCanvas/Canvas fallback in `screenshotStitcher.ts`.
+2. **Strict UI Separation of Concerns**:
+   - `state/`: Unidirectional data flow and reactive conversation state machine;
+   - `views/`: Stateless DOM template generation, virtual list rendering, and event bubble binding;
+   - `controllers/`: Business workflow orchestration and asynchronous execution;
+   - `options.ts` / `popup.ts`: Pure entrypoint mount and sub-module coordinators.
+3. **Single Source of Truth (SSoT) & Title Anti-Degradation**:
+   Path sanitization (`pathUtils.ts`), title arbitration (`titleUtils.ts`), and list merging (`mergeUtils.ts`) reside exclusively in `src/core/utils/`. No module may roll its own regexes for title cleaning or sorting. Strict priority: `RPC 权威标题 > 详情提取标题 > 提问前缀临时标题 > Takeout 离线导入标题`.
+4. **Sandboxed Interceptors Guard**:
    Code injected into `MAIN` world (`hookCredentials.ts`) runs in a fail-safe sandbox: any unexpected exception is swallowed silently to guarantee zero degradation of native Google Gemini functionality.
+5. **Event-Driven AsyncQueue & Rate Limiting**:
+   No `setInterval` polling or unbounded concurrency. All batch exports and downloads are driven by `AsyncQueue` worker pools (default concurrency: 3) combined with `RateLimiter` exponential backoff state machines to intelligently avoid HTTP 429 rate limits.
+6. **MV3 Service Worker Keepalive Resilience**:
+   Regular lightweight heartbeat pings keep the MV3 Service Worker alive during lengthy deep scans and multi-megabyte media packaging tasks, preventing unexpected background worker termination by Chromium.
+7. **Two-Tier Storage & Quota Isolation**:
+   `chrome.storage.local` strictly stores lightweight conversation metadata index (`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`), maintaining memory well below Chrome's 10MB quota ceiling. Heavy conversation turns, full messages, and media references are persisted in IndexedDB via `conversationDetailStore.ts`, completely eliminating storage quota exhaustion and data truncation.
+8. **Headless FileSystem Permission Fallback**:
+   When Service Worker executes in headless background and directory handle permissions drop to `prompt` upon browser restart (where Chromium forbids headless permission prompting), the system never fails or discards data. It seamlessly activates `chrome.downloads` fallback to save into `Downloads/gemini_export/` and notifies the UI, allowing 1-click reauthorization via user gesture (`reauthorizeDirHandle()`).
+9. **Multi-Account Strict Isolation & Zero Token Stealing**:
+   The multi-account subsystem is anchored to real Google Profiles (email, name, Gaia ID) sniffed via `accountSniffer.ts`. Each account slot maintains an isolated credential and conversation namespace with zero cross-slot token borrowing. Cross-tab dispatching strictly matches the active account slot, rejecting dispatch if no matching tab is found.
