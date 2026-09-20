@@ -24,7 +24,7 @@ from scripts.visual_agent.playground import open_visual_playground
 def main():
     common_parser = argparse.ArgumentParser(add_help=False)
     common_parser.add_argument("--port", type=int, default=9222, help="CDP debug port (default: 9222)")
-    common_parser.add_argument("--target", type=str, default=None, choices=["options", "gemini", "chat", "workbench"], help="Target page (default: auto-detect from active state)")
+    common_parser.add_argument("--target", type=str, default=None, choices=["options", "gemini", "chat", "workbench", "popup"], help="Target page (default: auto-detect from active state)")
     common_parser.add_argument("--json", action="store_true", help="Output result in structured JSON format")
 
     parser = argparse.ArgumentParser(description="Gemini Exporter Visual Playground CLI", parents=[common_parser])

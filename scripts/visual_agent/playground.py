@@ -612,7 +612,13 @@ class VisualPlayground:
                             CDP 在后台直接静默操作标签页，彻底杜绝抢占 OS 桌面焦点。
           - new_chat: 当 target 为 gemini 时，是否开启全新空白对话 (导航至 https://gemini.google.com/app 并清空输入框)。
         """
-        norm_target = "gemini" if target.lower() in ("gemini", "chat") else "options"
+        t_lower = target.lower() if target else ""
+        if t_lower in ("gemini", "chat"):
+            norm_target = "gemini"
+        elif t_lower in ("popup",):
+            norm_target = "popup"
+        else:
+            norm_target = "options"
 
         # 单元测试 / MockCDP 环境兼容处理
         if self._is_mock:
@@ -646,6 +652,8 @@ class VisualPlayground:
             tabs = get_tabs(self.port)
             if norm_target == "gemini":
                 target_tab = next((t for t in tabs if t.get("type", "page") == "page" and is_gemini_url(t.get("url", ""))), None)
+            elif norm_target == "popup":
+                target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "popup.html" in t.get("url", "")), None)
             elif norm_target == "options":
                 target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
             if not target_tab and tabs:
@@ -709,7 +717,14 @@ class VisualPlayground:
         Resets the playground to a clean initial state.
         Supports optional extension reinstallation via Tier 2 TestEnvironment.
         """
-        norm_target = "gemini" if target.lower() in ("gemini", "chat") else "options"
+        t_lower = target.lower() if target else ""
+        if t_lower in ("gemini", "chat"):
+            norm_target = "gemini"
+        elif t_lower in ("popup",):
+            norm_target = "popup"
+        else:
+            norm_target = "options"
+
         if reinstall and hasattr(self, "env") and self.env and not self._is_mock:
             self.env.init_environment(
                 reinstall=True,
@@ -762,7 +777,14 @@ def open_visual_playground(
         saved_target, _ = VisualPlayground.load_active_target(out)
         target_page = saved_target or "options"
 
-    norm_target = "gemini" if target_page.lower() in ("gemini", "chat") else "options"
+    t_lower = target_page.lower() if target_page else ""
+    if t_lower in ("gemini", "chat"):
+        norm_target = "gemini"
+    elif t_lower in ("popup",):
+        norm_target = "popup"
+    else:
+        norm_target = "options"
+
     target_repo = os.path.abspath(repo_path or os.path.join(os.path.dirname(__file__), "../.."))
 
     if env is None:
@@ -789,6 +811,8 @@ def open_visual_playground(
             raise RuntimeError(f"未在端口 {port} 找到任何活跃 Chrome 标签页。请先启动独立测试 Chrome。")
         if norm_target == "gemini":
             target_tab = next((t for t in tabs if t.get("type", "page") == "page" and is_gemini_url(t.get("url", ""))), None)
+        elif norm_target == "popup":
+            target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "popup.html" in t.get("url", "")), None)
         elif norm_target == "options":
             target_tab = next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
         if not target_tab:
