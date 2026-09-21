@@ -24,9 +24,6 @@ Chrome Web Store enforces a strict single-purpose policy requiring explicit just
 | :--- | :--- |
 | **`storage`** | Stores user configuration settings (selected export format, toggle states) and local conversation index metadata (`gemini_conversations`, `exportedIds`) to enable fast incremental sync across sessions without re-querying all conversations. |
 | **`unlimitedStorage`** | Required to persist conversation lists and metadata indexes for power users who have hundreds or thousands of Gemini conversations in their local browser sandbox. |
-| **`tabs`** | Used exclusively to identify active `gemini.google.com` tabs so that the extension popup and background worker can query the active conversation ID and pass export messages to the page context. |
-| **`scripting`** | Injects helper content scripts and main-world interceptor hooks on `https://gemini.google.com/*` to safely retrieve user-consented chat details and session tokens. |
-| **`downloads`** | Required to trigger local file downloads when users click "Export Current Page" or "Export Selected → ZIP" without redirecting away from the active page. |
 
 ---
 

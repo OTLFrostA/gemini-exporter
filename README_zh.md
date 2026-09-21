@@ -8,7 +8,7 @@
   <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome 应用商店">
   </a>
-  <img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.6.2-orange.svg?style=for-the-badge" alt="版本: 1.6.2">
+  <img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.6.3-orange.svg?style=for-the-badge" alt="版本: 1.6.3">
   <img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90%E5%8D%8F%E8%AE%AE-MIT-green.svg?style=for-the-badge" alt="开源协议: MIT">
 </p>
 

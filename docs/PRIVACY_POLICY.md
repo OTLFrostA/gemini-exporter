@@ -31,8 +31,6 @@ The Extension requests minimal permissions strictly necessary to perform its adv
 | Permission | Purpose & Justification |
 | :--- | :--- |
 | **`storage` / `unlimitedStorage`** | Used exclusively to save local user preferences (selected export format, ZIP packaging toggle, language) and local conversation index metadata to skip duplicate exports. |
-| **`downloads`** | Used solely to save the generated exported files (Markdown, JSON, TXT, images, and ZIP archives) directly to your local computer's download directory. |
-| **`scripting` / `tabs`** | Used to communicate with active Google Gemini tabs (`https://gemini.google.com/*`) to extract conversation titles, IDs, and messages when initiated by the user. |
 | **Host Permissions (`gemini.google.com`, `*.googleusercontent.com`)** | Required to read conversation structures on Gemini and retrieve embedded user-uploaded files and AI-generated image attachments directly to your machine. |
 
 ---
@@ -86,8 +84,6 @@ Gemini Exporter 是一款纯本地运行的开源浏览器扩展，仅用于实�
 ### 3. 权限申请合理性说明
 本扩展仅申请实现上述导出功能所必需的最小权限：
 - **`storage` / `unlimitedStorage`**：仅用于在本地记录用户的导出偏好（默认格式、是否打包 ZIP、中英语言设置）以及已导出对话标记，实现增量跳过已导出记录。
-- **`downloads`**：仅用于将生成的导出文件或 ZIP 压缩包保存至您的本地磁盘下载目录。
-- **`scripting` / `tabs`**：仅用于在活跃的 `gemini.google.com` 页面中进行会话索引扫描与内容提取。
 - **主机权限 (`gemini.google.com`, `*.googleusercontent.com`)**：用于读取对话文本以及下载对话中内嵌的图片与用户上传附件至本地。
 
 ### 4. 平台开发者规范合规承诺
