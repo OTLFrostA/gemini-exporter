@@ -105,22 +105,6 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         return true;
     }
 
-    if (msg.action === 'captureTab') {
-        const windowId = (msg as any).windowId || chrome.windows?.WINDOW_ID_CURRENT;
-        try {
-            chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, (dataUrl) => {
-                if (chrome.runtime.lastError || !dataUrl) {
-                    sendResponse({ ok: false, error: chrome.runtime.lastError?.message || 'Failed to capture visible tab' });
-                } else {
-                    sendResponse({ ok: true, dataUrl });
-                }
-            });
-        } catch (err: any) {
-            sendResponse({ ok: false, error: err?.message || String(err) });
-        }
-        return true;
-    }
-
     if (msg.action === 'fetchChat') {
         sendToGeminiTab({
             action: 'getConversationDetail',

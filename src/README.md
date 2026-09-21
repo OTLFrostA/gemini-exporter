@@ -32,7 +32,6 @@ src/
     syncEngine.ts              Incremental & deep history scan coordinator
     domScraper.ts              DOM fallback scraper when RPC payloads are unavailable
     badgeView.ts               Floating sync & live save feedback badge in Gemini web UI
-    screenshotCapture.ts       Scrolling container multi-frame viewport capture
     assetFetcher.ts            Media, images, and blob streaming fetcher
     bootstrap.ts               Page token & initial credential bootstrap
     cleanupRegistry.ts         Hot reload / re-injection listener cleanup registry
@@ -81,8 +80,6 @@ src/
         zipBombGuard.ts        ZIP bomb security validation & entry bounds checking
       chatFormatter.ts         CommonMark (YAML Frontmatter), JSON, OpenAI formatters
       liveSaveWriter.ts        High-speed live save disk writer for FileSystem Directory Handle
-      screenshotStitcher.ts    Non-overlapping frame layout calculation & offscreen canvas stitcher
-      pdfWrapper.ts            Zero-dependency native PDF 1.4 binary stream generator (/DCTDecode)
       assetPipeline.ts         Media asset downloading, C2PA validation & ZIP packaging
       writers/                 Pluggable Storage Writers
         writerInterface.ts     Unified Writer abstraction & factory
@@ -127,7 +124,7 @@ src/
         optionsSettings.ts     Language toggle, dev mode & diagnostic console
     popup/                     Browser Action Popup Subsystem
       popup.html               Popup markup
-      popup.ts                 Quick export, long screenshot & PDF coordinator (bundled to dist/ui/popup.js)
+      popup.ts                 Quick export & options launcher (bundled to dist/ui/popup.js)
     state/
       conversationsStore.ts    Reactive conversation state machine, filter & selection manager
     views/
@@ -163,7 +160,7 @@ Gemini Exporter compiles its TypeScript source tree using `esbuild` (`build.js`)
 | `dist/content/content.js` | `src/content/content.ts` | ISOLATED World | Content script entrypoint, observers, sync engine & badge view |
 | `dist/content/hook.js` | `src/content/hookCredentials.ts` | MAIN World | Host page XHR/Fetch network interceptor & credential sniffer |
 | `dist/background/background.js` | `src/background/background.ts` | Service Worker | Background worker, lifecycle, keepalive, abort state & batch fetcher |
-| `dist/ui/popup.js` | `src/ui/popup/popup.ts` | Extension Page | Popup action center: quick export, long screenshot stitcher & PDF |
+| `dist/ui/popup.js` | `src/ui/popup/popup.ts` | Extension Page | Popup action center: quick export & workbench launcher |
 | `dist/ui/options.js` | `src/ui/options/options.ts` | Extension Page | Workbench dashboard: batch selection, Takeout import, sync & export |
 
 All bundles are generated in `< 30ms` with minification and sourcemaps.
@@ -173,9 +170,8 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 ## 🛡️ Architectural Rules & Invariants
 
 1. **Zero DOM Dependencies in Core (Zero DOM Baseline & Controlled Exceptions)**:
-   `src/core/` algorithms (parsing `geminiParser.ts`, formatting `chatFormatter.ts`, title arbitration `titleUtils.ts`, list merging `mergeUtils.ts`, two-tier storage `storageService.ts` / `conversationDetailStore.ts`, rate limiting `rateLimiter.ts`, takeout parsing `takeoutEngine.ts`, PDF binary stream generation `pdfWrapper.ts`, export orchestrator `exportOrchestrator.ts`) must strictly maintain zero browser DOM dependencies (`document`, `HTMLElement`). They execute identically in Node.js unit tests, Web Workers, Service Workers, and UI pages. DOM rendering and mutation logic for i18n is completely isolated in `src/ui/utils/domI18n.ts`. Controlled exceptions are strictly limited to:
-   - Read-only legacy fallback for abort flag: `(window as any).__gemExporterAborted` in `geminiClient.ts`/`pagination.ts` (with `AbortSignal` as primary);
-   - OffscreenCanvas/Canvas fallback in `screenshotStitcher.ts`.
+   `src/core/` algorithms (parsing `geminiParser.ts`, formatting `chatFormatter.ts`, title arbitration `titleUtils.ts`, list merging `mergeUtils.ts`, two-tier storage `storageService.ts` / `conversationDetailStore.ts`, rate limiting `rateLimiter.ts`, takeout parsing `takeoutEngine.ts`, export orchestrator `exportOrchestrator.ts`) must strictly maintain zero browser DOM dependencies (`document`, `HTMLElement`). They execute identically in Node.js unit tests, Web Workers, Service Workers, and UI pages. DOM rendering and mutation logic for i18n is completely isolated in `src/ui/utils/domI18n.ts`. Controlled exceptions are strictly limited to:
+   - Read-only legacy fallback for abort flag: `(window as any).__gemExporterAborted` in `geminiClient.ts`/`pagination.ts` (with `AbortSignal` as primary).
 2. **Strict UI Separation of Concerns**:
    - `state/`: Unidirectional data flow and reactive conversation state machine;
    - `views/`: Stateless DOM template generation, virtual list rendering, and event bubble binding;

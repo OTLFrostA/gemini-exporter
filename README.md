@@ -13,7 +13,7 @@
 </p>
 
 > **The easiest, privacy-first way to export and archive your Google Gemini conversations.**  
-> Batch export your chat history into clean Markdown, JSON, long screenshots, single-page PDFs, or a complete ZIP archive with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
+> Batch export your chat history into clean Markdown, JSON, or a complete ZIP archive with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
 
 ---
 
@@ -26,9 +26,6 @@
   - Zero lag, zero clicks required — chat on Gemini, and your local notes are instantly up to date.
   - Floating unobtrusive sync badge in the bottom-right corner displays real-time saving status.
   - **Headless Resilient Fallback**: If browser restart resets directory handle permissions to `prompt`, background worker automatically falls back to `chrome.downloads` (`Downloads/gemini_export/`) with zero data loss and 1-click UI reauthorization.
-- 📸 **Long Scrolling Screenshot & Single-Page PDF (New in v1.6.0)**:
-  - Generate pixel-perfect full conversation long screenshots (`.png`) with intelligent frame-overlap elimination.
-  - Export ultra-crisp, printable single-page PDFs (`.pdf`) powered by an internal zero-dependency native PDF 1.4 binary engine.
 - 📝 **Beautiful Markdown Output**:
   - Full syntax highlighting for programming code blocks.
   - Formatted LaTeX mathematical formulas and equations.
@@ -83,13 +80,12 @@ graph LR
         API["RPC Client & Parser<br/>(batchexecute & JSPB)"]
         ENG["Export & Packaging<br/>(AsyncQueue & STORE Mode)"]
         TAKEOUT["Takeout Engine<br/>(ZipBombGuard & MediaIndex)"]
-        MEDIA["Visual Engines<br/>(Screenshot & PDF Wrapper)"]
         SSOT["SSoT Utils<br/>(Title Arbitration & Merge)"]
     end
 
     subgraph Presentation ["UI & Two-Tier Storage"]
         WORKBENCH["Options Workbench<br/>(MVC & Virtual List)"]
-        POPUP["Popup Action Center<br/>(Quick Export & Screenshot)"]
+        POPUP["Popup Action Center<br/>(Quick Export)"]
         STORAGE["Two-Tier Storage<br/>(chrome.storage.local & IndexedDB)"]
     end
 
@@ -101,7 +97,7 @@ graph LR
     SW --> LH
     WORKBENCH --> ENG
     WORKBENCH --> TAKEOUT
-    POPUP --> MEDIA
+    POPUP --> ENG
     ENG --> STORAGE
     TAKEOUT --> SSOT
 ```
@@ -145,9 +141,7 @@ Install directly from the official Chrome Web Store with one click:
 1. Open any conversation on [Google Gemini](https://gemini.google.com).
 2. Click the **Gemini Exporter** icon in your browser toolbar.
 3. Choose your desired action:
-   - **Markdown / JSON**: Click **"Export Current Page"** or **"Copy Markdown"**.
-   - **Long Screenshot**: Click **"Capture Long Screenshot"** to auto-scroll, stitch, and download a complete `.png`.
-   - **Single-Page PDF**: Click **"Export Single-Page PDF"** for an instant high-res `.pdf` file.
+   - **Markdown / JSON**: Click **"Export Current Page"** to download the active conversation immediately.
 
 ### 2. Batch Export All Chats (Workbench)
 1. Click the extension icon and select **"Go to Workbench"** (or right-click the icon and choose "Options").
