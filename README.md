@@ -25,7 +25,7 @@
   - Automatically saves newly completed chat turns directly to your selected local folder via the native FileSystem Access API or local IndexedDB.
   - Zero lag, zero clicks required — chat on Gemini, and your local notes are instantly up to date.
   - Floating unobtrusive sync badge in the bottom-right corner displays real-time saving status.
-  - **Headless Resilient Fallback**: If browser restart resets directory handle permissions to `prompt`, background worker automatically falls back to `chrome.downloads` (`Downloads/gemini_export/`) with zero data loss and 1-click UI reauthorization.
+  - **1-Click Reauthorization**: If browser restart resets directory handle permissions to `prompt`, the extension provides 1-click UI reauthorization to seamlessly resume background auto-saving.
 - 📝 **Beautiful Markdown Output**:
   - Full syntax highlighting for programming code blocks.
   - Formatted LaTeX mathematical formulas and equations.
@@ -210,7 +210,7 @@ Google Gemini's web interface enforces a server-side limitation on how far back 
 
 <details>
 <summary><b>How does Live Auto-Save work without an open Workbench?</b></summary>
-Live Auto-Save is powered by an in-page stream observer and Chrome's FileSystem Access API directory handle persisted securely in local IndexedDB. When a generation completes, the background handler writes directly to the authorized folder without needing the Options page open. If Chrome restarts and directory permissions are downgraded to prompt, the background worker automatically falls back to saving via <code>chrome.downloads</code> (into <code>Downloads/gemini_export/</code>) so no turns are ever lost, and prompts 1-click reauthorization in the UI.
+Live Auto-Save is powered by an in-page stream observer and Chrome's FileSystem Access API directory handle persisted securely in local IndexedDB. When a generation completes, the background handler writes directly to the authorized folder without needing the Options page open. If Chrome restarts and directory permissions are downgraded to prompt, the extension displays a 1-click reauthorization button in the UI so you can resume saving with a single click.
 </details>
 
 <details>

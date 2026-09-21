@@ -252,18 +252,13 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         });
                         if (resp && resp.ok) {
                             writeSucceeded = true;
-                            if (resp.fallback === 'downloads') {
-                                if (isDev()) {
-                                    console.log(`[LiveSaveCoordinator] Conversation ${nid} saved via downloads fallback (${resp.targetFile})`);
-                                }
-                                notifyLiveSaveWarning('permission_prompt_needed');
-                            } else if (isDev()) {
+                            if (isDev()) {
                                 console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName})`);
                             }
-                        } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || (resp.error === 'no_dir_handle' && config.dirName))) {
-                            console.warn(`[LiveSaveCoordinator] Directory handle unavailable (${resp.error}). Aborting live save to avoid polluting Downloads.`);
-                            const errType = resp.error === 'permission_not_granted'
-                                ? 'permission_not_granted'
+                        } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || resp.error === 'permission_prompt_needed' || (resp.error === 'no_dir_handle' && config.dirName))) {
+                            console.warn(`[LiveSaveCoordinator] Directory handle unavailable (${resp.error}).`);
+                            const errType = (resp.error === 'permission_not_granted' || resp.error === 'permission_prompt_needed')
+                                ? 'permission_prompt_needed'
                                 : (resp.error === 'no_dir_handle' ? 'no_dir_handle' : 'dir_deleted');
                             notifyLiveSaveWarning(errType);
                             return false;
