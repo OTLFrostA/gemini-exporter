@@ -84,3 +84,72 @@ test('exportedIdsKey - canonical key computation and slot fallback', () => {
     assert.strictEqual(exportedIdsKey(''), 'exportedIds');
     assert.strictEqual(exportedIdsKey(), 'exportedIds');
 });
+
+test('exportedIds - finalizeChatExport persists export record with partial status when assets fail', async () => {
+    const targetId = 'chat_partial_123';
+    const nid = normId(targetId);
+    const rec = { exportedAt: '2026-09-21T00:00:00.000Z', title: 'test partial', format: 'markdown', status: 'ok' };
+    const exportedIds: Record<string, any> = {};
+    const curIds: Record<string, any> = {};
+    const failedSet = new Set<string>([nid]);
+    let savedInStorage: any = null;
+
+    const ok = await finalizeChatExport(targetId, {
+        finalizedChatsSet: new Set<string>(),
+        chatRecordsMap: new Map<string, any>([[nid, rec]]),
+        chatFailedAssetsSet: failedSet,
+        curIds,
+        exportedIds,
+        storageAdapter: {
+            saveExportRecord: async (_slot: any, _id: any, r: any) => {
+                savedInStorage = r;
+                return {};
+            }
+        },
+        onItemExported: () => {}
+    });
+
+    assert.strictEqual(ok, true, 'finalizeChatExport must succeed even when attachments fail');
+    assert.strictEqual(rec.status, 'partial', 'status must be updated to partial');
+    assert.strictEqual((rec as any).hasFailedAssets, true, 'hasFailedAssets flag must be true');
+    assert.strictEqual(exportedIds[nid].status, 'partial');
+    assert.strictEqual(exportedIds[nid].hasFailedAssets, true);
+    assert.strictEqual(curIds[nid].status, 'partial');
+    assert.strictEqual(savedInStorage.status, 'partial');
+    assert.strictEqual(savedInStorage.hasFailedAssets, true);
+});
+
+test('exportedIds - finalizeChatExport preserves empty status with hasFailedAssets flag', async () => {
+    const targetId = 'chat_empty_fail_456';
+    const nid = normId(targetId);
+    const rec = { exportedAt: '2026-09-21T00:00:00.000Z', title: 'empty chat', format: 'markdown', status: 'empty' };
+    const exportedIds: Record<string, any> = {};
+    const curIds: Record<string, any> = {};
+    const failedSet = new Set<string>([nid]);
+
+    const ok = await finalizeChatExport(targetId, {
+        finalizedChatsSet: new Set<string>(),
+        chatRecordsMap: new Map<string, any>([[nid, rec]]),
+        chatFailedAssetsSet: failedSet,
+        curIds,
+        exportedIds,
+        storageAdapter: { saveExportRecord: async () => ({}) },
+        onItemExported: () => {}
+    });
+
+    assert.strictEqual(ok, true);
+    assert.strictEqual(rec.status, 'empty', 'empty status must remain empty');
+    assert.strictEqual((rec as any).hasFailedAssets, true);
+    assert.strictEqual(exportedIds[nid].status, 'empty');
+    assert.strictEqual(exportedIds[nid].hasFailedAssets, true);
+});
+
+test('locale - badgeExportedPartial exists in zh and en locales', () => {
+    const zh = require('../src/core/utils/locales/zh.js');
+    const en = require('../src/core/utils/locales/en.js');
+    const zhDict = zh.zh || zh.default || zh;
+    const enDict = en.en || en.default || en;
+    assert.strictEqual(zhDict.badgeExportedPartial, '已导出 (部分附件缺失)');
+    assert.strictEqual(enDict.badgeExportedPartial, 'Exported (Partial Assets)');
+});
+

@@ -214,7 +214,12 @@ export { EXT_VERSION, getExtensionVersion };
         const targetNid = normId(targetId);
         if (finalizedChatsSet && finalizedChatsSet.has(targetNid)) return false;
         const rec = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
-        if (!rec || (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid))) return false;
+        if (!rec) return false;
+
+        if (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid)) {
+            rec.status = (rec.status === 'empty') ? 'empty' : 'partial';
+            rec.hasFailedAssets = true;
+        }
 
         // Persist export record before updating in-memory state
         try {
