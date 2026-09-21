@@ -82,3 +82,46 @@ test('S1 - getConversationDetail with no provider result and no scraper fails cl
         provider.fetchConversationDetail = orig;
     }
 });
+
+test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without falling back to DOM scraper', async () => {
+    const provider = ProviderRegistry.getDefault();
+    assert.ok(provider, 'default provider registered');
+    const orig = provider.fetchConversationDetail;
+    provider.fetchConversationDetail = async () => {
+        throw new Error('rpc error (BardErrorInfo: 1167) inaccessible or deleted');
+    };
+    let scraperCalled = false;
+    let prunedId = '';
+    const mockStorage = {
+        removeConversation: async (_slot: string, id: string) => {
+            prunedId = id;
+        },
+        getLastSync: async () => ({ count: 0 }),
+        getConversations: async () => []
+    };
+    try {
+        freshInit({
+            syncEngine: null,
+            scraper: {
+                contentFetchChatDetail: async () => {
+                    scraperCalled = true;
+                    return { id: 'c_del_123', messages: [] };
+                }
+            },
+            assets: null,
+            storage: mockStorage,
+            utils: null
+        });
+        const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'c_del_123' });
+        assert.strictEqual(responses.length, 1, 'exactly one response');
+        assert.strictEqual(scraperCalled, false, 'Must NOT fall back to DOM scraper when cloud confirms deletion');
+        assert.strictEqual(prunedId, 'c_del_123', 'Must prune deleted conversation from storage');
+        const r = responses[0];
+        assert.strictEqual(r.success, true);
+        assert.strictEqual(r.data.isDeleted, true);
+        assert.strictEqual(r.data.id, 'c_del_123');
+    } finally {
+        provider.fetchConversationDetail = orig;
+    }
+});
+

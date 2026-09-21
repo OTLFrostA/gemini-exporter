@@ -275,6 +275,31 @@ export function renderExportFailureBanner(failedList: any[], onRetry?: () => voi
             btnRetry.onclick = () => onRetry();
         }
     }
+    const btnCopy = $('btnCopyFailedLog') as HTMLButtonElement | null;
+    if (btnCopy) {
+        btnCopy.textContent = typeof t === 'function' ? t('btnCopyFailedLog') : '复制错误';
+        btnCopy.onclick = async () => {
+            const textLines = _lastFailedChats.map(item => {
+                const title = item.title || item.id || 'Untitled';
+                const err = item.error || 'Unknown error';
+                const cid = item.id || '';
+                return `• [${cid}] ${title}: ${err}`;
+            });
+            const textToCopy = textLines.join('\n');
+            try {
+                if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(textToCopy);
+                }
+                const originalText = btnCopy.textContent;
+                btnCopy.textContent = typeof t === 'function' ? t('failedLogCopied') : '已复制';
+                setTimeout(() => {
+                    if (btnCopy) btnCopy.textContent = originalText;
+                }, 2000);
+            } catch (err) {
+                console.warn('[DialogView] Failed to copy failure log', err);
+            }
+        };
+    }
     const btnDismiss = $('btnDismissFailure') as HTMLButtonElement | null;
     if (btnDismiss) {
         btnDismiss.onclick = () => {
@@ -284,22 +309,23 @@ export function renderExportFailureBanner(failedList: any[], onRetry?: () => voi
     const listEl = $('exportFailureList');
     if (listEl) {
         listEl.innerHTML = '';
-        _lastFailedChats.slice(0, 20).forEach(item => {
+        _lastFailedChats.slice(0, 50).forEach(item => {
             const row = document.createElement('div');
-            row.style.whiteSpace = 'nowrap';
-            row.style.overflow = 'hidden';
-            row.style.textOverflow = 'ellipsis';
-            row.style.padding = '1px 0';
+            row.style.whiteSpace = 'normal';
+            row.style.wordBreak = 'break-word';
+            row.style.padding = '3px 0';
+            row.style.borderBottom = '1px dashed rgba(255, 255, 255, 0.08)';
             const itemTitle = item.title || item.id || 'Untitled';
             const itemErr = item.error ? ` (${item.error})` : '';
             row.textContent = `• ${itemTitle}${itemErr}`;
-            row.title = `${itemTitle}${itemErr}`;
+            row.title = `${item.id}: ${itemTitle}${itemErr}`;
             listEl.appendChild(row);
         });
-        if (_lastFailedChats.length > 20) {
+        if (_lastFailedChats.length > 50) {
             const more = document.createElement('div');
             more.style.fontStyle = 'italic';
-            const extraCount = _lastFailedChats.length - 20;
+            more.style.padding = '4px 0';
+            const extraCount = _lastFailedChats.length - 50;
             more.textContent = typeof t === 'function' ? t('failedChatsMore', extraCount) : `... 以及其他 ${extraCount} 项`;
             listEl.appendChild(more);
         }

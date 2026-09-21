@@ -235,7 +235,7 @@ export interface ChatFormatterModule {
     function toMarkdown(chat: any, opts: ChatFormatterOptions = {}): string {
         if (!chat) return '';
         const i18n = __resolveModule('I18n', I18nStatic);
-        const isEn = (opts.lang === 'en') || (i18n && typeof i18n.getLang === 'function' && i18n.getLang() === 'en');
+        const isEn = opts.lang ? (opts.lang === 'en') : (i18n && typeof i18n.getLang === 'function' && i18n.getLang() === 'en');
 
         if (chat.error) {
             const failTitle = isEn ? 'Export Failed' : '导出失败';
@@ -278,7 +278,9 @@ export interface ChatFormatterModule {
 
         const messages: ChatMessage[] = chat.messages || [];
         if (!messages.length) {
-            const emptyNotice = isEn ? '_Empty conversation or fetch failed_' : '_空对话或取回失败_';
+            const emptyNotice = chat.isEmpty
+                ? (isEn ? '*(Empty conversation)*' : '*（此会话无对话内容）*')
+                : (isEn ? '_Empty conversation or fetch failed_' : '_空对话或取回失败_');
             md += `${emptyNotice} URL: ${convUrl}\n`;
             return md;
         }

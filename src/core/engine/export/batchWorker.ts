@@ -48,6 +48,7 @@ export interface BatchWorkerModule {
         onLog?: (msg: string, level?: string) => void,
         options?: any
     ) => Promise<ResolveChatResult>;
+    formatDebugInfo?: (debug: any) => string;
 }
 
 import {
@@ -387,14 +388,18 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
 
         // 3. Error or empty handling
         if (chat.error || chat._empty) {
-            const isConfirmedDeleted = !!chat.isDeleted || !!chat._debug?.isNotFound || !!chat._debug?.domDebug?.isNotFound;
+            const isConfirmedDeleted = !!chat.isDeleted
+                || !!chat._debug?.isNotFound
+                || !!chat._debug?.domDebug?.isNotFound
+                || !!chat._debug?.batchexecuteEmptyDebug?.isDeleted
+                || (typeof chat.error === 'string' && (chat.error.includes('删除或不存在') || chat.error.includes('服务端删除') || chat.error.includes('1167') || chat.error.includes('BardErrorInfo: 1167') || chat.error.includes('inaccessible or deleted')))
+                || (typeof chat._debug?.batchexecuteEmptyDebug?.error === 'string' && (chat._debug.batchexecuteEmptyDebug.error.includes('1167') || chat._debug.batchexecuteEmptyDebug.error.includes('服务端删除') || chat._debug.batchexecuteEmptyDebug.error.includes('inaccessible or deleted')));
+
             const rawTitle = chat.title || nid;
             const cleanedTitle = cleanZeroWidth(rawTitle);
             const displayTitle = !isBrandPlaceholderTitle(rawTitle) && cleanedTitle ? cleanedTitle : nid;
-            const debugInfo = chat._debug ? ` _debug=${String(chat._debug).slice(0, 200)}` : (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
-            const errMsg = (isConfirmedDeleted ? '云端会话已被删除或不存在' : (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）')) + debugInfo;
-
             const I18n = __resolveModule('I18n', I18nStatic);
+
             if (isConfirmedDeleted) {
                 try {
                     const storage = __resolveModule('StorageService', (typeof window !== 'undefined' && (window as any).StorageService) || null);
@@ -410,18 +415,52 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                     if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:batchWorker.ts]', e);
                 }
                 onLog(I18n.t('logChatDeletedAndPruned', displayTitle), 'warn');
-            } else {
-                onLog(I18n.t('logExportSkipped', displayTitle, errMsg), 'error');
+
+                return {
+                    chat,
+                    displayTitle,
+                    isConfirmedDeleted: true,
+                    isError: true,
+                    errMsg: I18n.t('logChatDeletedAndPruned', displayTitle),
+                    convsNeedSave: false
+                };
             }
 
-            return {
-                chat,
-                displayTitle,
-                isConfirmedDeleted,
-                isError: true,
-                errMsg,
-                convsNeedSave: false
-            };
+            const hasNoMessages = !chat.messages || (Array.isArray(chat.messages) && chat.messages.length === 0);
+            const isFatalError = typeof chat.error === 'string' && (
+                chat.error.includes('429') ||
+                chat.error.includes('401') ||
+                chat.error.includes('403') ||
+                chat.error.includes('500') ||
+                chat.error.includes('502') ||
+                chat.error.includes('503') ||
+                chat.error.includes('NetworkError') ||
+                chat.error.includes('Failed to fetch') ||
+                chat.error.includes('超时') ||
+                chat.error.includes('timeout') ||
+                chat.error.includes('抓取异常')
+            );
+
+            if (!isFatalError && hasNoMessages) {
+                delete chat.error;
+                delete chat._empty;
+                chat.messages = [];
+                chat.isEmpty = true;
+                onLog(I18n.t('logEmptyChatExported', displayTitle), 'info');
+            } else {
+                const debugInfo = formatDebugInfo(chat._debug) || (chat._raw ? ` _raw_len=${JSON.stringify(chat._raw).length}` : '');
+                const errMsg = (chat.error || '云端返回内容为空（服务端未返回任何消息，可能为限频、对话已被清空/归档或新格式未兼容）') + debugInfo;
+                onLog(I18n.t('logExportSkipped', displayTitle, errMsg), 'error');
+
+                return {
+                    chat,
+                    displayTitle,
+                    isConfirmedDeleted: false,
+                    isError: true,
+                    errMsg,
+                    convsNeedSave: false
+                };
+            }
         }
 
         // 4. Sniff title from first user query if needed
@@ -490,14 +529,42 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
         };
     }
 
+    function formatDebugInfo(debug: any): string {
+        if (!debug) return '';
+        if (typeof debug === 'string') return ` ${debug.slice(0, 300)}`;
+        try {
+            if (debug.batchexecuteEmptyDebug?.error) {
+                return ` (RPC: ${debug.batchexecuteEmptyDebug.error})`;
+            }
+            if (debug.error) {
+                return ` (${debug.error})`;
+            }
+            if (debug.domDebug?.error) {
+                return ` (DOM: ${debug.domDebug.error})`;
+            }
+            const simplified: Record<string, any> = {};
+            for (const k of Object.keys(debug)) {
+                if (k === 'rawPreview' || k === 'topPreview') continue;
+                simplified[k] = debug[k];
+            }
+            const str = JSON.stringify(simplified);
+            return str && str !== '{}' ? ` ${str.slice(0, 300)}` : '';
+        } catch {
+            return '';
+        }
+    }
+
 export {
     fetchChatDetail,
-    resolveChat
+    resolveChat,
+    formatDebugInfo
 };
 
 export const BatchWorker: BatchWorkerModule = {
     fetchChatDetail,
-    resolveChat
+    resolveChat,
+    formatDebugInfo
 };
 
 export default BatchWorker;
+
