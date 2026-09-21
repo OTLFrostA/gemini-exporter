@@ -205,6 +205,53 @@ export function init({
                     if (contentContext.isDevMode()) {
                         console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', errMsg);
                     }
+                    const isRpcDeleted = errMsg.includes('BardErrorInfo: 1167')
+                        || errMsg.includes('1167')
+                        || errMsg.includes('会话已在服务端删除或不可访问')
+                        || errMsg.includes('inaccessible or deleted')
+                        || errMsg.includes('HTTP 404');
+                    if (isRpcDeleted) {
+                        const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
+                        try {
+                            if (Storage && typeof Storage.removeConversation === 'function') {
+                                await Storage.removeConversation(slot, cid);
+                                const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
+                                    ? await Storage.getLastSync(slot)
+                                    : { count: (await Storage.getConversations(slot)).length };
+                                const count = syncMeta.count;
+                                if (Sync && Sync.updateBadge) {
+                                    Sync.updateBadge(count, 0);
+                                }
+                                try {
+                                    chrome.runtime.sendMessage({
+                                        action: 'syncUpdate',
+                                        slot,
+                                        count,
+                                        from: 'prune-dead-chat'
+                                    });
+                                } catch (e) {
+                                    if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
+                                }
+                            }
+                        } catch (e) {
+                            if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
+                        }
+                        const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
+                        respond({
+                            success: true,
+                            data: {
+                                id: cid,
+                                title: cid,
+                                messages: [],
+                                _empty: true,
+                                isDeleted: true,
+                                error: errDeleted,
+                                _debug: { batchexecuteEmptyDebug: { error: errMsg, isDeleted: true }, isDeleted: true }
+                            },
+                            source: 'batchexecute'
+                        });
+                        return;
+                    }
                 }
                 try {
                     if (Scraper) {
@@ -217,7 +264,9 @@ export function init({
                             if (contentContext.isDevMode()) {
                                 console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
                             }
-                            const isConfirmedDeleted = !!chat?.isDeleted || !!chat?._debug?.isNotFound;
+                            const isConfirmedDeleted = !!chat?.isDeleted
+                                || !!chat?._debug?.isNotFound
+                                || (typeof chat?.error === 'string' && (chat.error.includes('删除或不存在') || chat.error.includes('服务端删除')));
                             if (isConfirmedDeleted) {
                                 const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                                 try {
@@ -248,7 +297,22 @@ export function init({
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
                             const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
                             const errDomEmpty = contentContext.isZh() ? 'DOM 返回内容为空' : 'DOM returned empty content';
-                            respond({ success: true, data: { ...chat, _empty: true, isDeleted: isConfirmedDeleted, error: isConfirmedDeleted ? errDeleted : (chat?.error || errDomEmpty), _debug: mergedDebug, _debug_dom_empty: true }, source: 'dom' });
+                            respond({
+                                success: true,
+                                data: {
+                                    ...chat,
+                                    id: chat?.id || cid,
+                                    title: chat?.title || cid,
+                                    messages: [],
+                                    _empty: true,
+                                    isEmpty: !isConfirmedDeleted,
+                                    isDeleted: isConfirmedDeleted,
+                                    error: isConfirmedDeleted ? errDeleted : (chat?.error || errDomEmpty),
+                                    _debug: mergedDebug,
+                                    _debug_dom_empty: true
+                                },
+                                source: 'dom'
+                            });
                             return;
                         }
                     }

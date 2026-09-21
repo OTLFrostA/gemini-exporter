@@ -838,7 +838,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     format: options.format || 'markdown',
                                     messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
                                     chatTime: exportTs,
-                                    status: 'ok'
+                                    status: (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok'
                                 };
                                 chatRecordsMap.set(nid, record);
                                 if (queuedAssetsForThisChat === 0) {

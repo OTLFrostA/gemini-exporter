@@ -4,6 +4,8 @@ const assert = require('node:assert');
 
 const { ExportOrchestrator, AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
 const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
+const { BatchWorker, formatDebugInfo } = require('../src/core/engine/export/batchWorker.js');
+const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
 const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
@@ -367,4 +369,156 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
     assert.strictEqual(result.landedChats, 2, 'All chats should land');
     assert.strictEqual(result.skipped, 0, 'Zero chats skipped');
 });
+
+// ---------------------------------------------------------------------------
+// formatDebugInfo tests
+// ---------------------------------------------------------------------------
+test('formatDebugInfo - formats debug info cleanly without [object Object]', () => {
+    assert.strictEqual(formatDebugInfo(null), '');
+    assert.strictEqual(formatDebugInfo(undefined), '');
+    assert.strictEqual(formatDebugInfo('plain error message'), ' plain error message');
+
+    const rpcDebug = { batchexecuteEmptyDebug: { error: 'BardErrorInfo: 1167' } };
+    assert.strictEqual(formatDebugInfo(rpcDebug), ' (RPC: BardErrorInfo: 1167)');
+
+    const domDebug = { domDebug: { error: 'DOM not ready' } };
+    assert.strictEqual(formatDebugInfo(domDebug), ' (DOM: DOM not ready)');
+
+    const errDebug = { error: 'Explicit error' };
+    assert.strictEqual(formatDebugInfo(errDebug), ' (Explicit error)');
+
+    const objDebug = { isNotFound: true, statusCode: 404, rawPreview: 'huge string to ignore' };
+    const formatted = formatDebugInfo(objDebug);
+    assert.ok(!formatted.includes('[object Object]'), 'Must never format to [object Object]');
+    assert.ok(formatted.includes('"isNotFound":true'), 'Must serialize key fields');
+    assert.ok(!formatted.includes('huge string to ignore'), 'Must strip out rawPreview bloat');
+});
+
+// ---------------------------------------------------------------------------
+// BatchWorker.resolveChat - Empty Chat and Deleted Chat handling
+// ---------------------------------------------------------------------------
+test('BatchWorker.resolveChat - resolves empty chat as valid exportable conversation instead of error', async () => {
+    const logs: string[] = [];
+    const chat = {
+        id: 'empty-chat-123',
+        title: 'Used an Assistant feature',
+        messages: [],
+        error: 'DOM 返回内容为空',
+        _empty: true,
+        _debug: { domHtmlLen: 0 }
+    };
+    const reqItem = { id: 'empty-chat-123', title: 'Used an Assistant feature' };
+
+    const res = await BatchWorker.resolveChat(
+        chat,
+        reqItem,
+        null,
+        null,
+        'u0',
+        () => {},
+        (msg: string) => logs.push(msg)
+    );
+
+    assert.strictEqual(res.isError, false, 'Empty chat should not be treated as fatal error');
+    assert.strictEqual(res.isConfirmedDeleted, false, 'Empty chat is not confirmed deleted');
+    assert.strictEqual(res.chat.isEmpty, true, 'Chat should be marked as isEmpty');
+    assert.strictEqual(res.chat.error, undefined, 'Error property should be removed');
+    assert.strictEqual(res.chat._empty, undefined, '_empty property should be removed');
+    assert.ok(Array.isArray(res.chat.messages) && res.chat.messages.length === 0, 'Messages should be empty array');
+    assert.ok(logs.some(l => l.includes('会话内容为空') || l.includes('empty')), 'Should log empty chat notice');
+});
+
+test('BatchWorker.resolveChat - detects cloud-deleted chat with BardErrorInfo: 1167', async () => {
+    const logs: string[] = [];
+    const chat = {
+        id: 'del-chat-456',
+        title: 'Deleted Chat',
+        messages: [],
+        error: '会话已在服务端删除或不可访问 (BardErrorInfo: 1167)',
+        _empty: true
+    };
+    const reqItem = { id: 'del-chat-456', title: 'Deleted Chat' };
+
+    const res = await BatchWorker.resolveChat(
+        chat,
+        reqItem,
+        null,
+        null,
+        'u0',
+        () => {},
+        (msg: string) => logs.push(msg)
+    );
+
+    assert.strictEqual(res.isError, true, 'Deleted chat should be marked as error/pruned');
+    assert.strictEqual(res.isConfirmedDeleted, true, 'Must identify as confirmed deleted');
+});
+
+// ---------------------------------------------------------------------------
+// ChatFormatter - Empty Chat Markdown Notice
+// ---------------------------------------------------------------------------
+test('ChatFormatter.toMarkdown - renders clean notice for verified empty chats', () => {
+    const emptyChat = {
+        id: 'cca63136d0630930',
+        title: 'Used an Assistant feature',
+        messages: [],
+        isEmpty: true
+    };
+
+    const mdZh = ChatFormatter.toMarkdown(emptyChat, { lang: 'zh' });
+    assert.ok(mdZh.includes('title: "Used an Assistant feature"'), 'Frontmatter title');
+    assert.ok(mdZh.includes('*（此会话无对话内容）*'), 'Chinese empty conversation notice');
+
+    const mdEn = ChatFormatter.toMarkdown(emptyChat, { lang: 'en' });
+    assert.ok(mdEn.includes('*(Empty conversation)*'), 'English empty conversation notice');
+});
+
+// ---------------------------------------------------------------------------
+// ExportOrchestrator - Empty Chat end-to-end export without deadlock
+// ---------------------------------------------------------------------------
+test('ExportOrchestrator - empty chat exports successfully into archive with status empty and zero failures', async () => {
+    setupMockJSZip();
+    const orchestrator = new ExportOrchestrator();
+
+    const conversations = [
+        { id: 'cca63136d0630930', title: 'Used an Assistant feature', timestamp: 1710000000000 }
+    ];
+
+    const mockWorker = {
+        fetchChatDetail: async () => ({
+            success: true,
+            chat: {
+                id: 'cca63136d0630930',
+                title: 'Used an Assistant feature',
+                messages: [],
+                error: 'DOM 返回内容为空',
+                _empty: true
+            }
+        }),
+        resolveChat: BatchWorker.resolveChat
+    };
+
+    const exportedIds: Record<string, any> = {};
+    const logs: string[] = [];
+
+    const result = await orchestrator.run({
+        selected: conversations,
+        format: 'markdown',
+        useZip: true,
+        skip: true,
+        conversations,
+        exportedIds,
+        includeAssets: false,
+        worker: mockWorker,
+        onExportFinalized: async (id: string) => {
+            exportedIds[id] = { exportedAt: new Date().toISOString(), status: 'empty' };
+        }
+    }, {
+        onLog: (msg: string) => logs.push(msg)
+    });
+
+    assert.strictEqual(result.landedChats, 1, 'Empty chat should land successfully');
+    assert.strictEqual(result.failedChats.length, 0, 'No failed chats');
+    assert.ok(exportedIds['cca63136d0630930'], 'Empty chat must be finalized in exportedIds to prevent deadlock');
+});
+
 
