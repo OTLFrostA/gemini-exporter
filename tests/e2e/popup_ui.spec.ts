@@ -29,10 +29,11 @@ test.describe('Popup UI & Action Center Localization', () => {
     expect(await page.locator('#historyTotalSynced').count()).toBe(0);
     expect(await page.locator('#historyCountBadge').count()).toBe(0);
     expect(await page.locator('#btnCopyMarkdown').count()).toBe(0);
+    expect(await page.locator('#btnScreenshot').count()).toBe(0);
+    expect(await page.locator('#previewModal').count()).toBe(0);
 
     // 3. Test explicit switch to English by clicking labelLangEn
     await page.click('#labelLangEn');
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Export Long Screenshot');
     await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Page');
     await expect(page.locator('#btnOptions')).toHaveText('Batch Export in Console ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('Current Conversation');
@@ -49,7 +50,6 @@ test.describe('Popup UI & Action Center Localization', () => {
 
     // 4. Test explicit switch to Chinese by clicking labelLangZh
     await page.click('#labelLangZh');
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 一键导出长截图');
     await expect(page.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
     await expect(page.locator('#btnOptions')).toHaveText('去控制台批量导出 ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('当前会话');
@@ -66,11 +66,11 @@ test.describe('Popup UI & Action Center Localization', () => {
 
     // 5. Test clicking the outer capsule pill container (#langTogglePill)
     await page.locator('#langTogglePill').click({ position: { x: 2, y: 2 } });
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 Export Long Screenshot');
+    await expect(page.locator('#btnCurrent')).toHaveText('📥 Export Current Page');
     expect(await page.locator('#langToggle').isChecked()).toBe(true);
 
     await page.locator('#langTogglePill').click({ position: { x: 2, y: 2 } });
-    await expect(page.locator('#btnScreenshot')).toHaveText('📸 一键导出长截图');
+    await expect(page.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
     expect(await page.locator('#langToggle').isChecked()).toBe(false);
 
     // 6. Test Format Tabs click selection and storage persistence
@@ -120,13 +120,13 @@ test.describe('Popup UI & Action Center Localization', () => {
 
     // 1. Language: Switch in popup to English -> options workbench updates
     await popupPage.click('#labelLangEn');
-    await expect(popupPage.locator('#btnScreenshot')).toHaveText('📸 Export Long Screenshot');
+    await expect(popupPage.locator('#btnCurrent')).toHaveText('📥 Export Current Page');
     await expect(optionsPage.locator('#btnSelectAll')).toHaveText('All');
 
     // 2. Language: Switch in options to Chinese -> popup updates
     await optionsPage.click('#labelLangZh');
     await expect(optionsPage.locator('#btnSelectAll')).toHaveText('全选');
-    await expect(popupPage.locator('#btnScreenshot')).toHaveText('📸 一键导出长截图');
+    await expect(popupPage.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
 
     // 3. Format: Switch in popup to json_openai -> options workbench format select updates
     await popupPage.click('#formatTabs .tab-btn[data-value="json_openai"]');

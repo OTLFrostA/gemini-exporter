@@ -42,8 +42,6 @@ input[type=checkbox].toggle::after{
 }
 input[type=checkbox].toggle:checked{background:linear-gradient(135deg,var(--accent),var(--accent2))}
 input[type=checkbox].toggle:checked::after{transform:translateX(12px);background:white}
-#previewModal{display:none;position:fixed;inset:0;background:rgba(9,10,16,0.92);backdrop-filter:blur(4px);z-index:50;flex-direction:column;padding:12px;}
-#previewModal.active{display:flex;}
 </style>
 </head>
 <body>
@@ -72,7 +70,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
       <span id="chatTurnBadge" class="badge" style="background:#0e0f17;font-size:9px;" data-i18n="chatNoMessages">新会话</span>
     </div>
   </div>
-  <div id="notGeminiNotice" style="display:none;font-size:11px;line-height:1.5;color:var(--muted);" data-i18n="popupNotGeminiDesc">当前标签不是 gemini.google.com。在 Gemini 页面打开即可一键长截图。</div>
+  <div id="notGeminiNotice" style="display:none;font-size:11px;line-height:1.5;color:var(--muted);" data-i18n="popupNotGeminiDesc">当前标签不是 gemini.google.com。在 Gemini 页面打开即可导出当前对话。</div>
 </div>
 
 <!-- Card 2: Export Options & Actions -->
@@ -98,34 +96,13 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   </select>
 
   <!-- Row 1: Export Current Page & Open Console Batch Export -->
-  <div class="row" style="margin-bottom:8px;">
+  <div class="row" style="margin-bottom:0px;">
     <button id="btnCurrent" class="ghost" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnCurrent">📥 导出当前页面</button>
     <button id="btnOptions" class="primary" style="font-size:11px;padding:9px 6px;display:flex;align-items:center;justify-content:center;gap:4px;" data-i18n="btnOptions">去控制台批量导出 ↗</button>
   </div>
 
-  <!-- Row 2: Long Screenshot Button (Full width) -->
-  <div class="row" style="margin-bottom:2px;">
-    <button id="btnScreenshot" class="ghost" style="width:100%;font-size:11px;padding:9px 8px;display:flex;align-items:center;justify-content:center;gap:6px;border-color:rgba(79,70,229,0.35);background:rgba(79,70,229,0.08);" data-i18n="btnLongScreenshot">📸 一键导出长截图</button>
-  </div>
-
   <div id="progWrap" class="progress"><div id="bar" class="bar"></div></div>
   <div id="log" class="log" style="display:none"></div>
-</div>
-
-<!-- Long Screenshot Preview Lightbox -->
-<div id="previewModal">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <b style="font-size:12px;" data-i18n="screenshotReady">长截图生成就绪</b>
-    <button id="btnClosePreview" class="ghost" style="flex:none;width:24px;height:24px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;">✕</button>
-  </div>
-  <div style="flex:1;overflow-y:auto;background:#050608;border:1px solid var(--border);border-radius:8px;padding:6px;display:flex;justify-content:center;">
-    <img id="previewImage" style="max-width:100%;height:auto;border-radius:4px;display:block;" alt="Screenshot Preview" />
-  </div>
-  <div class="row" style="margin-top:8px;">
-    <button id="btnCopyImage" class="primary" style="font-size:11px;padding:8px 4px;" data-i18n="btnCopyImage">📋 复制长图</button>
-    <button id="btnSaveImage" class="ghost" style="font-size:11px;padding:8px 4px;" data-i18n="btnSaveImage">💾 保存 PNG</button>
-    <button id="btnSavePdf" class="ghost" style="font-size:11px;padding:8px 4px;border-color:#e11d48;color:#fda4af;" data-i18n="btnSavePdf">📄 存为 PDF</button>
-  </div>
 </div>
 
 <script src="/dist/ui/popup.js"></script>

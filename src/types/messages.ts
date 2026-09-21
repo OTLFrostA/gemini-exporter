@@ -23,11 +23,7 @@ export const MESSAGE_ACTIONS = {
     LIVE_SAVE_VIA_HANDLE: 'liveSaveViaHandle',
     GET_FILE_BLOB: 'getFileBlob',
     GET_IMAGE_BLOB: 'getImageBlob',
-    GET_SCROLL_CONTAINER: 'getScrollContainer',
-    CAPTURE_TAB: 'captureTab',
-    SCREENSHOT_PREPARE: 'screenshotPrepare',
-    SCREENSHOT_SCROLL: 'screenshotScroll',
-    SCREENSHOT_RESTORE: 'screenshotRestore'
+    GET_SCROLL_CONTAINER: 'getScrollContainer'
 } as const;
 
 export type MessageAction = typeof MESSAGE_ACTIONS[keyof typeof MESSAGE_ACTIONS];

@@ -5,8 +5,6 @@ import { StorageService } from '../../core/storage/storageService.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
-import { ScreenshotStitcher, type CapturedFrame } from '../../core/engine/screenshotStitcher.js';
-import { canvasToPdfBlob } from '../../core/engine/pdfWrapper.js';
 import {
     isGeminiUrl,
     detectSlotFromUrl,
@@ -24,9 +22,6 @@ let _activeTab: chrome.tabs.Tab | null = null;
 let _activeConvId: string | null = null;
 let _activeSlot: string = 'u0';
 let _activeChatTitle: string = '';
-let _currentScreenshotBlob: Blob | null = null;
-let _currentScreenshotCanvas: HTMLCanvasElement | null = null;
-let _isCapturingScreenshot = false;
 let _isExportingCurrentPage = false;
 let _activeFormat = 'markdown';
 
@@ -71,7 +66,6 @@ const log = (msg: string): void => {
 };
 
 function updateUiForTabState(isGemini: boolean): void {
-    const btnScreenshot = $('btnScreenshot') as HTMLButtonElement | null;
     const btnCurrent = $('btnCurrent') as HTMLButtonElement | null;
     const notGeminiNotice = $('notGeminiNotice');
     const currentChatContent = $('currentChatContent');
@@ -80,10 +74,6 @@ function updateUiForTabState(isGemini: boolean): void {
 
     if (!isGemini) {
         const notGeminiTip = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
-        if (btnScreenshot) {
-            btnScreenshot.disabled = true;
-            btnScreenshot.title = notGeminiTip;
-        }
         if (btnCurrent) {
             btnCurrent.disabled = true;
             btnCurrent.title = notGeminiTip;
@@ -92,10 +82,6 @@ function updateUiForTabState(isGemini: boolean): void {
         if (currentChatContent) currentChatContent.style.display = 'none';
         if (countBadge) countBadge.classList.add('inactive');
     } else {
-        if (btnScreenshot) {
-            btnScreenshot.disabled = false;
-            btnScreenshot.title = '';
-        }
         if (btnCurrent) {
             btnCurrent.disabled = false;
             btnCurrent.title = '';
@@ -193,116 +179,6 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
     }
 };
 
-// ==================== Long Screenshot Workflow ====================
-async function handleLongScreenshot(): Promise<void> {
-    const i18n = getI18n();
-    const btnScreenshot = $('btnScreenshot') as HTMLButtonElement | null;
-
-    if (_isCapturingScreenshot) {
-        log(typeof i18n !== 'undefined' ? i18n.t('popupExportBusy') : '正在截图中，请稍候…');
-        return;
-    }
-    if (!_activeTab || !_activeTab.id) {
-        log(typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '未找到活动 Gemini 标签页');
-        return;
-    }
-
-    _isCapturingScreenshot = true;
-    if (btnScreenshot) btnScreenshot.disabled = true;
-    ProgressView.show(5);
-    log(typeof i18n !== 'undefined' ? i18n.t('screenshotStitching') : '正在平滑滚动并拼接长图...');
-
-    try {
-        // 1. Prepare tab (hide overlays, get heights)
-        const prepRes = await chrome.tabs.sendMessage(_activeTab.id, { action: 'screenshotPrepare' });
-        if (!prepRes || !prepRes.ok) {
-            throw new Error(prepRes?.error || '无法初始化页面截图视口');
-        }
-
-        const { totalHeight, viewportHeight, viewportWidth, devicePixelRatio, originalScrollTop } = prepRes;
-        const stepSize = Math.max(100, Math.floor(viewportHeight * 0.82));
-        const totalSteps = Math.min(18, Math.max(1, Math.ceil((totalHeight - viewportHeight) / stepSize) + 1));
-        const frames: CapturedFrame[] = [];
-
-        // 2. Step through the document, scroll & capture
-        for (let i = 0; i < totalSteps; i++) {
-            const targetY = Math.min(i * stepSize, Math.max(0, totalHeight - viewportHeight));
-            await chrome.tabs.sendMessage(_activeTab.id, { action: 'screenshotScroll', targetY });
-
-            // Small delay to allow complete visual rendering & avoid capture limits
-            await new Promise((r) => setTimeout(r, 220));
-
-            // Capture visible tab via background or runtime API
-            const captureRes = await new Promise<{ ok: boolean; dataUrl?: string; error?: string }>((resolve) => {
-                chrome.runtime.sendMessage({ action: 'captureTab' }, (res) => {
-                    if (res && res.ok && res.dataUrl) {
-                        resolve(res);
-                    } else {
-                        // Fallback directly to tabs.captureVisibleTab
-                        chrome.tabs.captureVisibleTab(null as any, { format: 'png' }, (dataUrl) => {
-                            if (chrome.runtime.lastError || !dataUrl) {
-                                resolve({ ok: false, error: chrome.runtime.lastError?.message || 'Capture failed' });
-                            } else {
-                                resolve({ ok: true, dataUrl });
-                            }
-                        });
-                    }
-                });
-            });
-
-            if (!captureRes.ok || !captureRes.dataUrl) {
-                console.warn(`[popup] Step ${i} capture failed: ${captureRes.error}`);
-            } else {
-                frames.push({
-                    dataUrl: captureRes.dataUrl,
-                    scrollTop: targetY,
-                    viewportHeight,
-                    viewportWidth
-                });
-            }
-
-            const pct = Math.round(10 + ((i + 1) / totalSteps) * 70);
-            ProgressView.update(pct);
-        }
-
-        // 3. Restore page elements
-        await chrome.tabs.sendMessage(_activeTab.id, { action: 'screenshotRestore', originalScrollTop });
-
-        if (!frames.length) {
-            throw new Error('未成功捕获任何视口切片');
-        }
-
-        // 4. Stitch in Canvas
-        ProgressView.update(88);
-        const stitched = await ScreenshotStitcher.stitchFrames({
-            frames,
-            totalHeight,
-            viewportWidth,
-            viewportHeight,
-            devicePixelRatio: devicePixelRatio || 1
-        });
-
-        _currentScreenshotBlob = stitched.blob;
-        _currentScreenshotCanvas = stitched.canvas;
-
-        // 5. Present in Lightbox
-        const previewModal = $('previewModal');
-        const previewImage = $('previewImage') as HTMLImageElement | null;
-        if (previewImage) previewImage.src = stitched.dataUrl;
-        if (previewModal) previewModal.classList.add('active');
-
-        ProgressView.complete();
-        log(typeof i18n !== 'undefined' ? i18n.t('screenshotReady') : '长截图生成就绪');
-    } catch (e: any) {
-        log(`截图失败: ${e?.message || e}`);
-        ProgressView.hide();
-    } finally {
-        _isCapturingScreenshot = false;
-        if (btnScreenshot) btnScreenshot.disabled = false;
-    }
-}
-
-
 // ==================== Initialization ====================
 function initPopupEvents(): void {
     const langToggle = $('langToggle') as HTMLInputElement | null;
@@ -373,63 +249,6 @@ function initPopupEvents(): void {
 
     // Workbench links
     $('btnOptions')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
-
-    // Screenshot actions
-    $('btnScreenshot')?.addEventListener('click', () => handleLongScreenshot());
-
-    // Preview Lightbox Buttons
-    $('btnClosePreview')?.addEventListener('click', () => {
-        $('previewModal')?.classList.remove('active');
-    });
-
-    $('btnCopyImage')?.addEventListener('click', async () => {
-        const i18n = getI18n();
-        if (!_currentScreenshotBlob) return;
-        try {
-            if (navigator.clipboard && typeof (window as any).ClipboardItem !== 'undefined') {
-                const item = new (window as any).ClipboardItem({ 'image/png': _currentScreenshotBlob });
-                await navigator.clipboard.write([item]);
-                log(typeof i18n !== 'undefined' ? i18n.t('screenshotCopied') : '长图已复制到剪贴板！');
-            } else {
-                throw new Error('ClipboardItem API not supported');
-            }
-        } catch (err: any) {
-            log(typeof i18n !== 'undefined' ? i18n.t('screenshotCopyFailed') : '复制失败，请点击保存 PNG');
-        }
-    });
-
-    $('btnSaveImage')?.addEventListener('click', () => {
-        const i18n = getI18n();
-        if (!_currentScreenshotBlob) return;
-        const name = (_activeChatTitle || 'gemini_screenshot').replace(/[\\/:*?"<>|]/g, '_');
-        const fileName = `${name}_long.png`;
-        const url = URL.createObjectURL(_currentScreenshotBlob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-        log(typeof i18n !== 'undefined' ? i18n.t('screenshotSaved') : `已保存为 ${fileName}`);
-    });
-
-    $('btnSavePdf')?.addEventListener('click', async () => {
-        const i18n = getI18n();
-        if (!_currentScreenshotCanvas) return;
-        try {
-            const pdfBlob = await canvasToPdfBlob(_currentScreenshotCanvas);
-            const name = (_activeChatTitle || 'gemini_screenshot').replace(/[\\/:*?"<>|]/g, '_');
-            const fileName = `${name}.pdf`;
-            const url = URL.createObjectURL(pdfBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 3000);
-            log(typeof i18n !== 'undefined' ? i18n.t('screenshotPdfSaved') : `已保存为 ${fileName}`);
-        } catch (e: any) {
-            log(`PDF 导出失败: ${e?.message || e}`);
-        }
-    });
 
     // "只导当前页" (File Download)
     let __exportingCurrentPage = false;

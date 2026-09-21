@@ -13,7 +13,7 @@
    - [3.2 实时无感自动保存数据流 (Real-Time Live Auto-Save Flow)](#32-实时无感自动保存数据流-real-time-live-auto-save-flow)
    - [3.3 批量并发导出与流式打包数据流 (Batch Export Pipeline Flow)](#33-批量并发导出与流式打包数据流-batch-export-pipeline-flow)
    - [3.4 Google Takeout 历史脱机合流数据流 (Takeout Offline Ingestion Flow)](#34-google-takeout-历史脱机合流数据流-takeout-offline-ingestion-flow)
-   - [3.5 Popup 快捷操作、长截图拼接与单页 PDF 导出数据流 (Popup Quick Capture, Screenshot & PDF Flow)](#35-popup-快捷操作长截图拼接与单页-pdf-导出数据流-popup-quick-capture-screenshot--pdf-flow)
+   - [3.5 Popup 快捷操作与单篇导出数据流 (Popup Quick Export Flow)](#35-popup-快捷操作与单篇导出数据流-popup-quick-export-flow)
    - [3.6 网络凭据嗅探与跨隔离区握手数据流 (Credential Sniffing & Cross-World Bridge Flow)](#36-网络凭据嗅探与跨隔离区握手数据流-credential-sniffing--cross-world-bridge-flow)
 4. [四、核心工程设计不变量 (Key Engineering Invariants)](#四核心工程设计不变量-key-engineering-invariants)
 5. [五、三层测试体系架构 (Three-Tier Testing Architecture)](#五三层测试体系架构-three-tier-testing-architecture)
@@ -40,7 +40,6 @@ graph TD
             CS_SyncEng["syncEngine.ts<br/>(分页扫描/增量同步引擎)"]
             CS_DomScraper["domScraper.ts<br/>(网页 DOM 回退解析抓取器)"]
             CS_Badge["badgeView.ts<br/>(右下角悬浮状态提示徽章)"]
-            CS_Shot["screenshotCapture.ts<br/>(滚动视口分帧捕获器)"]
         end
 
         subgraph BackgroundSW ["后台服务工作线程 (Service Worker)"]
@@ -88,8 +87,6 @@ graph TD
             ENG_Formatter["ChatFormatter<br/>(Markdown / JSON / OpenAI 转换器)"]
             ENG_Takeout["TakeoutEngine<br/>(Takeout ZIP 解析 / MediaIndex / ZipBombGuard)"]
             ENG_LiveWriter["liveSaveWriter.ts<br/>(实时 Markdown / JSON 文件流写入器)"]
-            ENG_Stitcher["screenshotStitcher.ts<br/>(长截图重叠消除与画布拼接)"]
-            ENG_PDF["pdfWrapper.ts<br/>(零依赖单页 PDF 1.4 二进制封装器)"]
             ENG_Writers["Writers: zipWriter (JSZip STORE流式防OOM) / fsWriter (FileSystem API)"]
         end
 
@@ -139,8 +136,6 @@ graph TD
     ENG_Worker --> PROV_Gemini
     ENG_Worker --> ENG_Formatter
     ENG_Worker --> ENG_Writers
-    POP_Main --> ENG_Stitcher
-    POP_Main --> ENG_PDF
     POP_Main --> ENG_Formatter
 
     %% 存储与工具支持
@@ -175,12 +170,11 @@ graph TD
 | `src/content/syncEngine.ts` | Content Script | `SyncEngine`, `syncRecent`, `deepScanAll` | 负责前台对话列表抓取，协调增量同步与全量分页扫描，并将结果交由 SSoT 合并入库。 | `content.ts`, `syncController` | `geminiClient`, `storageService`, `utils` | `CS_SyncEng` |
 | `src/content/domScraper.ts` | Content Script | `DomScraper`, `scrapeCurrentPage` | 当 RPC 不可用或离线时，直接从宿主页面 DOM 树结构化提取会话提问、回复、附件与元数据。 | `liveSaveCoordinator`, `popup.ts` | 规范化 `ConversationDetail` 实体 | `CS_DomScraper` |
 | `src/content/badgeView.ts` | Content Script | `BadgeView`, `ensureBadge`, `updateBadge` | 在 Gemini 页面右下角渲染无侵入式浮动徽章，实时显示同步进度与保存状态。 | `content.ts`, `liveSaveCoordinator` | 宿主页面 DOM (`#geminiExportBadge`) | `CS_Badge` |
-| `src/content/screenshotCapture.ts` | Content Script | `captureScrollFrames`, `getPageDimensions` | 自动滚动聊天容器并按视口步长连续截屏，捕获滚动帧元数据供拼接器使用。 | `popup.ts` (消息派发) | 帧位移与视口宽高数组 | `CS_Shot` |
 | `src/content/assetFetcher.ts` | Content Script | `AssetFetcher`, `fetchAsBlob`, `inferImageExt` | 处理用户上传附件与 AI 生成图片的高清源 URL 解析与 Blob 二进制下载。 | `liveSaveCoordinator`, `domScraper` | ArrayBuffer / Blob 二进制流 | `CS_LiveCoord` |
 | `src/content/bootstrap.ts` | Content Script | `ensureCreds`, `bootstrapToken` | 页面启动引导，提取页面内嵌的初始化配置与第一手 XSRF Token。 | `content.ts` | `credentialManager` | `CS_Entry` |
 | `src/content/cleanupRegistry.ts` | Content Script | `registerCleanup`, `runCleanups` | 注册页面热重载或重新注入时的注销回调，防止监听器内存泄漏。 | Content 脚本各模块 | 事件监听器解绑 | `CS_Entry` |
 | `src/content/contentContext.ts` | Content Script | `contentContext` (单例上下文) | 管理注入状态、开发模式标记、取消令牌与国际化语言环境。 | Content 脚本各模块 | 上下文状态只读/写入 | `CS_Entry` |
-| `src/content/messageRouter.ts` | Content Script | `MessageRouter`, `init` | 隔离区内部消息分发器，处理来自 Options/Popup 的控制指令。 | `content.ts`, Extension Pages | `syncEngine`, `screenshotCapture` | `CS_Bridge` |
+| `src/content/messageRouter.ts` | Content Script | `MessageRouter`, `init` | 隔离区内部消息分发器，处理来自 Options/Popup 的控制指令。 | `content.ts`, Extension Pages | `syncEngine` | `CS_Bridge` |
 | `src/content/pageObserver.ts` | Content Script | `PageObserver`, `init`, `cleanup` | 观察 SPA URL 路径跳转（如切换会话）与侧边栏 DOM 挂载。 | `content.ts` | `syncEngine.touchActiveConversation` | `CS_Entry` |
 | `src/core/provider/aiProvider.ts` | Core: Provider | `AIProvider`, `ProviderConversationItem`, `ProviderCapabilities` | 定义跨异构 AI 模型平台的通用接口契约规范。 | 所有 Provider 模块 | 上层引擎统一接口 | `PROV_Registry` |
 | `src/core/provider/providerRegistry.ts` | Core: Provider | `ProviderRegistryClass`, `ProviderRegistry` (单例) | 全局 Provider 注册表，支持按平台 ID 或当前页面 URL 模式匹配提供商。 | 各 Provider 自动注册 | `liveSaveCoordinator`, `exportOrchestrator` | `PROV_Registry` |
@@ -209,8 +203,6 @@ graph TD
 | `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `assertSafeZipBounds`, `checkZipEntry` | 安全防御模块，检验 ZIP 压缩率与解压体积，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
 | `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`, `formatMarkdown`, `formatJson` | 格式转换引擎：生成标准 CommonMark (带 YAML Frontmatter、代码高亮、公式)、JSON、OpenAI 规范。 | `batchWorker`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
-| `src/core/engine/screenshotStitcher.ts` | Core: Engine | `calculateFrameLayouts`, `stitchFramesToCanvas` | 计算多滚动帧视口重叠消除坐标布局，在离屏 Canvas 上高精度缝合超长截图。 | `popup.ts` | 拼接完成的 HTMLCanvasElement | `ENG_Stitcher` |
-| `src/core/engine/pdfWrapper.ts` | Core: Engine | `wrapJpegToPdf`, `canvasToPdfBlob` | 零第三方依赖的纯二进制 PDF 1.4 生成器，使用 DCTDecode 流原生打包图像。 | `popup.ts` | 标准 `application/pdf` Blob | `ENG_PDF` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
@@ -249,7 +241,7 @@ graph TD
 | `src/ui/controllers/dirHandleController.ts` | UI: Controller | `DirHandleController`, `pickDirectory` | 调用原生 `window.showDirectoryPicker()`，保存句柄至 IndexedDB 并检验读写权限。 | `optionsExport.ts` | `idbHandleStore.ts` | `OPT_Controllers` |
 | `src/ui/tour/tourGuide.ts` | UI: Tour | `TourGuide`, `startTour`, `nextStep` | 5 步交互式新手向导引擎，计算遮罩镂空高亮与气泡定位。 | `optionsInit.ts` | 引导蒙层与定位计算 | `OPT_Tour` |
 | `src/ui/utils/domI18n.ts` | UI: Utils | `applyI18n`, `applyLangToggleUI`, `setSafeFormattedContent` | UI 专属 DOM 国际化渲染引擎与语言切换控件绑定，将 DOM 渲染彻底剥离出 Core 层。 | `uiCommon.ts`, `popup.ts`, `optionsSettings.ts` | 前台各页面真实 DOM 树 | `UI_Common` |
-| `src/ui/popup/popup.ts` | UI: Popup | `popup.ts` (Entrypoint) | 扩展浮窗交互中心：当前页单篇导出、长截图捕获、单页 PDF 生成、一键复制 Markdown。 | 用户点击扩展图标 | `screenshotStitcher`, `pdfWrapper`, `chatFormatter` | `POP_Main` |
+| `src/ui/popup/popup.ts` | UI: Popup | `popup.ts` (Entrypoint) | 扩展浮窗交互中心：当前页单篇导出与去控制台批量导出。 | 用户点击扩展图标 | `chatFormatter` | `POP_Main` |
 
 ---
 
@@ -508,55 +500,37 @@ sequenceDiagram
 
 ---
 
-### 3.5 Popup 快捷操作、长截图拼接与单页 PDF 导出数据流 (Popup Quick Capture, Screenshot & PDF Flow)
+### 3.5 Popup 快捷操作与单篇导出数据流 (Popup Quick Export Flow)
 
-本数据流负责在扩展工具栏弹窗中实现对当前正在浏览的单篇会话执行快速捕获、无缝长截图拼接与零依赖单页 PDF 生成。
+本数据流负责在扩展工具栏弹窗中实现对当前正在浏览的单篇会话执行快速抓取与单篇文件导出。
 
 * **数据源 (Data Source)**：
-  - 当前激活的 Gemini 标签页的可视视口与滚动聊天区域 DOM。
+  - 当前激活的 Gemini 标签页 URL 与会话元数据；
+  - 本地存储与 IndexedDB 中已缓存或直接通过 RPC/DOM 抓取的完整多轮对话详情。
 * **数据汇 (Data Sink)**：
-  - 系统剪贴板：一键复制纯净 Markdown；
-  - 磁盘文件下载：单篇 `.md`、`.json`、超长长截图 `.png` 或单页无缝 `.pdf`。
+  - 磁盘文件下载：单篇 `.md`、`.json`。
 * **核心处理与容错逻辑**：
-  1. Popup 发送指令给当前标签页的 `screenshotCapture.ts`；
-  2. 捕获引擎锁定聊天滚动容器，按视口步长逐屏平滑滚动，并依次调用 `chrome.tabs.captureVisibleTab` 获取各帧画面与 `scrollTop` 绝对位移；
-  3. 滚动到底后将帧数据回传给 Popup；
-  4. `calculateFrameLayouts` 算法精准计算相邻两帧之间的物理重叠像素，消除重复视口切片；
-  5. `ScreenshotStitcher` 在离屏 Canvas 上执行无缝拼接并导出为高分辨率图像；
-  6. 若用户选择导出 PDF，`PdfWrapper` 直接解析图像宽高等比计算 PDF MediaBox，利用原生 JavaScript `TextEncoder` 组装标准的 PDF 1.4 二进制结构（包含 `/Catalog`、`/Pages`、`/XObject` 及原生 `/DCTDecode` 压缩图像流），**零外部第三方 npm 库依赖**，毫秒级直接输出可矢量缩放打印的 PDF Blob。
+  1. Popup 识别当前激活标签页 URL，提取 conversationId 与 slot；
+  2. 用户点击【导出当前页面】，Popup 调用 `fetchChat` / `getConversationDetail` 获取完整结构化会话；
+  3. `ChatFormatter` 将会话数据格式化为用户选定的目标格式（Markdown / JSON）；
+  4. 触发浏览器单文件下载。
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant User as 用户点击
     participant Popup as popup.ts (Action Center)
-    participant CS as screenshotCapture.ts (Content)
-    participant CDP as chrome.tabs (Capture API)
-    participant Stitch as ScreenshotStitcher (Canvas)
-    participant PDF as PdfWrapper (Pure Binary)
+    participant BG as background.ts
+    participant CS as content.ts (Content)
     participant Down as Chrome Downloads
 
-    User->>Popup: 点击【生成全页长截图】或【导出单页 PDF】
-    Popup->>CS: 派发 CAPTURE_SCROLL_FRAMES 消息
-    CS->>CS: 锁定聊天区域滚动容器，获取总高度
-    loop 逐帧滚动直至触底
-        CS->>CS: 滚动容器到新 scrollTop 位置并等待渲染
-        CS->>CDP: 调用 captureVisibleTab 获取视口 Base64 画面
-        CDP-->>CS: 返回当前帧图片
-        CS->>CS: 记录 { dataUrl, scrollTop, viewportHeight }
-    end
-    CS-->>Popup: 回传完整帧数组 frames[]
-    Popup->>Stitch: calculateFrameLayouts & stitchFramesToCanvas
-    Stitch->>Stitch: 计算重叠差值 (消除滚动重叠)，在离屏 Canvas 上绘制
-    Stitch-->>Popup: 得到完整长截图 Canvas
-    alt 用户选择【长截图】
-        Popup->>Down: 将 Canvas 转为 PNG Blob 并触发下载
-    else 用户选择【单页 PDF】
-        Popup->>PDF: canvasToPdfBlob(canvas)
-        PDF->>PDF: wrapJpegToPdf (组装原生 PDF 1.4 二进制流 & xref 索引表)
-        PDF-->>Popup: 返回标准 application/pdf Blob
-        Popup->>Down: 触发 PDF 文件保存下载
-    end
+    User->>Popup: 点击【导出当前页面】
+    Popup->>BG: 发送 fetchChat / getConversationDetail
+    BG->>CS: 转发获取会话详情
+    CS-->>BG: 返回结构化会话数据
+    BG-->>Popup: 回传会话数据
+    Popup->>Popup: ChatFormatter 格式化文本
+    Popup->>Down: 触发文件保存下载
 ```
 
 ---
@@ -640,8 +614,7 @@ sequenceDiagram
 
 1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Controlled Exceptions)**：
    `src/core/` 目录下的纯解析器（`geminiParser`）、格式化器（`chatFormatter`）、工具库（`pathUtils`、`titleUtils`、`mergeUtils`）、提供商（`provider`）、两级存储（`storageService`、`conversationDetailStore`）与导出编排引擎（`exportOrchestrator`）必须严格保持物理零 DOM，严禁导入或依赖任何浏览器专属 DOM 变量（`document`、`HTMLElement`）。PR #477 已彻底消除了 `exportOrchestrator` 的 DOM 下载回退与 `i18n.ts` 的 DOM 操作。针对极少数跨环境历史交互建立明确的受控例外清单：
-   - **历史页面中断信号 fallback**：`geminiClient.ts` / `pagination.ts` 读取 `(window as any).__gemExporterAborted` 仅作为旧版 Content Script 页面中断标记的只读兼容 fallback，核心中断已全量采用标准的 `AbortSignal`；
-   - **离屏长图绘制**：`screenshotStitcher.ts` 优先使用无头/Worker 环境原生的 `OffscreenCanvas`，在浏览器前端环境下安全回退至标准 Canvas。
+   - **历史页面中断信号 fallback**：`geminiClient.ts` / `pagination.ts` 读取 `(window as any).__gemExporterAborted`仅作为旧版 Content Script 页面中断标记的只读兼容 fallback，核心中断已全量采用标准的 `AbortSignal`。
 2. **严格的 UI 分层关注点分离 (Strict UI Separation of Concerns)**：
    - `state/`：单向数据流与响应式存储数据状态管理；
    - `views/`：无状态 DOM 模版生成、虚拟列表渲染与事件冒泡绑定；
