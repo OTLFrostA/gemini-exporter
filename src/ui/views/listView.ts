@@ -161,6 +161,9 @@ export function render(
             if (isUpdated) {
                 const badgeLabel = (typeof t === 'function' && (t('badgeUpdated') || t('badgeNeedsReexport'))) || 'Updated';
                 badgeHtml = `<span class="badge badge-updated" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(245,158,11,0.15); color:#f59e0b; margin-left:8px; border:1px solid rgba(245,158,11,0.35);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
+            } else if (rec.status === 'partial' || rec.hasFailedAssets) {
+                const badgeLabel = typeof t === 'function' ? t('badgeExportedPartial') : 'Exported (Partial Assets)';
+                badgeHtml = `<span class="badge badge-exported-partial" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(234,179,8,0.15); color:#eab308; margin-left:8px; border:1px solid rgba(234,179,8,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
             } else {
                 const badgeLabel = typeof t === 'function' ? t('badgeExported') : 'Exported';
                 badgeHtml = `<span class="badge badge-exported" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:8px; border:1px solid rgba(16,185,129,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
@@ -199,27 +202,34 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
     ));
     if (!item) return;
 
+    const isPartial = !!(exportRecord && (exportRecord.status === 'partial' || exportRecord.hasFailedAssets));
+    const badgeKey = isPartial ? 'badgeExportedPartial' : 'badgeExported';
+    const bDefault = isPartial ? 'Exported (Partial Assets)' : 'Exported';
     const _i18n = __resolveModule('I18n', I18nStatic);
-    const bExported = (_i18n.t)
-        ? _i18n.t('badgeExported')
-        : (typeof t === 'function' ? t('badgeExported') : 'Exported');
-    const badgeText = (bExported && bExported !== 'badgeExported') ? bExported : 'Exported';
+    const bText = (_i18n.t)
+        ? _i18n.t(badgeKey)
+        : (typeof t === 'function' ? t(badgeKey) : bDefault);
+    const badgeText = (bText && bText !== badgeKey) ? bText : bDefault;
+    const badgeClass = isPartial ? 'badge badge-exported-partial' : 'badge badge-exported';
+    const badgeBg = isPartial ? 'rgba(234,179,8,0.15)' : 'rgba(16,185,129,0.15)';
+    const badgeBorder = isPartial ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.3)';
+    const badgeColor = isPartial ? '#eab308' : '#10b981';
 
     let badge = item.querySelector ? item.querySelector('.badge') as HTMLElement | null : null;
     if (badge) {
-        badge.className = 'badge badge-exported';
+        badge.className = badgeClass;
         badge.textContent = badgeText;
         if ((badge as HTMLElement).style) {
-            (badge as HTMLElement).style.background = 'rgba(16,185,129,0.15)';
-            (badge as HTMLElement).style.borderColor = 'rgba(16,185,129,0.3)';
-            (badge as HTMLElement).style.color = '#10b981';
+            (badge as HTMLElement).style.background = badgeBg;
+            (badge as HTMLElement).style.borderColor = badgeBorder;
+            (badge as HTMLElement).style.color = badgeColor;
         }
     } else {
         const titleContainer = item.querySelector ? item.querySelector('div') : null;
         if (titleContainer && document.createElement) {
             const span = document.createElement('span');
-            span.className = 'badge badge-exported';
-            span.style.cssText = 'font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:8px; border:1px solid rgba(16,185,129,0.3);';
+            span.className = badgeClass;
+            span.style.cssText = `font-size:10px; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor}; margin-left:8px; border:1px solid ${badgeBorder};`;
             span.textContent = badgeText;
             titleContainer.appendChild(span);
         }

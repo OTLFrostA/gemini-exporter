@@ -118,6 +118,7 @@ const __zhFactory = (): LocaleDictionary => {
             badgeNeedsReexport: "已更新",
             badgeUpdated: "已更新",
             badgeExported: "已导出",
+            badgeExportedPartial: "已导出 (部分附件缺失)",
             badgeNew: "未导出",
             loadStoreFailed: "加载会话列表失败: {0}",
             dirCancelled: "设置目录取消: {0}",

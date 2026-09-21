@@ -10,6 +10,10 @@ export interface ExportRecord {
     title?: string;
     format?: string;
     files?: string[];
+    status?: string;
+    hasFailedAssets?: boolean;
+    messageCount?: number;
+    chatTime?: number | string;
 }
 
 export interface IConversationsStore {
