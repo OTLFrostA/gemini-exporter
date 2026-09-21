@@ -19,7 +19,6 @@ export async function markDirDeletedInConfig(): Promise<void> {
 
 export interface LiveSaveResult {
     ok: boolean;
-    fallback?: 'downloads';
     handleName?: string;
     targetFile?: string;
     error?: string;
@@ -41,115 +40,6 @@ export function base64ToUint8Array(base64: string): Uint8Array {
     return bytes;
 }
 
-export async function downloadViaDownloadsAPI(filename: string, content: string | Uint8Array, mimeType = 'text/markdown'): Promise<boolean> {
-    if (typeof chrome === 'undefined' || !chrome.downloads || typeof chrome.downloads.download !== 'function') {
-        return false;
-    }
-    let base64 = '';
-    if (typeof content === 'string') {
-        if (typeof Buffer !== 'undefined') {
-            base64 = Buffer.from(content, 'utf-8').toString('base64');
-        } else {
-            base64 = btoa(unescape(encodeURIComponent(content)));
-        }
-    } else if (content instanceof Uint8Array) {
-        if (typeof Buffer !== 'undefined') {
-            base64 = Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString('base64');
-        } else {
-            let binary = '';
-            for (let i = 0; i < content.length; i++) {
-                binary += String.fromCharCode(content[i]);
-            }
-            base64 = btoa(binary);
-        }
-    }
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-    return new Promise((resolve) => {
-        chrome.downloads.download({
-            url: dataUrl,
-            filename: 'gemini_export/' + filename,
-            conflictAction: 'overwrite',
-            saveAs: false
-        }, (downloadId) => {
-            if (chrome.runtime.lastError || !downloadId) {
-                console.warn('[Background:liveSave] chrome.downloads.download failed:', chrome.runtime.lastError);
-                resolve(false);
-            } else {
-                resolve(true);
-            }
-        });
-    });
-}
-
-export async function saveViaDownloadsFallback(
-    chat: any,
-    safeTitle: string,
-    nid: string,
-    fileName: string | undefined,
-    assets: any[] | undefined,
-    accountSlot: string = 'u0'
-): Promise<LiveSaveResult> {
-    const { fileName: computedFileName, markdown } = formatLiveSaveMarkdown({ chat, safeTitle, nid });
-    const targetFile = fileName || computedFileName;
-
-    // Write markdown to Downloads/gemini_export/<targetFile>
-    const mdOk = await downloadViaDownloadsAPI(targetFile, markdown, 'text/markdown;charset=utf-8');
-    if (!mdOk) {
-        return { ok: false, error: 'downloads_fallback_failed' };
-    }
-
-    // Write assets
-    if (Array.isArray(assets) && assets.length > 0) {
-        for (const asset of assets) {
-            if (asset && asset.fileName) {
-                let fileData: Uint8Array | null = null;
-                if (asset.base64 && typeof asset.base64 === 'string') {
-                    try {
-                        fileData = base64ToUint8Array(asset.base64);
-                    } catch { /* ignore */ }
-                } else if (asset.buffer instanceof ArrayBuffer) {
-                    fileData = new Uint8Array(asset.buffer);
-                } else if (ArrayBuffer.isView(asset.buffer)) {
-                    fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
-                }
-                if (fileData && fileData.byteLength > 0) {
-                    const assetRelPath = `${asset.subDir || 'assets'}/${asset.fileName}`;
-                    await downloadViaDownloadsAPI(assetRelPath, fileData, 'application/octet-stream');
-                }
-            }
-        }
-    }
-
-    const now = Date.now();
-    try {
-        await setLiveConfig({
-            lastSavedAt: now,
-            lastSavedTitle: safeTitle,
-            dirError: 'permission_prompt_needed'
-        });
-    } catch { /* best effort */ }
-
-    try {
-        const slot = accountSlot || 'u0';
-        if (StorageService?.saveExportRecord) {
-            await StorageService.saveExportRecord(slot, nid, {
-                exportedAt: new Date(now).toISOString(),
-                title: safeTitle,
-                format: 'markdown'
-            });
-        }
-    } catch (e) {
-        console.warn('[Background:liveSave] Failed to mark conversation as exported:', e);
-    }
-
-    return {
-        ok: true,
-        fallback: 'downloads',
-        error: 'permission_prompt_needed',
-        targetFile
-    };
-}
-
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
         const { chat, safeTitle, nid, fileName, assets } = payload || {};
@@ -158,22 +48,19 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             return { ok: false, error: 'no_dir_handle' };
         }
 
-        let needsDownloadsFallback = false;
         if (handle.queryPermission) {
             try {
                 const perm = await handle.queryPermission({ mode: 'readwrite' });
                 if (perm !== 'granted') {
-                    needsDownloadsFallback = true;
+                    console.info('[Background:liveSave] Handle permission not granted (prompt needed)');
+                    await setLiveConfig({ dirError: 'permission_prompt_needed' });
+                    return { ok: false, error: 'permission_prompt_needed' };
                 }
             } catch (permErr: any) {
-                console.warn('[Background:liveSave] queryPermission threw, fallback to downloads:', permErr);
-                needsDownloadsFallback = true;
+                console.warn('[Background:liveSave] queryPermission threw, prompt needed:', permErr);
+                await setLiveConfig({ dirError: 'permission_prompt_needed' });
+                return { ok: false, error: 'permission_prompt_needed' };
             }
-        }
-
-        if (needsDownloadsFallback) {
-            console.info('[Background:liveSave] Handle permission not granted, triggering zero-loss Downloads fallback');
-            return await saveViaDownloadsFallback(chat, safeTitle, nid, fileName, assets, accountSlot);
         }
 
         // Verify the directory physically exists on disk before proceeding
@@ -187,8 +74,9 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                 return { ok: false, error: 'dir_not_found', details: probeErr?.message };
             }
             if (probeErr?.name === 'NotAllowedError' || probeErr?.name === 'SecurityError') {
-                console.info('[Background:liveSave] Directory probe threw NotAllowedError, fallback to downloads');
-                return await saveViaDownloadsFallback(chat, safeTitle, nid, fileName, assets, accountSlot);
+                console.info('[Background:liveSave] Directory probe threw NotAllowedError, prompt needed');
+                await setLiveConfig({ dirError: 'permission_prompt_needed' });
+                return { ok: false, error: 'permission_prompt_needed' };
             }
         }
 
@@ -271,9 +159,9 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             return { ok: false, error: 'dir_not_found', details: err?.message };
         }
         if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
-            console.info('[Background:liveSave] liveSaveViaHandle caught permission error, falling back to downloads');
-            const { chat, safeTitle, nid, fileName, assets } = payload || {};
-            return await saveViaDownloadsFallback(chat, safeTitle, nid, fileName, assets, accountSlot);
+            console.info('[Background:liveSave] liveSaveViaHandle caught permission error, prompt needed');
+            await setLiveConfig({ dirError: 'permission_prompt_needed' });
+            return { ok: false, error: 'permission_prompt_needed' };
         }
         return { ok: false, error: err?.message || String(err) };
     }

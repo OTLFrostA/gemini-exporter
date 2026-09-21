@@ -159,7 +159,7 @@ graph TD
 | `src/background/keepAlive.ts` | Background SW | `startKeepAlive`, `stopKeepAlive` | 在耗时较长的批量导出与全量扫描期间派发微型心跳，防止 MV3 Service Worker 意外挂起。 | `background.ts` | Chrome runtime 端口心跳 | `BG_KeepAlive` |
 | `src/background/abortManager.ts` | Background SW | `isSlotAborted`, `setSlotAborted`, `restoreAbortFlags` | 维护多账号 Slot 级别的中断标记，并在 session storage 中跨唤醒持久化。 | `background.ts`, `syncController.ts` | `chrome.storage.session` | `BG_Abort` |
 | `src/background/batchFetcher.ts` | Background SW | `fetchBatch`, `sendToGeminiTab`, `getGeminiTab` | 后台代理并发抓取 batchexecute 请求，跨标签页消息转发。 | `background.ts` | `chrome.tabs.sendMessage` | `BG_Batch` |
-| `src/background/liveSaveHandler.ts` | Background SW | `handleLiveSaveViaHandle`, `markDirDeletedInConfig` | 接收实时保存数据执行写入；当 SW 无头权限退化为 prompt 时，自动触发零损 downloads API 兜底落盘并通知前台重授权。 | `background.ts` (runtime.onMessage) | `idbHandleStore`, `liveSaveWriter`, `chrome.downloads` | `BG_LiveHandler` |
+| `src/background/liveSaveHandler.ts` | Background SW | `handleLiveSaveViaHandle`, `markDirDeletedInConfig` | 接收实时保存数据执行写入；当 SW 无头权限退化为 prompt 时，自动触发权限提示并通知前台通过用户手势一键重授权。 | `background.ts` (runtime.onMessage) | `idbHandleStore`, `liveSaveWriter` | `BG_LiveHandler` |
 | `src/background/tabAction.ts` | Background SW | `updateTabActionState`, `initTabActionListeners` | 监视激活标签页 URL 是否为 Gemini 域名，动态切换彩色/灰色图标状态。 | `background.ts`, tabs 事件 | `chrome.action.setIcon` | `BG_TabAction` |
 | `src/content/content.ts` | Content Script | `content.ts` (Entrypoint) | 隔离区主入口，统筹初始化 Observer、Bridge、SyncEngine、LiveSave、身份嗅探与徽章视图。 | Chrome Content Script 注入 | `cleanupRegistry`, `messageBridge`, `pageObserver`, `syncEngine` | `CS_Entry` |
 | `src/content/accountSniffer.ts` | Content Script | `extractEmailFromText`, `extractNameFromLabel`, `sniffUserProfileFromDom` | 从 DOM 头像标签、aria-label 与全局 WIZ 数据安全嗅探 Google 真实账号邮箱、显示名与 Gaia ID，终结易变 URL 序号伪身份。 | `bootstrap.ts`, `syncEngine.ts` | `storageService.updateAccountSlot` | `CS_Sniffer` |
@@ -321,17 +321,16 @@ sequenceDiagram
   - DOM 树变更（`liveSaveObserver` 监听的回复渲染 DOM 节点）。
 * **数据汇 (Data Sink)**：
   - 本地磁盘文件系统：通过用户授权的 `FileSystemDirectoryHandle`，调用 `liveSaveWriter` 生成物理 `.md` 文件及 `assets/` 附件；
-  - 浏览器下载流（降权兜底）：`chrome.downloads` API，直接写入系统下载目录的 `gemini_export/` 子文件夹；
   - 本地 IndexedDB：`gemini_live_conversations` 对象存储，持久化最近一次结构化快照；
   - 页面浮动徽章：`BadgeView` 动态展现“保存中...”、“已同步”或权限过期/目录失效告警。
 * **核心处理与容错逻辑**：
   1. 主世界拦截器 `hookCredentials.ts` 捕获到流式生成开始与结束事件（`STREAM_COMPLETE`）；
   2. 隔离区 `MessageBridge` 接收到消息后唤醒 `LiveSaveObserver`，启动 800ms 防抖冷却；
   3. 调度器 `LiveSaveCoordinator` 拉取当前会话最新轮次数据，格式化为 CommonMark + Frontmatter；
-  4. **无头环境权限降权检测与零损回退 (P0 容灾)**：
+  4. **无头环境权限降权检测与一键手势恢复**:
      - 若通过 Background SW 代理写入且浏览器重启导致句柄权限回退为 `'prompt'` 时，由于 MV3 Service Worker 属于无头环境，无法直接触发 `requestPermission()`（浏览器强制要求前台显式用户手势）；
-     - 此时 SW 绝不死锁抛错，而是自动无缝激活 **Chrome Downloads 零损兜底**（`chrome.downloads.download` 将文件及图片直接保存至 `Downloads/gemini_export/`），实现数据 0 丢失；
-     - 同时向 Options 工作台广播降权事件，UI 暂存 `pendingPermissionHandle` 并展示优雅提示横幅；
+     - 此时 SW 标记 `permission_prompt_needed`，并向 Options 工作台广播降权事件；
+     - UI 暂存 `pendingPermissionHandle` 并展示优雅重授权提示；
      - 用户在前端页面点击即可通过真实手势执行 `reauthorizeDirHandle()` 一键恢复原生目录直写权限；
   5. 若目标目录物理句柄在磁盘上被删除，捕获 `NotFoundError` 并标记 `dir_deleted`，徽章展示友好警示且自动暂停同步。
 
@@ -344,7 +343,6 @@ sequenceDiagram
     participant Obs as liveSaveObserver.ts
     participant Coord as liveSaveCoordinator.ts
     participant SW as Background SW (liveSaveHandler.ts)
-    participant Down as chrome.downloads API (零损兜底)
     participant Disk as 用户本地磁盘目录 (Native FS)
     participant UI as Options 选项页 (dirHandleController)
     participant Badge as badgeView.ts (UI 徽章)
@@ -363,11 +361,10 @@ sequenceDiagram
     else 由后台 SW 代理写入且权限退化 (queryPermission == 'prompt')
         Coord->>SW: runtime.sendMessage(handleLiveSaveViaHandle)
         SW->>SW: 检测到无头环境无法触发 requestPermission (User Gesture 限制)
-        Note over SW,Down: 激活 P0 容灾零损回退 (Zero-Loss Downloads Fallback)
-        SW->>Down: chrome.downloads.download(filename: 'gemini_export/...')
-        Down->>Disk: 自动安全保存至系统 Downloads/gemini_export/
-        SW-->>Coord: 回传降权通知 (degraded: true)
-        Coord->>Badge: 显示【已通过下载落盘 (点击选项页恢复直写)】
+        SW-->>Coord: 回传降权通知 (permission_prompt_needed)
+        Coord->>Badge: 显示【需要恢复授权 (点击选项页恢复直写)】
+        UI->>Disk: 用户点击执行 reauthorizeDirHandle() 恢复授权
+    end
         SW->>UI: 广播 DIR_HANDLE_PERMISSION_DEGRADED
         UI->>UI: 记录 pendingPermissionHandle 并呈现【一键恢复直写权限】提示
         opt 用户在前台点击一键重授权
@@ -630,8 +627,8 @@ sequenceDiagram
    在耗时较长的大批量扫描或附件打包过程中，定期向后台派发轻量保活心跳，彻底解决 Chromium 浏览器可能在后台静默终止 Service Worker 导致导出任务异常中断的问题。
 7. **两级存储架构与配额安全隔离 (Two-Tier Storage & Quota Isolation)**：
    `chrome.storage.local` 严格仅存轻量列表元数据索引（`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `conversationDetailStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
-8. **无头环境写盘降权零损回退 (Headless FileSystem Permission Fallback)**：
-   Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时后台绝不允许抛错中断或静默丢弃用户数据，必须自动无感激活 `chrome.downloads` 零损兜底落盘至 `Downloads/gemini_export/`，并向前端派发事件由用户手势通过 `reauthorizeDirHandle()` 一键恢复物理直写。
+8. **无头环境写盘降权优雅检测 (Headless FileSystem Permission Resilience)**：
+   Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时后台优雅标记 `permission_prompt_needed`，并向前端派发事件由用户手势通过 `reauthorizeDirHandle()` 一键恢复物理直写。
 9. **多账号单向隔离与凭据零借调 (Multi-Account Strict Isolation & Zero Token Stealing)**：
    系统的账号体系以真实 Google Profile（邮箱与 Gaia ID）为锚点。各账号 Slot 之间具有完全物理隔离的凭据命名空间与会话空间，严禁跨槽位借调或回退 Token；跨标签页指令分发必须严格匹配当前激活账户的 Slot，若目标标签页不存在必须显式抛错拦截，绝不向不匹配账号的页面盲投任何 RPC 指令。
 

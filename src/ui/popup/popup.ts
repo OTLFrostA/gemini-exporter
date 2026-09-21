@@ -18,7 +18,6 @@ import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 
-let _activeTab: chrome.tabs.Tab | null = null;
 let _activeConvId: string | null = null;
 let _activeSlot: string = 'u0';
 let _activeChatTitle: string = '';
@@ -98,7 +97,7 @@ async function updateCount(): Promise<void> {
         let slot = 'u0';
         let isGemini = false;
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        _activeTab = tab || null;
+
 
         if (tab?.url && isGeminiUrl(tab.url)) {
             isGemini = true;
