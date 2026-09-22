@@ -27,7 +27,7 @@ export interface GeminiParserParseListModule {
 
 import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
-import { payloadToMs, extractInnerPayload, extractNextPageToken } from "./payload.js";
+import { payloadToMs, extractInnerPayload, extractNextPageToken, extractWithScan } from "./payload.js";
 
 const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
 
@@ -49,30 +49,23 @@ function getProtocol(): any {
         const schema = getSchema();
         const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
 
-        // 1. Primary candidate: index 5 (Google official server updatedAt [sec, nano])
-        const primary = payloadToMs(item[listItemSchema.TIMESTAMP]);
-        if (primary !== null) return primary;
-
-        // 2. Secondary candidates: index 2, 3, 4
-        const alts = [
-            item[listItemSchema.UPDATE_TIME_ALT],
-            item[listItemSchema.CREATE_TIME_ALT],
-            item[listItemSchema.COUNT_ALT1]
+        const candidateIndices = [
+            listItemSchema.TIMESTAMP,
+            listItemSchema.UPDATE_TIME_ALT,
+            listItemSchema.CREATE_TIME_ALT,
+            listItemSchema.COUNT_ALT1
         ];
-        for (const cand of alts) {
-            const ms = payloadToMs(cand);
-            if (ms !== null) return ms;
-        }
 
-        // 3. Fallback: scan any element matching [seconds, nanos]
-        for (let i = 0; i < item.length; i++) {
-            const val = item[i];
-            if (Array.isArray(val) && val.length <= 4) {
-                const ms = payloadToMs(val);
-                if (ms !== null) return ms;
+        return extractWithScan(
+            item,
+            candidateIndices,
+            (val, idx) => {
+                if (candidateIndices.includes(idx)) {
+                    return payloadToMs(val);
+                }
+                return (Array.isArray(val) && val.length <= 4) ? payloadToMs(val) : null;
             }
-        }
-        return null;
+        );
     }
 
     function parseList(text: string): ListParseResult {
