@@ -609,9 +609,10 @@ sequenceDiagram
 
 在系统演进过程中，所有开发者与 AI 助手必须严格维护以下设计不变量：
 
-1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Controlled Exceptions)**：
-   `src/core/` 目录下的纯解析器（`geminiParser`）、格式化器（`chatFormatter`）、工具库（`pathUtils`、`titleUtils`、`mergeUtils`）、提供商（`provider`）、两级存储（`storageService`、`conversationDetailStore`）与导出编排引擎（`exportOrchestrator`）必须严格保持物理零 DOM，严禁导入或依赖任何浏览器专属 DOM 变量（`document`、`HTMLElement`）。PR #477 已彻底消除了 `exportOrchestrator` 的 DOM 下载回退与 `i18n.ts` 的 DOM 操作。针对极少数跨环境历史交互建立明确的受控例外清单：
-   - **历史页面中断信号 fallback**：`geminiClient.ts` / `pagination.ts` 读取 `(window as any).__gemExporterAborted`仅作为旧版 Content Script 页面中断标记的只读兼容 fallback，核心中断已全量采用标准的 `AbortSignal`。
+1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Layered Browser API Policy)**：
+   `src/core/` 按领域职责组织模块，其中不同子层对浏览器 API 的依赖边界有明确区分：
+   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`api/parser/*`）、格式化器（`chatFormatter`）、纯工具库（`titleUtils`、`mergeUtils`、`pathUtils`、`progressUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）以及导出编排引擎（`exportOrchestrator`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
+   - **运行时基础设施层（允许浏览器标准 API，禁止 DOM 渲染操作）**：API 客户端（`api/client/*`：`credentialManager` 通过 `querySelectorAll("script")` 只读提取页面内嵌凭据、`rpcClient` 调用 `fetch` 发送 RPC 请求、`pagination` 读取 `window.__gemExporterAborted` 作为旧版中断兼容 fallback）、持久化存储（`storage/*`：使用 `chrome.storage.local`、`IndexedDB`）、文件写入器（`writers/*`：使用 `FileSystem Access API`）以及标签页服务（`tabService`：使用 `chrome.tabs`）。这些模块允许使用 `fetch`、`chrome.*`、`IndexedDB`、`FileSystem API` 等浏览器运行时标准 API，但**严禁执行任何 DOM 渲染行为**（`createElement`、`appendChild`、`innerHTML` 赋值、样式操作等），确保 UI 渲染职责完全归属 `src/ui/` 与 `src/content/` 层。
 2. **严格的 UI 分层关注点分离 (Strict UI Separation of Concerns)**：
    - `state/`：单向数据流与响应式存储数据状态管理；
    - `views/`：无状态 DOM 模版生成、虚拟列表渲染与事件冒泡绑定；
