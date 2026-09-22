@@ -115,9 +115,9 @@ graph TD
 
     %% 内容脚本与后台通信
     CS_LiveCoord -- "runtime.sendMessage (handleLiveSaveViaHandle)" --> BG_LiveHandler
-    CS_SyncEng -- "runtime.sendMessage (fetchBatch / keepAlive)" --> BG_SW
-    POP_Main -- "tabs.sendMessage / runtime.sendMessage" --> CS_Shot
-    OPT_Controllers -- "runtime.sendMessage" --> BG_SW
+    CS_SyncEng -- "runtime.sendMessage (fetchBatch / keepAlive)" --> BG_Entry
+    POP_Main -- "runtime.sendMessage (fetchChat)" --> BG_Entry
+    OPT_Controllers -- "runtime.sendMessage" --> BG_Entry
     BG_LiveHandler -- "句柄降权 prompt 回退" --> BG_Downloads
 
     %% 模块连接到核心逻辑
@@ -150,7 +150,7 @@ graph TD
 
 ## 二、AST 逻辑分布与架构映射矩阵 (AST Logical Distribution & Architecture Mapping)
 
-下表呈现整个代码库 `src/` 目录下系统核心主干骨架模块（Core Backbone AST，全仓 113 个 TS 源文件，涵盖核心业务主干、子解析器与视图控制器）的抽象语法树逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
+下表呈现整个代码库 `src/` 目录下系统核心主干骨架模块（Core Backbone AST，全仓 111 个 TS 源文件，涵盖核心业务主干、子解析器、视图控制器与契约类型定义）的抽象语法树逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
 
 | 物理源码路径 (File Path) | 架构分层 / 子系统 | 核心 AST 导出实体 (Classes / Functions / Interfaces) | 模块职责与设计不变量 (Role & Invariants) | 上游调用源 (Inflow) | 下游承接汇 (Outflow) | 架构图映射节点 |
 |---|---|---|---|---|---|---|
@@ -179,10 +179,12 @@ graph TD
 | `src/core/provider/aiProvider.ts` | Core: Provider | `AIProvider`, `ProviderConversationItem`, `ProviderCapabilities` | 定义跨异构 AI 模型平台的通用接口契约规范。 | 所有 Provider 模块 | 上层引擎统一接口 | `PROV_Registry` |
 | `src/core/provider/providerRegistry.ts` | Core: Provider | `ProviderRegistryClass`, `ProviderRegistry` (单例) | 全局 Provider 注册表，支持按平台 ID 或当前页面 URL 模式匹配提供商。 | 各 Provider 自动注册 | `liveSaveCoordinator`, `exportOrchestrator` | `PROV_Registry` |
 | `src/core/provider/gemini/geminiProvider.ts` | Core: Provider | `GeminiProvider` (实现 `AIProvider`) | Gemini 平台适配器，封装 batchexecute RPC 调用与多账号 Slot 映射。 | `providerRegistry.ts` | `geminiClient`, `geminiParser` | `PROV_Gemini` |
-| `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器，支持对话列表抓取与结构转换。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
+| `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器，已完整实现对话列表翻页、详情抓取与树映射展开算法（规划特性，等待后续 manifest 授权激活）。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
+| `src/core/provider/index.ts` | Core: Provider | `export *` (Barrel) | 统一导出多模型提供商契约、具体适配器与注册表单例。 | 业务消费方 | Provider 子模块 | `PROV_Registry` |
 | `src/core/api/geminiClient.ts` | Core: API | `GeminiAPIClient` (Facade) | 统一客户端入口，封装身份认证、分页抓取、指数退避重试与 AbortSignal 控制。 | `geminiProvider`, `syncEngine`, `exportWorker` | `client/*` 子模块 | `API_Client` |
 | `src/core/api/geminiParser.ts` | Core: API | `GeminiResponseParserClass` (Facade) | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |
 | `src/core/api/client/credentialManager.ts` | Core: API Client | `resolveCred`, `getAtFromPage`, `detectSlot` | 统一管理 SNlM0e、at、sid 等鉴权凭据；严格按账号 Slot 单向解析，严禁跨账号借调偷用 Token。 | `geminiClient.ts` | `credStorage.ts` | `API_Client` |
+| `src/core/api/client/credStorage.ts` | Core: API Client | `getCredStorage`, `markCredSessionAccessFailed` | 统一管理凭据在 `chrome.storage.session` 与内存降级回退模式之间的安全存取。 | `credentialManager.ts` | `chrome.storage.session` / 内存 | `API_Client` |
 | `src/core/api/client/pagination.ts` | Core: API Client | `paginateList`, `fetchDetailWithRetry` | 封装 batchexecute 游标翻页机制与超时控制。 | `geminiClient.ts` | `rpcClient.ts` | `API_Client` |
 | `src/core/api/client/retryPolicy.ts` | Core: API Client | `executeWithRetry`, `isTransientError` | 处理 HTTP 400（XSRF 过期刷新）、429（频率限制）的指数退避与重试策略。 | `geminiClient.ts` | 网络请求调用 | `API_Client` |
 | `src/core/api/client/rpcClient.ts` | Core: API Client | `postBatchexecute`, `getApiUrl` | 构造 batchexecute 原始 POST 请求负载、组装 RPC 封包并处理响应转义。 | `geminiClient.ts` | `window.fetch` | `API_Client` |
@@ -190,6 +192,7 @@ graph TD
 | `src/core/api/parser/parseDetail.ts` | Core: API Parser | `parseDetail`, `detectTurnSchemaDrift` | 递归遍历多轮对话数组，提取提问/回复角色、时间戳并检测 Schema 漂移。 | `geminiParser.ts` | 原始数组 -> 轮次列表 (`ChatMessage[]`) | `API_Parser` |
 | `src/core/api/parser/extractors.ts` | Core: API Parser | `extractCandidateText`, `extractThoughts`, `extractCitations` | 提取模型思考推理过程（Thought Blocks）、候选回答文本与网络引用链接。 | `parseDetail.ts` | 候选数据块 -> 纯文本与引用元数据 | `API_Parser` |
 | `src/core/api/parser/attachments.ts` | Core: API Parser | `extractImages`, `extractUserFiles`, `extractDocumentsMeta` | 提取图片附件（含 Imagen 生成图与用户上传图）、文件与 Deep Research 报告。 | `parseDetail.ts` | 附件原始元数据 -> `Attachment[]` | `API_Parser` |
+| `src/core/api/parser/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `parseDetail.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
 | `src/core/engine/export/batchWorker.ts` | Core: Engine | `processSingleConversation` | 独立执行单条会话抓取：RPC 请求、附件下载、格式转换与文件写入。 | `exportOrchestrator.ts` | `geminiClient`, `chatFormatter`, `writers` | `ENG_Worker` |
@@ -220,6 +223,11 @@ graph TD
 | `src/core/utils/progressUtils.ts` | Core: Utils | `formatETA`, `formatByteSize`, `calculateRate` | 计算传输速率、剩余时间人类可读格式化。 | `progressReporter.ts` | 格式化文本输出 | `UT_Path` |
 | `src/core/utils/tabService.ts` | Core: Utils | `TabService`, `getGeminiTab`, `sendToGeminiTab` | 严格按账号 Slot 定向检索 Gemini 标签页并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝串账号盲投。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
 | `src/core/utils/i18n.ts` | Core: Utils | `I18nClass`, `getI18n` | 中英双语轻量翻译引擎，支持动态语言切换与多级占位符替换。 | UI Views, Controllers, Tour | 国际化本地化字典 | `UT_I18n` |
+| `src/core/utils/chipUtils.ts` | Core: Utils | `ChipUtils`, `isInternalChipUrl`, `stripInternalChipMarkdown` | 过滤并清洗 Gemini 内部提及 (User Mention / Model Tag) 产生的内部 Chip 标签。 | `attachments.ts`, `chatFormatter.ts` | 清洗后的 Markdown/文本 | `UT_Path` |
+| `src/core/utils/constants.ts` | Core: Utils | `GeminiConstants`, `STORAGE_KEYS`, `DEFAULT_EXPORT_FOLDER_NAME` | 全局跨模块共享系统配置与存储键名真理源 (SSoT)。 | 全系统所有模块 | 配置常量定义 | `UT_SSoT` |
+| `src/core/utils/environment.ts` | Core: Utils | `isLocalDevelopment` | 运行时环境感知，基于 URL 参数及调试标记判定是否处于开发者调试模式。 | UI 模块, `utils.ts` | 调试环境布尔标记 | `UT_SSoT` |
+| `src/core/utils/messaging.ts` | Core: Utils | `sendTypedMessage`, `isMessageAction`, `getErrorMessage` | 强类型安全的跨世界与跨扩展上下文消息传递包装器，附带超时与异常提取。 | Background, Content, UI | `chrome.runtime.sendMessage` | `UT_SSoT` |
+| `src/core/utils/moduleOverrides.ts` | Core: Utils | `__setModuleOverride`, `__resolveModule`, `__clearModuleOverrides` | 运行时模块重定向与轻量依赖注入容器，支持无头单元测试注入 Mock 实现。 | 全系统所有模块 | 动态依赖解析 | `UT_SSoT` |
 | `src/core/protocol/protocol.ts` | Core: Protocol | `GeminiProtocol`, `CrossWorldEvents` | 定义 wire 级 RPC 标识符 (`RPCS.LIST`, `RPCS.DELETE`)、跨世界事件名与关键断言。 | `hookCredentials`, `messageBridge` | 协议契约常量 | `MAIN_Hook`, `CS_Bridge` |
 | `src/core/protocol/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |
 | `src/ui/options/options.ts` | UI: Options | `options.ts` (Entrypoint) | 工作台初始化编排器，挂载上下文并装配初始化子模块。 | 用户访问 `options.html` | UI 子模块协调 | `OPT_Main` |
@@ -240,8 +248,13 @@ graph TD
 | `src/ui/controllers/takeoutController.ts` | UI: Controller | `TakeoutController`, `importTakeoutZip` | Takeout 控制器，驱动 `TakeoutEngine` 进行离线解压并将合并结果入库。 | `optionsTakeout.ts` | `takeoutEngine.ts`, `storageService.ts` | `OPT_Controllers` |
 | `src/ui/controllers/dirHandleController.ts` | UI: Controller | `DirHandleController`, `pickDirectory` | 调用原生 `window.showDirectoryPicker()`，保存句柄至 IndexedDB 并检验读写权限。 | `optionsExport.ts` | `idbHandleStore.ts` | `OPT_Controllers` |
 | `src/ui/tour/tourGuide.ts` | UI: Tour | `TourGuide`, `startTour`, `nextStep` | 5 步交互式新手向导引擎，计算遮罩镂空高亮与气泡定位。 | `optionsInit.ts` | 引导蒙层与定位计算 | `OPT_Tour` |
+| `src/ui/tour/tourSteps.ts` | UI: Tour | `STEPS` (向导步骤配置) | 定义 5 步新手引导步骤的数据结构与选择器绑定目标。 | `tourGuide.ts` | 新手向导配置 | `OPT_Tour` |
+| `src/ui/tour/tourPosition.ts` | UI: Tour | `positionElements` | 计算新手向导高亮气泡的视口绝对物理坐标与动态避让。 | `tourGuide.ts` | DOM 样式绝对定位 | `OPT_Tour` |
+| `src/ui/tour/featureReleases.ts` | UI: Tour | `FEATURE_RELEASES`, `getLatestEligibleFeature` | 新特性发布公告配置表，支持按版本号精准触发特性高亮聚焦。 | `tourGuide.ts`, `optionsSettings.ts` | 向导触发条件判断 | `OPT_Tour` |
+| `src/ui/uiCommon.ts` | UI: Common | `$`, `getI18n`, `t`, `setWorkbenchControlsDisabled` | UI 前端跨视图共享的 DOM 快捷选择器、工作台操作按钮禁用状态控制与 i18n 辅助方法。 | UI 各 Controller 与 Views | 界面 DOM 元素 | `UI_Common` |
 | `src/ui/utils/domI18n.ts` | UI: Utils | `applyI18n`, `applyLangToggleUI`, `setSafeFormattedContent` | UI 专属 DOM 国际化渲染引擎与语言切换控件绑定，将 DOM 渲染彻底剥离出 Core 层。 | `uiCommon.ts`, `popup.ts`, `optionsSettings.ts` | 前台各页面真实 DOM 树 | `UI_Common` |
 | `src/ui/popup/popup.ts` | UI: Popup | `popup.ts` (Entrypoint) | 扩展浮窗交互中心：当前页单篇导出与去控制台批量导出。 | 用户点击扩展图标 | `chatFormatter` | `POP_Main` |
+| `src/types/index.ts` | Core: Types | `Conversation`, `ChatMessage`, `Attachment`, `ExportRecord` 等 | 全仓 9 大类型定义文件契约中心，为跨世界事件、会话实体、UI 接口与导出参数提供静态类型保障。 | 全仓所有 TS 模块 | TypeScript 编译期检查 | 契约层 |
 
 ---
 
