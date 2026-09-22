@@ -27,7 +27,7 @@ export interface GeminiParserParseListModule {
 
 import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
-import { payloadToMs, extractInnerPayload } from "./payload.js";
+import { payloadToMs, extractInnerPayload, extractNextPageToken } from "./payload.js";
 
 const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
 
@@ -153,22 +153,7 @@ function getProtocol(): any {
                     });
                 }
             }
-            let nextToken: string | null = null;
-            // Schema-driven next-page token scanning
-            for (const idx of innerSchema.NEXT_TOKEN_CANDIDATES) {
-                if (typeof inner[idx] === "string" && inner[idx].startsWith("tC")) {
-                    nextToken = inner[idx];
-                    break;
-                }
-            }
-            if (!nextToken && Array.isArray(inner)) {
-                for (let elem of inner) {
-                    if (typeof elem === "string" && elem.startsWith("tC")) {
-                        nextToken = elem;
-                        break;
-                    }
-                }
-            }
+            const nextToken = extractNextPageToken(inner, innerSchema.NEXT_TOKEN_CANDIDATES);
             return {
                 conversations: convs,
                 nextPageToken: nextToken,
