@@ -34,12 +34,76 @@ export interface JspbListItemSchema {
     COUNT_ALT2: number;
 }
 
+/**
+ * Inner payload structure after batchexecute envelope unwrap.
+ * Used by both parseList and parseDetail to locate turns, title, conv-id, and pagination token.
+ */
+export interface JspbInnerSchema {
+    /** Primary index for turns array (detail) or conversation list (list) */
+    TURNS_OR_LIST_PRIMARY: number;
+    /** Secondary index (fallback) for conversation list */
+    LIST_SECONDARY: number;
+    /** Candidate indices for conversation title (scanned in order) */
+    TITLE_CANDIDATES: number[];
+    /** Candidate indices for conversation ID */
+    CONV_ID_CANDIDATES: number[];
+    /** Candidate indices for next-page token (scanned in order) */
+    NEXT_TOKEN_CANDIDATES: number[];
+    /** Metadata-only detection: null/null sentinel then list-format row */
+    METADATA_ONLY_LIST: number;
+}
+
+/**
+ * Simple inline image tuple: [url, width, height, token?]
+ */
+export interface JspbInlineImageSchema {
+    URL: number;
+    WIDTH: number;
+    HEIGHT: number;
+    TOKEN: number;
+}
+
+/**
+ * Generated / uploaded media node (complex format):
+ *   [?, ?, filename, url, ?, token, ..., mimeType, ..., ?, ?, ?, dimensions]
+ */
+export interface JspbGeneratedImageSchema {
+    FILENAME: number;
+    URL: number;
+    TOKEN: number;
+    MIME_TYPE: number;
+    DIMENSIONS: number;  // [width, height, size]
+}
+
+/**
+ * Deep Research document metadata chip structure.
+ */
+export interface JspbDeepResearchDocSchema {
+    CHIP_URL: number;     // item[0][0]
+    ID: number;
+    TITLE: number;
+    CONTENT_ID: number;
+    TIMESTAMP: number;    // item[5] → [seconds, ...]
+}
+
+/**
+ * BardErrorInfo position within the batchexecute envelope.
+ */
+export interface JspbErrorInfoSchema {
+    ERROR_SLOT: number;
+}
+
 export interface GeminiJspbSchema {
     TURN: JspbTurnSchema;
     MODEL_PAYLOAD: JspbModelPayloadSchema;
     CANDIDATE: JspbCandidateSchema;
     CANDIDATE_BODY: JspbCandidateBodySchema;
     LIST_ITEM: JspbListItemSchema;
+    INNER: JspbInnerSchema;
+    INLINE_IMAGE: JspbInlineImageSchema;
+    GENERATED_IMAGE: JspbGeneratedImageSchema;
+    DEEP_RESEARCH_DOC: JspbDeepResearchDocSchema;
+    ERROR_INFO: JspbErrorInfoSchema;
 }
 
 export interface TurnDriftReport {
@@ -120,6 +184,37 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
             CREATE_TIME_ALT: 3,// Legacy/Alternative create timestamp array
             COUNT_ALT1: 4,     // Optional turn count if number
             COUNT_ALT2: 9      // Optional turn count if number
+        },
+        INNER: {
+            TURNS_OR_LIST_PRIMARY: 0,   // inner[0]: turns array (detail) or list items primary
+            LIST_SECONDARY: 1,          // inner[1]: list items secondary candidate (fallback)
+            TITLE_CANDIDATES: [2, 1],   // Scanned in order for string title
+            CONV_ID_CANDIDATES: [0, 1], // Scanned for "c_..." conversation ID
+            NEXT_TOKEN_CANDIDATES: [1, 2, 3], // Scanned for "tC..." pagination token
+            METADATA_ONLY_LIST: 2       // inner[2]: list-format metadata-only row
+        },
+        INLINE_IMAGE: {
+            URL: 0,            // string: Google media host URL
+            WIDTH: 1,          // number: pixel width
+            HEIGHT: 2,         // number: pixel height
+            TOKEN: 3           // string?: optional dedup token
+        },
+        GENERATED_IMAGE: {
+            FILENAME: 2,       // string: original file name (e.g. "watermarked_img_*.png")
+            URL: 3,            // string: Google media host download URL
+            TOKEN: 5,          // string?: dedup token
+            MIME_TYPE: 11,     // string: e.g. "image/png"
+            DIMENSIONS: 15     // [width, height, size]
+        },
+        DEEP_RESEARCH_DOC: {
+            CHIP_URL: 0,       // item[0][0]: "...immersive_entry_chip..."
+            ID: 2,             // string: UUID or "rc_xxx"
+            TITLE: 3,          // string: document title
+            CONTENT_ID: 4,     // string?: content lookup key
+            TIMESTAMP: 5       // item[5][0] * 1000 → ms
+        },
+        ERROR_INFO: {
+            ERROR_SLOT: 5      // item[5] → JSON.stringify checks for "BardErrorInfo"
         }
     });
 
@@ -450,8 +545,9 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractConversationId(inner: unknown, turns?: unknown[]): string {
         if (Array.isArray(inner)) {
-            if (typeof inner[0] === "string" && inner[0].startsWith("c_")) return inner[0];
-            if (typeof inner[1] === "string" && inner[1].startsWith("c_")) return inner[1];
+            for (const idx of GEMINI_JSPB_SCHEMA.INNER.CONV_ID_CANDIDATES) {
+                if (typeof inner[idx] === "string" && inner[idx].startsWith("c_")) return inner[idx];
+            }
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
@@ -493,18 +589,21 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
         if (Array.isArray(inner)) {
-            if (typeof inner[2] === "string" && inner[2].length > 0 && !inner[2].startsWith("c_") && !inner[2].startsWith("tC") && !inner[2].startsWith("rc_")) {
-                const clean = cleanTitle(inner[2]);
+            // Schema-driven title candidate scan
+            for (const idx of GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES) {
+                const val = inner[idx];
+                if (typeof val === "string" && val.length > 0 && !val.startsWith("c_") && !val.startsWith("tC") && !val.startsWith("rc_")) {
+                    const clean = cleanTitle(val);
+                    if (isRealTitle(clean)) return { title: clean, source: "rpc" };
+                }
+            }
+            // Nested header check: inner[TURNS_OR_LIST_PRIMARY][1]
+            const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
+            if (Array.isArray(primary) && typeof primary[1] === "string") {
+                const clean = cleanTitle(primary[1]);
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
-            if (typeof inner[1] === "string" && inner[1].length > 0 && !inner[1].startsWith("c_") && !inner[1].startsWith("tC") && !inner[1].startsWith("rc_")) {
-                const clean = cleanTitle(inner[1]);
-                if (isRealTitle(clean)) return { title: clean, source: "rpc" };
-            }
-            if (Array.isArray(inner[0]) && typeof inner[0][1] === "string") {
-                const clean = cleanTitle(inner[0][1]);
-                if (isRealTitle(clean)) return { title: clean, source: "rpc" };
-            }
+            // Broad scan of first 6 elements for any viable string title
             for (let i = 0; i < Math.min(inner.length, 6); i++) {
                 if (typeof inner[i] === "string" && (inner[i] as string).length >= 2 && !(inner[i] as string).startsWith("c_") && !(inner[i] as string).startsWith("tC") && !(inner[i] as string).startsWith("rc_")) {
                     const clean = cleanTitle(inner[i] as string);
@@ -562,9 +661,15 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
-        let candidates = [turnData[1], turnData[4], turnData[5], turnData[turnData.length - 1]];
-        for (let candidate of candidates) {
-            let ms = payloadToMs(candidate);
+        // Primary: schema-defined timestamp position; then known alternative positions; then last element
+        const candidates = [
+            turnData[GEMINI_JSPB_SCHEMA.TURN.TIMESTAMP], // index 1 (primary)
+            turnData[4],                                   // known alternative
+            turnData[5],                                   // known alternative
+            turnData[turnData.length - 1]                  // last element fallback
+        ];
+        for (const candidate of candidates) {
+            const ms = payloadToMs(candidate);
             if (ms !== null) return ms;
         }
         return null;

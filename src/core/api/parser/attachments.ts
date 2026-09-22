@@ -53,7 +53,7 @@ export interface GeminiParserAttachmentsModule {
     extractFileNameFromUrl: (url: string) => string | null;
 }
 
-import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
+import { deepWalk, RESEARCH_PROMPT_PREFIX_RE, GEMINI_JSPB_SCHEMA } from "./extractors.js";
 
 const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
 
@@ -145,15 +145,18 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         let seenKeys = new Set<string>();
         let warnedHosts = new Set<string>();
         let counter = seqRef && typeof seqRef.value === "number" ? seqRef : { value: 1 };
+        const inl = GEMINI_JSPB_SCHEMA.INLINE_IMAGE;
+        const gen = GEMINI_JSPB_SCHEMA.GENERATED_IMAGE;
 
         deepWalk(obj, (node) => {
             if (Array.isArray(node)) {
-                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && isGoogleMediaHost(node[0]) && typeof node[1] === "number" && typeof node[2] === "number") {
-                    let sourceUrl = node[0],
-                        width = node[1],
-                        height = node[2];
+                // Pattern 1: Inline image tuple [url, width, height, token?]
+                if (node.length >= 3 && typeof node[inl.URL] === "string" && node[inl.URL].startsWith("http") && isGoogleMediaHost(node[inl.URL]) && typeof node[inl.WIDTH] === "number" && typeof node[inl.HEIGHT] === "number") {
+                    let sourceUrl = node[inl.URL],
+                        width = node[inl.WIDTH],
+                        height = node[inl.HEIGHT];
                     if (!isInternalChipUrl(sourceUrl)) {
-                        let token = typeof node[3] === "string" ? node[3] : void 0;
+                        let token = typeof node[inl.TOKEN] === "string" ? node[inl.TOKEN] : void 0;
                         let ext = inferExt(sourceUrl);
                         let hashFrag = "";
                         try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
@@ -172,24 +175,25 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                             });
                         }
                     }
-                } else if (node.length >= 4 && typeof node[3] === "string" && node[3].startsWith("http") && isGoogleMediaHost(node[3]) && !isInternalChipUrl(node[3]) &&
+                // Pattern 2: Generated/uploaded media node [?, ?, filename, url, ?, token, ..., mimeType, ..., dimensions]
+                } else if (node.length >= 4 && typeof node[gen.URL] === "string" && node[gen.URL].startsWith("http") && isGoogleMediaHost(node[gen.URL]) && !isInternalChipUrl(node[gen.URL]) &&
                     (
-                        (typeof node[2] === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(node[2]) || /watermarked_img_/i.test(node[2]))) ||
-                        (typeof node[11] === "string" && node[11].startsWith("image/")) ||
-                        (Array.isArray(node[15]) && typeof node[15][0] === "number" && typeof node[15][1] === "number")
+                        (typeof node[gen.FILENAME] === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(node[gen.FILENAME]) || /watermarked_img_/i.test(node[gen.FILENAME]))) ||
+                        (typeof node[gen.MIME_TYPE] === "string" && node[gen.MIME_TYPE].startsWith("image/")) ||
+                        (Array.isArray(node[gen.DIMENSIONS]) && typeof node[gen.DIMENSIONS][0] === "number" && typeof node[gen.DIMENSIONS][1] === "number")
                     )) {
-                    let sourceUrl = node[3];
-                    let token = typeof node[5] === "string" ? node[5] : void 0;
+                    let sourceUrl = node[gen.URL];
+                    let token = typeof node[gen.TOKEN] === "string" ? node[gen.TOKEN] : void 0;
                     let ext = inferExt(sourceUrl);
-                    let rawFileName = (typeof node[2] === "string" && node[2].trim()) ? node[2].trim() : "";
+                    let rawFileName = (typeof node[gen.FILENAME] === "string" && node[gen.FILENAME].trim()) ? node[gen.FILENAME].trim() : "";
                     if (rawFileName) {
                         let dotIdx = rawFileName.lastIndexOf(".");
                         if (dotIdx !== -1) ext = rawFileName.slice(dotIdx).toLowerCase();
                     }
-                    let width = Array.isArray(node[15]) && typeof node[15][0] === "number" ? node[15][0] : void 0;
-                    let height = Array.isArray(node[15]) && typeof node[15][1] === "number" ? node[15][1] : void 0;
-                    let size = Array.isArray(node[15]) && typeof node[15][2] === "number" ? node[15][2] : void 0;
-                    let mimeType = typeof node[11] === "string" ? node[11] : mimeForExt(ext);
+                    let width = Array.isArray(node[gen.DIMENSIONS]) && typeof node[gen.DIMENSIONS][0] === "number" ? node[gen.DIMENSIONS][0] : void 0;
+                    let height = Array.isArray(node[gen.DIMENSIONS]) && typeof node[gen.DIMENSIONS][1] === "number" ? node[gen.DIMENSIONS][1] : void 0;
+                    let size = Array.isArray(node[gen.DIMENSIONS]) && typeof node[gen.DIMENSIONS][2] === "number" ? node[gen.DIMENSIONS][2] : void 0;
+                    let mimeType = typeof node[gen.MIME_TYPE] === "string" ? node[gen.MIME_TYPE] : mimeForExt(ext);
 
                     let hashFrag = "";
                     try { hashFrag = String(sourceUrl).slice(-8).replace(/[^a-z0-9]/gi, "").slice(0, 4); } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
@@ -212,15 +216,16 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                         });
                     }
                 }
-                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && !isGoogleMediaHost(node[0]) && typeof node[1] === "number" && typeof node[2] === "number") {
-                    warnWhitelistDropOnce(warnedHosts, node[0], "extractImages [url,w,h]");
-                } else if (node.length >= 4 && typeof node[3] === "string" && node[3].startsWith("http") && !isGoogleMediaHost(node[3]) && !isInternalChipUrl(node[3]) &&
+                // Whitelist drop warnings (non-Google hosts)
+                if (node.length >= 3 && typeof node[inl.URL] === "string" && node[inl.URL].startsWith("http") && !isGoogleMediaHost(node[inl.URL]) && typeof node[inl.WIDTH] === "number" && typeof node[inl.HEIGHT] === "number") {
+                    warnWhitelistDropOnce(warnedHosts, node[inl.URL], "extractImages [url,w,h]");
+                } else if (node.length >= 4 && typeof node[gen.URL] === "string" && node[gen.URL].startsWith("http") && !isGoogleMediaHost(node[gen.URL]) && !isInternalChipUrl(node[gen.URL]) &&
                     (
-                        (typeof node[2] === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(node[2]) || /watermarked_img_/i.test(node[2]))) ||
-                        (typeof node[11] === "string" && node[11].startsWith("image/")) ||
-                        (Array.isArray(node[15]) && typeof node[15][0] === "number" && typeof node[15][1] === "number")
+                        (typeof node[gen.FILENAME] === "string" && (/\.(jpe?g|png|webp|gif)$/i.test(node[gen.FILENAME]) || /watermarked_img_/i.test(node[gen.FILENAME]))) ||
+                        (typeof node[gen.MIME_TYPE] === "string" && node[gen.MIME_TYPE].startsWith("image/")) ||
+                        (Array.isArray(node[gen.DIMENSIONS]) && typeof node[gen.DIMENSIONS][0] === "number" && typeof node[gen.DIMENSIONS][1] === "number")
                     )) {
-                    warnWhitelistDropOnce(warnedHosts, node[3], "extractImages generated-media");
+                    warnWhitelistDropOnce(warnedHosts, node[gen.URL], "extractImages generated-media");
                 }
             }
         });
@@ -374,6 +379,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         let out: DeepResearchDocMeta[] = [];
         let uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
         const researchPrefixRe = RESEARCH_PROMPT_PREFIX_RE;
+        const doc = GEMINI_JSPB_SCHEMA.DEEP_RESEARCH_DOC;
 
         function pushMeta(metaObj: DeepResearchDocMeta) {
             if (metaObj.id && metaObj.title) {
@@ -395,14 +401,14 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             if (Array.isArray(node)) {
                 for (let i = 0; i < node.length; i++) {
                     let item = node[i];
-                    if (Array.isArray(item) && item.length >= 4 && Array.isArray(item[0]) && item[0].length > 0 && typeof item[0][0] === "string" && item[0][0].includes("immersive_entry_chip") && typeof item[1] === "string" && typeof item[2] === "string" && typeof item[3] === "string") {
-                        let chipUrl = item[0][0],
-                            id = item[2],
-                            rawTitle = item[3];
+                    if (Array.isArray(item) && item.length >= 4 && Array.isArray(item[doc.CHIP_URL]) && item[doc.CHIP_URL].length > 0 && typeof item[doc.CHIP_URL][0] === "string" && item[doc.CHIP_URL][0].includes("immersive_entry_chip") && typeof item[doc.ID] === "string" && typeof item[doc.TITLE] === "string") {
+                        let chipUrl = item[doc.CHIP_URL][0],
+                            id = item[doc.ID],
+                            rawTitle = item[doc.TITLE];
                         let title = researchPrefixRe.test(rawTitle) ? "" : rawTitle;
                         let createdAt: number | undefined;
-                        if (Array.isArray(item[5]) && typeof item[5][0] === "number") createdAt = 1000 * item[5][0];
-                        let contentId = typeof item[4] === "string" && item[4].length > 10 ? item[4] : void 0;
+                        if (Array.isArray(item[doc.TIMESTAMP]) && typeof item[doc.TIMESTAMP][0] === "number") createdAt = 1000 * item[doc.TIMESTAMP][0];
+                        let contentId = typeof item[doc.CONTENT_ID] === "string" && item[doc.CONTENT_ID].length > 10 ? item[doc.CONTENT_ID] : void 0;
                         pushMeta({
                             id,
                             title,

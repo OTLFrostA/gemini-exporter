@@ -1,4 +1,6 @@
 // src/core/api/parser/payload.ts - Canonical batchexecute envelope unwrapper and payload extractor
+// NOTE: Cannot import from extractors.ts (circular). Schema ref: GEMINI_JSPB_SCHEMA.ERROR_INFO.ERROR_SLOT = 5
+const ERROR_SLOT = 5;
 
 export interface InnerPayloadDiscoveryOptions {
     wrb?: string;
@@ -95,8 +97,8 @@ export function extractInnerPayload(
     let bardError: string | null = null;
     if (!innerStr && !inner && Array.isArray(top)) {
         for (const item of top) {
-            if (Array.isArray(item) && item[5]) {
-                const str5 = JSON.stringify(item[5]);
+            if (Array.isArray(item) && item[ERROR_SLOT]) {
+                const str5 = JSON.stringify(item[ERROR_SLOT]);
                 if (str5.includes("BardErrorInfo")) {
                     bardError = str5;
                     break;
