@@ -106,7 +106,8 @@ function getProtocol(): any {
                     }
                 };
             }
-            let list = Array.isArray(inner[1]) ? inner[1] : (Array.isArray(inner[2]) ? inner[2] : []);
+            const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
+            let list = Array.isArray(inner[innerSchema.LIST_SECONDARY]) ? inner[innerSchema.LIST_SECONDARY] : (Array.isArray(inner[innerSchema.METADATA_ONLY_LIST]) ? inner[innerSchema.METADATA_ONLY_LIST] : []);
             let convs: ConversationListItem[] = [];
             const schema = getSchema();
             const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
@@ -123,12 +124,8 @@ function getProtocol(): any {
 
                 let createArr = item[listItemSchema.CREATE_TIME_ALT];
                 let updateArr = item[listItemSchema.UPDATE_TIME_ALT];
-                if (Array.isArray(createArr) && typeof createArr[0] === "number" && createArr[0] > 1e9) {
-                    createTs = Math.round(1000 * createArr[0] + Math.floor((createArr[1] || 0) / 1e6));
-                }
-                if (Array.isArray(updateArr) && typeof updateArr[0] === "number" && updateArr[0] > 1e9) {
-                    updateTs = Math.round(1000 * updateArr[0] + Math.floor((updateArr[1] || 0) / 1e6));
-                }
+                createTs = payloadToMs(createArr);
+                updateTs = payloadToMs(updateArr);
 
                 let effectiveTime = serverTs || updateTs || createTs;
 
@@ -157,9 +154,13 @@ function getProtocol(): any {
                 }
             }
             let nextToken: string | null = null;
-            if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
-            if (!nextToken && typeof inner[2] === "string" && inner[2].startsWith("tC")) nextToken = inner[2];
-            if (!nextToken && typeof inner[3] === "string" && inner[3].startsWith("tC")) nextToken = inner[3];
+            // Schema-driven next-page token scanning
+            for (const idx of innerSchema.NEXT_TOKEN_CANDIDATES) {
+                if (typeof inner[idx] === "string" && inner[idx].startsWith("tC")) {
+                    nextToken = inner[idx];
+                    break;
+                }
+            }
             if (!nextToken && Array.isArray(inner)) {
                 for (let elem of inner) {
                     if (typeof elem === "string" && elem.startsWith("tC")) {

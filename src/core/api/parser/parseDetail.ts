@@ -246,8 +246,9 @@ function getSchema(): any {
             if (!inner) throw new Error("invalid");
 
             let turns: any[] | null = null;
-            // 优先按原协议 inner[0] 快速路径
-            if (isTurnsArray(inner?.[0])) turns = inner[0];
+            const innerSchema = schema.INNER || GEMINI_JSPB_SCHEMA.INNER;
+            // 优先按原协议 inner[TURNS_OR_LIST_PRIMARY] 快速路径
+            if (isTurnsArray(inner?.[innerSchema.TURNS_OR_LIST_PRIMARY])) turns = inner[innerSchema.TURNS_OR_LIST_PRIMARY];
             // 全量深搜 inner
             if (!turns) turns = findTurnsDeep(inner);
             // 再搜 top 的其他条目（hNvQHb 为 list 形态时，turns 在 MaZiqc 的 inner 中）
@@ -269,18 +270,19 @@ function getSchema(): any {
             if (!turns) turns = [];
 
             // Detect "metadata-only" response: inner = [null, null, [[conv_id_str, title, ...]]]
+            const metaListIdx = innerSchema.METADATA_ONLY_LIST;
             const isMetadataOnly = !turns.length
-                && inner[0] === null && inner[1] === null
-                && Array.isArray(inner[2]) && inner[2].length > 0
-                && typeof inner[2][0]?.[0] === "string" && inner[2][0][0].startsWith("c_");
+                && inner[innerSchema.TURNS_OR_LIST_PRIMARY] === null && inner[innerSchema.LIST_SECONDARY] === null
+                && Array.isArray(inner[metaListIdx]) && inner[metaListIdx].length > 0
+                && typeof inner[metaListIdx][0]?.[0] === "string" && inner[metaListIdx][0][0].startsWith("c_");
             if (isMetadataOnly) {
-                schemaDriftWarnings.push("metadata-only payload: hNvQHb returned no turns (inner[2][0] looks like a list-format row); exported messages will be empty");
+                schemaDriftWarnings.push("metadata-only payload: hNvQHb returned no turns (inner[" + metaListIdx + "][0] looks like a list-format row); exported messages will be empty");
             }
             if (isMetadataOnly && isDevMode) {
                 console.warn("[Parser] hNvQHb returned metadata-only payload (no turns). " +
-                    "inner[2][0] looks like a list-format row, not a turns array. " +
-                    "conv:", inner[2][0]?.[0], "title:", inner[2][0]?.[1],
-                    "rc_count:", inner[2][0]?.filter((x: any) => typeof x === "string" && x.startsWith("rc_")).length);
+                    "inner[" + metaListIdx + "][0] looks like a list-format row, not a turns array. " +
+                    "conv:", inner[metaListIdx][0]?.[0], "title:", inner[metaListIdx][0]?.[1],
+                    "rc_count:", inner[metaListIdx][0]?.filter((x: any) => typeof x === "string" && x.startsWith("rc_")).length);
             }
             if (!turns.length && inner && Array.isArray(inner) && inner.length > 0 && !isMetadataOnly) {
                 schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${inner.length}) but unable to locate turns array`);
@@ -478,7 +480,12 @@ function getSchema(): any {
             let metaTitle = extractMetaTitleFromTop(top, convId || targetConvId);
             let titleObj = extractConversationTitle(inner, turns);
             let nextToken: string | null = null;
-            if (typeof inner[1] === "string" && inner[1].startsWith("tC")) nextToken = inner[1];
+            for (const idx of innerSchema.NEXT_TOKEN_CANDIDATES) {
+                if (typeof inner[idx] === "string" && inner[idx].startsWith("tC")) {
+                    nextToken = inner[idx];
+                    break;
+                }
+            }
             let url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, "")}`;
             let times = turns.map(t => extractTurnTimestamp(t)).filter((x: any): x is number => Number.isFinite(x));
             let minTs = times.length ? Math.min(...times) : null;
