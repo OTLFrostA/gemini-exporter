@@ -172,26 +172,28 @@ test('3. Full scan establishes baseline upon reaching end of history', async () 
     await SyncEngine.ingestListBatch([
         makeItem('chat_c1', 1700000500000),
         makeItem('chat_c2', 1700000400000)
-    ], 'batchexecute', { isPage1: true });
+    ], 'batchexecute', { isPage1: true, participateInWatermark: true });
 
     // Page 2: [1700000300000, 1700000200000]
     await SyncEngine.ingestListBatch([
         makeItem('chat_c3', 1700000300000),
         makeItem('chat_c4', 1700000200000)
-    ], 'batchexecute', { isPage1: false });
+    ], 'batchexecute', { isPage1: false, participateInWatermark: true });
 
     // Checkpoint still null during traversal
     assert.strictEqual(ctx.getCheckpoint(), null);
 
     // Full scan reaches natural end: notify with isFullScanComplete: true
-    const finalRes = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true });
+    const finalRes = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true, participateInWatermark: true });
 
     assert.strictEqual(finalRes.establishedBaseline, true);
     assert.strictEqual(finalRes.newWatermark, 1700000500000, 'Baseline anchored to Page 1 max timestamp');
     assert.strictEqual(ctx.getCheckpoint(), 1700000500000, 'Storage checkpoint saved with Page 1 max timestamp');
 });
 
-test('4. Sniffing single batch crossing watermark advances watermark', async () => {
+test('4. Sniffing NEVER advances watermark even when the batch crosses it (data still written)', async () => {
+    // Phase A (P1-3): 嗅探是数据面，不参与水位。即使批次跨过水位线，
+    // 水位也不能动——只有扫描控制面（participateInWatermark: true）能推进水位。
     const BASELINE = 1700000500000;
     const ctx = mockStorageContext(BASELINE);
     SyncEngine.resetSessionSlice();
@@ -206,9 +208,14 @@ test('4. Sniffing single batch crossing watermark advances watermark', async () 
 
     const result = await SyncEngine.ingestListBatch(freshBatch, 'network-list', { isPage1: true });
 
-    assert.strictEqual(result.reachedWatermark, true, 'Batch min <= baseline means no gap, touches watermark');
-    assert.strictEqual(result.newWatermark, 1700000800000, 'Watermark advances to the latest timestamp in the contiguous batch');
-    assert.strictEqual(ctx.getCheckpoint(), 1700000800000, 'Storage checkpoint updated to latest timestamp');
+    // 数据面：4 条全部入库
+    assert.strictEqual(result.count, 4, 'Sniffed data must still be written');
+    assert.strictEqual(ctx.getSavedList().length, 4, 'Sniffed conversations must reach storage');
+
+    // 控制面：水位纹丝不动
+    assert.strictEqual(result.reachedWatermark, false, 'Sniffing must never report reachedWatermark');
+    assert.strictEqual(result.newWatermark, BASELINE, 'Watermark must not advance on sniff');
+    assert.strictEqual(ctx.getCheckpoint(), BASELINE, 'Storage checkpoint must stay at baseline');
 });
 
 test('5. Gap detection - Sniffing strictly above watermark rejects advancement', async () => {
@@ -238,7 +245,7 @@ test('6. Multi-page domino chaining - Connecting Page 1 -> Page 2 -> Page 3 acro
     const p1Res = await SyncEngine.ingestListBatch([
         makeItem('chat_p1_1', 1700000900000),
         makeItem('chat_p1_2', 1700000800000)
-    ], 'network-list', { isPage1: true });
+    ], 'network-list', { isPage1: true, participateInWatermark: true });
     assert.strictEqual(p1Res.reachedWatermark, false, 'Page 1 has gap, cannot advance');
     assert.strictEqual(ctx.getCheckpoint(), BASELINE);
 
@@ -246,7 +253,7 @@ test('6. Multi-page domino chaining - Connecting Page 1 -> Page 2 -> Page 3 acro
     const p2Res = await SyncEngine.ingestListBatch([
         makeItem('chat_p2_1', 1700000790000),
         makeItem('chat_p2_2', 1700000650000)
-    ], 'network-list', { isPage1: false });
+    ], 'network-list', { isPage1: false, participateInWatermark: true });
     assert.strictEqual(p2Res.reachedWatermark, false, 'Page 2 chains but still has gap to baseline');
     assert.strictEqual(ctx.getCheckpoint(), BASELINE);
 
@@ -254,7 +261,7 @@ test('6. Multi-page domino chaining - Connecting Page 1 -> Page 2 -> Page 3 acro
     const p3Res = await SyncEngine.ingestListBatch([
         makeItem('chat_p3_1', 1700000640000),
         makeItem('chat_p3_2', 1700000450000)
-    ], 'network-list', { isPage1: false });
+    ], 'network-list', { isPage1: false, participateInWatermark: true });
 
     // Domino chain completed: [450k .. 900k] touches baseline 500k!
     assert.strictEqual(p3Res.reachedWatermark, true, 'Page 3 closes the chain to baseline');
@@ -313,17 +320,17 @@ test('8. Force full scan ignores watermark checkpoint and recalibrates baseline 
     const p1Res = await SyncEngine.ingestListBatch([
         makeItem('chat_ff_1', 1700000900000),
         makeItem('chat_ff_2', 1700000800000)
-    ], 'batchexecute', { isPage1: true, forceFull: true });
+    ], 'batchexecute', { isPage1: true, forceFull: true, participateInWatermark: true });
     assert.strictEqual(p1Res.reachedWatermark, false, 'forceFull must not early stop on watermark');
 
     // Page 2 with forceFull: true (min <= checkpoint, normally would early stop)
     const p2Res = await SyncEngine.ingestListBatch([
         makeItem('chat_ff_3', 1700000400000)
-    ], 'batchexecute', { isPage1: false, forceFull: true });
+    ], 'batchexecute', { isPage1: false, forceFull: true, participateInWatermark: true });
     assert.strictEqual(p2Res.reachedWatermark, false, 'forceFull must continue through checkpoint');
 
     // Natural end reached
-    const endRes = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true });
+    const endRes = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true, participateInWatermark: true });
     assert.strictEqual(endRes.establishedBaseline, true);
     assert.strictEqual(endRes.newWatermark, 1700000900000, 'Baseline recalibrated to new Page 1 max');
     assert.strictEqual(ctx.getCheckpoint(), 1700000900000);
@@ -348,7 +355,7 @@ test('9. Deadzone Prevention - 35 conversations updated within 60s of checkpoint
     assert.ok(page1Min < CHECKPOINT + 60000, 'Page 1 min falls inside the former 60s deadzone');
 
     // Ingest Page 1: MUST NOT trigger reachedWatermark because min > CHECKPOINT!
-    const p1Res = await SyncEngine.ingestListBatch(page1Items, 'batchexecute', { isPage1: true });
+    const p1Res = await SyncEngine.ingestListBatch(page1Items, 'batchexecute', { isPage1: true, participateInWatermark: true });
     assert.strictEqual(p1Res.reachedWatermark, false, 'Page 1 MUST NOT report reachedWatermark; there are remaining items in Page 2');
     assert.strictEqual(ctx.getCheckpoint(), CHECKPOINT, 'Watermark MUST NOT advance on Page 1');
 
@@ -362,7 +369,7 @@ test('9. Deadzone Prevention - 35 conversations updated within 60s of checkpoint
     ];
 
     // Ingest Page 2: min <= CHECKPOINT, now chain touches checkpoint!
-    const p2Res = await SyncEngine.ingestListBatch(page2Items, 'batchexecute', { isPage1: false });
+    const p2Res = await SyncEngine.ingestListBatch(page2Items, 'batchexecute', { isPage1: false, participateInWatermark: true });
     assert.strictEqual(p2Res.reachedWatermark, true, 'Page 2 touches checkpoint, safely stops');
     assert.strictEqual(p2Res.newWatermark, page1Items[0].timestamp, 'Watermark advances to Page 1 head');
     assert.strictEqual(ctx.getCheckpoint(), page1Items[0].timestamp, 'Storage checkpoint updated to Page 1 head');
@@ -377,7 +384,7 @@ test('10. Empty account baseline - Natural completion of full scan on 0 conversa
 
     // Account with 0 conversations completes full scan
     const beforeNow = Date.now();
-    const res = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true });
+    const res = await SyncEngine.ingestListBatch([], 'batchexecute', { isFullScanComplete: true, participateInWatermark: true });
     const afterNow = Date.now();
 
     assert.strictEqual(res.establishedBaseline, true);

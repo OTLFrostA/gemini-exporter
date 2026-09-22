@@ -21,7 +21,7 @@ export interface AssetPipelineOptions {
     currentSlot?: string;
     useZip?: boolean;
     folder?: any;
-    writeFileDirect?: (path: string, content: any) => Promise<boolean>;
+    writeFileDirect?: (path: string, content: any) => Promise<void>;
     takeoutEngine?: any;
     getGeminiTab?: (slot?: string) => Promise<any>;
     fetchAssetDelegate?: (params: any) => Promise<any>;
@@ -39,7 +39,7 @@ export interface AssetPipelineInstance {
     currentSlot: string;
     useZip: boolean;
     folder: any;
-    writeFileDirect: ((path: string, content: any) => Promise<boolean>) | null;
+    writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
     takeoutEngine: any;
     getGeminiTab: ((slot?: string) => Promise<any>) | null;
     fetchAssetDelegate: ((params: any) => Promise<any>) | null;
@@ -53,6 +53,7 @@ import { I18n as I18nStatic } from "../utils/i18n.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
 import { calculateBackoff } from "./export/rateLimiter.js";
 import { interruptibleSleep } from "../api/client/retryPolicy.js";
+import { getErrorMessage } from "../utils/messaging.js";
 
 export function sanitizeZipPath(p?: string | null): string {
     if (!p) return '';
@@ -118,7 +119,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
         currentSlot: string;
         useZip: boolean;
         folder: any;
-        writeFileDirect: ((path: string, content: any) => Promise<boolean>) | null;
+        writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
         takeoutEngine: any;
         getGeminiTab: ((slot?: string) => Promise<any>) | null;
         fetchAssetDelegate: ((params: any) => Promise<any>) | null;
@@ -207,18 +208,26 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                         }
                     }
                 } else if (this.writeFileDirect) {
-                    if (bytes && bytes.length > 0) {
-                        saved = await this.writeFileDirect(localName, bytes);
-                    } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                        const binStr = atob(b64);
-                        const len = binStr.length;
-                        const b = new Uint8Array(len);
-                        for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
-                        saved = await this.writeFileDirect(localName, b);
+                    try {
+                        if (bytes && bytes.length > 0) {
+                            await this.writeFileDirect(localName, bytes);
+                            saved = true;
+                        } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
+                            const binStr = atob(b64);
+                            const len = binStr.length;
+                            const b = new Uint8Array(len);
+                            for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
+                            await this.writeFileDirect(localName, b);
+                            saved = true;
+                        }
+                    } catch (e) {
+                        // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean
+                        saved = false;
+                        failReason = getErrorMessage(e);
                     }
                 }
 
-                if (!saved) {
+                if (!saved && !failReason) {
                     failReason = r.error || 'Empty or unparseable binary/base64 payload';
                 }
             } else {
@@ -271,7 +280,13 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                             this.folder.file(sanitizeZipPath(localName), offlineBin);
                             saved = true;
                         } else if (this.writeFileDirect) {
-                            saved = await this.writeFileDirect(localName, offlineBin);
+                            try {
+                                await this.writeFileDirect(localName, offlineBin);
+                                saved = true;
+                            } catch (e) {
+                                // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean
+                                saved = false;
+                            }
                         }
                         if (saved) {
                             recoveredFromTakeout = true;

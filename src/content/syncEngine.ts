@@ -356,6 +356,12 @@ export interface IngestListOptions {
     isPage1?: boolean;
     isFullScanComplete?: boolean;
     forceFull?: boolean;
+    /**
+     * Phase A (P1-3): 只有扫描控制面才参与 watermark/slice。
+     * 默认为 false —— 嗅探（数据面）只写数据，不碰 __sessionSlices、不推进 checkpoint。
+     * 只有 onPageBatch / 完整扫描收尾显式传 true。
+     */
+    participateInWatermark?: boolean;
 }
 
 interface SessionSlice {
@@ -378,9 +384,12 @@ export async function ingestListBatch(
 ): Promise<IngestListResult> {
     const slot = options?.slot || getAccountSlot();
     const Storage = getStorage();
+    // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice
+    const participateInWatermark = options?.participateInWatermark === true;
 
     // 1. Full scan completion notification: establish initial baseline or recalibrate baseline
-    if (options?.isFullScanComplete) {
+    // (仅扫描控制面参与)
+    if (participateInWatermark && options?.isFullScanComplete) {
         const slice = __sessionSlices.get(slot);
         let baselineTs: number | null = null;
         if (slice && slice.headTimestamp > 0) {
@@ -407,6 +416,15 @@ export async function ingestListBatch(
 
     // 2. Write conversations to storage via Fail-Closed upsert
     const count = await upsertConversations(incomingItems, source, true, slot);
+
+    // Phase A (P1-3): 嗅探（数据面）到此为止 —— 不进 slice、不碰 checkpoint。
+    // 下面的 3-5 步是扫描控制面的水位逻辑。
+    if (!participateInWatermark) {
+        const currentCp = Storage && typeof Storage.getScanCheckpoint === 'function'
+            ? await Storage.getScanCheckpoint(slot)
+            : null;
+        return { count, reachedWatermark: false, establishedBaseline: false, newWatermark: currentCp };
+    }
 
     // 3. Extract timestamps of valid items in this batch
     const timestamps = (incomingItems || [])
@@ -606,7 +624,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 const ingestRes = await ingestListBatch(batch, 'batchexecute', {
                     slot,
                     isPage1: info.page === 1,
-                    forceFull: effectiveForceFull
+                    forceFull: effectiveForceFull,
+                    // Phase A (P1-3): 扫描控制面参与 watermark/slice
+                    participateInWatermark: true
                 });
 
                 if (!effectiveForceFull && ingestRes.reachedWatermark) {
@@ -654,7 +674,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             await ingestListBatch(page1Batch, 'batchexecute', {
                 slot,
                 isFullScanComplete: true,
-                forceFull: isForceFull
+                forceFull: isForceFull,
+                // Phase A (P1-3): 扫描收尾建立水位基线，属于控制面
+                participateInWatermark: true
             });
         }
 

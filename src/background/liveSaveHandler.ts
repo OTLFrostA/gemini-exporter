@@ -23,6 +23,9 @@ export interface LiveSaveResult {
     targetFile?: string;
     error?: string;
     details?: string;
+    // Phase A (P1-2): 附件失败明细。ok=false + failedAssets 非空 = 主 md 已落盘、
+    // 部分附件失败（partial），调用方应打 badge 警告而非静默标成功。
+    failedAssets?: Array<{ file: string; error: string }>;
 }
 
 export function base64ToUint8Array(base64: string): Uint8Array {
@@ -92,6 +95,9 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             { fileName }
         );
 
+        // Phase A (P1-2): 附件失败累积，不再 console.warn 了事。
+        // 坏 base64 / 无有效二进制 / 写文件抛错都算失败，决定 ok 与 partial 记录。
+        const failedAssets: Array<{ file: string; error: string }> = [];
         if (Array.isArray(assets) && assets.length > 0) {
             for (const asset of assets) {
                 if (asset && asset.fileName) {
@@ -100,7 +106,9 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                         try {
                             fileData = base64ToUint8Array(asset.base64);
                         } catch (b64Err) {
+                            const msg = b64Err instanceof Error ? b64Err.message : String(b64Err);
                             console.warn('[Background:liveSave] Failed to decode base64 for asset:', asset.fileName, b64Err);
+                            failedAssets.push({ file: asset.fileName, error: `base64 decode failed: ${msg}` });
                         }
                     } else if (asset.buffer instanceof ArrayBuffer) {
                         fileData = new Uint8Array(asset.buffer);
@@ -112,13 +120,16 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
 
                     if (!fileData || fileData.byteLength === 0) {
                         console.warn('[Background:liveSave] Skipping asset with no valid binary data:', asset.fileName);
+                        failedAssets.push({ file: asset.fileName, error: 'no valid binary data' });
                         continue;
                     }
 
                     try {
                         await writer.writeFile(asset.subDir || 'assets', asset.fileName, fileData);
                     } catch (assetErr) {
+                        const msg = assetErr instanceof Error ? assetErr.message : String(assetErr);
                         console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);
+                        failedAssets.push({ file: asset.fileName, error: msg });
                     }
                 }
             }
@@ -135,21 +146,24 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             /* best-effort storage update */
         }
 
-        // Mark conversation as exported in exportedIds SSoT
+        // Mark conversation as exported in exportedIds SSoT.
+        // Phase A (P1-2): 主 md 成功即写记录；附件有失败则标 partial（与导出管线
+        // sessionRecovery 的 partial 惯例对齐），保证下次增量不跳过、可重试。
         try {
             const slot = accountSlot || 'u0';
             if (StorageService?.saveExportRecord) {
                 await StorageService.saveExportRecord(slot, nid, {
                     exportedAt: new Date(now).toISOString(),
                     title: safeTitle,
-                    format: 'markdown'
+                    format: 'markdown',
+                    ...(failedAssets.length > 0 ? { status: 'partial', hasFailedAssets: true } : {})
                 });
             }
         } catch (e) {
             console.warn('[Background:liveSave] Failed to mark conversation as exported:', e);
         }
 
-        return { ok: true, handleName: handle.name, targetFile };
+        return { ok: failedAssets.length === 0, failedAssets, handleName: handle.name, targetFile };
     } catch (err: any) {
         console.warn('[Background:liveSave] liveSaveViaHandle error:', err);
         const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('could not be found') || err?.message?.includes('NotFoundError');
