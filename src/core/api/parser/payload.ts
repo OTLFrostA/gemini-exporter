@@ -116,6 +116,45 @@ export function extractInnerPayload(
 }
 
 /**
+ * Extracts the first non-null value from an array using an ordered list of candidate indices.
+ */
+export function extractCandidateValue<T>(
+    arr: unknown,
+    candidateIndices: number[],
+    transform: (val: unknown, index: number) => T | null
+): T | null {
+    if (!Array.isArray(arr)) return null;
+    for (const idx of candidateIndices) {
+        if (idx >= 0 && idx < arr.length) {
+            const res = transform(arr[idx], idx);
+            if (res !== null && res !== undefined) return res;
+        }
+    }
+    return null;
+}
+
+/**
+ * Extracts a value from candidate indices first, falling back to an optional full array scan.
+ */
+export function extractWithScan<T>(
+    arr: unknown,
+    candidateIndices: number[],
+    transform: (val: unknown, index: number) => T | null,
+    scanAll: boolean = true
+): T | null {
+    const candidateResult = extractCandidateValue(arr, candidateIndices, transform);
+    if (candidateResult !== null) return candidateResult;
+
+    if (scanAll && Array.isArray(arr)) {
+        for (let i = 0; i < arr.length; i++) {
+            const res = transform(arr[i], i);
+            if (res !== null && res !== undefined) return res;
+        }
+    }
+    return null;
+}
+
+/**
  * Extracts pagination token ("tC...") from inner payload array.
  * Scans candidate indices first, then falls back to linear scan across the entire array.
  */
@@ -123,24 +162,19 @@ export function extractNextPageToken(
     inner: unknown,
     candidates: number[] = [1, 2, 3]
 ): string | null {
-    if (!Array.isArray(inner)) return null;
-    for (const idx of candidates) {
-        if (typeof inner[idx] === "string" && inner[idx].startsWith("tC")) {
-            return inner[idx];
-        }
-    }
-    for (const elem of inner) {
-        if (typeof elem === "string" && elem.startsWith("tC")) {
-            return elem;
-        }
-    }
-    return null;
+    return extractWithScan(
+        inner,
+        candidates,
+        val => (typeof val === "string" && val.startsWith("tC") ? val : null)
+    );
 }
 
 const PayloadParser = {
     payloadToMs,
     extractInnerPayload,
-    extractNextPageToken
+    extractNextPageToken,
+    extractCandidateValue,
+    extractWithScan
 };
 
 if (typeof module === "object" && module.exports) {

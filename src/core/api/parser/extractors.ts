@@ -148,7 +148,7 @@ export interface GeminiParserExtractorsModule {
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
 import { GeminiProtocol } from "../../protocol/protocol.js";
-import { payloadToMs, extractInnerPayload } from "./payload.js";
+import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithScan } from "./payload.js";
 
 /**
  * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
@@ -355,33 +355,50 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
         return [];
     }
 
+    type CandidateBodyTextExtractor = (body: unknown) => string | null;
+
+    const CANDIDATE_BODY_EXTRACTORS: CandidateBodyTextExtractor[] = [
+        // Strategy 1: Direct string body
+        (body) => (typeof body === "string" ? body : null),
+
+        // Strategy 2: Body parts array or string
+        (body) => {
+            if (!Array.isArray(body)) return null;
+            const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
+            if (typeof parts === "string") return parts;
+            if (Array.isArray(parts)) {
+                const textChunks: string[] = [];
+                for (const part of parts) {
+                    if (typeof part === "string") {
+                        textChunks.push(part);
+                    } else if (Array.isArray(part) && typeof part[0] === "string") {
+                        textChunks.push(part[0]);
+                    }
+                }
+                if (textChunks.length) return textChunks.join("");
+            }
+            return null;
+        },
+
+        // Strategy 3: Leading text chunk in body array
+        (body) => {
+            if (Array.isArray(body) && typeof body[0] === "string" && body[0].length > 3) {
+                return body[0];
+            }
+            return null;
+        }
+    ];
+
     function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
         const body = (cand as any)?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
             ? (cand as any)[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
             : (Array.isArray(cand) && cand.length === 1 ? cand[0] : cand);
 
-        if (typeof body === "string") return body;
-        if (!Array.isArray(body)) return "";
-
-        const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
-        if (typeof parts === "string") return parts;
-        if (Array.isArray(parts)) {
-            let textChunks: string[] = [];
-            for (let part of parts) {
-                if (typeof part === "string") {
-                    textChunks.push(part);
-                } else if (Array.isArray(part) && typeof part[0] === "string") {
-                    textChunks.push(part[0]);
-                }
-            }
-            if (textChunks.length) return textChunks.join("");
+        for (const extractor of CANDIDATE_BODY_EXTRACTORS) {
+            const text = extractor(body);
+            if (text !== null) return text;
         }
-
-        if (typeof body[0] === "string" && body[0].length > 3) {
-            return body[0];
-        }
-
         return "";
     }
 
@@ -544,11 +561,13 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
     }
 
     function extractConversationId(inner: unknown, turns?: unknown[]): string {
-        if (Array.isArray(inner)) {
-            for (const idx of GEMINI_JSPB_SCHEMA.INNER.CONV_ID_CANDIDATES) {
-                if (typeof inner[idx] === "string" && inner[idx].startsWith("c_")) return inner[idx];
-            }
-        }
+        const idFromCandidates = extractCandidateValue(
+            inner,
+            GEMINI_JSPB_SCHEMA.INNER.CONV_ID_CANDIDATES,
+            val => (typeof val === "string" && val.startsWith("c_") ? val : null)
+        );
+        if (idFromCandidates) return idFromCandidates;
+
         if (Array.isArray(turns)) {
             for (let t of turns) {
                 if (Array.isArray(t) && Array.isArray(t[0]) && typeof t[0][0] === "string" && t[0][0].startsWith("c_")) return t[0][0];
@@ -589,27 +608,33 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
         if (Array.isArray(inner)) {
-            // Schema-driven title candidate scan
-            for (const idx of GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES) {
-                const val = inner[idx];
+            const sanitizeIfTitle = (val: unknown): string | null => {
                 if (typeof val === "string" && val.length > 0 && !val.startsWith("c_") && !val.startsWith("tC") && !val.startsWith("rc_")) {
                     const clean = cleanTitle(val);
-                    if (isRealTitle(clean)) return { title: clean, source: "rpc" };
+                    if (isRealTitle(clean)) return clean;
                 }
-            }
+                return null;
+            };
+
+            // Schema-driven title candidate scan
+            const candidateTitle = extractCandidateValue(inner, GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES, sanitizeIfTitle);
+            if (candidateTitle) return { title: candidateTitle, source: "rpc" };
+
             // Nested header check: inner[TURNS_OR_LIST_PRIMARY][1]
             const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
             if (Array.isArray(primary) && typeof primary[1] === "string") {
                 const clean = cleanTitle(primary[1]);
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
+
             // Broad scan of first 6 elements for any viable string title
-            for (let i = 0; i < Math.min(inner.length, 6); i++) {
-                if (typeof inner[i] === "string" && (inner[i] as string).length >= 2 && !(inner[i] as string).startsWith("c_") && !(inner[i] as string).startsWith("tC") && !(inner[i] as string).startsWith("rc_")) {
-                    const clean = cleanTitle(inner[i] as string);
-                    if (isRealTitle(clean)) return { title: clean, source: "rpc" };
-                }
-            }
+            const first6Indices = Array.from({ length: Math.min(inner.length, 6) }, (_, i) => i);
+            const broadTitle = extractCandidateValue(
+                inner,
+                first6Indices,
+                val => (typeof val === "string" && val.length >= 2 ? sanitizeIfTitle(val) : null)
+            );
+            if (broadTitle) return { title: broadTitle, source: "rpc" };
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
@@ -661,18 +686,13 @@ import { payloadToMs, extractInnerPayload } from "./payload.js";
 
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
-        // Primary: schema-defined timestamp position; then known alternative positions; then last element
-        const candidates = [
-            turnData[GEMINI_JSPB_SCHEMA.TURN.TIMESTAMP], // index 1 (primary)
-            turnData[4],                                   // known alternative
-            turnData[5],                                   // known alternative
-            turnData[turnData.length - 1]                  // last element fallback
+        const candidateIndices = [
+            GEMINI_JSPB_SCHEMA.TURN.TIMESTAMP, // index 1 (primary)
+            4,                                  // known alternative
+            5,                                  // known alternative
+            turnData.length - 1                 // last element fallback
         ];
-        for (const candidate of candidates) {
-            const ms = payloadToMs(candidate);
-            if (ms !== null) return ms;
-        }
-        return null;
+        return extractCandidateValue(turnData, candidateIndices, val => payloadToMs(val));
     }
 
 export {
