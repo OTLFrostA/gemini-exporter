@@ -24,7 +24,7 @@ import { $ } from '../../uiCommon.js';
 
 export { normId, isRealTitle };
 
-let __loadStore: ((force?: boolean) => Promise<any>) | null = null;
+let __loadStore: ((force?: boolean, customSelected?: Set<string>) => Promise<any>) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __getSearchFilter: () => string = () => '';
 let _isExporting = false;
@@ -209,6 +209,7 @@ export async function startExportPipeline(
         return;
     }
 
+    let remainingSelected: Set<string> | null = null;
     try {
         const currentSlot = Store ? Store.getCurrentSlot() : 'u0';
         const exportedIds = Store ? Store.getExportedIds() : {};
@@ -351,6 +352,21 @@ export async function startExportPipeline(
                 hideExportFailureBanner();
             }
             ProgressView.complete(finishMsg);
+
+            // Compute updated selection: deselect ONLY successfully exported conversations
+            const failedSet = new Set(failedList.map((f: any) => normId(typeof f === 'string' ? f : (f?.id || f?.chatId))));
+            remainingSelected = List ? List.getSelectedIds() : new Set<string>();
+            for (const chat of selected) {
+                const nid = normId(chat.id);
+                if (!failedSet.has(nid) && !failedSet.has(chat.id)) {
+                    remainingSelected.delete(chat.id);
+                    remainingSelected.delete(nid);
+                    remainingSelected.delete('c_' + nid);
+                }
+            }
+            if (List && typeof List.setSelectedIds === 'function') {
+                List.setSelectedIds(remainingSelected);
+            }
         }
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
@@ -358,7 +374,7 @@ export async function startExportPipeline(
         ProgressView.complete(typeof t === 'function' ? t('exportFailedWithMessage', errMsg) : `Error: ${errMsg}`);
     } finally {
         ProgressView.hide(3000);
-        if (__loadStore) await __loadStore(true);
+        if (__loadStore) await __loadStore(true, remainingSelected || undefined);
     }
 }
 

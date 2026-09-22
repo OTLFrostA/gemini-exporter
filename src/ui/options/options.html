@@ -264,7 +264,14 @@
   <div class="card card-right">
     <div class="label" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px; margin-top:2px; flex:none;">
       <div style="display:flex; justify-content:space-between; align-items:center; height:28px; gap:8px;">
-        <span style="display:flex; align-items:center; white-space:nowrap; flex:none;"><span data-i18n="filterAll" style="font-weight:700;">会话列表</span></span>
+        <span style="display:flex; align-items:center; white-space:nowrap; flex:none;"><span data-i18n="titleConversations" style="font-weight:700;">会话列表</span></span>
+        <select id="chatFilterSelect" data-i18n-title="filterSelectTip" title="按导出状态筛选会话" style="height:26px; font-size:11px; padding:2px 6px; border-radius:6px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); cursor:pointer; flex:none;">
+          <option value="all" data-i18n="filterAll">全部</option>
+          <option value="unexported" data-i18n="filterUnexported">未导出</option>
+          <option value="failed" data-i18n="filterFailed">导出失败</option>
+          <option value="unexported_or_failed" data-i18n="filterUnexportedOrFailed">未导出 + 失败</option>
+          <option value="exported" data-i18n="filterExported">已导出</option>
+        </select>
         <div style="display:flex; gap:6px; align-items:center; flex:1; min-width:110px; max-width:260px; margin:0 4px;">
           <input id="chatSearchInput" type="text" placeholder="搜索标题 / ID..." data-i18n-placeholder="searchPlaceholder" style="width:100%; min-width:0; height:26px; background:var(--card-inner); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:2px 8px; font-size:11px; outline:none;">
         </div>

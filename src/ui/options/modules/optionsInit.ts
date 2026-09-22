@@ -29,8 +29,35 @@ export const isBad = (tStr?: string | null, id?: string | null): boolean => !isR
 let __lastRenderedSignature = '';
 let __lastRenderTime = 0;
 let __chatSearchFilter = '';
+let __chatFilterType = 'all';
 let __searchDebounceTimer: any = null;
 let __pendingTakeoutChecker: (() => Promise<void> | void) | null = null;
+
+export function getChatFilterType(): string {
+    return __chatFilterType;
+}
+
+export function setChatFilterType(type: string): void {
+    __chatFilterType = type || 'all';
+    const sel = $('chatFilterSelect') as HTMLSelectElement | null;
+    if (sel) sel.value = __chatFilterType;
+}
+
+function getFailedChatIds(): Set<string> {
+    const ids = new Set<string>();
+    const Dialogs = getDialogs();
+    const failedList = (Dialogs?.getLastFailedChats?.()) ?? DialogView.getLastFailedChats();
+    if (Array.isArray(failedList)) {
+        for (const item of failedList) {
+            const id = typeof item === 'string' ? item : (item?.id || item?.chatId);
+            if (id) {
+                ids.add(id);
+                ids.add(normId(id));
+            }
+        }
+    }
+    return ids;
+}
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     console.log(`[LOG ${level}]`, msg);
@@ -72,7 +99,12 @@ export async function checkExportSession(): Promise<void> {
         if (!Dialogs || !Dialogs.renderExportBanner) return;
         const isRunning = Controller ? Controller.isRunning() : false;
         const data = await chrome.storage.local.get([STORAGE_KEYS.LAST_EXPORT_SESSION]);
-        const session = data[STORAGE_KEYS.LAST_EXPORT_SESSION];
+        const session = data[STORAGE_KEYS.LAST_EXPORT_SESSION] as any;
+        if (session && Array.isArray(session.failedChats) && session.failedChats.length > 0) {
+            if (typeof (Dialogs as any)?.setLastFailedChats === 'function') {
+                (Dialogs as any).setLastFailedChats(session.failedChats);
+            }
+        }
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         Dialogs.renderExportBanner(session, slot, isRunning);
     } catch (e) {
@@ -80,7 +112,7 @@ export async function checkExportSession(): Promise<void> {
     }
 }
 
-export async function loadStore(force: boolean = false): Promise<any> {
+export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<any> {
     try {
         const Store = getStore();
         const List = getList();
@@ -91,12 +123,16 @@ export async function loadStore(force: boolean = false): Promise<any> {
         updateAccountSlotSelector();
 
         let prevSelected: Set<string> | null = null;
-        try {
-            if (!force && List && Store.getConversations().length > 0) {
-                prevSelected = List.getSelectedIds();
+        if (customSelected instanceof Set) {
+            prevSelected = customSelected;
+        } else {
+            try {
+                if (!force && List && Store.getConversations().length > 0) {
+                    prevSelected = List.getSelectedIds();
+                }
+            } catch {
+                prevSelected = null;
             }
-        } catch {
-            prevSelected = null;
         }
 
         const syncInfo = await Store.getLastSync(slot);
@@ -157,7 +193,8 @@ export async function loadStore(force: boolean = false): Promise<any> {
         }
 
         if (List) {
-            List.render(processed, exportedIds, prevSelected, __chatSearchFilter);
+            const failedIds = getFailedChatIds();
+            List.render(processed, exportedIds, prevSelected, __chatSearchFilter, undefined, __chatFilterType, failedIds);
             List.updateStat(processed);
         }
 
@@ -178,16 +215,25 @@ export async function loadStore(force: boolean = false): Promise<any> {
 
 function bindSearchAndSelection(): void {
     const searchInput = ($('chatSearchInput') || $('search')) as HTMLInputElement | null;
+    const filterSelect = $('chatFilterSelect') as HTMLSelectElement | null;
+
+    const doFilter = () => {
+        const Store = getStore();
+        const List = getList();
+        const convs = Store ? Store.getConversations() : [];
+        const expMap = Store ? Store.getExportedIds() : {};
+        const currentSelected = List ? List.getSelectedIds() : new Set<string>();
+        const failedIds = getFailedChatIds();
+        if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter, undefined, __chatFilterType, failedIds);
+    };
+
+    filterSelect?.addEventListener('change', (e: Event) => {
+        __chatFilterType = ((e.target as HTMLSelectElement).value || 'all').trim();
+        doFilter();
+    });
+
     searchInput?.addEventListener('input', (e: Event) => {
         __chatSearchFilter = ((e.target as HTMLInputElement).value || '').trim();
-        const doFilter = () => {
-            const Store = getStore();
-            const List = getList();
-            const convs = Store ? Store.getConversations() : [];
-            const expMap = Store ? Store.getExportedIds() : {};
-            const currentSelected = List ? List.getSelectedIds() : new Set<string>();
-            if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter);
-        };
         const Store = getStore();
         const convs = Store ? Store.getConversations() : [];
         if (convs && convs.length > 100) {
@@ -261,6 +307,8 @@ export const OptionsInit = {
     checkExportSession,
     getSearchFilter,
     setSearchFilter,
+    getChatFilterType,
+    setChatFilterType,
     log,
     clearLog,
     renderLog,
