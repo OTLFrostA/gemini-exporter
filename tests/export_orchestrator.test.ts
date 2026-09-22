@@ -97,10 +97,28 @@ function setupMockJSZip() {
 }
 
 // ---------------------------------------------------------------------------
+// ExportOrchestrator: Mock StorageService
+// Phase A (P1-4): orchestrator 不再接受 Storage=null（静态 fallback 保证生产环境
+// 永远有真 StorageService）；无 chrome 的 node 测试必须显式注册 mock adapter，
+// 且它必须实现 saveExportRecord（finalizeChatExport fail-closed）。
+// ---------------------------------------------------------------------------
+function setupMockStorage() {
+    const mem: Record<string, any> = {};
+    __setModuleOverride('StorageService', {
+        getExportedIds: async (_slot: string) => ({ ...mem }),
+        saveExportRecord: async (_slot: string, id: string, rec: any) => {
+            mem[id] = rec;
+            return { ...mem };
+        },
+    });
+}
+
+// ---------------------------------------------------------------------------
 // ExportOrchestrator: Batch export success and failure accounting (S-2)
 // ---------------------------------------------------------------------------
 test('ExportOrchestrator - accurate accounting for successful and failed chats (S-2)', async () => {
     setupMockJSZip();
+    setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
     const selected = [
@@ -155,6 +173,7 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
 // ExportOrchestrator: Permission revocation immediate abort (S-5)
 // ---------------------------------------------------------------------------
 test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)', async () => {
+    setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
     const selected = [
@@ -220,6 +239,7 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
 // ---------------------------------------------------------------------------
 test('ExportOrchestrator - skip: true skips already exported up-to-date chats upfront and only fetches unexported/updated chats', async () => {
     setupMockJSZip();
+    setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
@@ -274,6 +294,7 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
 });
 
 test('ExportOrchestrator - skip: true when all selected chats are up-to-date completes instantly without network calls or empty zip', async () => {
+    setupMockStorage();
     let zipGenerated = false;
     __setModuleOverride('JSZip', class MockJSZipAllSkip {
         files: Record<string, any> = {};
@@ -329,6 +350,7 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
 
 test('ExportOrchestrator - skip: false exports all selected chats regardless of export records', async () => {
     setupMockJSZip();
+    setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
@@ -477,6 +499,7 @@ test('ChatFormatter.toMarkdown - renders clean notice for verified empty chats',
 // ---------------------------------------------------------------------------
 test('ExportOrchestrator - empty chat exports successfully into archive with status empty and zero failures', async () => {
     setupMockJSZip();
+    setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
     const conversations = [

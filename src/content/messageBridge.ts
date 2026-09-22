@@ -19,7 +19,6 @@ import type {
 
 export interface MessageBridgeDeps {
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
-    ingestListBatch?: (items: any[], source: string, options?: any) => Promise<any>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
     getAccountSlot?: () => string;
@@ -85,11 +84,10 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const listRes = parser.parseList(text);
                     if (listRes && listRes.conversations && listRes.conversations.length) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        const Ingest = (_deps && _deps.ingestListBatch) || null;
-                        if (typeof Ingest === 'function') {
-                            await Ingest(listRes.conversations, 'network-list', { slot: targetSlot });
-                        } else if (typeof upsertConversations === 'function') {
-                            await upsertConversations(listRes.conversations, 'network-list', false, targetSlot);
+                        // Phase A (P1-3): 嗅探是数据面 —— 直写存储，不进 scan slice、不推进
+                        // checkpoint。forceWrite=true 沿用此前经 ingestListBatch 的实际写语义。
+                        if (typeof upsertConversations === 'function') {
+                            await upsertConversations(listRes.conversations, 'network-list', true, targetSlot);
                         }
                     }
                 } catch (e) {

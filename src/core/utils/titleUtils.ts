@@ -253,6 +253,9 @@ export function compareConversations(a?: SortableConversation | null, b?: Sortab
 
 export function checkIsUpdated(c: any, rec?: any): boolean {
     if (!c || !rec) return false;
+    // Phase A (P1-2): partial 记录永不视为"已同步"。否则 partial 的 exportedAt=now
+    // 会让下次增量直接跳过，失败附件永远得不到重试。
+    if ((rec as any).status === 'partial' || (rec as any).hasFailedAssets) return true;
     try {
         const cTs = getEffectiveTimestamp(c);
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;

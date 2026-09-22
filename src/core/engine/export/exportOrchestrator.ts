@@ -66,6 +66,7 @@ import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
 import { createWriter } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
+import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
@@ -275,23 +276,11 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
             const slot = currentSlot || 'u0';
-            const Storage = __resolveModule('StorageService', null);
-            let curIds = Storage ? await Storage.getExportedIds(slot) : {};
-            if (!Storage && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const expKey = exportedIdsKey(slot);
-                const store = await chrome.storage.local.get([expKey]);
-                curIds = store[expKey] || {};
-                // Triage #5: fold legacy alias keys here too — this raw fallback
-                // bypasses StorageService.getExportedIds(), so collapse inline
-                // with the same normId semantics (see storageService.ts).
-                for (const k of Object.keys(curIds)) {
-                    const ck = normId(k);
-                    if (ck && ck !== k) {
-                        if (!(ck in curIds)) curIds[ck] = curIds[k];
-                        delete curIds[k];
-                    }
-                }
-            }
+            // Phase A (P1-4): Storage 解析不再允许 null —— 静态 import 做 fallback，
+            // 生产环境永远拿到真正的 StorageService；测试可用 __setModuleOverride 覆盖。
+            // finalizeChatExport 只认 saveExportRecord 一条正式路径（fail-closed）。
+            const Storage = __resolveModule('StorageService', StorageServiceStatic);
+            let curIds = await Storage.getExportedIds(slot);
             if (options.exportedIds && typeof options.exportedIds === 'object') {
                 curIds = { ...curIds, ...options.exportedIds };
             }
@@ -392,15 +381,16 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 }
             }
 
-            const writeFileDirect = async (localName: string, data: any): Promise<boolean> => {
-                if (this.aborted) return false;
+            // Phase A (P0-1): writeFileDirect 不再返回 boolean，失败一律 throw。
+            // 调用方只剩 try/catch，禁止再判 boolean 返回值。
+            const writeFileDirect = async (localName: string, data: any): Promise<void> => {
+                if (this.aborted) throw new DOMException('Export aborted', 'AbortError');
+                const cleanPath = sanitizeZipPath(localName);
+                if (!writer) {
+                    throw new ExportPipelineError(`无可用写入器，无法保存 (${localName})`, undefined, 'write');
+                }
                 try {
-                    const cleanPath = sanitizeZipPath(localName);
-                    if (writer) {
-                        await writer.writeFile(cleanPath, data);
-                        return true;
-                    }
-                    return false;
+                    await writer.writeFile(cleanPath, data);
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     const errObj = e as any;
@@ -408,13 +398,12 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         || /permission|not\s*allowed/i.test(errMsg);
                     if (isPermissionRevoked) {
                         const I18n = getI18n();
-                        const permMsg = I18n.t('fsPermissionRevoked');
-                        onLog(permMsg, 'error');
+                        onLog(I18n.t('fsPermissionRevoked'), 'error');
                         this.abort();
-                        return false;
+                    } else {
+                        onLog(`保存文件失败 (${localName}): ${errMsg}`, 'error');
                     }
-                    onLog(`保存文件失败 (${localName}): ${errMsg}`, 'error');
-                    return false;
+                    throw new ExportPipelineError(`保存文件失败 (${localName}): ${errMsg}`, undefined, 'write', isPermissionRevoked);
                 }
             };
 
@@ -690,7 +679,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         }
 
                         if (needUpdateStorage) {
-                            const storageService = Storage || __resolveModule('StorageService', null);
+                            const storageService = Storage || __resolveModule('StorageService', StorageServiceStatic);
                             if (storageService && typeof storageService.updateConversation === 'function') {
                                 try {
                                     await storageService.updateConversation(currentSlot, nid, (existing: any) => {
@@ -730,7 +719,14 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 }
                             });
 
-                        const writeOk = await writeFileDirect(fileName, content);
+                        // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean。
+                        // 主 md 写失败 -> 该会话记 failed，不再标 success。
+                        let mainWriteError: unknown = null;
+                        try {
+                            await writeFileDirect(fileName, content);
+                        } catch (e) {
+                            mainWriteError = e;
+                        }
 
                         let queuedAssetsForThisChat = 0;
                         const chatAssetTasks: (() => Promise<void>)[] = [];
@@ -751,14 +747,16 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     if (left === 0) await finalizeChatExport(chat.id);
                                 } else {
                                     chatFailedAssetsSet.add(nid);
+                                    // decrement 紧跟 add(nid)：regression lock 要求失败分支必须
+                                    // decrement pendingAssetsPerChat，否则 finalize 永远等不到 left===0。
+                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                    pendingAssetsPerChat.set(nid, left);
                                     failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired' });
                                     const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
                                     const fallbackMsg = isImage
                                         ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
                                         : `[${chat.title || chat.id}] 附件获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`;
                                     onLog(getI18n().t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
-                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                    pendingAssetsPerChat.set(nid, left);
                                     if (left === 0) await finalizeChatExport(chat.id);
                                 }
                             };
@@ -766,7 +764,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             chatAssetTasks.push(assetTask);
                         };
 
-                        if (includeAssets && chat.messages && writeOk) {
+                        if (includeAssets && chat.messages && !mainWriteError) {
                             for (const m of chat.messages) {
                                 if (m.attachments && m.attachments.length) {
                                     for (const att of m.attachments) {
@@ -788,25 +786,31 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                                     totalAssets++;
                                                     downloadedAssets++;
                                                     updateProgress();
-                                                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
+                                                } catch (e) {
+                                                    // 取消不记为资产失败，直接向上传播（B3 会进一步区分取消语义）
+                                                    if ((e as any)?.name === 'AbortError' || this.aborted) throw e;
+                                                    chatFailedAssetsSet.add(nid);
+                                                    failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName, error: getErrorMessage(e) });
+                                                }
                                             } else {
                                                 totalAssets++;
                                                 queuedAssetsForThisChat++;
                                                 updateProgress();
                                                 const mdTask = async () => {
-                                                    const ok = await writeFileDirect(att.localName || `${safeBase}_${shortId(chat.id)}.md`, att.contentMarkdown);
-                                                    if (ok) {
+                                                    const docFileName = att.localName || `${safeBase}_${shortId(chat.id)}.md`;
+                                                    try {
+                                                        await writeFileDirect(docFileName, att.contentMarkdown);
                                                         downloadedAssets++;
-                                                        updateProgress();
-                                                        const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                                        pendingAssetsPerChat.set(nid, left);
-                                                        if (left === 0) await finalizeChatExport(chat.id);
-                                                    } else {
+                                                    } catch (e) {
+                                                        // 取消不记为资产失败，直接向上传播
+                                                        if ((e as any)?.name === 'AbortError' || this.aborted) throw e;
                                                         chatFailedAssetsSet.add(nid);
-                                                        const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                                        pendingAssetsPerChat.set(nid, left);
-                                                        if (left === 0) await finalizeChatExport(chat.id);
+                                                        failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: docFileName, error: getErrorMessage(e) });
                                                     }
+                                                    updateProgress();
+                                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                                    pendingAssetsPerChat.set(nid, left);
+                                                    if (left === 0) await finalizeChatExport(chat.id);
                                                 };
                                                 (mdTask as any).__assetMeta = { nid, chatId: chat.id, listTitle, fileName: att.localName || 'doc.md' };
                                                 chatAssetTasks.push(mdTask);
@@ -826,7 +830,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             }
                         }
 
-                        if (writeOk) {
+                        if (!mainWriteError) {
                             landedChats++;
                             onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
                             if (!chat.error && !chat._empty) {
@@ -851,7 +855,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 }
                             }
                         } else {
-                            const failReason = this.aborted ? 'Aborted due to permission revocation' : 'File write failed';
+                            const failReason = this.aborted ? 'Aborted due to permission revocation' : getErrorMessage(mainWriteError);
                             failedChats.push({
                                 id: chat.id || nid,
                                 title: listTitle,
@@ -868,7 +872,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
                             attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
                             exportFile: fileName,
-                            status: writeOk ? 'success' : 'failed'
+                            status: mainWriteError ? 'failed' : 'success'
                         });
 
                         completedCount++;
@@ -935,7 +939,13 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
             if (includeIndex && metaResults.length > 0) {
                 if (recovery && recovery.writeIndexAndMeta) {
-                    await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip);
+                    try {
+                        await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip);
+                    } catch (e) {
+                        // index 写崩 = 导出契约不完整：记用户可见错误后 fail-closed 外抛
+                        onLog(getErrorMessage(e), 'error');
+                        throw e;
+                    }
                 }
             }
 
@@ -981,7 +991,13 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 };
 
                 if (recovery && recovery.writeDiagnostics) {
-                    await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog);
+                    try {
+                        await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog);
+                    } catch (e) {
+                        // 诊断文件是 best-effort：记用户可见错误但不外抛，
+                        // 避免"写错误报告失败后再写错误报告"的递归
+                        onLog(getErrorMessage(e), 'error');
+                    }
                 }
             }
 

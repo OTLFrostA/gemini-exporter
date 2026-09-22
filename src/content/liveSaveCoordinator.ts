@@ -72,7 +72,7 @@ function isDev(): boolean {
     return contentContext.isDevMode();
 }
 
-function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle' | 'payload_too_large' | 'permission_prompt_needed'): void {
+function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle' | 'payload_too_large' | 'permission_prompt_needed' | 'assets_partial'): void {
     const isZh = contentContext.isZh();
     const Badge = getBadge();
     let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
@@ -84,6 +84,8 @@ function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_grante
         warnMsg = isZh ? '⚠ 目录未就绪，实时同步已暂停' : '⚠ Folder not ready, sync paused';
     } else if (errorType === 'payload_too_large') {
         warnMsg = isZh ? '⚠ 实时保存载荷过大，已跳过本次保存' : '⚠ Live-save payload too large, save skipped';
+    } else if (errorType === 'assets_partial') {
+        warnMsg = isZh ? '⚠ 部分附件保存失败，下次增量同步将重试' : '⚠ Some attachments failed to save, will retry on next incremental sync';
     }
     if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
         (Badge as any).showLiveSaveWarning(warnMsg, isZh);
@@ -255,6 +257,12 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             if (isDev()) {
                                 console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName})`);
                             }
+                        } else if (resp && resp.ok === false && Array.isArray(resp.failedAssets) && resp.failedAssets.length > 0) {
+                            // Phase A (P1-2): 主 md 已落盘、部分附件失败 -> partial。
+                            // 本次视为已保存（partial 记录已写，下次增量 checkIsUpdated 判 true 重试），打 badge 警告。
+                            writeSucceeded = true;
+                            notifyLiveSaveWarning('assets_partial');
+                            if (isDev()) console.warn(`[LiveSaveCoordinator] live-saved ${nid} with ${resp.failedAssets.length} failed assets`, resp.failedAssets);
                         } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || resp.error === 'permission_prompt_needed' || (resp.error === 'no_dir_handle' && config.dirName))) {
                             console.warn(`[LiveSaveCoordinator] Directory handle unavailable (${resp.error}).`);
                             const errType = (resp.error === 'permission_not_granted' || resp.error === 'permission_prompt_needed')

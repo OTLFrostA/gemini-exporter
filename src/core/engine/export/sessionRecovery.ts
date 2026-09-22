@@ -29,7 +29,7 @@ export interface SessionRecoveryModule {
         landedChats: number,
         downloadedAssets: number,
         totalAssets: number,
-        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
         folder?: any,
         useZip?: boolean
     ) => Promise<void>;
@@ -37,7 +37,7 @@ export interface SessionRecoveryModule {
         isDevMode: boolean,
         sessionJson: any,
         fullLogText: string,
-        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
         folder?: any,
         useZip?: boolean,
         onLog?: (msg: string, level?: string) => void
@@ -52,9 +52,6 @@ import { normId as utilsNormId } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { SessionStore } from "../../storage/sessionStore.js";
-import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
-
-const getStorageService = () => __resolveModule('StorageService', StorageServiceStatic);
 
 const normId = (id?: string | number | null): string => {
     return (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
@@ -68,7 +65,7 @@ export { EXT_VERSION, getExtensionVersion };
         landedChats: number,
         downloadedAssets: number,
         totalAssets: number,
-        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
         folder?: any,
         useZip?: boolean
     ): Promise<void> {
@@ -166,7 +163,7 @@ export { EXT_VERSION, getExtensionVersion };
         isDevMode: boolean,
         sessionJson: any,
         fullLogText: string,
-        writeFileDirect?: ((path: string, content: any) => Promise<boolean>) | null,
+        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
         folder?: any,
         useZip?: boolean,
         onLog: (msg: string, level?: string) => void = (() => {})
@@ -192,9 +189,12 @@ export { EXT_VERSION, getExtensionVersion };
             const I18n = __resolveModule('I18n', I18nStatic);
             onLog(I18n.t('logDevLogWritten'), 'info');
         } catch (logWriteErr) {
+            // Phase A (P0-1): 不再静默吞错。记 console 后外抛，由调用方
+            // (exportOrchestrator) 统一 try/catch + onLog，避免"写错误报告失败再写错误报告"递归
             if (typeof console !== 'undefined' && console.error) {
                 console.error('Failed to write _export_dev.log', logWriteErr);
             }
+            throw logWriteErr;
         }
     }
 
@@ -221,34 +221,16 @@ export { EXT_VERSION, getExtensionVersion };
             rec.hasFailedAssets = true;
         }
 
-        // Persist export record before updating in-memory state
+        // Persist export record before updating in-memory state.
+        // Phase A (P1-4): 只保留 saveExportRecord 一条正式路径 —— mock adapter 必须实现它。
+        // 缺失即抛错，不再静默降级到 storageAdapter.set/get 或 chrome.storage 直写。
+        if (!storageAdapter || typeof storageAdapter.saveExportRecord !== 'function') {
+            throw new Error(
+                `[GemExporter:sessionRecovery.ts] storageAdapter.saveExportRecord is required to finalize export for ${targetId} (slot ${slot})`
+            );
+        }
         try {
-            if (storageAdapter && typeof storageAdapter.saveExportRecord === 'function') {
-                await storageAdapter.saveExportRecord(slot, targetId, rec);
-            } else if (storageAdapter && typeof storageAdapter.set === 'function') {
-                // Fallback: read-modify-write using canonical key for mock adapters
-                const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
-                const ck = normId(targetId);
-                let cur: Record<string, any> = { ...(curIds || {}) };
-                if (typeof storageAdapter.get === 'function') {
-                    try {
-                        const got = await storageAdapter.get(expKey);
-                        const m = got && (got[expKey] || got);
-                        if (m && typeof m === 'object') cur = m;
-                    } catch { /* keep the in-memory snapshot */ }
-                }
-                const next = { ...cur };
-                delete next[targetId];
-                delete next[targetNid];
-                delete next['c_' + targetNid];
-                if (ck) next[ck] = rec;
-                await storageAdapter.set({ [expKey]: next });
-            } else if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const svc = (Storage && typeof Storage.saveExportRecord === 'function') ? Storage : getStorageService();
-                if (svc && typeof svc.saveExportRecord === 'function') {
-                    await svc.saveExportRecord(slot, targetId, rec);
-                }
-            }
+            await storageAdapter.saveExportRecord(slot, targetId, rec);
         } catch (e) {
             if (typeof console !== 'undefined' && console.error) {
                 console.error('[GemExporter:sessionRecovery.ts] saveExportRecord failed for', targetId, e);

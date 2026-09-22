@@ -763,7 +763,8 @@ export {
     getConversationDetail,
     getConversationWithDetail,
     getExportedIds,
-    setExportedIds,
+    // Phase A (P1-4): setExportedIds / setAccountSlots 移出命名导出 —— 裸写原语不得成为公开 API，
+    // 对外只走 saveExportRecord / updateAccountSlot 等事务性入口。函数本体保留供内部与测试使用。
     saveExportRecord,
     saveExportRecordsBatch,
     removeExportRecords,
@@ -772,7 +773,6 @@ export {
     getScanCheckpoint,
     setScanCheckpoint,
     getAccountSlots,
-    setAccountSlots,
     updateAccountSlot,
     getCredentialsMap,
     setCredentialsMap,
