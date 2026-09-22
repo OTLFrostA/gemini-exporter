@@ -51,6 +51,7 @@ export interface Attachment {
 export type AuthorRole = 'user' | 'model' | 'assistant' | 'system';
 
 export interface ChatMessage {
+    id?: string;
     role: AuthorRole;
     content: string;
     /** Server-authoritative message time; null when the server provided none (never fabricate Date.now()). */
@@ -59,8 +60,11 @@ export interface ChatMessage {
     attachments?: Attachment[];
     thoughts?: string | string[];
     thinking?: string;
+    citations?: any[];
     images?: Attachment[];
+    documents?: any[];
     attachmentCount?: number;
+    messageCount?: number;
     sources?: unknown[];
 }
 

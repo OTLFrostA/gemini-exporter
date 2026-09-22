@@ -115,9 +115,32 @@ export function extractInnerPayload(
     };
 }
 
+/**
+ * Extracts pagination token ("tC...") from inner payload array.
+ * Scans candidate indices first, then falls back to linear scan across the entire array.
+ */
+export function extractNextPageToken(
+    inner: unknown,
+    candidates: number[] = [1, 2, 3]
+): string | null {
+    if (!Array.isArray(inner)) return null;
+    for (const idx of candidates) {
+        if (typeof inner[idx] === "string" && inner[idx].startsWith("tC")) {
+            return inner[idx];
+        }
+    }
+    for (const elem of inner) {
+        if (typeof elem === "string" && elem.startsWith("tC")) {
+            return elem;
+        }
+    }
+    return null;
+}
+
 const PayloadParser = {
     payloadToMs,
-    extractInnerPayload
+    extractInnerPayload,
+    extractNextPageToken
 };
 
 if (typeof module === "object" && module.exports) {
