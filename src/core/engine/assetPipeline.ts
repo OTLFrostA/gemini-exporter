@@ -70,7 +70,7 @@ function hasValidB64(r: any): boolean {
     return !!(r && (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(','))));
 }
 
-function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferBuffer: boolean, timeoutMs: number, timeoutMsg: string, signal?: AbortSignal | null): Promise<any> {
+function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferBuffer: boolean, timeoutMs: number, timeoutMsg: string, signal?: AbortSignal | null, extra?: any): Promise<any> {
     return new Promise(resolve => {
         let timer: any = null;
         let settled = false;
@@ -101,7 +101,9 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             action: 'downloadAssetDirect',
             url,
             referer: `https://gemini.google.com/app/${chatId}`,
-            preferBuffer
+            preferBuffer,
+            fileName: extra?.fileName,
+            candidates: extra?.candidates
         }, (resp: any) => {
             if (chrome.runtime && chrome.runtime.lastError) {
                 done({ success: false, error: chrome.runtime.lastError.message });
@@ -142,6 +144,10 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
          */
         private async downloadOnce(targetUrl: string, chat: any, item: any, timeoutMs: number, signal: AbortSignal | null): Promise<any> {
             let r: any = null;
+            const extra = {
+                fileName: item?.fileName || item?.title,
+                candidates: Array.isArray(item?.candidates) ? item.candidates : undefined
+            };
 
             if (this.fetchAssetDelegate && targetUrl) {
                 r = await this.fetchAssetDelegate({
@@ -152,12 +158,13 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                     slot: this.currentSlot,
                     chat,
                     item,
-                    signal
+                    signal,
+                    ...extra
                 });
             } else {
                 const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                 if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs) {
-                    r = await sendTabAssetRequest(tab.id, targetUrl, chat.id, true, timeoutMs, 'tabs.sendMessage timed out', signal);
+                    r = await sendTabAssetRequest(tab.id, targetUrl, chat.id, true, timeoutMs, 'tabs.sendMessage timed out', signal, extra);
                 }
             }
 
@@ -166,7 +173,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             if (r && r.success && !hasValidBuffer(r) && !hasValidB64(r) && typeof chrome !== 'undefined' && chrome.tabs) {
                 const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
                 if (fallbackTab && fallbackTab.id) {
-                    r = await sendTabAssetRequest(fallbackTab.id, targetUrl, chat.id, false, timeoutMs, 'tabs.sendMessage fallback timed out', signal);
+                    r = await sendTabAssetRequest(fallbackTab.id, targetUrl, chat.id, false, timeoutMs, 'tabs.sendMessage fallback timed out', signal, extra);
                 }
             }
             return r;
@@ -225,7 +232,9 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
          */
         async processAsset(item: any, chat: any, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
             const isImage = !!opts.isImage;
-            const targetUrl = isImage ? (item.resolvedUrl || item.sourceUrl || item.url) : ([item.url, item.sourceUrl, item.src].filter(Boolean)[0]);
+            const rawCandidates = [item.url, item.sourceUrl, item.src].filter(Boolean);
+            const nonThumbCandidates = rawCandidates.filter((u: any) => typeof u === 'string' && !u.includes('/viewer/thumb'));
+            const targetUrl = isImage ? (item.resolvedUrl || item.sourceUrl || item.url) : (nonThumbCandidates[0] || rawCandidates[0]);
             const localName = item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
             const signal = opts.signal || null;
             const maxRetries = (typeof opts.maxRetries === "number" && opts.maxRetries >= 0) ? Math.floor(opts.maxRetries) : 3;

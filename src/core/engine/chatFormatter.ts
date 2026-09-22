@@ -99,7 +99,12 @@ export interface ChatFormatterModule {
                 }
             } else if (att.type === 'file') {
                 const local = att.localName || `files/${att.name || 'attachment'}`;
-                let name = att.title || att.name || (isEn ? 'Attachment' : '附件');
+                let name = att.title || att.name || '';
+                if (!name || /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(name) || name.includes('://')) {
+                    const baseLocal = (att.localName || '').split(/[/\\]/).pop();
+                    name = baseLocal ? baseLocal.replace(/^[0-9a-f]{6,8}_/i, '') : (isEn ? 'Attachment' : '附件');
+                }
+                if (!name) name = isEn ? 'Attachment' : '附件';
                 if (/^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(name)) {
                     name = isEn ? '📑 Deep Research Report' : '📑 深度研究报告 (Deep Research Report)';
                 }

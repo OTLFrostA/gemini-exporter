@@ -14,6 +14,7 @@ export interface UserFileAttachment {
     sourceUrl: string;
     fileName: string;
     id: string;
+    thumbnailUrl?: string;
 }
 
 export interface DeepResearchDocMeta {
@@ -48,13 +49,15 @@ export interface GeminiParserAttachmentsModule {
     findDocContentById: (root: unknown, docId: string) => unknown;
     parseDocSections: (docContentArr: unknown) => DocSectionsResult;
     findDocMarkdownByClues: (root: unknown, metaItem?: DeepResearchDocMeta | null) => string;
+    itemMatchesFilename: (name?: string | null) => boolean;
+    extractFileNameFromUrl: (url: string) => string | null;
 }
 
 import { deepWalk, RESEARCH_PROMPT_PREFIX_RE } from "./extractors.js";
 
 const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_content|imagegenerationcontent|generated_image)\/([a-zA-Z0-9_-]+)/i;
 
-    const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
+    const GOOGLE_MEDIA_HOST_RE = /(^|\.)googleusercontent\.com$|(^|\.)usercontent\.google\.com$|(^|\.)drive\.google\.com$|(^|\.)docs\.google\.com$|(^|\.)gstatic\.com$/i;
     function getUrlHost(u: string): string {
         const m = /^https?:\/\/([^/:?#]+)/i.exec(u || "");
         return m ? m[1].toLowerCase() : "";
@@ -224,40 +227,147 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return images;
     }
 
+    function itemMatchesFilename(name?: string | null): boolean {
+        if (typeof name !== "string") return false;
+        const trimmed = name.trim();
+        if (!trimmed) return false;
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return false;
+        if (trimmed.startsWith("//") || trimmed.includes("://")) return false;
+        if (trimmed.includes("?") || trimmed.includes("&") || trimmed.includes("=")) return false;
+        if (trimmed.includes("/") || trimmed.includes("\\")) return false;
+        return /\.[a-zA-Z0-9_-]{1,20}$/.test(trimmed);
+    }
+
+    function extractFileNameFromUrl(url: string): string | null {
+        if (!url || typeof url !== "string") return null;
+        try {
+            const qIdx = url.indexOf("?");
+            if (qIdx !== -1) {
+                const query = url.slice(qIdx);
+                const m = query.match(/[?&](?:file_?name|name|title)=([^&#]+)/i);
+                if (m && m[1]) {
+                    try {
+                        const decoded = decodeURIComponent(m[1]).trim();
+                        if (decoded && !decoded.includes("://") && !decoded.includes("/") && !decoded.includes("\\")) {
+                            return decoded;
+                        }
+                    } catch {
+                        const raw = m[1].trim();
+                        if (raw && !raw.includes("://") && !raw.includes("/")) return raw;
+                    }
+                }
+            }
+            const cleanPath = url.split("?")[0].split("#")[0];
+            const lastSlash = cleanPath.lastIndexOf("/");
+            if (lastSlash !== -1) {
+                const candidate = cleanPath.slice(lastSlash + 1);
+                if (candidate && itemMatchesFilename(candidate)) {
+                    try {
+                        return decodeURIComponent(candidate);
+                    } catch {
+                        return candidate;
+                    }
+                }
+            }
+            // 3. Fallback: check any query parameter value ending with a filename
+            if (qIdx !== -1) {
+                const query = url.slice(qIdx);
+                const segments = query.split(/[&;]/);
+                for (const seg of segments) {
+                    const eqIdx = seg.indexOf("=");
+                    if (eqIdx !== -1) {
+                        const val = seg.slice(eqIdx + 1);
+                        const parts = val.split(/[/\\]/);
+                        const lastPart = parts[parts.length - 1];
+                        try {
+                            const dec = decodeURIComponent(lastPart).trim();
+                            if (dec && itemMatchesFilename(dec)) return dec;
+                        } catch {
+                            if (lastPart && itemMatchesFilename(lastPart)) return lastPart;
+                        }
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+        return null;
+    }
+
     function extractUserFiles(turnUserArr: unknown): UserFileAttachment[] {
         let files: UserFileAttachment[] = [];
         if (!Array.isArray(turnUserArr)) return files;
         let warnedHosts = new Set<string>();
+        let seenUrls = new Set<string>();
 
         deepWalk(turnUserArr, (node) => {
-            if (Array.isArray(node)) {
-                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && isGoogleMediaHost(node[0]) && typeof node[1] === "string" && itemMatchesFilename(node[1])) {
-                    if (!isInternalChipUrl(node[0])) {
-                        files.push({
-                            sourceUrl: node[0],
-                            fileName: node[1],
-                            id: node[2] || node[1]
-                        });
+            if (!Array.isArray(node)) return;
+
+            // Collect URLs and possible filenames within this node
+            const googleUrls: string[] = [];
+            const filenames: string[] = [];
+            let fallbackId = "";
+
+            for (let i = 0; i < node.length; i++) {
+                const item = node[i];
+                if (typeof item === "string") {
+                    const trimmed = item.trim();
+                    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                        if (isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
+                            googleUrls.push(trimmed);
+                        } else if (!isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
+                            warnWhitelistDropOnce(warnedHosts, trimmed, "extractUserFiles [url]");
+                        }
+                    } else if (itemMatchesFilename(trimmed)) {
+                        filenames.push(trimmed);
+                    } else if (trimmed && !fallbackId && trimmed.length < 100) {
+                        fallbackId = trimmed;
                     }
-                } else if (node.length >= 2 && typeof node[0] === "string" && node[0].startsWith("http") && typeof node[1] === "string" && (node[0].includes("googleusercontent") || node[0].includes("drive.google"))) {
-                    if (!isInternalChipUrl(node[0])) {
-                        files.push({
-                            sourceUrl: node[0],
-                            fileName: node[1] || "attachment",
-                            id: node[0]
-                        });
-                    }
-                }
-                if (node.length >= 3 && typeof node[0] === "string" && node[0].startsWith("http") && !isGoogleMediaHost(node[0]) && typeof node[1] === "string" && itemMatchesFilename(node[1])) {
-                    warnWhitelistDropOnce(warnedHosts, node[0], "extractUserFiles [url,filename]");
                 }
             }
+
+            if (!googleUrls.length) return;
+
+            // Separate real download URLs from viewer thumbnails
+            const downloadUrls = googleUrls.filter(u =>
+                u.includes("/download") ||
+                u.includes("c=bard_storage") ||
+                /[?&](?:file_?name|name)=/i.test(u) ||
+                u.includes("contribution.usercontent")
+            );
+            const thumbUrls = googleUrls.filter(u =>
+                u.includes("/viewer/thumb") ||
+                u.includes("drive.google.com/viewer")
+            );
+
+            // Primary source URL prefers explicit download URL over thumbnail
+            let sourceUrl = downloadUrls[0] || googleUrls.find(u => !thumbUrls.includes(u)) || googleUrls[0];
+            let thumbnailUrl = thumbUrls[0] || (sourceUrl !== googleUrls[0] ? googleUrls[0] : undefined);
+
+            // Avoid duplicate registrations
+            if (seenUrls.has(sourceUrl)) return;
+            seenUrls.add(sourceUrl);
+
+            // Determine file name: clean filename from node, or extracted from download URL query param, or fallback
+            let fileName = filenames[0] || extractFileNameFromUrl(sourceUrl) || (thumbnailUrl ? extractFileNameFromUrl(thumbnailUrl) : null);
+            if (!fileName) {
+                // Check if any URL in googleUrls has a filename param
+                for (const u of googleUrls) {
+                    const fn = extractFileNameFromUrl(u);
+                    if (fn) { fileName = fn; break; }
+                }
+            }
+            if (!fileName) {
+                fileName = "attachment";
+            }
+
+            const id = fallbackId || fileName || sourceUrl;
+            files.push({
+                sourceUrl,
+                fileName,
+                id,
+                thumbnailUrl
+            });
         });
         return files;
-    }
-
-    function itemMatchesFilename(name?: string | null): boolean {
-        return typeof name === "string" && name.includes(".");
     }
 
     function extractDocumentsMeta(root: unknown): DeepResearchDocMeta[] {
@@ -416,7 +526,9 @@ export {
     extractDocumentsMeta,
     findDocContentById,
     parseDocSections,
-    findDocMarkdownByClues
+    findDocMarkdownByClues,
+    itemMatchesFilename,
+    extractFileNameFromUrl
 };
 
 export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
@@ -431,7 +543,9 @@ export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
     extractDocumentsMeta,
     findDocContentById,
     parseDocSections,
-    findDocMarkdownByClues
+    findDocMarkdownByClues,
+    itemMatchesFilename,
+    extractFileNameFromUrl
 };
 
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;

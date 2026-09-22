@@ -1,5 +1,8 @@
-# scripts/framework/cases/chat.py
+import os
 import time
+import uuid
+import random
+import hashlib
 from typing import Tuple, Optional, Dict, Any
 
 from scripts.framework.cases.base import FeatureTestCase, TestContext
@@ -73,7 +76,43 @@ class ChatGenerationCase(FeatureTestCase):
                     preview = (p_text[:40] + "...") if len(p_text) > 40 else p_text
                     print(f"      ▶️ 轮次 {turn_no}/{len(turns)}: '{preview}'")
 
-                    turn_res = session.send_turn(turn_input, max_wait=300)
+                    # 在会话 2 的第 1 轮动态生成带随机尾缀与随机内容的测试附件进行真实上传闭环
+                    current_attachment = None
+                    if chat_idx == 1 and turn_no == 1:
+                        ext_pool = [".json", ".txt", ".md", ".custom", ".log", ".yaml", ".csv"]
+                        chosen_ext = random.choice(ext_pool)
+                        random_tag = uuid.uuid4().hex[:8]
+                        rnd_fname = f"gemini_test_{int(time.time())}_{random_tag}{chosen_ext}"
+                        rnd_fpath = os.path.join(ctx.output_dir, rnd_fname)
+                        os.makedirs(ctx.output_dir, exist_ok=True)
+
+                        test_token = f"TOKEN-{uuid.uuid4().hex}"
+                        rnd_content = f"""# Gemini Attachment Verification
+filename: "{rnd_fname}"
+token: "{test_token}"
+timestamp: {time.time()}
+description: "Dynamically created test attachment to verify multi-format user upload & export"
+"""
+                        with open(rnd_fpath, "w", encoding="utf-8") as f:
+                            f.write(rnd_content)
+
+                        with open(rnd_fpath, "rb") as f:
+                            f_bytes = f.read()
+
+                        f_sha256 = hashlib.sha256(f_bytes).hexdigest()
+                        ctx.shared_data["uploaded_test_file"] = {
+                            "file_path": rnd_fpath,
+                            "file_name": rnd_fname,
+                            "extension": chosen_ext,
+                            "token": test_token,
+                            "sha256": f_sha256,
+                            "size": len(f_bytes)
+                        }
+                        current_attachment = rnd_fpath
+                        p_text = f"{p_text}\n\n（我附带上传了一个测试参考文件 {rnd_fname}，请阅读并确认收到该文件）"
+                        print(f"         📁 现场生成随机多格式测试文件: {rnd_fname} (大小: {len(f_bytes)} bytes, SHA256: {f_sha256[:12]}...)")
+
+                    turn_res = session.send_turn(p_text, max_wait=300, file_attachment=current_attachment)
                     if not turn_res.success:
                         return False, f"会话 {chat_idx + 1} 轮次 {turn_no} 失败 (Fail-Fast 熔断安全停机): {turn_res.error}", None
 
@@ -91,6 +130,8 @@ class ChatGenerationCase(FeatureTestCase):
                     "title": real_title,
                     "turns": prompts_clean
                 })
+                if chat_idx == 1 and "uploaded_test_file" in ctx.shared_data:
+                    ctx.shared_data["uploaded_test_file"]["chat_id"] = session.chat_id
                 print(f"      🏁 第 {chat_idx + 1} 次对话完成！会话 ID: {session.chat_id}")
 
                 # 关键真实闭环：在完成会话 1 后，立即触发一次真实导出记录其初始导出时间戳基线，

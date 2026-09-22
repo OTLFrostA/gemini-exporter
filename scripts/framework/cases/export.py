@@ -39,6 +39,15 @@ DESIGNATED_HISTORICAL_CHATS = [
         "name": "韦伯望远镜深空探测重大发现（长文本科学报告）",
         "expected_snippets": ["韦伯", "深空探测"],
         "syntax_checks": []
+    },
+    {
+        "id": "533ac8ca2ecb8bd7",
+        "category": "用户文件附件 (JSON/Docs)",
+        "name": "测试配置文件加载（用户文件附件 JSON）",
+        "expected_snippets": ["test_config.json"],
+        "expected_file_attachments": ["test_config.json"],
+        "syntax_checks": [],
+        "optional": True
     }
 ]
 
@@ -120,7 +129,7 @@ class ZipExportDownloadCase(FeatureTestCase):
             target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
             target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
 
-            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"]
+            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
 
             check_res = cdp_opt.eval(f"""
             (() => {{
@@ -195,13 +204,15 @@ class MultimodalSpecCase(FeatureTestCase):
         golden_chats = [dict(c) for c in DESIGNATED_HISTORICAL_CHATS]
         expected_scenarios = ctx.scenarios[:2] if ctx.chat_records else []
         min_conversations = 6 if ctx.chat_records else 4
+        uploaded_files = [ctx.shared_data["uploaded_test_file"]] if "uploaded_test_file" in ctx.shared_data else None
 
         spec_ok, spec_msg, spec_data = CDPAssertions.assert_exported_zip_spec(
             zip_path=downloaded_zip,
             extract_dir=extract_dir,
             min_conversations=min_conversations,
             expected_golden_chats=golden_chats,
-            expected_scenarios=expected_scenarios
+            expected_scenarios=expected_scenarios,
+            uploaded_files=uploaded_files
         )
 
         if spec_ok:
@@ -231,7 +242,7 @@ class FastSkipExportedCase(FeatureTestCase):
             target_ids = []
             target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
             target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现"]
+            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
 
             select_res = cdp_opt.eval(f"""
             (() => {{

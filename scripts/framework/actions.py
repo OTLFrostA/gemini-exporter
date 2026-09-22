@@ -588,6 +588,13 @@ class CDPActions(ExtensionActions):
         return driver.execute_turn_pipeline(prompt_text, max_wait=max_wait, is_image=is_image_gen)
 
     @staticmethod
+    def upload_gemini_file(cdp, file_path: str, timeout: float = 15.0) -> bool:
+        """向当前 Gemini 输入框上传本地文件附件 (委托至 GeminiPlatformDriver 权威实现)"""
+        from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
+        driver = GeminiPlatformDriver(cdp)
+        return driver.upload_file(file_path=file_path, timeout=timeout)
+
+    @staticmethod
     def click_new_chat(cdp) -> bool:
         """开启新对话 (优先通过安全网关导航至 /app，保障物理清空残留气泡)"""
         try:

@@ -104,7 +104,7 @@ export function extractLh3(text: string): string | null {
 }
 
 export function extractGucUrl(text: string): string | null {
-    const m = text.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*download[^\s"'<>]*/i);
+    const m = text.match(/https:\/\/[^\s"'<>]*(?:googleusercontent|usercontent\.google)[^\s"'<>]*download[^\s"'<>]*/i);
     if (m) return m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&');
     const m2 = text.match(/https:\/\/lh3\.google(?:usercontent)?\.com\/[^\s"'<>\\]+/i);
     return m2 ? m2[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
@@ -118,13 +118,13 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
 
         try {
             if (typeof document !== 'undefined') {
-                const links = document.querySelectorAll('a[href*="googleusercontent"], a[href*="drive.google"], a[download]');
+                const links = document.querySelectorAll('a[href*="googleusercontent"], a[href*="usercontent.google"], a[href*="drive.google"], a[download]');
                 for (const a of Array.from(links)) {
                     const href = (a as HTMLAnchorElement).href || a.getAttribute('href') || '';
                     const txt = (a.textContent || a.getAttribute('aria-label') || '').trim();
                     if (!href) continue;
                     if (msg.fileName && (txt.includes(msg.fileName) || href.includes(encodeURIComponent(msg.fileName)))) candidates.push(href);
-                    else if (href.includes('googleusercontent') && href.includes('download')) candidates.push(href);
+                    else if ((href.includes('googleusercontent') || href.includes('usercontent.google')) && href.includes('download')) candidates.push(href);
                 }
             }
         } catch (e) {
@@ -134,7 +134,7 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
         try {
             if (typeof document !== 'undefined') {
                 const html = document.documentElement?.innerHTML || '';
-                const m = html.match(/https:\/\/[^\s"'<>]*googleusercontent[^\s"'<>]*download[^\s"'<>]*/i);
+                const m = html.match(/https:\/\/[^\s"'<>]*(?:googleusercontent|usercontent\.google)[^\s"'<>]*download[^\s"'<>]*/i);
                 if (m) candidates.push(m[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&'));
             }
         } catch (e) {
