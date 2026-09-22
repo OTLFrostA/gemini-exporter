@@ -9,6 +9,7 @@ import re
 import json
 import zipfile
 import time
+import hashlib
 from typing import Tuple, Optional, Dict, Any, List
 
 import sys
@@ -365,7 +366,8 @@ class CDPAssertions:
         min_conversations: int = 1,
         expected_golden_chats: Optional[List[Dict[str, Any]]] = None,
         expected_scenarios: Optional[List[Dict[str, Any]]] = None,
-        chat_id: Optional[str] = None
+        chat_id: Optional[str] = None,
+        uploaded_files: Optional[List[Dict[str, Any]]] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """解压 ZIP 归档包，核实 100% 对话轮次物理落盘，严禁 0 字节附件，并运行 ExportSpecificationAsserter 规范断言"""
         if not os.path.isfile(zip_path):
@@ -393,6 +395,14 @@ class CDPAssertions:
 
         if zero_byte_files:
             return False, f"导出的 ZIP 解压后发现 {len(zero_byte_files)} 个 0 字节文件: {zero_byte_files}", {"zero_byte": zero_byte_files}
+
+        # 严禁出现 URL 畸变或长 URL 命名的附件文件 (files/*_https___... 或包含 URL 参数特征)
+        malformed_files = [
+            os.path.basename(f) for f in all_files 
+            if "_https___" in f or "http___" in f or "download_c=" in f or "usercontent.google" in f
+        ]
+        if malformed_files:
+            return False, f"导出的 ZIP 解压后发现因 URL 伪装文件名导致的严重畸变文件: {malformed_files}", {"malformed_files": malformed_files}
 
         # 校验文件名 cid6 统一命名
         all_mds = [
@@ -445,7 +455,8 @@ class CDPAssertions:
             spec_ok = asserter.run_all_assertions(
                 min_conversations=min_conversations,
                 expected_golden_chats=expected_golden_chats,
-                target_chat_id=chat_id
+                target_chat_id=chat_id,
+                uploaded_files=uploaded_files
             )
             if not spec_ok:
                 err_summary = f": {asserter.errors[0]}" if asserter.errors else ""

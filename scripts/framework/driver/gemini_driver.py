@@ -5,14 +5,16 @@ Encapsulates all low-level CDP interactions, DOM selectors, atomic pipelines,
 session lifecycle transitions, and turn evaluations into clean, declarative APIs.
 """
 
+import os
 import time
-from typing import Optional, Dict, Any, List, Union, Callable
+import base64
+import mimetypes
+from typing import Optional, Dict, Any, List, Union, Callable, Tuple
 
 from scripts.framework.actions import CDPActions
 from scripts.framework.selectors import GeminiSelectors
 from scripts.framework.gateway import get_gateway
 from .platform_driver import ChatPlatformDriver, TurnResult, PlatformCapabilities, PlatformRegistry
-from typing import Optional, Dict, Any, List, Union, Callable, Tuple
 
 
 class GeminiChatSession:
@@ -27,16 +29,29 @@ class GeminiChatSession:
         self.title = title
         self.turns: List[TurnResult] = []
 
-    def send_turn(self, prompt: Union[str, Dict[str, Any]], max_wait: int = 300) -> TurnResult:
+    def send_turn(
+        self,
+        prompt: Union[str, Dict[str, Any]],
+        max_wait: int = 300,
+        file_attachment: Optional[str] = None
+    ) -> TurnResult:
         """
         Send a conversational prompt to this session, waiting deterministically for stream settlement.
         Extracts the generated response, checks for images, and updates session state.
+        Supports uploading and mounting a local file attachment before submitting the turn.
         """
         t0 = time.time()
         if isinstance(prompt, dict):
             prompt_text = prompt.get("prompt", "")
+            file_attachment = prompt.get("file_attachment") or file_attachment
         else:
             prompt_text = str(prompt)
+
+        # 若指定了待上传文件，在发帖前先将其注入输入框并等待卡片挂载
+        if file_attachment:
+            print(f"      📎 正在向输入框上传并挂载文件附件: {os.path.basename(file_attachment)}...")
+            self.driver.upload_file(file_attachment)
+            time.sleep(1.0)
 
         p_lower = prompt_text.lower()
         is_image_turn = (
@@ -362,6 +377,67 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             CDPActions.delete_conversation_via_web,
             chat_id
         ))
+
+    def upload_file(self, file_path: str, timeout: float = 15.0) -> bool:
+        """
+        通过 CDP 向当前 Gemini 输入框注入并挂载本地文件附件。
+        使用原生 ClipboardEvent('paste') 传递 DataTransfer File 对象，
+        并等待页面中 uploader-file-preview / gem-attachment 挂载完成。
+        """
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"文件不存在: {file_path}")
+
+        file_name = os.path.basename(file_path)
+        mime_type, _ = mimetypes.guess_type(file_path)
+        mime_type = mime_type or "text/plain"
+
+        with open(file_path, "rb") as f:
+            b64_content = base64.b64encode(f.read()).decode("ascii")
+
+        res = self.cdp.eval(f"""
+        (() => {{
+            const editor = document.querySelector('{GeminiSelectors.EDITOR}');
+            if (!editor) return {{ success: false, error: '未找到输入框编辑器' }};
+            editor.focus();
+            const b64 = "{b64_content}";
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            // 使用 application/json 作为通用结构化 MIME，确保 contenteditable 触发文件卡片挂载而不是纯文本粘贴
+            const blob = new Blob([bytes], {{ type: 'application/json' }});
+            const file = new File([blob], "{file_name}", {{ type: 'application/json' }});
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            const pasteEvt = new ClipboardEvent('paste', {{
+                bubbles: true,
+                cancelable: true,
+                clipboardData: dt
+            }});
+            editor.dispatchEvent(pasteEvt);
+            return {{ success: true }};
+        }})()
+        """)
+        if not res or not res.get("success"):
+            err = res.get("error", "未知错误") if isinstance(res, dict) else "CDP eval 失败"
+            raise RuntimeError(f"文件注入粘贴事件失败: {err}")
+
+        # 等待页面渲染出附件预览卡片
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            mounted = self.cdp.eval(f"""
+            (() => {{
+                const preview = document.querySelector('{GeminiSelectors.FILE_PREVIEW}');
+                if (!preview) return null;
+                const text = (preview.textContent || '').trim();
+                return {{ mounted: true, text }};
+            }})()
+            """)
+            if mounted and mounted.get("mounted"):
+                time.sleep(0.5)
+                return True
+            time.sleep(0.5)
+
+        raise TimeoutError(f"等待文件附件 '{file_name}' 挂载超时 ({timeout}s)")
 
     def get_selectors(self) -> Dict[str, str]:
         """返回 Gemini 平台的全部 DOM 选择器常量字典"""

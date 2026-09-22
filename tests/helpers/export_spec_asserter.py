@@ -36,7 +36,7 @@ class ExportSpecificationAsserter:
     def log_pass(self, file_name, msg):
         print(f"   [{file_name}] ✓ {msg}")
 
-    def run_all_assertions(self, min_conversations=1, expected_golden_chats=None, target_chat_id=None):
+    def run_all_assertions(self, min_conversations=1, expected_golden_chats=None, target_chat_id=None, uploaded_files=None):
         """执行全量规范级断言"""
         print("\n" + "=" * 70)
         print("🔍 启动导出规范确定性断言 (Export Specification Assertion)...")
@@ -63,6 +63,10 @@ class ExportSpecificationAsserter:
         # 4. 固化已知黄金会话特征断言 (针对全量历史回归)
         if expected_golden_chats:
             self.assert_golden_conversations(expected_golden_chats)
+
+        # 5. 现场动态上传的测试文件附件严格断言 (多格式、SHA256、正文链接)
+        if uploaded_files:
+            self.assert_uploaded_test_files(uploaded_files)
 
         # 总结
         print("\n" + "=" * 70)
@@ -131,6 +135,17 @@ class ExportSpecificationAsserter:
                     self.log_pass("meta.json", f"元数据合法 (导出会话数: {len(self.meta_data.get('conversations', []))})")
             except Exception as e:
                 self.log_error("meta.json", f"meta.json 解析失败: {e}")
+
+        # 检查是否包含 URL 畸变或长 URL 命名的文件 (files/*_https___... 或包含 URL 参数特征)
+        malformed_files = []
+        for root, _, files in os.walk(self.export_root_dir):
+            for f in files:
+                if "_https___" in f or "http___" in f or "download_c=" in f or "usercontent.google" in f:
+                    malformed_files.append(f)
+        if malformed_files:
+            self.log_error("Bundle", f"发现因 URL 伪装文件名导致的严重畸变文件: {malformed_files}")
+        else:
+            self.log_pass("Bundle", "文件命名纯净度校验通过 (0 个 URL 畸变残留文件)")
 
     def assert_frontmatter(self, content, file_name):
         """校验 YAML Frontmatter 规范 (严格解析键值对非空与格式)"""
@@ -478,6 +493,120 @@ class ExportSpecificationAsserter:
             exp_gen_imgs = gold.get("expected_generated_images")
             if exp_gen_imgs:
                 self.assert_ai_generated_images(matched_file, matched_content, exp_gen_imgs)
+
+            # 校验用户文件附件 (如 architecture.md, test_config.json 等)
+            exp_file_attachments = gold.get("expected_file_attachments")
+            if exp_file_attachments:
+                self.assert_user_file_attachments(matched_file, matched_content, exp_file_attachments)
+
+    def assert_user_file_attachments(self, matched_file, content, expected_files):
+        """断言用户上传的文件附件：files/ 目录下物理存在、非零字节、正文包含合规引用链接"""
+        print(f"   [{matched_file}] 📎 深度断言：用户上传文件附件 ({len(expected_files)} 个)...")
+        all_downloaded = []
+        for root, _, files in os.walk(self.export_root_dir):
+            rel = os.path.relpath(root, self.export_root_dir).replace("\\", "/")
+            parts = rel.split("/")
+            if "files" in parts or "assets" in parts:
+                for f in files:
+                    all_downloaded.append((f, os.path.join(root, f)))
+
+        for target in expected_files:
+            target_name = target.get("file_name") if isinstance(target, dict) else str(target)
+            expected_sha = target.get("sha256") if isinstance(target, dict) else None
+
+            matched_phys = [
+                fp for (fname, fp) in all_downloaded 
+                if fname == target_name or fname.endswith(f"_{target_name}") or target_name in fname
+            ]
+            if not matched_phys:
+                self.log_error(matched_file, f"用户附件 '{target_name}' 未在导出包 files/ 目录下找到！")
+                continue
+
+            phys_path = matched_phys[0]
+            fsize = os.path.getsize(phys_path)
+            if fsize == 0:
+                self.log_error(matched_file, f"用户附件 '{target_name}' 物理体积为 0 字节非法文件！")
+            else:
+                self.log_pass(matched_file, f"用户附件 '{target_name}' 物理落地有效 ({fsize} bytes: {os.path.basename(phys_path)})")
+
+            if expected_sha:
+                with open(phys_path, "rb") as f:
+                    actual_sha = hashlib.sha256(f.read()).hexdigest()
+                if actual_sha != expected_sha:
+                    self.log_error(matched_file, f"用户附件 '{target_name}' 内容 SHA256 不匹配: 实际 {actual_sha} != 预期 {expected_sha}")
+                else:
+                    self.log_pass(matched_file, f"用户附件 '{target_name}' 内容 SHA256 100% 物理一致")
+
+            # 校验正文中是否包含合规超链接引用
+            clean_escaped = re.escape(target_name)
+            has_link = bool(re.search(rf'\[{clean_escaped}\]\(files/[^)]+\)', content) or f"[{target_name}]" in content)
+            if not has_link:
+                self.log_error(matched_file, f"Markdown 正文中缺少对附件 '{target_name}' 的超链接引用")
+            else:
+                self.log_pass(matched_file, f"Markdown 正文中包含附件 '{target_name}' 的合规超链接引用")
+
+    def assert_uploaded_test_files(self, uploaded_files):
+        """断言现场动态上传的测试文件：files/ 目录下物理存在、非零字节、SHA256 完全一致、Markdown 链接存在"""
+        print(f"\n[现场上传文件断言] 📎 校验现场动态上传的多格式文件附件 ({len(uploaded_files)} 个)...")
+        all_downloaded = []
+        for root, _, files in os.walk(self.export_root_dir):
+            for f in files:
+                all_downloaded.append((f, os.path.join(root, f)))
+
+        for uf in uploaded_files:
+            target_name = uf.get("file_name")
+            expected_sha = uf.get("sha256")
+            chat_id = uf.get("chat_id")
+
+            matched_phys = [
+                fp for (fname, fp) in all_downloaded 
+                if fname == target_name or fname.endswith(f"_{target_name}") or target_name in fname
+            ]
+            if not matched_phys:
+                self.log_error("UploadedFileCheck", f"现场上传的测试文件 '{target_name}' 未在导出包 files/ 目录下找到！")
+                continue
+
+            phys_path = matched_phys[0]
+            fsize = os.path.getsize(phys_path)
+            if fsize == 0:
+                self.log_error(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' 物理体积为 0 字节！")
+            else:
+                self.log_pass(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' 物理落地有效 ({fsize} bytes)")
+
+            if expected_sha:
+                with open(phys_path, "rb") as f:
+                    actual_sha = hashlib.sha256(f.read()).hexdigest()
+                if actual_sha != expected_sha:
+                    self.log_error(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' SHA256 不匹配: 实际 {actual_sha} != 预期 {expected_sha}")
+                else:
+                    self.log_pass(os.path.basename(phys_path), f"现场上传的测试文件 '{target_name}' SHA256 100% 物理一致 ({actual_sha[:16]}...)")
+
+            # 检查对应对话 markdown 中的链接
+            matched_md = None
+            if chat_id:
+                clean_cid = str(chat_id).replace("c_", "")
+                short_cid = clean_cid[-6:]
+                for fpath in self.md_files:
+                    fname = os.path.basename(fpath)
+                    if clean_cid in fname or short_cid in fname:
+                        matched_md = fpath
+                        break
+            if not matched_md and self.md_files:
+                for fpath in self.md_files:
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                        if target_name in f.read():
+                            matched_md = fpath
+                            break
+
+            if matched_md:
+                with open(matched_md, "r", encoding="utf-8", errors="ignore") as f:
+                    md_text = f.read()
+                clean_escaped = re.escape(target_name)
+                has_link = bool(re.search(rf'\[{clean_escaped}\]\(files/[^)]+\)', md_text) or f"[{target_name}]" in md_text)
+                if not has_link:
+                    self.log_error(os.path.basename(matched_md), f"会话 Markdown 正文缺少对附件 '{target_name}' 的超链接引用")
+                else:
+                    self.log_pass(os.path.basename(matched_md), f"会话 Markdown 包含对附件 '{target_name}' 的合规超链接引用")
 
 
 if __name__ == "__main__":

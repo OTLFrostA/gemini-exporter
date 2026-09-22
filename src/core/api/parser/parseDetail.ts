@@ -347,18 +347,22 @@ function getSchema(): any {
                             type: "image",
                             isImage: true
                         })) : void 0,
-                        documents: uFiles.length ? uFiles.map((f: UserFileAttachment) => ({
-                            id: f.id,
-                            title: f.fileName,
-                            createdAt: ts,
-                            chipUrl: "",
-                            sections: [],
-                            links: [],
-                            contentMarkdown: void 0,
-                            url: f.sourceUrl,
-                            localName: getUniqueLocalName(`files/${shortScope}${(f.fileName || "doc.md").replace(/[\\/:*?"<>|]/g, "_")}`),
-                            type: "file"
-                        })) : void 0
+                        documents: uFiles.length ? uFiles.map((f: UserFileAttachment) => {
+                            const safeFileName = (f.fileName || "attachment").replace(/[\\/:*?"<>|]/g, "_");
+                            return {
+                                id: f.id,
+                                title: f.fileName || safeFileName,
+                                createdAt: ts,
+                                chipUrl: "",
+                                sections: [],
+                                links: [],
+                                contentMarkdown: void 0,
+                                url: f.sourceUrl,
+                                candidates: f.thumbnailUrl ? [f.sourceUrl, f.thumbnailUrl] : [f.sourceUrl],
+                                localName: getUniqueLocalName(`files/${shortScope}${safeFileName}`),
+                                type: "file"
+                            };
+                        }) : void 0
                     });
                 }
 
