@@ -1,9 +1,9 @@
 // src/background/batchFetcher.ts - Batch chat fetching, 429 rate limit backoff, and progress broadcast
 
 import { TabService } from '../core/utils/tabService.js';
-import { isRateLimited, calculateBackoff } from '../core/engine/export/rateLimiter.js';
+import { isRateLimited, calculateBackoff, abortableSleep } from '../core/engine/export/rateLimiter.js';
 import { interruptibleSleep } from '../core/api/client/retryPolicy.js';
-import { isSlotAborted } from './abortManager.js';
+import { isSlotAborted, getSlotAbortSignal, __bgControllers } from './abortManager.js';
 import { startKeepAlive } from './keepAlive.js';
 
 // Tab communication service helper (delegates to TabService: handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
@@ -14,17 +14,16 @@ export const getGeminiTab = (slot?: string): Promise<any> =>
     TabService.getGeminiTab(slot);
 
 async function sendToGeminiTabCancellable(msg: any, slot: string): Promise<any> {
-    let settled = false;
-    const abortWait = (async () => {
-        while (!settled && !isSlotAborted(slot)) {
-            await new Promise(r => setTimeout(r, 50));
-        }
-        return { __slotAborted: !settled };
-    })();
+    // B2: 用 AbortSignal 替代 50ms 轮询 —— 取消即时生效，不再有轮询延迟。
+    // settled 后清理 controller：先 abort 释放 abortableSleep 的 24h 计时器，
+    // 再从 map 删除（下次按需重建，重建时与 boolean 旗标同步）。
+    const abortWait = abortableSleep(86400000, getSlotAbortSignal(slot))
+        .then(() => ({ __slotAborted: true }));
     try {
         return await Promise.race([sendToGeminiTab(msg, slot), abortWait]);
     } finally {
-        settled = true;
+        try { __bgControllers.get(slot)?.abort(); } catch { /* intentional */ }
+        __bgControllers.delete(slot);
     }
 }
 

@@ -17,9 +17,10 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
 
     try {
         const savedFiles: any[] = [];
-        const mockFolder = {
-            file: (name: string, bytes: any) => {
+        const mockWriter = {
+            writeFile: async (name: string, bytes: any) => {
                 savedFiles.push({ name, bytes });
+                return name;
             }
         };
 
@@ -27,7 +28,7 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
         const pipeline = new AssetPipeline({
             currentSlot: 'u0',
             useZip: true,
-            folder: mockFolder,
+            writer: mockWriter,
             fetchAssetDelegate: async (req) => {
                 delegateCalls.push(req);
                 return {

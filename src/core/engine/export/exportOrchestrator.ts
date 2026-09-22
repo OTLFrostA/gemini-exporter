@@ -60,7 +60,7 @@ import GeminiUtils, {
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
-import rateLimitModule, { isRateLimited, calculateBackoff, type RateLimitModule } from "./rateLimiter.js";
+import rateLimitModule, { isRateLimited, calculateBackoff, abortableSleep, type RateLimitModule } from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter } from "./progressReporter.js";
 import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
@@ -419,6 +419,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             onLog: (msg: string, level?: string) => void,
             onProgress: (progress: any) => void
         ): Promise<void> {
+            // B3: 取消后不再打包/下载 —— 取消是用户意图，不应触发下载回调
+            if (this.aborted || this._abortController?.signal.aborted) return;
             const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
             const I18n = getI18n();
             onLog(I18n.t('logPackagingZip'), 'info');
@@ -449,6 +451,31 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
             const session = await this._initSession(options, callbacks);
             const { payloadIds, skippedItems = [], totalSelected = options.selected?.length || 0, slot, Storage, curIds, abortSignal } = session;
+            // B3: _initSession 是异步的，期间用户可能已取消 —— 直接返回，不再初始化 writer/跑导出循环
+            if (this.aborted || (abortSignal && abortSignal.aborted)) {
+                onLog(getI18n().t('logExportAborted') || '导出已取消', 'warn');
+                const earlyRecovery = getSessionRecovery();
+                if (earlyRecovery && earlyRecovery.updateSessionStatus) {
+                    await earlyRecovery.updateSessionStatus({
+                        status: 'aborted',
+                        slot,
+                        total: totalSelected,
+                        current: 0,
+                        failedCount: 0,
+                        skipped: skippedItems.length
+                    });
+                }
+                return {
+                    landedChats: 0,
+                    exportedCount: 0,
+                    failedChats: [],
+                    failedAttachments: [],
+                    skipped: skippedItems.length,
+                    totalAssets: 0,
+                    downloadedAssets: 0,
+                    aborted: true
+                };
+            }
 
             const {
                 format = 'markdown',
@@ -462,13 +489,13 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 takeoutEngine = null
             } = options;
 
-            const { zip, folder, zipWriter, batchDirHandle, writeFileDirect } = await this._initWriter(options, onLog);
+            const { zip, zipWriter, batchDirHandle, writer, writeFileDirect } = await this._initWriter(options, onLog);
 
             const AssetPipelineClass = getAssetPipelineClass();
             const assetPipeline = AssetPipelineClass ? new AssetPipelineClass({
                 currentSlot,
                 useZip,
-                folder,
+                writer,
                 writeFileDirect,
                 takeoutEngine,
                 getGeminiTab,
@@ -589,7 +616,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                     } else if (this.rateLimitCooldownUntil && Date.now() < this.rateLimitCooldownUntil) {
                         const waitMs = Math.max(0, this.rateLimitCooldownUntil - Date.now());
                         if (waitMs > 0) {
-                            await new Promise(r => setTimeout(r, waitMs));
+                            // B2: 冷却等待同样可被取消打断，不傻等整个窗口
+                            await abortableSleep(waitMs, abortSignal);
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
                         }
                     }
@@ -628,8 +656,10 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     this.rateLimitCooldownUntil = Date.now() + delayMs;
                                 }
                                 onLog(I18n.t('logRateLimitedBackoff', requestedItem.title || nid, (delayMs / 1000).toFixed(1)), 'warn');
-                                await new Promise(r => setTimeout(r, delayMs));
+                                // B2: 退避等待可被取消打断 —— 取消后不再傻等整个退避窗口
+                                const backoffAborted = await abortableSleep(delayMs, abortSignal);
                                 retryCount++;
+                                if (backoffAborted) break;
                                 continue;
                             }
                             break;
@@ -737,7 +767,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             const assetTask = async () => {
                                 let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
                                 if (assetPipeline) {
-                                    assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle });
+                                    assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
                                 }
                                 if (assetRes.saved) {
                                     downloadedAssets++;
@@ -855,7 +885,18 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 }
                             }
                         } else {
-                            const failReason = this.aborted ? 'Aborted due to permission revocation' : getErrorMessage(mainWriteError);
+                            // B3: 区分用户取消 vs 权限被收回 —— 取消是用户意图，不记失败；
+                            // 权限被收回是真实失败（writeFileDirect 已 abort 并记日志），保留失败记录。
+                            const errObj = mainWriteError as any;
+                            const userCancelled = errObj?.name === 'AbortError';
+                            if (userCancelled) {
+                                onLog(`[${listTitle}] 导出已取消`, 'warn');
+                                break;
+                            }
+                            const permissionRevoked = errObj instanceof ExportPipelineError && !!errObj.isPermissionRevoked;
+                            const failReason = permissionRevoked
+                                ? 'Aborted due to permission revocation'
+                                : getErrorMessage(mainWriteError);
                             failedChats.push({
                                 id: chat.id || nid,
                                 title: listTitle,
@@ -904,6 +945,11 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
                         }
                     } catch (e) {
+                        // B3: AbortError = 用户取消（资产任务/写文件向上抛）—— 不记失败，直接结束
+                        if ((e as any)?.name === 'AbortError') {
+                            onLog(`[${requestedItem.title || requestedItem.id}] 导出已取消`, 'warn');
+                            break;
+                        }
                         const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
                         const failId = requestedItem.id || 'unknown';
                         const title = requestedItem.title || failId;
@@ -940,7 +986,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             if (includeIndex && metaResults.length > 0) {
                 if (recovery && recovery.writeIndexAndMeta) {
                     try {
-                        await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writeFileDirect, folder, useZip);
+                        await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writer);
                     } catch (e) {
                         // index 写崩 = 导出契约不完整：记用户可见错误后 fail-closed 外抛
                         onLog(getErrorMessage(e), 'error');
@@ -959,7 +1005,9 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 if (typeof console !== 'undefined' && console.warn) console.warn('[GemExporter:storage] Storage operation failed:', e);
             }
 
-            if (isDevMode || failedChats.length > 0 || failedAttachments.length > 0) {
+            // B3: 取消时不写 _export_errors.json —— 取消是用户意图，不是失败
+            if ((isDevMode || failedChats.length > 0 || failedAttachments.length > 0)
+                && !this.aborted && !(abortSignal && abortSignal.aborted)) {
                 let fullLogText = '';
                 if (recovery && recovery.buildSessionLogText) {
                     fullLogText = recovery.buildSessionLogText({
@@ -992,7 +1040,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
                 if (recovery && recovery.writeDiagnostics) {
                     try {
-                        await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writeFileDirect, folder, useZip, onLog);
+                        await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writer, onLog);
                     } catch (e) {
                         // 诊断文件是 best-effort：记用户可见错误但不外抛，
                         // 避免"写错误报告失败后再写错误报告"的递归
@@ -1001,7 +1049,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 }
             }
 
-            if (useZip) {
+            // B3: 取消后跳过打包/下载（同 _packageAndDownload 首行判定）—— 无下载回调
+            if (!this.aborted && !(abortSignal && abortSignal.aborted) && useZip) {
                 if (landedChats === 0 && skipped > 0 && failedChats.length === 0) {
                     onLog(getI18n().t('logExportSkippedAllNoZip'), 'info');
                 } else {

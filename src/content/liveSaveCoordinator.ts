@@ -262,7 +262,8 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             // 本次视为已保存（partial 记录已写，下次增量 checkIsUpdated 判 true 重试），打 badge 警告。
                             writeSucceeded = true;
                             notifyLiveSaveWarning('assets_partial');
-                            if (isDev()) console.warn(`[LiveSaveCoordinator] live-saved ${nid} with ${resp.failedAssets.length} failed assets`, resp.failedAssets);
+                            // CodeQL js/tainted-format-string: 污点数据（nid 等）不进 format string，做独立参数
+                            if (isDev()) console.warn('[LiveSaveCoordinator] live-saved with failed assets:', nid, resp.failedAssets.length, resp.failedAssets);
                         } else if (resp && (resp.error === 'dir_not_found' || resp.error === 'permission_not_granted' || resp.error === 'permission_prompt_needed' || (resp.error === 'no_dir_handle' && config.dirName))) {
                             console.warn(`[LiveSaveCoordinator] Directory handle unavailable (${resp.error}).`);
                             const errType = (resp.error === 'permission_not_granted' || resp.error === 'permission_prompt_needed')

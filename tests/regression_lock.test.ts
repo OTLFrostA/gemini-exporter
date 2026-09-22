@@ -711,7 +711,7 @@ test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: tr
             currentSlot: 'u0',
             getGeminiTab: async () => ({ id: 12345 }),
             useZip: true,
-            folder: { file: () => {} }
+            writer: { writeFile: async () => 'test.png' }
         });
 
         const item = { url: 'https://lh3.googleusercontent.com/test.png', fileName: 'test.png' };

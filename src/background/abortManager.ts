@@ -4,6 +4,34 @@ export const __bgAborts: Map<string, boolean> = new Map();
 let _restorePromise: Promise<void> | null = null;
 
 /**
+ * B2: per-slot AbortControllers，与 boolean 旗标镜像同步。
+ * abortableSleep / Promise.race 只认 AbortSignal，而旧的 50ms 轮询只翻 boolean 旗标 ——
+ * controllers 在两者之间搭桥，让取消即时生效，不再有轮询延迟。
+ */
+export const __bgControllers: Map<string, AbortController> = new Map();
+
+function getOrCreateController(slot: string): AbortController {
+    let c = __bgControllers.get(slot);
+    if (!c) {
+        c = new AbortController();
+        // 旗标同步：boolean 旗标仍为 abort 时（如 worker 重启后从 session 恢复），
+        // 新建的 controller 立即 abort，保持"信号与旗标一致"的不变量。
+        if (__bgAborts.get(slot)) {
+            try { c.abort(); } catch { /* intentional */ }
+        }
+        __bgControllers.set(slot, c);
+    }
+    return c;
+}
+
+/**
+ * 取某 slot 的 AbortSignal，供 abortableSleep / Promise.race 使用。
+ */
+export function getSlotAbortSignal(slot: string = 'u0'): AbortSignal {
+    return getOrCreateController(slot || 'u0').signal;
+}
+
+/**
  * Restore persisted abort flags after MV3 worker restarts
  * (setSlotAborted mirrors every transition into chrome.storage.session).
  */
@@ -16,6 +44,8 @@ export async function restoreAbortFlags(): Promise<void> {
                     const m = k.match(/^gemini_abort_(.+)$/);
                     if (m && data[k]) {
                         __bgAborts.set(m[1], true);
+                        // B2: 恢复的旗标同步 abort 对应 controller
+                        try { getOrCreateController(m[1]).abort(); } catch { /* intentional */ }
                     }
                 }
             }
@@ -45,6 +75,8 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
     const s = slot || 'u0';
     if (val) {
         __bgAborts.set(s, true);
+        // B2: abort 对应 controller，让在途的 abortableSleep / race 即时醒来
+        try { getOrCreateController(s).abort(); } catch { /* intentional */ }
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
                 (chrome.storage as any).session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
@@ -54,6 +86,8 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
         }
     } else {
         __bgAborts.delete(s);
+        // B2: 清除旗标即重建 controller —— 已 abort 的 controller 无法复用
+        __bgControllers.set(s, new AbortController());
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
                 (chrome.storage as any).session.remove([`gemini_abort_${s}`]).catch(() => {});
@@ -69,4 +103,6 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
  */
 export function clearAllAborts(): void {
     __bgAborts.clear();
+    // B2: 连带清空 controllers；旗标已清，下次重建的 controller 为全新未 abort 状态
+    __bgControllers.clear();
 }

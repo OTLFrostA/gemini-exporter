@@ -1,5 +1,7 @@
 // src/core/engine/assetPipeline.ts - Dedicated Asset Download & Persistence Pipeline
 
+import type { IExportWriter } from "./writers/writerInterface.js";
+
 export interface ProcessAssetOptions {
     isImage?: boolean;
     listTitle?: string;
@@ -20,7 +22,8 @@ export interface ProcessAssetResult {
 export interface AssetPipelineOptions {
     currentSlot?: string;
     useZip?: boolean;
-    folder?: any;
+    /** Phase B (B1): 统一写出口。构造不再收 folder，改收 writer。 */
+    writer?: IExportWriter | null;
     writeFileDirect?: (path: string, content: any) => Promise<void>;
     takeoutEngine?: any;
     getGeminiTab?: (slot?: string) => Promise<any>;
@@ -38,7 +41,10 @@ export interface AssetPipelineClass {
 export interface AssetPipelineInstance {
     currentSlot: string;
     useZip: boolean;
-    folder: any;
+    /** @deprecated Phase B (B1) 已废弃：读取直接 throw。写出口请走 writer。 */
+    readonly folder: any;
+    /** Phase B (B1): 统一写出口 */
+    writer: IExportWriter | null;
     writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
     takeoutEngine: any;
     getGeminiTab: ((slot?: string) => Promise<any>) | null;
@@ -118,7 +124,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
     class AssetPipeline implements AssetPipelineInstance {
         currentSlot: string;
         useZip: boolean;
-        folder: any;
+        writer: IExportWriter | null;
         writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
         takeoutEngine: any;
         getGeminiTab: ((slot?: string) => Promise<any>) | null;
@@ -128,10 +134,23 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
 
         static sanitizeZipPath = sanitizeZipPath;
 
+        /**
+         * Phase B (B1): folder 已废弃，读取直接 throw，防回潮。
+         * 写出口统一走 writer (IExportWriter)。
+         */
+        get folder(): any {
+            throw new Error('[AssetPipeline] `folder` is deprecated and removed (Phase B/B1): pass an IExportWriter via options.writer instead.');
+        }
+
         constructor(options: AssetPipelineOptions = {}) {
             this.currentSlot = options.currentSlot || 'u0';
             this.useZip = options.useZip !== false;
-            this.folder = options.folder || null;
+            this.writer = options.writer || null;
+            // Phase B (B1): 构造不再收 folder。fail-fast 防静默丢附件：
+            // 还有老调用方传 folder 时直接抛错，而不是忽略后导致附件写不进去。
+            if ((options as any).folder) {
+                throw new Error('[AssetPipeline] options.folder is deprecated and removed (Phase B/B1): pass options.writer (IExportWriter) instead.');
+            }
             this.writeFileDirect = options.writeFileDirect || null;
             this.takeoutEngine = options.takeoutEngine || null;
             this.getGeminiTab = options.getGeminiTab || null;
@@ -197,15 +216,22 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                 ) : null;
                 const b64 = (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null));
 
-                if (this.useZip) {
-                    if (this.folder) {
+                if (this.writer) {
+                    // Phase B (B1): 统一写出口 —— zip / 本地目录都走 writer，
+                    // 不再直接碰 folder.file(...)。
+                    try {
                         if (bytes && bytes.length > 0) {
-                            this.folder.file(sanitizeZipPath(localName), bytes);
+                            await this.writer.writeFile(sanitizeZipPath(localName), bytes);
                             saved = true;
                         } else if (b64 && typeof b64 === 'string' && b64.length > 0) {
-                            this.folder.file(sanitizeZipPath(localName), b64, { base64: true });
+                            await this.writer.writeFile(sanitizeZipPath(localName), b64, { base64: true });
                             saved = true;
                         }
+                    } catch (e) {
+                        // Phase A (P0-1) 语义：writeFile 失败抛错，不静默记成功。
+                        // 这里收敛为 failReason，走重试/partial 账目，不直接外抛。
+                        saved = false;
+                        failReason = getErrorMessage(e);
                     }
                 } else if (this.writeFileDirect) {
                     try {
@@ -276,9 +302,15 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                 try {
                     const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot);
                     if (offlineBin && offlineBin.length > 0) {
-                        if (this.useZip && this.folder) {
-                            this.folder.file(sanitizeZipPath(localName), offlineBin);
-                            saved = true;
+                        if (this.writer) {
+                            // Phase B (B1): 统一走 writer，不再直接碰 folder.file(...)
+                            try {
+                                await this.writer.writeFile(sanitizeZipPath(localName), offlineBin);
+                                saved = true;
+                            } catch (e) {
+                                if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetPipeline.ts] takeout fallback write failed", e);
+                                saved = false;
+                            }
                         } else if (this.writeFileDirect) {
                             try {
                                 await this.writeFileDirect(localName, offlineBin);
