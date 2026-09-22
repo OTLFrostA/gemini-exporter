@@ -256,6 +256,10 @@ export function getLastFailedChats(): any[] {
     return _lastFailedChats;
 }
 
+export function setLastFailedChats(list: any[]): void {
+    _lastFailedChats = Array.isArray(list) ? list : [];
+}
+
 export function renderExportFailureBanner(failedList: any[], onRetry?: () => void): void {
     _lastFailedChats = Array.isArray(failedList) ? failedList : [];
     const card = $('exportFailureCard');
@@ -348,7 +352,8 @@ export const DialogView: IDialogView = {
     hideTakeoutLimitPrompt,
     renderExportFailureBanner,
     hideExportFailureBanner,
-    getLastFailedChats
+    getLastFailedChats,
+    setLastFailedChats
 };
 
 

@@ -49,6 +49,10 @@ export function setOnDelete(_cb: (chatId: string) => void): void {
 }
 
 let currentConversationsRef: Conversation[] = [];
+let canonicalSelectedIds: Set<string> | null = null;
+let currentFilterType: string = 'all';
+let currentFailedChatIds: Set<string> | null = null;
+let currentSearchFilter: string = '';
 
 function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): void {
     if (!list || list._delegated) return;
@@ -80,9 +84,28 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
     list.addEventListener('change', (e: Event) => {
         const target = e.target as HTMLElement;
         if (target.matches('input[type=checkbox]')) {
+            const item = (typeof (target as any).closest === 'function' ? (target as any).closest('.item') : null) as HTMLElement | null;
+            const chatId = item?.dataset?.chatId;
+            const cb = target as HTMLInputElement;
+            if (chatId) {
+                const nid = normId(chatId);
+                if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
+                if (cb.checked) {
+                    canonicalSelectedIds.add(chatId);
+                    canonicalSelectedIds.add(nid);
+                } else {
+                    canonicalSelectedIds.delete(chatId);
+                    canonicalSelectedIds.delete(nid);
+                    canonicalSelectedIds.delete('c_' + nid);
+                }
+            }
             updateStat(currentConversationsRef);
         }
     });
+}
+
+export function setSelectedIds(ids: Set<string> | null): void {
+    canonicalSelectedIds = ids ? new Set(ids) : null;
 }
 
 export function render(
@@ -90,27 +113,73 @@ export function render(
     exportedIds: Record<string, ExportRecord> = {},
     prevSelectedSet?: Set<string> | null,
     searchFilter: string = '',
-    onDeleteChat?: (id: string) => void
+    onDeleteChat?: (id: string) => void,
+    filterType: string = 'all',
+    failedChatIds?: Set<string>
 ): void {
     const list = $('list') as (HTMLElement & { _delegated?: boolean }) | null;
     if (!list) return;
     currentConversationsRef = conversations || [];
+    currentFilterType = filterType || 'all';
+    currentFailedChatIds = failedChatIds || null;
+    currentSearchFilter = searchFilter || '';
     ensureListDelegation(list);
+
+    const expMap = exportedIds || {};
+
+    if (prevSelectedSet instanceof Set) {
+        canonicalSelectedIds = new Set(prevSelectedSet);
+    } else if (canonicalSelectedIds === null) {
+        // Initial load default: auto-check unexported and updated
+        canonicalSelectedIds = new Set<string>();
+        for (const c of currentConversationsRef) {
+            const nid = normId(c.id);
+            const rec = expMap[nid] || null;
+            const isUpdated = checkIsUpdated(c, rec);
+            if (!rec || isUpdated) {
+                canonicalSelectedIds.add(c.id);
+                canonicalSelectedIds.add(nid);
+            }
+        }
+    }
 
     if (!conversations || !conversations.length) {
         list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof t === 'function' ? t('emptyList') : 'No conversations found.'}</div>`;
         return;
     }
     const q = (searchFilter || '').trim().toLowerCase();
-    const filtered = q
-        ? conversations.filter(c => (resolveTitle(c).title || '').toLowerCase().includes(q) || String(c.id || '').toLowerCase().includes(q))
-        : conversations;
+
+    const filtered = conversations.filter(c => {
+        const nid = normId(c.id);
+        const rec = expMap[nid] || null;
+        const isFailed = !!(
+            (failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))) ||
+            (rec && (rec.hasFailedAssets || rec.status === 'partial' || rec.status === 'failed'))
+        );
+        const isUnexported = !rec && !isFailed;
+        const isExported = !!rec && !isFailed;
+
+        let matchesType = true;
+        if (filterType === 'unexported') {
+            matchesType = isUnexported;
+        } else if (filterType === 'failed') {
+            matchesType = isFailed;
+        } else if (filterType === 'unexported_or_failed') {
+            matchesType = isUnexported || isFailed;
+        } else if (filterType === 'exported') {
+            matchesType = isExported;
+        }
+
+        if (!matchesType) return false;
+        if (!q) return true;
+        return (resolveTitle(c).title || '').toLowerCase().includes(q) || String(c.id || '').toLowerCase().includes(q);
+    });
+
     if (!filtered.length) {
         list.innerHTML = `<div style="color:var(--muted); padding:16px; text-align:center; font-size:12px;">${typeof t === 'function' ? t('emptySearchList') : 'No matching conversations found.'}</div>`;
         return;
     }
 
-    const expMap = exportedIds || {};
     const htmlArr: string[] = [];
     const idxMap = new Map(conversations.map((c, idx) => [c as object, idx] as const));
 
@@ -122,12 +191,12 @@ export function render(
         const rec = expMap[nid] || null;
         const isUpdated = checkIsUpdated(c, rec);
         let isChecked = false;
-        if (isUpdated) {
-            isChecked = true;
+        if (canonicalSelectedIds) {
+            isChecked = canonicalSelectedIds.has(c.id) || canonicalSelectedIds.has(nid) || canonicalSelectedIds.has('c_' + nid);
         } else if (prevSelectedSet instanceof Set) {
             isChecked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         } else {
-            isChecked = !rec;
+            isChecked = !rec || isUpdated;
         }
 
         const resolved = resolveTitle(c);
@@ -239,8 +308,17 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
 export function updateStat(conversations?: Conversation[]): void {
     const list = $('list');
     if (!list) return;
-    const total = (conversations || currentConversationsRef || []).length;
-    const checked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
+    const convs = conversations || currentConversationsRef || [];
+    const total = convs.length;
+    let checked = 0;
+    if (canonicalSelectedIds && canonicalSelectedIds.size > 0 && convs.length > 0) {
+        checked = convs.filter(c => {
+            const nid = normId(c.id);
+            return canonicalSelectedIds!.has(c.id) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
+        }).length;
+    } else {
+        checked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
+    }
     const statEl = $('selectedStat') || $('stat');
     if (statEl) {
         statEl.textContent = typeof t === 'function' ? t('selectedStat', checked, total) : `${checked} of ${total} selected`;
@@ -249,6 +327,13 @@ export function updateStat(conversations?: Conversation[]): void {
 
 export function getSelected(conversations?: Conversation[]): Conversation[] {
     const convs = conversations || currentConversationsRef || [];
+    if (canonicalSelectedIds && canonicalSelectedIds.size > 0) {
+        const selected = convs.filter(c => {
+            const nid = normId(c.id);
+            return canonicalSelectedIds!.has(c.id) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
+        });
+        if (selected.length > 0) return selected;
+    }
     const selected: Conversation[] = [];
     document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
         const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
@@ -260,7 +345,7 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
                 return;
             }
         }
-        const idx = parseInt((cb as HTMLElement).dataset.idx || '-1', 10);
+        const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
         if (idx >= 0 && convs[idx]) {
             selected.push(convs[idx]);
         }
@@ -269,9 +354,12 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
 }
 
 export function getSelectedIds(): Set<string> {
+    if (canonicalSelectedIds && canonicalSelectedIds.size > 0) {
+        return new Set(canonicalSelectedIds);
+    }
     const ids = new Set<string>();
     document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
-        const item = cb.closest('.item') as HTMLElement | null;
+        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) ids.add(chatId);
     });
@@ -279,15 +367,47 @@ export function getSelectedIds(): Set<string> {
 }
 
 export function selectAll(conversations?: Conversation[]): void {
+    if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
         (cb as HTMLInputElement).checked = true;
+        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+        const chatId = item?.dataset?.chatId;
+        if (chatId) {
+            canonicalSelectedIds!.add(chatId);
+            canonicalSelectedIds!.add(normId(chatId));
+        } else {
+            const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
+            const convs = conversations || currentConversationsRef || [];
+            if (idx >= 0 && convs[idx]) {
+                canonicalSelectedIds!.add(convs[idx].id);
+                canonicalSelectedIds!.add(normId(convs[idx].id));
+            }
+        }
     });
     updateStat(conversations);
 }
 
 export function deselectAll(conversations?: Conversation[]): void {
+    if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
         (cb as HTMLInputElement).checked = false;
+        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+        const chatId = item?.dataset?.chatId;
+        if (chatId) {
+            const nid = normId(chatId);
+            canonicalSelectedIds!.delete(chatId);
+            canonicalSelectedIds!.delete(nid);
+            canonicalSelectedIds!.delete('c_' + nid);
+        } else {
+            const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
+            const convs = conversations || currentConversationsRef || [];
+            if (idx >= 0 && convs[idx]) {
+                const nid = normId(convs[idx].id);
+                canonicalSelectedIds!.delete(convs[idx].id);
+                canonicalSelectedIds!.delete(nid);
+                canonicalSelectedIds!.delete('c_' + nid);
+            }
+        }
     });
     updateStat(conversations);
 }
@@ -295,17 +415,26 @@ export function deselectAll(conversations?: Conversation[]): void {
 export function selectUnexported(conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>): void {
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
+    if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        const idx = parseInt((cb as HTMLElement).dataset.idx || '-1', 10);
+        const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
         const c = convList[idx];
         if (!c) {
             (cb as HTMLInputElement).checked = false;
             return;
         }
         const nid = normId(c.id);
-        // Single canonical probe: expMap is normalized on the read path (triage #5).
         const rec = expMap[nid] || null;
-        (cb as HTMLInputElement).checked = !rec;
+        const check = !rec;
+        (cb as HTMLInputElement).checked = check;
+        if (check) {
+            canonicalSelectedIds!.add(c.id);
+            canonicalSelectedIds!.add(nid);
+        } else {
+            canonicalSelectedIds!.delete(c.id);
+            canonicalSelectedIds!.delete(nid);
+            canonicalSelectedIds!.delete('c_' + nid);
+        }
     });
     updateStat(conversations);
 }
@@ -313,25 +442,35 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
 export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>): void {
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
+    if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        const idx = parseInt((cb as HTMLElement).dataset.idx || '-1', 10);
+        const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
         const c = convList[idx];
         if (!c) {
             (cb as HTMLInputElement).checked = false;
             return;
         }
         const nid = normId(c.id);
-        // Single canonical probe: expMap is normalized on the read path (triage #5).
         const rec = expMap[nid] || null;
-        (cb as HTMLInputElement).checked = checkIsUpdated(c, rec);
+        const check = checkIsUpdated(c, rec);
+        (cb as HTMLInputElement).checked = check;
+        if (check) {
+            canonicalSelectedIds!.add(c.id);
+            canonicalSelectedIds!.add(nid);
+        } else {
+            canonicalSelectedIds!.delete(c.id);
+            canonicalSelectedIds!.delete(nid);
+            canonicalSelectedIds!.delete('c_' + nid);
+        }
     });
     updateStat(conversations);
 }
 
 export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
     const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
+    canonicalSelectedIds = new Set(idSet);
     document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        const item = cb.closest('.item') as HTMLElement | null;
+        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
         const chatId = normId(item?.dataset?.chatId);
         (cb as HTMLInputElement).checked = !!chatId && idSet.has(chatId);
     });
@@ -348,6 +487,7 @@ export const ListView: IListView = {
     selectUnexported,
     selectNeedsUpdate,
     selectByIds,
+    setSelectedIds,
     isRealTitle,
     setOnDelete,
     updateItemExportStatus,

@@ -48,7 +48,7 @@ export interface IConversationsStore {
 }
 
 export interface IListView {
-    render: (conversations: Conversation[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, onDeleteChat?: (id: string) => void) => void;
+    render: (conversations: Conversation[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, onDeleteChat?: (id: string) => void, filterType?: string, failedChatIds?: Set<string>) => void;
     updateStat: (conversations?: Conversation[]) => void;
     getSelected: (conversations?: Conversation[]) => Conversation[];
     getSelectedIds: () => Set<string>;
@@ -61,6 +61,7 @@ export interface IListView {
     updateItemExportStatus: (chatId: string, exportRecord?: ExportRecord | null) => void;
     selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
     checkIsUpdated?: (c: any, rec: ExportRecord | null | undefined) => boolean;
+    setSelectedIds?: (ids: Set<string> | null) => void;
 }
 
 export interface IAccountView {
@@ -78,8 +79,7 @@ export interface IDialogView {
     renderExportFailureBanner: (failedList: any[], onRetry?: () => void) => void;
     hideExportFailureBanner: () => void;
     getLastFailedChats: () => any[];
-
-
+    setLastFailedChats?: (list: any[]) => void;
 }
 
 export interface IProgressView {
@@ -160,24 +160,24 @@ export interface OptionsInitOptions {
 }
 
 export interface OptionsExportOptions {
-    loadStore?: (force?: boolean) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
     getSearchFilter?: () => string;
 }
 
 export interface OptionsSyncOptions {
-    loadStore?: (force?: boolean) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
     maybePromptTakeout?: (count: number, hitLimit: boolean) => Promise<void> | void;
 }
 
 export interface OptionsTakeoutOptions {
-    loadStore?: (force?: boolean) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
 }
 
 export interface OptionsSettingsOptions {
-    loadStore?: (force?: boolean) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
     clearLog?: () => void;
     renderLog?: () => void;

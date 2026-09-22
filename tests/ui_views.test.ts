@@ -543,3 +543,122 @@ test('progressView - interface and basic operations in ui_views suite', () => {
     assert.strictEqual(typeof ProgressView.hide, 'function');
 });
 
+// ---------------------------------------------------------------------------
+// ListView - Filtering & View-Scoped Selection
+// ---------------------------------------------------------------------------
+test('listView - filterType filtering (unexported, failed, unexported_or_failed, exported)', () => {
+    let innerHTML = '';
+    const fakeList: any = {
+        innerHTML: '',
+        addEventListener: () => {}
+    };
+    Object.defineProperty(fakeList, 'innerHTML', {
+        get() { return innerHTML; },
+        set(val) { innerHTML = val; }
+    });
+
+    const fakeDoc = {
+        getElementById: (id: string) => (id === 'list' ? fakeList : null),
+        querySelectorAll: (sel: string) => []
+    };
+
+    const origDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = fakeDoc;
+
+        const convs = [
+            { id: 'chat_unexp', title: 'Unexported Chat' },
+            { id: 'chat_ok', title: 'Exported Chat' },
+            { id: 'chat_partial', title: 'Partial Asset Chat' },
+            { id: 'chat_fail', title: 'Failed Chat' }
+        ];
+        const expMap: Record<string, any> = {
+            chat_ok: { exportedAt: '2026-09-20T00:00:00Z', status: 'ok' },
+            chat_partial: { exportedAt: '2026-09-20T00:00:00Z', status: 'partial', hasFailedAssets: true }
+        };
+        const failedIds = new Set(['chat_fail']);
+
+        // 1. All
+        ListView.render(convs as any, expMap, null, '', undefined, 'all', failedIds);
+        assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_ok"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
+
+        // 2. Unexported
+        ListView.render(convs as any, expMap, null, '', undefined, 'unexported', failedIds);
+        assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_partial"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_fail"'));
+
+        // 3. Failed (both chat_fail and chat_partial)
+        ListView.render(convs as any, expMap, null, '', undefined, 'failed', failedIds);
+        assert.ok(!innerHTML.includes('data-chat-id="chat_unexp"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
+
+        // 4. Unexported or Failed
+        ListView.render(convs as any, expMap, null, '', undefined, 'unexported_or_failed', failedIds);
+        assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
+
+        // 5. Exported
+        ListView.render(convs as any, expMap, null, '', undefined, 'exported', failedIds);
+        assert.ok(!innerHTML.includes('data-chat-id="chat_unexp"'));
+        assert.ok(innerHTML.includes('data-chat-id="chat_ok"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_partial"'));
+        assert.ok(!innerHTML.includes('data-chat-id="chat_fail"'));
+    } finally {
+        (globalThis as any).document = origDoc;
+    }
+});
+
+test('listView - selectAll & deselectAll only affects visible items in current view', () => {
+    const item1 = { dataset: { chatId: 'chat_1' }, closest: () => item1, querySelector: () => cb1 };
+    const item2 = { dataset: { chatId: 'chat_2' }, closest: () => item2, querySelector: () => cb2 };
+    const cb1: any = { checked: false, dataset: { idx: '0' }, closest: () => item1 };
+    const cb2: any = { checked: true, dataset: { idx: '1' }, closest: () => item2 };
+
+    // Initially view only shows item1 (e.g. filtered view)
+    let visibleCheckboxes = [cb1];
+
+    const fakeDoc = {
+        querySelectorAll: (selector: string) => {
+            if (selector.includes('input[type=checkbox]:checked')) return visibleCheckboxes.filter(c => c.checked);
+            if (selector.includes('input[type=checkbox]')) return visibleCheckboxes;
+            return [];
+        },
+        getElementById: () => null
+    };
+
+    const origDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = fakeDoc;
+        const convs: any[] = [{ id: 'chat_1', title: 'C1' }, { id: 'chat_2', title: 'C2' }];
+
+        // Set initial canonical selection: only chat_2 is selected
+        ListView.setSelectedIds(new Set(['chat_2']));
+
+        // Select All in filtered view (which only has item1 visible)
+        ListView.selectAll(convs);
+        assert.strictEqual(cb1.checked, true, 'Visible item1 must be checked');
+        // Both chat_1 and chat_2 must now be in selected IDs (chat_2 was not deselected)
+        const selectedIds = ListView.getSelectedIds();
+        assert.ok(selectedIds.has('chat_1'), 'chat_1 should now be selected');
+        assert.ok(selectedIds.has('chat_2'), 'chat_2 hidden in view must retain its selected status');
+
+        // Deselect All in filtered view (which only has item1 visible)
+        ListView.deselectAll(convs);
+        assert.strictEqual(cb1.checked, false, 'Visible item1 must be unchecked');
+        const selectedAfter = ListView.getSelectedIds();
+        assert.ok(!selectedAfter.has('chat_1'), 'chat_1 in visible view should be deselected');
+        assert.ok(selectedAfter.has('chat_2'), 'chat_2 hidden in view must still remain selected');
+    } finally {
+        (globalThis as any).document = origDoc;
+    }
+});
+
