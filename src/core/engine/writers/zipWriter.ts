@@ -77,9 +77,14 @@ class ZipWriter implements IExportWriter {
 
         // Selective compression: bypass DEFLATE on already-compressed media (png, jpg, webp, etc.)
         // to avoid duplicating memory in V8 during zip generation.
+        // Phase B (B1): 压缩决策收敛在文件级 —— writeFile 时按文件决定 STORE/DEFLATE，
+        // generateBlob 不再传全局 compression，文件级设置直接透传。
         const fileOpts: any = { ...options };
         if (!fileOpts.compression) {
             fileOpts.compression = isPrecompressedAsset(cleanPath) ? 'STORE' : 'DEFLATE';
+        }
+        if (fileOpts.compression === 'DEFLATE' && !fileOpts.compressionOptions) {
+            fileOpts.compressionOptions = { level: 6 };
         }
 
         this.folder.file(cleanPath, content, fileOpts);
@@ -93,12 +98,13 @@ class ZipWriter implements IExportWriter {
     async generateBlob(onUpdate?: (pct: number) => void): Promise<Blob> {
         // Stream generation: use generateInternalStream if available to stream chunks
         // with significantly lower peak buffer overhead than full in-memory generation.
+        // Phase B (B1): 不再传全局 compression / compressionOptions 硬压——
+        // 各文件的 STORE/DEFLATE（含 level 6）已在 writeFile 时按文件级设定，
+        // 这里透传文件级设置即可。
         if (typeof this.zip.generateInternalStream === 'function') {
             try {
                 return await this.zip.generateInternalStream({
-                    type: 'blob',
-                    compression: 'DEFLATE',
-                    compressionOptions: { level: 6 }
+                    type: 'blob'
                 }).accumulate((meta: any) => {
                     if (onUpdate && typeof onUpdate === 'function') {
                         onUpdate(meta.percent);
@@ -110,9 +116,7 @@ class ZipWriter implements IExportWriter {
         }
 
         return await this.zip.generateAsync({
-            type: 'blob',
-            compression: 'DEFLATE',
-            compressionOptions: { level: 6 }
+            type: 'blob'
         }, (meta: any) => {
             if (onUpdate && typeof onUpdate === 'function') {
                 onUpdate(meta.percent);

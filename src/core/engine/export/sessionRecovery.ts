@@ -29,17 +29,13 @@ export interface SessionRecoveryModule {
         landedChats: number,
         downloadedAssets: number,
         totalAssets: number,
-        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
-        folder?: any,
-        useZip?: boolean
+        writer?: IExportWriter | null
     ) => Promise<void>;
     writeDiagnostics: (
         isDevMode: boolean,
         sessionJson: any,
         fullLogText: string,
-        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
-        folder?: any,
-        useZip?: boolean,
+        writer?: IExportWriter | null,
         onLog?: (msg: string, level?: string) => void
     ) => Promise<void>;
     buildSessionLogText: (options?: SessionLogOptions) => string;
@@ -58,6 +54,7 @@ const normId = (id?: string | number | null): string => {
 };
 
 import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
+import type { IExportWriter } from "../writers/writerInterface.js";
 export { EXT_VERSION, getExtensionVersion };
 
     async function writeIndexAndMeta(
@@ -65,9 +62,7 @@ export { EXT_VERSION, getExtensionVersion };
         landedChats: number,
         downloadedAssets: number,
         totalAssets: number,
-        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
-        folder?: any,
-        useZip?: boolean
+        writer?: IExportWriter | null
     ): Promise<void> {
         if (!metaResults || !metaResults.length) return;
         const I18n = __resolveModule('I18n', I18nStatic);
@@ -94,13 +89,13 @@ export { EXT_VERSION, getExtensionVersion };
             conversations: metaResults
         }, null, 2);
 
-        if (useZip && folder) {
-            folder.file('00_INDEX.md', indexContent);
-            folder.file('meta.json', metaJsonContent);
-        } else if (typeof writeFileDirect === 'function') {
-            await writeFileDirect('00_INDEX.md', indexContent);
-            await writeFileDirect('meta.json', metaJsonContent);
+        // Phase B (B1): 写出口统一收口到 writer，不再分 folder/writeFileDirect 分支。
+        // Phase A (P0-1) 语义：index 写失败 fail-closed，直接外抛。
+        if (!writer || typeof writer.writeFile !== 'function') {
+            throw new Error('[sessionRecovery] writeIndexAndMeta: IExportWriter is required');
         }
+        await writer.writeFile('00_INDEX.md', indexContent);
+        await writer.writeFile('meta.json', metaJsonContent);
     }
 
     function buildSessionLogText({
@@ -163,28 +158,20 @@ export { EXT_VERSION, getExtensionVersion };
         isDevMode: boolean,
         sessionJson: any,
         fullLogText: string,
-        writeFileDirect?: ((path: string, content: any) => Promise<void>) | null,
-        folder?: any,
-        useZip?: boolean,
+        writer?: IExportWriter | null,
         onLog: (msg: string, level?: string) => void = (() => {})
     ): Promise<void> {
         try {
-            if (useZip && folder) {
-                folder.file('_export_dev.log', fullLogText);
-                if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length) {
-                    folder.file('_export_errors.json', JSON.stringify(sessionJson, null, 2));
-                }
-                if (isDevMode) {
-                    folder.file('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
-                }
-            } else if (typeof writeFileDirect === 'function') {
-                await writeFileDirect('_export_dev.log', fullLogText);
-                if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length) {
-                    await writeFileDirect('_export_errors.json', JSON.stringify(sessionJson, null, 2));
-                }
-                if (isDevMode) {
-                    await writeFileDirect('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
-                }
+            // Phase B (B1): 写出口统一收口到 writer，不再分 folder/writeFileDirect 分支。
+            if (!writer || typeof writer.writeFile !== 'function') {
+                throw new Error('[sessionRecovery] writeDiagnostics: IExportWriter is required');
+            }
+            await writer.writeFile('_export_dev.log', fullLogText);
+            if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length) {
+                await writer.writeFile('_export_errors.json', JSON.stringify(sessionJson, null, 2));
+            }
+            if (isDevMode) {
+                await writer.writeFile('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
             }
             const I18n = __resolveModule('I18n', I18nStatic);
             onLog(I18n.t('logDevLogWritten'), 'info');

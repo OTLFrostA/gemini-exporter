@@ -144,16 +144,17 @@ test('asset_dedup - AssetPipeline preserves byteOffset and byteLength for sliced
     let writtenBytes: any = null;
     let writtenPath = '';
 
-    const mockFolder = {
-        file: (path: string, content: any) => {
+    const mockWriter = {
+        writeFile: async (path: string, content: any) => {
             writtenPath = path;
             writtenBytes = content;
+            return path;
         }
     };
 
     const pipeline = new AssetPipeline({
         useZip: true,
-        folder: mockFolder,
+        writer: mockWriter,
         fetchAssetDelegate: async () => {
             const slab = new Uint8Array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
             const slice = new Uint8Array(slab.buffer, 3, 4);

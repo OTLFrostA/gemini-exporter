@@ -318,7 +318,7 @@ test('p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试
     let calls = 0;
     const pipe = new AssetPipeline({
         useZip: true,
-        folder: { file: (name: string, data: any) => { files.push([name, data]); } },
+        writer: { writeFile: async (name: string, data: any) => { files.push([name, data]); return name; } },
         fetchAssetDelegate: async () => {
             calls++;
             if (calls < 3) return { success: false, error: 'timeout' };
@@ -343,7 +343,7 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
     cA.abort();
     const pipeA = new AssetPipeline({
         useZip: true,
-        folder: { file: () => {} },
+        writer: { writeFile: async () => 'a.png' },
         fetchAssetDelegate: async () => { callsA++; return { success: false, error: 'x' }; }
     });
     const resA = await pipeA.processAsset({ url: 'https://example.com/a.png' }, { id: 'c_1' }, { signal: cA.signal, maxRetries: 3 });
@@ -356,7 +356,7 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
     const cB = new AbortController();
     const pipeB = new AssetPipeline({
         useZip: true,
-        folder: { file: () => {} },
+        writer: { writeFile: async () => 'b.png' },
         fetchAssetDelegate: async () => { callsB++; return { success: false, error: 'timeout' }; }
     });
     const pB = pipeB.processAsset({ url: 'https://example.com/b.png' }, { id: 'c_2' }, { signal: cB.signal, maxRetries: 3 });
