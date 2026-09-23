@@ -252,7 +252,11 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
             const recovery = getSessionRecovery();
             if (recovery && recovery.updateSessionStatus) {
-                recovery.updateSessionStatus({ status: 'aborted' });
+                // G2 no-floating-promises: abort() 是同步方法，await 会改接口；
+                // 状态写失败不能 unhandledrejection，catch 里记 debug 日志。
+                recovery.updateSessionStatus({ status: 'aborted' }).catch((e) => {
+                    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts] updateSessionStatus failed on abort', e);
+                });
             }
         }
 

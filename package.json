@@ -22,7 +22,8 @@
     "pool:validate": "python3 scripts/manage_scenario_pool.py validate",
     "test:visual": "python3 scripts/test_visual_agent.py --playground",
     "test:visual:custom": "python3 scripts/test_visual_agent.py --api",
-    "release": "gh workflow run release.yml --ref main"
+    "release": "gh workflow run release.yml --ref main",
+    "lint": "oxlint -A all -D typescript/no-floating-promises --type-aware src/core/engine/export src/core/api/client"
   },
   "keywords": [
     "gemini",
@@ -39,6 +40,8 @@
     "@types/chrome": "^0.2.9",
     "@types/node": "^26.5.0",
     "esbuild": "^0.28.2",
+    "oxlint": "^1.85.0",
+    "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2"
   }
 }
