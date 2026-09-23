@@ -59,7 +59,6 @@ export interface StorageServiceModule {
     getConversationDetail: (id: string) => Promise<ConversationDetailRecord | null>;
     getConversationWithDetail: (slot: string | null | undefined, id: string) => Promise<Conversation | null>;
     getExportedIds: (slot?: string | null) => Promise<Record<string, any>>;
-    setExportedIds: (slot: string | null | undefined, map: Record<string, any>) => Promise<void>;
     saveExportRecord: (slot: string | null | undefined, id: string, record: any) => Promise<Record<string, any>>;
     saveExportRecordsBatch: (slot: string | null | undefined, records: Record<string, any>) => Promise<Record<string, any>>;
     removeExportRecords: (slot: string | null | undefined, ids: string[] | null | undefined) => Promise<number>;
@@ -69,7 +68,6 @@ export interface StorageServiceModule {
     getScanCheckpoint: (slot?: string | null) => Promise<number | null>;
     setScanCheckpoint: (slot: string | null | undefined, timestamp: number | null) => Promise<void>;
     getAccountSlots: () => Promise<Record<string, any>>;
-    setAccountSlots: (map: Record<string, any>) => Promise<void>;
     updateAccountSlot: (slot: string | null | undefined, info: any) => Promise<Record<string, any>>;
     getCredentialsMap: () => Promise<Record<string, any>>;
     setCredentialsMap: (map: Record<string, any>) => Promise<void>;
@@ -762,8 +760,9 @@ export {
     getConversationDetail,
     getConversationWithDetail,
     getExportedIds,
-    // Phase A (P1-4): setExportedIds / setAccountSlots 移出命名导出 —— 裸写原语不得成为公开 API，
-    // 对外只走 saveExportRecord / updateAccountSlot 等事务性入口。函数本体保留供内部与测试使用。
+    // P1-3 follow-up: setExportedIds / setAccountSlots 已从公开 surface 彻底移除
+    // （interface + 默认对象都不再声明）。函数本体仍保留在模块闭包内供
+    // saveExportRecordsBatch（锁内回写）与内部 slot 更新使用，不得再对外暴露。
     saveExportRecord,
     saveExportRecordsBatch,
     removeExportRecords,
@@ -803,7 +802,6 @@ export const StorageService: StorageServiceModule = {
     getConversationDetail,
     getConversationWithDetail,
     getExportedIds,
-    setExportedIds,
     saveExportRecord,
     saveExportRecordsBatch,
     removeExportRecords,
@@ -813,7 +811,6 @@ export const StorageService: StorageServiceModule = {
     getScanCheckpoint,
     setScanCheckpoint,
     getAccountSlots,
-    setAccountSlots,
     updateAccountSlot,
     getCredentialsMap,
     setCredentialsMap,
