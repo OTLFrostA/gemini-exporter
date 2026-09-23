@@ -47,8 +47,7 @@ graph TD
             BG_KeepAlive["keepAlive.ts<br/>(长任务心跳保活机制)"]
             BG_Abort["abortManager.ts<br/>(多账号 Slot 中断状态管理器)"]
             BG_Batch["batchFetcher.ts<br/>(后台并发批处理请求器)"]
-            BG_LiveHandler["liveSaveHandler.ts<br/>(后台目录句柄写入代理 & prompt 降权转 Downloads 零损回退)"]
-            BG_Downloads["Chrome Downloads API<br/>(无头权限过期零损兜底落盘 gemini_export/)"]
+            BG_LiveHandler["liveSaveHandler.ts<br/>(后台目录句柄写入代理 & prompt 降权返回 permission_prompt_needed)"]
             BG_TabAction["tabAction.ts<br/>(图标动态着色与激活状态感知)"]
         end
 
@@ -59,16 +58,17 @@ graph TD
 
             subgraph OptionsWorkbench ["批量管理工作台 (Options Workbench)"]
                 OPT_Main["options.ts / options.html<br/>(工作台总入口 & 协调器)"]
+                OPT_Ctx["optionsContext.ts<br/>(工作台 DI 上下文装配中枢)"]
                 OPT_Modules["optionsInit / optionsExport / optionsSync<br/>optionsTakeout / optionsSettings"]
                 OPT_Store["conversationsStore.ts<br/>(响应式状态机 & 严格账号槽位隔离)"]
                 OPT_Views["listView / logView / accountView<br/>dialogView / progressView"]
                 OPT_Controllers["exportController / syncController<br/>takeoutController / dirHandleController (一键重授权)"]
-                OPT_Tour["tourGuide.ts / tourSteps.ts<br/>(5步沉浸式新手引导与高亮遮罩)"]
+                OPT_Tour["tourGuide.ts / tourSteps.ts<br/>(6步沉浸式新手引导与高亮遮罩)"]
             end
         end
     end
 
-    subgraph CoreEngine ["核心领域逻辑与引擎层 (Core Domain Logic & Engine - Zero DOM)"]
+    subgraph CoreEngine ["核心领域逻辑与引擎层 (Core Domain Logic & Engine)"]
         subgraph ProviderLayer ["通用多模型 Provider 抽象层 (src/core/provider/)"]
             PROV_Registry["ProviderRegistry<br/>(多提供商动态注册表)"]
             PROV_Gemini["GeminiProvider<br/>(Gemini batchexecute 协议适配)"]
@@ -76,8 +76,8 @@ graph TD
         end
 
         subgraph ApiParserLayer ["协议通信与反序列化层 (src/core/api/)"]
-            API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager (严格单向隔离)"]
-            API_Parser["GeminiParser (facade)<br/>parseList / parseDetail / extractors / attachments"]
+            API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager / credStorage (严格单向隔离)"]
+            API_Parser["GeminiParser (facade)<br/>parseList / parseDetail / extractors / attachments / payload"]
         end
 
         subgraph ExportEngines ["导出、转换与打包引擎 (src/core/engine/)"]
@@ -98,6 +98,7 @@ graph TD
 
         subgraph StorageLayer ["两级存储与持久化层 (src/core/storage/)"]
             ST_Service["StorageService<br/>(两级主控: chrome.storage.local 轻量元数据索引 & Slot 隔离)"]
+            ST_Locks["withCrossTabLock / withConversationLock / withSlotLock<br/>(三把跨 tab 命名锁 + transactConversations 原子读写)"]
             ST_Detail["conversationDetailStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
             ST_Live["liveStorageManager.ts<br/>(实时保存配置与目录句柄代理)"]
             ST_IDB["idbHandleStore.ts<br/>(FileSystemDirectoryHandle 跨会话持久化)"]
@@ -114,11 +115,12 @@ graph TD
     CS_Sniffer --> ST_Service
 
     %% 内容脚本与后台通信
-    CS_LiveCoord -- "runtime.sendMessage (handleLiveSaveViaHandle)" --> BG_LiveHandler
-    CS_SyncEng -- "runtime.sendMessage (fetchBatch / keepAlive)" --> BG_Entry
+    CS_LiveCoord -- "runtime.sendMessage (liveSaveViaHandle)" --> BG_LiveHandler
+    OPT_Controllers -- "runtime.sendMessage (deepScan)" --> BG_Entry
+    ENG_Worker -- "runtime.sendMessage (fetchBatch)" --> BG_Entry
+    BG_Entry -- "下行通道 (TabService.sendToGeminiTab → chrome.tabs.sendMessage)" --> CS_Entry
     POP_Main -- "runtime.sendMessage (fetchChat)" --> BG_Entry
     OPT_Controllers -- "runtime.sendMessage" --> BG_Entry
-    BG_LiveHandler -- "句柄降权 prompt 回退" --> BG_Downloads
 
     %% 模块连接到核心逻辑
     CS_SyncEng --> PROV_Gemini
@@ -128,6 +130,7 @@ graph TD
     BG_LiveHandler --> ENG_LiveWriter
     ST_Live --> ST_IDB
     OPT_Controllers --> ST_IDB
+    OPT_Main --> OPT_Ctx
 
     OPT_Controllers --> ENG_Orchestrator
     OPT_Controllers --> ENG_Takeout
@@ -140,7 +143,8 @@ graph TD
 
     %% 存储与工具支持
     ENG_Orchestrator --> ST_Service
-    ST_Service <--> ST_Detail
+    ST_Service --> ST_Locks
+    ST_Service --> ST_Detail
     ENG_Takeout --> UT_SSoT
     ENG_Orchestrator --> UT_SSoT
     CS_SyncEng --> UT_SSoT
@@ -156,10 +160,10 @@ graph TD
 |---|---|---|---|---|---|---|
 | `src/background/background.ts` | Background SW | `background.ts` (Entrypoint), 消息监听器 | Service Worker 入口，负责中央消息路由、初始化生命周期、保持心跳及多账号中断状态。 | Chrome 运行时、Content、UI | `abortManager`, `keepAlive`, `liveSaveHandler`, `tabAction` | `BG_Entry` |
 | `src/background/lifecycle.ts` | Background SW | `initSessionAccessLevel`, `initLifecycleListeners`, `initUninstallUrl` | 处理插件安装打开选项页、配置卸载反馈地址、设置 session 存储访问级别。 | `background.ts` | Chrome APIs (`runtime.onInstalled`, `storage.session`) | `BG_Entry` |
-| `src/background/keepAlive.ts` | Background SW | `startKeepAlive`, `stopKeepAlive` | 在耗时较长的批量导出与全量扫描期间派发微型心跳，防止 MV3 Service Worker 意外挂起。 | `background.ts` | Chrome runtime 端口心跳 | `BG_KeepAlive` |
+| `src/background/keepAlive.ts` | Background SW | `startKeepAlive`（返回清理函数） | 在耗时较长的批量导出与全量扫描期间派发微型心跳，防止 MV3 Service Worker 意外挂起。 | `background.ts` | Chrome runtime 端口心跳 | `BG_KeepAlive` |
 | `src/background/abortManager.ts` | Background SW | `isSlotAborted`, `setSlotAborted`, `restoreAbortFlags` | 维护多账号 Slot 级别的中断标记，并在 session storage 中跨唤醒持久化。 | `background.ts`, `syncController.ts` | `chrome.storage.session` | `BG_Abort` |
 | `src/background/batchFetcher.ts` | Background SW | `fetchBatch`, `sendToGeminiTab`, `getGeminiTab` | 后台代理并发抓取 batchexecute 请求，跨标签页消息转发。 | `background.ts` | `chrome.tabs.sendMessage` | `BG_Batch` |
-| `src/background/liveSaveHandler.ts` | Background SW | `handleLiveSaveViaHandle`, `markDirDeletedInConfig` | 接收实时保存数据执行写入；当 SW 无头权限退化为 prompt 时，自动触发权限提示并通知前台通过用户手势一键重授权。 | `background.ts` (runtime.onMessage) | `idbHandleStore`, `liveSaveWriter` | `BG_LiveHandler` |
+| `src/background/liveSaveHandler.ts` | Background SW | `handleLiveSaveViaHandle`, `markDirDeletedInConfig` | 接收实时保存数据执行写入；目录句柄权限降权时返回 `{ ok:false, error:'permission_prompt_needed' }` 并写入 live 配置（`dirError`），由前台徽章提示、用户手势经 `reauthorizeDirHandle` 重授权恢复。 | `background.ts` (runtime.onMessage) | `idbHandleStore`, `liveSaveWriter` | `BG_LiveHandler` |
 | `src/background/tabAction.ts` | Background SW | `updateTabActionState`, `initTabActionListeners` | 监视激活标签页 URL 是否为 Gemini 域名，动态切换彩色/灰色图标状态。 | `background.ts`, tabs 事件 | `chrome.action.setIcon` | `BG_TabAction` |
 | `src/content/content.ts` | Content Script | `content.ts` (Entrypoint) | 隔离区主入口，统筹初始化 Observer、Bridge、SyncEngine、LiveSave、身份嗅探与徽章视图。 | Chrome Content Script 注入 | `cleanupRegistry`, `messageBridge`, `pageObserver`, `syncEngine` | `CS_Entry` |
 | `src/content/accountSniffer.ts` | Content Script | `extractEmailFromText`, `extractNameFromLabel`, `sniffUserProfileFromDom` | 从 DOM 头像标签、aria-label 与全局 WIZ 数据安全嗅探 Google 真实账号邮箱、显示名与 Gaia ID，终结易变 URL 序号伪身份。 | `bootstrap.ts`, `syncEngine.ts` | `storageService.updateAccountSlot` | `CS_Sniffer` |
@@ -167,11 +171,11 @@ graph TD
 | `src/content/messageBridge.ts` | Content Script | `MessageBridge`, `handleWindowMessage` | 监听主世界 `postMessage`，校验来源，解包凭据、流式事件、删除 RPC 并分发给内部引擎。 | `hookCredentials.ts` | `syncEngine`, `liveSaveCoordinator`, `liveSaveObserver` | `CS_Bridge` |
 | `src/content/liveSaveObserver.ts` | Content Script | `LiveSaveObserver`, `init`, `cleanup` | 监听 Gemini 对话流式生成与 DOM 变更，在生成结束时触发冷却防抖并调用协调器。 | `messageBridge`, DOM MutationObserver | `liveSaveCoordinator` | `CS_LiveObs` |
 | `src/content/liveSaveCoordinator.ts` | Content Script | `LiveSaveCoordinator`, `init`, `executeLiveSave` | 实时保存总调度：拉取会话完整轮次，排重并调用 FileSystem 句柄或向后台分发写入，刷新徽章。 | `liveSaveObserver` | `liveStorageManager`, `liveSaveWriter`, `badgeView`, `bg` | `CS_LiveCoord` |
-| `src/content/syncEngine.ts` | Content Script | `SyncEngine`, `syncRecent`, `deepScanAll` | 负责前台对话列表抓取，协调增量同步与全量分页扫描，并将结果交由 SSoT 合并入库。 | `content.ts`, `syncController` | `geminiClient`, `storageService`, `utils` | `CS_SyncEng` |
-| `src/content/domScraper.ts` | Content Script | `DomScraper`, `scrapeCurrentPage` | 当 RPC 不可用或离线时，直接从宿主页面 DOM 树结构化提取会话提问、回复、附件与元数据。 | `liveSaveCoordinator`, `popup.ts` | 规范化 `ConversationDetail` 实体 | `CS_DomScraper` |
+| `src/content/syncEngine.ts` | Content Script | `SyncEngine`（`syncOnce` / `tryBatchExecuteFull` / `upsertConversations` / `ingestListBatch`…） | 负责前台对话列表抓取，协调增量同步与全量分页扫描，并将结果交由 SSoT 合并入库。 | `content.ts`, `syncController` | `geminiClient`, `storageService`, `utils` | `CS_SyncEng` |
+| `src/content/domScraper.ts` | Content Script | `DomScraper`（`parseDoc` / `contentFetchChatDetail` / `getConversationLinks`…） | 当 RPC 不可用或离线时，直接从宿主页面 DOM 树结构化提取会话提问、回复、附件与元数据。 | `liveSaveCoordinator`, `popup.ts` | 规范化 `ConversationDetail` 实体 | `CS_DomScraper` |
 | `src/content/badgeView.ts` | Content Script | `BadgeView`, `ensureBadge`, `updateBadge` | 在 Gemini 页面右下角渲染无侵入式浮动徽章，实时显示同步进度与保存状态。 | `content.ts`, `liveSaveCoordinator` | 宿主页面 DOM (`#geminiExportBadge`) | `CS_Badge` |
-| `src/content/assetFetcher.ts` | Content Script | `AssetFetcher`, `fetchAsBlob`, `inferImageExt` | 处理用户上传附件与 AI 生成图片的高清源 URL 解析与 Blob 二进制下载。 | `liveSaveCoordinator`, `domScraper` | ArrayBuffer / Blob 二进制流 | `CS_LiveCoord` |
-| `src/content/bootstrap.ts` | Content Script | `ensureCreds`, `bootstrapToken` | 页面启动引导，提取页面内嵌的初始化配置与第一手 XSRF Token。 | `content.ts` | `credentialManager` | `CS_Entry` |
+| `src/content/assetFetcher.ts` | Content Script | `AssetFetcher`（`fetchGgChain` / `toHighRes` / `handleGetFileBlob` / `inferImageExt`…） | 处理用户上传附件与 AI 生成图片的高清源 URL 解析与 Blob 二进制下载。 | `liveSaveCoordinator`, `domScraper` | ArrayBuffer / Blob 二进制流 | `CS_LiveCoord` |
+| `src/content/bootstrap.ts` | Content Script | `ensureCreds`（`extractAtFromPage` / `extractBlFromPage` / `detectSlotFromUrl` / `loadCredentialsMap` / `saveCredentials`…） | 页面启动引导，提取页面内嵌的初始化配置与第一手 XSRF Token。 | `content.ts` | `credentialManager` | `CS_Entry` |
 | `src/content/cleanupRegistry.ts` | Content Script | `registerCleanup`, `runCleanups` | 注册页面热重载或重新注入时的注销回调，防止监听器内存泄漏。 | Content 脚本各模块 | 事件监听器解绑 | `CS_Entry` |
 | `src/content/contentContext.ts` | Content Script | `contentContext` (单例上下文) | 管理注入状态、开发模式标记、取消令牌与国际化语言环境。 | Content 脚本各模块 | 上下文状态只读/写入 | `CS_Entry` |
 | `src/content/messageRouter.ts` | Content Script | `MessageRouter`, `init` | 隔离区内部消息分发器，处理来自 Options/Popup 的控制指令。 | `content.ts`, Extension Pages | `syncEngine` | `CS_Bridge` |
@@ -182,11 +186,11 @@ graph TD
 | `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器，已完整实现对话列表翻页、详情抓取与树映射展开算法（规划特性，等待后续 manifest 授权激活）。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
 | `src/core/provider/index.ts` | Core: Provider | `export *` (Barrel) | 统一导出多模型提供商契约、具体适配器与注册表单例。 | 业务消费方 | Provider 子模块 | `PROV_Registry` |
 | `src/core/api/geminiClient.ts` | Core: API | `GeminiAPIClient` (Facade) | 统一客户端入口，封装身份认证、分页抓取、指数退避重试与 AbortSignal 控制。 | `geminiProvider`, `syncEngine`, `exportWorker` | `client/*` 子模块 | `API_Client` |
-| `src/core/api/geminiParser.ts` | Core: API | `GeminiResponseParserClass` (Facade) | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |
+| `src/core/api/geminiParser.ts` | Core: API | `GeminiParser`（含 `GeminiResponseParserClass` facade） | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |
 | `src/core/api/client/credentialManager.ts` | Core: API Client | `resolveCred`, `getAtFromPage`, `detectSlot` | 统一管理 SNlM0e、at、sid 等鉴权凭据；严格按账号 Slot 单向解析，严禁跨账号借调偷用 Token。 | `geminiClient.ts` | `credStorage.ts` | `API_Client` |
 | `src/core/api/client/credStorage.ts` | Core: API Client | `getCredStorage`, `markCredSessionAccessFailed` | 统一管理凭据在 `chrome.storage.session` 与内存降级回退模式之间的安全存取。 | `credentialManager.ts` | `chrome.storage.session` / 内存 | `API_Client` |
-| `src/core/api/client/pagination.ts` | Core: API Client | `paginateList`, `fetchDetailWithRetry` | 封装 batchexecute 游标翻页机制与超时控制。 | `geminiClient.ts` | `rpcClient.ts` | `API_Client` |
-| `src/core/api/client/retryPolicy.ts` | Core: API Client | `executeWithRetry`, `isTransientError` | 处理 HTTP 400（XSRF 过期刷新）、429（频率限制）的指数退避与重试策略。 | `geminiClient.ts` | 网络请求调用 | `API_Client` |
+| `src/core/api/client/pagination.ts` | Core: API Client | `getAllConversations`, `getConversationDetail` | 封装 batchexecute 游标翻页机制与超时控制。 | `geminiClient.ts` | `rpcClient.ts` | `API_Client` |
+| `src/core/api/client/retryPolicy.ts` | Core: API Client | `handleHttp400` / `handleHttp401` / `handleHttp429` / `interruptibleSleep` / `parseRetryAfterMs` | 处理 HTTP 400（XSRF 过期刷新）、401（凭证失效）、429（频率限制）的指数退避与重试策略。 | `geminiClient.ts` | 网络请求调用 | `API_Client` |
 | `src/core/api/client/rpcClient.ts` | Core: API Client | `postBatchexecute`, `getApiUrl` | 构造 batchexecute 原始 POST 请求负载、组装 RPC 封包并处理响应转义。 | `geminiClient.ts` | `window.fetch` | `API_Client` |
 | `src/core/api/parser/parseList.ts` | Core: API Parser | `parseList`, `extractListItemTimestamp` | 从 batchexecute 响应中提取会话列表项（ID、标题、修改时间）。 | `geminiParser.ts` | 原始数组 -> 会话摘要列表 | `API_Parser` |
 | `src/core/api/parser/parseDetail.ts` | Core: API Parser | `parseDetail`, `detectTurnSchemaDrift` | 递归遍历多轮对话数组，提取提问/回复角色、时间戳并检测 Schema 漂移。 | `geminiParser.ts` | 原始数组 -> 轮次列表 (`ChatMessage[]`) | `API_Parser` |
@@ -195,21 +199,21 @@ graph TD
 | `src/core/api/parser/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `parseDetail.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
-| `src/core/engine/export/batchWorker.ts` | Core: Engine | `processSingleConversation` | 独立执行单条会话抓取：RPC 请求、附件下载、格式转换与文件写入。 | `exportOrchestrator.ts` | `geminiClient`, `chatFormatter`, `writers` | `ENG_Worker` |
-| `src/core/engine/export/rateLimiter.ts` | Core: Engine | `isRateLimited`, `recordSuccess`, `recordThrottle` | 自适应限流器状态机，根据响应延迟与 429 频率动态调整请求间隔与并发数。 | `exportOrchestrator.ts` | 延迟休眠控制 | `ENG_Rate` |
+| `src/core/engine/export/batchWorker.ts` | Core: Engine | `fetchChatDetail` / `resolveChat` | 独立执行单条会话详情抓取与解析（RPC 请求与详情解析），实际导出装配由 `exportOrchestrator` 协调。 | `exportOrchestrator.ts` | `geminiClient`, `conversationDetailStore` | `ENG_Worker` |
+| `src/core/engine/export/rateLimiter.ts` | Core: Engine | `isRateLimited` / `calculateBackoff` / `abortableSleep` / `RateLimitManager` | 自适应限流器状态机，根据响应延迟与 429 频率动态调整请求间隔与并发数。 | `exportOrchestrator.ts` | 延迟休眠控制 | `ENG_Rate` |
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
 | `src/core/engine/takeoutEngine.ts` | Core: Engine | `TakeoutEngine` (Facade) | Google Takeout 历史导入与脱机解析统一门面。 | UI 控制器、测试用例 | `takeout/*` 子模块 | `ENG_Takeout` |
 | `src/core/engine/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 流式解析官方 Takeout ZIP 归档，提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
-| `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtml` | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
+| `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
 | `src/core/engine/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
-| `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `assertSafeZipBounds`, `checkZipEntry` | 安全防御模块，检验 ZIP 压缩率与解压体积，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
-| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`, `formatMarkdown`, `formatJson` | 格式转换引擎：生成标准 CommonMark (带 YAML Frontmatter、代码高亮、公式)、JSON、OpenAI 规范。 | `batchWorker`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
+| `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，检验 ZIP 压缩率与解压体积，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
+| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`toMarkdown` / `toOpenAIJson` / `formatContent`…） | 格式转换引擎：生成标准 CommonMark (带 YAML Frontmatter、代码高亮、公式)、JSON、OpenAI 规范。 | `batchWorker`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
-| `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`, `downloadAttachment` | 导出时并发下载媒体附件、执行 C2PA 签名校验并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
+| `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`（`processAsset`） | 导出时并发下载媒体附件并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
 | `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `conversationDetailStore` | `ST_Service` |
 | `src/core/storage/conversationDetailStore.ts` | Core: Storage | `saveConversationDetail`, `getConversationDetail`, `deleteConversationDetail` | 两级存储架构之 IndexedDB 实体详情仓储，承接全量 turns 与重消息体，保障 chrome.storage.local 永远处于安全轻量区。 | `storageService.ts` | IndexedDB (`gemini_conversation_details`) | `ST_Detail` |
 | `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理（enabledDisk/format/includeAssets）并代理 `idbHandleStore` 目录句柄。真正实体快照落盘由 `liveSaveHandler`/`liveSaveWriter` 承载。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
@@ -232,23 +236,23 @@ graph TD
 | `src/core/protocol/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |
 | `src/ui/options/options.ts` | UI: Options | `options.ts` (Entrypoint) | 工作台初始化编排器，挂载上下文并装配初始化子模块。 | 用户访问 `options.html` | UI 子模块协调 | `OPT_Main` |
 | `src/ui/options/optionsContext.ts` | UI: Options | `optionsContext.ts` (Dependency Container) | 工作台集中式依赖注入与上下文访问器，解耦各 UI 子模块与核心单例，提供纯净的向下单向依赖。 | `options.ts`, `options/*.ts` | 各 UI Views, Controllers, StorageService | `OPT_Main` |
-| `src/ui/options/modules/optionsInit.ts` | UI: Options Module | `initOptionsPage` | 负责加载存储配置、渲染多账号选择器、初始化列表视图与绑定按键事件。 | `options.ts` | `conversationsStore`, `listView` | `OPT_Modules` |
-| `src/ui/options/modules/optionsExport.ts` | UI: Options Module | `initExportModule` | 绑定导出按钮点击事件，驱动 `ExportController` 并展示进度弹窗。 | `options.ts` | `exportController.ts` | `OPT_Modules` |
-| `src/ui/options/modules/optionsSync.ts` | UI: Options Module | `initSyncModule` | 绑定“同步最新”与“全量拉取历史”按钮，驱动 `SyncController` 执行扫描。 | `options.ts` | `syncController.ts` | `OPT_Modules` |
-| `src/ui/options/modules/optionsTakeout.ts` | UI: Options Module | `initTakeoutModule` | 监听 Takeout ZIP 文件拖拽与选择事件，驱动 `TakeoutController` 离线解压。 | `options.ts` | `takeoutController.ts` | `OPT_Modules` |
-| `src/ui/options/modules/optionsSettings.ts` | UI: Options Module | `initSettingsModule` | 语言切换（中/英）、开发者模式开关与运行诊断控制台。 | `options.ts` | `storageService`, `logView` | `OPT_Modules` |
-| `src/ui/state/conversationsStore.ts` | UI: State | `ConversationsStore` (单例) | 响应式会话状态机，管理已加载会话集合、当前选中项、状态过滤与排序。 | UI Controllers, Modules | 触发 UI View 重新渲染 | `OPT_Store` |
-| `src/ui/views/listView.ts` | UI: View | `ListView`, `renderConversations` | 高性能虚拟会话列表渲染器，渲染选中多选框、Takeout 标识、更新状态徽章。 | `conversationsStore` | DOM (`#conversationList`) | `OPT_Views` |
-| `src/ui/views/progressView.ts` | UI: View | `ProgressView`, `updateProgress`, `showModal` | 批量导出与扫描全屏进度遮罩，展示进度条、ETA 与中断取消操作。 | `exportController`, `syncController` | DOM (`#progressModal`) | `OPT_Views` |
+| `src/ui/options/modules/optionsInit.ts` | UI: Options Module | `OptionsInit`（`init`） | 负责加载存储配置、渲染多账号选择器、初始化列表视图与绑定按键事件。 | `options.ts` | `conversationsStore`, `listView` | `OPT_Modules` |
+| `src/ui/options/modules/optionsExport.ts` | UI: Options Module | `OptionsExport` | 绑定导出按钮点击事件，驱动 `ExportController` 并展示进度弹窗。 | `options.ts` | `exportController.ts` | `OPT_Modules` |
+| `src/ui/options/modules/optionsSync.ts` | UI: Options Module | `OptionsSync`（`bindBroadcastListeners`） | 绑定“同步最新”与“全量拉取历史”按钮，驱动 `SyncController` 执行扫描。 | `options.ts` | `syncController.ts` | `OPT_Modules` |
+| `src/ui/options/modules/optionsTakeout.ts` | UI: Options Module | `OptionsTakeout`（`init`） | 监听 Takeout ZIP 文件拖拽与选择事件，驱动 `TakeoutController` 离线解压。 | `options.ts` | `takeoutController.ts` | `OPT_Modules` |
+| `src/ui/options/modules/optionsSettings.ts` | UI: Options Module | `OptionsSettings` | 语言切换（中/英）、开发者模式开关与运行诊断控制台。 | `options.ts` | `storageService`, `logView` | `OPT_Modules` |
+| `src/ui/state/conversationsStore.ts` | UI: State | `ConversationsStore` (单例) | 响应式会话状态机，管理已加载会话集合、状态过滤与排序（当前选中项为 `listView` 模块变量，不在此处）。 | UI Controllers, Modules | 触发 UI View 重新渲染 | `OPT_Store` |
+| `src/ui/views/listView.ts` | UI: View | `ListView`, `renderConversations` | 全量 innerHTML 会话列表渲染器（非虚拟列表），渲染选中多选框与更新状态徽章；选中态为 listView 模块变量，无 Takeout 标识。 | `conversationsStore` | DOM (`#conversationList`) | `OPT_Views` |
+| `src/ui/views/progressView.ts` | UI: View | `ProgressView`（`show` / `update` / `complete` / `hide`） | 批量导出与扫描全屏进度遮罩，展示进度条、ETA 与中断取消操作。 | `exportController`, `syncController` | DOM (`#progressModal`) | `OPT_Views` |
 | `src/ui/views/accountView.ts` | UI: View | `AccountView`, `renderAccountSelector` | 渲染多账号 Slot (`u0`, `u1`...) 切换下拉菜单，绑定切换事件。 | `optionsInit.ts` | DOM (`#accountSelect`) | `OPT_Views` |
 | `src/ui/views/dialogView.ts` | UI: View | `DialogView`, `showConfirm`, `showRecoveryDialog` | 会话恢复提示条、二次确认弹窗与错误提示。 | UI 各 Controller | 模态交互对话框 DOM | `OPT_Views` |
 | `src/ui/views/logView.ts` | UI: View | `LogView`, `appendLog` | 可折叠开发者诊断控制台视图，支持实时调试日志滚动输出。 | 全 UI 模块 | DOM (`#logContainer`) | `OPT_Views` |
-| `src/ui/controllers/exportController.ts` | UI: Controller | `ExportController`, `startExport`, `cancelExport` | 导出控制器，聚合用户选择、校验本地目录句柄、驱动 `ExportOrchestrator`。 | `optionsExport.ts` | `exportOrchestrator.ts`, `progressView.ts` | `OPT_Controllers` |
-| `src/ui/controllers/syncController.ts` | UI: Controller | `SyncController`, `startSync`, `abortSync` | 同步控制器，通过 `tabService` 唤起前台内容脚本或后台发起增量/全量拉取。 | `optionsSync.ts` | `syncEngine.ts`, `conversationsStore.ts` | `OPT_Controllers` |
-| `src/ui/controllers/takeoutController.ts` | UI: Controller | `TakeoutController`, `importTakeoutZip` | Takeout 控制器，驱动 `TakeoutEngine` 进行离线解压并将合并结果入库。 | `optionsTakeout.ts` | `takeoutEngine.ts`, `storageService.ts` | `OPT_Controllers` |
-| `src/ui/controllers/dirHandleController.ts` | UI: Controller | `DirHandleController`, `pickDirectory` | 调用原生 `window.showDirectoryPicker()`，保存句柄至 IndexedDB 并检验读写权限。 | `optionsExport.ts` | `idbHandleStore.ts` | `OPT_Controllers` |
-| `src/ui/tour/tourGuide.ts` | UI: Tour | `TourGuide`, `startTour`, `nextStep` | 5 步交互式新手向导引擎，计算遮罩镂空高亮与气泡定位。 | `optionsInit.ts` | 引导蒙层与定位计算 | `OPT_Tour` |
-| `src/ui/tour/tourSteps.ts` | UI: Tour | `STEPS` (向导步骤配置) | 定义 5 步新手引导步骤的数据结构与选择器绑定目标。 | `tourGuide.ts` | 新手向导配置 | `OPT_Tour` |
+| `src/ui/controllers/exportController.ts` | UI: Controller | `ExportController`（`runExport` / `abort` / `setRunning` / `isRunning`…） | 导出控制器，聚合用户选择、校验本地目录句柄、驱动 `ExportOrchestrator`。 | `optionsExport.ts` | `exportOrchestrator.ts`, `progressView.ts` | `OPT_Controllers` |
+| `src/ui/controllers/syncController.ts` | UI: Controller | `SyncController`（`startIncrementalScan` / `startDeepScan` / `stopScan`…） | 同步控制器，通过 `tabService` 唤起前台内容脚本或后台发起增量/全量拉取。 | `optionsSync.ts` | `syncEngine.ts`, `conversationsStore.ts` | `OPT_Controllers` |
+| `src/ui/controllers/takeoutController.ts` | UI: Controller | `TakeoutController`（`handleTakeoutImport`） | Takeout 控制器，驱动 `TakeoutEngine` 进行离线解压并将合并结果入库。 | `optionsTakeout.ts` | `takeoutEngine.ts`, `storageService.ts` | `OPT_Controllers` |
+| `src/ui/controllers/dirHandleController.ts` | UI: Controller | `DirHandleController`（`requestDirHandle` / `reauthorizeDirHandle` / `verifyDirPermission` / `restoreSavedDirHandle`…） | 调用原生 `window.showDirectoryPicker()`，保存句柄至 IndexedDB 并检验读写权限。 | `optionsExport.ts` | `idbHandleStore.ts` | `OPT_Controllers` |
+| `src/ui/tour/tourGuide.ts` | UI: Tour | `TourGuide`, `startTour`, `nextStep` | 6 步交互式新手向导引擎，计算遮罩镂空高亮与气泡定位。 | `optionsInit.ts` | 引导蒙层与定位计算 | `OPT_Tour` |
+| `src/ui/tour/tourSteps.ts` | UI: Tour | `STEPS` (向导步骤配置) | 定义 6 步新手引导步骤的数据结构与选择器绑定目标。 | `tourGuide.ts` | 新手向导配置 | `OPT_Tour` |
 | `src/ui/tour/tourPosition.ts` | UI: Tour | `positionElements` | 计算新手向导高亮气泡的视口绝对物理坐标与动态避让。 | `tourGuide.ts` | DOM 样式绝对定位 | `OPT_Tour` |
 | `src/ui/tour/featureReleases.ts` | UI: Tour | `FEATURE_RELEASES`, `getLatestEligibleFeature` | 新特性发布公告配置表，支持按版本号精准触发特性高亮聚焦。 | `tourGuide.ts`, `optionsSettings.ts` | 向导触发条件判断 | `OPT_Tour` |
 | `src/ui/uiCommon.ts` | UI: Common | `$`, `getI18n`, `t`, `setWorkbenchControlsDisabled` | UI 前端跨视图共享的 DOM 快捷选择器、工作台操作按钮禁用状态控制与 i18n 辅助方法。 | UI 各 Controller 与 Views | 界面 DOM 元素 | `UI_Common` |
@@ -266,7 +270,7 @@ graph TD
 
 * **数据源 (Data Source)**：
   - Google Gemini 官方 `batchexecute` RPC 接口（`https://gemini.google.com/_/BardChatUi/data/batchexecute`）；
-  - 负载：RPC 编码 payload `[[["xdAcqd","[\"...\",...]",null,"generic"]]]`；
+  - 负载：RPC 编码 payload `[[["MaZiqc","[\"...\",...]",null,"generic"]]]`；
   - 鉴权参数：从当前活跃 Cookie 与 Session 提取的 `at` (XSRF)、`f.sid`、`bl`。
 * **数据汇 (Data Sink)**：
   - `chrome.storage.local`：写入对应的账号 Slot **轻量元数据索引**（键名 `gemini_conversations_${slot}`，只保留 `id`、`title`、`timestamp`、`updatedAt`、`snippet`、`count`，彻底解除 10MB 配额瓶颈）；
@@ -275,7 +279,7 @@ graph TD
 * **核心处理与容错逻辑**：
   1. `TabService.getGeminiTab(slot)` 严格查找目标 slot 标签页，杜绝跨账号盲投；
   2. `GeminiClient` 携带分页游标发送请求；
-  3. 若遇到 HTTP 400 且返回报文包含 XSRF 凭据失效特征，`RetryPolicy` 自动触发主世界重新抓取 Token 并进行退避重试；
+  3. 若遇到 HTTP 400 且返回报文包含 XSRF 凭据失效特征，`RetryPolicy` 自动触发隔离世界经 `getAtFromPage` 读 DOM 重新抓取 Token 并进行退避重试；
   4. `parseList` 解析返回的嵌套多维 JSPB 数组，提取会话 ID、标题及时间戳；
   5. `TitleUtils.resolveTitle` 与 `MergeUtils.mergeConversation` 作为 **单点真理 (SSoT)** 执行多源合并，若远端权威标题存在则自动替换 Takeout 临时标题；
   6. **两级存储分离写入**：`StorageService` 拆分轻量列表索引至 `chrome.storage.local`，将实体对话轮次下沉至 IndexedDB `conversationDetailStore`；
@@ -298,12 +302,12 @@ sequenceDiagram
     UI->>Sync: 用户点击【全量拉取历史】(Deep Scan)
     Sync->>Tab: getGeminiTab(slot) 严格匹配目标账号标签页
     alt 找到对应账号的存活标签页
-        Tab->>CS: 派发 START_DEEP_SCAN 消息 (附带 slot)
+        Tab->>CS: 派发 deepScan 消息 (附带 slot)
         loop 分页抓取直到游标为空或遇到已拉取锚点
-            CS->>Client: listConversations(cursor, slot)
-            Client->>RPC: POST batchexecute (xdAcqd)
+            CS->>Client: getConversationList(cursor, slot)
+            Client->>RPC: POST batchexecute (MaZiqc)
             alt HTTP 400 (Token 过期)
-                Client->>Client: 刷新 at/sid 凭据并指数退避
+                Client->>Client: 隔离世界经 getAtFromPage 读 DOM 重新抓取 at/sid 凭据并指数退避
                 Client->>RPC: 重新发送 POST 请求
             end
             RPC-->>Client: 返回原始 Protobuf/JSPB 文本
@@ -325,27 +329,26 @@ sequenceDiagram
 
 ---
 
-### 3.2 实时无感自动保存与无头权限死锁降权数据流 (Real-Time Live Auto-Save Flow with Zero-Loss Downloads Fallback)
+### 3.2 实时无感自动保存与无头权限降权数据流 (Real-Time Live Auto-Save Flow with Permission-Degraded Value+Config Recovery)
 
-本数据流负责在用户使用官方 Gemini 对话时，完全无感、实时地将新生成的回复写入本地指定目录或持久化镜像库，并在后台环境句柄权限过期时实施零损兜底。
+本数据流负责在用户使用官方 Gemini 对话时，完全无感、实时地将新生成的回复写入本地指定目录。
 
 * **数据源 (Data Source)**：
   - 宿主网页网络请求（MAIN World 拦截到的 batchexecute 流式响应或完成包）；
   - DOM 树变更（`liveSaveObserver` 监听的回复渲染 DOM 节点）。
 * **数据汇 (Data Sink)**：
   - 本地磁盘文件系统：通过用户授权的 `FileSystemDirectoryHandle`，调用 `liveSaveWriter` 生成物理 `.md` 文件及 `assets/` 附件；
-  - 本地 IndexedDB：`gemini_live_conversations` 对象存储，持久化最近一次结构化快照；
-  - 页面浮动徽章：`BadgeView` 动态展现“保存中...”、“已同步”或权限过期/目录失效告警。
+  - 页面浮动徽章：`BadgeView` 动态展现"保存中..."、"已同步"或权限过期/目录失效告警。
 * **核心处理与容错逻辑**：
-  1. 主世界拦截器 `hookCredentials.ts` 捕获到流式生成开始与结束事件（`STREAM_COMPLETE`）；
-  2. 隔离区 `MessageBridge` 接收到消息后唤醒 `LiveSaveObserver`，启动 800ms 防抖冷却；
-  3. 调度器 `LiveSaveCoordinator` 拉取当前会话最新轮次数据，格式化为 CommonMark + Frontmatter；
-  4. **无头环境权限降权检测与一键手势恢复**:
+  1. 主世界拦截器 `hookCredentials.ts` 捕获到流式生成开始与结束事件（`CrossWorldEvents.STREAM_COMPLETE`）；
+  2. 隔离区 `messageBridge` 接收到消息后唤醒 `liveSaveObserver`，启动 300ms 防抖冷却；
+  3. 调度器 `liveSaveCoordinator` 拉取当前会话最新轮次数据，格式化为 CommonMark + Frontmatter；
+  4. **无头环境权限降权检测与一键手势恢复（返回值 + 配置）**：
      - 若通过 Background SW 代理写入且浏览器重启导致句柄权限回退为 `'prompt'` 时，由于 MV3 Service Worker 属于无头环境，无法直接触发 `requestPermission()`（浏览器强制要求前台显式用户手势）；
-     - 此时 SW 标记 `permission_prompt_needed`，并向 Options 工作台广播降权事件；
-     - UI 暂存 `pendingPermissionHandle` 并展示优雅重授权提示；
+     - 此时 `handleLiveSaveViaHandle` 返回 `{ ok: false, error: 'permission_prompt_needed' }` 并写入 live 配置（`setLiveConfig({ dirError: 'permission_prompt_needed' })`）——不存在广播事件，也没有 Chrome Downloads 兜底；
+     - `liveSaveCoordinator` 根据返回值触发徽章警告；
      - 用户在前端页面点击即可通过真实手势执行 `reauthorizeDirHandle()` 一键恢复原生目录直写权限；
-  5. 若目标目录物理句柄在磁盘上被删除，捕获 `NotFoundError` 并标记 `dir_deleted`，徽章展示友好警示且自动暂停同步。
+  5. 若目标目录物理句柄在磁盘上被删除，写入 live 配置（`enabledDisk: false, dirName: '', dirError: 'not_found'`），徽章展示友好警示且自动暂停同步。
 
 ```mermaid
 sequenceDiagram
@@ -364,7 +367,7 @@ sequenceDiagram
     Host->>Hook: 触发原生 Fetch/XHR 结束事件
     Hook->>Bridge: window.postMessage(CrossWorldEvents.STREAM_COMPLETE)
     Bridge->>Obs: 派发流式结束通知
-    Obs->>Obs: 启动 800ms 防抖冷却 (合并短时间内重复事件)
+    Obs->>Obs: 启动 300ms 防抖冷却 (合并短时间内重复事件)
     Obs->>Coord: 触发实时同步请求 (executeLiveSave)
     Coord->>Badge: 切换状态为【正在保存...】
     Coord->>Coord: 获取完整会话详情并格式化 Markdown
@@ -372,21 +375,17 @@ sequenceDiagram
         Coord->>Disk: FileSystemWritableFileStream 直写文件与图片附件
         Coord->>Badge: 切换状态为【已实时同步 (时间戳)】
     else 由后台 SW 代理写入且权限退化 (queryPermission == 'prompt')
-        Coord->>SW: runtime.sendMessage(handleLiveSaveViaHandle)
+        Coord->>SW: runtime.sendMessage(liveSaveViaHandle)
         SW->>SW: 检测到无头环境无法触发 requestPermission (User Gesture 限制)
-        SW-->>Coord: 回传降权通知 (permission_prompt_needed)
+        SW-->>Coord: 返回 { ok: false, error: 'permission_prompt_needed' } + 写 live 配置 (dirError)
         Coord->>Badge: 显示【需要恢复授权 (点击选项页恢复直写)】
-        UI->>Disk: 用户点击执行 reauthorizeDirHandle() 恢复授权
-    end
-        SW->>UI: 广播 DIR_HANDLE_PERMISSION_DEGRADED
-        UI->>UI: 记录 pendingPermissionHandle 并呈现【一键恢复直写权限】提示
         opt 用户在前台点击一键重授权
             UI->>UI: 用户手势触发 handle.requestPermission({ mode: 'readwrite' })
             UI->>Disk: 权限恢复为 'granted'，后续会话无缝恢复目录直写
         end
     else 目录在外部被删除 (NotFoundError)
         Coord->>Badge: 显示【⚠ 目标目录已删除，实时同步已暂停】
-        Coord->>Coord: 停用实时磁盘同步标记，等待用户重新选目
+        Coord->>Coord: 停用实时磁盘同步标记 (enabledDisk: false)，等待用户重新选目
     end
 ```
 
@@ -413,7 +412,7 @@ sequenceDiagram
      - 对已高度压缩的二进制媒体强制使用 `compression: 'STORE'` 模式添加进 `ZipWriter`，**物理绕过 JSZip 在内存中反复膨胀 (Inflate) 和二次压缩 (Deflate) 的巨大内存/CPU 开销**；
      - 仅对纯文本 Markdown、JSON 使用 `compression: 'DEFLATE'`；
      - 结合 200MB 内存防线与 `generateInternalStream` 流式分块生成 Blob，彻底杜绝大批量导出（1000+ 对话）时的浏览器标签页 OOM 崩溃；
-  6. 写入器（`ZipWriter` 或 `FsWriter`）写入，`ProgressReporter` 实时计算吞吐量与 ETA，完成时将导出记录写入 `exportedIds` 避免重复导出。
+  6. 写入器（`ZipWriter` 或 `FsWriter`）写入，`ProgressReporter` 实时计算吞吐量与 ETA，完成时调用 `StorageService.saveExportRecord` 持久化导出记录避免重复导出。
 
 ```mermaid
 sequenceDiagram
@@ -429,12 +428,12 @@ sequenceDiagram
     participant Store as StorageService
 
     UI->>Ctrl: 用户选中 50 条会话，点击【导出选中 → ZIP】
-    Ctrl->>Orch: startExport(selectedIds, options)
+    Ctrl->>Orch: runExport(selectedIds, options)
     Orch->>UI: 弹出全屏进度浮层 (ProgressView)
     loop AsyncQueue 并发调度 (Concurrency = 3)
         Orch->>Limit: 检查当前限流状态与退避间隔
         Limit-->>Orch: 允许派发任务
-        Orch->>Worker: 分配单会话处理任务 (processSingleConversation)
+        Orch->>Worker: 分配单会话处理任务 (fetchChatDetail / resolveChat)
         Worker->>Worker: 拉取会话详情 (RPC / Takeout 本地池)
         Worker->>Asset: 提取图片/附件列表并下载 Blob
         Asset-->>Worker: 返回附件二进制流及本地相对路径
@@ -461,7 +460,7 @@ sequenceDiagram
 
 ### 3.4 Google Takeout 历史脱机合流数据流 (Takeout Offline Ingestion Flow)
 
-本数据流支持导入官方 Google Takeout 归档压缩包，找回因网页端侧边栏 600 条分页限制而丢失的早期远古会话。
+本数据流支持导入官方 Google Takeout 归档压缩包，找回因网页端侧边栏约 600 条分页限制（代码常量 `GeminiProtocol.LIMITS.SLIDING_WINDOW = 500`）而丢失的早期远古会话。
 
 * **数据源 (Data Source)**：
   - 用户拖入的官方 Google Takeout 导出的 `.zip` 文件；
@@ -490,8 +489,8 @@ sequenceDiagram
     participant Store as StorageService
 
     User->>UI: 拖拽 Takeout ZIP 文件至导入区
-    UI->>Ctrl: importTakeoutZip(file)
-    Ctrl->>Guard: 执行安全性校验 (assertSafeZipBounds)
+    UI->>Ctrl: handleTakeoutImport(file)
+    Ctrl->>Guard: 执行安全性校验 (validateZipFile / validateZipEntries)
     alt 检测到压缩炸弹特征 (超大膨胀率)
         Guard-->>Ctrl: 抛出安全异常 (SecurityError)
         Ctrl->>UI: 显示安全拦截告警，安全终止
@@ -624,8 +623,8 @@ sequenceDiagram
 
 1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Layered Browser API Policy)**：
    `src/core/` 按领域职责组织模块，其中不同子层对浏览器 API 的依赖边界有明确区分：
-   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`api/parser/*`）、格式化器（`chatFormatter`）、纯工具库（`titleUtils`、`mergeUtils`、`pathUtils`、`progressUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）以及导出编排引擎（`exportOrchestrator`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
-   - **运行时基础设施层（允许浏览器标准 API，禁止 DOM 渲染操作）**：API 客户端（`api/client/*`：`credentialManager` 通过 `querySelectorAll("script")` 只读提取页面内嵌凭据、`rpcClient` 调用 `fetch` 发送 RPC 请求、`pagination` 读取 `window.__gemExporterAborted` 作为旧版中断兼容 fallback）、持久化存储（`storage/*`：使用 `chrome.storage.local`、`IndexedDB`）、文件写入器（`writers/*`：使用 `FileSystem Access API`）以及标签页服务（`tabService`：使用 `chrome.tabs`）。这些模块允许使用 `fetch`、`chrome.*`、`IndexedDB`、`FileSystem API` 等浏览器运行时标准 API，但**严禁执行任何 DOM 渲染行为**（`createElement`、`appendChild`、`innerHTML` 赋值、样式操作等），确保 UI 渲染职责完全归属 `src/ui/` 与 `src/content/` 层。
+   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`api/parser/*`）、格式化器（`chatFormatter`）、纯工具库（`titleUtils`、`mergeUtils`、`pathUtils`、`progressUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
+   - **运行时基础设施层（允许浏览器标准 API，禁止 DOM 渲染操作）**：API 客户端（`api/client/*`：`credentialManager` 通过 `querySelectorAll("script")` 只读提取页面内嵌凭据、`rpcClient` 调用 `fetch` 发送 RPC 请求、`pagination` 读取 `window.__gemExporterAborted` 作为旧版中断兼容 fallback）、持久化存储（`storage/*`：使用 `chrome.storage.local`、`IndexedDB`）、文件写入器（`writers/*`：使用 `FileSystem Access API`）、标签页服务（`tabService`：使用 `chrome.tabs`）以及导出编排引擎（`exportOrchestrator`：直接导入 `tabService` 与 `fsWriter`，调用 `chrome.tabs` 与 FileSystem Access API 完成标签页协调与磁盘直写）。这些模块允许使用 `fetch`、`chrome.*`、`IndexedDB`、`FileSystem API` 等浏览器运行时标准 API，但**严禁执行任何 DOM 渲染行为**（`createElement`、`appendChild`、`innerHTML` 赋值、样式操作等），确保 UI 渲染职责完全归属 `src/ui/` 与 `src/content/` 层。
 2. **严格的 UI 分层关注点分离 (Strict UI Separation of Concerns)**：
    - `state/`：单向数据流与响应式存储数据状态管理；
    - `views/`：无状态 DOM 模版生成、虚拟列表渲染与事件冒泡绑定；
@@ -635,14 +634,14 @@ sequenceDiagram
    所有的路径清洗规范（`sanitizeRelativePath`）、文件名生成规则（`buildExportFileName`）、多源标题仲裁（`resolveTitle`）与列表合并去重（`mergeConversation`）统一集中在 `src/core/utils/`。任何模块严禁自行手写正则或修改标题优先级，严格保证：`RPC 权威标题 > 详情提取标题 > 提问前缀临时标题 > Takeout 离线导入标题`。
 4. **沙箱式网络拦截安全隔离 (Sandboxed Interceptor Guard)**：
    `hookCredentials.ts` 必须保证在主世界中的运行处于绝对安全的只读沙箱。拦截器内所有参数嗅探与字符串正则均包裹于 `try...catch` 中，遇到畸形参数时静默降级，严禁因插件逻辑异常影响 Google 原生网页的正常功能。
-5. **事件驱动的并发工作池 (`AsyncQueue`) 与限流熔断**：
-   彻底杜绝 `setInterval` 轮询与无序并发请求。所有批量导出与下载均通过 `AsyncQueue` 任务队列驱动，结合 `RateLimiter` 指数退避状态机，智能规避 Google 接口的 HTTP 429 访问受限。
+5. **事件驱动的并发工作池 (`AsyncQueue`) 与可中断轮询边界**：
+   所有批量导出与下载均通过 `AsyncQueue` 任务队列驱动，结合 `RateLimiter` 指数退避状态机，智能规避 Google 接口的 HTTP 429 访问受限。`setInterval` 轮询仅允许**可中断、生命周期受控**的形式：① 内容脚本 15s 同步轮询（`pageObserver.startPeriodicSync`，经 `contentContext` 注册清理函数）；② `retryPolicy.interruptibleSleep` 的 50ms abort 标志轮询（仅无 `AbortSignal` 时的兜底，任务完成后自动清理）；③ 后台 `keepAlive` 20s Service Worker 保活心跳（`startKeepAlive` 返回清理函数，扫描/导出结束时停止）；④ 新手向导 `tourGuide` 的短时 UI 等待轮询（tour 结束时 `clearInterval`）。禁止无清理函数、无中断路径的野轮询。
 6. **MV3 Service Worker 保活机制 (Keepalive Resilience)**：
    在耗时较长的大批量扫描或附件打包过程中，定期向后台派发轻量保活心跳，彻底解决 Chromium 浏览器可能在后台静默终止 Service Worker 导致导出任务异常中断的问题。
 7. **两级存储架构与配额安全隔离 (Two-Tier Storage & Quota Isolation)**：
    `chrome.storage.local` 严格仅存轻量列表元数据索引（`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `conversationDetailStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
 8. **无头环境写盘降权优雅检测 (Headless FileSystem Permission Resilience)**：
-   Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时后台优雅标记 `permission_prompt_needed`，并向前端派发事件由用户手势通过 `reauthorizeDirHandle()` 一键恢复物理直写。
+   Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时 `handleLiveSaveViaHandle` 返回 `{ ok: false, error: 'permission_prompt_needed' }` 并写入 live 配置（`dirError`）；内容脚本 `liveSaveCoordinator` 根据返回值触发徽章警告，用户手势经 `reauthorizeDirHandle()` 一键恢复物理直写。不存在 `DIR_HANDLE_PERMISSION_DEGRADED` 广播事件，也没有 Downloads API 兜底。
 9. **多账号单向隔离与凭据零借调 (Multi-Account Strict Isolation & Zero Token Stealing)**：
    系统的账号体系以真实 Google Profile（邮箱与 Gaia ID）为锚点。各账号 Slot 之间具有完全物理隔离的凭据命名空间与会话空间，严禁跨槽位借调或回退 Token；跨标签页指令分发必须严格匹配当前激活账户的 Slot，若目标标签页不存在必须显式抛错拦截，绝不向不匹配账号的页面盲投任何 RPC 指令。
 
