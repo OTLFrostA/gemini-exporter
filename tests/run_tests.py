@@ -219,7 +219,7 @@ def test_javascript_unit_tests(target_tests=None):
             node_bin = cand
             break
 
-    test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))))
+    test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
     if target_tests is not None:
         norm_targets = {os.path.normpath(t).replace("\\", "/") for t in target_tests}
         norm_bases = {os.path.basename(t) for t in target_tests}
@@ -1000,7 +1000,7 @@ def run_all():
 
     if args.filter:
         print(f"🔍 正在按关键字过滤单元测试: '{args.filter}'")
-        all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts"))))
+        all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
         matching = [tf for tf in all_test_files if args.filter.lower() in os.path.basename(tf).lower()]
         if not matching:
             print(f"❌ 未找到匹配关键字 '{args.filter}' 的单元测试！")
