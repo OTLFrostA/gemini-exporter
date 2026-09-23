@@ -23,6 +23,7 @@ export interface DeepResearchDocMeta {
     chipUrl?: string;
     createdAt?: number;
     contentId?: string;
+    source?: "strict" | "heuristic-flat";
 }
 
 export interface DocLink {
@@ -34,6 +35,7 @@ export interface DocSectionsResult {
     sections: string[];
     links: DocLink[];
     contentMarkdown: string;
+    contentMatch?: "exact" | "substring";
 }
 
 export interface GeminiParserAttachmentsModule {
@@ -439,16 +441,21 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 if (researchPrefixRe.test(cleanTitle)) {
                     cleanTitle = "";
                 }
+                // deepWalk 会访问嵌套的每一层数组，同一文档可能被重复发现 —— 按 id 去重
+                const key = metaObj.id || metaObj.chipUrl || "";
+                if (key && out.some(m => (m.id || m.chipUrl || "") === key)) return;
                 out.push({
                     id: metaObj.id,
                     title: cleanTitle,
                     chipUrl: metaObj.chipUrl,
                     createdAt: metaObj.createdAt,
-                    contentId: metaObj.contentId
+                    contentId: metaObj.contentId,
+                    source: metaObj.source
                 });
             }
         }
 
+        // Pass 1: strict path only — typed indices, never marked heuristic.
         deepWalk([root], (node) => {
             if (Array.isArray(node)) {
                 for (let i = 0; i < node.length; i++) {
@@ -468,21 +475,34 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                             createdAt,
                             contentId
                         });
-                    } else if (Array.isArray(item)) {
-                        try {
-                            let flat = item.flat(Infinity).filter(x => typeof x === "string");
-                            let chip = flat.find(x => x.includes("immersive_entry_chip"));
-                            if (chip) {
-                                let uuid = flat.find(x => uuidRe.test(x));
-                                let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length > 3 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
-                                pushMeta({
-                                    id: uuid || flat.find(x => x.includes("rc_")) || chip,
-                                    title: title || "",
-                                    chipUrl: chip
-                                });
-                            }
-                        } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
                     }
+                }
+            }
+        });
+        if (out.length > 0) return out;
+
+        // Pass 2: flat fallback, only when the strict path produced nothing.
+        // Heuristic by construction — results are marked source: 'heuristic-flat'.
+        deepWalk([root], (node) => {
+            if (Array.isArray(node)) {
+                for (let i = 0; i < node.length; i++) {
+                    let item = node[i];
+                    if (!Array.isArray(item)) continue;
+                    try {
+                        let flat = item.flat(Infinity).filter(x => typeof x === "string");
+                        if (flat.length > 500) continue;
+                        let chip = flat.find(x => x.includes("immersive_entry_chip"));
+                        if (chip) {
+                            let uuid = flat.find(x => uuidRe.test(x));
+                            let title = flat.find(x => !x.includes("http") && !uuidRe.test(x) && x.length >= 8 && !x.includes("c_") && !x.includes(".html") && !researchPrefixRe.test(x));
+                            pushMeta({
+                                id: uuid || flat.find(x => x.includes("rc_")) || chip,
+                                title: title || "",
+                                chipUrl: chip,
+                                source: "heuristic-flat"
+                            });
+                        }
+                    } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:attachments.ts]", e); }
                 }
             }
         });
@@ -497,11 +517,16 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         deepWalk(root, (node) => {
             if (matched) return false;
             if (Array.isArray(node)) {
-                let idMatch = false;
+                let idMatch: "exact" | "substring" | null = null;
                 for (let elem of node) {
-                    if (typeof elem === "string" && (elem === docId || elem === targetId ||
-                        (elem.length < 200 && (elem.includes(docId) || elem.includes(targetId))))) {
-                        idMatch = true;
+                    if (typeof elem !== "string") continue;
+                    if (elem === docId || elem === targetId) {
+                        idMatch = "exact";
+                        break;
+                    }
+                    // P1-9: substring 兜底只允许短元素（<80），长正文里"提到" ID 不算命中
+                    if (elem.length < 80 && (elem.includes(docId) || elem.includes(targetId))) {
+                        idMatch = "substring";
                         break;
                     }
                 }
@@ -510,6 +535,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     let hasLongStr = node.some(x => typeof x === "string" && x.length > 200 && (x.includes("#") || x.includes("\n\n")));
                     if (hasSections || hasLongStr) {
                         matched = node;
+                        if (idMatch === "substring") matched.contentMatch = "substring";
                         return false;
                     }
                 }
@@ -522,7 +548,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         let sections: string[] = [];
         let links: DocLink[] = [];
         let contentMarkdown = "";
-        if (!Array.isArray(docContentArr)) return { sections, links, contentMarkdown };
+        // P1-9: 上游 heuristic 标记透传，不静默转成正常可信结果
+        const contentMatch = (docContentArr as any)?.contentMatch === "substring" ? "substring" as const : void 0;
+        if (!Array.isArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
 
         deepWalk(docContentArr, (node) => {
             if (Array.isArray(node)) {
@@ -544,7 +572,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return {
             sections,
             links,
-            contentMarkdown
+            contentMarkdown,
+            contentMatch
         };
     }
 
