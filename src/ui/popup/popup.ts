@@ -181,21 +181,21 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
 function initPopupEvents(): void {
     const langToggle = $('langToggle') as HTMLInputElement | null;
     langToggle?.addEventListener('change', (e: Event) => {
-        handleLangChange((e.target as HTMLInputElement).checked ? 'en' : 'zh');
+        void handleLangChange((e.target as HTMLInputElement).checked ? 'en' : 'zh');
     });
 
     $('labelLangZh')?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (langToggle) langToggle.checked = false;
-        handleLangChange('zh');
+        void handleLangChange('zh');
     });
 
     $('labelLangEn')?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (langToggle) langToggle.checked = true;
-        handleLangChange('en');
+        void handleLangChange('en');
     });
 
     $('langTogglePill')?.addEventListener('click', (e) => {
@@ -207,14 +207,14 @@ function initPopupEvents(): void {
         const current = i18n && typeof i18n.getLang === 'function' ? i18n.getLang() : 'zh';
         const nextLang = current === 'zh' ? 'en' : 'zh';
         if (langToggle) langToggle.checked = (nextLang === 'en');
-        handleLangChange(nextLang);
+        void handleLangChange(nextLang);
     });
 
     // Formats & Segmented Tabs
     const formatStore = __resolveModule('FormatStore', FormatStore);
     const formatSelect = $('format') as HTMLSelectElement | null;
     if (formatStore && formatStore.loadFormat) {
-        formatStore.loadFormat(formatSelect).then(({ format, isDev }: { format: string; isDev: boolean }) => {
+        void formatStore.loadFormat(formatSelect).then(({ format, isDev }: { format: string; isDev: boolean }) => {
             if (isDev) document.body.classList.add('dev-mode');
             updateFormatTabsUI(format, isDev);
         });
@@ -239,7 +239,7 @@ function initPopupEvents(): void {
         const val = (e.target as HTMLSelectElement).value;
         const fStore = __resolveModule('FormatStore', FormatStore);
         if (fStore && typeof fStore.saveFormat === 'function') {
-            fStore.saveFormat(val);
+            void fStore.saveFormat(val);
         }
         const isDev = document.body.classList.contains('dev-mode');
         updateFormatTabsUI(val, isDev);
@@ -332,7 +332,7 @@ function initPopupEvents(): void {
         i18n.applyI18n();
         i18n.applyLangToggleUI();
         i18n.onLanguageChange(() => i18n.applyLangToggleUI());
-        updateCount();
+        void updateCount();
     });
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
@@ -342,7 +342,7 @@ function initPopupEvents(): void {
                     const newLang = String(changes[STORAGE_KEYS.LANG].newValue || 'zh');
                     const i18nInst = getI18n();
                     if (i18nInst && typeof i18nInst.getLang === 'function' && i18nInst.getLang() !== newLang) {
-                        handleLangChange(newLang);
+                        void handleLangChange(newLang);
                     }
                 }
                 if (changes[STORAGE_KEYS.FORMAT]) {
@@ -357,7 +357,7 @@ function initPopupEvents(): void {
                     updateFormatTabsUI(_activeFormat, isDev);
                 }
                 if (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync) {
-                    updateCount();
+                    void updateCount();
                 }
             }
         });

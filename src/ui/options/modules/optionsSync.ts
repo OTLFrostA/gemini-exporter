@@ -48,7 +48,7 @@ function bindSyncButtons(): void {
                 onFinished: ({ message }: any) => {
                     ProgressView.complete(message);
                     ProgressView.hide(2500);
-                    if (__loadStore) __loadStore();
+                    if (__loadStore) void __loadStore();
                 },
                 onError: (err: any, errMsg: string) => {
                     ProgressView.update(0, errMsg);
@@ -70,7 +70,7 @@ function bindSyncButtons(): void {
                 onFinished: async ({ message, res, count, hitGoogleLimit }: any) => {
                     ProgressView.complete(message);
                     ProgressView.hide(2500);
-                    if (__loadStore) __loadStore();
+                    if (__loadStore) void __loadStore();
                     const currentCount = count || res?.count || (Store && typeof (Store as any).getConversations === 'function' ? (Store as any).getConversations().length : 0);
                     await checkAndPromptTakeoutLimit(currentCount, hitGoogleLimit);
                 },
@@ -107,12 +107,12 @@ export function bindBroadcastListeners(): void {
             if (msg.title) log(msg.title);
 
             if (msg.percent === 100 || msg.done === 1) {
-                checkAndPromptTakeoutLimit(msg.count, msg.hitGoogleLimit);
+                void checkAndPromptTakeoutLimit(msg.count, msg.hitGoogleLimit);
             }
         }
 
         if (msg.action === 'syncUpdate') {
-            if (__loadStore) __loadStore(true);
+            if (__loadStore) void __loadStore(true);
         }
     });
 }

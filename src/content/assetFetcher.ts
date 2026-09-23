@@ -344,7 +344,7 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
             if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher.ts]', e);
         }
 
-        handleGetImageBlob(msg, (res) => {
+        void handleGetImageBlob(msg, (res) => {
             if (res && res.success && (res.dataBuffer || res.blobBuffer || res.dataBase64 || res.blobBase64)) {
                 sendResponse({
                     success: true,
@@ -357,7 +357,7 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                     size: res.size
                 });
             } else {
-                handleGetFileBlob(msg, sendResponse);
+                void handleGetFileBlob(msg, sendResponse);
             }
         });
     } catch (err: any) {
@@ -405,7 +405,7 @@ export async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<
             }, timeoutMs);
         }
 
-        handleGetImageBlob({ url, preferBuffer: true }, (res: any) => {
+        void handleGetImageBlob({ url, preferBuffer: true }, (res: any) => {
             cleanup();
             if (settled) return;
             settled = true;

@@ -70,7 +70,7 @@ export function init({
         }
 
         if (msg.action === 'deepScan') {
-            (async () => {
+            void (async () => {
                 try {
                     let res: any = null;
                     if (Sync && Sync.tryBatchExecuteFull) {
@@ -130,7 +130,7 @@ export function init({
                 respond({ success: false, error: 'no id' });
                 return true;
             }
-            (async () => {
+            void (async () => {
                 async function persistDetailTitle(chatObj: any): Promise<void> {
                     if (!chatObj) return;
                     const nid = normId(cid || chatObj.id);
@@ -211,7 +211,7 @@ export function init({
                                     Sync.updateBadge(count, 0);
                                 }
                                 try {
-                                    chrome.runtime.sendMessage({
+                                    void chrome.runtime.sendMessage({
                                         action: 'syncUpdate',
                                         slot,
                                         count,
@@ -268,7 +268,7 @@ export function init({
                                             Sync.updateBadge(count, 0);
                                         }
                                         try {
-                                            chrome.runtime.sendMessage({
+                                            void chrome.runtime.sendMessage({
                                                 action: 'syncUpdate',
                                                 slot,
                                                 count,
@@ -321,21 +321,21 @@ export function init({
 
         if (msg.action === 'getFileBlob') {
             if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
-            if (Assets) Assets.handleGetFileBlob(msg, respond);
+            if (Assets) void Assets.handleGetFileBlob(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'getImageBlob') {
             if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
-            if (Assets) Assets.handleGetImageBlob(msg, respond);
+            if (Assets) void Assets.handleGetImageBlob(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'downloadAssetDirect') {
             if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
-            if (Assets) Assets.downloadAssetDirect(msg, respond);
+            if (Assets) void Assets.downloadAssetDirect(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }

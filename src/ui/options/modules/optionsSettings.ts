@@ -117,19 +117,19 @@ export async function exportDiagnostics(): Promise<void> {
 
 function bindLanguageControls(): void {
     $('langToggle')?.addEventListener('change', (e: Event) => {
-        handleLangChange((e.target as HTMLInputElement).checked ? 'en' : 'zh');
+        void handleLangChange((e.target as HTMLInputElement).checked ? 'en' : 'zh');
     });
     $('labelLangZh')?.addEventListener('click', (e) => {
         e.preventDefault(); e.stopPropagation();
         const toggle = $('langToggle') as HTMLInputElement | null;
         if (toggle) toggle.checked = false;
-        handleLangChange('zh');
+        void handleLangChange('zh');
     });
     $('labelLangEn')?.addEventListener('click', (e) => {
         e.preventDefault(); e.stopPropagation();
         const toggle = $('langToggle') as HTMLInputElement | null;
         if (toggle) toggle.checked = true;
-        handleLangChange('en');
+        void handleLangChange('en');
     });
 }
 
@@ -139,7 +139,7 @@ function bindDevControls(): void {
         const dt = $('devToggle') as HTMLInputElement | null;
         if (dt) {
             dt.checked = !dt.checked;
-            handleDevChange(dt.checked);
+            void handleDevChange(dt.checked);
         }
     });
 }
@@ -293,7 +293,7 @@ export function checkWalkthroughOnOpen(): void {
 
             // Track A: Explicit request (?tour=1) or new user onboarding (first time, tour not completed)
             if (isExplicitTour || !tourDone) {
-                if (Tour.startTour) Tour.startTour(0);
+                if (Tour.startTour) void Tour.startTour(0);
                 return;
             }
 
@@ -305,7 +305,7 @@ export function checkWalkthroughOnOpen(): void {
 
             const eligibleFeature = getLatestEligibleFeature(lastSeenVersion, currentAppVersion);
             if (eligibleFeature && Tour.startFeatureSpotlight) {
-                Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
+                void Tour.startFeatureSpotlight(eligibleFeature.stepId, eligibleFeature.version);
             }
         }, 400);
     } catch (e) {
@@ -472,7 +472,7 @@ export async function initLiveSaveSettings(): Promise<void> {
                 const newLang = changes[STORAGE_KEYS.LANG].newValue;
                 const i18n = getI18n();
                 if (newLang && i18n && typeof i18n.getLang === 'function' && i18n.getLang() !== newLang) {
-                    handleLangChange(newLang as 'zh' | 'en');
+                    void handleLangChange(newLang as 'zh' | 'en');
                 }
             }
             if (area === 'local' && changes[STORAGE_KEYS.FORMAT]) {

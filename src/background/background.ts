@@ -48,7 +48,7 @@ migrateStorageSchema().catch(() => {});
 // 6. Central Message Router
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
-        chrome.runtime.openOptionsPage();
+        void chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
         return;
     }
@@ -105,7 +105,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         const skipExported = msg.skipExported;
         const globalOffset = msg.globalOffset;
         const globalTotal = msg.globalTotal;
-        setSlotAborted(slot, false);
+        void setSlotAborted(slot, false);
         const prev = fetchBatchChains.get(slot) || Promise.resolve();
         const run = prev.then(async () => {
             let responded = false;
@@ -132,14 +132,14 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
 
     if (msg.action === 'cancelExport') {
         const slot = msg.accountSlot || 'u0';
-        setSlotAborted(slot, true);
+        void setSlotAborted(slot, true);
         sendResponse({ ok: true, aborted: true });
         return true;
     }
 
     if (msg.action === 'abortSync') {
         const slot = msg.accountSlot || 'u0';
-        setSlotAborted(slot, true);
+        void setSlotAborted(slot, true);
         const abortMsg: AbortSyncMessage = { action: 'abortSync' };
         sendToGeminiTab(abortMsg, slot).catch(() => {});
         sendResponse({ ok: true, aborted: true });
@@ -157,7 +157,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'deepScan') {
-        (async () => {
+        void (async () => {
             const stopKeepAlive = startKeepAlive();
             try {
                 const timeoutMs = (msg.mode === 'full' || msg.mode === 'auto') ? 300000 : 90000;
@@ -179,7 +179,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
 
     if (msg.action === 'stopDeepScan') {
         const slot = msg.accountSlot || 'u0';
-        setSlotAborted(slot, true);
+        void setSlotAborted(slot, true);
         const stopMsg: StopDeepScanMessage = { action: 'stopDeepScan' };
         sendToGeminiTab(stopMsg, slot)
             .then(r => sendResponse(r || { ok: true, aborted: true }))

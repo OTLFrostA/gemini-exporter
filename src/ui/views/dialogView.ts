@@ -193,7 +193,7 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
 
     const markCompleted = () => {
         if (storage && storage.setTakeoutPromptCompleted) {
-            storage.setTakeoutPromptCompleted(true);
+            void storage.setTakeoutPromptCompleted(true);
         }
     };
 

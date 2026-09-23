@@ -45,9 +45,9 @@ export function bindStepAction(step: any): void {
         triggered = true;
         clearActionListeners();
         if (step.isFinal) {
-            finishTour();
+            void finishTour();
         } else {
-            nextStep();
+            void nextStep();
         }
     };
 
@@ -93,9 +93,9 @@ function createElements(): void {
         e.preventDefault();
         e.stopPropagation();
         if (spotlightMode) {
-            dismissFeatureSpotlight();
+            void dismissFeatureSpotlight();
         } else {
-            finishTour();
+            void finishTour();
         }
     });
 
@@ -135,14 +135,14 @@ function handleKeydown(e: KeyboardEvent): void {
     if (!isActive) return;
     if (e.key === 'Escape') {
         if (spotlightMode) {
-            dismissFeatureSpotlight();
+            void dismissFeatureSpotlight();
         } else {
-            skipTour();
+            void skipTour();
         }
     } else if (!spotlightMode && e.key === 'ArrowRight' && currentStep < STEPS.length - 1) {
-        nextStep();
+        void nextStep();
     } else if (!spotlightMode && e.key === 'ArrowLeft' && currentStep > 0) {
-        prevStep();
+        void prevStep();
     }
 }
 
@@ -181,12 +181,12 @@ function startPollingTabStatus(): void {
         const prevStatus = lastTabStatus;
         if (status.status !== lastTabStatus) {
             lastTabStatus = status.status;
-            updateStepContent(STEPS[0]);
+            void updateStepContent(STEPS[0]);
 
             if ((prevStatus === 'NO_TAB' || prevStatus === 'NEED_REFRESH') && status.status === 'CONNECTED') {
                 setTimeout(() => {
                     if (isActive && currentStep === 0) {
-                        nextStep();
+                        void nextStep();
                     }
                 }, 800);
             }
@@ -333,9 +333,9 @@ async function updateStepContent(step: any): Promise<void> {
     document.getElementById('tourPrevBtn')?.addEventListener('click', prevStep);
     document.getElementById('tourNextBtn')?.addEventListener('click', () => {
         if (isFinal) {
-            finishTour();
+            void finishTour();
         } else {
-            nextStep();
+            void nextStep();
         }
     });
 
