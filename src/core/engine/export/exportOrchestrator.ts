@@ -84,25 +84,25 @@ const getSessionRecovery = (): SessionRecoveryModule => SessionRecovery;
 const getRateLimiter = (): RateLimitModule => rateLimitModule;
 
 export const sanitizeFileName = (name?: string | null, fallback?: string): string =>
-    (((__resolveModule('GeminiUtils', null) as any)?.sanitizeFileName) || utilsSanitizeFileName)(name, fallback);
+    ((getUtils()?.sanitizeFileName) || utilsSanitizeFileName)(name, fallback);
 
 export const normId = (id?: string | number | null): string =>
-    (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
+    ((getUtils()?.normId) || utilsNormId)(id);
 
 export const sanitizeZipPath = (p?: string | null): string =>
-    (((__resolveModule('GeminiUtils', null) as any)?.sanitizeRelativePath) || sanitizeRelativePath)(p, 'file');
+    ((getUtils()?.sanitizeRelativePath) || sanitizeRelativePath)(p, 'file');
 
 export const checkIsUpdated = (c: any, rec?: any): boolean =>
-    (((__resolveModule('GeminiUtils', null) as any)?.checkIsUpdated) || utilsCheckIsUpdated)(c, rec);
+    ((getUtils()?.checkIsUpdated) || utilsCheckIsUpdated)(c, rec);
 
 export const setTitleBySource = (chat: any, source?: string, rawTitle?: string): any =>
-    (((__resolveModule('GeminiUtils', null) as any)?.setTitleBySource) || utilsSetTitleBySource)(chat, source, rawTitle);
+    ((getUtils()?.setTitleBySource) || utilsSetTitleBySource)(chat, source, rawTitle);
 
 export const cleanTitle = (rawTitle?: string | null): string =>
-    (((__resolveModule('GeminiUtils', null) as any)?.cleanTitle) || utilsCleanTitle)(rawTitle);
+    ((getUtils()?.cleanTitle) || utilsCleanTitle)(rawTitle);
 
 export const isRealTitle = (title?: string | null, id?: string | number): boolean =>
-    (((__resolveModule('GeminiUtils', null) as any)?.isRealTitle) || utilsIsRealTitle)(title, id);
+    ((getUtils()?.isRealTitle) || utilsIsRealTitle)(title, id);
 
 /**
  * Applies an export-time title write-back from a list-snapshot conversation
@@ -745,7 +745,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         const ext = formatted.ext;
                         const safeBase = sanitizeFileName(listTitle, chat.id);
                         // In direct-write mode, probe for existing filename on disk to reuse
-                        const resolveName = (((__resolveModule('GeminiUtils', null) as any)?.resolveExportFileName) || utilsResolveExportFileName);
+                        const resolveName = ((getUtils()?.resolveExportFileName) || utilsResolveExportFileName);
                         const fileName = useZip
                             ? buildExportFileName(listTitle, chat.id, ext)
                             : await resolveName(listTitle, chat.id, ext, async (n: string) => {
