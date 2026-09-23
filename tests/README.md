@@ -72,11 +72,9 @@ npm run test:e2e     # 运行 npx playwright test (35 个 Playwright 用例)
 ./scripts/open_test_chrome.sh          # macOS / Linux
 .\scripts\open_test_chrome.ps1         # Windows PowerShell
 
-# 首选标准模式：从场景池消费 2 个最新多模态场景运行全流程
-npm run test:live:pool
-
-# 人工本地调试或离线复现模式（绕过 2 分钟时效门禁）
-npm run test:live:local
+# 标准模式：从场景池消费 2 个最新多模态场景运行全流程实跑测试
+npm run test:live
+# 或: python3 scripts/test_live_chat_and_export.py
 ```
 
 ---

@@ -46,16 +46,13 @@
 * **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。
 * **适用场景**：修改了 Protobuf/JSPB 解析引擎、Google Takeout 导入逻辑、会话排序、网络请求拦截或发布新版本前。
 * **环境准备**：需先通过 `./scripts/open_test_chrome.sh`（Windows 环境运行 `.\scripts\open_test_chrome.ps1` 或 `.\scripts\open_test_chrome.cmd`）启动开启 9222 调试端口的独立 Chrome 并登录测试账号。
-* **运行模式与 AI 执行铁律**：
-  * **模式 A（非 AI 参与 / 人工本地调试或离线复现）**：
-    * 运行 `npm run test:live -- --allow-stale-dataset`（或 `python3 scripts/test_live_chat_and_export.py --allow-stale-dataset`），显式声明绕过 2 分钟新鲜度门禁，允许使用内置的高价值经典 5 轮数据集或历史静态数据集。
-  * **模式 B（有 AI 参与 / 协同开发与验收）**：
-    * **首选标准模式：动态 20 题多模态场景池机制 (`--pool`)**：
-      1. 项目在 `scripts/test_scenario_pool.json` 维护了 20 个覆盖 10+ 领域的高价值测试场景（包含 AI 图像生成、LaTeX 公式、Markdown 表格、多语言混排、长代码等全模态特性）；
-      2. 运行 `npm run test:live:pool`（或 `python3 scripts/test_live_chat_and_export.py --pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），并自动归档至 `scripts/test_scenario_archive.json`；
-      3. **AI 补仓铁律（用 2 补 2，常驻 20 题）**：AI 助手在协同开发、跑测试或提交 PR 前，必须运行 `npm run pool:status` 检查水位。若水位低于 20 个，必须针对当前缺口领域构思全新多模态题材补充回 20 题，杜绝同一题材（如深空探测器）反复堆积。
-    * **备选模式：现场临时构思全新数据集 (`--dataset`)**：
-      - 亦可由 AI 现场动态构思全新数据集并在 2 分钟（120 秒）内保存落盘并通过 `--dataset <path>` 传入运行。
+* **运行模式与场景调度机制**：
+  * **统一标准模式：动态 20 题多模态场景池机制（默认行为）**：
+    1. 项目在 `scripts/test_scenario_pool.json` 维护了 20 个覆盖 10+ 领域的高价值测试场景（包含 AI 图像生成、LaTeX 公式、Markdown 表格、多语言混排、长代码等全模态特性）；
+    2. 运行 `npm run test:live`（或 `npm run test:live:pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），并自动归档至 `scripts/test_scenario_archive.json`；
+    3. **AI 补仓铁律（用 2 补 2，常驻 20 题）**：AI 助手在协同开发、跑测试或提交 PR 前，必须运行 `npm run pool:status` 检查水位。若水位低于 20 个，必须针对当前缺口领域构思全新多模态题材补充回 20 题，杜绝同一题材（如深空探测器）反复堆积。
+  * **自定义外挂数据集模式 (`--dataset`)**：
+    - 支持通过 `--dataset <path>` 传入自定义的 JSON 测试用例文件，执行器将直接加载并运行该数据集。
 
   * **通用验收铁律（四大不可逾越标准）**：
     1. **全流程全特性强制闭环（物理禁止跳过）**：必须真实驱动 Gemini 发帖并等待全部流式回复物理落地；所有测试阶段（扩展重装、新手向导、实时发帖、老会话追加置顶、瞬态删除清理、Takeout 合流导入与 6 会话联合规范导出）强制 100% 完整闭环执行，测试脚本已物理移除所有跳过开关（如 `--skip-chat`、`--skip-takeout`、`--skip-reinstall`、`--skip-tour`），严禁任何形式的绕过或缩水；
@@ -100,16 +97,12 @@ python3 tests/run_tests.py --filter storage
 # 查看场景池当前水位与领域特征分布
 npm run pool:status
 
-# 运行全量实跑测试 (首选标准模式：从 20 题场景池消费 2 个最新多模态场景)
-npm run test:live:pool
-# 或: python3 scripts/test_live_chat_and_export.py --pool
+# 运行全量实跑测试 (标准模式：从 20 题场景池消费 2 个最新多模态场景)
+npm run test:live
+# 或: python3 scripts/test_live_chat_and_export.py
 
-# 运行全量实跑测试 (临时外挂模式：传入 2 分钟内动态构思的数据集)
-python3 scripts/test_live_chat_and_export.py --dataset <path_to_fresh_dataset.json>
-
-# 人工本地调试或离线复现 (绕过 2 分钟时效门禁限制，使用内置经典数据集)
-npm run test:live:local
-# 或: python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
+# 运行自定义外挂数据集测试
+python3 scripts/test_live_chat_and_export.py --dataset <path_to_custom_dataset.json>
 
 # 单独对任意导出解压目录运行规范断言器
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
