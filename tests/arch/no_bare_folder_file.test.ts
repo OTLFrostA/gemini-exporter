@@ -36,7 +36,7 @@ const ALLOWLIST: Record<string, string> = {
     'src/content/syncEngine.ts:708': '单键盲写（takeout prompt 标记）',
     'src/core/storage/formatStore.ts:67': '单键盲写（FORMAT）',
     'src/core/storage/formatStore.ts:81': '单键盲写（FORMAT）',
-    'src/core/storage/liveStorageManager.ts:48': '单键盲写（live config）',
+    'src/core/storage/liveStorageManager.ts:49': '单键盲写（live config）',
     'src/core/storage/schemaMigration.ts:198': '启动时单次 schema 版本迁移，无并发',
     'src/core/utils/i18n.ts:54': '单键盲写（语言设置）',
     'src/ui/options/modules/optionsExport.ts:426': 'UI 事件单键盲写',
