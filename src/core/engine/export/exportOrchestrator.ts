@@ -69,6 +69,7 @@ import { SessionStore } from "../../storage/sessionStore.js";
 import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
+import { extractChatParseDrift, chatRecordStatusWithDrift } from "./parseDrift.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 
 import { EXT_VERSION, getExtensionVersion, exportedIdsKey, STORAGE_KEYS, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
@@ -507,6 +508,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             let landedChats = 0;
             let failedChats: any[] = [];
             let failedAttachments: any[] = [];
+            let parseDriftChats: any[] = [];
             let skipped = skippedItems.length;
             let metaResults: any[] = [];
 
@@ -860,10 +862,30 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             }
                         }
 
+                        // P1-8/P1-9: parser 诊断随 chat 透出，不在生产环境静默
+                        const chatDrift = extractChatParseDrift(chat);
+                        const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
+
                         if (!mainWriteError) {
                             landedChats++;
                             onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
                             if (!chat.error && !chat._empty) {
+                                if (driftNotable) {
+                                    const bits: string[] = [];
+                                    if (chatDrift.turnsRejected > 0) bits.push(`拒识 ${chatDrift.turnsRejected} 个 turn`);
+                                    if (chatDrift.schemaDrift.length > 0) bits.push(`${chatDrift.schemaDrift.length} 条 schema 漂移告警`);
+                                    if (chatDrift.hasHeuristicDocs) bits.push(`含启发式拼凑文档`);
+                                    const driftStatus = chatRecordStatusWithDrift('ok', chatDrift);
+                                    const statusNote = driftStatus === 'partial' ? '，已记为部分导出' : '（仅告警，导出记录仍为正常）';
+                                    onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
+                                    parseDriftChats.push({
+                                        id: chat.id || nid,
+                                        title: listTitle,
+                                        schemaDrift: chatDrift.schemaDrift,
+                                        turnsRejected: chatDrift.turnsRejected,
+                                        hasHeuristicDocs: chatDrift.hasHeuristicDocs
+                                    });
+                                }
                                 let exportTs = listC?.timestamp ?? chat.timestamp ?? null;
                                 if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
                                 const record = {
@@ -872,7 +894,10 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     format: options.format || 'markdown',
                                     messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
                                     chatTime: exportTs,
-                                    status: (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok'
+                                    status: chatRecordStatusWithDrift(
+                                        (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok',
+                                        chatDrift
+                                    )
                                 };
                                 chatRecordsMap.set(nid, record);
                                 if (queuedAssetsForThisChat === 0) {
@@ -913,7 +938,13 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
                             attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
                             exportFile: fileName,
-                            status: mainWriteError ? 'failed' : 'success'
+                            status: mainWriteError ? 'failed' : 'success',
+                            ...(driftNotable ? {
+                                parseStatus: chatRecordStatusWithDrift('ok', chatDrift),
+                                schemaDrift: chatDrift.schemaDrift,
+                                turnsRejected: chatDrift.turnsRejected,
+                                hasHeuristicDocs: chatDrift.hasHeuristicDocs || void 0
+                            } : {})
                         });
 
                         completedCount++;
@@ -1006,7 +1037,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             }
 
             // B3: 取消时不写 _export_errors.json —— 取消是用户意图，不是失败
-            if ((isDevMode || failedChats.length > 0 || failedAttachments.length > 0)
+            // P1-8: parser 漂移同样触发诊断文件（成功但 partial 的会话不能静默）
+            if ((isDevMode || failedChats.length > 0 || failedAttachments.length > 0 || parseDriftChats.length > 0)
                 && !this.aborted && !(abortSignal && abortSignal.aborted)) {
                 let fullLogText = '';
                 if (recovery && recovery.buildSessionLogText) {
@@ -1018,6 +1050,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         skipped,
                         failedChats,
                         failedAttachments,
+                        parseDrift: parseDriftChats,
                         isDevMode
                     });
                 }
@@ -1035,7 +1068,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         assetsFailed: failedAttachments.length
                     },
                     failedChats,
-                    failedAttachments
+                    failedAttachments,
+                    parseDrift: parseDriftChats
                 };
 
                 if (recovery && recovery.writeDiagnostics) {

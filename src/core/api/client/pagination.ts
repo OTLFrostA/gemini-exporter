@@ -223,9 +223,23 @@ export interface GeminiClientPaginationModule {
         let attempts = 0;
         const seenTokens = new Set<string>();
         const seenMsgIds = new Set<string>();
+        // P1-8: parser 诊断跨页合并（去重），不能只保留第一页
+        let mergedTurnsRejected = 0;
+        const mergedSchemaDrift: string[] = [];
+        const accPageDrift = (page: any) => {
+            if (typeof page?.turnsRejected === "number" && page.turnsRejected > 0) {
+                mergedTurnsRejected += Math.floor(page.turnsRejected);
+            }
+            if (Array.isArray(page?.schemaDrift)) {
+                for (const w of page.schemaDrift) {
+                    if (typeof w === "string" && w && !mergedSchemaDrift.includes(w)) mergedSchemaDrift.push(w);
+                }
+            }
+        };
         do {
             let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
+            accPageDrift(page);
             const cleanConvId = String(conversationId).replace(/^c_/, "");
             const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: any) => {
                 const mid = m ? m.id : null;
@@ -267,6 +281,7 @@ export interface GeminiClientPaginationModule {
                         const primaryTitles = first.titles;
                         const primarySource = first.titleSource;
                         msgs = retry.messages;
+                        accPageDrift(retry);
                         first = retry;
                         if (primarySource === "rpc" && primaryTitle && primaryTitle !== "未命名对话" && first.titleSource !== "rpc") {
                             first.title = primaryTitle;
@@ -296,7 +311,9 @@ export interface GeminiClientPaginationModule {
             createdAt: minTs,
             chatTime: maxTs,
             updatedAt: maxTs,
-            attachmentCount
+            attachmentCount,
+            turnsRejected: mergedTurnsRejected > 0 ? mergedTurnsRejected : void 0,
+            schemaDrift: mergedSchemaDrift.length ? mergedSchemaDrift : void 0
         };
     }
 

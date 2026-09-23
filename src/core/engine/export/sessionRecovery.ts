@@ -8,6 +8,7 @@ export interface SessionLogOptions {
     skipped?: number;
     failedChats?: any[];
     failedAttachments?: any[];
+    parseDrift?: any[];
     isDevMode?: boolean;
 }
 
@@ -106,6 +107,7 @@ export { EXT_VERSION, getExtensionVersion };
         skipped = 0,
         failedChats = [],
         failedAttachments = [],
+        parseDrift = [],
         isDevMode = false
     }: SessionLogOptions = {}): string {
         let fullLogText = `=======================================================\n`;
@@ -151,6 +153,23 @@ export { EXT_VERSION, getExtensionVersion };
             fullLogText += `\n`;
         }
 
+        // P1-8: parser 漂移（成功但 partial 的会话）同样可见
+        if (parseDrift.length > 0) {
+            fullLogText += `[PARSE DRIFT / PARTIAL SESSIONS]\n`;
+            for (const pd of parseDrift) {
+                const bits: string[] = [];
+                if (pd.turnsRejected > 0) bits.push(`turnsRejected=${pd.turnsRejected}`);
+                if (pd.hasHeuristicDocs) bits.push(`heuristicDocs`);
+                fullLogText += `  - ${pd.id || 'unknown'} | "${(pd.title || '').slice(0, 60)}" | ${bits.join(", ") || "schema drift"}\n`;
+                if (Array.isArray(pd.schemaDrift)) {
+                    for (const w of pd.schemaDrift.slice(0, 5)) {
+                        fullLogText += `    [drift] ${String(w).slice(0, 200)}\n`;
+                    }
+                }
+            }
+            fullLogText += `\n`;
+        }
+
         return fullLogText;
     }
 
@@ -167,7 +186,7 @@ export { EXT_VERSION, getExtensionVersion };
                 throw new Error('[sessionRecovery] writeDiagnostics: IExportWriter is required');
             }
             await writer.writeFile('_export_dev.log', fullLogText);
-            if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length) {
+            if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length || sessionJson.parseDrift?.length) {
                 await writer.writeFile('_export_errors.json', JSON.stringify(sessionJson, null, 2));
             }
             if (isDevMode) {

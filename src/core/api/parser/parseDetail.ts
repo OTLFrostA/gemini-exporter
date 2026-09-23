@@ -19,6 +19,7 @@ export interface DetailParseResult {
     nextPageToken: string | null;
     attachmentCount: number;
     schemaDrift?: string[];
+    turnsRejected?: number;
     _raw?: any;
     _debug?: any;
 }
@@ -136,6 +137,7 @@ interface TurnsExtractionResult {
     turns: any[];
     inner: any;
     schemaDriftWarnings: string[];
+    turnsRejected: number;
 }
 
 /**
@@ -208,7 +210,15 @@ function extractTurnsFromInner(
         schemaDriftWarnings.push(`Payload drift: inner JSON array present (length ${activeInner.length}) but unable to locate turns array`);
     }
 
-    return { turns, inner: activeInner, schemaDriftWarnings };
+    // P1-8: count elements the turn recognizer rejects. They are dropped from
+    // the exported messages, so the count must travel with the result instead
+    // of being silently lost. The array itself is left untouched.
+    let turnsRejected = 0;
+    for (const t of turns) {
+        if (!isTurn(t)) turnsRejected++;
+    }
+
+    return { turns, inner: activeInner, schemaDriftWarnings, turnsRejected };
 }
 
 /**
@@ -382,6 +392,14 @@ function parseCandidateResponse(
                 }
 
                 if (!md) continue;
+                // P1-9: 上游链任一 heuristic 标记 → 外层写 hasFabricatedText + 日志，
+                // 不得静默把拼凑结果转成正常可信结果
+                const heuristicChain = metaItem.source === "heuristic-flat"
+                    || (parsedPrimary as any)?.contentMatch === "substring"
+                    || (parsedAlt as any)?.contentMatch === "substring";
+                if (heuristicChain && typeof console !== "undefined" && console.warn) {
+                    console.warn(`[GemExporter:parseDetail.ts] heuristic doc content for "${docTitle}" (id=${metaItem.id}); marked hasFabricatedText`);
+                }
                 docDetails.push({
                     id: metaItem.id,
                     title: docTitle,
@@ -392,7 +410,8 @@ function parseCandidateResponse(
                     contentMarkdown: md,
                     url: "",
                     localName: getUniqueLocalName(`files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60)}.md`),
-                    type: "file"
+                    type: "file",
+                    ...(heuristicChain ? { hasFabricatedText: true } : {})
                 });
             }
         } catch (er) {
@@ -483,7 +502,7 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
 
         if (!extractedInner) throw new Error("invalid");
 
-        const { turns, inner, schemaDriftWarnings } = extractTurnsFromInner(
+        const { turns, inner, schemaDriftWarnings, turnsRejected } = extractTurnsFromInner(
             extractedInner,
             top,
             innerStr,
@@ -611,6 +630,7 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
             nextPageToken: nextToken,
             attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),
             schemaDrift: schemaDriftWarnings.length ? schemaDriftWarnings : void 0,
+            turnsRejected: turnsRejected > 0 ? turnsRejected : void 0,
             _raw: inner,
             _debug
         };
