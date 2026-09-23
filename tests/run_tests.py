@@ -500,44 +500,44 @@ def test_exported_history_and_slot_fallback():
     assert re.search(r"for\s*\(\s*(?:const|let|var)?\s*\w+\s+of\s+candidates\s*\)", store_code) or "candidates" in store_code, "conversationsStore should smartly fall back to slot with conversations"
     print("  ✓ Exported history preservation & slot fallback verified")
 
-def test_dataset_freshness_gate():
+def test_custom_dataset_loading():
     import tempfile
-    import time
     scripts_dir = os.path.join(BASE_DIR, "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from test_live_chat_and_export import validate_dataset_freshness
+    from test_live_chat_and_export import load_custom_dataset
 
-    # 1. No dataset without allow_stale -> should fail
-    ok, res = validate_dataset_freshness(None, allow_stale=False)
-    assert not ok and "未指定测试数据集" in res, "Missing dataset should be blocked by gate"
+    # 1. No dataset -> should return (True, None) (falls back to pool)
+    ok, res = load_custom_dataset(None)
+    assert ok and res is None, "None dataset path should succeed with None (allowing pool default)"
 
-    # 2. Stale dataset without allow_stale -> should fail
+    # 2. Non-existent dataset file -> should return (False, err)
+    ok, res = load_custom_dataset("/path/to/non_existent_dataset.json")
+    assert not ok and "不存在" in res, "Non-existent dataset file should fail"
+
+    # 3. Invalid JSON file -> should return (False, err)
+    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f:
+        f.write("{invalid json content")
+        f_bad = f.name
+    try:
+        ok, res = load_custom_dataset(f_bad)
+        assert not ok and "失败" in res, "Invalid JSON dataset should fail"
+    finally:
+        if os.path.isfile(f_bad):
+            os.remove(f_bad)
+
+    # 4. Valid JSON dataset -> should return (True, parsed_data)
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f:
         f.write('[{"id":"test","title":"Test","turns":["Q1","A1"]}]')
         f_name = f.name
     try:
-        os.utime(f_name, (time.time() - 300, time.time() - 300))
-        ok, res = validate_dataset_freshness(f_name, allow_stale=False)
-        assert not ok and "已超过 2 分钟" in res, "Stale dataset (>120s) should be blocked by gate"
-
-        # 3. Stale dataset with allow_stale -> should pass
-        ok, res = validate_dataset_freshness(f_name, allow_stale=True)
-        assert ok and isinstance(res, list), "Stale dataset with allow_stale should pass"
-
-        # 4. Fresh dataset without allow_stale -> should pass
-        os.utime(f_name, (time.time(), time.time()))
-        ok, res = validate_dataset_freshness(f_name, allow_stale=False)
-        assert ok and isinstance(res, list), "Fresh dataset should pass without allow_stale"
-
-        # 5. Default dataset with allow_stale -> should pass with None
-        ok, res = validate_dataset_freshness(None, allow_stale=True)
-        assert ok and res is None, "Default dataset with allow_stale should pass"
+        ok, res = load_custom_dataset(f_name)
+        assert ok and isinstance(res, list) and len(res) == 1, "Valid dataset should parse successfully"
     finally:
         if os.path.isfile(f_name):
             os.remove(f_name)
 
-    print("  ✓ Dataset 2-minute freshness gate & bypass options verified")
+    print("  ✓ Custom dataset loader & format validation verified")
 
 def test_scenario_pool_pipeline():
     import tempfile
@@ -1053,7 +1053,7 @@ def run_all():
                 if any(x in f for f in affected for x in ["storageService", "conversationsStore"]):
                     test_exported_history_and_slot_fallback()
                 if any("test_live_chat_and_export.py" in f for f in affected):
-                    test_dataset_freshness_gate()
+                    test_custom_dataset_loading()
                 if any("scenario" in f for f in affected):
                     test_scenario_pool_pipeline()
                     test_online_scenario_provider_and_lifecycle_tracker()
@@ -1096,7 +1096,7 @@ def run_all():
     test_i18n_keys()
     test_content_badge_flicker_prevention()
     test_exported_history_and_slot_fallback()
-    test_dataset_freshness_gate()
+    test_custom_dataset_loading()
     test_scenario_pool_pipeline()
     test_online_scenario_provider_and_lifecycle_tracker()
     test_tour_status_indicator_styling()

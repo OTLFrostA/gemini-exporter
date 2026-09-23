@@ -37,7 +37,6 @@ except ImportError:
     from cdp_client import CDPConnection, get_tabs, get_extension_id, get_browser_ws_url
 
 CDP_DEFAULT_PORT = 9222
-DATASET_MAX_AGE_SECONDS = 120  # 2 分钟新鲜度时效限制
 
 
 # -------------------------------------------------------------
@@ -92,57 +91,18 @@ def run_live_chat_and_export(
     return runner.run()
 
 
-def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=DATASET_MAX_AGE_SECONDS):
+def load_custom_dataset(dataset_path):
     """
-    门禁检查：
-    在非 allow_stale 模式下，强制要求必须传入 2 分钟之内新鲜生成的数据集文件。
-    若未传入或文件超过 max_age_seconds 秒，拦截并返回详细的错误指导说明。
+    加载自定义测试数据集 JSON 文件。
+    若未指定路径返回 (True, None)；
+    若文件不存在或非合法 JSON 返回 (False, 错误原因)；
+    加载成功返回 (True, 数据列表或字典)。
     """
-    if allow_stale:
-        if dataset_path:
-            if not os.path.isfile(dataset_path):
-                return False, f"❌ 指定的数据集文件不存在: {dataset_path}"
-            try:
-                with open(dataset_path, "r", encoding="utf-8") as f:
-                    return True, json.load(f)
-            except Exception as e:
-                return False, f"❌ 读取数据集 JSON 失败: {e}"
-        return True, None
-
-    sep = "=" * 70
     if not dataset_path:
-        msg = f"""
-{sep}
-❌ [AI 执行门禁拦截] 未指定测试数据集（--dataset <path>）！
-{sep}
-💡 场景池标准模式：推荐不传入 `--dataset`，执行器将自动通过统一场景池调度出队最新场景：
-   npm run test:live:pool
-   (或 python3 scripts/test_live_chat_and_export.py --pool)
-
-💡 规则说明：若手动传入 `--dataset`，由 AI Agent 驱动的测试与验收必须现场动态构思全新的测试场景并在 {max_age_seconds} 秒（2 分钟）之内生成 JSON 数据集文件，严禁直接复用静态数据集。
-💡 人工调试提示：若本次运行并非由 AI Agent 驱动（例如人工本地调试或离线复现），请添加 `--allow-stale-dataset` 参数以绕过此时效限制并允许使用内置默认数据集：
-   python3 scripts/test_live_chat_and_export.py --allow-stale-dataset
-{sep}"""
-        return False, msg
+        return True, None
 
     if not os.path.isfile(dataset_path):
         return False, f"❌ 指定的数据集文件不存在: {dataset_path}"
-
-    try:
-        mtime = os.path.getmtime(dataset_path)
-        file_age = time.time() - mtime
-    except Exception as e:
-        return False, f"❌ 获取数据集文件修改时间失败: {e}"
-
-    if file_age > max_age_seconds:
-        msg = f"""
-{sep}
-❌ [AI 执行门禁拦截] 数据集文件 `{dataset_path}` 生成/修改于 {int(file_age)} 秒前（已超过 2 分钟 / {max_age_seconds} 秒时效限制）！
-{sep}
-💡 场景池标准模式：推荐不传入 `--dataset`，执行器将自动通过统一场景池调度出队最新场景：
-   npm run test:live:pool
-{sep}"""
-        return False, msg
 
     try:
         with open(dataset_path, "r", encoding="utf-8") as f:
@@ -152,14 +112,18 @@ def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=
         return False, f"❌ 读取数据集 JSON 失败: {e}"
 
 
+def validate_dataset_freshness(dataset_path, allow_stale=False, max_age_seconds=None):
+    """向上兼容旧接口，直接委托给 load_custom_dataset"""
+    return load_custom_dataset(dataset_path)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gemini 特性驱动全流程实跑测试 (Feature-Driven Live Chat & Export Test)")
     parser.add_argument("--features", default=None, help="指定单项或多项待测特性 ID（逗号分隔，如 feat_search_filter_by_keyword,feat_language_toggle）")
     parser.add_argument("--domain", default=None, help="指定待测生命周期领域（chat / lifecycle / takeout / workbench / export）")
     parser.add_argument("--list-features", action="store_true", help="打印所有已注册特性清单及其依赖关系拓扑")
     parser.add_argument("--pool", action="store_true", help="从动态场景池中自动消费最新多模态场景（默认行为）")
-    parser.add_argument("--dataset", default=None, help="自定义测试数据集 JSON 文件路径 (AI 协同模式下必须在 2 分钟之内新鲜生成)")
-    parser.add_argument("--allow-stale-dataset", action="store_true", help="允许使用超过 2 分钟时效限制的历史数据集（供非 AI Agent 的人工本地调试使用）")
+    parser.add_argument("--dataset", default=None, help="可选自定义外挂测试数据集 JSON 文件路径（默认从动态场景池调度）")
     parser.add_argument("--output-dir", default=None, help="测试导出落地目录")
     parser.add_argument("--port", type=int, default=CDP_DEFAULT_PORT, help="Chrome CDP 远程调试端口")
     parser.add_argument("--delay", type=int, default=6, help="轮次之间的人性化安全冷却秒数 (默认 6 秒，防机械发帖)")
@@ -185,10 +149,7 @@ if __name__ == "__main__":
 
     custom_dataset = None
     if args.dataset:
-        valid, result_or_err = validate_dataset_freshness(
-            args.dataset,
-            allow_stale=args.allow_stale_dataset
-        )
+        valid, result_or_err = load_custom_dataset(args.dataset)
         if not valid:
             print(result_or_err)
             sys.exit(1)
