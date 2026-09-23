@@ -25,7 +25,8 @@ export async function getLiveConfig(): Promise<LiveSaveConfig> {
                 _memConfig = { ...DEFAULT_LIVE_CONFIG, ...d[KEY_CONFIG] };
                 return { ..._memConfig };
             }
-        } catch {
+        } catch (err) {
+            console.warn('[LiveStorageManager] Failed to read live config from chrome.storage.local:', err);
         }
     }
     return { ..._memConfig };
