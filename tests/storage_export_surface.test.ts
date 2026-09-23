@@ -1,14 +1,20 @@
 /**
- * Phase A (P1-4) 架构测试：存储出口收口。
+ * Phase A (P1-4) + P1-3 跟进修复的架构测试：存储出口收口。
  *
  * 契约：
- *   1. setExportedIds / setAccountSlots 不再是 storageService 的命名导出 ——
- *      裸写原语不得成为公开 API，对外只走 saveExportRecord / updateAccountSlot
- *      等事务性入口。函数本体仍保留在 StorageService 对象上供内部与测试使用。
+ *   1. setExportedIds / setAccountSlots 彻底退出 storageService 公开 surface ——
+ *      不再是命名导出，也不在 StorageServiceModule interface 与默认 StorageService
+ *      对象上声明。裸写原语不得成为公开 API，对外只走 saveExportRecord /
+ *      saveExportRecordsBatch / removeExportRecords / updateAccountSlot
+ *      等事务性入口。函数本体仍保留在模块闭包内，供 saveExportRecordsBatch
+ *     （锁内回写）与内部 slot 更新使用。
  *   2. _setConversationsRaw 保持模块私有 —— 它从未被导出，本测试防止将来
  *      有人把它重新加进命名导出（裸写原语外泄）。
  *   3. finalizeChatExport 的 storageAdapter 必须实现 saveExportRecord ——
  *      缺失即抛错，不再静默降级到 set/get 或 chrome.storage 直写。
+ *   4. conversationsStore.clearExported 必须走 removeExportRecords(slot, allIds)
+ *      事务性删除路径，禁止用 setExportedIds(s, {}) 整 map 裸写清零（并发
+ *      清记录+写记录的竞态丢失窗口）。
  *
  * 运行: node -r ./tests/ts_register.js --test tests/storage_export_surface.test.ts
  */
@@ -50,11 +56,11 @@ test('storageService: 裸写 setter 不再是命名导出', () => {
     assert.strictEqual(mod._setConversationsRaw, undefined,
         '_setConversationsRaw 不得外泄');
 
-    // 函数本体保留在 StorageService 对象上，供内部与测试使用
-    assert.strictEqual(typeof mod.StorageService.setExportedIds, 'function',
-        'StorageService.setExportedIds 本体应保留');
-    assert.strictEqual(typeof mod.StorageService.setAccountSlots, 'function',
-        'StorageService.setAccountSlots 本体应保留');
+    // 裸写原语彻底退出公开 surface：默认对象上也不再挂载
+    assert.strictEqual(mod.StorageService.setExportedIds, undefined,
+        'StorageService.setExportedIds 不得再挂载');
+    assert.strictEqual(mod.StorageService.setAccountSlots, undefined,
+        'StorageService.setAccountSlots 不得再挂载');
 });
 
 test('finalizeChatExport: storageAdapter 缺 saveExportRecord 即抛错', async () => {

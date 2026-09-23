@@ -35,7 +35,6 @@ export interface IConversationsStore {
     }>;
     getLastSync: (slot?: string) => Promise<{ timestamp: number | null; count: number }>;
     saveConversations: (slot: string, list: Conversation[]) => Promise<void>;
-    saveExportedIds: (slot: string, map: Record<string, ExportRecord>) => Promise<void>;
     clearExported: (slot: string) => Promise<void>;
     clearAll: (slot: string) => Promise<void>;
     getDevMode: () => Promise<boolean>;

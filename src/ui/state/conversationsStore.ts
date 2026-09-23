@@ -121,17 +121,18 @@ export async function saveConversations(slot: string, list: Conversation[]): Pro
     if (s === currentSlot) setConversations(list);
 }
 
-export async function saveExportedIds(slot: string, map: Record<string, ExportRecord>): Promise<void> {
-    const s = slot || currentSlot;
-    const storage = getStorage();
-    if (storage?.setExportedIds) await storage.setExportedIds(s, map);
-    if (s === currentSlot) setExportedIds(map);
-}
-
 export async function clearExported(slot: string): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
-    if (storage?.setExportedIds) await storage.setExportedIds(s, {});
+    if (storage?.removeExportRecords) {
+        // P1-3: clear via the transactional delete path instead of a bare
+        // whole-map overwrite. removeExportRecords re-reads the map inside the
+        // storage write chain and deletes only the listed ids, so records
+        // written concurrently by saveExportRecord can neither be clobbered
+        // (overwrite race) nor resurrected (delete-then-write race).
+        const cur = (storage?.getExportedIds ? await storage.getExportedIds(s) : null) || {};
+        await storage.removeExportRecords(s, Object.keys(cur));
+    }
     if (s === currentSlot) setExportedIds({});
 }
 
@@ -215,7 +216,6 @@ export const ConversationsStore: IConversationsStore = {
     loadStore,
     getLastSync,
     saveConversations,
-    saveExportedIds,
     clearExported,
     clearAll,
     getDevMode,
