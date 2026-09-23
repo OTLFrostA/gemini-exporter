@@ -37,7 +37,7 @@ export async function maybePromptTakeout(count: number = 600, hitGoogleLimit: bo
         const hasTakeout = (Store && Store.hasTakeoutData && Store.hasTakeoutData()) ||
             (Storage && Storage.hasTakeoutData && await Storage.hasTakeoutData());
         if (!isCompleted && !hasTakeout && Dialogs && Dialogs.showTakeoutLimitPrompt) {
-            Dialogs.showTakeoutLimitPrompt({
+            void Dialogs.showTakeoutLimitPrompt({
                 count: count || 600,
                 hitGoogleLimit: !!hitGoogleLimit,
                 onImportTakeout: () => ($('takeoutFileInput') as HTMLInputElement | null)?.click()
@@ -73,7 +73,7 @@ function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
     if (progWrap) progWrap.style.display = 'block';
     if (bar) bar.style.width = '15%';
 
-    TakeoutCtrl.handleTakeoutImport(f, {
+    void TakeoutCtrl.handleTakeoutImport(f, {
         onProgress: (pct: number, txt: string) => {
             if (bar) bar.style.width = `${pct}%`;
             if (progText) progText.textContent = txt;
@@ -85,7 +85,7 @@ function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
             if (input) {
                 try { input.value = ''; } catch { /* noop */ }
             }
-            if (__loadStore) __loadStore();
+            if (__loadStore) void __loadStore();
         },
         onError: (err: any, errMsg?: string) => {
             if (progText) progText.textContent = errMsg || err.message;

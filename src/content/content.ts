@@ -72,7 +72,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
             if (b && !b.__initialRefreshed) {
                 b.__initialRefreshed = true;
                 if (Sync && Sync.refreshInitialBadge) {
-                    Sync.refreshInitialBadge();
+                    void Sync.refreshInitialBadge();
                 }
             }
             return b;
@@ -88,13 +88,13 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
                 if (Sync && Sync.setLanguage) Sync.setLanguage(lang);
                 contentContext.setDevMode(!!d[STORAGE_KEYS.DEV_MODE]);
                 w.__gemExporterDevMode = !!d[STORAGE_KEYS.DEV_MODE];
-                if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
+                if (Sync && Sync.refreshInitialBadge) void Sync.refreshInitialBadge();
             });
             const onStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
                 if (area === 'local' && changes[STORAGE_KEYS.LANG]) {
                     const newLang = String(changes[STORAGE_KEYS.LANG].newValue || 'zh');
                     if (Sync && Sync.setLanguage) Sync.setLanguage(newLang);
-                    if (Sync && Sync.refreshInitialBadge) Sync.refreshInitialBadge();
+                    if (Sync && Sync.refreshInitialBadge) void Sync.refreshInitialBadge();
                 }
                 if (area === 'local' && changes[STORAGE_KEYS.DEV_MODE]) {
                     const devMode = !!changes[STORAGE_KEYS.DEV_MODE].newValue;
@@ -125,7 +125,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         LiveSaveObserver.init({
             debounceMs: 300,
             onTurnComplete: (cid, reason) => {
-                LiveSaveCoordinator.executeLiveSave(cid, reason);
+                void LiveSaveCoordinator.executeLiveSave(cid, reason);
                 if (Sync && Sync.touchActiveConversation) {
                     Sync.touchActiveConversation(cid, undefined, { source: 'live-turn-complete' }).catch(() => {});
                 }
@@ -183,27 +183,27 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     // against the live DOM. DOM events cross the isolated/main world boundary,
     // so no script injection is needed. No production behavior.
     document.addEventListener('gemini-exporter:test-sync-once', () => {
-        if (Sync) Sync.syncOnce();
+        if (Sync) void Sync.syncOnce();
     });
 
     // Initialize Page Observer (handles pushState, popstate, MutationObserver and clean intervals)
     if (Observer && Observer.init) {
         Observer.init({
             onSync: () => {
-                if (Sync) Sync.syncOnce();
+                if (Sync) void Sync.syncOnce();
             }
         });
     }
 
     // Run credential bootstrap
-    ensureCreds();
+    void ensureCreds();
 
     if (document.readyState !== 'loading') {
-        autoInitSync();
+        void autoInitSync();
     } else {
         document.addEventListener('DOMContentLoaded', () => {
             ensureBadge();
-            autoInitSync();
+            void autoInitSync();
         }, { once: true });
     }
 

@@ -560,7 +560,7 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         updateZipUi();
         zipCheck.addEventListener('change', () => {
             updateZipUi();
-            chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: zipCheck.checked });
+            void chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: zipCheck.checked });
         });
     }
 
@@ -608,7 +608,7 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
         if (List) List.selectUnexported(convs, expMap);
-        exportSelected();
+        void exportSelected();
     });
     $('btnDismissExportBanner')?.addEventListener('click', () => {
         if (Dialogs) Dialogs.dismissExportBanner();

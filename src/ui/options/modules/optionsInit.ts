@@ -273,7 +273,7 @@ function bindSearchAndSelection(): void {
     $('btnTourGuide')?.addEventListener('click', () => {
         const Tour = getTour();
         if (Tour && Tour.startTour) {
-            Tour.startTour(0);
+            void Tour.startTour(0);
         }
     });
 }

@@ -155,7 +155,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         if (updateBadge) updateBadge(count, 0);
                         try {
                             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                                chrome.runtime.sendMessage({
+                                void chrome.runtime.sendMessage({
                                     action: 'syncUpdate',
                                     slot: targetSlot,
                                     count,

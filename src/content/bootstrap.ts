@@ -287,7 +287,7 @@ if (typeof window !== 'undefined') {
     w.__gemExporterExtractBl = extractBlFromPage;
     w.__gemExporterEnsureCreds = ensureCreds;
 
-    ensureCreds();
+    void ensureCreds();
     document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });
     window.addEventListener('load', () => ensureCreds(), { once: true });
 
@@ -302,7 +302,7 @@ if (typeof window !== 'undefined') {
             if (!isExtAlive()) return;
             // Queued behind any in-flight ensureCreds so concurrent load→save
             // cycles cannot overwrite each other's map entries.
-            runSerializedCredOp(async () => {
+            void runSerializedCredOp(async () => {
                 try {
                     const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
                     const sid = p.sid || '';

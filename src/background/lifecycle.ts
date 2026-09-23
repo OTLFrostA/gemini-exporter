@@ -44,7 +44,7 @@ export function initLifecycleListeners(): void {
     chrome.runtime.onInstalled.addListener((details) => {
         initUninstallUrl();
         if (details.reason === 'install') {
-            chrome.tabs.create({
+            void chrome.tabs.create({
                 url: chrome.runtime.getURL('src/ui/options/options.html')
             });
         }
