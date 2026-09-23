@@ -7,14 +7,7 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { buildExportFileName, shortId, normId } from '../core/utils/pathUtils.js';
 import type { GeminiAPIClient } from '../core/api/geminiClient.js';
-import { ProviderRegistry } from '../core/provider/providerRegistry.js';
-// Side-effect imports kept intentionally: geminiProvider/chatgptProvider self-register
-// into ProviderRegistry on module evaluation (see the "Auto-register" blocks at the
-// bottom of each file), and nothing else in the static import graph pulls them in —
-// without these, ProviderRegistry would stay empty at runtime. Importing the two
-// provider modules directly (rather than provider/index.js) keeps the intent precise.
-import '../core/provider/gemini/geminiProvider.js';
-import '../core/provider/chatgpt/chatgptProvider.js';
+import { resolveProvider } from '../core/provider/providerResolver.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
@@ -53,11 +46,6 @@ function getFsWriterClass() {
 
 function getUtils() {
     return _deps.utils || GeminiUtils;
-}
-
-function resolveProvider() {
-    const url = (typeof location !== 'undefined' && location.href) || '';
-    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
 }
 
 function getBadge() {

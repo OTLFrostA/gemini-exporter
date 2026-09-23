@@ -1,8 +1,8 @@
 /**
  * src/core/provider/chatgpt/chatgptProvider.ts
- * ChatGPT Provider implementation & Tree Mapping Normalizer.
- * Bridges OpenAI ChatGPT Web REST API endpoints and transforms
- * recursive message node trees into the universal Conversation / Turn model.
+ * ChatGPT Provider (dormant 预留扩展点) & Tree Mapping Normalizer.
+ * manifest 未覆盖 chatgpt.com 域名、无 content script 匹配，运行时不可达；
+ * 能力声明与列表入口已降级，误调直接抛错。
  */
 import type {
     AIProvider,
@@ -168,7 +168,9 @@ export class ChatGPTProvider implements AIProvider {
     ];
 
     readonly capabilities: ProviderCapabilities = {
-        supportsRealtimeSniffing: true,
+        // Dormant: no manifest host permission or content-script match for
+        // chatgpt.com, so realtime sniffing can never trigger — never claim it.
+        supportsRealtimeSniffing: false,
         supportsTakeoutImport: true,
         supportsThoughtBlocks: true,
         supportsIncrementalSync: true,
@@ -213,92 +215,10 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    async listConversations(options?: any): Promise<ProviderPageResult<ProviderConversationItem>> {
-        await ensureProviderLang();
-        const CHATGPT_LIST_PAGE_SIZE = 28;
-        const CHATGPT_LIST_MAX_PAGES = 50;
-        const offset = 0;
-        const limit = CHATGPT_LIST_PAGE_SIZE;
-        const maxPages = options?.maxPages || CHATGPT_LIST_MAX_PAGES;
-        const conversations: ProviderConversationItem[] = [];
-
-        let currentOffset = offset;
-        let hasMore = true;
-        let pageCount = 0;
-
-        while (hasMore && pageCount < maxPages) {
-            if (options?.signal && options.signal.aborted) {
-                break;
-            }
-            pageCount++;
-            const url = `https://chatgpt.com/backend-api/conversations?offset=${currentOffset}&limit=${limit}`;
-            let res: Response;
-            try {
-                res = await fetch(url, { credentials: 'include', signal: options?.signal });
-            } catch (e: any) {
-                if (options?.signal?.aborted || e?.name === 'AbortError') {
-                    return {
-                        items: conversations,
-                        total: conversations.length,
-                        hasMore: false,
-                        nextCursor: null,
-                        stoppedEarly: true
-                    };
-                }
-                throw e;
-            }
-            if (!res.ok) {
-                const httpError = `ChatGPT conversation list failed: HTTP ${res.status}`;
-                console.warn('[ChatGPTProvider]', httpError);
-                return {
-                    items: conversations,
-                    total: conversations.length,
-                    hasMore,
-                    nextCursor: null,
-                    stoppedEarly: true,
-                    diagnostics: { error: httpError, httpStatus: res.status, partial: true }
-                };
-            }
-
-            const data = await res.json();
-            const items = data.items || [];
-            if (!items.length) break;
-
-            for (const item of items) {
-                const updatedMs: number | undefined = item.update_time ? new Date(item.update_time).getTime() : undefined;
-                const createdMs: number | undefined = item.create_time ? new Date(item.create_time).getTime() : updatedMs;
-                conversations.push({
-                    id: item.id,
-                    title: item.title || t('chatgptUntitled'),
-                    url: `https://chatgpt.com/c/${item.id}`,
-                    updatedAt: updatedMs,
-                    createdAt: createdMs
-                });
-            }
-
-            if (options?.onProgress) {
-                options.onProgress({
-                    page: pageCount,
-                    added: items.length,
-                    total: conversations.length,
-                    hasMore: items.length >= limit
-                });
-            }
-
-            if (items.length < limit) {
-                hasMore = false;
-            } else {
-                currentOffset += items.length;
-            }
-        }
-
-        return {
-            items: conversations,
-            total: conversations.length,
-            hasMore,
-            nextCursor: null,
-            stoppedEarly: pageCount >= maxPages
-        };
+    async listConversations(_options?: any): Promise<ProviderPageResult<ProviderConversationItem>> {
+        // Dormant provider: unreachable at runtime (no manifest coverage), so
+        // fail loudly instead of pretending to list conversations.
+        throw new Error('dormant');
     }
 
     async fetchConversationDetail(conversationId: string, _options?: any): Promise<ProviderConversationDetail> {

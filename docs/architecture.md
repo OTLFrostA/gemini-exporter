@@ -69,10 +69,10 @@ graph TD
     end
 
     subgraph CoreEngine ["核心领域逻辑与引擎层 (Core Domain Logic & Engine)"]
-        subgraph ProviderLayer ["通用多模型 Provider 抽象层 (src/core/provider/)"]
+        subgraph ProviderLayer ["Provider 抽象层 (src/core/provider/，ChatGPT 为 dormant 预留扩展点)"]
             PROV_Registry["ProviderRegistry<br/>(多提供商动态注册表)"]
             PROV_Gemini["GeminiProvider<br/>(Gemini batchexecute 协议适配)"]
-            PROV_ChatGPT["ChatGPTProvider<br/>(ChatGPT API/DOM 协议适配)"]
+            PROV_ChatGPT["ChatGPTProvider<br/>(dormant 预留扩展点，未激活)"]
         end
 
         subgraph ApiParserLayer ["协议通信与反序列化层 (src/core/api/)"]
@@ -183,7 +183,7 @@ graph TD
 | `src/core/provider/aiProvider.ts` | Core: Provider | `AIProvider`, `ProviderConversationItem`, `ProviderCapabilities` | 定义跨异构 AI 模型平台的通用接口契约规范。 | 所有 Provider 模块 | 上层引擎统一接口 | `PROV_Registry` |
 | `src/core/provider/providerRegistry.ts` | Core: Provider | `ProviderRegistryClass`, `ProviderRegistry` (单例) | 全局 Provider 注册表，支持按平台 ID 或当前页面 URL 模式匹配提供商。 | 各 Provider 自动注册 | `liveSaveCoordinator`, `exportOrchestrator` | `PROV_Registry` |
 | `src/core/provider/gemini/geminiProvider.ts` | Core: Provider | `GeminiProvider` (实现 `AIProvider`) | Gemini 平台适配器，封装 batchexecute RPC 调用与多账号 Slot 映射。 | `providerRegistry.ts` | `geminiClient`, `geminiParser` | `PROV_Gemini` |
-| `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器，已完整实现对话列表翻页、详情抓取与树映射展开算法（规划特性，等待后续 manifest 授权激活）。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
+| `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器（dormant 预留扩展点）：`listConversations` 直接抛错防误调，`supportsRealtimeSniffing=false`；manifest 未覆盖其域名、无 content script 匹配，运行时不可达。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
 | `src/core/provider/index.ts` | Core: Provider | `export *` (Barrel) | 统一导出多模型提供商契约、具体适配器与注册表单例。 | 业务消费方 | Provider 子模块 | `PROV_Registry` |
 | `src/core/api/geminiClient.ts` | Core: API | `GeminiAPIClient` (Facade) | 统一客户端入口，封装身份认证、分页抓取、指数退避重试与 AbortSignal 控制。 | `geminiProvider`, `syncEngine`, `exportWorker` | `client/*` 子模块 | `API_Client` |
 | `src/core/api/geminiParser.ts` | Core: API | `GeminiParser`（含 `GeminiResponseParserClass` facade） | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |

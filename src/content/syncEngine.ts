@@ -15,26 +15,14 @@ import {
 } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
-import { ProviderRegistry } from '../core/provider/providerRegistry.js';
-// Side-effect imports kept intentionally: geminiProvider/chatgptProvider self-register
-// into ProviderRegistry on module evaluation (see the "Auto-register" blocks at the
-// bottom of each file), and nothing else in the static import graph pulls them in —
-// without these, ProviderRegistry would stay empty at runtime. Importing the two
-// provider modules directly (rather than provider/index.js) keeps the intent precise.
-import '../core/provider/gemini/geminiProvider.js';
-import '../core/provider/chatgpt/chatgptProvider.js';
+import { resolveProvider } from '../core/provider/providerResolver.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
-import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
 const getProtocol = () => __resolveModule('GeminiProtocol', GeminiProtocol);
-const resolveProvider = () => {
-    const url = (typeof location !== 'undefined' && location.href) || '';
-    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
-};
 
 export {
     cleanTitle,
@@ -383,8 +371,6 @@ export async function ingestListBatch(
     source: string,
     options?: IngestListOptions
 ): Promise<IngestListResult> {
-    // P1-13: schema frozen 时写路径 fail-closed（读路径不受影响）
-    await assertSchemaWritable();
     const slot = options?.slot || getAccountSlot();
     const Storage = getStorage();
     // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice

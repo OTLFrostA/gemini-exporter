@@ -8,21 +8,9 @@ import { GeminiUtils, getErrorMessage, resolveDetailTitle as defaultResolveDetai
 import { normId } from '../core/utils/pathUtils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
-import { ProviderRegistry } from '../core/provider/providerRegistry.js';
-// Side-effect imports kept intentionally: geminiProvider/chatgptProvider self-register
-// into ProviderRegistry on module evaluation (see the "Auto-register" blocks at the
-// bottom of each file), and nothing else in the static import graph pulls them in —
-// without these, ProviderRegistry would stay empty at runtime. Importing the two
-// provider modules directly (rather than provider/index.js) keeps the intent precise.
-import '../core/provider/gemini/geminiProvider.js';
-import '../core/provider/chatgpt/chatgptProvider.js';
+import { resolveProvider } from '../core/provider/providerResolver.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import type { GetConversationDetailMessage } from '../types/messages.js';
-
-const resolveProvider = () => {
-    const url = (typeof location !== 'undefined' && location.href) || '';
-    return ProviderRegistry.findByUrl(url) || ProviderRegistry.getDefault();
-};
 
 // Only allow HTTPS URLs on Google media/content hosts before fetching assets.
 function isAllowedAssetUrl(u: unknown): boolean {

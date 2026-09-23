@@ -70,9 +70,10 @@ test('provider-neutral - ChatGPT fetch calls carry credentials:include (P0-3)', 
         const cp = new ChatGPTProvider();
         const ready = await cp.checkReadiness();
         assert.strictEqual(ready.ready, true);
-        await cp.listConversations({ maxPages: 1 });
+        await assert.rejects(() => cp.listConversations({ maxPages: 1 }), /dormant/,
+            'dormant provider 不得发起列表请求');
         await cp.fetchConversationDetail('g1');
-        assert.strictEqual(calls.length, 3);
+        assert.strictEqual(calls.length, 2);
         for (const [url, init] of calls) {
             assert.strictEqual(init && init.credentials, 'include', `credentials:include on ${url}`);
         }
@@ -81,24 +82,13 @@ test('provider-neutral - ChatGPT fetch calls carry credentials:include (P0-3)', 
     }
 });
 
-test('provider-neutral - ChatGPTProvider returns neutral page/detail shapes', async () => {
-    (global as any).fetch = async (url: string) => {
-        if (url.includes('/backend-api/conversations?')) {
-            return { ok: true, json: async () => ({ items: [{ id: 'g1', title: 'GT', create_time: 1700000000, update_time: 1700000100 }] }) };
-        }
-        throw new Error('unexpected ' + url);
-    };
+test('provider-neutral - ChatGPTProvider.listConversations is dormant (Phase E)', async () => {
+    let fetched = false;
+    (global as any).fetch = async () => { fetched = true; throw new Error('must not fetch'); };
     try {
         const cp = new ChatGPTProvider();
-        const page = await cp.listConversations({ maxPages: 1 });
-        assert.strictEqual(page.items.length, 1);
-        assert.strictEqual(page.items[0].id, 'g1');
-        assert.strictEqual(page.items[0].title, 'GT');
-        assert.strictEqual(page.items[0].url, 'https://chatgpt.com/c/g1');
-        assert.strictEqual(typeof page.items[0].updatedAt, 'number');
-        assert.strictEqual(page.total, 1);
-        assert.strictEqual(page.nextCursor, null);
-        assert.ok(!('conversations' in page), 'no Gemini-flavored field names leak');
+        await assert.rejects(() => cp.listConversations({ maxPages: 1 }), /dormant/);
+        assert.strictEqual(fetched, false, 'dormant 入口不得发起任何网络请求');
     } finally {
         delete (global as any).fetch;
     }

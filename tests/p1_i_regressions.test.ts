@@ -114,30 +114,22 @@ test('P1-080 - explicit matchesUrl=false is never overruled by hostPatterns', ()
     );
 });
 
-// ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here)
+// ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here; Phase E: dormant)
 test('P1-081/082 - provider contract stays neutral: no union, no hitGoogleLimit', async () => {
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = (async () => ({ ok: true, json: async () => ({ items: [] }) })) as any;
-    try {
-    // Type-level lock (checked by tsc): listConversations returns the single
+    // Type-level lock (checked by tsc): listConversations still declares the single
     // neutral page type, so .items is directly accessible (impossible on the
     // old PaginationResult | ProviderListResult union)...
     const provider = new ChatGPTProvider();
-    const page: ProviderPageResult<ProviderConversationItem> = await provider.listConversations({ maxPages: 1 });
-    const items: ProviderConversationItem[] = page.items;
-    assert.ok(Array.isArray(items));
+    const pagePromise: Promise<ProviderPageResult<ProviderConversationItem>> = provider.listConversations({ maxPages: 1 });
+    // Runtime lock: the dormant downgrade throws before any pagination runs —
+    // there is no page shape left to leak Gemini-only fields from.
+    await assert.rejects(() => pagePromise, /dormant/, 'dormant provider must throw, not paginate');
     // ...and a minimal page literal compiles only when hitGoogleLimit /
     // diagnostics are NOT required (P1-082).
     const minimal: ProviderPageResult<ProviderConversationItem> = {
         items: [{ id: 'x', title: 'X' }],
     };
     assert.strictEqual(minimal.items[0].id, 'x');
-    // Runtime lock: the neutral shape carries no Gemini-only fields.
-    assert.strictEqual((page as any).hitGoogleLimit, undefined);
-    assert.strictEqual((page as any).conversations, undefined, 'must not leak the old conversations[] shape');
-    } finally {
-        globalThis.fetch = realFetch;
-    }
 });
 
 // ---------------------------------------------------------------- P1-084
@@ -180,19 +172,10 @@ test('P1-085 - missing timestamps are never fabricated with Date.now()', () => {
     assert.ok(Date.now() - before < 5000, 'sanity: test ran fast');
 });
 
-test('P1-085 - listConversations leaves missing item timestamps missing', async () => {
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = (async () => ({
-        ok: true,
-        json: async () => ({ items: [{ id: 'c1', title: 'T1' }] }), // no update_time/create_time
-    })) as any;
-    try {
-        const page = await new ChatGPTProvider().listConversations({ maxPages: 1 });
-        assert.strictEqual(page.items.length, 1);
-        assert.strictEqual(page.items[0].updatedAt, undefined, 'updatedAt stays missing, not Date.now()');
-    } finally {
-        globalThis.fetch = realFetch;
-    }
+test('P1-085 - dormant listConversations fabricates nothing (Phase E)', async () => {
+    // The old item-timestamp mapping is gone with the dormant downgrade: the
+    // entry throws before any mapping could run, so nothing can be fabricated.
+    await assert.rejects(() => new ChatGPTProvider().listConversations({ maxPages: 1 }), /dormant/);
 });
 
 // ---------------------------------------------------------------- P1-086
@@ -290,66 +273,35 @@ test('P1-089 - gemini hostPatterns cover everything matchesUrl accepts', () => {
     assert.ok(!gemini.matchesUrl('https://chatgpt.com'), 'unrelated host still refused');
 });
 
-// ------------------------------------------------------------- P1-043/044
-test('P1-043 - AbortSignal reaches the in-flight fetch; pagination uses named constants', async () => {
-    const realFetch = globalThis.fetch;
-    const seen: any[] = [];
-    globalThis.fetch = (async (url: any, init: any) => {
-        seen.push({ url, init });
-        return { ok: true, json: async () => ({ items: [] }) };
-    }) as any;
-    try {
-        const controller = new AbortController();
-        await new ChatGPTProvider().listConversations({ signal: controller.signal, maxPages: 1 });
-        assert.strictEqual(seen.length, 1);
-        assert.strictEqual(seen[0].init.signal, controller.signal, 'signal must be passed to fetch');
-        assert.strictEqual(seen[0].init.credentials, 'include', 'login cookies preserved');
-        assert.ok(String(seen[0].url).includes('limit=28'), 'page size constant applied to the URL');
-    } finally {
-        globalThis.fetch = realFetch;
-    }
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/provider/chatgpt/chatgptProvider.ts'), 'utf8');
-    assert.ok(src.includes('CHATGPT_LIST_PAGE_SIZE'), 'magic 28 has a name');
-    assert.ok(src.includes('CHATGPT_LIST_MAX_PAGES'), 'magic 50 has a name');
-});
-
-test('P1-043 - aborting mid-flight stops quietly instead of throwing', async () => {
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = ((_url: any, init: any) => {
-        const err: any = new Error('The operation was aborted.');
-        err.name = 'AbortError';
-        assert.ok(init && init.signal, 'fetch still receives the signal');
-        return Promise.reject(err);
-    }) as any;
-    try {
-        const controller = new AbortController();
-        const page = await new ChatGPTProvider().listConversations({ signal: controller.signal, maxPages: 1 });
-        assert.strictEqual(page.stoppedEarly, true, 'cancelled walk is marked stopped-early');
-        assert.strictEqual(page.hasMore, false);
-        assert.strictEqual(page.items.length, 0);
-    } finally {
-        globalThis.fetch = realFetch;
-    }
-});
-
-test('P1-044 - HTTP errors produce an error-marked partial result, not a silent break', async () => {
+// ------------------------------------------------------------- P1-043/044 (Phase E: dormant — no pagination walk left)
+test('P1-043 - dormant entry throws before any fetch, aborted or not', async () => {
     const realFetch = globalThis.fetch;
     let calls = 0;
-    globalThis.fetch = (async () => {
-        calls++;
-        if (calls === 1) {
-            return { ok: true, status: 200, json: async () => ({ items: Array.from({ length: 28 }, (_, i) => ({ id: `c${i}`, title: `T${i}`, update_time: '2024-01-01T00:00:00Z' })) }) };
-        }
-        return { ok: false, status: 429, json: async () => ({}) };
-    }) as any;
+    globalThis.fetch = (async () => { calls++; throw new Error('must not fetch'); }) as any;
     try {
-        const page: any = await new ChatGPTProvider().listConversations({ maxPages: 5 });
-        assert.strictEqual(page.items.length, 28, 'page-1 items preserved');
-        assert.strictEqual(page.stoppedEarly, true);
-        assert.ok(page.diagnostics && page.diagnostics.partial === true, 'partial flag set');
-        assert.ok(String(page.diagnostics.error).includes('429'), 'HTTP status recorded');
-        assert.strictEqual(page.diagnostics.httpStatus, 429);
+        const controller = new AbortController();
+        await assert.rejects(
+            () => new ChatGPTProvider().listConversations({ signal: controller.signal, maxPages: 1 }),
+            /dormant/,
+            'dormant entry fails loudly instead of walking pages'
+        );
+        assert.strictEqual(calls, 0, 'dormant entry must not start any fetch');
+        controller.abort();
+        await assert.rejects(
+            () => new ChatGPTProvider().listConversations({ signal: controller.signal, maxPages: 1 }),
+            /dormant/,
+            'already-aborted signal still surfaces dormant, not AbortError'
+        );
+        assert.strictEqual(calls, 0);
     } finally {
         globalThis.fetch = realFetch;
     }
+});
+
+test('P1-044 - dormant entry throws instead of partial HTTP results', async () => {
+    await assert.rejects(
+        () => new ChatGPTProvider().listConversations({ maxPages: 5 }),
+        /dormant/,
+        'no HTTP walk remains to produce partial results'
+    );
 });
