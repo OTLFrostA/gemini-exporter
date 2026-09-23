@@ -1,25 +1,5 @@
 [
   {
-    "id": "atmospheric_climate_dynamics_navier_stokes",
-    "title": "大气动力学与气候推演：准地转多尺度涡旋与高阶谱分析",
-    "domain": "atmospheric_climate_dynamics",
-    "description": "测试准地转位涡方程推导、罗斯贝波频散关系、二维湍流伪谱方法求解器与气候模式横向对比",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "physics",
-      "differential_equations"
-    ],
-    "turns": [
-      "请从旋转坐标系下的不可压缩 Navier-Stokes 方程严格推导准地转位涡（Quasi-Geostrophic Potential Vorticity, QGPV）守恒方程 D_g q / Dt = 0，并给出罗斯贝数（Rossby number Ro << 1）与理查森数（Richardson number Ri）的尺度分析推导。",
-      "详述在大气中高纬度急流中，罗斯贝波（Rossby Waves）的频散关系 \\omega = U k - \\frac{\\beta k}{k^2 + l^2 + f_0^2 / (g H)} 如何引发天气尺度的经向阻塞高压（Blocking High）与极端冷空气倾泻。",
-      "请使用 Python 编写一段紧凑的高性能二维涡度方程谱方法（Pseudo-Spectral Method）求解器骨架，利用 FFT 对周期边界条件下的二维纳维-斯托克斯湍流衰减能谱进行时间步进积分。",
-      "用 Markdown 表格横向对比全球气候模式（如 ECMWF IFS、NOAA GFS、MPAS 与国产 CAS-ESM）在动力核心网格拓扑（高斯网格、二十面体六边形网格、立方球网格）、垂直坐标系（地形跟随 \\sigma 坐标与混合坐标）与次网格对流参数化方案上的架构取舍。",
-      "分析平流层准两年周期振荡（QBO）与厄尔尼诺-南方涛动（ENSO）的跨赤道远程遥相关物理机制，以及对东亚冬季风强弱异常的物理驱动路径。"
-    ]
-  },
-  {
     "id": "superconducting_rf_cavities_accelerators",
     "title": "高能粒子加速器：超导射频谐振腔 (SRF) 与尾场尾束相互作用",
     "domain": "particle_accelerator_physics",
@@ -153,26 +133,6 @@
       "针对大规模 DNA 神经网络分子计算中的信号衰减与非线性阈值化问题，推导由自催化 (Autocatalytic amplifier) 与吸收反应构成的见证分子开关动力学微分方程组。",
       "使用 Python 编写脚本，基于质量作用定律与 scipy.integrate.solve_ivp，对一个包含级联 AND-OR DNA 逻辑电路的物质浓度随时间动态演化进行常微分方程 (ODE) 数值求解，并可视化输出链荧光强度阶跃响应曲线。",
       "使用 Markdown 表格横向对比 DNA 链置换分子计算、CRISPR-Cas 生物计算逻辑门、酶切级联系统与微流控液滴计算在时钟周期响应时间、扇出度 (Fan-out)、正交逻辑门数量与体外/体内运行兼容性。"
-    ]
-  },
-  {
-    "id": "subsurface_ocean_cryobot_astrobiology",
-    "domain": "subsurface_ocean_cryobot_astrobiology",
-    "title": "地外深空探测：木卫二/土卫二冰下海洋热钻潜水器与生命指征探测",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "code"
-    ],
-    "description": "测试热核裂变热融冰钻入 (Cryobot) 传热方程推导、高压冰壳相变热阻、Imagen 概念渲染与质谱仪生命生物标志物分析",
-    "turns": [
-      "在木卫二 (Europa) 极端严寒高压环境下，建立穿透 20-30 公里厚水冰外壳的核热动力融冰潜水器 (Cryobot) 一维非定常相变导热Stefan问题数学模型，推导融冰前缘推进速度 v_m 与热源功率密度 q、冰层环境温度 T(z) 及潜热 L_f 的解析关系式。",
-      "请生成一张极具国家地理深空探索大片质感与硬核科幻质感的 3D 渲染概念图：展现木星巨大引力条纹笼罩的木卫二（Europa）外冰层下方，一台巨大的圆柱形核动力融冰潜水探测器（Cryobot）正依靠前端炽热发光的赤红融热探头熔穿数公里厚的致密深蓝冰裂缝，探测器末端拖曳着闪烁微光的超导光纤通信缆线，探测器刚穿透冰底层进入冰下完全液态的黑暗外星海洋，机身多角度强光探照灯射向幽暗深海，映照出冰底奇特倒挂的冰晶钟乳石与可能存在的热液矿物羽流，极具科技视觉震撼力。",
-      "推导木卫二潮汐耗散加热产生的黏弹性流变学 Maxwell-Boltzmann 固态对流模型，分析冰-水界面处由柯克达尔效应与热液喷口羽流引发的高浓度硫酸镁与盐卤浓度梯度对潜水器声学浮力微调系统的冲击。",
-      "使用 Python 编写脚本，基于化学热力学平衡常数与摩尔质量守恒，模拟激光解吸正离子飞行时间质谱仪 (LD-TOF-MS) 在木卫二羽流微米级冰晶粒子中检测氨基酸对映体过量值 (Enantiomeric Excess, e.e.) 的生物标志物判据算法。",
-      "使用 Markdown 表格横向对比热融钻进型 (Cryobot)、机械旋转钻进型、等离子体水喷射钻进型以及气动冲击型地外冰层穿透探测方案在系统总质量 (kg)、热源功率需求 (kW)、地外行星保护防生物污染消毒指标及最大穿透深度极限。"
     ]
   },
   {
@@ -397,6 +357,48 @@
       "请使用 Python 实现一个基于量子主方程（Lindblad Master Equation）模拟量子点与微柱腔在非共振声子辅助失谐（Phonon-Assisted Incoherent Pumping）激发下的二能级密度矩阵 \\hat{\\rho}(t) 演化脚本，计算光子发射脉冲波形与腔泄漏光子的时域概率分布。",
       "用 Markdown 表格对比基于 InAs 量子点微柱腔、金刚石色心（NV/SiV 纳米腔）、自发参量下转换（SPDC 预报单光子源）以及二维材料（hBN/WSe2 缺陷）四大主流单光子源技术在单光子纯度 1-g^{(2)}(0)、双光子干涉不可区分度 V_{HOM}、发射重频（MHz/GHz）以及低温制冷依赖性上的优缺点对比。",
       "详细分析量子点中由各向异性交换相互作用（Anisotropic Exchange Interaction, AEI）引起的微结构精细结构劈裂（Fine-Structure Splitting, FSS）如何破坏双激子-激子（Biexciton-Exciton, XX-X）级联辐射的光子偏振纠缠，并总结利用面内双轴单轴应变微调（Piezoelectric Strain Tuning）消除 FSS 的物理机制与工程实现方案。"
+    ]
+  },
+  {
+    "id": "antarctic_icecube_neutrino_astronomy",
+    "domain": "antarctic_icecube_neutrino_astronomy",
+    "title": "极地天体物理：南极 IceCube 深冰中微子探测器与切伦科夫辐射锥推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code"
+    ],
+    "description": "测试极地深冰介质中微子切伦科夫光锥角公式与 Frank-Tamm 频谱推导、IceCube 深冰探测器多模态渲染、时间残差波前拟合算法与多信使天体物理对比",
+    "turns": [
+      "在南极深冰层（深度 1.5 - 2.5 公里）超纯水冰介质中，推导高能宇宙中微子（PeV 级）通过带电流弱相互作用诱发轻子并引发的切伦科夫辐射（Cherenkov Radiation）相干锥角公式 \\cos\\theta_c = \\frac{1}{n(\\omega) \\beta}，并严格给出 Frank-Tamm 方程在极地深冰折射率色散与散射衰减长度下单位径迹长度所辐射的光子能量频谱分布 \\frac{d^2 E}{dx d\\omega}。",
+      "请生成一张极具国家地理科学探索与深空科幻大片质感的 3D 渲染概念图：展现南极极夜星空与绚丽绿色极光笼罩的极地高原地表之下，向下延伸数公里的透明深邃南极大陆冰盖深处，数千个高灵敏度球形数码光学模块（DOM）呈三维规则网格阵列沉浸在幽蓝纯净的极地深冰中，一道来自遥远深空的超高能宇宙中微子穿透冰层引发极其绚丽炽烈的冰下青蓝色切伦科夫光锥（Cherenkov Cone），微光在极净冰晶微气泡中折射，光敏传感器阵列同心圆闪烁激活脉冲，极度震撼。",
+      "请使用 Python 编写一段紧凑的高性能中微子波前到达时间拟合算法（Wavefront Timing Residual Fit），利用最小二乘法或高斯似然函数优化，根据一组三维坐标已知的深冰光学模块（DOM）触发纳秒级时间戳，反演带电轻子在深冰中传播的入射天球坐标方向矢量（天顶角 \\theta 与方位角 \\phi）。",
+      "用 Markdown 表格横向对比全球深冰/深海水下中微子望远镜（南极 IceCube、地中海 KM3NeT、俄罗斯贝加尔湖 Baikal-GVD 与格陵兰岛 RNO-G 射电阵列）在探测仪器靶体积 (km³)、探测介质光学散射长度、对缪子径迹与级联反应的角分辨率（度）以及对银河系外点源敏感度极限。",
+      "结合多信使天体物理学，深入分析耀变体（Blazar，如 TXS 0506+056）与潮汐瓦解事件（TDE）相对论性喷流中，质子与高密度光子场发生光致介子相互作用 p + \\gamma \\to \\Delta^+ \\to n + \\pi^+ 产生高能中微子与高能伽马射线的耦合物理机制，以及对宇宙线重子加速源头断言的决定性意义。"
+    ]
+  },
+  {
+    "id": "cryo_em_single_particle_reconstruction",
+    "domain": "cryo_em_single_particle_reconstruction",
+    "title": "结构生物物理学：低温冷冻电镜单颗粒三维重构与对比度传递函数校正",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "algorithms",
+      "physics",
+      "tables"
+    ],
+    "description": "测试透射电镜相衬成像弱相位物体近似推导、CTF 离焦与像差校正、中心切片定理证明、Wiener 滤波算法与大分子构象异质性分析",
+    "turns": [
+      "在透射电子显微镜（TEM）相衬成像理论中，严格推导基于弱相位物体近似（Weak Phase Object Approximation, WPOA）的大分子静电势投影与像平面波函数干涉模型，推导对比度传递函数（Contrast Transfer Function, CTF）解析表达式 CTF(k) = -A(k) \\sin(\\chi(k)) - w_c \\cos(\\chi(k))，其中波差函数 \\chi(k) = \\pi \\lambda \\Delta z k^2 + \\frac{1}{2}\\pi C_s \\lambda^3 k^4，并详述离焦量 \\Delta z、球面像差系数 C_s 以及包络函数（Envelope Function）对高频空间频率信息的衰减机制。",
+      "给出中心切片定理（Fourier Projection-Slice Theorem）在三维欧几里得空间向二维投影平面的严格傅里叶变换积分证明：证明三维实空间物体沿 z 轴方向的线性投影积分在二维傅里叶变换下的像，等于该物体三维傅里叶变换穿过原点且平行于投影平面的中心切片面，并解释其作为单颗粒重构填补 3D 倒易空间的基础。",
+      "请使用 Python 实现一个基于 NumPy/SciPy 的冷冻电镜单颗粒图像 2D CTF 相位翻转校正与 Wiener 滤波反卷积增强器，输入一段合成的高噪声二维大分子颗粒投影矩阵，根据给定的电子波长、离焦量和信噪比参数输出校正后的增强图像。",
+      "用 Markdown 表格对比冷冻单颗粒重构技术 (Single-Particle Analysis, SPA)、冷冻电子断层扫描 (Cryo-ET)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在生物样品结晶度要求、电子辐射损伤极限剂量 (e⁻/Å²)、三维空间极限分辨率 (Å) 以及大分子柔性构象异质性解析能力上的技术特征对比。",
+      "深入阐述在信噪比极低（SNR < 0.05）的冷冻电镜投影实验中，基于最大后验概率估计（MAP）与期望最大化（Expectation-Maximization, EM）算法的 3D 三维分类原理，并分析结合深层变分自编码器（Cryo-VAE）解析生物大分子连续构象流形（Continuous Conformational Manifolds）的流形学习物理方法。"
     ]
   }
 ]
