@@ -32,8 +32,8 @@ const ALLOWLIST: Record<string, string> = {
     'src/core/storage/sessionStore.ts:96': 'updateSession 读-改-写已用 navigator.locks 包住（P2-11）',
     // --- 单键盲写，无 read-modify-write，不存在跨 tab 竞争 ---
     'src/content/badgeView.ts:93': '单键盲写（徽标拖拽位置）',
-    'src/content/syncEngine.ts:674': '单键盲写（sync diagnostics 落盘）',
-    'src/content/syncEngine.ts:705': '单键盲写（takeout prompt 标记）',
+    'src/content/syncEngine.ts:677': '单键盲写（sync diagnostics 落盘）',
+    'src/content/syncEngine.ts:708': '单键盲写（takeout prompt 标记）',
     'src/core/storage/formatStore.ts:67': '单键盲写（FORMAT）',
     'src/core/storage/formatStore.ts:81': '单键盲写（FORMAT）',
     'src/core/storage/liveStorageManager.ts:48': '单键盲写（live config）',

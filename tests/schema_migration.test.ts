@@ -11,6 +11,7 @@ const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
 const SchemaMigration = require('../src/core/storage/schemaMigration.js');
 const DetailStore = require('../src/core/storage/conversationDetailStore.js');
+const SyncEngine = require('../src/content/syncEngine.js');
 
 function makeChromeMock() {
     const localStore: Record<string, any> = {};
@@ -183,5 +184,22 @@ test('P1-13f: 未冻结时 assertSchemaWritable() 为空操作', async () => {
     const m = installMock();
     try {
         await SchemaMigration.assertSchemaWritable(); // 不抛
+    } finally { m.restore(); }
+});
+
+test('P1-13g: schema 冻结时 ingestListBatch 拒绝写入（fail-closed，防 #505 回退）', async () => {
+    const m = installMock();
+    try {
+        m.localStore['gemini_schema_version'] = 999;
+        // 冻结拦截必须发生在任何存储写入之前
+        await assert.rejects(
+            SyncEngine.ingestListBatch([{ id: 'x', title: 'X', timestamp: 1 }], 'test'),
+            (e: any) => {
+                assert.ok(e instanceof Error, '应抛出 Error');
+                assert.ok(e.message && e.message.length > 0, '错误信息应为用户可见文案');
+                return true;
+            }
+        );
+        assert.strictEqual(SyncEngine && typeof SyncEngine.ingestListBatch, 'function');
     } finally { m.restore(); }
 });
