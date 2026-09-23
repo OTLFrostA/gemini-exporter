@@ -204,7 +204,7 @@ graph TD
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
 | `src/core/engine/takeoutEngine.ts` | Core: Engine | `TakeoutEngine` (Facade) | Google Takeout 历史导入与脱机解析统一门面。 | UI 控制器、测试用例 | `takeout/*` 子模块 | `ENG_Takeout` |
-| `src/core/engine/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 流式解析官方 Takeout ZIP 归档，提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
+| `src/core/engine/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 解析官方 Takeout ZIP 归档（JSZip 全量载入，非流式），提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
 | `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
 | `src/core/engine/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
 | `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，检验 ZIP 压缩率与解压体积，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
@@ -406,7 +406,7 @@ sequenceDiagram
   1. `ExportOrchestrator` 初始化并发限制队列 `AsyncQueue`（默认并发数 3，与 `exportOrchestrator.ts` 生产代码一致，兼顾批处理吞吐与 Google 429 防护）；
   2. `RateLimiter` 动态监控网络延迟与响应状态，遭遇异常自动激活退避；
   3. `BatchWorker` 逐个处理单会话：拉取会话详情、调用 `AssetPipeline` 解析附件 URL、并发抓取图片 Blob；
-  4. 图片文件名经 C2PA 签名和哈希去重规范化，存入 `assets/` 子目录；
+  4. 图片文件名经 C2PA 元数据时间戳提取（`extractC2PATimestamp`，未做签名校验）辅助归档，存入 `assets/` 子目录；
   5. **多模态附件 STORE 流式防 OOM 机制 (P0 容灾)**：
      - 调用 `isPrecompressedAsset(path)` 检测图片/媒体文件扩展名（`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`）；
      - 对已高度压缩的二进制媒体强制使用 `compression: 'STORE'` 模式添加进 `ZipWriter`，**物理绕过 JSZip 在内存中反复膨胀 (Inflate) 和二次压缩 (Deflate) 的巨大内存/CPU 开销**；
@@ -470,7 +470,7 @@ sequenceDiagram
   - `chrome.storage.local`：合流注入并打上 `titleSource: takeout` 标记；
   - Options 工作台会话列表：无需刷新即可呈现所有恢复的远古对话。
 * **核心处理与容错逻辑**：
-  1. `ZipBombGuard` 首先对压缩包进行安全审查：校验文件总数、未压缩总尺寸与压缩膨胀率（>100x 则拦截），彻底防范 DoS 攻击；
+  1. `ZipBombGuard` 首先对压缩包进行安全审查：校验文件总数（≤10000）、压缩包体积（≤500MB）与解压后总尺寸估计（≤1GB），防范 Zip 炸弹 DoS 攻击（不做压缩膨胀率检查）；
   2. `takeoutParser` 迭代解压，`takeoutHtmlParser` 清洗 HTML 标签，提取初始提问前缀作为临时标题；
   3. `MediaIndex` 提取图片内部的 C2PA 元数据与时间戳，构建离线附件映射表；
   4. 调用 `MergeUtils` 执行脱机与在线历史合流，设定 `titleSource = 'takeout'`；
