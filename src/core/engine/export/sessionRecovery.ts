@@ -46,12 +46,15 @@ export interface SessionRecoveryModule {
 }
 
 import { normId as utilsNormId } from "../../utils/utils.js";
+import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 
+const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
+
 const normId = (id?: string | number | null): string => {
-    return (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
+    return ((getUtils()?.normId) || utilsNormId)(id);
 };
 
 import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";

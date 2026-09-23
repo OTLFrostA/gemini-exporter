@@ -10,11 +10,14 @@ import {
     shortScope as utilsShortScope,
     stripHtmlTags as utilsStripHtmlTags
 } from "../../utils/utils.js";
+import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import type { Conversation } from "../../../types/index.js";
+
+const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
 
 export interface ParseTakeoutHtmlOptions {
     htmlText: string;
@@ -166,7 +169,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
     const { htmlText, zipFiles, onProgress } = options;
     const normIdFn = options.normIdFn || ((id?: string | null) => {
         try {
-            return (((__resolveModule('GeminiUtils', null) as any)?.normId) || utilsNormId)(id);
+            return ((getUtils()?.normId) || utilsNormId)(id);
         } catch {
             if (!id) return "";
             return String(id).replace(/^c_/, "").trim();

@@ -62,13 +62,14 @@ import {
     cleanZeroWidth as utilsCleanZeroWidth,
     isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle
 } from "../../utils/utils.js";
+import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import TabService from "../../utils/tabService.js";
 import { getConversationDetail } from "../../storage/conversationDetailStore.js";
 
-const injectedUtils = (): any => __resolveModule('GeminiUtils', null);
+const injectedUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
 
 const normId = (id?: string | number | null): string => {
     const injected = injectedUtils();
