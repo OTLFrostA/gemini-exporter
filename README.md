@@ -76,7 +76,7 @@ graph LR
     end
 
     subgraph CoreEngine ["Core Engine (Zero DOM)"]
-        PROV["AI Provider<br/>(Gemini & ChatGPT)"]
+        PROV["AI Provider<br/>(Gemini；ChatGPT 为预留扩展点)"]
         API["RPC Client & Parser<br/>(batchexecute & JSPB)"]
         ENG["Export & Packaging<br/>(AsyncQueue & STORE Mode)"]
         TAKEOUT["Takeout Engine<br/>(ZipBombGuard & MediaIndex)"]
