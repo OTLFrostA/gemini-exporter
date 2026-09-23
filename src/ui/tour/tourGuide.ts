@@ -1,6 +1,13 @@
 // src/ui/tour/tourGuide.ts - Interactive Spotlight Onboarding Guide for Gemini Exporter
 import type { TourGuideContract } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
+import StorageService from '../../core/storage/storageService.js';
+import TabService from '../../core/utils/tabService.js';
+import { t } from '../uiCommon.js';
+import { STEPS } from './tourSteps.js';
+import { positionElements as positionTourElements } from './tourPosition.js';
+import { getExtensionVersion } from '../../core/utils/constants.js';
+export { STEPS } from './tourSteps.js';
 
 let currentStep = 0;
 let isActive = false;
@@ -13,14 +20,6 @@ let popoverEl: HTMLElement | null = null;
 let pollTimer: any = null;
 let lastTabStatus: any = null;
 let activeActionCleanup: (() => void) | null = null;
-
-import StorageService from '../../core/storage/storageService.js';
-import TabService from '../../core/utils/tabService.js';
-import { t } from '../uiCommon.js';
-import { STEPS } from './tourSteps.js';
-import { positionElements as positionTourElements } from './tourPosition.js';
-import { getExtensionVersion } from '../../core/utils/constants.js';
-export { STEPS } from './tourSteps.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getTabService = () => __resolveModule('TabService', TabService);

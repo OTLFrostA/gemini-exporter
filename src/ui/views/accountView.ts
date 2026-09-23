@@ -35,17 +35,8 @@ export function render(accountSlots: Record<string, any>, currentSlot: string): 
     }
 }
 
-export function bindChange(callback: (slot: string) => void): void {
-    const sel = $('accountSlotSelect');
-    if (!sel) return;
-    sel.addEventListener('change', (e: Event) => {
-        if (callback) callback((e.target as HTMLSelectElement).value);
-    });
-}
-
 export const AccountView: IAccountView = {
-    render,
-    bindChange
+    render
 };
 
 

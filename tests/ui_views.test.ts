@@ -16,8 +16,6 @@ const ProgressView = require('../src/ui/views/progressView.js');
 // ---------------------------------------------------------------------------
 test('accountView - exports and safe render with DOM side effect verification', () => {
     assert.ok(AccountView);
-    assert.strictEqual(typeof AccountView.render, 'function');
-    assert.strictEqual(typeof AccountView.bindChange, 'function');
     // 1. Safe render without DOM element does not crash
     AccountView.render({ 'u0': { name: 'Main' } }, 'u0');
 
@@ -60,15 +58,6 @@ test('accountView - exports and safe render with DOM side effect verification', 
 // ---------------------------------------------------------------------------
 // BadgeView
 // ---------------------------------------------------------------------------
-test('badgeView - module exports and interface', () => {
-    assert.ok(BadgeView);
-    assert.strictEqual(typeof BadgeView.applyStoredBadgePosition, 'function');
-    assert.strictEqual(typeof BadgeView.makeBadgeDraggable, 'function');
-    assert.strictEqual(typeof BadgeView.ensureBadge, 'function');
-    assert.strictEqual(typeof BadgeView.ensureBadgeAndText, 'function');
-    assert.strictEqual(typeof BadgeView.updateBadge, 'function');
-});
-
 test('badgeView - DOM creation and text update', () => {
     let attachedElement: any = null;
     const mockBadge = {
@@ -124,12 +113,6 @@ test('badgeView - DOM creation and text update', () => {
 // ---------------------------------------------------------------------------
 test('dialogView - exports, safe no-DOM invocation, and verified modal transitions', async () => {
     assert.ok(DialogView);
-    assert.strictEqual(typeof DialogView.renderExportBanner, 'function');
-    assert.strictEqual(typeof DialogView.dismissExportBanner, 'function');
-    assert.strictEqual(typeof DialogView.showDirectWritePrompt, 'function');
-    assert.strictEqual(typeof DialogView.hideDirectWritePrompt, 'function');
-    assert.strictEqual(typeof DialogView.showTakeoutLimitPrompt, 'function');
-    assert.strictEqual(typeof DialogView.hideTakeoutLimitPrompt, 'function');
 
     // 1. Safe no-DOM invocation
     DialogView.renderExportBanner(null, 'u0', false);
@@ -170,6 +153,8 @@ test('dialogView - exports, safe no-DOM invocation, and verified modal transitio
         DialogView.showDirectWritePrompt(55, () => {}, () => {});
         assert.strictEqual(mockDirectWriteModal.style.display, 'flex', 'Direct write modal should show with display: flex');
         assert.ok(mockPromptText.textContent.includes('55'), 'Prompt text should include conversation count 55');
+        // 行为断言豁免: 验证 showDirectWritePrompt 已实际把回调绑定到按钮上(DOM 副作用),
+        // 而非仅检查 DialogView 接口存在
         assert.strictEqual(typeof mockBtnZip.onclick, 'function');
 
         DialogView.hideDirectWritePrompt();
@@ -230,27 +215,17 @@ test('dialogView - renderExportBanner XSS prevention: lastChatTitle is rendered 
 // ---------------------------------------------------------------------------
 // ListView
 // ---------------------------------------------------------------------------
-test('listView - isRealTitle recognition & exports', () => {
+test('listView - isRealTitle recognition', () => {
     assert.strictEqual(ListView.isRealTitle('Valid Title', '123'), true);
     assert.strictEqual(ListView.isRealTitle('Untitled', '123'), false);
     assert.strictEqual(ListView.isRealTitle('未命名对话', '123'), false);
     assert.strictEqual(ListView.isRealTitle('c_12345678', '12345678'), false);
     assert.strictEqual(ListView.isRealTitle('', '123'), false);
     assert.strictEqual(ListView.isRealTitle(null, '123'), false);
-
-    assert.strictEqual(typeof ListView.render, 'function');
-    assert.strictEqual(typeof ListView.updateStat, 'function');
-    assert.strictEqual(typeof ListView.getSelected, 'function');
-    assert.strictEqual(typeof ListView.selectAll, 'function');
-    assert.strictEqual(typeof ListView.deselectAll, 'function');
-    assert.strictEqual(typeof ListView.selectUnexported, 'function');
-    assert.strictEqual(typeof ListView.selectNeedsUpdate, 'function');
-    assert.strictEqual(typeof ListView.checkIsUpdated, 'function');
 });
 
 test('listView - checkIsUpdated correctly detects new dialogue and timestamps', () => {
     const checkIsUpdated = ListView.checkIsUpdated;
-    assert.strictEqual(typeof checkIsUpdated, 'function');
 
     // 1. Unexported conversation
     assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: 1700000000000 }, null), false);
@@ -391,7 +366,6 @@ test('listView - updateItemExportStatus in-place DOM update', () => {
     const origDoc = (globalThis as any).document;
     try {
         (globalThis as any).document = fakeDoc;
-        assert.strictEqual(typeof ListView.updateItemExportStatus, 'function');
         ListView.updateItemExportStatus('c_test_chat_123', { exportedAt: '2026-09-07' });
         assert.ok(queriedSelector && queriedSelector.includes('test_chat_123'));
         assert.ok(fakeBadge.textContent === '已导出' || fakeBadge.textContent === 'Exported');
@@ -482,9 +456,6 @@ test('logView - buffer recording and deduplication', () => {
 // DialogView - Export Failure Banner
 // ---------------------------------------------------------------------------
 test('dialogView - renderExportFailureBanner and hideExportFailureBanner', () => {
-    assert.strictEqual(typeof DialogView.renderExportFailureBanner, 'function');
-    assert.strictEqual(typeof DialogView.hideExportFailureBanner, 'function');
-
     const mockCard = { id: 'exportFailureCard', style: { display: 'none' } };
     const mockTitle = { id: 'exportFailureTitle', textContent: '' };
     const mockBtnRetry = { id: 'btnRetryFailed', textContent: '', onclick: null as any };
@@ -513,11 +484,13 @@ test('dialogView - renderExportFailureBanner and hideExportFailureBanner', () =>
 
         assert.strictEqual(mockCard.style.display, 'block');
         assert.ok(DialogView.getLastFailedChats().length === 1);
+        // 行为断言豁免: 验证横幅已实际把重试回调挂到按钮上(DOM 副作用),下一行即调用它验证真实触发
         assert.strictEqual(typeof mockBtnRetry.onclick, 'function');
         mockBtnRetry.onclick();
         assert.strictEqual(retryTriggered, true);
 
         // Dismiss
+        // 行为断言豁免: 验证横幅已实际把关闭回调挂到按钮上,调用后卡片真实隐藏
         assert.strictEqual(typeof mockBtnDismiss.onclick, 'function');
         mockBtnDismiss.onclick();
         assert.strictEqual(mockCard.style.display, 'none');
@@ -534,13 +507,46 @@ test('dialogView - renderExportFailureBanner and hideExportFailureBanner', () =>
 // ---------------------------------------------------------------------------
 // ProgressView
 // ---------------------------------------------------------------------------
-test('progressView - interface and basic operations in ui_views suite', () => {
-    assert.ok(ProgressView);
-    assert.strictEqual(typeof ProgressView.show, 'function');
-    assert.strictEqual(typeof ProgressView.update, 'function');
-    assert.strictEqual(typeof ProgressView.complete, 'function');
-    assert.strictEqual(typeof ProgressView.reset, 'function');
-    assert.strictEqual(typeof ProgressView.hide, 'function');
+test('progressView - show/update/complete/reset/hide drive DOM side effects', () => {
+    const wrap = { id: 'progWrap', style: { display: 'none' } };
+    const bar = { id: 'bar', style: { width: '' } };
+    const text = { id: 'progText', textContent: '' };
+
+    const oldDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = {
+            getElementById: (id: string) =>
+                id === 'progWrap' ? wrap : id === 'bar' ? bar : id === 'progText' ? text : null
+        };
+
+        ProgressView.show(25, 'starting');
+        assert.strictEqual(wrap.style.display, 'block', 'show must reveal the progress wrapper');
+        assert.strictEqual(bar.style.width, '25%', 'show must set bar width to the initial percent');
+        assert.strictEqual(text.textContent, 'starting', 'show must set progress text');
+
+        ProgressView.update(150, 'halfway');
+        assert.strictEqual(bar.style.width, '100%', 'update must clamp percent to 100');
+        assert.strictEqual(text.textContent, 'halfway', 'update must refresh progress text');
+
+        ProgressView.update(-10);
+        assert.strictEqual(bar.style.width, '0%', 'update must clamp negative percent to 0');
+
+        ProgressView.complete('done');
+        assert.strictEqual(bar.style.width, '100%', 'complete must fill the bar');
+        assert.strictEqual(text.textContent, 'done', 'complete must set the final text');
+
+        ProgressView.reset();
+        assert.strictEqual(bar.style.width, '0%', 'reset must clear bar width');
+        assert.strictEqual(text.textContent, '', 'reset must clear text');
+
+        ProgressView.show(50);
+        ProgressView.hide();
+        assert.strictEqual(wrap.style.display, 'none', 'hide must conceal the wrapper');
+        assert.strictEqual(bar.style.width, '0%', 'hide must reset bar width');
+        assert.strictEqual(text.textContent, '', 'hide must reset text');
+    } finally {
+        (globalThis as any).document = oldDoc;
+    }
 });
 
 // ---------------------------------------------------------------------------
@@ -579,35 +585,35 @@ test('listView - filterType filtering (unexported, failed, unexported_or_failed,
         const failedIds = new Set(['chat_fail']);
 
         // 1. All
-        ListView.render(convs as any, expMap, null, '', undefined, 'all', failedIds);
+        ListView.render(convs as any, expMap, null, '', 'all', failedIds);
         assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 2. Unexported
-        ListView.render(convs as any, expMap, null, '', undefined, 'unexported', failedIds);
+        ListView.render(convs as any, expMap, null, '', 'unexported', failedIds);
         assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 3. Failed (both chat_fail and chat_partial)
-        ListView.render(convs as any, expMap, null, '', undefined, 'failed', failedIds);
+        ListView.render(convs as any, expMap, null, '', 'failed', failedIds);
         assert.ok(!innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 4. Unexported or Failed
-        ListView.render(convs as any, expMap, null, '', undefined, 'unexported_or_failed', failedIds);
+        ListView.render(convs as any, expMap, null, '', 'unexported_or_failed', failedIds);
         assert.ok(innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_partial"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_fail"'));
 
         // 5. Exported
-        ListView.render(convs as any, expMap, null, '', undefined, 'exported', failedIds);
+        ListView.render(convs as any, expMap, null, '', 'exported', failedIds);
         assert.ok(!innerHTML.includes('data-chat-id="chat_unexp"'));
         assert.ok(innerHTML.includes('data-chat-id="chat_ok"'));
         assert.ok(!innerHTML.includes('data-chat-id="chat_partial"'));

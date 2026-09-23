@@ -4,8 +4,6 @@ import { ProgressView } from '../views/progressView.js';
 import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
 import { normId } from '../../core/utils/pathUtils.js';
 
-const getExportEngineClass = (): any => ExportEngine;
-
 let activeEngine: any = null;
 let exportRunning = false;
 
@@ -70,14 +68,8 @@ export async function runExport(
     callbacks: any
 ): Promise<any> {
     setRunning(true);
-    const engineClass = getExportEngineClass();
-
-    if (!engineClass) {
-        setRunning(false);
-        throw new Error('ExportEngine is not loaded');
-    }
     try {
-        activeEngine = new engineClass();
+        activeEngine = new ExportEngine();
         const result = await activeEngine.run(options, callbacks);
         return result;
     } finally {

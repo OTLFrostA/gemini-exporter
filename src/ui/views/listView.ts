@@ -44,10 +44,6 @@ function escapeHtml(str?: string | null): string {
         .replace(/'/g, '&#39;');
 }
 
-export function setOnDelete(_cb: (chatId: string) => void): void {
-    // Preserved for IListView contract
-}
-
 let currentConversationsRef: Conversation[] = [];
 let canonicalSelectedIds: Set<string> | null = null;
 let currentFilterType: string = 'all';
@@ -113,7 +109,6 @@ export function render(
     exportedIds: Record<string, ExportRecord> = {},
     prevSelectedSet?: Set<string> | null,
     searchFilter: string = '',
-    onDeleteChat?: (id: string) => void,
     filterType: string = 'all',
     failedChatIds?: Set<string>
 ): void {
@@ -439,33 +434,6 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
     updateStat(conversations);
 }
 
-export function selectNeedsUpdate(conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>): void {
-    const convList = conversations || currentConversationsRef || [];
-    const expMap = exportedIds || {};
-    if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
-    document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
-        const c = convList[idx];
-        if (!c) {
-            (cb as HTMLInputElement).checked = false;
-            return;
-        }
-        const nid = normId(c.id);
-        const rec = expMap[nid] || null;
-        const check = checkIsUpdated(c, rec);
-        (cb as HTMLInputElement).checked = check;
-        if (check) {
-            canonicalSelectedIds!.add(c.id);
-            canonicalSelectedIds!.add(nid);
-        } else {
-            canonicalSelectedIds!.delete(c.id);
-            canonicalSelectedIds!.delete(nid);
-            canonicalSelectedIds!.delete('c_' + nid);
-        }
-    });
-    updateStat(conversations);
-}
-
 export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
     const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
     canonicalSelectedIds = new Set(idSet);
@@ -485,16 +453,12 @@ export const ListView: IListView = {
     selectAll,
     deselectAll,
     selectUnexported,
-    selectNeedsUpdate,
     selectByIds,
     setSelectedIds,
     isRealTitle,
-    setOnDelete,
     updateItemExportStatus,
     checkIsUpdated
 };
-
-(ListView as any).checkIsUpdated = checkIsUpdated;
 
 
 export default ListView;

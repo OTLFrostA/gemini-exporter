@@ -27,31 +27,6 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
 
-// Re-export modular components for architectural backward-compatibility and diagnostic inspection
-export {
-    initSessionAccessLevel,
-    initUninstallUrl,
-    initLifecycleListeners,
-    __bgAborts,
-    restoreAbortFlags,
-    isSlotAborted,
-    setSlotAborted,
-    clearAllAborts,
-    startKeepAlive,
-    initTabActionListeners,
-    updateTabActionState,
-    isGeminiTabUrl,
-    ACTION_COLOR_ICONS,
-    ACTION_GRAY_ICONS,
-    handleLiveSaveViaHandle,
-    markDirDeletedInConfig,
-    fetchBatch,
-    sendToGeminiTab,
-    getGeminiTab,
-    FsWriter,
-    ChatFormatter
-};
-
 // 1. Initialize session storage access level for content script credentials
 initSessionAccessLevel();
 

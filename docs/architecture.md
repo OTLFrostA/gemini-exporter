@@ -686,3 +686,16 @@ flowchart TD
 - **启动测试专用 Chrome**：`./scripts/open_test_chrome.sh`
 - **运行 Tier 2 场景池实跑测试**：`npm run test:live:pool`
 - **运行 Tier 3 纯视觉自主审查**：`npm run test:visual:review`
+
+---
+
+## 六、已知未实现项 (Known Unimplemented Items)
+
+以下两项为审计建议（P2-7、P2-8），经决策**明确标记为未实现**，文档如实记录、不写功能代码：
+
+1. **P2-7 — 网页自身 protobuf 解码结果对照验证（未实现）**：
+   审计曾建议插件调用或静态复用 Gemini 网页自身的 protobuf/JSPB 处理代码，并用网页解码结果交叉验证自研解析器输出。
+   现状：解析器仍为自研实现（`src/core/api/parser/*`），没有接入网页自身解码管线做对照验证。该能力需要稳定的网页端钩子与结果比对框架，暂不排期。
+2. **P2-8 — 导出会话断点续传（未实现）**：
+   现状只有导出会话的状态记录（`sessionStore`：`status`/`lastExportedBefore` 等）与失败落盘，没有基于进度的断点续传能力。
+   中断后重跑依赖增量扫描与导出记录去重跳过，而非从精确断点恢复。如需实现，需先定义可恢复的进度水位语义（与 P2-1 的 `stoppedEarly` 语义联动），暂不排期。

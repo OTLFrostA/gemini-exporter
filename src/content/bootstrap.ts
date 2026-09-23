@@ -319,7 +319,9 @@ if (typeof window !== 'undefined') {
                         email: profile?.email || (old as any).email,
                         name: profile?.name || (old as any).name,
                         lastUsed: Date.now(),
-                        bl: old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
+                        // P2-4: hook payload 的 p.bl 优先（调用方已带的可信值），
+                        // 其次旧值，最后才从页面抓取。
+                        bl: p.bl || old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
                     };
                     await saveCredentials(map, {
                         at: map[sid].at,

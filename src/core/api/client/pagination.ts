@@ -210,6 +210,11 @@ export interface GeminiClientPaginationModule {
         if (interruptedByError) {
             finalResult.stoppedEarly = true;
         }
+        // P2-1: 循环跑满 maxPages（reachedMax 仍为 true）说明列表被页数上限截断，
+        // 不是自然到底；必须标 stoppedEarly，否则上层会误判为"已穷尽"并触发删除对账。
+        if (reachedMax && maxPages > 0) {
+            finalResult.stoppedEarly = true;
+        }
         return finalResult;
     }
 

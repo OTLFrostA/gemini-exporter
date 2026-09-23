@@ -25,10 +25,12 @@ test('p1_b2 - P1-020: null scan result reports failure', () => {
 });
 
 // ---------- P1-021: engine construction in try ----------
+// The construction must stay inside the try/finally so a constructor throw
+// still resets the running state. Direct construction (no engineClass alias).
 test('p1_b2 - P1-021: engine constructed inside try', () => {
     const src = SRC('ui/controllers/exportController.ts');
     const tryIdx = src.indexOf('try {');
-    const newIdx = src.indexOf('activeEngine = new engineClass()');
+    const newIdx = src.indexOf('activeEngine = new ExportEngine()');
     assert.ok(tryIdx !== -1 && newIdx !== -1 && tryIdx < newIdx, 'construction inside try block');
 });
 
