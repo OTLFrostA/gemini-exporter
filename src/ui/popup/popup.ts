@@ -21,7 +21,6 @@ const getStorage = () => __resolveModule('StorageService', StorageService);
 let _activeConvId: string | null = null;
 let _activeSlot: string = 'u0';
 let _activeChatTitle: string = '';
-let _isExportingCurrentPage = false;
 let _activeFormat = 'markdown';
 
 function updateFormatTabsUI(targetFormat: string, isDev?: boolean): void {
@@ -72,7 +71,7 @@ function updateUiForTabState(isGemini: boolean): void {
     const i18n = getI18n();
 
     if (!isGemini) {
-        const notGeminiTip = typeof i18n !== 'undefined' ? i18n.t('popupNotGemini') : '当前页不是 gemini.google.com';
+        const notGeminiTip = i18n.t('popupNotGemini');
         if (btnCurrent) {
             btnCurrent.disabled = true;
             btnCurrent.title = notGeminiTip;
@@ -133,15 +132,15 @@ async function updateCount(): Promise<void> {
             const msgCount = found?.messageCount || found?.messages?.length || 0;
             if (chatTurnBadgeEl) {
                 chatTurnBadgeEl.textContent = msgCount > 0
-                    ? (typeof i18n !== 'undefined' ? i18n.t('chatMessagesCount', msgCount) : `${msgCount} turns`)
-                    : (typeof i18n !== 'undefined' ? i18n.t('chatNoMessages') : 'New chat');
+                    ? (i18n.t('chatMessagesCount', msgCount))
+                    : (i18n.t('chatNoMessages'));
             }
         } else if (isGemini) {
             if (currentChatTitleEl) {
-                currentChatTitleEl.textContent = typeof i18n !== 'undefined' ? i18n.t('chatNoMessages') : 'New chat';
+                currentChatTitleEl.textContent = i18n.t('chatNoMessages');
             }
             if (chatTurnBadgeEl) {
-                chatTurnBadgeEl.textContent = typeof i18n !== 'undefined' ? i18n.t('chatNoMessages') : 'New chat';
+                chatTurnBadgeEl.textContent = i18n.t('chatNoMessages');
             }
         }
 
@@ -155,9 +154,9 @@ async function updateCount(): Promise<void> {
         }
         const badge = $('countBadge');
         if (badge) {
-            const text = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', count) : `${count} synced`;
+            const text = i18n.t('syncedBadge', count);
             const label = slot === 'u0' ? text : `${text} (${slot.toUpperCase()})`;
-            const offlineLabel = (typeof i18n !== 'undefined' && typeof i18n.t === 'function') ? i18n.t('badgeOffline') : 'offline';
+            const offlineLabel = i18n.t('badgeOffline');
             badge.textContent = isGemini ? label : `${label} (${offlineLabel})`;
         }
     } catch (e) {
@@ -272,14 +271,14 @@ function initPopupEvents(): void {
 
         try {
             if (!_activeConvId) {
-                log(typeof i18n !== 'undefined' ? i18n.t('popupNoChatId') : '当前页未打开具体对话');
+                log(i18n.t('popupNoChatId'));
                 __releaseExportGuard();
                 return;
             }
             sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000).then(async (res: any) => {
                 try {
                     if (!res || !res.success) {
-                        log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', res?.error || '未知错误') : ('抓取失败: ' + (res?.error || '未知错误')));
+                        log(i18n.t('popupFetchFailed', res?.error || '未知错误'));
                         return;
                     }
 
@@ -299,17 +298,17 @@ function initPopupEvents(): void {
                     setTimeout(() => URL.revokeObjectURL(url), 3000);
 
                     ProgressView.complete();
-                    log(typeof i18n !== 'undefined' ? i18n.t('popupExported', fileName, chat.messages?.length || 0) : `已导出: ${fileName}`);
+                    log(i18n.t('popupExported', fileName, chat.messages?.length || 0));
                 } finally {
                     __releaseExportGuard();
                 }
             }).catch((err: any) => {
                 __releaseExportGuard();
-                log(typeof i18n !== 'undefined' ? i18n.t('popupFetchFailed', err?.message || String(err)) : ('抓取失败: ' + (err?.message || String(err))));
+                log(i18n.t('popupFetchFailed', err?.message || String(err)));
             });
         } catch (e: any) {
             __releaseExportGuard();
-            log(typeof i18n !== 'undefined' ? i18n.t('popupExportError', e?.message) : `导出异常: ${e?.message}`);
+            log(i18n.t('popupExportError', e?.message));
         }
     });
 
@@ -318,7 +317,7 @@ function initPopupEvents(): void {
         const i18n = getI18n();
         if (msg.action === 'syncUpdate') {
             const badge = $('countBadge');
-            if (badge) badge.textContent = typeof i18n !== 'undefined' ? i18n.t('syncedBadge', msg.count) : `${msg.count} synced`;
+            if (badge) badge.textContent = i18n.t('syncedBadge', msg.count);
         }
         if (msg.action === 'exportProgress' || msg.action === 'scanProgress') {
             let pct = typeof msg.percent === 'number' ? msg.percent : (msg.total ? Math.floor((msg.done / msg.total) * 100) : 50);
@@ -329,16 +328,12 @@ function initPopupEvents(): void {
 
     // Init i18n
     const i18n = getI18n();
-    if (typeof i18n !== 'undefined') {
-        i18n.initLanguage().then(() => {
-            i18n.applyI18n();
-            i18n.applyLangToggleUI();
-            i18n.onLanguageChange(() => i18n.applyLangToggleUI());
-            updateCount();
-        });
-    } else {
+    i18n.initLanguage().then(() => {
+        i18n.applyI18n();
+        i18n.applyLangToggleUI();
+        i18n.onLanguageChange(() => i18n.applyLangToggleUI());
         updateCount();
-    }
+    });
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
         chrome.storage.onChanged.addListener((changes, area) => {

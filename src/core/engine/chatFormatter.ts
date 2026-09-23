@@ -458,11 +458,17 @@ export interface ChatFormatterModule {
                 mime: 'application/json'
             };
         }
-        return {
-            content: toMarkdown(chat, opts),
-            ext: 'md',
-            mime: 'text/markdown'
-        };
+        if (formatType === 'markdown') {
+            return {
+                content: toMarkdown(chat, opts),
+                ext: 'md',
+                mime: 'text/markdown'
+            };
+        }
+        // P2 fail-closed: 未知格式（尤其 'pdf' 这类将来才支持的）禁止静默回落为
+        // markdown——调用方拼错格式名会导致用户拿到货不对板的文件，必须显式抛错。
+        // 合法取值见 AllowedFormat（src/core/utils/constants.ts）。
+        throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
     }
 
 export {

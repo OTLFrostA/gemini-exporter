@@ -131,7 +131,8 @@ const pagination = GeminiClientPagination;
                     await retryPolicy.handleHttp401({
                         cred,
                         loadCredMap,
-                        getCredStorage: credentialManager.getCredStorage
+                        getCredStorage: credentialManager.getCredStorage,
+                        refreshAtFromPage: credentialManager.getAtFromPage
                     });
                 }
 
@@ -234,7 +235,8 @@ const pagination = GeminiClientPagination;
                     await retryPolicy.handleHttp401({
                         cred,
                         loadCredMap,
-                        getCredStorage: credentialManager.getCredStorage
+                        getCredStorage: credentialManager.getCredStorage,
+                        refreshAtFromPage: credentialManager.getAtFromPage
                     });
                 }
 

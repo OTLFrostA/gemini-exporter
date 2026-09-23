@@ -194,7 +194,7 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
 
         if (List) {
             const failedIds = getFailedChatIds();
-            List.render(processed, exportedIds, prevSelected, __chatSearchFilter, undefined, __chatFilterType, failedIds);
+            List.render(processed, exportedIds, prevSelected, __chatSearchFilter, __chatFilterType, failedIds);
             List.updateStat(processed);
         }
 
@@ -224,7 +224,7 @@ function bindSearchAndSelection(): void {
         const expMap = Store ? Store.getExportedIds() : {};
         const currentSelected = List ? List.getSelectedIds() : new Set<string>();
         const failedIds = getFailedChatIds();
-        if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter, undefined, __chatFilterType, failedIds);
+        if (List) List.render(convs, expMap, currentSelected, __chatSearchFilter, __chatFilterType, failedIds);
     };
 
     filterSelect?.addEventListener('change', (e: Event) => {

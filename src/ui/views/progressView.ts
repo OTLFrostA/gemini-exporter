@@ -8,7 +8,7 @@ function getEl(id: string): HTMLElement | null {
     return document.getElementById(id);
 }
 
-export function getElement(type: 'wrap' | 'bar' | 'text'): HTMLElement | null {
+function getElement(type: 'wrap' | 'bar' | 'text'): HTMLElement | null {
     if (type === 'wrap') return getEl('progWrap');
     if (type === 'bar') return getEl('bar');
     if (type === 'text') return getEl('progText');
@@ -100,8 +100,7 @@ export const ProgressView: IProgressView = {
     update,
     complete,
     reset,
-    hide,
-    getElement
+    hide
 };
 
 

@@ -24,6 +24,8 @@ export interface Http401Params {
     cred?: any;
     loadCredMap?: () => Promise<any>;
     getCredStorage?: () => any;
+    /** 可选：从页面 DOM 重新抓取最新 at（401 时先尝试刷新而非直接删凭证）。 */
+    refreshAtFromPage?: () => string | null;
 }
 
 export interface Http429Params {
@@ -105,15 +107,39 @@ export interface GeminiClientRetryPolicyModule {
     }
 
     /**
-     * Cleans up expired credentials on HTTP 401
+     * Handles HTTP 401: first tries to refresh the `at` token from the page
+     * (the page may have rotated it while our stored copy went stale); only
+     * deletes the stored credential when no fresher `at` can be obtained.
+     * Never logs token values — only a desensitized sid prefix for diagnosis.
      */
     async function handleHttp401(params: Http401Params): Promise<void> {
-        const { cred, loadCredMap, getCredStorage } = params;
+        const { cred, loadCredMap, getCredStorage, refreshAtFromPage } = params;
+        const sidTag = cred?.sid ? String(cred.sid).slice(0, 6) + '…' : '(no-sid)';
         try {
             const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
             const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
 
             if (loadMapFn && getStorageFn && cred?.sid) {
+                // P2-3: 401 不等于凭证已死——页面可能已轮换出新的 at。
+                // 先尝试从页面刷新，刷新成功则更新 at 并保留凭证。
+                const atFn = refreshAtFromPage || getCredentialManager()?.getAtFromPage;
+                let freshAt: string | null = null;
+                try {
+                    freshAt = atFn ? atFn() : null;
+                } catch (_) { /* intentional: page extraction is best-effort */ }
+                if (freshAt && freshAt !== cred.at) {
+                    console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
+                    const map = await loadMapFn();
+                    if (map[cred.sid]) {
+                        map[cred.sid].at = freshAt;
+                        const storage = getStorageFn();
+                        if (storage) {
+                            await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+                        }
+                    }
+                    return;
+                }
+                console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面无更新的 at，删除过期凭证`);
                 let map = await loadMapFn();
                 if (map[cred.sid]) {
                     delete map[cred.sid];

@@ -104,10 +104,6 @@ export class ContentContext {
     // -------------------------------------------------------------
     // Credentials
     // -------------------------------------------------------------
-    public getCredentials(): GeminiCredentials | null {
-        return this._credentials ? { ...this._credentials } : null;
-    }
-
     public setCredentials(creds: Partial<GeminiCredentials> | null): void {
         if (!creds) {
             this._credentials = null;
@@ -242,19 +238,6 @@ export class ContentContext {
                 }
             }
         }
-    }
-
-    // -------------------------------------------------------------
-    // State Reset
-    // -------------------------------------------------------------
-    public reset(): void {
-        this.clearAllTimers();
-        this._aborted = false;
-        this._activeClient = null;
-        this._deepScanPromise = null;
-        this._syncWindowMirrors();
-        this.emit('reset');
-        this._listeners.clear();
     }
 }
 

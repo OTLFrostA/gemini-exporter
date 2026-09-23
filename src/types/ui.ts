@@ -48,16 +48,14 @@ export interface IConversationsStore {
 }
 
 export interface IListView {
-    render: (conversations: Conversation[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, onDeleteChat?: (id: string) => void, filterType?: string, failedChatIds?: Set<string>) => void;
+    render: (conversations: Conversation[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, filterType?: string, failedChatIds?: Set<string>) => void;
     updateStat: (conversations?: Conversation[]) => void;
     getSelected: (conversations?: Conversation[]) => Conversation[];
     getSelectedIds: () => Set<string>;
     selectAll: (conversations?: Conversation[]) => void;
     deselectAll: (conversations?: Conversation[]) => void;
     selectUnexported: (conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>) => void;
-    selectNeedsUpdate: (conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>) => void;
     isRealTitle: (title: string, id?: string) => boolean;
-    setOnDelete: (cb: (chatId: string) => void) => void;
     updateItemExportStatus: (chatId: string, exportRecord?: ExportRecord | null) => void;
     selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
     checkIsUpdated?: (c: any, rec: ExportRecord | null | undefined) => boolean;
@@ -66,7 +64,6 @@ export interface IListView {
 
 export interface IAccountView {
     render: (accountSlots: Record<string, any>, currentSlot: string) => void;
-    bindChange: (callback: (slot: string) => void) => void;
 }
 
 export interface IDialogView {
@@ -88,7 +85,6 @@ export interface IProgressView {
     complete: (text?: string) => void;
     reset: () => void;
     hide: (delayMs?: number) => void;
-    getElement: (type: 'wrap' | 'bar' | 'text') => HTMLElement | null;
 }
 
 export interface ILogView {
