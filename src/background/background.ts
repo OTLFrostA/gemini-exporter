@@ -20,6 +20,7 @@ import {
 } from './tabAction.js';
 import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
 import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
+import { migrate as migrateStorageSchema } from '../core/storage/schemaMigration.js';
 
 const fetchBatchChains = new Map<string, Promise<void>>();
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
@@ -64,7 +65,12 @@ restoreAbortFlags().catch(() => {});
 // 4. Initialize tab action dynamic icon status listeners
 initTabActionListeners();
 
-// 5. Central Message Router
+// 5. Phase D (P1-13): one-time storage schema migration (slim / alias /
+//    credentials / IDB), then stamp gemini_schema_version. Unknown future
+//    versions freeze writes (fail-closed) instead of corrupting data.
+migrateStorageSchema().catch(() => {});
+
+// 6. Central Message Router
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
         chrome.runtime.openOptionsPage();

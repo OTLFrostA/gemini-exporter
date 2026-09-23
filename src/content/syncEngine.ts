@@ -24,6 +24,7 @@ import { ProviderRegistry } from '../core/provider/providerRegistry.js';
 import '../core/provider/gemini/geminiProvider.js';
 import '../core/provider/chatgpt/chatgptProvider.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
+import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
@@ -382,6 +383,8 @@ export async function ingestListBatch(
     source: string,
     options?: IngestListOptions
 ): Promise<IngestListResult> {
+    // P1-13: schema frozen 时写路径 fail-closed（读路径不受影响）
+    await assertSchemaWritable();
     const slot = options?.slot || getAccountSlot();
     const Storage = getStorage();
     // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice

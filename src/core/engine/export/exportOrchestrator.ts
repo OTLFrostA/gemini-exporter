@@ -70,6 +70,7 @@ import { StorageService as StorageServiceStatic } from "../../storage/storageSer
 import { ChatFormatter } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
+import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 
 import { EXT_VERSION, getExtensionVersion, exportedIdsKey, STORAGE_KEYS, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
@@ -349,6 +350,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
         }
 
         async _initWriter(options: ExportOptions, onLog: (msg: string, level?: string) => void): Promise<any> {
+            // P1-13: schema frozen 时写路径 fail-closed（读路径不受影响）
+            await assertSchemaWritable();
             const { useZip = true, dirHandle = null } = options;
             const exportFolderName = DEFAULT_EXPORT_FOLDER_NAME;
             let batchDirHandle: any = null;

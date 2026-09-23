@@ -2,6 +2,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
+const SchemaMigration = require('../src/core/storage/schemaMigration.js');
+const DetailStore = require('../src/core/storage/conversationDetailStore.js');
 
 test('storage_service - normSlot', () => {
     assert.strictEqual(StorageService.normSlot(null), 'u0');
@@ -158,7 +160,7 @@ test('storage_service - two-tier storage offloads messages to detail store and s
     }
 });
 
-test('storage_service - auto-migrates legacy conversations with embedded messages', async () => {
+test('storage_service - legacy conversations slim only via startup migration, not on read', async () => {
     const mockStorage: Record<string, any> = {
         'gemini_conversations': [
             {
@@ -194,12 +196,21 @@ test('storage_service - auto-migrates legacy conversations with embedded message
     };
 
     try {
-        // Calling getConversations triggers background auto-migration
+        // P1-10: read path no longer triggers migration writes.
         const list = await StorageService.getConversations('u0');
         assert.strictEqual(list.length, 1);
 
-        // Give microtasks / lock time to finish migration
+        // Give microtasks / lock time; nothing should have been written
         await new Promise(r => setTimeout(r, 50));
+
+        // Read is pure: raw storage still holds the fat list
+        const untouchedList = mockStorage['gemini_conversations'];
+        assert.ok(Array.isArray(untouchedList[0].messages), 'read path must not slim');
+
+        // Startup migration (P1-13) performs the slim via lock-safe re-read
+        DetailStore.__clearMemoryStore();
+        const res = await SchemaMigration.migrate();
+        assert.strictEqual(res.ok, true);
 
         // Verify that chrome.storage.local was slimmed down
         const slimmedList = mockStorage['gemini_conversations'];
@@ -212,6 +223,7 @@ test('storage_service - auto-migrates legacy conversations with embedded message
         assert.strictEqual(detail.messages[0].content, 'Legacy Message');
     } finally {
         (global as any).chrome = origChrome;
+        SchemaMigration.__setSchemaFrozenForTest(false);
     }
 });
 
