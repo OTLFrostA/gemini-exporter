@@ -303,7 +303,8 @@ const __enFactory = (): LocaleDictionary => {
             zipUnknownSizeEntries: "ZIP contains {0} entries with unverified sizes; aborted.",
             untitledChat: "Untitled Chat",
             chatDeletedOrInaccessible: "Cloud conversation deleted or inaccessible",
-            domReturnEmpty: "DOM returned empty content"
+            domReturnEmpty: "DOM returned empty content",
+            schemaFrozenWriteBlocked: "Storage schema is newer than this version supports. Reading is available, but writing is blocked to prevent data corruption. Please update the extension."
     };
 };
 export const en: LocaleDictionary = __enFactory();

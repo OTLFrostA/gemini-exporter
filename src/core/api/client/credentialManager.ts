@@ -20,6 +20,7 @@ export interface GeminiClientCredentialManagerModule {
     detectSlot: () => string | null;
     getCredStorage: () => any;
     loadCredMap: () => Promise<GeminiCredentialsMap>;
+    migrateCredentials: () => Promise<boolean>;
     resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
@@ -246,12 +247,48 @@ function getProtocol(): GeminiProtocolModule {
         return result;
     }
 
+    // Startup one-time migration (P1-13): fold the legacy single credential
+    // into the map and move local-stored credentials into the session area.
+    // Idempotent; returns true when it persisted anything.
+    async function migrateCredentials(): Promise<boolean> {
+        const storage = getCredStorage();
+        if (!storage) return false;
+        let migrated = false;
+        try {
+            const s: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+            const map: GeminiCredentialsMap = s[STORAGE_KEYS.CREDENTIALS_MAP] || {};
+            const before = Object.keys(map).length;
+            normalizeLegacySingleCred(s, map);
+            if (Object.keys(map).length !== before) migrated = true;
+            if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
+                try {
+                    const localS: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                    const localMap: GeminiCredentialsMap = localS[STORAGE_KEYS.CREDENTIALS_MAP] || {};
+                    normalizeLegacySingleCred(localS, localMap);
+                    let merged = false;
+                    for (const [k, v] of Object.entries(localMap)) {
+                        if (!map[k]) { map[k] = v; merged = true; }
+                    }
+                    if (merged) {
+                        migrated = true;
+                        await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                    }
+                } catch { /* intentional: migration fallback */ }
+            }
+            if (migrated) {
+                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+            }
+        } catch { /* migration best-effort */ }
+        return migrated;
+    }
+
 export {
     getBlFromPage,
     getAtFromPage,
     detectSlot,
     getCredStorage,
     loadCredMap,
+    migrateCredentials,
     resolveCred,
     generateFallbackSid
 };
@@ -262,6 +299,7 @@ export const GeminiClientCredentialManager: GeminiClientCredentialManagerModule 
     detectSlot,
     getCredStorage,
     loadCredMap,
+    migrateCredentials,
     resolveCred,
     generateFallbackSid
 };

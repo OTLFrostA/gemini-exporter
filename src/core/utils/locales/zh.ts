@@ -303,7 +303,8 @@ const __zhFactory = (): LocaleDictionary => {
             zipUnknownSizeEntries: "ZIP 中有 {0} 个条目无法确认未压缩大小，已中止以防 ZipBomb",
             untitledChat: "未命名对话",
             chatDeletedOrInaccessible: "云端会话已被删除或不可访问",
-            domReturnEmpty: "DOM 返回内容为空"
+            domReturnEmpty: "DOM 返回内容为空",
+            schemaFrozenWriteBlocked: "存储结构版本高于当前扩展支持的版本。为防止数据损坏，已禁止写入（查看不受影响）。请更新扩展到最新版本。"
     };
 };
 export const zh: LocaleDictionary = __zhFactory();

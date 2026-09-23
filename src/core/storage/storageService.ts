@@ -63,6 +63,7 @@ export interface StorageServiceModule {
     saveExportRecord: (slot: string | null | undefined, id: string, record: any) => Promise<Record<string, any>>;
     saveExportRecordsBatch: (slot: string | null | undefined, records: Record<string, any>) => Promise<Record<string, any>>;
     removeExportRecords: (slot: string | null | undefined, ids: string[] | null | undefined) => Promise<number>;
+    migrateExportAliases: (slot: string | null | undefined) => Promise<boolean>;
     getLastSync: (slot?: string | null) => Promise<SyncStatus>;
     setLastSync: (slot: string | null | undefined, timestamp?: number | null, count?: number) => Promise<void>;
     getScanCheckpoint: (slot?: string | null) => Promise<number | null>;
@@ -106,22 +107,6 @@ export interface StorageServiceModule {
         };
     }
 
-    const _migratingSlots = new Set<string>();
-    async function _migrateLegacyConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
-        const s = normSlot(slot);
-        if (_migratingSlots.has(s)) return;
-        _migratingSlots.add(s);
-        try {
-            await withConversationLock(async () => {
-                await _setConversationsRaw(slot, list);
-            });
-        } catch (e) {
-            console.warn('[StorageService] Legacy conversation migration error:', e);
-        } finally {
-            _migratingSlots.delete(s);
-        }
-    }
-
     async function getConversations(slot?: string | null): Promise<Conversation[]> {
         const { convKey, slot: s } = getStorageKeys(slot);
         const keys = [convKey];
@@ -130,12 +115,6 @@ export interface StorageServiceModule {
         }
         const data = await chrome.storage.local.get(keys);
         const list = ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
-
-        // Auto-migration: If any item in the stored list still carries raw messages/turns arrays,
-        // offload them to IndexedDB and slim down chrome.storage.local.
-        if (Array.isArray(list) && list.some(c => c && (Array.isArray(c.messages) || Array.isArray(c.turns)))) {
-            _migrateLegacyConversations(slot, list).catch(() => {});
-        }
 
         return list;
     }
@@ -428,6 +407,26 @@ export interface StorageServiceModule {
             }
             delete map[k];
         }
+    }
+
+    // Startup migration (P1-13): collapse legacy alias keys in the persisted
+    // export-record map once per slot. Returns true when a write happened.
+    async function migrateExportAliases(slot: string | null | undefined): Promise<boolean> {
+        const { expKey, slot: s } = getStorageKeys(slot);
+        const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
+        const data = await chrome.storage.local.get(readKeys);
+        const merged: Record<string, any> = {};
+        for (const k of readKeys) {
+            const m = (data as any)[k];
+            if (m && typeof m === 'object') Object.assign(merged, m);
+        }
+        const before = Object.keys(merged);
+        if (!before.length) return false;
+        const canonical = normalizeExportRecordKeys(merged);
+        const after = Object.keys(canonical);
+        if (after.length === before.length && before.every(k => after.includes(k))) return false;
+        await setExportedIds(slot, canonical);
+        return true;
     }
 
     let _saveRecordChain: Promise<any> = Promise.resolve();
@@ -768,6 +767,7 @@ export {
     saveExportRecord,
     saveExportRecordsBatch,
     removeExportRecords,
+    migrateExportAliases,
     getLastSync,
     setLastSync,
     getScanCheckpoint,
@@ -807,6 +807,7 @@ export const StorageService: StorageServiceModule = {
     saveExportRecord,
     saveExportRecordsBatch,
     removeExportRecords,
+    migrateExportAliases,
     getLastSync,
     setLastSync,
     getScanCheckpoint,
