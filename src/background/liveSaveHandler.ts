@@ -4,6 +4,7 @@ import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHan
 import { setLiveConfig } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
+import { getEffectiveTimestamp } from '../core/utils/utils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
     try {
@@ -152,10 +153,12 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         try {
             const slot = accountSlot || 'u0';
             if (StorageService?.saveExportRecord) {
+                const chatTs = getEffectiveTimestamp(chat);
                 await StorageService.saveExportRecord(slot, nid, {
                     exportedAt: new Date(now).toISOString(),
                     title: safeTitle,
                     format: 'markdown',
+                    ...(chatTs > 0 ? { chatTime: chatTs } : {}),
                     ...(failedAssets.length > 0 ? { status: 'partial', hasFailedAssets: true } : {})
                 });
             }

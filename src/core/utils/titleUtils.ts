@@ -262,19 +262,20 @@ export function checkIsUpdated(c: any, rec?: any): boolean {
         const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
 
         // 1. Timestamp check with a 2000ms grace buffer for clock skew / write latency:
-        // If chat timestamp advanced in Gemini past the export time or recorded chat time, it is updated.
+        // If chat timestamp advanced in Gemini past the export time, it is updated.
         if (cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
-            return true;
-        }
-        if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
             return true;
         }
 
         // 2. Export freshness lock: if the export finished strictly AFTER the conversation's last activity,
         // the conversation content cannot be newer than the export.
-        // Suppress messageCount discrepancies caused by cloud metadata inflating turn slots.
+        // Suppress messageCount / legacy chatTime discrepancies when exportedAt is strictly newer than cTs.
         if (rTs > 0 && cTs > 0 && rTs >= cTs + 2000) {
             return false;
+        }
+
+        if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
+            return true;
         }
 
         // 3. Fallback: message count increase when timestamps are absent or contemporaneous

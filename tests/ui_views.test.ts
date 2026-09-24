@@ -668,3 +668,112 @@ test('listView - selectAll & deselectAll only affects visible items in current v
     }
 });
 
+test('listView - render displays badge-exported-partial for partial records unless conversation has post-export activity', () => {
+    const fakeList: any = { innerHTML: '', addEventListener: () => {} };
+    const fakeDoc = {
+        getElementById: (id: string) => id === 'list' ? fakeList : null,
+        querySelectorAll: () => []
+    };
+
+    const origDoc = (globalThis as any).document;
+    const origI18n = __getModuleOverride('I18n');
+    try {
+        (globalThis as any).document = fakeDoc;
+        __setModuleOverride('I18n', {
+            t: (key: string) => {
+                if (key === 'badgeNeedsReexport' || key === 'badgeUpdated') return '已更新';
+                if (key === 'badgeExportedPartial') return '已导出 (部分附件缺失)';
+                if (key === 'badgeExported') return '已导出';
+                return key;
+            }
+        });
+
+        const t0 = 1700000000000;
+        const convs = [
+            // Freshly exported partial chat (no activity since export) -> should show badge-exported-partial
+            { id: 'c_partial_fresh', title: '部分附件对话', timestamp: t0, updatedAt: t0 },
+            // Partial chat that ALSO had new user activity after export -> should show badge-updated
+            { id: 'c_partial_updated', title: '部分附件且有新回复', timestamp: t0, updatedAt: t0 + 60000 },
+            // Exported chat where updatedAt > timestamp, exported AFTER updatedAt -> should show badge-exported (not badge-updated)
+            { id: 'c_resumed', title: '多轮历史对话', timestamp: t0 - 86400000, updatedAt: t0 }
+        ];
+        const expMap = {
+            'partial_fresh': {
+                exportedAt: new Date(t0 + 5000).toISOString(),
+                chatTime: t0,
+                status: 'partial',
+                hasFailedAssets: true
+            },
+            'partial_updated': {
+                exportedAt: new Date(t0 + 5000).toISOString(),
+                chatTime: t0,
+                status: 'partial',
+                hasFailedAssets: true
+            },
+            'resumed': {
+                exportedAt: new Date(t0 + 5000).toISOString(),
+                // Even if legacy chatTime stored creation timestamp (t0 - 86400000), exportedAt is newer than updatedAt (t0)
+                chatTime: t0 - 86400000,
+                status: 'ok'
+            }
+        };
+
+        ListView.render(convs as any, expMap as any, null);
+        const rows = fakeList.innerHTML.split('data-chat-id="').slice(1);
+        const rowPartialFresh = rows.find((r: string) => r.startsWith('c_partial_fresh')) || '';
+        const rowPartialUpdated = rows.find((r: string) => r.startsWith('c_partial_updated')) || '';
+        const rowResumed = rows.find((r: string) => r.startsWith('c_resumed')) || '';
+
+        assert.ok(rowPartialFresh.includes('badge-exported-partial'), 'Fresh partial export must render badge-exported-partial, not badge-updated');
+        assert.ok(rowPartialFresh.includes('已导出 (部分附件缺失)'), 'Fresh partial export must show partial label');
+        assert.ok(rowPartialUpdated.includes('badge-updated'), 'Partial export with newer post-export activity must render badge-updated');
+        assert.ok(rowResumed.includes('badge-exported'), 'Resumed conversation exported after updatedAt must render badge-exported');
+        assert.ok(!rowResumed.includes('badge-updated'), 'Resumed conversation exported after updatedAt must not falsely render badge-updated');
+    } finally {
+        (globalThis as any).document = origDoc;
+        __setModuleOverride('I18n', origI18n);
+    }
+});
+
+test('listView - updateItemExportStatus renders pending_assets badge and transitions to exported badge', () => {
+    const appendedSpans: any[] = [];
+    const titleContainer = {
+        appendChild: (el: any) => appendedSpans.push(el)
+    };
+    const mockItem: any = {
+        querySelector: (sel: string) => {
+            if (sel === '.badge') return appendedSpans[0] || null;
+            if (sel === 'div') return titleContainer;
+            return null;
+        }
+    };
+    const fakeDoc = {
+        querySelector: () => mockItem,
+        createElement: (tag: string) => ({ tagName: tag, className: '', style: { cssText: '' }, textContent: '' })
+    };
+
+    const origDoc = (globalThis as any).document;
+    const origI18n = __getModuleOverride('I18n');
+    try {
+        (globalThis as any).document = fakeDoc;
+        __setModuleOverride('I18n', {
+            t: (key: string) => {
+                if (key === 'badgeExportingAssets') return '附件导出中...';
+                if (key === 'badgeExported') return '已导出';
+                return key;
+            }
+        });
+
+        ListView.updateItemExportStatus('chat_img_1', { status: 'pending_assets' } as any);
+        assert.strictEqual(appendedSpans.length, 1);
+        assert.strictEqual(appendedSpans[0].className, 'badge badge-exporting-assets');
+        assert.strictEqual(appendedSpans[0].textContent, '附件导出中...');
+
+        ListView.updateItemExportStatus('chat_img_1', { exportedAt: new Date().toISOString(), status: 'ok' });
+        assert.strictEqual(appendedSpans[0].className, 'badge badge-exported');
+        assert.strictEqual(appendedSpans[0].textContent, '已导出');
+    } finally {
+        (globalThis as any).document = origDoc;
+        __setModuleOverride('I18n', origI18n);
+    }
+});

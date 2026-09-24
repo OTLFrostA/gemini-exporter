@@ -39,9 +39,9 @@ const ALLOWLIST: Record<string, string> = {
     'src/core/storage/liveStorageManager.ts:49': '单键盲写（live config）',
     'src/core/storage/schemaMigration.ts:198': '启动时单次 schema 版本迁移，无并发',
     'src/core/utils/i18n.ts:54': '单键盲写（语言设置）',
-    'src/ui/options/modules/optionsExport.ts:426': 'UI 事件单键盲写',
-    'src/ui/options/modules/optionsExport.ts:485': 'UI 事件单键盲写',
-    'src/ui/options/modules/optionsExport.ts:563': 'UI 事件单键盲写',
+    'src/ui/options/modules/optionsExport.ts:431': 'UI 事件单键盲写',
+    'src/ui/options/modules/optionsExport.ts:490': 'UI 事件单键盲写',
+    'src/ui/options/modules/optionsExport.ts:568': 'UI 事件单键盲写',
 };
 
 function gitGrepFixed(pattern: string): Array<{ file: string; line: number }> {

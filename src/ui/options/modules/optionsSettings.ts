@@ -10,7 +10,8 @@ import {
     getTour,
     getDirHandle as getDirHandleController,
     getLiveStorage,
-    getProgressView
+    getProgressView,
+    getExportCtrl
 } from '../optionsContext.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
@@ -492,6 +493,10 @@ export async function initLiveSaveSettings(): Promise<void> {
                 }
             }
             if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {
+                const exportCtrl = getExportCtrl();
+                if (exportCtrl && typeof exportCtrl.isRunning === 'function' && exportCtrl.isRunning()) {
+                    return;
+                }
                 if (typeof (window as any).__workbenchLoadStore === 'function') {
                     (window as any).__workbenchLoadStore();
                 }

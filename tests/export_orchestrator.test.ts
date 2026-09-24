@@ -6,7 +6,7 @@ const { ExportOrchestrator, AsyncQueue } = require('../src/core/engine/export/ex
 const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
 const { BatchWorker, formatDebugInfo } = require('../src/core/engine/export/batchWorker.js');
 const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // AsyncQueue
@@ -111,6 +111,7 @@ function setupMockStorage() {
             return { ...mem };
         },
     });
+    return { savedRecords: mem };
 }
 
 // ---------------------------------------------------------------------------
@@ -544,4 +545,77 @@ test('ExportOrchestrator - empty chat exports successfully into archive with sta
     assert.ok(exportedIds['cca63136d0630930'], 'Empty chat must be finalized in exportedIds to prevent deadlock');
 });
 
+test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime and fires onItemPendingAssets for queued assets', async () => {
+    setupMockJSZip();
+    const { savedRecords } = setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
 
+    const tCreate = 1700000000000;
+    const tUpdate = 1700086400000; // 24h newer than creation timestamp
+    const conversations = [
+        { id: 'chat_with_img', title: 'Image Chat', timestamp: tCreate, updatedAt: tUpdate }
+    ];
+
+    const mockWorker = {
+        fetchChatDetail: async () => ({
+            success: true,
+            chat: {
+                id: 'chat_with_img',
+                title: 'Image Chat',
+                timestamp: tCreate,
+                updatedAt: tUpdate,
+                messages: [
+                    {
+                        role: 'model',
+                        content: 'Here is an image',
+                        images: [{ url: 'https://lh3.googleusercontent.com/fake_img', localName: 'assets/img.png', fileName: 'img.png' }]
+                    }
+                ]
+            }
+        }),
+        resolveChat: BatchWorker.resolveChat
+    };
+
+    const origPipeline = __getModuleOverride('AssetPipeline');
+    __setModuleOverride('AssetPipeline', class {
+        async processAsset(item: any) {
+            return { saved: true, localName: item.localName || 'assets/img.png' };
+        }
+    });
+
+    const pendingEvents: Array<{ id: string; count: number }> = [];
+    const finalizedEvents: Array<{ id: string; rec: any }> = [];
+
+    try {
+        const result = await orchestrator.run({
+            selected: conversations,
+            format: 'markdown',
+            useZip: true,
+            skip: false,
+            conversations,
+            exportedIds: {},
+            includeAssets: true,
+            worker: mockWorker
+        }, {
+            onItemPendingAssets: (id: string, count: number) => pendingEvents.push({ id, count }),
+            onItemExported: (id: string, rec: any) => finalizedEvents.push({ id, rec })
+        });
+
+        assert.strictEqual(result.landedChats, 1);
+        assert.strictEqual(pendingEvents.length, 1, 'onItemPendingAssets must fire when chat has queued assets');
+        assert.strictEqual(pendingEvents[0].id, 'chat_with_img');
+        assert.strictEqual(pendingEvents[0].count, 1);
+        assert.strictEqual(finalizedEvents.length, 1, 'onItemExported must fire after asset queue completes');
+        assert.strictEqual(finalizedEvents[0].rec.chatTime, tUpdate, 'record.chatTime must use effective timestamp (updatedAt), not stale creation timestamp');
+        assert.strictEqual(savedRecords['chat_with_img']?.chatTime, tUpdate);
+
+        const { checkIsUpdated } = require('../src/core/utils/titleUtils.js');
+        assert.strictEqual(
+            checkIsUpdated(conversations[0], finalizedEvents[0].rec),
+            false,
+            'Freshly exported conversation with updatedAt > timestamp must not be flagged as updated'
+        );
+    } finally {
+        __setModuleOverride('AssetPipeline', origPipeline);
+    }
+});

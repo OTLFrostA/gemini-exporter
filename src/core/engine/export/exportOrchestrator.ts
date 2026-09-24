@@ -20,6 +20,7 @@ export interface ExportCallbacks {
     onLog?: (msg: string, level?: string) => void;
     onTitleUpdated?: (id: string, title: string, source?: string) => void;
     onItemExported?: (id: string, record: any) => void;
+    onItemPendingAssets?: (id: string, count: number) => void;
 }
 
 export interface ExportResult {
@@ -53,6 +54,7 @@ import GeminiUtils, {
     resolveExportFileName as utilsResolveExportFileName,
     getErrorMessage,
     checkIsUpdated as utilsCheckIsUpdated,
+    getEffectiveTimestamp as utilsGetEffectiveTimestamp,
     setTitleBySource as utilsSetTitleBySource,
     cleanTitle as utilsCleanTitle,
     isRealTitle as utilsIsRealTitle
@@ -94,6 +96,9 @@ export const sanitizeZipPath = (p?: string | null): string =>
 
 export const checkIsUpdated = (c: any, rec?: any): boolean =>
     ((getUtils()?.checkIsUpdated) || utilsCheckIsUpdated)(c, rec);
+
+export const getEffectiveTimestamp = (c: any): number =>
+    ((getUtils()?.getEffectiveTimestamp) || utilsGetEffectiveTimestamp)(c);
 
 export const setTitleBySource = (chat: any, source?: string, rawTitle?: string): any =>
     ((getUtils()?.setTitleBySource) || utilsSetTitleBySource)(chat, source, rawTitle);
@@ -456,6 +461,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             const onLog = callbacks.onLog || (() => {});
             const onTitleUpdated = callbacks.onTitleUpdated || (() => {});
             const onItemExported = callbacks.onItemExported || (() => {});
+            const onItemPendingAssets = callbacks.onItemPendingAssets || (() => {});
 
             const session = await this._initSession(options, callbacks);
             const { payloadIds, skippedItems = [], totalSelected = options.selected?.length || 0, slot, Storage, curIds, abortSignal } = session;
@@ -893,8 +899,9 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                         hasHeuristicDocs: chatDrift.hasHeuristicDocs
                                     });
                                 }
-                                let exportTs = listC?.timestamp ?? chat.timestamp ?? null;
-                                if (typeof exportTs === 'string') exportTs = new Date(exportTs).getTime();
+                                const listTs = getEffectiveTimestamp(listC);
+                                const chatTs = getEffectiveTimestamp(chat);
+                                const exportTs = Math.max(listTs, chatTs) || null;
                                 const record = {
                                     title: listTitle,
                                     exportedAt: new Date().toISOString(),
@@ -911,6 +918,9 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     await finalizeChatExport(chat.id);
                                 } else {
                                     pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
+                                    try {
+                                        onItemPendingAssets(chat.id, queuedAssetsForThisChat);
+                                    } catch { /* intentional */ }
                                     for (const task of chatAssetTasks) {
                                         attachmentQueue.push(task);
                                     }
