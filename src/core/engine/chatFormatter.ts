@@ -9,6 +9,7 @@ import { stripInternalChipMarkdown } from "../utils/chipUtils.js";
 import { normId } from "../utils/pathUtils.js";
 import { I18n as I18nStatic } from "../utils/i18n.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
+import { toHtml } from "./template/htmlTemplate.js";
 
 export interface FormattedResult {
     content: string;
@@ -28,6 +29,7 @@ export interface ChatFormatterModule {
     cleanMessageBody: (text?: string | null) => string;
     toMarkdown: (chat: any, opts?: ChatFormatterOptions) => string;
     toOpenAIJson: (chat: any) => string;
+    toHtml: (chat: any, opts?: ChatFormatterOptions) => string;
     formatContent: (chat: any, formatType?: string, opts?: ChatFormatterOptions) => FormattedResult;
 }
 
@@ -465,6 +467,13 @@ export interface ChatFormatterModule {
                 mime: 'text/markdown'
             };
         }
+        if (formatType === 'html') {
+            return {
+                content: toHtml(chat, opts),
+                ext: 'html',
+                mime: 'text/html'
+            };
+        }
         // P2 fail-closed: 未知格式（尤其 'pdf' 这类将来才支持的）禁止静默回落为
         // markdown——调用方拼错格式名会导致用户拿到货不对板的文件，必须显式抛错。
         // 合法取值见 AllowedFormat（src/core/utils/constants.ts）。
@@ -478,6 +487,7 @@ export {
     cleanMessageBody,
     toMarkdown,
     toOpenAIJson,
+    toHtml,
     formatContent
 };
 
@@ -488,6 +498,7 @@ export const ChatFormatter: ChatFormatterModule = {
     cleanMessageBody,
     toMarkdown,
     toOpenAIJson,
+    toHtml,
     formatContent
 };
 

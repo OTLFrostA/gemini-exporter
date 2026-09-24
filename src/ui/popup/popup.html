@@ -82,6 +82,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   </div>
   <div id="formatTabs" class="tab-group" role="tablist">
     <button type="button" class="tab-btn active" data-value="markdown" data-i18n="fmtMarkdownTab">Markdown</button>
+    <button type="button" class="tab-btn" data-value="html" data-i18n="fmtHtmlTab">HTML</button>
     <button type="button" class="tab-btn" data-value="json_openai" data-i18n="fmtJsonOpenAITab">JSON (OpenAI)</button>
     <button type="button" class="tab-btn" data-value="json" data-i18n="fmtJsonStandardTab">JSON (标准)</button>
     <button type="button" class="tab-btn dev-only" data-value="json_raw" data-i18n="fmtJsonRawTab" style="display:none;">JSON (原始)</button>
@@ -90,6 +91,7 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
   <!-- Fallback/Sync select element -->
   <select id="format" style="display:none;">
     <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
+    <option value="html" data-i18n="fmtHtml">HTML 独立网页 (.html)</option>
     <option value="json_openai" data-i18n="fmtJsonOpenAI">JSON (OpenAI格式)</option>
     <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
     <option value="json_raw" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
