@@ -53,7 +53,7 @@ graph TD
 
         subgraph ExtensionPages ["扩展交互前端页面 (Extension Pages: Options & Popup)"]
             subgraph PopupView ["快捷操作面板 (Popup Action Center)"]
-                POP_Main["popup.ts / popup.html<br/>(一键导出/长截图/PDF/复制)"]
+                POP_Main["popup.ts / popup.html<br/>(当前页一键导出 / 去控制台批量导出)"]
             end
 
             subgraph OptionsWorkbench ["批量管理工作台 (Options Workbench)"]
@@ -70,7 +70,7 @@ graph TD
 
     subgraph CoreEngine ["核心领域逻辑与引擎层 (Core Domain Logic & Engine)"]
         subgraph ProviderLayer ["Provider 抽象层 (src/core/provider/，ChatGPT 为 dormant 预留扩展点)"]
-            PROV_Registry["ProviderRegistry<br/>(多提供商动态注册表)"]
+            PROV_Registry["ProviderRegistry / providerResolver<br/>(多提供商动态注册表与 URL 解析)"]
             PROV_Gemini["GeminiProvider<br/>(Gemini batchexecute 协议适配)"]
             PROV_ChatGPT["ChatGPTProvider<br/>(dormant 预留扩展点，未激活)"]
         end
@@ -81,10 +81,10 @@ graph TD
         end
 
         subgraph ExportEngines ["导出、转换与打包引擎 (src/core/engine/)"]
-            ENG_Orchestrator["ExportOrchestrator<br/>(批量导出编排器 & AsyncQueue 队列)"]
+            ENG_Orchestrator["ExportOrchestrator & parseDrift<br/>(批量导出编排器 / AsyncQueue / 协议漂移遥测)"]
             ENG_Worker["BatchWorker<br/>(单会话抓取与任务单元)"]
             ENG_Rate["RateLimiter<br/>(自适应指数退避与熔断器)"]
-            ENG_Formatter["ChatFormatter<br/>(Markdown / JSON / OpenAI 转换器)"]
+            ENG_Formatter["ChatFormatter & htmlTemplate.ts<br/>(Markdown / 1:1 独立 HTML / JSON / OpenAI 转换器)"]
             ENG_Takeout["TakeoutEngine<br/>(Takeout ZIP 解析 / MediaIndex / ZipBombGuard)"]
             ENG_LiveWriter["liveSaveWriter.ts<br/>(实时 Markdown / JSON 文件流写入器)"]
             ENG_Writers["Writers: zipWriter (JSZip STORE流式防OOM) / fsWriter (FileSystem API)"]
@@ -97,7 +97,7 @@ graph TD
         end
 
         subgraph StorageLayer ["两级存储与持久化层 (src/core/storage/)"]
-            ST_Service["StorageService<br/>(两级主控: chrome.storage.local 轻量元数据索引 & Slot 隔离)"]
+            ST_Service["StorageService & schemaMigration<br/>(两级主控: chrome.storage.local 轻量元数据索引 & Slot 隔离)"]
             ST_Locks["withCrossTabLock / withConversationLock / withSlotLock<br/>(三把跨 tab 命名锁 + transactConversations 原子读写)"]
             ST_Detail["conversationDetailStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
             ST_Live["liveStorageManager.ts<br/>(实时保存配置与目录句柄代理)"]
@@ -137,8 +137,8 @@ graph TD
     ENG_Orchestrator --> ENG_Worker
     ENG_Orchestrator --> ENG_Rate
     ENG_Worker --> PROV_Gemini
-    ENG_Worker --> ENG_Formatter
-    ENG_Worker --> ENG_Writers
+    ENG_Orchestrator --> ENG_Formatter
+    ENG_Orchestrator --> ENG_Writers
     POP_Main --> ENG_Formatter
 
     %% 存储与工具支持
@@ -154,7 +154,7 @@ graph TD
 
 ## 二、AST 逻辑分布与架构映射矩阵 (AST Logical Distribution & Architecture Mapping)
 
-下表呈现整个代码库 `src/` 目录下系统核心主干骨架模块（Core Backbone AST，全仓 111 个 TS 源文件，涵盖核心业务主干、子解析器、视图控制器与契约类型定义）的抽象语法树逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
+下表呈现整个代码库 `src/` 目录下系统核心主干骨架模块（Core Backbone AST，全仓 115 个 TS 源文件，涵盖核心业务主干、子解析器、视图控制器与契约类型定义）的抽象语法树逻辑职责、核心导出实体、数据依赖以及在架构图中的映射定位：
 
 | 物理源码路径 (File Path) | 架构分层 / 子系统 | 核心 AST 导出实体 (Classes / Functions / Interfaces) | 模块职责与设计不变量 (Role & Invariants) | 上游调用源 (Inflow) | 下游承接汇 (Outflow) | 架构图映射节点 |
 |---|---|---|---|---|---|---|
@@ -182,6 +182,7 @@ graph TD
 | `src/content/pageObserver.ts` | Content Script | `PageObserver`, `init`, `cleanup` | 观察 SPA URL 路径跳转（如切换会话）与侧边栏 DOM 挂载。 | `content.ts` | `syncEngine.touchActiveConversation` | `CS_Entry` |
 | `src/core/provider/aiProvider.ts` | Core: Provider | `AIProvider`, `ProviderConversationItem`, `ProviderCapabilities` | 定义跨异构 AI 模型平台的通用接口契约规范。 | 所有 Provider 模块 | 上层引擎统一接口 | `PROV_Registry` |
 | `src/core/provider/providerRegistry.ts` | Core: Provider | `ProviderRegistryClass`, `ProviderRegistry` (单例) | 全局 Provider 注册表，支持按平台 ID 或当前页面 URL 模式匹配提供商。 | 各 Provider 自动注册 | `liveSaveCoordinator`, `exportOrchestrator` | `PROV_Registry` |
+| `src/core/provider/providerResolver.ts` | Core: Provider | `resolveProvider` | 根据当前激活页面 URL 解析匹配的 `AIProvider` 适配器并自动完成注册绑定。 | `syncEngine`, `liveSaveCoordinator` | `providerRegistry.ts` | `PROV_Registry` |
 | `src/core/provider/gemini/geminiProvider.ts` | Core: Provider | `GeminiProvider` (实现 `AIProvider`) | Gemini 平台适配器，封装 batchexecute RPC 调用与多账号 Slot 映射。 | `providerRegistry.ts` | `geminiClient`, `geminiParser` | `PROV_Gemini` |
 | `src/core/provider/chatgpt/chatgptProvider.ts` | Core: Provider | `ChatGPTProvider` (实现 `AIProvider`) | ChatGPT 平台适配器（dormant 预留扩展点）：`listConversations` 直接抛错防误调，`supportsRealtimeSniffing=false`；manifest 未覆盖其域名、无 content script 匹配，运行时不可达。 | `providerRegistry.ts` | ChatGPT DOM / API 适配 | `PROV_ChatGPT` |
 | `src/core/provider/index.ts` | Core: Provider | `export *` (Barrel) | 统一导出多模型提供商契约、具体适配器与注册表单例。 | 业务消费方 | Provider 子模块 | `PROV_Registry` |
@@ -413,7 +414,7 @@ sequenceDiagram
   5. **多模态附件 STORE 流式防 OOM 机制 (P0 容灾)**：
      - 调用 `isPrecompressedAsset(path)` 检测图片/媒体文件扩展名（`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.mp4`）；
      - 对已高度压缩的二进制媒体强制使用 `compression: 'STORE'` 模式添加进 `ZipWriter`，**物理绕过 JSZip 在内存中反复膨胀 (Inflate) 和二次压缩 (Deflate) 的巨大内存/CPU 开销**；
-     - 仅对纯文本 Markdown、JSON 使用 `compression: 'DEFLATE'`；
+     - 仅对纯文本 Markdown、HTML、JSON 使用 `compression: 'DEFLATE'`；
      - 结合 200MB 内存防线与 `generateInternalStream` 流式分块生成 Blob，彻底杜绝大批量导出（1000+ 对话）时的浏览器标签页 OOM 崩溃；
   6. 写入器（`ZipWriter` 或 `FsWriter`）写入，`ProgressReporter` 实时计算吞吐量与 ETA，完成时调用 `StorageService.saveExportRecord` 持久化导出记录避免重复导出。
 
@@ -426,7 +427,7 @@ sequenceDiagram
     participant Limit as RateLimiter
     participant Worker as BatchWorker
     participant Asset as AssetPipeline
-    participant Format as ChatFormatter
+    participant Format as ChatFormatter & htmlTemplate
     participant Writer as ZipWriter (JSZip STORE 流式防 OOM)
     participant Store as StorageService
 
@@ -436,23 +437,22 @@ sequenceDiagram
     loop AsyncQueue 并发调度 (Concurrency = 3)
         Orch->>Limit: 检查当前限流状态与退避间隔
         Limit-->>Orch: 允许派发任务
-        Orch->>Worker: 分配单会话处理任务 (fetchChatDetail / resolveChat)
-        Worker->>Worker: 拉取会话详情 (RPC / Takeout 本地池)
-        Worker->>Asset: 提取图片/附件列表并下载 Blob
-        Asset-->>Worker: 返回附件二进制流及本地相对路径
-        Worker->>Format: 组装 Markdown (嵌入 Frontmatter 与图片相对链接)
-        Format-->>Worker: 输出规范 Markdown 文本
-        Worker->>Writer: 添加文件 (index.md 与 assets/ 资源)
+        Orch->>Worker: 分配单会话抓取与解析任务 (fetchChatDetail / resolveChat)
+        Worker-->>Orch: 返回结构化会话详情 (RPC / Takeout 本地池)
+        Orch->>Asset: 提取图片/附件列表并下载 Blob
+        Asset-->>Orch: 返回附件二进制流及本地相对路径
+        Orch->>Format: 组装 Markdown / 1:1 HTML / JSON (嵌入图片相对路径)
+        Format-->>Orch: 输出格式化文档文本
+        Orch->>Writer: 添加文件 (.md / .html / .json 与 assets/ 资源)
         alt 附件属于二进制图片 (isPrecompressedAsset)
             Writer->>Writer: 以 compression: 'STORE' 模式存入 (0 内存膨胀/0 CPU 压缩浪费)
-        else 文本文件 (Markdown / JSON)
+        else 文本文件 (Markdown / HTML / JSON)
             Writer->>Writer: 以 compression: 'DEFLATE' 模式压缩存入
         end
-        Worker-->>Orch: 单会话导出完成
         Orch->>Store: 单会话就绪即刻持久化 (StorageService.saveExportRecord)
         Orch->>UI: 回传进度与单条状态 (onItemExported 刷新列表)
     end
-    Orch->>Writer: 完成打包写入 (generateInternalStream 流式分块)
+    Orch->>Writer: 写入全局导航索引 (index.md / index.html) 并完成打包 (generateInternalStream)
     Writer->>Writer: 保持在 200MB 安全内存水位内生成最终 Blob
     Writer-->>Ctrl: 返回 ZIP Blob 对象
     Ctrl->>UI: downloadHandler 触发浏览器底层下载 (a.download / blobUrl)
@@ -487,45 +487,45 @@ sequenceDiagram
     participant Ctrl as TakeoutController
     participant Guard as ZipBombGuard
     participant Parser as TakeoutParser & TakeoutHtmlParser
-    participant Media as MediaIndex (C2PA 索引)
+    participant Media as MediaIndex (C2PA 时间戳索引)
     participant SSoT as TitleUtils & MergeUtils
     participant Store as StorageService
 
     User->>UI: 拖拽 Takeout ZIP 文件至导入区
     UI->>Ctrl: handleTakeoutImport(file)
     Ctrl->>Guard: 执行安全性校验 (validateZipFile / validateZipEntries)
-    alt 检测到压缩炸弹特征 (超大膨胀率)
+    alt 检测到超过条目数或解压体积安全阈值
         Guard-->>Ctrl: 抛出安全异常 (SecurityError)
         Ctrl->>UI: 显示安全拦截告警，安全终止
     end
     Guard-->>Ctrl: 安全审查通过
-    Ctrl->>Parser: 流式解压与解析 HTML (parseTakeoutZip)
+    Ctrl->>Parser: JSZip 载入并迭代解析 HTML (parseTakeoutZip)
     loop 逐个 HTML 对话解包
         Parser->>Parser: 提取提问轮次、时间戳与附件引用
-        Parser->>Media: 建立图片 C2PA 与本地媒体缓存池
+        Parser->>Media: 提取图片 C2PA 时间戳并建立本地媒体缓存池
     end
     Parser-->>Ctrl: 返回解析出的会话集合 (含临时标题)
     Ctrl->>SSoT: mergeConversation (设置 titleSource = 'takeout')
-    Ctrl->>Store: 批量保存至 chrome.storage.local
-    Ctrl->>UI: 实时渲染恢复的远古会话，并在列表中标注 [Takeout] 徽章
+    Ctrl->>Store: 批量保存至两级存储 (chrome.storage.local + IndexedDB)
+    Ctrl->>UI: 实时刷新列表呈现恢复的远古会话
 ```
 
 ---
 
 ### 3.5 Popup 快捷操作与单篇导出数据流 (Popup Quick Export Flow)
 
-本数据流负责在扩展工具栏弹窗中实现对当前正在浏览的单篇会话执行快速抓取与单篇文件导出。
+本数据流负责在扩展工具栏弹窗中实现对当前正在浏览的单篇会话执行快速抓取与单篇文件（或含附件 ZIP）导出。
 
 * **数据源 (Data Source)**：
   - 当前激活的 Gemini 标签页 URL 与会话元数据；
   - 本地存储与 IndexedDB 中已缓存或直接通过 RPC/DOM 抓取的完整多轮对话详情。
 * **数据汇 (Data Sink)**：
-  - 磁盘文件下载：单篇 `.md`、`.json`。
+  - 磁盘文件下载：单篇 `.md`、`.html`、`.json`（若包含图片附件则通过 `ExportEngine` 打包为含 `assets/` 的 `.zip`）。
 * **核心处理与容错逻辑**：
   1. Popup 识别当前激活标签页 URL，提取 conversationId 与 slot；
-  2. 用户点击【导出当前页面】，Popup 调用 `fetchChat` / `getConversationDetail` 获取完整结构化会话；
-  3. `ChatFormatter` 将会话数据格式化为用户选定的目标格式（Markdown / JSON）；
-  4. 触发浏览器单文件下载。
+  2. 用户切换格式标签（Markdown / HTML / JSON）并点击【导出当前页面】，Popup 调用 `fetchChat` / `getConversationDetail` 获取完整结构化会话；
+  3. `ChatFormatter`（及 `htmlTemplate.ts`）将会话数据格式化为用户选定的目标格式（Markdown / 1:1 独立 HTML / JSON）；
+  4. 通过页面 `<a download>` Blob URL 触发浏览器下载。
 
 ```mermaid
 sequenceDiagram
@@ -534,15 +534,17 @@ sequenceDiagram
     participant Popup as popup.ts (Action Center)
     participant BG as background.ts
     participant CS as content.ts (Content)
-    participant Down as Chrome Downloads
+    participant Format as ChatFormatter & htmlTemplate
+    participant Down as 浏览器 Blob 下载 (a.download)
 
-    User->>Popup: 点击【导出当前页面】
+    User->>Popup: 选择格式 (Markdown / HTML / JSON) 并点击【导出当前页面】
     Popup->>BG: 发送 fetchChat / getConversationDetail
     BG->>CS: 转发获取会话详情
     CS-->>BG: 返回结构化会话数据
     BG-->>Popup: 回传会话数据
-    Popup->>Popup: ChatFormatter 格式化文本
-    Popup->>Down: 触发文件保存下载
+    Popup->>Format: 格式化文本 (.md / .html / .json)
+    Format-->>Popup: 返回格式化内容 (含附件时打包 ZIP)
+    Popup->>Down: 触发 Blob URL 文件下载
 ```
 
 ---
@@ -612,9 +614,9 @@ sequenceDiagram
     end
 
     opt 用户在网页端删除了某条会话
-        Page->>Hook: 发送包含 Gz00ic (DELETE RPC) 的网络请求
+        Page->>Hook: 发送包含 GzXR5e (DELETE RPC) 的网络请求
         Hook->>Bridge: window.postMessage(CrossWorldEvents.CONVERSATION_DELETED, { id })
-        Bridge->>UI: 触发本地 Storage 剔除与 DOM 节点淡出清理
+        Bridge->>UI: 触发本地两级存储剔除与列表 DOM 节点实时移除
     end
 ```
 
