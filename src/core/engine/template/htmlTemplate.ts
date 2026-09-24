@@ -60,14 +60,22 @@ function formatInlineMarkdown(text: string): string {
         return `GEMMATHPK${idx}ENDPK`;
     });
 
-    // 3. Images: ![alt](src)
+    // 3. Linked Images: [![alt](src)](href)
+    processed = processed.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/g, (_match, alt, src, href) => {
+        const safeAlt = escapeAttr(alt);
+        const safeSrc = escapeAttr(src.trim());
+        const safeHref = escapeAttr(href.trim());
+        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="gem-img-link" title="点击查看原图"><img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy" onerror="this.onerror=null;this.src='${safeHref}';"></a>`;
+    });
+
+    // 4. Standalone Images: ![alt](src)
     processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, src) => {
         const safeAlt = escapeAttr(alt);
         const safeSrc = escapeAttr(src.trim());
         return `<a href="${safeSrc}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy"></a>`;
     });
 
-    // 4. Links: [text](href)
+    // 5. Links: [text](href)
     processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
         const safeHref = escapeAttr(href.trim());
         return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="gem-link">${formatInlineMarkdown(label)}</a>`;
@@ -326,13 +334,23 @@ export function renderMarkdownToHtml(markdown: string): string {
  */
 function normalizeAttachments(m: ChatMessage): Attachment[] {
     const atts: Attachment[] = [...(m.attachments || [])];
+    for (const a of atts) {
+        const loc = a.localName || '';
+        if (loc && !loc.startsWith('assets/') && !loc.startsWith('http')) {
+            a.localName = `assets/${loc}`;
+        }
+    }
 
     if (m.images && Array.isArray(m.images) && m.images.length) {
         for (const img of m.images) {
             if (!atts.some(a => a.localName === img.localName || a.url === img.url)) {
+                let loc = img.localName || `assets/${img.fileName || 'image.jpg'}`;
+                if (!loc.startsWith('assets/') && !loc.startsWith('http')) {
+                    loc = `assets/${loc}`;
+                }
                 atts.push({
                     type: 'image',
-                    localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
+                    localName: loc,
                     name: img.fileName || img.name || 'image.jpg',
                     src: img.resolvedUrl || img.sourceUrl || img.url
                 });
@@ -343,9 +361,13 @@ function normalizeAttachments(m: ChatMessage): Attachment[] {
     if (m.documents && Array.isArray(m.documents) && m.documents.length) {
         for (const doc of m.documents) {
             if (!atts.some(a => a.localName === doc.localName || a.url === doc.url)) {
+                let loc = doc.localName || `assets/${doc.title || doc.name || 'document'}`;
+                if (!loc.startsWith('assets/') && !loc.startsWith('http')) {
+                    loc = `assets/${loc}`;
+                }
                 atts.push({
                     type: 'file',
-                    localName: doc.localName || `assets/${doc.title || doc.name || 'document'}`,
+                    localName: loc,
                     title: doc.title || doc.name || 'document',
                     name: doc.title || doc.name || 'document',
                     url: doc.url
@@ -368,7 +390,11 @@ function renderAttachmentCarousel(atts: Attachment[], _isEn: boolean): string {
         const isImage = att.type === 'image' || att.isImage || /\.(png|jpe?g|webp|gif|svg)$/i.test(att.localName || att.name || '');
         const displayName = att.title || att.name || att.fileName || (isImage ? 'image.jpg' : 'file');
         const safeName = escapeHtml(displayName);
-        const localPath = escapeAttr(att.localName || (isImage ? 'assets/image.jpg' : 'assets/file'));
+        let rawLocal = att.localName || (isImage ? 'assets/image.jpg' : 'assets/file');
+        if (rawLocal && !rawLocal.startsWith('assets/') && !rawLocal.startsWith('http')) {
+            rawLocal = `assets/${rawLocal}`;
+        }
+        const localPath = escapeAttr(rawLocal);
         const onlineUrl = escapeAttr(att.src || att.resolvedUrl || att.url || '');
         const targetHref = localPath || onlineUrl || '#';
         const extMatch = displayName.match(/\.([a-z0-9]+)$/i);
