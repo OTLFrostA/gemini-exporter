@@ -113,7 +113,8 @@ export async function initWorkbench(): Promise<void> {
             updateZipUi: () => (OptionsExport ? OptionsExport.updateZipUi() : null),
             checkExportSession: () => (OptionsInit ? (OptionsInit.checkExportSession() as unknown as Promise<void>) : undefined),
             updateAccountSlotSelector: () => (OptionsInit ? OptionsInit.updateAccountSlotSelector() : null),
-            getSearchFilter: () => (OptionsInit ? OptionsInit.getSearchFilter() : '')
+            getSearchFilter: () => (OptionsInit ? OptionsInit.getSearchFilter() : ''),
+            getChatFilterType: () => (OptionsInit ? OptionsInit.getChatFilterType() : 'all')
         });
     }
 

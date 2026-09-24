@@ -481,10 +481,14 @@ export interface StorageServiceModule {
         const { expKey, slot: s } = getStorageKeys(slot);
         return enqueueSaveRecordChain(async () => {
             const sweepGlobal = s !== 'u0';
-            const data = await chrome.storage.local.get(sweepGlobal ? [expKey, 'exportedIds'] : [expKey]);
-            const ownMap = ((data as any)[expKey] && typeof (data as any)[expKey] === 'object')
-                ? { ...(data as any)[expKey] } as Record<string, any>
-                : {};
+            const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey, 'exportedIds'];
+            const data = await chrome.storage.local.get(readKeys);
+            const ownMap: Record<string, any> = {};
+            const ownReadKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
+            for (const k of ownReadKeys) {
+                const m = (data as any)[k];
+                if (m && typeof m === 'object') Object.assign(ownMap, m);
+            }
             // Keys this slot owns among the doomed ids — used to conservatively
             // sweep only this slot's historical pollution out of the global key.
             const ownedBefore = new Set<string>();
@@ -520,7 +524,11 @@ export interface StorageServiceModule {
                     if (gRemoved > 0) updates['exportedIds'] = g;
                 }
             }
-            if (removed > 0 || (sweepGlobal && updates['exportedIds'])) {
+            const hasLegacyU0Key = s === 'u0' && Boolean((data as any)['gemini_exported_u0']);
+            if (hasLegacyU0Key && typeof chrome.storage.local.remove === 'function') {
+                await chrome.storage.local.remove(['gemini_exported_u0']);
+            }
+            if (removed > 0 || hasLegacyU0Key || (sweepGlobal && updates['exportedIds'])) {
                 await chrome.storage.local.set(updates);
             }
             return removed;

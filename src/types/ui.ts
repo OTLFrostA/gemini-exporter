@@ -180,4 +180,5 @@ export interface OptionsSettingsOptions {
     checkExportSession?: () => Promise<void> | void;
     updateAccountSlotSelector?: () => void;
     getSearchFilter?: () => string;
+    getChatFilterType?: () => string;
 }

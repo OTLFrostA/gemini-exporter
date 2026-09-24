@@ -177,7 +177,7 @@ Gemini Exporter maintains rigorous quality gates through a 3-tier testing archit
   - TypeScript strict type checking (`tsc --noEmit`).
   - 103 unit test suites running in Node.js via `python3 tests/run_tests.py`.
   - Single-pass `esbuild` production bundling verification (`node build.js`).
-  - 16 test specs / 38 headless Playwright E2E browser tests (`playwright test`).
+  - 16 test specs / 39 headless Playwright E2E browser tests (`playwright test`).
   - *Daily development*: `npm run test:changed` runs incremental dependency-impact tests in ~5–15s.
 - **Tier 2: Live Chrome Debug Staging (`npm run test:live`)**:
   - Connects to real Chrome on port 9222 with real account interactions.

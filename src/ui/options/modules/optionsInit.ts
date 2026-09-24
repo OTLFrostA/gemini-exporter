@@ -121,19 +121,7 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
         const slot = Store.getCurrentSlot() || 'u0';
         const { conversations: incoming, exportedIds } = await Store.loadStore(slot);
         updateAccountSlotSelector();
-
-        let prevSelected: Set<string> | null = null;
-        if (customSelected instanceof Set) {
-            prevSelected = customSelected;
-        } else {
-            try {
-                if (!force && List && Store.getConversations().length > 0) {
-                    prevSelected = List.getSelectedIds();
-                }
-            } catch {
-                prevSelected = null;
-            }
-        }
+        const hadExistingConvs = Store.getConversations().length > 0;
 
         const syncInfo = await Store.getLastSync(slot);
         const lastSyncVal = syncInfo.timestamp;
@@ -193,6 +181,18 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
         }
 
         if (List) {
+            let prevSelected: Set<string> | null = null;
+            if (customSelected instanceof Set) {
+                prevSelected = customSelected;
+            } else {
+                try {
+                    if (!force && hadExistingConvs) {
+                        prevSelected = List.getSelectedIds();
+                    }
+                } catch {
+                    prevSelected = null;
+                }
+            }
             const failedIds = getFailedChatIds();
             List.render(processed, exportedIds, prevSelected, __chatSearchFilter, __chatFilterType, failedIds);
             List.updateStat(processed);
