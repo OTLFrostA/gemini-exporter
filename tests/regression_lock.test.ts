@@ -905,8 +905,8 @@ test('src/README.md - all referenced files in source tree must exist on disk', (
     const docPath = path.join(__dirname, '../src/README.md');
     const docContent = fs.readFileSync(docPath, 'utf8');
 
-    // Extract all file names matching *.ts, *.css, *.html
-    const fileMatches = docContent.matchAll(/([a-zA-Z0-9_-]+\.(?:ts|css|html))/g);
+    // Extract all file names matching *.ts, *.d.ts, *.css, *.html
+    const fileMatches = docContent.matchAll(/([a-zA-Z0-9_-]+(?:\.d)?\.(?:ts|css|html))/g);
     const referencedFiles = new Set<string>();
     for (const m of fileMatches) {
         referencedFiles.add(m[1]);

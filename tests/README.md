@@ -9,8 +9,8 @@
 ```mermaid
 flowchart TD
     subgraph Tier1 [第一层：CI 自动化极速门禁 Tier 1 - Fast & Headless Gate]
-        T1_A["python3 tests/run_tests.py<br>84 个 TypeScript/Node 行为单元测试套件"]
-        T1_B["npx playwright test<br>14 个 Spec 文件 / 35 个无头端到端测试 (~20秒)"]
+        T1_A["python3 tests/run_tests.py<br>103 个 TypeScript/Node 行为单元测试套件"]
+        T1_B["npx playwright test<br>16 个 Spec 文件 / 38 个无头端到端测试 (~20秒)"]
         T1_A --> T1_PASS["CI 极速门禁通过 (~25秒)"]
         T1_B --> T1_PASS
     end
@@ -39,22 +39,22 @@ flowchart TD
 ### 1. 定位与设计原则
 * **轻量极速**：完全在本地与 GitHub Actions 虚拟无头环境中运行，无须连接外网，无须真实 Google 账号。
 * **100% 行为真断言**：彻底杜绝仅检查 `typeof === 'function'` 的假门面断言与源码文本正则匹配，通过构造具有完整 DOM 树与真实层级结构（折叠 recent 列表、滚动容器、会话链接树）的测试夹具，真实调用模块 API。
-* **执行总耗时**：~20 秒完成 84 个单测套件 + 35 个 Playwright 端到端用例。
+* **执行总耗时**：~20 秒完成 103 个单测套件 + 38 个 Playwright 端到端用例。
 
 ### 2. 运行命令
 ```bash
-# 执行完整 CI 门禁（类型检查 + 84 个单测 + 构建打包 + 35 个无头集成用例）
+# 执行完整 CI 门禁（类型检查 + 103 个单测 + 构建打包 + 38 个无头集成用例）
 npm test
 
 # 或分别单独执行
-npm run test:unit    # 运行 python3 tests/run_tests.py (84 个单元测试套件)
-npm run test:e2e     # 运行 npx playwright test (35 个 Playwright 用例)
+npm run test:unit    # 运行 python3 tests/run_tests.py (103 个单元测试套件)
+npm run test:e2e     # 运行 npx playwright test (38 个 Playwright 用例)
 ```
 
 ### 3. 测试覆盖范围
-* **核心解析与状态管理**：`gemini_parser`、`takeout_engine`、`conversation_order`、`conversations_store`、`chat_formatter`、`format_store` 等；
+* **核心解析与状态管理**：`gemini_parser`、`takeout_engine`、`conversation_order`、`conversations_store`、`chat_formatter`、`html_export`、`format_store` 等；
 * **网络与恢复机制**：`gemini_client_retry`（HTTP 400 XSRF 重试、AbortSignal 干净终止、多页游标分页）、`storage_service`、`message_bridge`；
-* **端到端完整格式导出**：`export_zip.spec.ts`（Markdown 格式导出与解压断言）、`json_export.spec.ts`（JSON OpenAI 格式导出与结构/角色断言）、`takeout_limit_prompt.spec.ts`、`page_sync.spec.ts`、`workbench_ui.spec.ts` 等。
+* **端到端完整格式导出**：`export_zip.spec.ts`（Markdown 格式导出与解压断言）、`html_export.spec.ts`（1:1 独立 HTML 格式导出、主题切换与打印样式断言）、`json_export.spec.ts`（JSON OpenAI 格式导出与结构/角色断言）、`takeout_limit_prompt.spec.ts`、`page_sync.spec.ts`、`workbench_ui.spec.ts` 等。
 
 ---
 

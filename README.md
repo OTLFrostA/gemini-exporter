@@ -13,7 +13,7 @@
 </p>
 
 > **The easiest, privacy-first way to export and archive your Google Gemini conversations.**  
-> Batch export your chat history into clean Markdown, JSON, or a complete ZIP archive with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
+> Batch export your chat history into clean **Markdown**, standalone **1:1 HTML** (with Dark/Light theme toggle & print-ready PDF stylesheet), **JSON**, or a complete **ZIP archive** with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
 
 ---
 
@@ -26,16 +26,14 @@
   - Zero lag, zero clicks required — chat on Gemini, and your local notes are instantly up to date.
   - Floating unobtrusive sync badge in the bottom-right corner displays real-time saving status.
   - **1-Click Reauthorization**: If browser restart resets directory handle permissions to `prompt`, the extension provides 1-click UI reauthorization to seamlessly resume background auto-saving.
-- 📝 **Beautiful Markdown Output**:
-  - Full syntax highlighting for programming code blocks.
-  - Formatted LaTeX mathematical formulas and equations.
-  - Collapsible thinking / reasoning processes (`<details>`).
-  - Web source citations and reference links preserved.
+- 📝 **Beautiful Markdown & Standalone 1:1 HTML Output**:
+  - **Clean Markdown (`.md`)**: Full syntax highlighting for code blocks, formatted LaTeX mathematical formulas, collapsible thinking / reasoning processes (`<details>`), and preserved web source citations.
+  - **Standalone 1:1 Gemini-Faithful HTML (`.html`)**: Pixel-accurate replica of the Gemini web interface in a self-contained `.html` file, featuring an interactive Dark/Light theme toggle, 1-click code copy (with offline fallback), KaTeX math rendering, collapsible thinking blocks, relative `assets/` media support, and a print-ready `@media print` stylesheet for clean vector PDF printing.
 - 🖼️ **Complete Media & Attachment Backups**:
   - Automatically saves user-uploaded files (PDFs, docs, images).
   - Downloads AI-generated high-resolution images (Imagen).
   - Preserves Deep Research reports and documents.
-  - Images and attachments are neatly placed in an `assets/` folder with relative Markdown links.
+  - Images and attachments are neatly placed in an `assets/` folder with relative links that work seamlessly across both Markdown and HTML exports.
   - **STORE Mode 0-Deflate Protection**: High-res binary media bypasses redundant ZIP compression, preventing tab memory crashes (OOM) during 200MB+ large batch exports.
 - 🗄️ **Two-Tier Storage Architecture**:
   - Breaks Chrome's 10MB `chrome.storage.local` quota ceiling by splitting state into a high-speed metadata index in local storage and full turn/message bodies in IndexedDB (`conversationDetailStore.ts`).
@@ -44,7 +42,7 @@
   - Intuitive dark-mode dashboard to search, filter, and manage all your conversations.
   - Filter chats by status: *All*, *Unexported*, *Needs Re-export*, or *Exported*.
   - Full **Bilingual UI (English / 简体中文)** with a 1-click switcher.
-  - Interactive 5-step **Onboarding Tour** with dynamic element highlighting.
+  - Interactive 6-step **Onboarding Tour** with dynamic element highlighting.
 - 🔄 **Smart Incremental Backup**:
   - Only export what is new! When an older chat receives new replies, it is automatically flagged so you can back it up in seconds without re-exporting everything.
 - 📥 **Google Takeout Support**:
@@ -60,7 +58,7 @@
 
 ## 🏛️ Modular System Architecture Overview
 
-Gemini Exporter is engineered using a robust 4-tier Chrome Manifest V3 modular architecture. Core logic is completely decoupled from browser DOM, allowing it to run identically in Node.js, Web Workers, and extension pages.
+Gemini Exporter is engineered using a robust 4-tier Chrome Manifest V3 modular architecture. Core logic is decoupled from browser DOM rendering, allowing pure domain modules to run identically in Node.js, Service Workers, and extension pages.
 
 ```mermaid
 graph LR
@@ -72,19 +70,19 @@ graph LR
 
     subgraph ServiceWorker ["Service Worker"]
         SW["background.ts<br/>(KeepAlive, Abort & Lifecycle)"]
-        LH["liveSaveHandler.ts<br/>(FileSystem & Downloads Fallback)"]
+        LH["liveSaveHandler.ts<br/>(FileSystem Direct Write)"]
     end
 
     subgraph CoreEngine ["Core Engine (Zero DOM)"]
-        PROV["AI Provider<br/>(Gemini；ChatGPT 为预留扩展点)"]
+        PROV["AI Provider<br/>(Gemini; ChatGPT Reserved)"]
         API["RPC Client & Parser<br/>(batchexecute & JSPB)"]
-        ENG["Export & Packaging<br/>(AsyncQueue & STORE Mode)"]
+        ENG["Export & Formatting<br/>(Markdown, 1:1 HTML & STORE ZIP)"]
         TAKEOUT["Takeout Engine<br/>(ZipBombGuard & MediaIndex)"]
         SSOT["SSoT Utils<br/>(Title Arbitration & Merge)"]
     end
 
     subgraph Presentation ["UI & Two-Tier Storage"]
-        WORKBENCH["Options Workbench<br/>(MVC & Virtual List)"]
+        WORKBENCH["Options Workbench<br/>(MVC & Reactive Store)"]
         POPUP["Popup Action Center<br/>(Quick Export)"]
         STORAGE["Two-Tier Storage<br/>(chrome.storage.local & IndexedDB)"]
     end
@@ -140,15 +138,14 @@ Install directly from the official Chrome Web Store with one click:
 ### 1. Quick Single-Chat Actions (Popup)
 1. Open any conversation on [Google Gemini](https://gemini.google.com).
 2. Click the **Gemini Exporter** icon in your browser toolbar.
-3. Choose your desired action:
-   - **Markdown / JSON**: Click **"Export Current Page"** to download the active conversation immediately.
+3. Select your preferred format tab (**Markdown**, **HTML**, **JSON (OpenAI)**, or **JSON (Standard)**) and click **"Export Current Page"** to download the active conversation immediately.
 
 ### 2. Batch Export All Chats (Workbench)
 1. Click the extension icon and select **"Go to Workbench"** (or right-click the icon and choose "Options").
-2. Follow the 5-step **Onboarding Tour** on your first visit.
+2. Follow the 6-step **Onboarding Tour** on your first visit.
 3. Click **"Sync Latest"** (for quick incremental sync) or **"Deep Scan"** (to fetch full cloud history).
-4. Select the conversations you want to export (or click *Select All* / *Unexported Only*).
-5. Choose your export format and click **"Export Selected → ZIP"** (or export directly into a local folder).
+4. Select the conversations you want to export (or filter by *All* / *Unexported* / *Needs Re-export* / *Exported*).
+5. Choose your export format (**Markdown**, **HTML**, or **JSON**) and click **"Export Selected → ZIP"** (or export directly into a local folder).
 
 ### 3. Real-Time Live Auto-Save to Local Folder
 1. In the Workbench, navigate to **Settings** and enable **"Auto-Save to Local Folder"**.
@@ -167,6 +164,7 @@ If you have thousands of chats dating back years, Google's web interface limits 
 
 - **Obsidian**: Unzip the exported archive directly into your Obsidian Vault folder, or set Live Auto-Save directly to your Vault root. All Markdown notes and `assets/` images render instantly with working relative links.
 - **Notion**: Drag and drop the exported Markdown files into Notion to import them as native workspace pages.
+- **Standalone Browser Archive & PDF Printing**: Export in **HTML** format to open conversations in any browser offline with 1:1 Gemini styling, Dark/Light theme switching, and native `Cmd/Ctrl + P` vector PDF printing.
 - **Logseq / Local Folders**: Use the **"Export to Local Folder"** option in the Workbench to write directly to your local notes directory via the FileSystem API.
 
 ---
@@ -177,17 +175,17 @@ Gemini Exporter maintains rigorous quality gates through a 3-tier testing archit
 
 - **Tier 1: CI Fast & Headless Gate (`npm test`)**:
   - TypeScript strict type checking (`tsc --noEmit`).
-  - 84 unit test suites running in Node.js via `python3 tests/run_tests.py`.
+  - 103 unit test suites running in Node.js via `python3 tests/run_tests.py`.
   - Single-pass `esbuild` production bundling verification (`node build.js`).
-  - 14 test specs / 35 headless Playwright E2E browser tests (`playwright test`).
+  - 16 test specs / 38 headless Playwright E2E browser tests (`playwright test`).
   - *Daily development*: `npm run test:changed` runs incremental dependency-impact tests in ~5–15s.
-- **Tier 2: Live Chrome Debug Staging (`npm run test:live:pool`)**:
+- **Tier 2: Live Chrome Debug Staging (`npm run test:live`)**:
   - Connects to real Chrome on port 9222 with real account interactions.
   - Employs a dynamic 20-scenario multimodal test pool (`scripts/test_scenario_pool.json`).
   - Enforces physical ZIP download and bit-level content & image assertions (`export_spec_asserter.py`).
-- **Tier 3: Pure Visual Agent & Autonomous QA (`npm run test:visual:review`)**:
-  - Autonomous exploration using pure screenshot perception (zero DOM leakage) and hardware-level mouse/keyboard actions.
-  - Multi-modal visual auditing powered by Gemini Vision with structured scorecards and HTML gallery reports.
+- **Tier 3: Pure Visual Agent & Autonomous QA (`npm run test:visual` / `npm run test:visual:custom`)**:
+  - Two-pathway pure visual exploration (context-free Subagent Playground or Custom AI Vision API) using pure screenshot perception (zero DOM leakage) and hardware-level mouse/keyboard actions.
+  - Produces structured UX scorecards and HTML visual audit reports (`tests/output/visual_audit/`).
 
 ---
 
