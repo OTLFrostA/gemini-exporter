@@ -222,10 +222,14 @@ export function render(
                     }
                 } catch { /* intentional */ }
             }
-            if (isUpdated) {
+            const isPartial = rec.status === 'partial' || !!rec.hasFailedAssets;
+            const hasNewerActivity = isPartial
+                ? checkIsUpdated(c, { ...rec, status: 'ok', hasFailedAssets: false })
+                : isUpdated;
+            if (hasNewerActivity) {
                 const badgeLabel = (typeof t === 'function' && (t('badgeUpdated') || t('badgeNeedsReexport'))) || 'Updated';
                 badgeHtml = `<span class="badge badge-updated" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(245,158,11,0.15); color:#f59e0b; margin-left:8px; border:1px solid rgba(245,158,11,0.35);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
-            } else if (rec.status === 'partial' || rec.hasFailedAssets) {
+            } else if (isPartial) {
                 const badgeLabel = typeof t === 'function' ? t('badgeExportedPartial') : 'Exported (Partial Assets)';
                 badgeHtml = `<span class="badge badge-exported-partial" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(234,179,8,0.15); color:#eab308; margin-left:8px; border:1px solid rgba(234,179,8,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
             } else {
@@ -266,18 +270,25 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
     ));
     if (!item) return;
 
-    const isPartial = !!(exportRecord && (exportRecord.status === 'partial' || exportRecord.hasFailedAssets));
-    const badgeKey = isPartial ? 'badgeExportedPartial' : 'badgeExported';
-    const bDefault = isPartial ? 'Exported (Partial Assets)' : 'Exported';
+    const isPendingAssets = !!(exportRecord && (exportRecord as any).status === 'pending_assets');
+    const isPartial = !isPendingAssets && !!(exportRecord && (exportRecord.status === 'partial' || exportRecord.hasFailedAssets));
+    const badgeKey = isPendingAssets ? 'badgeExportingAssets' : (isPartial ? 'badgeExportedPartial' : 'badgeExported');
+    const bDefault = isPendingAssets ? 'Exporting assets...' : (isPartial ? 'Exported (Partial Assets)' : 'Exported');
     const _i18n = __resolveModule('I18n', I18nStatic);
     const bText = (_i18n.t)
         ? _i18n.t(badgeKey)
         : (typeof t === 'function' ? t(badgeKey) : bDefault);
     const badgeText = (bText && bText !== badgeKey) ? bText : bDefault;
-    const badgeClass = isPartial ? 'badge badge-exported-partial' : 'badge badge-exported';
-    const badgeBg = isPartial ? 'rgba(234,179,8,0.15)' : 'rgba(16,185,129,0.15)';
-    const badgeBorder = isPartial ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.3)';
-    const badgeColor = isPartial ? '#eab308' : '#10b981';
+    const badgeClass = isPendingAssets
+        ? 'badge badge-exporting-assets'
+        : (isPartial ? 'badge badge-exported-partial' : 'badge badge-exported');
+    const badgeBg = isPendingAssets
+        ? 'rgba(59,130,246,0.15)'
+        : (isPartial ? 'rgba(234,179,8,0.15)' : 'rgba(16,185,129,0.15)');
+    const badgeBorder = isPendingAssets
+        ? 'rgba(59,130,246,0.3)'
+        : (isPartial ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.3)');
+    const badgeColor = isPendingAssets ? '#3b82f6' : (isPartial ? '#eab308' : '#10b981');
 
     let badge = item.querySelector ? item.querySelector('.badge') as HTMLElement | null : null;
     if (badge) {

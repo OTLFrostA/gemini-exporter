@@ -256,6 +256,11 @@ export async function startExportPipeline(
                 // logged inside and never reject here.
                 void persistTitleUpdate(chatId, newTitle, source);
             },
+            onItemPendingAssets: (chatId: string) => {
+                if (List && typeof List.updateItemExportStatus === 'function') {
+                    List.updateItemExportStatus(chatId, { status: 'pending_assets' } as any);
+                }
+            },
             onItemExported: async (chatId: string, titleOrRecord: any, maybeRecord: any) => {
                 const exportRecord = (maybeRecord && typeof maybeRecord === 'object')
                     ? maybeRecord
