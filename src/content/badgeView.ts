@@ -2,6 +2,7 @@
 
 import type { OpenOptionsMessage } from '../types/messages.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
+import { setBadgePosition } from '../core/storage/storageService.js';
 let __lastKnownCount: number | null = null;
 
 export function applyStoredBadgePosition(el: HTMLElement | null): void {
@@ -89,9 +90,7 @@ export function makeBadgeDraggable(div: HTMLElement, onClick?: (e: MouseEvent) =
             const pos = { left: Math.round(rect.left), top: Math.round(rect.top) };
             try {
                 localStorage.setItem(STORAGE_KEYS.BADGE_POS, JSON.stringify(pos));
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    chrome.storage.local.set({ [STORAGE_KEYS.BADGE_POS]: pos }).catch?.(() => {});
-                }
+                void setBadgePosition(pos);
             } catch (e) {
                 console.warn('[GemExporter:storage] Storage operation failed:', e);
             }

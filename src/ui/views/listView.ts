@@ -11,7 +11,9 @@ import {
     cleanTitle as utilsCleanTitle,
     resolveTitle as utilsResolveTitle,
     getEffectiveTimestamp as utilsGetEffectiveTimestamp,
-    checkIsUpdated as utilsCheckIsUpdated
+    checkIsUpdated as utilsCheckIsUpdated,
+    resolveConversationExportState as utilsResolveConversationExportState,
+    type ConversationExportState
 } from '../../core/utils/utils.js';
 import { $, t } from '../uiCommon.js';
 import { normId } from '../../core/utils/pathUtils.js';
@@ -32,6 +34,24 @@ export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
     return gu()?.checkIsUpdated
         ? gu().checkIsUpdated(c, rec)
         : utilsCheckIsUpdated(c, rec);
+}
+
+export function resolveConversationExportState(
+    c: any,
+    rec?: Partial<ExportRecord> | null,
+    options?: { isFailedInSession?: boolean }
+): ConversationExportState {
+    const customResolve = gu()?.resolveConversationExportState;
+    if (typeof customResolve === 'function') {
+        return customResolve(c, rec, options);
+    }
+    const customCheck = gu()?.checkIsUpdated;
+    return utilsResolveConversationExportState(c, rec, {
+        ...options,
+        customHasNewerActivity: typeof customCheck === 'function'
+            ? (conv, record) => customCheck(conv, { ...record, status: 'ok', hasFailedAssets: false })
+            : undefined
+    });
 }
 
 function escapeHtml(str?: string | null): string {
@@ -130,8 +150,8 @@ export function render(
         for (const c of currentConversationsRef) {
             const nid = normId(c.id);
             const rec = expMap[nid] || null;
-            const isUpdated = checkIsUpdated(c, rec);
-            if (!rec || isUpdated) {
+            const st = resolveConversationExportState(c, rec);
+            if (st.needsIncrementalExport) {
                 canonicalSelectedIds.add(c.id);
                 canonicalSelectedIds.add(nid);
             }
@@ -147,22 +167,20 @@ export function render(
     const filtered = conversations.filter(c => {
         const nid = normId(c.id);
         const rec = expMap[nid] || null;
-        const isFailed = !!(
-            (failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))) ||
-            (rec && (rec.hasFailedAssets || rec.status === 'partial' || rec.status === 'failed'))
+        const isFailedInSession = !!(
+            failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
         );
-        const isUnexported = !rec && !isFailed;
-        const isExported = !!rec && !isFailed;
+        const st = resolveConversationExportState(c, rec, { isFailedInSession });
 
         let matchesType = true;
         if (filterType === 'unexported') {
-            matchesType = isUnexported;
+            matchesType = st.isUnexported;
         } else if (filterType === 'failed') {
-            matchesType = isFailed;
+            matchesType = st.isFailed;
         } else if (filterType === 'unexported_or_failed') {
-            matchesType = isUnexported || isFailed;
+            matchesType = st.isUnexported || st.isFailed;
         } else if (filterType === 'exported') {
-            matchesType = isExported;
+            matchesType = st.isExportedClean;
         }
 
         if (!matchesType) return false;
@@ -184,14 +202,14 @@ export function render(
         // Single canonical probe: expMap is normalized to canonical keys on the
         // read path (triage #5), so legacy 'c_<id>' alias keys no longer exist here.
         const rec = expMap[nid] || null;
-        const isUpdated = checkIsUpdated(c, rec);
+        const st = resolveConversationExportState(c, rec);
         let isChecked = false;
         if (canonicalSelectedIds) {
             isChecked = canonicalSelectedIds.has(c.id) || canonicalSelectedIds.has(nid) || canonicalSelectedIds.has('c_' + nid);
         } else if (prevSelectedSet instanceof Set) {
             isChecked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         } else {
-            isChecked = !rec || isUpdated;
+            isChecked = st.needsIncrementalExport;
         }
 
         const resolved = resolveTitle(c);
@@ -212,7 +230,7 @@ export function render(
         }
 
         let badgeHtml = '';
-        if (rec) {
+        if (rec && st.badge.kind !== 'none') {
             let expDateStr = '';
             if (rec.exportedAt) {
                 try {
@@ -222,20 +240,11 @@ export function render(
                     }
                 } catch { /* intentional */ }
             }
-            const isPartial = rec.status === 'partial' || !!rec.hasFailedAssets;
-            const hasNewerActivity = isPartial
-                ? checkIsUpdated(c, { ...rec, status: 'ok', hasFailedAssets: false })
-                : isUpdated;
-            if (hasNewerActivity) {
-                const badgeLabel = (typeof t === 'function' && (t('badgeUpdated') || t('badgeNeedsReexport'))) || 'Updated';
-                badgeHtml = `<span class="badge badge-updated" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(245,158,11,0.15); color:#f59e0b; margin-left:8px; border:1px solid rgba(245,158,11,0.35);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
-            } else if (isPartial) {
-                const badgeLabel = typeof t === 'function' ? t('badgeExportedPartial') : 'Exported (Partial Assets)';
-                badgeHtml = `<span class="badge badge-exported-partial" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(234,179,8,0.15); color:#eab308; margin-left:8px; border:1px solid rgba(234,179,8,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
-            } else {
-                const badgeLabel = typeof t === 'function' ? t('badgeExported') : 'Exported';
-                badgeHtml = `<span class="badge badge-exported" style="font-size:10px; padding:2px 6px; border-radius:4px; background:rgba(16,185,129,0.15); color:#10b981; margin-left:8px; border:1px solid rgba(16,185,129,0.3);">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
-            }
+            const b = st.badge;
+            const badgeLabel = b.kind === 'updated'
+                ? ((typeof t === 'function' && (t('badgeUpdated') || t('badgeNeedsReexport'))) || b.defaultLabel)
+                : (typeof t === 'function' ? (t(b.i18nKey) || b.defaultLabel) : b.defaultLabel);
+            badgeHtml = `<span class="${b.className}" style="font-size:10px; padding:2px 6px; border-radius:4px; background:${b.bg}; color:${b.color}; margin-left:8px; border:1px solid ${b.border};">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
         }
 
         const url = (c as any).url || `https://gemini.google.com/app/${c.id}`;
@@ -270,41 +279,29 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
     ));
     if (!item) return;
 
-    const isPendingAssets = !!(exportRecord && (exportRecord as any).status === 'pending_assets');
-    const isPartial = !isPendingAssets && !!(exportRecord && (exportRecord.status === 'partial' || exportRecord.hasFailedAssets));
-    const badgeKey = isPendingAssets ? 'badgeExportingAssets' : (isPartial ? 'badgeExportedPartial' : 'badgeExported');
-    const bDefault = isPendingAssets ? 'Exporting assets...' : (isPartial ? 'Exported (Partial Assets)' : 'Exported');
+    const st = resolveConversationExportState({ id: chatId }, exportRecord || { status: 'ok' });
+    const b = st.badge.kind !== 'none' ? st.badge : resolveConversationExportState({ id: chatId }, { status: 'ok' }).badge;
     const _i18n = __resolveModule('I18n', I18nStatic);
     const bText = (_i18n.t)
-        ? _i18n.t(badgeKey)
-        : (typeof t === 'function' ? t(badgeKey) : bDefault);
-    const badgeText = (bText && bText !== badgeKey) ? bText : bDefault;
-    const badgeClass = isPendingAssets
-        ? 'badge badge-exporting-assets'
-        : (isPartial ? 'badge badge-exported-partial' : 'badge badge-exported');
-    const badgeBg = isPendingAssets
-        ? 'rgba(59,130,246,0.15)'
-        : (isPartial ? 'rgba(234,179,8,0.15)' : 'rgba(16,185,129,0.15)');
-    const badgeBorder = isPendingAssets
-        ? 'rgba(59,130,246,0.3)'
-        : (isPartial ? 'rgba(234,179,8,0.3)' : 'rgba(16,185,129,0.3)');
-    const badgeColor = isPendingAssets ? '#3b82f6' : (isPartial ? '#eab308' : '#10b981');
+        ? _i18n.t(b.i18nKey)
+        : (typeof t === 'function' ? t(b.i18nKey) : b.defaultLabel);
+    const badgeText = (bText && bText !== b.i18nKey) ? bText : b.defaultLabel;
 
     let badge = item.querySelector ? item.querySelector('.badge') as HTMLElement | null : null;
     if (badge) {
-        badge.className = badgeClass;
+        badge.className = b.className;
         badge.textContent = badgeText;
         if ((badge as HTMLElement).style) {
-            (badge as HTMLElement).style.background = badgeBg;
-            (badge as HTMLElement).style.borderColor = badgeBorder;
-            (badge as HTMLElement).style.color = badgeColor;
+            (badge as HTMLElement).style.background = b.bg;
+            (badge as HTMLElement).style.borderColor = b.border;
+            (badge as HTMLElement).style.color = b.color;
         }
     } else {
         const titleContainer = item.querySelector ? item.querySelector('div') : null;
         if (titleContainer && document.createElement) {
             const span = document.createElement('span');
-            span.className = badgeClass;
-            span.style.cssText = `font-size:10px; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor}; margin-left:8px; border:1px solid ${badgeBorder};`;
+            span.className = b.className;
+            span.style.cssText = `font-size:10px; padding:2px 6px; border-radius:4px; background:${b.bg}; color:${b.color}; margin-left:8px; border:1px solid ${b.border};`;
             span.textContent = badgeText;
             titleContainer.appendChild(span);
         }
@@ -468,7 +465,8 @@ export const ListView: IListView = {
     setSelectedIds,
     isRealTitle,
     updateItemExportStatus,
-    checkIsUpdated
+    checkIsUpdated,
+    resolveConversationExportState
 };
 
 

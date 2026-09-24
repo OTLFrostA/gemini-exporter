@@ -58,6 +58,7 @@ export interface IListView {
     updateItemExportStatus: (chatId: string, exportRecord?: ExportRecord | null) => void;
     selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
     checkIsUpdated?: (c: any, rec: ExportRecord | null | undefined) => boolean;
+    resolveConversationExportState?: (c: any, rec?: Partial<ExportRecord> | null, options?: { isFailedInSession?: boolean }) => any;
     setSelectedIds?: (ids: Set<string> | null) => void;
 }
 

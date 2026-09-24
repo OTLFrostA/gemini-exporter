@@ -777,3 +777,51 @@ test('listView - updateItemExportStatus renders pending_assets badge and transit
         __setModuleOverride('I18n', origI18n);
     }
 });
+
+test('listView - resolveConversationExportState provides unified SSoT across all export states', () => {
+    const resolveState = ListView.resolveConversationExportState;
+    const t0 = 1700000000000;
+    const chat = { id: 'c_ssot', timestamp: t0, updatedAt: t0, messageCount: 2 };
+
+    // 1. unexported
+    const sUnexp = resolveState(chat, null);
+    assert.strictEqual(sUnexp.state, 'unexported');
+    assert.strictEqual(sUnexp.isUnexported, true);
+    assert.strictEqual(sUnexp.needsIncrementalExport, true);
+    assert.strictEqual(sUnexp.badge.kind, 'none');
+
+    // 2. exporting_assets
+    const sPending = resolveState(chat, { status: 'pending_assets' } as any);
+    assert.strictEqual(sPending.state, 'exporting_assets');
+    assert.strictEqual(sPending.badge.kind, 'exporting_assets');
+    assert.strictEqual(sPending.badge.className, 'badge badge-exporting-assets');
+
+    // 3. exported_ok
+    const sOk = resolveState(chat, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, status: 'ok', messageCount: 2 });
+    assert.strictEqual(sOk.state, 'exported_ok');
+    assert.strictEqual(sOk.isExportedClean, true);
+    assert.strictEqual(sOk.needsIncrementalExport, false);
+    assert.strictEqual(sOk.badge.kind, 'exported_ok');
+
+    // 4. exported_partial (needs incremental retry, renders partial badge, not updated badge)
+    const sPartial = resolveState(chat, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, status: 'partial', hasFailedAssets: true, messageCount: 2 });
+    assert.strictEqual(sPartial.state, 'exported_partial');
+    assert.strictEqual(sPartial.hasNewerActivity, false);
+    assert.strictEqual(sPartial.needsIncrementalExport, true);
+    assert.strictEqual(sPartial.isFailed, true);
+    assert.strictEqual(sPartial.badge.kind, 'exported_partial');
+
+    // 5. updated (conversation advanced past export)
+    const sUpdated = resolveState({ ...chat, updatedAt: t0 + 60000 }, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, status: 'ok', messageCount: 2 });
+    assert.strictEqual(sUpdated.state, 'updated');
+    assert.strictEqual(sUpdated.hasNewerActivity, true);
+    assert.strictEqual(sUpdated.needsIncrementalExport, true);
+    assert.strictEqual(sUpdated.badge.kind, 'updated');
+
+    // 6. failed in session
+    const sFailed = resolveState(chat, null, { isFailedInSession: true });
+    assert.strictEqual(sFailed.state, 'failed');
+    assert.strictEqual(sFailed.isFailed, true);
+    assert.strictEqual(sFailed.isUnexported, false);
+});
+
