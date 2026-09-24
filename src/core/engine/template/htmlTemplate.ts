@@ -2,8 +2,8 @@
  * htmlTemplate.ts
  * Standalone 1:1 Gemini-faithful HTML conversation exporter.
  * Produces self-contained, offline-compatible HTML documents with Gemini typography,
- * dark/light theme switching, code copy, expandable user prompts, attachment carousel & preview,
- * and high-fidelity print / PDF readiness (@media print).
+ * seamless dark/light theme matching, code copy with offline fallback,
+ * expandable user prompts, and high-fidelity print / PDF readiness (@media print).
  */
 
 import type { Conversation, ChatMessage, Attachment } from "../../../types/conversation.js";
@@ -39,6 +39,7 @@ function escapeAttr(text?: string | null): string {
 
 /**
  * Format inline Markdown syntax into HTML (code, math, bold, italic, links, images).
+ * Uses delimiter-safe placeholders (@@@GEM_...@@@) to prevent collisions with bold/italic regex.
  */
 function formatInlineMarkdown(text: string): string {
     if (!text) return '';
@@ -48,7 +49,7 @@ function formatInlineMarkdown(text: string): string {
     let processed = text.replace(/`([^`\n]+)`/g, (_match, code) => {
         const idx = codePlaceholders.length;
         codePlaceholders.push(`<code class="gem-inline-code">${escapeHtml(code)}</code>`);
-        return `__GEM_INLINE_CODE_${idx}__`;
+        return `GEMCODEPK${idx}ENDPK`;
     });
 
     // 2. Protect inline math $formula$ (avoid single dollar currency like $100)
@@ -56,14 +57,14 @@ function formatInlineMarkdown(text: string): string {
     processed = processed.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (_match, formula) => {
         const idx = mathPlaceholders.length;
         mathPlaceholders.push(`<span class="gem-math-inline">${escapeHtml(formula)}</span>`);
-        return `__GEM_INLINE_MATH_${idx}__`;
+        return `GEMMATHPK${idx}ENDPK`;
     });
 
     // 3. Images: ![alt](src)
     processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, src) => {
         const safeAlt = escapeAttr(alt);
         const safeSrc = escapeAttr(src.trim());
-        return `<img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy" onclick="openMedia('${safeSrc}', '${safeAlt}', true)">`;
+        return `<a href="${safeSrc}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy"></a>`;
     });
 
     // 4. Links: [text](href)
@@ -85,12 +86,12 @@ function formatInlineMarkdown(text: string): string {
 
     // 7. Restore inline math
     for (let i = 0; i < mathPlaceholders.length; i++) {
-        processed = processed.replace(`__GEM_INLINE_MATH_${i}__`, mathPlaceholders[i]);
+        processed = processed.replace(`GEMMATHPK${i}ENDPK`, mathPlaceholders[i]);
     }
 
     // 8. Restore inline code
     for (let i = 0; i < codePlaceholders.length; i++) {
-        processed = processed.replace(`__GEM_INLINE_CODE_${i}__`, codePlaceholders[i]);
+        processed = processed.replace(`GEMCODEPK${i}ENDPK`, codePlaceholders[i]);
     }
 
     return processed;
@@ -357,7 +358,7 @@ function normalizeAttachments(m: ChatMessage): Attachment[] {
 }
 
 /**
- * Render the interactive attachment carousel for user turns.
+ * Render attachment cards for user turns. Click directly opens the file or image.
  */
 function renderAttachmentCarousel(atts: Attachment[], _isEn: boolean): string {
     if (!atts || !atts.length) return '';
@@ -369,12 +370,13 @@ function renderAttachmentCarousel(atts: Attachment[], _isEn: boolean): string {
         const safeName = escapeHtml(displayName);
         const localPath = escapeAttr(att.localName || (isImage ? 'assets/image.jpg' : 'assets/file'));
         const onlineUrl = escapeAttr(att.src || att.resolvedUrl || att.url || '');
+        const targetHref = localPath || onlineUrl || '#';
         const extMatch = displayName.match(/\.([a-z0-9]+)$/i);
         const extBadge = extMatch ? extMatch[1].toUpperCase() : (isImage ? 'IMG' : 'FILE');
 
         if (isImage) {
             cardsHtml += `
-      <div class="gem-att-card gem-att-img" onclick="openMedia('${localPath}', '${safeName}', true)" title="点击预览或打开 ${safeName}">
+      <a class="gem-att-card gem-att-img" href="${targetHref}" target="_blank" rel="noopener noreferrer" title="点击打开原始图片 ${safeName}">
         <div class="gem-att-preview">
           <img src="${localPath}" alt="${safeName}" onerror="this.onerror=null;if('${onlineUrl}')this.src='${onlineUrl}';">
         </div>
@@ -382,13 +384,13 @@ function renderAttachmentCarousel(atts: Attachment[], _isEn: boolean): string {
           <span class="gem-att-name">${safeName}</span>
           <span class="gem-att-badge">${extBadge}</span>
         </div>
-        <a class="gem-att-open-link" href="${localPath}" target="_blank" onclick="event.stopPropagation();" title="在新标签页中打开原始图片">
+        <div class="gem-att-open-btn">
           <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
-        </a>
-      </div>`;
+        </div>
+      </a>`;
         } else {
             cardsHtml += `
-      <a class="gem-att-card gem-att-file" href="${localPath}" target="_blank" download="${safeName}" title="点击打开或下载 ${safeName}">
+      <a class="gem-att-card gem-att-file" href="${targetHref}" target="_blank" download="${safeName}" title="点击打开或下载 ${safeName}">
         <div class="gem-att-icon">
           <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
         </div>
@@ -403,19 +405,19 @@ function renderAttachmentCarousel(atts: Attachment[], _isEn: boolean): string {
         }
     }
 
-    const showNav = atts.length > 1;
+    const showNav = atts.length > 2;
 
     return `
     <div class="gem-carousel-wrapper">
       ${showNav ? `
-      <button class="gem-carousel-nav-btn prev" onclick="scrollCarousel(this, -1)" title="Previous attachments">
+      <button class="gem-carousel-nav-btn prev" onclick="scrollCarousel(this, -1)" title="Previous attachments" style="display:none;">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
       </button>` : ''}
       <div class="gem-carousel-track" onscroll="updateCarouselNav(this)">
         ${cardsHtml}
       </div>
       ${showNav ? `
-      <button class="gem-carousel-nav-btn next" onclick="scrollCarousel(this, 1)" title="Next attachments">
+      <button class="gem-carousel-nav-btn next" onclick="scrollCarousel(this, 1)" title="Next attachments" style="display:none;">
         <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
       </button>` : ''}
     </div>`;
@@ -503,8 +505,7 @@ export function toHtml(chat: Conversation | any, opts: HtmlTemplateOptions = {})
     const rawTitle = chat.title || 'Gemini Conversation';
     const safeTitleClean = String(rawTitle).replace(/[\r\n]+/g, ' ').trim();
     const safeTitle = escapeHtml(safeTitleClean);
-    const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${normId(chat.id)}` : '');
-    const safeConvUrl = escapeAttr(convUrl);
+    const isLightTheme = opts.theme === 'light';
 
     const messages: ChatMessage[] = chat.messages || [];
     let turnsHtml = '';
@@ -550,6 +551,26 @@ export function toHtml(chat: Conversation | any, opts: HtmlTemplateOptions = {})
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
 }
 
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-main: #ffffff;
+    --bg-user-bubble: #f0f4f9;
+    --bg-card: #f8f9fa;
+    --bg-card-hover: #eef0f3;
+    --text-primary: #1f1f1f;
+    --text-secondary: #444746;
+    --text-muted: #747775;
+    --border-color: #e0e2e5;
+    --accent-blue: #0b57d0;
+    --accent-blue-hover: #0842a0;
+    --code-bg: #f8f9fa;
+    --code-border: #e0e2e5;
+    --table-stripe: rgba(0, 0, 0, 0.02);
+    --math-color: #0f5132;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  }
+}
+
 body.light-theme {
   --bg-main: #ffffff;
   --bg-user-bubble: #f0f4f9;
@@ -580,76 +601,14 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Google Sans", Helvetica, Arial, sans-serif;
   font-size: 15px;
   line-height: 1.6;
-  transition: background-color 0.25s, color 0.25s;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Discreet Top Action Bar (Print & Theme switch) */
-.gem-top-bar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 24px;
-  background: var(--bg-main);
-  border-bottom: 1px solid var(--border-color);
-  backdrop-filter: blur(8px);
-}
-
-.gem-title-area {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 65%;
-}
-
-.gem-title-area a {
-  color: inherit;
-  text-decoration: none;
-}
-.gem-title-area a:hover {
-  text-decoration: underline;
-}
-
-.gem-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.gem-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  user-select: none;
-}
-.gem-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-blue);
-}
-
-/* Conversation Container */
+/* Conversation Container - 1:1 Gemini Pure Stream */
 .gem-container {
   max-width: 840px;
   margin: 0 auto;
-  padding: 28px 20px 80px;
+  padding: 40px 20px 80px;
 }
 
 /* Turn Items */
@@ -739,10 +698,11 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(30, 31, 32, 0.85);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  display: flex;
+  box-shadow: var(--shadow-sm);
+  display: none;
   align-items: center;
   justify-content: center;
   cursor: pointer;
@@ -757,10 +717,6 @@ body {
 }
 .gem-carousel-nav-btn.next {
   right: -14px;
-}
-.gem-carousel-nav-btn:disabled {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .gem-att-card {
@@ -833,16 +789,15 @@ body {
   text-transform: uppercase;
 }
 
-.gem-att-open-link, .gem-att-open-btn {
+.gem-att-open-btn {
   color: var(--text-muted);
   display: flex;
   align-items: center;
   padding: 4px;
   border-radius: 4px;
 }
-.gem-att-open-link:hover, .gem-att-open-btn:hover {
+.gem-att-card:hover .gem-att-open-btn {
   color: var(--accent-blue);
-  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Model Turn */
@@ -1055,6 +1010,10 @@ h4.gem-heading { font-size: 1.05em; }
   opacity: 0.95;
 }
 
+.gem-img-link {
+  display: inline-block;
+}
+
 .gem-link {
   color: var(--accent-blue);
   text-decoration: underline;
@@ -1068,56 +1027,6 @@ h4.gem-heading { font-size: 1.05em; }
   font-size: 15px;
 }
 
-/* Lightbox Modal */
-.gem-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.85);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  backdrop-filter: blur(4px);
-}
-.gem-modal.active {
-  display: flex;
-}
-.gem-modal-content {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.gem-modal-content img {
-  max-width: 100%;
-  max-height: 82vh;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-  object-fit: contain;
-}
-.gem-modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: 10px;
-  color: #fff;
-  font-size: 13px;
-}
-.gem-modal-close {
-  position: absolute;
-  top: -36px;
-  right: 0;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 24px;
-  cursor: pointer;
-}
-
 /* High Fidelity Print Stylesheet (@media print) for direct PDF output */
 @media print {
   @page {
@@ -1128,7 +1037,7 @@ h4.gem-heading { font-size: 1.05em; }
     background: #ffffff !important;
     color: #111111 !important;
   }
-  .gem-top-bar, .gem-carousel-nav-btn, .gem-copy-btn, .gem-modal, .gem-prompt-toggle, .gem-att-open-link, .gem-att-open-btn {
+  .gem-carousel-nav-btn, .gem-copy-btn, .gem-prompt-toggle, .gem-att-open-btn {
     display: none !important;
   }
   .gem-container {
@@ -1182,64 +1091,25 @@ h4.gem-heading { font-size: 1.05em; }
 }
 </style>
 </head>
-<body>
-
-<header class="gem-top-bar">
-  <div class="gem-title-area">
-    ${safeConvUrl ? `<a href="${safeConvUrl}" target="_blank" rel="noopener noreferrer" title="Gemini Original Link">🔗 ${safeTitle}</a>` : `<span>${safeTitle}</span>`}
-  </div>
-  <div class="gem-actions">
-    <button class="gem-btn" onclick="toggleTheme()" title="切换浅色/深色主题">🌓 主题</button>
-    <button class="gem-btn" onclick="window.print()" title="打印或保存为 PDF">🖨️ 打印 / PDF</button>
-  </div>
-</header>
+<body class="${isLightTheme ? 'light-theme' : ''}">
 
 <main class="gem-container">
   ${turnsHtml}
 </main>
 
-<!-- Lightbox Modal -->
-<div id="gemMediaModal" class="gem-modal" onclick="closeMedia(event)">
-  <div class="gem-modal-content" onclick="event.stopPropagation()">
-    <button class="gem-modal-close" onclick="closeMedia()">&times;</button>
-    <img id="gemModalImg" src="" alt="Preview">
-    <div class="gem-modal-footer">
-      <span id="gemModalTitle"></span>
-      <a id="gemModalDownload" class="gem-btn" href="#" target="_blank" download="attachment">下载原文件</a>
-    </div>
-  </div>
-</div>
-
 <script>
-// Toggle Theme (Dark / Light)
-function toggleTheme() {
-  const isLight = document.body.classList.toggle('light-theme');
-  try {
-    localStorage.setItem('gemini_html_theme', isLight ? 'light' : 'dark');
-  } catch (e) {}
-}
-
-// Restore saved theme
-(function initTheme() {
-  try {
-    const saved = localStorage.getItem('gemini_html_theme');
-    if (saved === 'light') {
-      document.body.classList.add('light-theme');
-    }
-  } catch (e) {}
-})();
-
-// Copy code button handler
+// Copy code button handler with offline file:/// fallback
 function copyCode(btn) {
-  const block = btn.closest('.gem-code-block');
+  var block = btn.closest('.gem-code-block');
   if (!block) return;
-  const codeEl = block.querySelector('pre code');
+  var codeEl = block.querySelector('pre code');
   if (!codeEl) return;
-  const text = codeEl.textContent || '';
-  navigator.clipboard.writeText(text).then(function() {
-    const label = btn.querySelector('.copy-text');
+  var text = codeEl.textContent || '';
+  
+  function showSuccess() {
+    var label = btn.querySelector('.copy-text');
     if (label) {
-      const orig = label.textContent;
+      var orig = label.textContent;
       label.textContent = '已复制 ✓';
       btn.classList.add('copied');
       setTimeout(function() {
@@ -1247,14 +1117,38 @@ function copyCode(btn) {
         btn.classList.remove('copied');
       }, 2000);
     }
-  });
+  }
+
+  function fallbackCopy() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var successful = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (successful) showSuccess();
+    } catch (err) {}
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(showSuccess).catch(function() {
+      fallbackCopy();
+    });
+  } else {
+    fallbackCopy();
+  }
 }
 
 // Expand / collapse user prompt
 function togglePrompt(btn, showMore, showLess) {
-  const content = btn.previousElementSibling;
+  var content = btn.previousElementSibling;
   if (!content) return;
-  const isCollapsed = content.classList.contains('collapsed');
+  var isCollapsed = content.classList.contains('collapsed');
   if (isCollapsed) {
     content.classList.remove('collapsed');
     content.classList.add('expanded');
@@ -1270,51 +1164,39 @@ function togglePrompt(btn, showMore, showLess) {
 
 // Carousel horizontal scroll
 function scrollCarousel(btn, dir) {
-  const wrapper = btn.closest('.gem-carousel-wrapper');
+  var wrapper = btn.closest('.gem-carousel-wrapper');
   if (!wrapper) return;
-  const track = wrapper.querySelector('.gem-carousel-track');
+  var track = wrapper.querySelector('.gem-carousel-track');
   if (!track) return;
-  const step = track.clientWidth * 0.75 * dir;
+  var step = track.clientWidth * 0.75 * dir;
   track.scrollBy({ left: step, behavior: 'smooth' });
 }
 
 function updateCarouselNav(track) {
-  const wrapper = track.closest('.gem-carousel-wrapper');
+  var wrapper = track.closest('.gem-carousel-wrapper');
   if (!wrapper) return;
-  const prevBtn = wrapper.querySelector('.gem-carousel-nav-btn.prev');
-  const nextBtn = wrapper.querySelector('.gem-carousel-nav-btn.next');
-  if (prevBtn) prevBtn.disabled = track.scrollLeft <= 5;
-  if (nextBtn) nextBtn.disabled = track.scrollLeft >= track.scrollWidth - track.clientWidth - 5;
-}
-
-// Lightbox
-function openMedia(src, title, isImg) {
-  const modal = document.getElementById('gemMediaModal');
-  const modalImg = document.getElementById('gemModalImg');
-  const modalTitle = document.getElementById('gemModalTitle');
-  const modalDownload = document.getElementById('gemModalDownload');
-  if (!modal || !modalImg) return;
-  modalImg.src = src;
-  modalImg.alt = title || '';
-  if (modalTitle) modalTitle.textContent = title || '';
-  if (modalDownload) {
-    modalDownload.href = src;
-    modalDownload.download = title || 'attachment';
+  var prevBtn = wrapper.querySelector('.gem-carousel-nav-btn.prev');
+  var nextBtn = wrapper.querySelector('.gem-carousel-nav-btn.next');
+  var canScroll = track.scrollWidth > track.clientWidth + 5;
+  if (!canScroll) {
+    if (prevBtn) prevBtn.style.display = 'none';
+    if (nextBtn) nextBtn.style.display = 'none';
+    return;
   }
-  modal.classList.add('active');
-  document.body.style.overflow = 'hidden';
+  if (prevBtn) prevBtn.style.display = track.scrollLeft > 5 ? 'flex' : 'none';
+  if (nextBtn) nextBtn.style.display = track.scrollLeft < track.scrollWidth - track.clientWidth - 5 ? 'flex' : 'none';
 }
 
-function closeMedia(e) {
-  if (e && e.target && e.target.closest && e.target.closest('.gem-modal-content')) return;
-  const modal = document.getElementById('gemMediaModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  document.body.style.overflow = '';
-}
-
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeMedia();
+// Check carousel buttons on initial render
+window.addEventListener('load', function() {
+  document.querySelectorAll('.gem-carousel-track').forEach(function(track) {
+    updateCarouselNav(track);
+  });
+});
+window.addEventListener('resize', function() {
+  document.querySelectorAll('.gem-carousel-track').forEach(function(track) {
+    updateCarouselNav(track);
+  });
 });
 </script>
 </body>

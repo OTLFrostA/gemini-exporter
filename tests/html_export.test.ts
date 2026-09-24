@@ -46,11 +46,10 @@ test('html_export - formatContent html returns valid structure, metadata, and st
     assert.ok(html.includes('<title>Quantum Computing &amp; Algorithms</title>'), 'Title must be safely escaped in <title>');
     assert.ok(html.includes('generator" content="Gemini Exporter"'), 'Must contain generator meta');
 
-    // 2. High fidelity Print Stylesheet (@media print) & Theme Toggle
+    // 2. High fidelity Print Stylesheet (@media print) & Pure 1:1 Stream
     assert.ok(html.includes('@media print'), 'Must include @media print styles for PDF readiness');
-    assert.ok(html.includes('.gem-top-bar'), 'Must include top bar styles');
-    assert.ok(html.includes('window.print()'), 'Must contain window.print() trigger');
-    assert.ok(html.includes('toggleTheme()'), 'Must contain theme toggle trigger');
+    assert.ok(!html.includes('gem-top-bar'), 'Must NOT contain top bar to keep 1:1 fidelity');
+    assert.ok(html.includes('prefers-color-scheme'), 'Must support adaptive system theme');
 
     // 3. User Turn & Attachment Carousel
     assert.ok(html.includes('gem-turn-user'), 'Must contain user turn section');
