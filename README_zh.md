@@ -178,7 +178,7 @@ graph LR
   - TypeScript 严格类型检查 (`tsc --noEmit`)；
   - 103 个核心单元测试套件 (`python3 tests/run_tests.py`)；
   - esbuild 5 大 Bundle 纯打包构建检查 (`node build.js`)；
-  - 16 个 Spec 文件 / 38 个无头 Playwright 端到端浏览器测试 (`playwright test`)；
+  - 16 个 Spec 文件 / 39 个无头 Playwright 端到端浏览器测试 (`playwright test`)；
   - *日常开发推荐*：`npm run test:changed` 秒级（5~15s）运行改动影响传递测试。
 - **第二层：真实 Chrome 全流程实跑测试 (`npm run test:live`)**：
   - 依托 9222 调试端口与真实 Google 账号交互；

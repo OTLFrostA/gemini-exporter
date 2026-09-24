@@ -77,3 +77,77 @@ test('P1-3: 并发 clear + write 不丢失新记录', async () => {
         __setModuleOverride('StorageService', undefined as any);
     }
 });
+
+test('StorageService.removeExportRecords: u0 清除时同步清理 legacy gemini_exported_u0 防止复活', async () => {
+    const StorageService = require('../src/core/storage/storageService.js');
+    const store: Record<string, any> = {
+        exportedIds: { chat_new: { exportedAt: 100 } },
+        gemini_exported_u0: { chat_legacy: { exportedAt: 90 }, c_chat_legacy: { exportedAt: 90 } }
+    };
+    const origChrome = (globalThis as any).chrome;
+    (globalThis as any).chrome = {
+        storage: {
+            local: {
+                get: async (keys: string[]) => {
+                    const out: Record<string, any> = {};
+                    for (const k of keys) {
+                        if (k in store) out[k] = store[k];
+                    }
+                    return out;
+                },
+                set: async (updates: Record<string, any>) => {
+                    Object.assign(store, updates);
+                },
+                remove: async (keys: string[]) => {
+                    for (const k of keys) delete store[k];
+                }
+            }
+        }
+    };
+    try {
+        const before = await StorageService.getExportedIds('u0');
+        assert.deepStrictEqual(Object.keys(before).sort(), ['chat_legacy', 'chat_new']);
+        await StorageService.removeExportRecords('u0', Object.keys(before));
+        const after = await StorageService.getExportedIds('u0');
+        assert.deepStrictEqual(after, {}, '清除后 getExportedIds(u0) 必须为空，legacy gemini_exported_u0 不得复活');
+        assert.strictEqual(store.gemini_exported_u0, undefined, 'gemini_exported_u0 键应被移除');
+    } finally {
+        (globalThis as any).chrome = origChrome;
+    }
+});
+
+test('ListView.render: 传入 prevSelectedSet=null 时强制重置 canonicalSelectedIds 并自动勾选未导出会话', () => {
+    const ListView = require('../src/ui/views/listView.js');
+    let innerHTML = '';
+    const fakeList: any = {
+        addEventListener: () => {}
+    };
+    Object.defineProperty(fakeList, 'innerHTML', {
+        get() { return innerHTML; },
+        set(val) { innerHTML = val; }
+    });
+    const origDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = {
+            getElementById: (id: string) => (id === 'list' ? fakeList : null),
+            querySelectorAll: () => []
+        };
+        const convs = [
+            { id: 'c_1', title: 'Chat 1', timestamp: 1000 },
+            { id: 'c_2', title: 'Chat 2', timestamp: 1000 }
+        ];
+        // 1. 初始全部已导出，默认 0 勾选（canonicalSelectedIds 为空 Set）
+        ListView.setSelectedIds(null);
+        ListView.render(convs as any, { '1': { exportedAt: 2000 }, '2': { exportedAt: 2000 } } as any, null);
+        assert.strictEqual(ListView.getSelectedIds().size, 0, '全部已导出时初始应 0 勾选');
+
+        // 2. 清除导出记录后传入 expMap={} 与 prevSelectedSet=null，应重新自动全选
+        ListView.render(convs as any, {}, null);
+        const selectedAfterClear = ListView.getSelectedIds();
+        assert.ok(selectedAfterClear.has('1') || selectedAfterClear.has('c_1'), '清除后 Chat 1 应自动勾选');
+        assert.ok(selectedAfterClear.has('2') || selectedAfterClear.has('c_2'), '清除后 Chat 2 应自动勾选');
+    } finally {
+        (globalThis as any).document = origDoc;
+    }
+});
+

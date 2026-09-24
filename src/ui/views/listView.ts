@@ -124,8 +124,8 @@ export function render(
 
     if (prevSelectedSet instanceof Set) {
         canonicalSelectedIds = new Set(prevSelectedSet);
-    } else if (canonicalSelectedIds === null) {
-        // Initial load default: auto-check unexported and updated
+    } else if (prevSelectedSet === null || canonicalSelectedIds === null) {
+        // Initial load default (or explicit reset via null): auto-check unexported and updated
         canonicalSelectedIds = new Set<string>();
         for (const c of currentConversationsRef) {
             const nid = normId(c.id);

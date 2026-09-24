@@ -165,6 +165,53 @@ test.describe('Export Workflow & State Update', () => {
     // Assert that no empty zip download was triggered
     expect(downloadTriggered).toBe(false);
   });
+
+  test('should clear exported records via #btnClearExported, re-select chats, and not toggle #skipExported', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.evaluate(async () => {
+      const mockConvs = [
+        { id: 'clear_chat_001', title: '已导出会话一', timestamp: 1700000000000 },
+        { id: 'clear_chat_002', title: '已导出会话二', timestamp: 1700000000000 }
+      ];
+      await chrome.storage.local.set({
+        gemini_conversations: mockConvs,
+        exportedIds: {
+          'clear_chat_001': { exportedAt: 1700000005000, title: '已导出会话一' }
+        },
+        gemini_exported_u0: {
+          'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }
+        },
+        has_completed_tour: true,
+        last_seen_feature_version: '999.0.0'
+      });
+      if (typeof (window as any).__workbenchLoadStore === 'function') {
+        await (window as any).__workbenchLoadStore(true);
+      }
+    });
+
+    await expect(page.locator('#list .badge-exported')).toHaveCount(2);
+    await expect(page.locator('#list input[type=checkbox]:checked')).toHaveCount(0);
+    await expect(page.locator('#skipExported')).toBeChecked();
+
+    // Click #btnClearExported
+    await page.click('#btnClearExported');
+
+    // Exported badges must be cleared, all items auto-checked for re-export, and #skipExported unchanged
+    await expect(page.locator('#list .badge-exported')).toHaveCount(0);
+    await expect(page.locator('#list input[type=checkbox]:checked')).toHaveCount(2);
+    await expect(page.locator('#skipExported')).toBeChecked();
+
+    // Verify storage keys (both exportedIds and legacy gemini_exported_u0) are cleared and stay cleared on reload
+    const storageAfter = await page.evaluate(async () => {
+      return await chrome.storage.local.get(['exportedIds', 'gemini_exported_u0']);
+    }) as Record<string, any>;
+    expect(Object.keys(storageAfter.exportedIds || {})).toHaveLength(0);
+    expect(storageAfter.gemini_exported_u0).toBeUndefined();
+  });
 });
+
 
 

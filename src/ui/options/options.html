@@ -189,11 +189,13 @@
           <option value="json_raw" id="optFormatRaw" class="dev-only" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
         </select>
       </label>
-      <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap; overflow:hidden;">
-        <input type="checkbox" id="skipExported" class="toggle" checked>
-        <span data-i18n="skipExported" style="overflow:hidden; text-overflow:ellipsis;">跳过已导出</span>
-        <button id="btnClearExported" class="ghost" style="padding:1px 6px; font-size:10px; height:20px; line-height:18px; margin-left:auto; border-radius:4px; flex:none;" data-i18n="btnClearExported" data-i18n-title="btnClearExportedTip" title="清除历史导出标记，允许重新导出全部">清除</button>
-      </label>
+      <div style="display:flex; gap:6px; align-items:center; font-size:12px; height:24px; white-space:nowrap; overflow:hidden;">
+        <label style="display:flex; gap:6px; align-items:center; cursor:pointer; overflow:hidden; min-width:0;">
+          <input type="checkbox" id="skipExported" class="toggle" checked>
+          <span data-i18n="skipExported" style="overflow:hidden; text-overflow:ellipsis;">跳过已导出</span>
+        </label>
+        <button type="button" id="btnClearExported" class="ghost" style="padding:1px 6px; font-size:10px; height:20px; line-height:18px; margin-left:auto; border-radius:4px; flex:none;" data-i18n="btnClearExported" data-i18n-title="btnClearExportedTip" title="清除历史导出标记，允许重新导出全部">清除</button>
+      </div>
       <label style="display:flex; gap:6px; align-items:center; font-size:12px; cursor:pointer; height:24px; white-space:nowrap;" data-i18n-title="includeAssetsTip" title="下载对话中的图片与文件附件">
         <input type="checkbox" id="includeAssets" class="toggle" checked>
         <span data-i18n="includeAssets">下载附件</span>

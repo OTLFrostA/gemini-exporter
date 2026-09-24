@@ -27,6 +27,10 @@ let __updateZipUi: (() => void) | null = null;
 let __checkExportSession: (() => Promise<void> | void) | null = null;
 let __updateAccountSlotSelector: (() => void) | null = null;
 let __getSearchFilter: () => string = () => '';
+let __getChatFilterType: () => string = () => {
+    const sel = $('chatFilterSelect') as HTMLSelectElement | null;
+    return (sel && sel.value) ? sel.value.trim() : 'all';
+};
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (__log) __log(msg, level);
@@ -57,7 +61,7 @@ export async function handleLangChange(targetLang: 'zh' | 'en'): Promise<void> {
     const convs = Store ? Store.getConversations() : [];
     const expMap = Store ? Store.getExportedIds() : {};
     if (List) {
-        List.render(convs, expMap, currentSelected, __getSearchFilter());
+        List.render(convs, expMap, currentSelected, __getSearchFilter(), __getChatFilterType());
         List.updateStat(convs);
     }
     if (__updateZipUi) __updateZipUi();
@@ -166,14 +170,16 @@ function bindStorageCleanup(): void {
     const List = getList();
     const Store = getStore();
 
-    $('btnClearExported')?.addEventListener('click', async () => {
+    $('btnClearExported')?.addEventListener('click', async (e?: Event) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         if (Store) await Store.clearExported(slot);
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
-        const currentSelected = new Set(List ? List.getSelected(convs).map((x: any) => x.id) : []);
         if (List) {
-            List.render(convs, expMap, currentSelected, __getSearchFilter());
+            if (typeof List.setSelectedIds === 'function') List.setSelectedIds(null);
+            List.render(convs, expMap, null, __getSearchFilter(), __getChatFilterType());
             List.updateStat(convs);
         }
         log(typeof t === 'function' ? t('confirmClearExported') : '已清空已导出记录', 'info');
@@ -213,7 +219,8 @@ function bindStorageCleanup(): void {
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
         if (List) {
-            List.render(convs, expMap, null, __getSearchFilter());
+            if (typeof List.setSelectedIds === 'function') List.setSelectedIds(null);
+            List.render(convs, expMap, null, __getSearchFilter(), __getChatFilterType());
             List.updateStat(convs);
         }
         log(typeof t === 'function' ? t('confirmClearAll') : '本地会话数据已清空');
@@ -322,7 +329,8 @@ export async function init({
     updateZipUi: zipFn,
     checkExportSession: expSessFn,
     updateAccountSlotSelector: slotSelFn,
-    getSearchFilter: filterFn
+    getSearchFilter: filterFn,
+    getChatFilterType: filterTypeFn
 }: OptionsSettingsOptions = {}): Promise<void> {
     __log = logFn || null;
     __clearLog = clearFn || null;
@@ -331,6 +339,7 @@ export async function init({
     __checkExportSession = expSessFn || null;
     __updateAccountSlotSelector = slotSelFn || null;
     if (filterFn) __getSearchFilter = filterFn;
+    if (filterTypeFn) __getChatFilterType = filterTypeFn;
 
     await initLanguage();
     await initDevMode();
