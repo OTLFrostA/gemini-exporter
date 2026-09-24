@@ -114,8 +114,8 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
     expect(htmlContent).toContain('gem-user-bubble');
     expect(htmlContent).toContain('gem-model-content');
     expect(htmlContent).toContain('热膨胀系数');
-    expect(htmlContent).toContain('toggleTheme');
-    expect(htmlContent).toContain('window.print()');
+    expect(htmlContent).toContain('prefers-color-scheme');
+    expect(htmlContent).not.toContain('gem-top-bar');
 
     // 6. Verify Workbench UI updated
     await expect(optionsPage.locator('[data-chat-id="html_exp_001"] .badge')).toContainText(/已导出|Exported/);
