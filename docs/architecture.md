@@ -200,6 +200,7 @@ graph TD
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
 | `src/core/engine/export/batchWorker.ts` | Core: Engine | `fetchChatDetail` / `resolveChat` | 独立执行单条会话详情抓取与解析（RPC 请求与详情解析），实际导出装配由 `exportOrchestrator` 协调。 | `exportOrchestrator.ts` | `geminiClient`, `conversationDetailStore` | `ENG_Worker` |
+| `src/core/engine/export/parseDrift.ts` | Core: Engine | `recordParseDrift`, `getParseDriftSummary` | 记录并聚合 JSPB 协议结构漂移（Schema Drift）遥测告警，辅助诊断上游协议变更。 | `exportOrchestrator.ts`, `batchWorker.ts` | 诊断告警统计 | `ENG_Orchestrator` |
 | `src/core/engine/export/rateLimiter.ts` | Core: Engine | `isRateLimited` / `calculateBackoff` / `abortableSleep` / `RateLimitManager` | 自适应限流器状态机，根据响应延迟与 429 频率动态调整请求间隔与并发数。 | `exportOrchestrator.ts` | 延迟休眠控制 | `ENG_Rate` |
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
@@ -207,8 +208,9 @@ graph TD
 | `src/core/engine/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 解析官方 Takeout ZIP 归档（JSZip 全量载入，非流式），提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
 | `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
 | `src/core/engine/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
-| `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，检验 ZIP 压缩率与解压体积，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
-| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`toMarkdown` / `toOpenAIJson` / `formatContent`…） | 格式转换引擎：生成标准 CommonMark (带 YAML Frontmatter、代码高亮、公式)、JSON、OpenAI 规范。 | `batchWorker`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
+| `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
+| `src/core/engine/template/htmlTemplate.ts` | Core: Engine | `renderStandaloneHtml`, `renderIndexHtml` | 1:1 Gemini 像素级还原独立 HTML 模版引擎：支持亮/暗主题切换、离线代码复制、KaTeX 公式、相对路径媒体与 `@media print` 矢量打印样式。 | `chatFormatter.ts` | 独立 HTML 文档字符串 | `ENG_Formatter` |
+| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`toMarkdown` / `toHtml` / `toOpenAIJson` / `formatContent`…） | 格式转换引擎：生成标准 CommonMark (带 YAML Frontmatter、代码高亮、公式)、1:1 独立 HTML、JSON、OpenAI 规范。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
@@ -218,6 +220,7 @@ graph TD
 | `src/core/storage/conversationDetailStore.ts` | Core: Storage | `saveConversationDetail`, `getConversationDetail`, `deleteConversationDetail` | 两级存储架构之 IndexedDB 实体详情仓储，承接全量 turns 与重消息体，保障 chrome.storage.local 永远处于安全轻量区。 | `storageService.ts` | IndexedDB (`gemini_conversation_details`) | `ST_Detail` |
 | `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理（enabledDisk/format/includeAssets）并代理 `idbHandleStore` 目录句柄。真正实体快照落盘由 `liveSaveHandler`/`liveSaveWriter` 承载。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
 | `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `saveStoredDirHandle`, `getMemoryDirHandle`, `setMemoryDirHandle` | `FileSystemDirectoryHandle` 在 IndexedDB 与内存缓存中的唯一真理源 (SSoT)。 | `dirHandleController`, `liveStorageManager`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
+| `src/core/storage/schemaMigration.ts` | Core: Storage | `ensureSchemaMigrated` | 存储 Schema 版本迁移引擎，负责旧版键值结构升级与幂等迁移校验。 | `storageService.ts`, `lifecycle.ts` | `chrome.storage.local` | `ST_Service` |
 | `src/core/storage/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/core/storage/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
 | `src/core/utils/utils.ts` | Core: Utils | `GeminiUtils` (单点真理 SSoT 集合) | 汇聚全局路径清理、标题仲裁与列表合并去重逻辑的统一门面。 | 全系统所有模块 | 格式规范与仲裁结果 | `UT_SSoT` |
@@ -655,9 +658,9 @@ sequenceDiagram
 flowchart TD
     subgraph Tier1 ["第一层：CI 自动化极速门禁 (Tier 1: Fast & Headless Gate)"]
         T1_Type["TypeScript 严格类型检查 (tsc --noEmit)"]
-        T1_Unit["Python 驱动 73+ 个核心单元与系统测试套件 (tests/run_tests.py)"]
+        T1_Unit["Python 驱动 103 个核心单元与系统测试套件 (tests/run_tests.py)"]
         T1_Build["esbuild 5 大 Bundle 纯打包校验 (node build.js)"]
-        T1_E2E["Playwright 15 个 Spec / 37 个无头集成测试 (playwright test)"]
+        T1_E2E["Playwright 16 个 Spec / 38 个无头集成测试 (playwright test)"]
         T1_Type --> T1_Unit --> T1_Build --> T1_E2E --> T1_PASS["CI 门禁通过 (~20-40秒)"]
     end
 

@@ -13,7 +13,7 @@
 </p>
 
 > **简单、隐私安全、完全开源的 Google Gemini 对话批量导出与备份工具。**  
-> 一键将你的全部 Gemini 历史对话导出为精美的 Markdown、JSON、高清超长长截图、单页矢量 PDF 或包含完整图片附件的 ZIP 压缩包，无缝导入 **Obsidian**、**Notion**、**Logseq** 等本地个人知识库。
+> 一键将你的全部 Gemini 历史对话导出为精美的 **Markdown**、**1:1 像素级还原独立 HTML 网页**（支持亮/暗主题切换与原生打印矢量 PDF）、**JSON** 或包含完整图片附件的 **ZIP 压缩包**，无缝导入 **Obsidian**、**Notion**、**Logseq** 等本地个人知识库。
 
 ---
 
@@ -27,16 +27,14 @@
   - 支持通过浏览器原生 FileSystem Access API 或本地 IndexedDB，在对话生成结束时**自动将最新轮次写入本地指定磁盘文件夹**。
   - 无需手动点击、零感知延迟：在网页端正常聊 Gemini，本地笔记文件夹内的 Markdown 与配图即刻同步更新！
   - **一键手势恢复授权**：浏览器重启后，若后台目录句柄权限降权为 `prompt`，控制台会自动出现一键重授权提示，单次点击即可恢复物理直写。
-- 📝 **精美的 Markdown 排版**：
-  - 代码块全语法高亮。
-  - 完美渲染 LaTeX 数学公式与方程。
-  - 折叠显示 AI 深度思考推理过程（`<details>` 标签）。
-  - 完整保留网络引用来源与标注链接。
+- 📝 **精美的 Markdown 与 1:1 独立 HTML 双引擎排版**：
+  - **标准 Markdown (`.md`)**：代码块全语法高亮、完美渲染 LaTeX 数学公式、折叠显示 AI 深度思考过程（`<details>` 标签）并完整保留网络引用来源。
+  - **1:1 像素级还原独立 HTML (`.html`)**：单文件完整复刻 Gemini 官方网页对话体验，内置亮色/暗色主题无缝切换、代码块一键复制（含离线 file:// 协议兼容兜底）、KaTeX 公式渲染、思考过程折叠，并内置 `@media print` 印刷级样式，支持浏览器直接 `Cmd/Ctrl + P` 打印或另存为高清矢量 PDF。
 - 🖼️ **完整的图片与附件归档**：
   - 自动下载对话中你上传的文件与图片（PDF、文档等）。
   - 自动保存 AI 生成的高清画作（Imagen）。
   - 完整备份深度研究（Deep Research）独立长篇报告。
-  - 所有图片与资源自动存放于 `assets/` 文件夹，并在 Markdown 中使用相对链接规范引用。
+  - 所有图片与资源自动存放于 `assets/` 文件夹，在 Markdown 与独立 HTML 中均采用 100% 兼容的相对路径规范引用。
   - **STORE 模式零压缩内存保护**：高清二进制媒体附件在打包进入 ZIP 时采用 STORE 原样存储模式，彻底规避 200MB+ 批量多模态导出时因多重 Deflate 压缩导致的浏览器标签页内存溢出崩溃（OOM）。
 - 🗄️ **两级存储架构与配额安全隔离**：
   - 突破 Chrome `chrome.storage.local` 的 10MB 配额硬限制：顶层仅保存轻量索引（严格控制在安全水位内），全量对话多轮次与消息正文实体安全沉淀至 IndexedDB（`conversationDetailStore.ts`）。
@@ -45,7 +43,7 @@
   - 沉浸式深色模式面板，轻松浏览、搜索与管理数百条历史对话。
   - 支持按状态智能筛选：*全部*、*未导出*、*有新回复待更新* 或 *已导出*。
   - 完整支持 **中英双语界面**，右上角一键切换。
-  - 动态元素几何定位的 5 步沉浸式 **新手交互向导**。
+  - 动态元素几何定位的 6 步沉浸式 **新手交互向导**。
 - 🔄 **智能增量备份**：
   - 只备份新内容！当旧会话收到新的提问或回复时，工作台会自动将其标记为“待更新”，一键即可增量导出，省时省力。
 - 📥 **支持 Google Takeout 历史归档导入**：
@@ -61,7 +59,7 @@
 
 ## 🏛️ 模块化系统架构概览
 
-Gemini Exporter 严格遵循 Chrome Extension MV3 分层解耦设计，核心业务领域与解析逻辑实现 **零 DOM 依赖**，可在 Node.js 测试、Service Worker 与扩展页面中无缝复用。
+Gemini Exporter 严格遵循 Chrome Extension MV3 分层解耦设计，核心业务领域与解析逻辑实现 **零 DOM 渲染依赖**，可在 Node.js 测试、Service Worker 与扩展页面中无缝复用。
 
 ```mermaid
 graph LR
@@ -73,21 +71,20 @@ graph LR
 
     subgraph 后台服务 ["Service Worker"]
         SW["background.ts<br/>(保活心跳 / 终止管理 / 生命周期)"]
-        LH["liveSaveHandler.ts<br/>(文件直写与 Downloads 兜底)"]
+        LH["liveSaveHandler.ts<br/>(FileSystem 目录句柄直写)"]
     end
 
     subgraph 核心引擎 ["核心领域引擎 (零 DOM 依赖)"]
-        PROV["通用 AI Provider<br/>(Gemini & ChatGPT)"]
+        PROV["通用 AI Provider<br/>(Gemini；ChatGPT 为预留扩展点)"]
         API["RPC 客户端 & 解析器<br/>(batchexecute & JSPB)"]
-        ENG["导出编排与格式化<br/>(AsyncQueue & STORE 模式)"]
+        ENG["导出编排与格式化<br/>(Markdown / 1:1 HTML / STORE ZIP)"]
         TAKEOUT["Takeout 离线合流<br/>(ZipBombGuard & MediaIndex)"]
-        MEDIA["视觉渲染引擎<br/>(长截图拼接 & PDF 封装)"]
         SSOT["单点真理工具库<br/>(权威标题仲裁 & 去重)"]
     end
 
     subgraph 展现与存储 ["UI 展现与两级存储"]
-        WORKBENCH["Options 工作台<br/>(MVC 架构 & 虚拟列表)"]
-        POPUP["Popup 快捷操作中心<br/>(单篇导出 / 截图 / PDF)"]
+        WORKBENCH["Options 工作台<br/>(MVC 架构 & 响应式状态)"]
+        POPUP["Popup 快捷操作中心<br/>(单篇快速导出)"]
         STORAGE["两级存储引擎<br/>(chrome.storage.local & IndexedDB 详情仓储)"]
     end
 
@@ -99,7 +96,7 @@ graph LR
     SW --> LH
     WORKBENCH --> ENG
     WORKBENCH --> TAKEOUT
-    POPUP --> MEDIA
+    POPUP --> ENG
     ENG --> STORAGE
     TAKEOUT --> SSOT
 ```
@@ -142,17 +139,14 @@ graph LR
 ### 1. 快速导出当前单篇对话 (Popup)
 1. 在浏览器中打开 [Google Gemini](https://gemini.google.com) 的任意对话。
 2. 点击浏览器右上角扩展栏的 **Gemini Exporter** 图标。
-3. 选择所需操作：
-   - **Markdown / JSON**：点击 **“只导当前页”** 或 **“一键复制 Markdown”**；
-   - **长截图**：点击 **“生成长截图”**，全自动平滑滚动并下载高清 `.png`；
-   - **单页 PDF**：点击 **“导出单页 PDF”**，瞬间生成适合打印归档的 `.pdf`。
+3. 切换顶部的导出格式标签（**Markdown**、**HTML**、**JSON (OpenAI)** 或 **JSON (标准)**），点击 **“📥 导出当前页面”** 即可立即下载当前会话。
 
 ### 2. 批量管理与导出全部对话 (Workbench)
-1. 点击插件图标中的 **“去工作台选 批量导出”**（或右键插件图标选择“选项”）。
-2. 初次使用可跟随 5 步 **新手引导教程** 熟悉核心功能。
+1. 点击插件图标中的 **“去控制台批量导出 ↗”**（或右键插件图标选择“选项”）。
+2. 初次使用可跟随 6 步 **新手引导教程** 熟悉核心功能。
 3. 点击 **“同步最新会话”**（快速增量同步）或 **“全量拉取历史”**（扫描所有云端历史）。
-4. 勾选想要导出的对话（支持“全选”或“只选未导出”）。
-5. 选择导出格式，点击 **“导出选中 → ZIP”** 打包下载（也可选择直接写入本地文件夹）。
+4. 勾选想要导出的对话（支持按状态过滤：*全部* / *未导出* / *有更新待重导* / *已导出*）。
+5. 选择导出格式（**Markdown**、**HTML** 或 **JSON**），点击 **“导出选中 → ZIP”** 打包下载（也可选择直接写入本地文件夹）。
 
 ### 3. 配置实时无感自动保存到本地文件夹
 1. 在工作台中进入 **“设置”**，开启 **“自动保存到本地文件夹”** 开关；
@@ -171,6 +165,7 @@ graph LR
 
 - **Obsidian**: 直接将导出的 ZIP 压缩包解压到你的 Obsidian 仓库（Vault）文件夹中，或者将“实时自动保存”的目标直接设为 Vault 根目录。所有 Markdown 笔记与 `assets/` 中的图片附件将瞬间建立关联并支持双向链接。
 - **Notion**: 将导出的 Markdown 文件直接拖入 Notion 页面，即可自动转为原生的 Notion 页面与排版块。
+- **浏览器离线归档与矢量 PDF 打印**: 选择 **HTML** 格式导出，无需联网即可在任意浏览器中以 1:1 Gemini 原生界面浏览历史对话，支持亮/暗主题切换与 `Cmd/Ctrl + P` 一键打印矢量 PDF。
 - **Logseq / 本地文件夹**: 在工作台中开启 **“直接保存到本地文件夹”**，利用现代文件系统权限直接将文件写入你的本地磁盘。
 
 ---
@@ -181,17 +176,17 @@ graph LR
 
 - **第一层：CI 自动化极速门禁 (`npm test`)**：
   - TypeScript 严格类型检查 (`tsc --noEmit`)；
-  - 84 个核心单元测试套件 (`python3 tests/run_tests.py`)；
+  - 103 个核心单元测试套件 (`python3 tests/run_tests.py`)；
   - esbuild 5 大 Bundle 纯打包构建检查 (`node build.js`)；
-  - 14 个 Spec 文件 / 35 个无头 Playwright 端到端浏览器测试 (`playwright test`)；
+  - 16 个 Spec 文件 / 38 个无头 Playwright 端到端浏览器测试 (`playwright test`)；
   - *日常开发推荐*：`npm run test:changed` 秒级（5~15s）运行改动影响传递测试。
-- **第二层：真实 Chrome 全流程实跑测试 (`npm run test:live:pool`)**：
+- **第二层：真实 Chrome 全流程实跑测试 (`npm run test:live`)**：
   - 依托 9222 调试端口与真实 Google 账号交互；
   - 维持 20 题多模态高价值场景动态池（覆盖 Imagen 生图、LaTeX、代码块、长文本报告）；
   - 严格通过物理解压 ZIP 逐字断言与 4 大黄金分类附件规范检验。
-- **第三层：纯视觉 AI 盲测与自主质检 (`npm run test:visual:review`)**：
-  - 采用纯截屏感知（零 DOM 泄露）与硬件级物理鼠标/键盘事件自主驱动；
-  - 驱动 Gemini Vision 多模态模型对全链路截图画廊出具深度质量审查报告。
+- **第三层：纯视觉 AI 盲测与自主质检 (`npm run test:visual` / `npm run test:visual:custom`)**：
+  - 采用双途径纯截屏感知架构（无 Context 子智能体交互靶场 / 自定义多模态 AI 接口），零 DOM 泄露、硬件级物理鼠标/键盘事件驱动；
+  - 闭环产出结构化 UX 体验评分卡与 HTML 视觉审计报告（`tests/output/visual_audit/`）。
 
 ---
 

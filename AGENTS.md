@@ -40,7 +40,7 @@
   - **影响分析报告**：`npm run test:impact`（打印当前改动对全仓模块与测试的传递影响拓扑）。
   - **单点定向单元测试**：`python3 tests/run_tests.py --filter <keyword>`（如 `python3 tests/run_tests.py --filter storage`，秒级验证指定模块）。
 * **适用场景**：日常功能开发与单步迭代推荐使用 `npm run test:changed` 极速自测；每次提交 PR 前必须全量通过 `npm test`，GitHub Actions 门禁对此强制校验。
-* **特性**：轻量极速，包含 TypeScript 严格类型检查、单元测试套件、esbuild 生产 Bundle 打包构建校验与 35 个无头 Playwright 端到端用例（含老会话置顶升权、会话实时删除与 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
+* **特性**：轻量极速，包含 TypeScript 严格类型检查、103 个单元测试套件、esbuild 生产 Bundle 打包构建校验与 38 个无头 Playwright 端到端用例（含 1:1 HTML 导出、老会话置顶升权、会话实时删除与 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
 
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
 * **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。
