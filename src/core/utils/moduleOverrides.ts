@@ -14,19 +14,25 @@
 // The legacy globalThis middle step was removed once the last mounts were
 // deleted: nothing in src/ or tests/ mounts these names on globalThis anymore.
 
+const isProduction = (): boolean =>
+    typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+
 const overrides = new Map<string, any>();
 
 export function __setModuleOverride<T = any>(name: string, impl: T | undefined): void {
+    if (isProduction()) return;
     if (impl === undefined) overrides.delete(name);
     else overrides.set(name, impl);
 }
 
 export function __clearModuleOverrides(): void {
+    if (isProduction()) return;
     overrides.clear();
 }
 
 /** Read the current explicit override (test teardown bookkeeping). */
 export function __getModuleOverride<T = any>(name: string): T | undefined {
+    if (isProduction()) return undefined;
     return overrides.get(name);
 }
 
@@ -35,6 +41,8 @@ export function __resolveModule(name: string, fallback: null | undefined): any;
 /** Resolve a module override: explicit test override wins, else the typed static fallback. */
 export function __resolveModule<T>(name: string, fallback: T): T;
 export function __resolveModule(name: string, fallback?: any): any {
+    if (isProduction()) return fallback;
     const o = overrides.get(name);
     return o !== undefined ? o : fallback;
 }
+

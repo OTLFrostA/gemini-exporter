@@ -149,7 +149,21 @@ function getProtocol(): GeminiProtocolModule {
         }
     }
 
+    let _resolveChain: Promise<any> = Promise.resolve();
+    function runSerializedResolve<T>(op: () => Promise<T>): Promise<T> {
+        const run = _resolveChain.then(op, op);
+        _resolveChain = run.then(() => undefined, () => undefined);
+        return run;
+    }
+
     async function resolveCred(
+        targetSidOrSlot?: string | null,
+        overrides?: { at?: string; bl?: string; accountSlot?: string } | null
+    ): Promise<GeminiCredentials> {
+        return runSerializedResolve(() => resolveCredInner(targetSidOrSlot, overrides));
+    }
+
+    async function resolveCredInner(
         targetSidOrSlot?: string | null,
         overrides?: { at?: string; bl?: string; accountSlot?: string } | null
     ): Promise<GeminiCredentials> {

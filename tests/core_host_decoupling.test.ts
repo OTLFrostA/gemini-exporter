@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import * as GeminiUtils from '../src/core/utils/utils.js';
-import { __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
+import { __setModuleOverride, __getModuleOverride, __resolveModule } from '../src/core/utils/moduleOverrides.js';
 __setModuleOverride('GeminiUtils', GeminiUtils);
 
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
@@ -141,6 +141,19 @@ test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter witho
         assert.strictEqual(persistedRecord.slot, 'u0');
     } finally {
         (global as any).chrome = origChrome;
+    }
+});
+
+test('Decoupling 5: moduleOverrides rejects overrides and ignores mocks in NODE_ENV=production', () => {
+    const origEnv = process.env.NODE_ENV;
+    try {
+        process.env.NODE_ENV = 'production';
+        __setModuleOverride('TestMockSeam', { mock: true });
+        assert.strictEqual(__getModuleOverride('TestMockSeam'), undefined, 'Overrides must not be stored in production');
+        const resolved = __resolveModule('TestMockSeam', 'defaultFallback');
+        assert.strictEqual(resolved, 'defaultFallback', 'Must resolve to fallback directly in production');
+    } finally {
+        process.env.NODE_ENV = origEnv;
     }
 });
 

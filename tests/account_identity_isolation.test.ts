@@ -270,3 +270,63 @@ test('accountView - renders user email and name accurately in dropdown', () => {
         (global as any).document = origDoc;
     }
 });
+
+test('credentialManager - concurrent resolveCred calls serialize safely without race condition', async () => {
+    const origChrome = (global as any).chrome;
+    try {
+        let activeOps = 0;
+        let maxActiveOps = 0;
+        const credStore: any = {
+            gemini_credentials_map: {
+                sid_u0: {
+                    sid: 'sid_u0',
+                    at: 'TOKEN_U0',
+                    accountSlot: 'u0',
+                    lastUsed: 1000
+                }
+            }
+        };
+
+        (global as any).chrome = {
+            storage: {
+                session: {
+                    get: async () => {
+                        activeOps++;
+                        if (activeOps > maxActiveOps) maxActiveOps = activeOps;
+                        await new Promise(r => setTimeout(r, 10));
+                        activeOps--;
+                        return JSON.parse(JSON.stringify(credStore));
+                    },
+                    set: async (obj: any) => {
+                        activeOps++;
+                        if (activeOps > maxActiveOps) maxActiveOps = activeOps;
+                        await new Promise(r => setTimeout(r, 10));
+                        Object.assign(credStore, JSON.parse(JSON.stringify(obj)));
+                        activeOps--;
+                    }
+                },
+                local: {
+                    get: async () => ({}),
+                    set: async () => {},
+                    remove: async () => {}
+                }
+            }
+        };
+
+        const results = await Promise.all([
+            resolveCred('sid_u0'),
+            resolveCred('sid_u0'),
+            resolveCred('sid_u0'),
+            resolveCred('sid_u0'),
+            resolveCred('sid_u0'),
+        ]);
+
+        for (const res of results) {
+            assert.strictEqual(res.sid, 'sid_u0');
+            assert.strictEqual(res.at, 'TOKEN_U0');
+        }
+        assert.strictEqual(maxActiveOps, 1, 'Concurrent resolveCred calls must be serialized (maxActiveOps === 1)');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});

@@ -41,11 +41,3 @@ export interface GeminiLiveSaveTriggerPayload {
     mockMode?: boolean;
 }
 
-export interface CrossWorldEventMap {
-    [CrossWorldEvents.CREDENTIALS]: GeminiCredentialsPayload;
-    [CrossWorldEvents.CONVERSATION_DELETED]: GeminiConversationDeletedPayload;
-    [CrossWorldEvents.NETWORK_BATCHEXECUTE]: GeminiNetworkBatchexecutePayload;
-    [CrossWorldEvents.STREAM_START]: GeminiStreamStartPayload;
-    [CrossWorldEvents.STREAM_COMPLETE]: GeminiStreamCompletePayload;
-    [CrossWorldEvents.LIVE_SAVE_TRIGGER]: GeminiLiveSaveTriggerPayload;
-}
