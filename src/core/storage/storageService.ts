@@ -27,6 +27,7 @@ import {
     setDirectWritePromptSuppressed,
     getZipPreference,
     setZipPreference,
+    getBadgePosition,
     setBadgePosition,
     setLastSyncDiagnostics,
     setPendingTakeoutPrompt,
@@ -88,6 +89,10 @@ export interface ConversationTransaction {
         }
         const data = await chrome.storage.local.get(keys);
         const list = ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
+
+        if (s === 'u0' && data.gemini_conversations_u0 && data[convKey]) {
+            void chrome.storage.local.remove('gemini_conversations_u0').catch(() => {});
+        }
 
         return list;
     }
@@ -723,6 +728,7 @@ export {
     setDirectWritePromptSuppressed,
     getZipPreference,
     setZipPreference,
+    getBadgePosition,
     setBadgePosition,
     setLastSyncDiagnostics,
     setPendingTakeoutPrompt,
@@ -772,6 +778,7 @@ export const StorageService = {
     setDirectWritePromptSuppressed,
     getZipPreference,
     setZipPreference,
+    getBadgePosition,
     setBadgePosition,
     setLastSyncDiagnostics,
     setPendingTakeoutPrompt,

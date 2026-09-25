@@ -7,7 +7,7 @@
  */
 
 import type { Conversation, ChatMessage, Attachment } from "../../../types/conversation.js";
-import { cleanMessageBody } from "../chatFormatter.js";
+import { cleanMessageBody } from "../formatters/markdownFormatter.js";
 import { normId } from "../../utils/pathUtils.js";
 
 export interface HtmlTemplateOptions {

@@ -2,29 +2,46 @@
 
 import type { OpenOptionsMessage } from '../types/messages.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
-import { setBadgePosition } from '../core/storage/storageService.js';
+import { setBadgePosition, getBadgePosition } from '../core/storage/storageService.js';
 let __lastKnownCount: number | null = null;
 
 export function applyStoredBadgePosition(el: HTMLElement | null): void {
     if (!el) return;
+    const applyPos = (pos: any): boolean => {
+        if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
+            const maxLeft = Math.max(8, window.innerWidth - (el.offsetWidth || 110) - 8);
+            const maxTop = Math.max(8, window.innerHeight - (el.offsetHeight || 34) - 8);
+            const left = Math.min(Math.max(8, pos.left), maxLeft);
+            const top = Math.min(Math.max(8, pos.top), maxTop);
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+            el.style.right = 'auto';
+            el.style.bottom = 'auto';
+            return true;
+        }
+        return false;
+    };
+
     try {
         const raw = localStorage.getItem(STORAGE_KEYS.BADGE_POS);
         if (raw) {
             const pos = JSON.parse(raw);
-            if (typeof pos.left === 'number' && typeof pos.top === 'number') {
-                const maxLeft = Math.max(8, window.innerWidth - (el.offsetWidth || 110) - 8);
-                const maxTop = Math.max(8, window.innerHeight - (el.offsetHeight || 34) - 8);
-                const left = Math.min(Math.max(8, pos.left), maxLeft);
-                const top = Math.min(Math.max(8, pos.top), maxTop);
-                el.style.left = `${left}px`;
-                el.style.top = `${top}px`;
-                el.style.right = 'auto';
-                el.style.bottom = 'auto';
-            }
+            if (applyPos(pos)) return;
         }
     } catch (e) {
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:badgeView]', e);
     }
+
+    // Async fallback to chrome.storage.local position
+    void getBadgePosition().then((pos) => {
+        if (applyPos(pos)) {
+            try {
+                localStorage.setItem(STORAGE_KEYS.BADGE_POS, JSON.stringify(pos));
+            } catch {
+                /* intentional: best-effort caching */
+            }
+        }
+    }).catch(() => {});
 }
 
 export function makeBadgeDraggable(div: HTMLElement, onClick?: (e: MouseEvent) => void): void {

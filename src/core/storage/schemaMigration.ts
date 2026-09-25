@@ -133,6 +133,19 @@ async function migrateSlimConversations(): Promise<void> {
             return { list, changed: 0 };
         });
     }
+
+    // Clean up legacy u0 conversation key ('gemini_conversations_u0') if present
+    try {
+        const u0Data = (await chrome.storage.local.get(['gemini_conversations_u0', 'gemini_conversations'])) as Record<string, any>;
+        if (u0Data && u0Data.gemini_conversations_u0) {
+            if (!u0Data.gemini_conversations) {
+                await transactConversations('u0', (list) => ({ list: list || [], changed: 0 }));
+            }
+            await chrome.storage.local.remove('gemini_conversations_u0');
+        }
+    } catch {
+        /* best-effort cleanup */
+    }
 }
 
 // Step 2: collapse legacy export-record alias keys ('c_<id>' / raw id) into

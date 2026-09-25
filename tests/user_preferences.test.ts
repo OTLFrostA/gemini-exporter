@@ -106,8 +106,11 @@ test('userPreferences - zip preference, badge pos, diagnostics, language', async
         assert.strictEqual(await UserPreferences.getZipPreference(), false);
 
         // Badge position
+        assert.strictEqual(await UserPreferences.getBadgePosition(), null);
         await UserPreferences.setBadgePosition({ left: 100, top: 200 });
         assert.deepStrictEqual(m.store[STORAGE_KEYS.BADGE_POS], { left: 100, top: 200 });
+        assert.deepStrictEqual(await UserPreferences.getBadgePosition(), { left: 100, top: 200 });
+        assert.deepStrictEqual(await StorageService.getBadgePosition(), { left: 100, top: 200 });
 
         // Diagnostics
         await UserPreferences.setLastSyncDiagnostics({ errors: 0 });
