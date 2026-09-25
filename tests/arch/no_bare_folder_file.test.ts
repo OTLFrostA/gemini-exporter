@@ -13,6 +13,7 @@ const STORAGE_DIR_PREFIX = 'src/core/storage/';
 // 仅允许 src/core/storage/ 下的受控存储模块调用 chrome.storage.local.set(
 const ALLOWED_STORAGE_FILES = new Set<string>([
     'src/core/storage/storageService.ts',
+    'src/core/storage/userPreferences.ts',
     'src/core/storage/sessionStore.ts',
     'src/core/storage/formatStore.ts',
     'src/core/storage/liveStorageManager.ts',

@@ -743,6 +743,10 @@ def test_takeout_limit_modal_and_wall_detection():
     storage_path = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
     with open(storage_path, "r", encoding="utf-8") as f:
         storage_code = f.read()
+    user_prefs_path = os.path.join(BASE_DIR, "src/core/storage/userPreferences.ts")
+    if os.path.isfile(user_prefs_path):
+        with open(user_prefs_path, "r", encoding="utf-8") as f:
+            storage_code += "\n" + f.read()
     assert "has_completed_takeout_prompt" in storage_code or "STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT" in storage_code, "storageService should track has_completed_takeout_prompt"
     assert "isTakeoutPromptCompleted" in storage_code and "setTakeoutPromptCompleted" in storage_code, "storageService should export takeout prompt completion helpers"
 

@@ -1,6 +1,6 @@
 // storageService.ts - Unified multi-account Chrome storage access and key management
 import type { Conversation } from "../../types/index.js";
-import { normId, isVersionGreater as utilsIsVersionGreater } from "../utils/pathUtils.js";
+import { normId } from "../utils/pathUtils.js";
 import { isTakeoutConversation } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
 import { getCredStorage } from "../api/client/credStorage.js";
@@ -10,7 +10,27 @@ import {
     getConversationDetail,
     type ConversationDetailRecord
 } from './conversationDetailStore.js';
-
+// User preferences & UI state tracked via userPreferences.ts:
+// - STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT: isTakeoutPromptCompleted, setTakeoutPromptCompleted
+import {
+    getDevMode,
+    setDevMode,
+    isTourCompleted,
+    setTourCompleted,
+    getLastSeenFeatureVersion,
+    setLastSeenFeatureVersion,
+    isVersionGreater,
+    isTakeoutPromptCompleted,
+    setTakeoutPromptCompleted,
+    isDirectWritePromptSuppressed,
+    setDirectWritePromptSuppressed,
+    getZipPreference,
+    setZipPreference,
+    setBadgePosition,
+    setLastSyncDiagnostics,
+    setPendingTakeoutPrompt,
+    setLanguagePreference
+} from './userPreferences.js';
 
 export interface StorageKeys {
     slot: string;
@@ -37,60 +57,6 @@ export interface ConversationTransaction {
     list: Conversation[];
     /** How many items the merge changed (drives badge / skip-write decisions). */
     changed: number;
-}
-
-export interface StorageServiceModule {
-    normSlot: (slot?: string | null) => string;
-    normId: (id?: string | null) => string;
-    getStorageKeys: (slot?: string | null) => StorageKeys;
-    getConversations: (slot?: string | null) => Promise<Conversation[]>;
-    setConversations: (slot: string | null | undefined, list: Conversation[]) => Promise<void>;
-    transactConversations: (
-        slot: string | null | undefined,
-        updater: (existing: Conversation[]) => ConversationTransaction | null
-    ) => Promise<{ list: Conversation[]; changed: number; written: boolean }>;
-    updateConversation: (
-        slot: string | null | undefined,
-        conversationId: string,
-        patchOrUpdater: Partial<Conversation> | ((conv: Conversation) => Partial<Conversation> | null | void)
-    ) => Promise<boolean>;
-    removeConversation: (slot: string | null | undefined, conversationId: string) => Promise<boolean>;
-    reconcileConversations: (slot: string | null | undefined, activeCloudList: any[], options?: any) => Promise<ReconcileResult>;
-    getConversationDetail: (id: string) => Promise<ConversationDetailRecord | null>;
-    getConversationWithDetail: (slot: string | null | undefined, id: string) => Promise<Conversation | null>;
-    getExportedIds: (slot?: string | null) => Promise<Record<string, any>>;
-    saveExportRecord: (slot: string | null | undefined, id: string, record: any) => Promise<Record<string, any>>;
-    saveExportRecordsBatch: (slot: string | null | undefined, records: Record<string, any>) => Promise<Record<string, any>>;
-    removeExportRecords: (slot: string | null | undefined, ids: string[] | null | undefined) => Promise<number>;
-    migrateExportAliases: (slot: string | null | undefined) => Promise<boolean>;
-    getLastSync: (slot?: string | null) => Promise<SyncStatus>;
-    setLastSync: (slot: string | null | undefined, timestamp?: number | null, count?: number) => Promise<void>;
-    getScanCheckpoint: (slot?: string | null) => Promise<number | null>;
-    setScanCheckpoint: (slot: string | null | undefined, timestamp: number | null) => Promise<void>;
-    getAccountSlots: () => Promise<Record<string, any>>;
-    updateAccountSlot: (slot: string | null | undefined, info: any) => Promise<Record<string, any>>;
-    getCredentialsMap: () => Promise<Record<string, any>>;
-    setCredentialsMap: (map: Record<string, any>) => Promise<void>;
-    clearCredentials: (sid?: string | null) => Promise<void>;
-    getDevMode: () => Promise<boolean>;
-    setDevMode: (enabled: boolean) => Promise<void>;
-    isTourCompleted: () => Promise<boolean>;
-    setTourCompleted: (completed?: boolean) => Promise<void>;
-    getLastSeenFeatureVersion: () => Promise<string>;
-    setLastSeenFeatureVersion: (version: string) => Promise<void>;
-    isVersionGreater: (v1: string, v2: string) => boolean;
-    isTakeoutPromptCompleted: () => Promise<boolean>;
-    setTakeoutPromptCompleted: (completed?: boolean) => Promise<void>;
-    hasTakeoutData: (slot?: string | null) => Promise<boolean>;
-    setHasImportedTakeout: (imported?: boolean) => Promise<void>;
-    isDirectWritePromptSuppressed: () => Promise<boolean>;
-    setDirectWritePromptSuppressed: (suppressed?: boolean) => Promise<void>;
-    getZipPreference: (defaultValue?: boolean) => Promise<boolean>;
-    setZipPreference: (useZip: boolean) => Promise<void>;
-    setBadgePosition: (pos: { left: number; top: number }) => Promise<void>;
-    setLastSyncDiagnostics: (diagnostics: any) => Promise<void>;
-    setPendingTakeoutPrompt: (payload: any) => Promise<void>;
-    setLanguagePreference: (lang: string) => Promise<void>;
 }
 
 
@@ -661,75 +627,6 @@ export interface StorageServiceModule {
         }
     }
 
-    async function getDevMode(): Promise<boolean> {
-        const data = await chrome.storage.local.get([STORAGE_KEYS.DEV_MODE]);
-        return !!data[STORAGE_KEYS.DEV_MODE];
-    }
-
-    async function setDevMode(enabled: boolean): Promise<void> {
-        await chrome.storage.local.set({ [STORAGE_KEYS.DEV_MODE]: !!enabled });
-    }
-
-    async function isTourCompleted(): Promise<boolean> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
-        try {
-            const data = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TOUR]);
-            return !!data[STORAGE_KEYS.HAS_COMPLETED_TOUR];
-        } catch {
-            return false;
-        }
-    }
-
-    async function setTourCompleted(completed: boolean = true): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.HAS_COMPLETED_TOUR]: !!completed });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    /**
-     * Compare two semantic versions: returns true if v1 > v2.
-     * E.g. isVersionGreater('1.5.0', '1.4.3') => true
-     */
-    function isVersionGreater(v1: string, v2: string): boolean {
-        return utilsIsVersionGreater(v1, v2);
-    }
-
-
-    async function getLastSeenFeatureVersion(): Promise<string> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return '0.0.0';
-        try {
-            const data = await chrome.storage.local.get([STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION]);
-            return String(data[STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION] || '0.0.0');
-        } catch {
-            return '0.0.0';
-        }
-    }
-
-    async function setLastSeenFeatureVersion(version: string): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION]: version });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    async function isTakeoutPromptCompleted(): Promise<boolean> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
-        try {
-            const data = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
-            return !!data[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT];
-        } catch {
-            return false;
-        }
-    }
-
-    async function setTakeoutPromptCompleted(completed: boolean = true): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]: !!completed });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
     async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
@@ -747,72 +644,6 @@ export interface StorageServiceModule {
         } catch {
             return false;
         }
-    }
-
-    async function isDirectWritePromptSuppressed(): Promise<boolean> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
-        try {
-            const data = await chrome.storage.local.get([STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT]);
-            return !!data?.[STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT];
-        } catch (e) {
-            console.warn("[GemExporter:storage] Storage operation failed:", e);
-            return false;
-        }
-    }
-
-    async function setDirectWritePromptSuppressed(suppressed: boolean = true): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT]: !!suppressed });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    async function getZipPreference(defaultValue: boolean = true): Promise<boolean> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return defaultValue;
-        try {
-            const data = await chrome.storage.local.get([STORAGE_KEYS.ZIP]);
-            if (typeof (data as any)?.[STORAGE_KEYS.ZIP] !== 'undefined') {
-                return !!(data as any)[STORAGE_KEYS.ZIP];
-            }
-            return defaultValue;
-        } catch {
-            return defaultValue;
-        }
-    }
-
-    async function setZipPreference(useZip: boolean): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: !!useZip });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    async function setBadgePosition(pos: { left: number; top: number }): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.BADGE_POS]: pos });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    async function setLastSyncDiagnostics(diagnostics: any): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS]: diagnostics });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    async function setPendingTakeoutPrompt(payload: any): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]: payload });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
-    }
-
-    async function setLanguagePreference(lang: string): Promise<void> {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-        try {
-            await chrome.storage.local.set({ [STORAGE_KEYS.LANG]: lang });
-        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
     }
 
     async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<Conversation | null> {
@@ -879,7 +710,7 @@ export {
     setLanguagePreference
 };
 
-export const StorageService: StorageServiceModule = {
+export const StorageService = {
     normSlot,
     normId,
     getStorageKeys,
@@ -926,5 +757,6 @@ export const StorageService: StorageServiceModule = {
     setLanguagePreference
 };
 
+export type StorageServiceModule = typeof StorageService;
 
 export default StorageService;
