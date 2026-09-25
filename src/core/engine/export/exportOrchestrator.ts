@@ -911,16 +911,25 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 const listTs = getEffectiveTimestamp(listC);
                                 const chatTs = getEffectiveTimestamp(chat);
                                 const exportTs = Math.max(listTs, chatTs) || null;
+                                const isChatTruncated = !!(chat.truncated || chat.isTruncated);
+                                if (isChatTruncated) {
+                                    onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
+                                }
+                                const recordStatus = isChatTruncated
+                                    ? 'partial'
+                                    : chatRecordStatusWithDrift(
+                                        (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok',
+                                        chatDrift
+                                    );
                                 const record = {
                                     title: listTitle,
                                     exportedAt: new Date().toISOString(),
                                     format: options.format || 'markdown',
                                     messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
                                     chatTime: exportTs,
-                                    status: chatRecordStatusWithDrift(
-                                        (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok',
-                                        chatDrift
-                                    )
+                                    isTruncated: isChatTruncated || undefined,
+                                    truncateReason: isChatTruncated ? (chat.truncateReason || 'truncated') : undefined,
+                                    status: recordStatus
                                 };
                                 chatRecordsMap.set(nid, record);
                                 if (queuedAssetsForThisChat === 0) {

@@ -830,6 +830,13 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sFailed.state, 'failed');
     assert.strictEqual(sFailed.isFailed, true);
     assert.strictEqual(sFailed.isUnexported, false);
+    assert.strictEqual(sFailed.badge.kind, 'failed');
+
+    // 7. failed record
+    const sFailedRec = resolveState(chat, { exportedAt: new Date(t0 + 5000).toISOString(), status: 'failed' });
+    assert.strictEqual(sFailedRec.state, 'failed');
+    assert.strictEqual(sFailedRec.isFailed, true);
+    assert.strictEqual(sFailedRec.badge.kind, 'failed');
 });
 
 test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select buttons, and list pointer-events', () => {

@@ -21,6 +21,9 @@ export interface DetailParseResult {
     attachmentCount: number;
     schemaDrift?: string[];
     turnsRejected?: number;
+    truncated?: boolean;
+    isTruncated?: boolean;
+    truncateReason?: string;
     _raw?: any;
     _debug?: any;
 }
