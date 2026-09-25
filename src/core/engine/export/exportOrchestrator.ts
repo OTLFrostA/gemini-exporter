@@ -74,6 +74,7 @@ import { shortId } from "../../utils/pathUtils.js";
 import { extractChatParseDrift, chatRecordStatusWithDrift } from "./parseDrift.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { assertSchemaWritable } from "../../storage/schemaMigration.js";
+import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
 
 import { EXT_VERSION, getExtensionVersion, exportedIdsKey, STORAGE_KEYS, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
@@ -328,12 +329,28 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         const isUpdated = checkUpdatedFn(conv || itemPayload, rec);
                         if (!isUpdated) {
                             skippedItems.push(itemPayload);
+                            FlightRecorder.record('export', 'item_skipped_unmodified', {
+                                id: nid,
+                                chatTime: (rec as any)?.chatTime,
+                                exportedAt: rec.exportedAt
+                            });
                             continue;
                         }
                     }
                 }
                 payloadIds.push(itemPayload);
+                FlightRecorder.record('export', 'item_enqueued', {
+                    id: nid,
+                    hasRecord: !!curIds[nid]
+                });
             }
+
+            FlightRecorder.record('export', 'pipeline_start', {
+                total: selected.length,
+                skipped: skippedItems.length,
+                enqueued: payloadIds.length,
+                skip
+            });
 
             const recovery = getSessionRecovery();
             if (recovery && recovery.updateSessionStatus) {

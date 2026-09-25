@@ -122,14 +122,18 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await geminiPage.goto('https://gemini.google.com/app');
     await geminiPage.waitForLoadState('domcontentloaded');
 
-    // 2. Open Workbench Options page
+    // 2. Open Workbench Options page with tour disabled
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const modal = page.locator('#takeoutLimitModal');
     await page.evaluate(async () => {
       await chrome.storage.local.clear();
+      await chrome.storage.local.set({
+        has_completed_tour: true,
+        last_seen_feature_version: '99.9.9'
+      });
     });
     await expect(modal).toBeHidden();
 
