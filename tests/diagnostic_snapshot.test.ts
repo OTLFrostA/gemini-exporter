@@ -18,6 +18,9 @@ test('flightRecorder: records events and automatically sanitizes sensitive field
     FlightRecorder.record('storage', 'token_saved', {
         SNlM0e: 'super-secret-token',
         userCredential: 'secret-auth-key',
+        authHeader: 'Bearer eyJhbGciOi...',
+        apiKey: 'secret-key-1234',
+        password: 'my-password',
         normalKey: 'visible-data'
     });
 
@@ -31,6 +34,9 @@ test('flightRecorder: records events and automatically sanitizes sensitive field
     // Verify sensitive tokens are redacted
     assert.strictEqual(entries[1].details.SNlM0e, '[REDACTED]');
     assert.strictEqual(entries[1].details.userCredential, '[REDACTED]');
+    assert.strictEqual(entries[1].details.authHeader, '[REDACTED]');
+    assert.strictEqual(entries[1].details.apiKey, '[REDACTED]');
+    assert.strictEqual(entries[1].details.password, '[REDACTED]');
     assert.strictEqual(entries[1].details.normalKey, 'visible-data');
 });
 

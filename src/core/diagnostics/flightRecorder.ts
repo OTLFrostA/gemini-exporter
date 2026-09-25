@@ -8,6 +8,8 @@ export interface FlightEvent {
     details?: Record<string, any>;
 }
 
+const SENSITIVE_KEY_RE = /(?:token|cred|cookie|secret|snlm0e|password|passwd|bearer|auth|api[-_]?key|private[-_]?key)/i;
+
 function sanitizeValue(val: any, depth = 0): any {
     if (depth > 3) return '[nested]';
     if (val === null || val === undefined) return val;
@@ -29,8 +31,7 @@ function sanitizeValue(val: any, depth = 0): any {
     if (typeof val === 'object') {
         const out: Record<string, any> = {};
         for (const [k, v] of Object.entries(val)) {
-            const lk = k.toLowerCase();
-            if (lk.includes('token') || lk.includes('cred') || lk.includes('cookie') || lk.includes('secret') || lk.includes('snlm0e')) {
+            if (SENSITIVE_KEY_RE.test(k)) {
                 out[k] = '[REDACTED]';
             } else {
                 out[k] = sanitizeValue(v, depth + 1);
@@ -52,13 +53,14 @@ class FlightRecorderImpl {
         details?: Record<string, any>
     ): void {
         const now = Date.now();
+        const rawDetails = details && typeof details === 'object' ? { ...details } : details;
         const entry: FlightEvent = {
             id: this._nextId++,
             ts: now,
             isoTime: new Date(now).toISOString(),
             subsystem,
             action,
-            details: details ? sanitizeValue(details) : undefined
+            details: rawDetails
         };
         this._events.push(entry);
         if (this._events.length > this.MAX_ENTRIES) {
@@ -67,7 +69,10 @@ class FlightRecorderImpl {
     }
 
     public getEntries(): FlightEvent[] {
-        return this._events.slice();
+        return this._events.map(e => ({
+            ...e,
+            details: e.details ? sanitizeValue(e.details) : undefined
+        }));
     }
 
     public clear(): void {
