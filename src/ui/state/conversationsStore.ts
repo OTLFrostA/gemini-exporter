@@ -144,7 +144,10 @@ export async function clearAll(slot: string): Promise<void> {
     } else if (storage?.setConversations) {
         await storage.setConversations(s, []);
     }
-    if (s === currentSlot) setConversations([]);
+    if (s === currentSlot) {
+        setConversations([]);
+        setExportedIds({});
+    }
 }
 
 export async function getDevMode(): Promise<boolean> {

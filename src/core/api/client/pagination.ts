@@ -27,6 +27,7 @@ export interface PaginationResult {
     conversations: ConversationListItem[];
     total: number;
     stoppedEarly?: boolean;
+    exhaustive?: boolean;
     diagnostics: any;
     hitGoogleLimit: boolean;
 }
@@ -70,6 +71,8 @@ export interface GeminiClientPaginationModule {
             return {
                 conversations: [],
                 total: 0,
+                stoppedEarly: true,
+                exhaustive: false,
                 diagnostics: diagLog,
                 hitGoogleLimit: false
             };
@@ -88,11 +91,13 @@ export interface GeminiClientPaginationModule {
 
         let reachedMax = true;
         let interruptedByError = false;
+        let stoppedEarly = false;
         for (let i = 0; i < maxPages; i++) {
             if (isAborted()) {
                 diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
                 console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
                 reachedMax = false;
+                stoppedEarly = true;
                 break;
             }
             let res: any;
@@ -154,6 +159,7 @@ export interface GeminiClientPaginationModule {
                             conversations: all,
                             total: all.length,
                             stoppedEarly: true,
+                            exhaustive: false,
                             diagnostics: diagLog,
                             hitGoogleLimit: !!diagLog.hitGoogleLimit
                         };
@@ -165,6 +171,7 @@ export interface GeminiClientPaginationModule {
                 if (isGoogleLimit) {
                     diagLog.hitGoogleLimit = true;
                     diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
+                    stoppedEarly = true;
                 } else {
                     diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                 }
@@ -189,6 +196,7 @@ export interface GeminiClientPaginationModule {
                 diagLog.stopReason = `检测到 Google 服务端游标回环重复 (Token Loop)，提前安全终止同步 (已拉取 ${i + 1} 页，共 ${all.length} 条)`;
                 console.warn(`[Gemini Exporter] getAllConversations token loop detected at page ${i + 1}`);
                 reachedMax = false;
+                stoppedEarly = true;
                 break;
             }
             seenTokens.add(res.nextPageToken);
@@ -198,21 +206,19 @@ export interface GeminiClientPaginationModule {
         }
         if (reachedMax && maxPages > 0) {
             diagLog.stopReason = `已达到最大页数限制 (${maxPages} 页)`;
+            stoppedEarly = true;
         }
         diagLog.totalConversations = all.length;
         diagLog.endTime = new Date().toISOString();
+        const isEarly = !!(stoppedEarly || interruptedByError || (reachedMax && maxPages > 0) || diagLog.hitGoogleLimit);
         const finalResult: PaginationResult = {
             conversations: all,
             total: all.length,
             diagnostics: diagLog,
-            hitGoogleLimit: !!diagLog.hitGoogleLimit
+            hitGoogleLimit: !!diagLog.hitGoogleLimit,
+            exhaustive: !isEarly
         };
-        if (interruptedByError) {
-            finalResult.stoppedEarly = true;
-        }
-        // P2-1: 循环跑满 maxPages（reachedMax 仍为 true）说明列表被页数上限截断，
-        // 不是自然到底；必须标 stoppedEarly，否则上层会误判为"已穷尽"并触发删除对账。
-        if (reachedMax && maxPages > 0) {
+        if (isEarly) {
             finalResult.stoppedEarly = true;
         }
         return finalResult;

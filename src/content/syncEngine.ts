@@ -661,8 +661,11 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             incremental: !effectiveForceFull
         });
 
-        // If this was a full scan that finished naturally (not stopped by watermark, not aborted)
-        if (effectiveForceFull && !stoppedByWatermark && !contentContext.isAborted()) {
+        const hitLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit);
+        const isFullExhaustive = effectiveForceFull && !all?.stoppedEarly && !contentContext.isAborted() && !hitLimit && (all?.exhaustive !== false);
+
+        // If this was a full scan that finished naturally and exhaustively (not stopped early, not hit limit, not aborted)
+        if (isFullExhaustive && !stoppedByWatermark) {
             await ingestListBatch(page1Batch, 'batchexecute', {
                 slot,
                 isFullScanComplete: true,
@@ -682,11 +685,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             // avoid a second full O(n log n) pass here.
             let mergedLen = all.conversations.length;
             // Absence from the fetched list only proves deletion when the listing is
-            // provably complete. A Google ~600 sliding-window limit means the tail was
-            // never fetched — reconciling against it would mass-delete still-alive
-            // older conversations, so the limit case must skip reconciliation.
-            const hitLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit);
-            const isFullExhaustive = effectiveForceFull && !all.stoppedEarly && !contentContext.isAborted() && !hitLimit;
+            // provably complete. A Google ~600 sliding-window limit or early loop means
+            // the tail was never fetched — reconciling against it would mass-delete
+            // still-alive older conversations, so non-exhaustive cases must skip reconciliation.
             if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
                 const recRes = await Storage.reconcileConversations(slot, all.conversations, { keepTakeout: true });
                 if (recRes && recRes.removed > 0) {
