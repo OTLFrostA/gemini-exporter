@@ -282,16 +282,25 @@ export interface ConversationTransaction {
 
     async function clearConversations(slot?: string | null): Promise<void> {
         await withConversationLock(async () => {
-            const { convKey, countKey } = getStorageKeys(slot);
+            const { convKey, countKey, checkpointKey, expKey, slot: s } = getStorageKeys(slot);
             const existing = await getConversations(slot);
             const ids = (existing || []).map(c => normId(c.id)).filter(Boolean);
             if (ids.length > 0) {
                 await removeConversationDetails(ids);
             }
-            await chrome.storage.local.set({
+            const toSet: Record<string, any> = {
                 [convKey]: [],
-                [countKey]: 0
-            });
+                [countKey]: 0,
+                [expKey]: {}
+            };
+            if (s === 'u0') {
+                toSet['exportedIds'] = {};
+                toSet['gemini_exported_u0'] = {};
+            } else {
+                toSet[`gemini_exported_${s}`] = {};
+            }
+            await chrome.storage.local.set(toSet);
+            await chrome.storage.local.remove([checkpointKey]);
             await updateAccountSlot(slot, { count: 0 });
         });
     }

@@ -142,11 +142,13 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     // 2. Real-time conversation deletion hook listener (GzXR5e)
     if (d.type === CrossWorldEvents.CONVERSATION_DELETED) {
         const { id, slot } = (d.payload || {}) as Partial<GeminiConversationDeletedPayload>;
-        if (id) {
+        const isValidConvId = typeof id === 'string' && id.trim().length > 0 && id.trim().length <= 128 && /^[a-zA-Z0-9_\-]+$/.test(id.trim());
+        if (id && isValidConvId) {
+            const cleanId = id.trim();
             try {
                 const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
                 if (Storage && typeof Storage.removeConversation === 'function') {
-                    const removed = await Storage.removeConversation(targetSlot, id);
+                    const removed = await Storage.removeConversation(targetSlot, cleanId);
                     if (removed) {
                         const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
                             ? await Storage.getLastSync(targetSlot)

@@ -194,9 +194,8 @@ export function init({
                         console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', errMsg);
                     }
                     const isRpcDeleted = errMsg.includes('BardErrorInfo: 1167')
-                        || errMsg.includes('1167')
-                        || errMsg.includes('会话已在服务端删除或不可访问')
-                        || errMsg.includes('inaccessible or deleted')
+                        || /BardErrorInfo[^\d]*?\b1167\b/i.test(errMsg)
+                        || /\[\s*["']BardErrorInfo["']\s*,\s*1167\b/i.test(errMsg)
                         || errMsg.includes('HTTP 404');
                     if (isRpcDeleted) {
                         const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');

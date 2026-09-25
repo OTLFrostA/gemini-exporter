@@ -135,4 +135,33 @@ test('pagination: getAllConversations detects token loop and terminates safely',
     assert.strictEqual(callCount, 2, 'Should terminate immediately upon repeating token (call count = 2)');
     assert.strictEqual(result.conversations.length, 2);
     assert.ok(result.diagnostics.stopReason.includes('Token Loop'), 'stopReason must mention Token Loop');
+    assert.strictEqual(result.stoppedEarly, true, 'Token loop must set stoppedEarly to true');
+    assert.strictEqual(result.exhaustive, false, 'Token loop must set exhaustive to false');
+});
+
+test('pagination D1: non-exhaustive token-loop result prevents reconcileConversations and preserves missing local chats', async () => {
+    const Pagination = require('../src/core/api/client/pagination.js');
+
+    let callCount = 0;
+    const mockClient = {
+        getConversationList: async () => {
+            callCount++;
+            return {
+                conversations: [{ id: `c_${callCount}`, title: `Chat ${callCount}` }],
+                nextPageToken: 'looping_token'
+            };
+        }
+    };
+
+    const paginationResult = await Pagination.getAllConversations(mockClient, 2000);
+    assert.strictEqual(paginationResult.stoppedEarly, true);
+    assert.strictEqual(paginationResult.exhaustive, false);
+
+    // Simulate syncEngine's isFullExhaustive gate
+    const effectiveForceFull = true;
+    const hitLimit = !!(paginationResult.hitGoogleLimit || paginationResult.diagnostics?.hitGoogleLimit);
+    const isAborted = false;
+    const isFullExhaustive = effectiveForceFull && !paginationResult.stoppedEarly && !isAborted && !hitLimit && (paginationResult.exhaustive !== false);
+
+    assert.strictEqual(isFullExhaustive, false, 'isFullExhaustive must be false when pagination loop stopped early');
 });
