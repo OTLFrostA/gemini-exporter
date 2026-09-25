@@ -4,13 +4,13 @@ import { LiveStorageManager } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
-import { GeminiUtils } from '../core/utils/utils.js';
-import { buildExportFileName, shortId, normId } from '../core/utils/pathUtils.js';
+import { buildExportFileName, shortId, normId, sanitizeFileName } from '../core/utils/pathUtils.js';
 import type { GeminiAPIClient } from '../core/api/geminiClient.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
+import { GeminiUtils } from '../core/utils/utils.js';
 import type { LiveSaveConfig } from '../types/liveSave.js';
 
 export interface LiveSaveCoordinatorDeps {
@@ -367,9 +367,7 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
 
         let finalName = '';
         if (candidateName && candidateName.trim() && !/^(?:image|photo|picture|img|file)(?:\.[a-z0-9]+)?$/i.test(candidateName.trim())) {
-            const sanitized = Utils?.sanitizeFileName
-                ? Utils.sanitizeFileName(candidateName.trim())
-                : candidateName.trim().replace(/[\\/:*?"<>|]/g, '_');
+            const sanitized = (Utils?.sanitizeFileName || sanitizeFileName)(candidateName.trim());
             const dotIdx = sanitized.lastIndexOf('.');
             if (dotIdx !== -1) {
                 ext = sanitized.slice(dotIdx + 1).toLowerCase();

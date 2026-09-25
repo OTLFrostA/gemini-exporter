@@ -8,6 +8,7 @@ import {
     saveConversationDetailsBatch,
     removeConversationDetails,
     getConversationDetail,
+    clearAllDetails,
     type ConversationDetailRecord
 } from './conversationDetailStore.js';
 // User preferences & UI state tracked via userPreferences.ts:
@@ -271,6 +272,22 @@ export interface ConversationTransaction {
                 return true;
             }
             return false;
+        });
+    }
+
+    async function clearConversations(slot?: string | null): Promise<void> {
+        await withConversationLock(async () => {
+            const { convKey, countKey } = getStorageKeys(slot);
+            const existing = await getConversations(slot);
+            const ids = (existing || []).map(c => normId(c.id)).filter(Boolean);
+            if (ids.length > 0) {
+                await removeConversationDetails(ids);
+            }
+            await chrome.storage.local.set({
+                [convKey]: [],
+                [countKey]: 0
+            });
+            await updateAccountSlot(slot, { count: 0 });
         });
     }
 
@@ -669,6 +686,8 @@ export {
     transactConversations,
     updateConversation,
     removeConversation,
+    clearConversations,
+    clearAllDetails,
     reconcileConversations,
     getConversationDetail,
     getConversationWithDetail,
@@ -719,6 +738,8 @@ export const StorageService = {
     transactConversations,
     updateConversation,
     removeConversation,
+    clearConversations,
+    clearAllDetails,
     reconcileConversations,
     getConversationDetail,
     getConversationWithDetail,
