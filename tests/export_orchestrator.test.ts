@@ -45,6 +45,9 @@ test('AsyncQueue - push, pop, length, FIFO order, and close', async () => {
     const itemAfterClose = await closeWaitPromise;
     assert.strictEqual(itemAfterClose, null);
     assert.strictEqual(await queue.pop(), null);
+
+    // Test pushing to closed queue returns false
+    assert.strictEqual(queue.push('task-after-close'), false, 'pushing to closed queue must return false');
 });
 
 // ---------------------------------------------------------------------------

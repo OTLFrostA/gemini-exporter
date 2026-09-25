@@ -202,9 +202,10 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
         /**
          * Validate the download payload and persist it (zip folder or direct file write).
          */
-        private async persistDownload(r: any, localName: string, isImage: boolean): Promise<{ saved: boolean; failReason: string }> {
+        private async persistDownload(r: any, localName: string, isImage: boolean): Promise<{ saved: boolean; failReason: string; isWriteError?: boolean }> {
             let saved = false;
             let failReason = '';
+            let isWriteError = false;
             if (r && r.success) {
                 const isValidBuffer = hasValidBuffer(r);
                 const bytes = isValidBuffer ? (
@@ -229,9 +230,10 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                         }
                     } catch (e) {
                         // Phase A (P0-1) 语义：writeFile 失败抛错，不静默记成功。
-                        // 这里收敛为 failReason，走重试/partial 账目，不直接外抛。
+                        // 标记 isWriteError，防止向 CDN 盲目重试网络拉取。
                         saved = false;
                         failReason = getErrorMessage(e);
+                        isWriteError = true;
                     }
                 } else if (this.writeFileDirect) {
                     try {
@@ -250,6 +252,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                         // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean
                         saved = false;
                         failReason = getErrorMessage(e);
+                        isWriteError = true;
                     }
                 }
 
@@ -259,7 +262,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             } else {
                 failReason = r ? r.error : (isImage ? 'image direct download failed' : 'downloadAssetDirect failed');
             }
-            return { saved, failReason };
+            return { saved, failReason, isWriteError };
         }
 
         /**
@@ -287,6 +290,12 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                     const persisted = await this.persistDownload(r, localName, isImage);
                     if (persisted.saved) { saved = true; failReason = ''; break; }
                     failReason = persisted.failReason;
+                    // If write to disk/zip failed (e.g. NotAllowedError permission revoked, invalid path, or disk full),
+                    // re-fetching the exact same bytes from the CDN will not solve a local write failure!
+                    if (persisted.isWriteError) {
+                        this.onLog(`[${chat.title || chat.id}] 附件写入本地失败 (${localName}): ${failReason}`, 'warn');
+                        break;
+                    }
                     if (attempt >= maxRetries) break;
                     const delayMs = calculateBackoff(attempt, { initialDelayMs: 1000, maxDelayMs: 10000, jitterMs: 500 });
                     this.onLog(`[${chat.title || chat.id}] 附件下载失败，${delayMs}ms 后重试 (${attempt + 1}/${maxRetries}): ${localName}`, 'warn');
