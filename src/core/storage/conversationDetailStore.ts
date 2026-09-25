@@ -69,12 +69,13 @@ async function withDetailDB<T>(mode: IDBTransactionMode, fn: (store: IDBObjectSt
     try {
         const tx = db.transaction(DETAIL_STORE, mode);
         const store = tx.objectStore(DETAIL_STORE);
-        const result = await fn(store);
-        await new Promise<void>((resolve, reject) => {
+        const txDone = new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve();
             tx.onerror = () => reject(tx.error);
             tx.onabort = () => reject(tx.error || new Error('IndexedDB transaction aborted'));
         });
+        const result = await fn(store);
+        await txDone;
         return result;
     } finally {
         try {

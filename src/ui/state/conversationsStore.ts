@@ -139,7 +139,11 @@ export async function clearExported(slot: string): Promise<void> {
 export async function clearAll(slot: string): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
-    if (storage?.setConversations) await storage.setConversations(s, []);
+    if (storage?.clearConversations) {
+        await storage.clearConversations(s);
+    } else if (storage?.setConversations) {
+        await storage.setConversations(s, []);
+    }
     if (s === currentSlot) setConversations([]);
 }
 

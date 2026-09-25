@@ -60,7 +60,8 @@ import {
     isRealTitle as utilsIsRealTitle,
     resolveTitle as utilsResolveTitle,
     cleanZeroWidth as utilsCleanZeroWidth,
-    isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle
+    isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle,
+    sanitizeFileName as utilsSanitizeFileName
 } from "../../utils/utils.js";
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
@@ -362,7 +363,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                     }
 
                     if (!docTitle) docTitle = 'Deep Research Report';
-                    const safeDocTitle = docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+                    const safeDocTitle = utilsSanitizeFileName(docTitle, 'report').slice(0, 60);
                     const localName = `files/${scope}${safeDocTitle}.md`;
 
                     if (!docMarkdown.trim().startsWith('#')) {

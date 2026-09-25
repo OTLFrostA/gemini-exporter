@@ -5,6 +5,7 @@ import { setLiveConfig } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { getEffectiveTimestamp } from '../core/utils/utils.js';
+import { sanitizeFileName, sanitizeRelativePath } from '../core/utils/pathUtils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
     try {
@@ -126,7 +127,9 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     }
 
                     try {
-                        await writer.writeFile(asset.subDir || 'assets', asset.fileName, fileData);
+                        const safeSubDir = sanitizeRelativePath(asset.subDir || 'assets', 'assets');
+                        const safeAssetFileName = sanitizeFileName(asset.fileName, 'attachment');
+                        await writer.writeFile(safeSubDir, safeAssetFileName, fileData);
                     } catch (assetErr) {
                         const msg = assetErr instanceof Error ? assetErr.message : String(assetErr);
                         console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);

@@ -1,6 +1,7 @@
 // parseDetail.ts - hNvQHb conversation detail RPC response parser
 import type { Message, TitleSources } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
+import { sanitizeFileName } from "../../utils/pathUtils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import type { TurnDriftReport } from "./extractors.js";
 import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
@@ -257,13 +258,13 @@ function buildUserMessage(
     const formattedImages = uImgs.length ? uImgs.map((i: ImageAttachment) => ({
         ...i,
         resolvedUrl: highResVariant(i.sourceUrl),
-        localName: getUniqueLocalName(`assets/${shortScope}${(i.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`),
+        localName: getUniqueLocalName(`assets/${shortScope}${sanitizeFileName(i.fileName || "img.jpg", "img.jpg")}`),
         type: "image",
         isImage: true
     })) : void 0;
 
     const formattedDocs = uFiles.length ? uFiles.map((f: UserFileAttachment) => {
-        const safeFileName = (f.fileName || "attachment").replace(/[\\/:*?"<>|]/g, "_");
+        const safeFileName = sanitizeFileName(f.fileName || "attachment", "attachment");
         return {
             id: f.id,
             title: f.fileName || safeFileName,
@@ -409,7 +410,7 @@ function parseCandidateResponse(
                     links: [...parsedPrimary.links, ...parsedAlt.links],
                     contentMarkdown: md,
                     url: "",
-                    localName: getUniqueLocalName(`files/${shortScope}${docTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60)}.md`),
+                    localName: getUniqueLocalName(`files/${shortScope}${sanitizeFileName(docTitle, "doc").slice(0, 60)}.md`),
                     type: "file",
                     ...(heuristicChain ? { hasFabricatedText: true } : {})
                 });
@@ -430,7 +431,7 @@ function parseCandidateResponse(
     const formattedImages = filteredImages.length ? filteredImages.map((img: any) => ({
         ...img,
         resolvedUrl: highResVariant(img.sourceUrl),
-        localName: getUniqueLocalName(`assets/${shortScope}${(img.fileName || "img.jpg").replace(/[\\/:*?"<>|]/g, "_")}`),
+        localName: getUniqueLocalName(`assets/${shortScope}${sanitizeFileName(img.fileName || "img.jpg", "img.jpg")}`),
         type: "image"
     })) : void 0;
 

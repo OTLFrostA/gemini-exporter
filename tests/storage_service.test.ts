@@ -313,3 +313,46 @@ test('storageService - merging shorter incoming into slim conversation preserves
     }
 });
 
+test('storageService - clearConversations removes conversation list and cascades to DetailStore', async () => {
+    const mockStorage: Record<string, any> = {};
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        storage: {
+            local: {
+                get: async (keys: any) => {
+                    if (keys === null || keys === undefined) return { ...mockStorage };
+                    if (typeof keys === 'string') keys = [keys];
+                    const res: Record<string, any> = {};
+                    for (const k of (keys || [])) {
+                        if (mockStorage[k] !== undefined) res[k] = mockStorage[k];
+                    }
+                    return res;
+                },
+                set: async (obj: any) => Object.assign(mockStorage, obj),
+                remove: async (keys: any) => {
+                    if (typeof keys === 'string') keys = [keys];
+                    for (const k of (keys || [])) delete mockStorage[k];
+                }
+            }
+        }
+    };
+
+    try {
+        await StorageService.setConversations('u0', [
+            { id: 'chat_to_clear', title: 'To Clear', messages: [{ role: 'user', content: 'hello' }] } as any
+        ]);
+        let detail = await StorageService.getConversationDetail('chat_to_clear');
+        assert.ok(detail, 'Detail must be persisted in DetailStore');
+
+        await StorageService.clearConversations('u0');
+
+        const remaining = await StorageService.getConversations('u0');
+        assert.strictEqual(remaining.length, 0, 'Conversations list in local storage must be empty');
+
+        detail = await StorageService.getConversationDetail('chat_to_clear');
+        assert.strictEqual(detail, null, 'Detail in DetailStore must be pruned by clearConversations');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+

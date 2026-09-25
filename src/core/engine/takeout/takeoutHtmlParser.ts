@@ -8,7 +8,8 @@
 import {
     normId as utilsNormId,
     shortScope as utilsShortScope,
-    stripHtmlTags as utilsStripHtmlTags
+    stripHtmlTags as utilsStripHtmlTags,
+    sanitizeFileName
 } from "../../utils/utils.js";
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { TakeoutParseError } from "../../../types/errors.js";
@@ -276,7 +277,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     url: name,
                     name: name,
                     fileName: name,
-                    localName: `assets/${name.replace(/[\\/:*?"<>|]/g, '_')}`,
+                    localName: `assets/${sanitizeFileName(name, 'img.jpg')}`,
                     source: 'takeout'
                 }));
                 userMsg.attachments = localMediaNames.map(name => ({
@@ -284,7 +285,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     url: name,
                     name: name,
                     fileName: name,
-                    localName: `assets/${name.replace(/[\\/:*?"<>|]/g, '_')}`,
+                    localName: `assets/${sanitizeFileName(name, 'attachment')}`,
                     source: 'takeout'
                 }));
             }
@@ -311,7 +312,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                 }
                 const primaryCleanId = foundIds[0] || 'takeout';
                 const shortScope = utilsShortScope(primaryCleanId);
-                const safeDocTitle = docTitle.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+                const safeDocTitle = sanitizeFileName(docTitle, 'doc').slice(0, 60);
                 const localName = `files/${shortScope}${safeDocTitle}.md`;
 
                 const docObj = {
