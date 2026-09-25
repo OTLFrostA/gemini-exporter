@@ -133,16 +133,14 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
 
 // ---------------------------------------------------------------- P0-4
 test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
-    const src = readSrc('../src/core/api/parser/parseDetail.ts');
-    // 抠出源码里真实的正则字面量（而不是在测试里手抄一份），再执行它
-    const m = src.match(/\.match\((\/\^#\\+s\+\(\.\+\)\$\/m)\)/);
-    if (!m) throw new Error('title-fallback regex literal not found in parseDetail.ts');
-    const re: RegExp = eval(m[1]);
+    const { DOC_TITLE_FALLBACK_RE } = require('../src/core/api/parser/parseDetail.js');
+    assert.ok(DOC_TITLE_FALLBACK_RE instanceof RegExp, 'DOC_TITLE_FALLBACK_RE must be exported as RegExp');
     assert.strictEqual(
-        re.test('# 真实标题'), true,
-        `title-fallback regex ${m[1]} does not match a real H1 heading (double-escaped \\s)`
+        DOC_TITLE_FALLBACK_RE.test('# 真实标题'), true,
+        'title-fallback regex does not match a real H1 heading'
     );
-    assert.strictEqual(re.test('# Title with words'), true);
+    assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('# Title with words'), true);
+    assert.strictEqual(DOC_TITLE_FALLBACK_RE.test('No heading here'), false);
 });
 
 // ---------------------------------------------------------------- P0-5

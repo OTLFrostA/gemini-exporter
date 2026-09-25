@@ -196,6 +196,10 @@ test('P1-13g: schema 冻结时 ingestListBatch 拒绝写入（fail-closed，防 
             SyncEngine.ingestListBatch([{ id: 'x', title: 'X', timestamp: 1 }], 'test'),
             (e: any) => {
                 assert.ok(e instanceof Error, '应抛出 Error');
+                assert.ok(
+                    e instanceof SchemaMigration.SchemaFrozenError || e.name === 'SchemaFrozenError',
+                    `应抛出 SchemaFrozenError，实际抛出: ${e.name} (${e.message})`
+                );
                 assert.ok(e.message && e.message.length > 0, '错误信息应为用户可见文案');
                 return true;
             }
