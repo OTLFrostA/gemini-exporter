@@ -203,3 +203,63 @@ test('P1-13g: schema 冻结时 ingestListBatch 拒绝写入（fail-closed，防 
         assert.strictEqual(SyncEngine && typeof SyncEngine.ingestListBatch, 'function');
     } finally { m.restore(); }
 });
+
+test('P1-13h: 迁移步骤失败时版本戳被截留，migrate() 返回 ok: false 且允许后续重试', async () => {
+    const m = installMock();
+    try {
+        let shouldFail = true;
+        const origSet = m.chrome.storage.local.set;
+        m.chrome.storage.local.set = async (obj: any) => {
+            if (shouldFail && obj && SchemaMigration.SCHEMA_VERSION_KEY in obj) {
+                throw new Error('Simulated disk/quota write error during version stamp');
+            }
+            return origSet(obj);
+        };
+
+        const resFail = await SchemaMigration.migrate();
+        assert.strictEqual(resFail.ok, false);
+        assert.strictEqual(resFail.frozen, false);
+        assert.ok(resFail.error && resFail.error.includes('Simulated disk/quota write error'));
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], undefined, '失败时绝对不可打上版本戳');
+
+        // 故障恢复后重试
+        shouldFail = false;
+        const resRetry = await SchemaMigration.migrate();
+        assert.strictEqual(resRetry.ok, true);
+        assert.strictEqual(resRetry.frozen, false);
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 1, '重试成功后正确戳记版本 1');
+    } finally {
+        m.restore();
+    }
+});
+
+test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报告', async () => {
+    const m = installMock();
+    try {
+        m.localStore['gemini_conversations'] = [
+            { id: 'fat1', title: 'Fat', messages: [{ id: 'm1' }], timestamp: 1 }
+        ];
+        const origSave = DetailStore.saveConversationDetailsBatch;
+        DetailStore.saveConversationDetailsBatch = async () => {
+            throw new Error('Simulated IDB transaction crash');
+        };
+
+        try {
+            const res = await SchemaMigration.migrate();
+            assert.strictEqual(res.ok, false);
+            assert.strictEqual(res.frozen, false);
+            assert.ok(res.error && res.error.includes('Simulated IDB transaction crash'));
+            assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], undefined, 'IDB 故障时不可打上版本戳');
+        } finally {
+            DetailStore.saveConversationDetailsBatch = origSave;
+        }
+
+        // 恢复后重新迁移，应成功完成
+        const res2 = await SchemaMigration.migrate();
+        assert.strictEqual(res2.ok, true);
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 1);
+    } finally {
+        m.restore();
+    }
+});
+

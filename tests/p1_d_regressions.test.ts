@@ -439,6 +439,54 @@ test('P1-056: merge keeps the fuller message body when the incoming body is empt
     assert.strictEqual(r2.merged.messageCount, 5);
 });
 
+test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have shorter incoming messages attached', () => {
+    const mkMsgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, text: 't' + i }));
+    // 模拟从 storage.local 读出的 slim 会话（无 messages 数组，由 messageCount 记录正文长度）
+    const slimOld = {
+        id: 'c_slim',
+        title: 'Slim Conversation',
+        titles: { rpc: 'Slim Conversation' },
+        titleSource: 'rpc',
+        messageCount: 15,
+        timestamp: 1000,
+        updatedAt: 1000
+    };
+
+    // 较短的 incoming (例如网络列表或局部流式片段仅带前 2 条消息)
+    const incomingShort = {
+        id: 'c_slim',
+        title: 'Slim Conversation',
+        titles: { rpc: 'Slim Conversation' },
+        titleSource: 'rpc',
+        messages: mkMsgs(2),
+        messageCount: 2,
+        timestamp: 1000,
+        updatedAt: 1000
+    };
+
+    const res = mergeConversation(slimOld, incomingShort, { source: 'network-list' });
+    assert.strictEqual(res.merged.messages, undefined, '较短的 incoming 消息数组绝不可附着到 slim 会话上');
+    assert.strictEqual(res.merged.messageCount, 15, '应保持原有 15 条消息计数');
+    assert.strictEqual(res.isChanged, false, '更短的残缺正文不应触发变更标记');
+
+    // 较长的 incoming (例如全量追加或离线导入带来 20 条消息)
+    const incomingLong = {
+        id: 'c_slim',
+        title: 'Slim Conversation',
+        titles: { rpc: 'Slim Conversation' },
+        titleSource: 'rpc',
+        messages: mkMsgs(20),
+        messageCount: 20,
+        timestamp: 1000,
+        updatedAt: 1000
+    };
+
+    const res2 = mergeConversation(slimOld, incomingLong, { source: 'network-list' });
+    assert.strictEqual(res2.merged.messages?.length, 20, '更长完整的消息数组应正常并入');
+    assert.strictEqual(res2.merged.messageCount, 20);
+    assert.strictEqual(res2.isChanged, true);
+});
+
 // ------------------------------------------------------------------ P1-057
 
 test('P1-057: isChanged detects message-count growth when timestamps are unchanged', async () => {

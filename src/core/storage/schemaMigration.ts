@@ -33,6 +33,7 @@ export const CURRENT_SCHEMA_VERSION = 1;
 export interface SchemaMigrateResult {
     ok: boolean;
     frozen: boolean;
+    error?: string;
 }
 
 export class SchemaFrozenError extends Error {
@@ -139,33 +140,21 @@ async function migrateSlimConversations(): Promise<void> {
 async function migrateExportAliasesAll(): Promise<void> {
     const slots = await listConversationSlots();
     for (const slot of slots) {
-        try {
-            await migrateExportAliases(slot);
-        } catch (e) {
-            console.warn("[SchemaMigration] export alias migration failed for slot", slot, e);
-        }
+        await migrateExportAliases(slot);
     }
 }
 
 // Step 3: legacy single credential -> map, local -> session move.
 async function migrateStepCredentials(): Promise<void> {
-    try {
-        await migrateCredentials();
-    } catch (e) {
-        console.warn("[SchemaMigration] credential migration failed:", e);
-    }
+    await migrateCredentials();
 }
 
 // Step 4: ensure IndexedDB databases exist (open creates them; version stays 1).
 async function migrateIdb(): Promise<void> {
     if (typeof indexedDB === "undefined") return;
     for (const open of [openHandleDB, openDetailDB] as const) {
-        try {
-            const db = await open();
-            try { db.close(); } catch { /* ignore */ }
-        } catch (e) {
-            console.warn("[SchemaMigration] IDB ensure failed:", e);
-        }
+        const db = await open();
+        try { db.close(); } catch { /* ignore */ }
     }
 }
 
@@ -173,6 +162,8 @@ async function migrateIdb(): Promise<void> {
  * Startup one-time migration. Serial: slim -> alias -> credentials -> IDB,
  * then stamps gemini_schema_version = 1. Idempotent; safe to call from
  * multiple contexts (cross-tab locks serialize the write steps).
+ * If any step fails, the version stamp is withheld and ok: false is returned
+ * so migration can be retried on next startup.
  */
 export async function migrate(): Promise<SchemaMigrateResult> {
     let stored: unknown;
@@ -190,14 +181,15 @@ export async function migrate(): Promise<SchemaMigrateResult> {
     _frozen = false;
     const fromVersion = typeof stored === "number" && stored >= 0 ? Math.floor(stored) : 0;
     if (fromVersion < CURRENT_SCHEMA_VERSION) {
-        await migrateSlimConversations();
-        await migrateExportAliasesAll();
-        await migrateStepCredentials();
-        await migrateIdb();
         try {
+            await migrateSlimConversations();
+            await migrateExportAliasesAll();
+            await migrateStepCredentials();
+            await migrateIdb();
             await chrome.storage.local.set({ [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION });
-        } catch {
-            /* version stamp best-effort */
+        } catch (e: any) {
+            console.error("[SchemaMigration] Migration step failed, version stamp withheld for retry:", e);
+            return { ok: false, frozen: false, error: e?.message || String(e) };
         }
     }
     return { ok: true, frozen: false };
