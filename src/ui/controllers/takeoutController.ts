@@ -4,8 +4,8 @@ import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
-import { deduplicateConversations as staticDeduplicateConversations } from '../../core/utils/mergeUtils.js';
-import { t, normId } from '../uiCommon.js';
+import { deduplicateConversations as staticDeduplicateConversations, planTakeoutMerge } from '../../core/utils/mergeUtils.js';
+import { t } from '../uiCommon.js';
 
 const getTakeoutEngine = () => __resolveModule('TakeoutEngine', TakeoutEngine);
 const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
@@ -54,30 +54,7 @@ export async function handleTakeoutImport(
             return staticDeduplicateConversations(list);
         };
 
-        // Pure merge planner: given the freshest stored list, decide whether
-        // anything changed. Returns null when the write can be skipped.
-        // Must stay pure (no I/O, no awaits) — it runs inside the transaction
-        // lock. Dedupe semantics are unchanged from the legacy path.
-        const planMerge = (existing: any[]) => {
-            const existingIds = new Set((existing || []).map((c: any) => normId(c?.id)));
-            const addedCount = incoming.filter((tc: any) => tc?.id && !existingIds.has(normId(tc.id))).length;
-            const { processed, changedCount } = dedupe([...(existing || []), ...incoming]);
-
-            // Only rewrite the whole table when something actually changed. Note
-            // deduplicateConversations counts every distinct id's first occurrence
-            // as changed (!old => isChanged), so subtract those trivial counts:
-            // repeatMods > 0 means a same-id merge really moved the record
-            // (authoritative title / timestamp / message growth). Titles-dict-only
-            // enrichment with an unchanged resolved title is immaterial and stays
-            // unsaved; a later RPC merge re-seeds what it needs.
-            const trivialFirstSeen = processed.length;
-            const hasChangeSignal = typeof changedCount === 'number';
-            // No signal (foreign mock without changedCount) -> assume changed when
-            // there is incoming data (conservative: correctness over write saving).
-            const repeatMods = hasChangeSignal ? changedCount - trivialFirstSeen : (incoming.length > 0 ? 1 : 0);
-            if (!(addedCount > 0 || repeatMods > 0)) return null;
-            return { processed, addedCount, changed: hasChangeSignal ? changedCount : 0 };
-        };
+        const planMerge = (existing: any[]) => planTakeoutMerge(existing, incoming, dedupe);
 
         const Storage = getStorage();
         const currentSlot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';

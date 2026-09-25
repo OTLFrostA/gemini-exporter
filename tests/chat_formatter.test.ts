@@ -234,5 +234,26 @@ test('chat_formatter - raw userscript header is properly wrapped into javascript
     assert.ok(res.content.includes('```javascript\n// ==UserScript=='), 'Raw userscript header should be wrapped in code fence');
 });
 
+test('chat_formatter - decoupled formatters export valid focused functions', () => {
+    const { toMarkdown, adjustHeadingHierarchy, renderAttachments, cleanMessageBody } = require('../src/core/engine/formatters/markdownFormatter.js');
+    const { toOpenAIJson, toJsonStandard, toJsonRaw } = require('../src/core/engine/formatters/jsonFormatter.js');
+    const { convertHtmlToMarkdown } = require('../src/core/engine/formatters/htmlConverter.js');
+
+    assert.strictEqual(typeof toMarkdown, 'function');
+    assert.strictEqual(typeof adjustHeadingHierarchy, 'function');
+    assert.strictEqual(typeof renderAttachments, 'function');
+    assert.strictEqual(typeof cleanMessageBody, 'function');
+    assert.strictEqual(typeof toOpenAIJson, 'function');
+    assert.strictEqual(typeof toJsonStandard, 'function');
+    assert.strictEqual(typeof toJsonRaw, 'function');
+    assert.strictEqual(typeof convertHtmlToMarkdown, 'function');
+
+    const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
+    assert.ok(toMarkdown(testChat).includes('title: "Test"'));
+    assert.ok(toOpenAIJson(testChat).includes('"content": "hello"'));
+    assert.ok(toJsonStandard(testChat).includes('"id": "c1"'));
+    assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));
+});
+
 
 

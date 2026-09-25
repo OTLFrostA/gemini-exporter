@@ -1,15 +1,23 @@
 /**
  * chatFormatter.ts
- * Unified export formatter for Gemini conversations.
- * Supports Markdown (Obsidian / Notion / Logseq optimized), OpenAI JSON, Standard JSON, and Raw JSON.
+ * Unified export formatter facade for Gemini conversations.
+ * Delegates to specialized formatters: markdownFormatter, jsonFormatter, htmlConverter, and htmlTemplate.
  */
-import type { ChatMessage, Attachment } from "../../types/conversation.js";
-import { unescapeHtml } from "../utils/utils.js";
-import { stripInternalChipMarkdown } from "../utils/chipUtils.js";
-import { normId } from "../utils/pathUtils.js";
-import { I18n as I18nStatic } from "../utils/i18n.js";
-import { __resolveModule } from "../utils/moduleOverrides.js";
 import { toHtml } from "./template/htmlTemplate.js";
+import {
+    adjustHeadingHierarchy,
+    renderAttachments,
+    cleanMessageBody,
+    sanitizeUserPrompt,
+    toMarkdown,
+    type MarkdownFormatterOptions
+} from "./formatters/markdownFormatter.js";
+import { convertHtmlToMarkdown } from "./formatters/htmlConverter.js";
+import {
+    toOpenAIJson,
+    toJsonStandard,
+    toJsonRaw
+} from "./formatters/jsonFormatter.js";
 
 export interface FormattedResult {
     content: string;
@@ -17,14 +25,11 @@ export interface FormattedResult {
     mime: string;
 }
 
-export interface ChatFormatterOptions {
-    lang?: string;
-    [key: string]: any;
-}
+export type ChatFormatterOptions = MarkdownFormatterOptions;
 
 export interface ChatFormatterModule {
     adjustHeadingHierarchy: (text: string, shift?: number) => string;
-    renderAttachments: (atts?: Attachment[] | null, isEn?: boolean) => string;
+    renderAttachments: (atts?: any[] | null, isEn?: boolean) => string;
     convertHtmlToMarkdown: (html?: string | null) => string;
     cleanMessageBody: (text?: string | null) => string;
     toMarkdown: (chat: any, opts?: ChatFormatterOptions) => string;
@@ -33,462 +38,64 @@ export interface ChatFormatterModule {
     formatContent: (chat: any, formatType?: string, opts?: ChatFormatterOptions) => FormattedResult;
 }
 
-
-    /**
-     * Intelligently shift Markdown heading levels (e.g. # -> ###, ## -> ####)
-     * while protecting code fences (``` or ~~~) from being modified.
-     */
-    function adjustHeadingHierarchy(text: string, shift: number = 2): string {
-        if (!text || typeof text !== 'string') return text || '';
-        const lines = text.split('\n');
-        const out: string[] = [];
-        let inCodeBlock = false;
-        let fenceChar = '';
-        let fenceLen = 0;
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const stripped = line.trim();
-
-            if (!inCodeBlock) {
-                if (stripped.startsWith('```') || stripped.startsWith('~~~')) {
-                    inCodeBlock = true;
-                    fenceChar = stripped[0];
-                    fenceLen = stripped.length - stripped.replace(new RegExp(`^\\${fenceChar}+`), '').length;
-                    out.push(line);
-                    continue;
-                }
-            } else {
-                if (stripped.startsWith(fenceChar.repeat(fenceLen))) {
-                    inCodeBlock = false;
-                }
-                out.push(line);
-                continue;
-            }
-
-            // Outside code block: check if line starts with markdown heading (# )
-            if (line.startsWith('#')) {
-                const match = line.match(/^(#{1,6})(\s+.*)$/);
-                if (match) {
-                    const currentLevel = match[1].length;
-                    const newLevel = Math.min(6, currentLevel + shift);
-                    out.push('#'.repeat(newLevel) + match[2]);
-                    continue;
-                }
-            }
-
-            out.push(line);
-        }
-
-        return out.join('\n');
-    }
-
-    /**
-     * Render message attachments in Markdown format.
-     */
-    function renderAttachments(atts?: any[] | null, isEn: boolean = false): string {
-        if (!atts || !Array.isArray(atts) || !atts.length) return '';
-        let block = '';
-        for (const att of atts) {
-            if (att.type === 'image') {
-                const local = att.localName || `assets/image.jpg`;
-                const alt = String(att.alt || att.name || (isEn ? 'Image' : '图片')).replace(/[[\]]/g, '');
-                const online = att.src || att.originalUrl || '';
-                if (online && online.startsWith('http') && !online.includes('googleusercontent.com/immersive_entry_chip')) {
-                    block += `[![${alt}](${local})](${online})\n\n`;
-                } else {
-                    block += `![${alt}](${local})\n\n`;
-                }
-            } else if (att.type === 'file') {
-                const local = att.localName || `files/${att.name || 'attachment'}`;
-                let name = att.title || att.name || '';
-                if (!name || /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(name) || name.includes('://')) {
-                    const baseLocal = (att.localName || '').split(/[/\\]/).pop();
-                    name = baseLocal ? baseLocal.replace(/^[0-9a-f]{6,8}_/i, '') : (isEn ? 'Attachment' : '附件');
-                }
-                if (!name) name = isEn ? 'Attachment' : '附件';
-                if (/^(我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i.test(name)) {
-                    name = isEn ? '📑 Deep Research Report' : '📑 深度研究报告 (Deep Research Report)';
-                }
-                block += `- 📎 [${name}](${local})\n\n`;
-            }
-        }
-        return block;
-    }
-
-    /**
-     * Convert HTML content (from Google Takeout or HTML-rich model responses) to Markdown.
-     */
-    function convertHtmlToMarkdown(html?: string | null): string {
-        if (!html || typeof html !== 'string') return html || '';
-        if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table)[\s>]/i.test(html)) return html;
-
-        let res = html;
-        // 1. Convert <pre><code> blocks
-        res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match, lang, code) => {
-            const cleanCode = unescapeHtml(code);
-            return `\n\`\`\`${lang || ''}\n${cleanCode.trim()}\n\`\`\`\n`;
-        });
-        // 2. Inline code
-        res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
-            return `\`${unescapeHtml(code)}\``;
-        });
-        // Protect fenced and inline code blocks before processing HTML tags
-        const __codeSpans: string[] = [];
-        const __stashCode = (code: string): string => {
-            __codeSpans.push(code);
-            return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
+/**
+ * Unified content formatter entry point.
+ */
+export function formatContent(
+    chat: any,
+    formatType: string = 'markdown',
+    opts: ChatFormatterOptions = {}
+): FormattedResult {
+    if (formatType === 'json_openai') {
+        return {
+            content: toOpenAIJson(chat),
+            ext: 'json',
+            mime: 'application/json'
         };
-        const __restoreCode = (str: string): string =>
-            str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m, i) => __codeSpans[Number(i)]);
-        res = res.replace(/```[\s\S]*?```/g, __stashCode).replace(/`[^`\n]+`/g, __stashCode);
-        // 3. Headings
-        res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
-        // 4. Bold & italic
-        res = res.replace(/<(strong|b)(?=[\\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
-        res = res.replace(/<(em|i)(?=[\\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
-        // 5. Tables
-        res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match, tableContent) => {
-            const rows: string[] = [];
-            const trMatches = tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
-            let isFirstRow = true;
-            let colCount = 0;
-
-            for (const trMatch of trMatches) {
-                const trContent = trMatch[1];
-                const cells: string[] = [];
-                const cellMatches = trContent.matchAll(/<(?:th|td)[^>]*>([\s\S]*?)<\/(?:th|td)>/gi);
-                for (const cMatch of cellMatches) {
-                    let cell = cMatch[1];
-                    cell = cell.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1<br>');
-                    cell = cell.replace(/<br\s*\/?>/gi, '__TABLE_BR__');
-                    cell = cell.replace(/<[^>]+>/g, '');
-                    cell = unescapeHtml(cell);
-                    cell = cell.replace(/\r?\n/g, ' ').trim();
-                    cell = cell.replace(/\\\|/g, '__ESCAPED_PIPE__').replace(/\|/g, '\\|').replace(/__ESCAPED_PIPE__/g, '\\|');
-                    cells.push(cell);
-                }
-                if (cells.length === 0) continue;
-                if (isFirstRow) {
-                    colCount = cells.length;
-                    rows.push('| ' + cells.join(' | ') + ' |');
-                    rows.push('| ' + new Array(colCount).fill('---').join(' | ') + ' |');
-                    isFirstRow = false;
-                } else {
-                    while (cells.length < colCount) cells.push('');
-                    rows.push('| ' + cells.slice(0, colCount).join(' | ') + ' |');
-                }
-            }
-            return rows.length > 0 ? '\n\n' + rows.join('\n') + '\n\n' : '';
-        });
-        // 6. Paragraphs and breaks
-        res = res.replace(/<br\s*\/?>/gi, '\n');
-        res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
-        // 7. Strip any other HTML tags repeatedly to remove nested tags
-        // (fenced/inline code is stashed above, so this cannot eat code content)
-        let prev = '';
-        do {
-            prev = res;
-            res = res.replace(/<[^>]+>/g, '');
-        } while (res !== prev);
-        res = __restoreCode(res);
-        // 8. Restore table line breaks
-        res = res.replace(/__TABLE_BR__/g, '<br>');
-        return res;
     }
-
-    /**
-     * Sanitize message body content from Google internal placeholder URLs and tool anchors
-     */
-    function cleanMessageBody(text?: string | null): string {
-        if (!text || typeof text !== 'string') return '';
-        let converted = convertHtmlToMarkdown(text);
-        return stripInternalChipMarkdown(converted);
-    }
-
-    /**
-     * Wrap raw userscript blocks in a javascript fence. Natural-language prompts are left untouched
-     * (the old >400-char code-keyword heuristic was removed in #454 for mangling plain prose).
-     */
-    function sanitizeUserPrompt(text?: string | null): string {
-        if (!text || typeof text !== 'string') return '';
-        let cleaned = cleanMessageBody(text);
-        if (!cleaned) return '';
-
-        if (!cleaned.includes('```') && cleaned.includes('// ==UserScript==')) {
-            const lines = cleaned.split('\n');
-            let outLines: string[] = [];
-            let inFence = false;
-            for (let line of lines) {
-                let s = line.trim();
-                if (s.startsWith('// ==UserScript==') && !inFence) {
-                    outLines.push('```javascript');
-                    outLines.push(line);
-                    inFence = true;
-                } else {
-                    outLines.push(line);
-                }
-            }
-            if (inFence) outLines.push('```');
-            return outLines.join('\n');
-        }
-        return cleaned;
-    }
-
-    /**
-     * Convert conversation object to standardized Markdown.
-     * Compatible with Obsidian, Notion, Logseq, Typora, and GitHub Markdown.
-     */
-    function toMarkdown(chat: any, opts: ChatFormatterOptions = {}): string {
-        if (!chat) return '';
-        const i18n = __resolveModule('I18n', I18nStatic);
-        const isEn = opts.lang ? (opts.lang === 'en') : (i18n && typeof i18n.getLang === 'function' && i18n.getLang() === 'en');
-
-        if (chat.error) {
-            const failTitle = isEn ? 'Export Failed' : '导出失败';
-            return `# ${chat.title || 'Untitled'}\n\n> ${failTitle}: ${chat.error}\n\n> ID: ${chat.id} | URL: ${chat.url || ''}\n`;
-        }
-
-        const safeTitleClean = String(chat.title || 'Untitled').replace(/[\r\n]+/g, ' ').trim();
-        const safeYamlTitle = safeTitleClean.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const toSafeIso = (v: any, fallback: string): string => {
-            if (!v) return fallback;
-            const d = new Date(v);
-            return isNaN(d.getTime()) ? fallback : d.toISOString();
+    if (formatType === 'json_raw') {
+        return {
+            content: toJsonRaw(chat),
+            ext: 'json',
+            mime: 'application/json'
         };
-        const createdIso = toSafeIso(chat.createdAt || chat.timestamp || chat.updatedAt, new Date().toISOString());
-        const updatedIso = toSafeIso(chat.updatedAt || chat.timestamp || chat.createdAt, createdIso);
-        const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${normId(chat.id)}` : '');
-
-        // 1. YAML Frontmatter (Obsidian Properties / Notion Database / Logseq)
-        let md = `---\n`;
-        md += `title: "${safeYamlTitle}"\n`;
-        md += `id: "${chat.id || ''}"\n`;
-        if (convUrl) md += `url: "${convUrl}"\n`;
-        if (createdIso) md += `date: "${createdIso}"\n`;
-        if (updatedIso) md += `updated: "${updatedIso}"\n`;
-        md += `exported: "${new Date().toISOString()}"\n`;
-        md += `tags:\n  - gemini-export\n`;
-        md += `---\n\n`;
-
-        // 2. Document Title & Metadata Badges
-        md += `# ${safeTitleClean}\n\n`;
-        const metaBadges: string[] = [];
-        const linkText = isEn ? '🔗 Chat Link' : '🔗 对话链接';
-        if (convUrl) metaBadges.push(`[${linkText}](${convUrl})`);
-        if (chat.id) metaBadges.push(`🆔 \`${chat.id}\``);
-        if (createdIso) metaBadges.push(`📅 ${new Date(chat.createdAt || createdIso).toLocaleString()}`);
-        if (chat.attachmentCount) metaBadges.push(isEn ? `📎 ${chat.attachmentCount} attachments` : `📎 附件 ${chat.attachmentCount} 个`);
-        if (metaBadges.length > 0) {
-            md += `> ${metaBadges.join(' · ')}\n\n---\n\n`;
-        }
-
-        const messages: ChatMessage[] = chat.messages || [];
-        if (!messages.length) {
-            const emptyNotice = chat.isEmpty
-                ? (isEn ? '*(Empty conversation)*' : '*（此会话无对话内容）*')
-                : (isEn ? '_Empty conversation or fetch failed_' : '_空对话或取回失败_');
-            md += `${emptyNotice} URL: ${convUrl}\n`;
-            return md;
-        }
-
-        // 3. Conversation Messages
-        for (const m of messages) {
-            const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
-            const role = m.role === 'user' ? 'user' : 'model';
-
-            if (role === 'user') {
-                md += isEn ? `## 👤 You\n\n` : `## 👤 你\n\n`;
-                if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
-
-                let userAtts = [...(m.attachments || [])];
-                if ((m as any).images && (m as any).images.length) {
-                    for (const img of (m as any).images) {
-                        if (!userAtts.some(a => a.localName === img.localName || a.url === img.url)) {
-                            userAtts.push({
-                                type: 'image',
-                                localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
-                                name: img.fileName || 'image.jpg',
-                                src: img.resolvedUrl || img.sourceUrl || img.url
-                            } as any);
-                        }
-                    }
-                }
-                if ((m as any).documents && (m as any).documents.length) {
-                    for (const doc of (m as any).documents) {
-                        if (!userAtts.some(a => a.localName === doc.localName || a.url === doc.url)) {
-                            userAtts.push({
-                                type: 'file',
-                                localName: doc.localName || `files/${doc.title || 'doc.md'}`,
-                                title: doc.title || 'document',
-                                url: doc.url
-                            } as any);
-                        }
-                    }
-                }
-                if (userAtts.length) {
-                    md += renderAttachments(userAtts, isEn);
-                }
-
-                const userBody = sanitizeUserPrompt(m.content);
-                if (userBody) {
-                    md += `${userBody}\n\n`;
-                }
-            } else {
-                md += `## 🤖 Gemini\n\n`;
-                if (timeStr) md += `> ⏱️ ${timeStr}\n\n`;
-
-                // Thinking Process (Isolated with double blank lines for strict Markdown parsers)
-                const thoughtsRaw = (m as any).thoughts || (m as any).thinking || '';
-                const thoughts = (Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : String(thoughtsRaw)).trim();
-                if (thoughts) {
-                    const thoughtSummary = isEn ? '🧠 Thinking Process' : '🧠 思考过程';
-                    md += `<details>\n<summary>${thoughtSummary}</summary>\n\n${thoughts}\n\n</details>\n\n`;
-                }
-
-                // AI Answer Content with Heading Hierarchy Protection and Chip Sanitization
-                const modelBody = cleanMessageBody(m.content);
-                if (modelBody) {
-                    const adjusted = adjustHeadingHierarchy(modelBody, 2);
-                    md += `${adjusted}\n\n`;
-                }
-
-                let modelAtts = [...(m.attachments || [])];
-                if ((m as any).images && (m as any).images.length) {
-                    for (const img of (m as any).images) {
-                        if (!modelAtts.some(a => a.localName === img.localName || a.url === img.url)) {
-                            modelAtts.push({
-                                type: 'image',
-                                localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
-                                name: img.fileName || 'image.jpg',
-                                src: img.resolvedUrl || img.sourceUrl || img.url
-                            } as any);
-                        }
-                    }
-                }
-                if (modelAtts.length) {
-                    md += renderAttachments(modelAtts, isEn);
-                }
-
-                // Citations / Sources
-                if ((m as any).citations && (m as any).citations.length) {
-                    const sourceHeader = isEn ? `> 🌐 **Sources:**\n` : `> 🌐 **参考来源：**\n`;
-                    md += sourceHeader;
-                    (m as any).citations.forEach((c: any, idx: number) => {
-                        const citeTitle = c.title || c.url || (isEn ? `Source ${idx + 1}` : `来源 ${idx + 1}`);
-                        md += `> [${idx + 1}] [${citeTitle}](${c.url})\n`;
-                    });
-                    md += `\n`;
-                }
-
-                md += `---\n\n`;
-            }
-        }
-
-        return md;
     }
-
-    /**
-     * Convert conversation to OpenAI API Compatible JSON format.
-     */
-    function toOpenAIJson(chat: any): string {
-        const messages = (chat.messages || []).map((m: any) => {
-            const role = m.role === 'model' ? 'assistant' : 'user';
-            const text = m.content || '';
-            const imgs = (m.attachments || []).filter((a: any) => a.type === 'image');
-            const item: any = {};
-
-            if (imgs.length > 0) {
-                const contentArr: any[] = [];
-                if (text) contentArr.push({ type: 'text', text });
-                for (const im of imgs) {
-                    contentArr.push({
-                        type: 'image_url',
-                        image_url: {
-                            url: im.localName || im.src || im.originalUrl
-                        }
-                    });
-                }
-                item.role = role;
-                item.content = contentArr;
-            } else {
-                item.role = role;
-                item.content = text;
-            }
-
-            const thoughtsRaw = (m as any).thoughts || (m as any).thinking || '';
-            const thoughts = (Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : String(thoughtsRaw)).trim();
-            if (thoughts) {
-                item.reasoning_content = thoughts;
-            }
-
-            return item;
-        });
-
-        const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${normId(chat.id)}` : '');
-        return JSON.stringify({
-            id: chat.id,
-            title: chat.title,
-            url: convUrl,
-            created_at: chat.createdAt ? new Date(chat.createdAt).toISOString() : void 0,
-            messages: messages
-        }, null, 2);
+    if (formatType === 'json') {
+        return {
+            content: toJsonStandard(chat),
+            ext: 'json',
+            mime: 'application/json'
+        };
     }
-
-    /**
-     * Unified content formatter entry point.
-     */
-    function formatContent(chat: any, formatType: string = 'markdown', opts: ChatFormatterOptions = {}): FormattedResult {
-        if (formatType === 'json_openai') {
-            return {
-                content: toOpenAIJson(chat),
-                ext: 'json',
-                mime: 'application/json'
-            };
-        }
-        if (formatType === 'json_raw') {
-            return {
-                content: JSON.stringify(chat._raw || chat, null, 2),
-                ext: 'json',
-                mime: 'application/json'
-            };
-        }
-        if (formatType === 'json') {
-            return {
-                content: JSON.stringify(chat, null, 2),
-                ext: 'json',
-                mime: 'application/json'
-            };
-        }
-        if (formatType === 'markdown') {
-            return {
-                content: toMarkdown(chat, opts),
-                ext: 'md',
-                mime: 'text/markdown'
-            };
-        }
-        if (formatType === 'html') {
-            return {
-                content: toHtml(chat, opts),
-                ext: 'html',
-                mime: 'text/html'
-            };
-        }
-        // P2 fail-closed: 未知格式（尤其 'pdf' 这类将来才支持的）禁止静默回落为
-        // markdown——调用方拼错格式名会导致用户拿到货不对板的文件，必须显式抛错。
-        // 合法取值见 AllowedFormat（src/core/utils/constants.ts）。
-        throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
+    if (formatType === 'markdown') {
+        return {
+            content: toMarkdown(chat, opts),
+            ext: 'md',
+            mime: 'text/markdown'
+        };
     }
+    if (formatType === 'html') {
+        return {
+            content: toHtml(chat, opts),
+            ext: 'html',
+            mime: 'text/html'
+        };
+    }
+    // P2 fail-closed: unsupported format must throw explicitly
+    throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
+}
 
 export {
     adjustHeadingHierarchy,
     renderAttachments,
     convertHtmlToMarkdown,
     cleanMessageBody,
+    sanitizeUserPrompt,
     toMarkdown,
     toOpenAIJson,
-    toHtml,
-    formatContent
+    toJsonStandard,
+    toJsonRaw,
+    toHtml
 };
 
 export const ChatFormatter: ChatFormatterModule = {
