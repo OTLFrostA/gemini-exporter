@@ -71,7 +71,7 @@ export interface IDialogView {
     dismissExportBanner: () => void;
     showDirectWritePrompt: (count: number, onConfirmFolder: () => void, onContinueZip: () => void) => void;
     hideDirectWritePrompt: () => void;
-    showTakeoutLimitPrompt: (options?: { count?: number; hitGoogleLimit?: boolean; force?: boolean; onImportTakeout?: () => void }) => Promise<void>;
+    showTakeoutLimitPrompt: (options?: { count?: number; hitGoogleLimit?: boolean; force?: boolean; onImportTakeout?: () => void; onDismiss?: () => void }) => Promise<void>;
     hideTakeoutLimitPrompt: () => void;
     renderExportFailureBanner: (failedList: any[], onRetry?: () => void) => void;
     hideExportFailureBanner: () => void;

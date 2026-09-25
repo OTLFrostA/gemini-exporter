@@ -52,9 +52,7 @@ export async function getSession(): Promise<ExportSessionData | null> {
             return (data && data[EXPORT_SESSION_KEY]) ? (data[EXPORT_SESSION_KEY] as ExportSessionData) : null;
         }
     } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) {
-            console.debug('[GemExporter:sessionStore] getSession error', e);
-        }
+        console.debug('[GemExporter:sessionStore] getSession error', e);
     }
     return null;
 }
@@ -72,9 +70,7 @@ export async function setSession(session: Partial<ExportSessionData>): Promise<v
             await chrome.storage.local.set({ [EXPORT_SESSION_KEY]: payload });
         }
     } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) {
-            console.debug('[GemExporter:sessionStore] setSession error', e);
-        }
+        console.debug('[GemExporter:sessionStore] setSession error', e);
     }
 }
 
@@ -96,9 +92,7 @@ export async function updateSession(patch: Partial<ExportSessionData>): Promise<
                 await chrome.storage.local.set({ [EXPORT_SESSION_KEY]: merged });
             }
         } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionStore] updateSession error', e);
-            }
+            console.debug('[GemExporter:sessionStore] updateSession error', e);
         }
     });
 }
@@ -112,9 +106,7 @@ export async function clearSession(): Promise<void> {
             await chrome.storage.local.remove([EXPORT_SESSION_KEY]);
         }
     } catch (e) {
-        if (typeof console !== 'undefined' && console.debug) {
-            console.debug('[GemExporter:sessionStore] clearSession error', e);
-        }
+        console.debug('[GemExporter:sessionStore] clearSession error', e);
     }
 }
 
