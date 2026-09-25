@@ -31,20 +31,25 @@ test('arch: zero circular dependencies across all modules in src/', () => {
     for (const file of files) {
         const content = fs.readFileSync(file, 'utf8');
         const imports: string[] = [];
-        const lines = content.split('\n');
-        for (const line of lines) {
-            // Type-only imports are stripped by TypeScript and do not produce runtime cycles
-            if (/^\s*import\s+type\s+/.test(line)) continue;
-            const m = line.match(/^\s*(?:import|export)\s+(?:.*?from\s+)?['"]([^'"]+)['"]/);
-            if (m) {
-                const spec = m[1];
-                if (spec.startsWith('.')) {
-                    let resolved = path.resolve(path.dirname(file), spec);
-                    if (resolved.endsWith('.js')) resolved = resolved.slice(0, -3) + '.ts';
-                    if (!fs.existsSync(resolved) && fs.existsSync(resolved + '.ts')) resolved += '.ts';
-                    if (!fs.existsSync(resolved) && fs.existsSync(path.join(resolved, 'index.ts'))) resolved = path.join(resolved, 'index.ts');
-                    if (fs.existsSync(resolved)) imports.push(resolved);
-                }
+        // Strip block and line comments so commented-out code does not register as dependencies
+        const cleanContent = content
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/\/\/.*$/gm, '');
+
+        // Match all ES import and re-export statements across multiline blocks:
+        // 1. Static import/export from path: import { ... } from './path' or export { ... } from './path' (skipping 'type')
+        // 2. Direct side-effect import: import './path'
+        // 3. Dynamic import: import('./path')
+        const importPattern = /(?:(?:import|export)\s+(?!type\s)(?:(?!from\b)[\s\S])+?\s+from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\))/g;
+        let m: RegExpExecArray | null;
+        while ((m = importPattern.exec(cleanContent)) !== null) {
+            const spec = m[1] || m[2] || m[3];
+            if (spec && spec.startsWith('.')) {
+                let resolved = path.resolve(path.dirname(file), spec);
+                if (resolved.endsWith('.js')) resolved = resolved.slice(0, -3) + '.ts';
+                if (!fs.existsSync(resolved) && fs.existsSync(resolved + '.ts')) resolved += '.ts';
+                if (!fs.existsSync(resolved) && fs.existsSync(path.join(resolved, 'index.ts'))) resolved = path.join(resolved, 'index.ts');
+                if (fs.existsSync(resolved) && !imports.includes(resolved)) imports.push(resolved);
             }
         }
         graph.set(file, imports);
@@ -85,3 +90,37 @@ test('arch: zero circular dependencies across all modules in src/', () => {
         cycles.map(c => '  ' + c.join(' -> ')).join('\n')
     );
 });
+
+test('arch: import parser correctly extracts multiline imports, exports and dynamic imports', () => {
+    const importPattern = /(?:(?:import|export)\s+(?!type\s)(?:(?!from\b)[\s\S])+?\s+from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]|import\s*\(\s*['"]([^'"]+)['"]\s*\))/g;
+    const sample = `
+        import {
+            A,
+            B
+        } from './multi_import';
+        import type {
+            OnlyType
+        } from './should_ignore_type';
+        export {
+            C,
+            D
+        } from './multi_export';
+        export type { IgnoredExport } from './ignore_export_type';
+        import './side_effect';
+        const lazy = import('./dynamic_lazy');
+    `;
+    const clean = sample.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const extracted: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = importPattern.exec(clean)) !== null) {
+        extracted.push(m[1] || m[2] || m[3]);
+    }
+
+    assert.deepStrictEqual(extracted, [
+        './multi_import',
+        './multi_export',
+        './side_effect',
+        './dynamic_lazy'
+    ]);
+});
+

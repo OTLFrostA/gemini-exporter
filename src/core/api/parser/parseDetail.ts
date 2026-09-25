@@ -30,6 +30,7 @@ export interface GeminiParserParseDetailModule {
     isTurnsArray: (arr: unknown) => boolean;
     findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
     parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
+    DOC_TITLE_FALLBACK_RE?: RegExp;
 }
 
 import {
@@ -68,6 +69,8 @@ import GeminiUtils from "../../utils/utils.js";
 import { extractInnerPayload, extractNextPageToken } from "./payload.js";
 import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
 import { shortId, shortScope as getShortScope } from "../../utils/pathUtils.js";
+
+const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
 
 function getUtils(): any {
     return __resolveModule('GeminiUtils', GeminiUtils);
@@ -382,7 +385,7 @@ function parseCandidateResponse(
                 let docTitle = metaItem.title || "";
                 if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
                     if (md) {
-                        const hMatch = md.match(/^#\s+(.+)$/m);
+                        const hMatch = md.match(DOC_TITLE_FALLBACK_RE);
                         if (hMatch && hMatch[1].trim()) {
                             docTitle = hMatch[1].trim();
                         }
@@ -644,14 +647,16 @@ export {
     isTurn,
     isTurnsArray,
     findTurnsDeep,
-    parseDetail
+    parseDetail,
+    DOC_TITLE_FALLBACK_RE
 };
 
 export const GeminiParserParseDetail: GeminiParserParseDetailModule = {
     isTurn,
     isTurnsArray,
     findTurnsDeep,
-    parseDetail
+    parseDetail,
+    DOC_TITLE_FALLBACK_RE
 };
 
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserParseDetail;
