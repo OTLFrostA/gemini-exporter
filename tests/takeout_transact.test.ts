@@ -142,3 +142,25 @@ test('takeout zero-change re-import via transact: no write, no cache touch', asy
         mocks.restore();
     }
 });
+
+test('planTakeoutMerge - pure planner returns null when no change and valid plan when items added or modified', () => {
+    const { planTakeoutMerge } = require('../src/core/utils/mergeUtils.js');
+    const existing = [mkConv('chat-1', 1000)];
+
+    // Case 1: Identical item -> returns null (skip write)
+    const planNoChange = planTakeoutMerge(existing, [mkConv('chat-1', 1000)]);
+    assert.strictEqual(planNoChange, null);
+
+    // Case 2: New item -> returns plan with addedCount = 1
+    const planNew = planTakeoutMerge(existing, [mkConv('chat-2', 2000)]);
+    assert.ok(planNew !== null);
+    assert.strictEqual(planNew?.addedCount, 1);
+    assert.strictEqual(planNew?.processed.length, 2);
+
+    // Case 3: Same id but updated timestamp -> returns plan with repeatMods
+    const planUpdated = planTakeoutMerge(existing, [mkConv('chat-1', 5000)]);
+    assert.ok(planUpdated !== null);
+    assert.strictEqual(planUpdated?.addedCount, 0);
+    assert.strictEqual(planUpdated?.processed.length, 1);
+    assert.strictEqual(planUpdated?.processed[0].timestamp, 5000);
+});

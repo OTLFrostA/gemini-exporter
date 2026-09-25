@@ -320,7 +320,7 @@ export function updateStat(conversations?: Conversation[]): void {
     } else {
         checked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
     }
-    const statEl = $('selectedStat') || $('stat');
+    const statEl = $('selectedStat');
     if (statEl) {
         statEl.textContent = typeof t === 'function' ? t('selectedStat', checked, total) : `${checked} of ${total} selected`;
     }

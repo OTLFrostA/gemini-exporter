@@ -323,3 +323,32 @@ export function deduplicateConversations(
     processed.sort(compareConversations);
     return { processed, changedCount, hasDirtyTitles };
 }
+
+export interface TakeoutMergePlan {
+    processed: any[];
+    addedCount: number;
+    changed: number;
+}
+
+/**
+ * Pure merge planner for Takeout imports: given the freshest stored list and incoming Takeout items,
+ * decides whether any records actually changed or need writing.
+ * Returns null when the write can be safely skipped.
+ */
+export function planTakeoutMerge(
+    existing: any[],
+    incoming: any[],
+    dedupeFn: (list: any[]) => DeduplicateResult = deduplicateConversations
+): TakeoutMergePlan | null {
+    const existingList = existing || [];
+    const incomingList = incoming || [];
+    const existingIds = new Set(existingList.map((c: any) => normId(c?.id)));
+    const addedCount = incomingList.filter((tc: any) => tc?.id && !existingIds.has(normId(tc.id))).length;
+    const { processed, changedCount } = dedupeFn([...existingList, ...incomingList]);
+
+    const trivialFirstSeen = processed.length;
+    const hasChangeSignal = typeof changedCount === 'number';
+    const repeatMods = hasChangeSignal ? changedCount - trivialFirstSeen : (incomingList.length > 0 ? 1 : 0);
+    if (!(addedCount > 0 || repeatMods > 0)) return null;
+    return { processed, addedCount, changed: hasChangeSignal ? changedCount : 0 };
+}

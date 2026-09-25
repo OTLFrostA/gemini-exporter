@@ -214,7 +214,7 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
 }
 
 function bindSearchAndSelection(): void {
-    const searchInput = ($('chatSearchInput') || $('search')) as HTMLInputElement | null;
+    const searchInput = $('chatSearchInput') as HTMLInputElement | null;
     const filterSelect = $('chatFilterSelect') as HTMLSelectElement | null;
 
     const doFilter = () => {
@@ -251,7 +251,7 @@ function bindSearchAndSelection(): void {
         const convs = Store ? Store.getConversations() : [];
         if (List) List.selectAll(convs);
     });
-    ($('btnSelectNone') || $('btnDeselectAll'))?.addEventListener('click', () => {
+    $('btnSelectNone')?.addEventListener('click', () => {
         const Store = getStore();
         const List = getList();
         const convs = Store ? Store.getConversations() : [];
