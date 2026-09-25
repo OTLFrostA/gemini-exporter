@@ -66,7 +66,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
 
     // 8. Next time exporting >= 50 items, modal should NEVER appear again
     await page.click('#btnExport');
-    await page.waitForTimeout(300);
+    await expect(page.locator('#btnCancel')).toBeVisible();
     await expect(modal).toBeHidden();
   });
 });

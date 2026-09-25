@@ -51,7 +51,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
 
     await geminiPage.goto('https://gemini.google.com/app/arbitration_chat_999');
     await geminiPage.waitForLoadState('domcontentloaded');
-    await geminiPage.waitForTimeout(600); // Allow content.js syncOnce to run
+    await expect(geminiPage.locator('#geminiExportBadge')).toBeVisible();
 
     // Verify workbench title did NOT become "Google Gemini" and remained Takeout prompt
     await optionsPage.bringToFront();
@@ -102,13 +102,15 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
       }, location.origin);
     });
 
-    await geminiPage.waitForTimeout(600);
-
     // 5. Verify final resolved state in storage and options page
-    const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations']);
-    }) as Record<string, any>;
-    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'arbitration_chat_999');
+    let chat: any = null;
+    await expect.poll(async () => {
+      const storageData = await optionsPage.evaluate(async () => {
+        return await chrome.storage.local.get(['gemini_conversations']);
+      }) as Record<string, any>;
+      chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'arbitration_chat_999');
+      return chat?.titles?.rpc;
+    }, { timeout: 10000 }).toBe('官方服务端RPC最终权威标题');
 
     expect(chat).toBeTruthy();
     expect(chat.titles.takeout).toBe('Takeout Prompt 原始提问');
