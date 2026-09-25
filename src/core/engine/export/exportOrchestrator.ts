@@ -157,14 +157,15 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
             this._closed = false;
         }
 
-        push(task: any): void {
-            if (this._closed) return;
+        push(task: any): boolean {
+            if (this._closed) return false;
             if (this._waiters.length > 0) {
                 const waiter = this._waiters.shift()!;
                 waiter(task);
             } else {
                 this._queue.push(task);
             }
+            return true;
         }
 
         async pop(abortSignal?: AbortSignal | null): Promise<any> {
@@ -572,7 +573,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                     try {
                         await task();
                     } catch (e) {
-                        if (abortSignal && abortSignal.aborted) break;
                         // Decrement pending count and record failure if task throws
                         const meta = (task as any)?.__assetMeta || null;
                         if (meta) {
@@ -584,7 +584,9 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 file: meta.fileName,
                                 error: errMsg || 'asset task threw'
                             });
-                            onLog(`[${meta.listTitle || meta.chatId}] 附件任务异常，已记为失败: ${errMsg}`, 'warn');
+                            if (!this.aborted && !(abortSignal && abortSignal.aborted)) {
+                                onLog(`[${meta.listTitle || meta.chatId}] 附件任务异常，已记为失败: ${errMsg}`, 'warn');
+                            }
                             const left = (pendingAssetsPerChat.get(meta.nid) || 1) - 1;
                             pendingAssetsPerChat.set(meta.nid, left);
                             if (left === 0) {
@@ -593,6 +595,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         } else if (typeof console !== 'undefined' && console.warn) {
                             console.warn('[GemExporter:exportOrchestrator.ts] attachment task threw without metadata', e);
                         }
+                        if (abortSignal && abortSignal.aborted) break;
                     }
                 }
             };
@@ -928,7 +931,24 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                         onItemPendingAssets(chat.id, queuedAssetsForThisChat);
                                     } catch { /* intentional */ }
                                     for (const task of chatAssetTasks) {
-                                        attachmentQueue.push(task);
+                                        const enqueued = attachmentQueue.push(task);
+                                        if (!enqueued) {
+                                            chatFailedAssetsSet.add(nid);
+                                            const meta = (task as any)?.__assetMeta;
+                                            if (meta) {
+                                                failedAttachments.push({
+                                                    chatId: meta.chatId,
+                                                    chatTitle: meta.listTitle,
+                                                    file: meta.fileName,
+                                                    error: 'Queue closed / export cancelled'
+                                                });
+                                            }
+                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
+                                            pendingAssetsPerChat.set(nid, left);
+                                            if (left === 0) {
+                                                await finalizeChatExport(chat.id);
+                                            }
+                                        }
                                     }
                                 }
                             }

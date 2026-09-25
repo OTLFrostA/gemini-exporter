@@ -367,6 +367,30 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
     assert.strictEqual(callsB, 1, `should stop retrying after abort (calls: ${callsB})`);
 });
 
+test('p1c - processAsset: 本地写入异常立即终止，不盲目重试网络拉取', async () => {
+    let fetchCalls = 0;
+    const pipe = new AssetPipeline({
+        useZip: true,
+        writer: {
+            writeFile: async () => {
+                throw new Error('NotAllowedError: Directory permission revoked');
+            }
+        },
+        fetchAssetDelegate: async () => {
+            fetchCalls++;
+            return { success: true, dataBase64: 'aGk=' };
+        }
+    });
+    const res = await pipe.processAsset(
+        { url: 'https://example.com/asset.png', localName: 'asset.png' },
+        { id: 'c_write_err', title: 'chat' },
+        { isImage: true, maxRetries: 3 }
+    );
+    assert.strictEqual(res.saved, false);
+    assert.ok(res.failReason.includes('NotAllowedError'));
+    assert.strictEqual(fetchCalls, 1, 'must not re-fetch from network if local write fails');
+});
+
 const fs = require('node:fs');
 const path = require('node:path');
 function readTs(rel: string): string {
