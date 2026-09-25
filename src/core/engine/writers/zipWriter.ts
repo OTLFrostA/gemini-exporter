@@ -20,6 +20,15 @@ export function isPrecompressedAsset(path: string): boolean {
 
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 
+function isWriteOptions(val: any): boolean {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
+    if (typeof Uint8Array !== 'undefined' && val instanceof Uint8Array) return false;
+    if (typeof ArrayBuffer !== 'undefined' && (val instanceof ArrayBuffer || ArrayBuffer.isView(val))) return false;
+    if (typeof Blob !== 'undefined' && val instanceof Blob) return false;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) return false;
+    return 'base64' in val || 'compression' in val || 'compressionOptions' in val || 'binary' in val;
+}
+
 class ZipWriter implements IExportWriter {
     zip: any;
     folder: any;
@@ -51,11 +60,13 @@ class ZipWriter implements IExportWriter {
         let content: any;
         let options: any = {};
 
-        if (arguments.length === 3 && typeof contentOrFileName === 'string') {
+        if (arguments.length === 3 && optionsOrContent !== undefined && !isWriteOptions(optionsOrContent)) {
+            // Pattern 2: (subDirPath, fileName, content)
             const subDir = pathOrSubDir ? `${pathOrSubDir}/` : '';
             cleanPath = this.sanitizePath(`${subDir}${contentOrFileName}`);
             content = optionsOrContent;
         } else {
+            // Pattern 1: (relativePath, content, options?)
             cleanPath = this.sanitizePath(pathOrSubDir);
             content = contentOrFileName;
             options = optionsOrContent || {};

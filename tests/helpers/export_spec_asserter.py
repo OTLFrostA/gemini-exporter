@@ -245,7 +245,7 @@ class ExportSpecificationAsserter:
         target_name = os.path.basename(clean_ref)
         for root, _, files in os.walk(self.export_root_dir):
             for f in files:
-                if f == target_name:
+                if f == target_name or f.endswith('_' + target_name):
                     return os.path.join(root, f)
         return None
 

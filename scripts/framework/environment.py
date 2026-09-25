@@ -187,7 +187,13 @@ class TestEnvironment:
         tab = self.ensure_tab(target)
         if not tab or not tab.get("webSocketDebuggerUrl"):
             raise RuntimeError(f"标签页 '{target}' 不存在且无法建立 CDP 连接")
-        return CDPConnection(tab["webSocketDebuggerUrl"])
+        conn = CDPConnection(tab["webSocketDebuggerUrl"])
+        try:
+            conn.call("Page.bringToFront", {})
+            conn.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+        except Exception:
+            pass
+        return conn
 
     def connect_gemini(self) -> CDPConnection:
         return self.connect_tab("gemini")

@@ -242,24 +242,30 @@ export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): stri
             }
 
             // AI Answer Content with Heading Hierarchy Protection and Chip Sanitization
-            const modelBody = cleanMessageBody(m.content);
-            if (modelBody) {
-                const adjusted = adjustHeadingHierarchy(modelBody, 2);
-                md += `${adjusted}\n\n`;
-            }
-
+            let modelBody = cleanMessageBody(m.content);
             let modelAtts = [...(m.attachments || [])];
             if ((m as any).images && (m as any).images.length) {
                 for (const img of (m as any).images) {
-                    if (!modelAtts.some(a => a.localName === img.localName || a.url === img.url)) {
+                    const localPath = img.localName || `assets/${img.fileName || 'image.jpg'}`;
+                    if (img.fileName && modelBody) {
+                        const escapedName = img.fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const reBare = new RegExp(`!\\[([^\\]]*)\\]\\((?:assets\\/)?${escapedName}\\)`, 'g');
+                        modelBody = modelBody.replace(reBare, `![$1](${localPath})`);
+                    }
+                    const isAlreadyInBody = modelBody && modelBody.includes(localPath);
+                    if (!isAlreadyInBody && !modelAtts.some(a => a.localName === img.localName || a.url === img.url)) {
                         modelAtts.push({
                             type: 'image',
-                            localName: img.localName || `assets/${img.fileName || 'image.jpg'}`,
+                            localName: localPath,
                             name: img.fileName || 'image.jpg',
                             src: img.resolvedUrl || img.sourceUrl || img.url
                         } as any);
                     }
                 }
+            }
+            if (modelBody) {
+                const adjusted = adjustHeadingHierarchy(modelBody, 2);
+                md += `${adjusted}\n\n`;
             }
             if (modelAtts.length) {
                 md += renderAttachments(modelAtts, isEn);

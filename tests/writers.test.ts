@@ -260,3 +260,77 @@ test('zipWriter - generateBlob uses generateInternalStream when available', asyn
     assert.ok(blob);
 });
 
+test('zipWriter - disambiguates (path, content, options) from (subDir, fileName, content)', () => {
+    let capturedPath = '';
+    let capturedContent: any = null;
+    let capturedOpts: any = null;
+
+    __setModuleOverride('JSZip', class MockJSZip {
+        files: Record<string, any> = {};
+        constructor() { this.files = {}; }
+        folder(_name: string) {
+            return {
+                file: (p: string, c: any, o: any) => {
+                    capturedPath = p;
+                    capturedContent = c;
+                    capturedOpts = o;
+                }
+            };
+        }
+        async generateAsync() { return new Blob(['']); }
+    });
+
+    const writer = new ZipWriter('my_export');
+
+    // Case 1: (path, content, options) where content is string (base64)
+    writer.writeFile('files/config.json', 'eyJuYW1lIjoidGVzdCJ9', { base64: true });
+    assert.strictEqual(capturedPath, 'files/config.json');
+    assert.strictEqual(capturedContent, 'eyJuYW1lIjoidGVzdCJ9');
+    assert.strictEqual(capturedOpts.base64, true);
+
+    // Case 2: (subDir, fileName, content) where content is string
+    writer.writeFile('assets', 'data.txt', 'hello-world');
+    assert.strictEqual(capturedPath, 'assets/data.txt');
+    assert.strictEqual(capturedContent, 'hello-world');
+
+    // Case 3: (relativePath, content) 2-arg
+    writer.writeFile('00_INDEX.md', '# Index');
+    assert.strictEqual(capturedPath, '00_INDEX.md');
+    assert.strictEqual(capturedContent, '# Index');
+});
+
+test('fsWriter - disambiguates (path, content, options) and decodes base64 correctly', async () => {
+    let writtenData: any = null;
+    let targetFileName = '';
+
+    const mockDirHandle = {
+        name: 'gemini_export',
+        getDirectoryHandle: async () => mockDirHandle,
+        getFileHandle: async (name: string) => {
+            targetFileName = name;
+            return {
+                createWritable: async () => ({
+                    write: async (d: any) => { writtenData = d; },
+                    close: async () => {},
+                    abort: async () => {}
+                })
+            };
+        }
+    };
+
+    const writer = new FsWriter(mockDirHandle, 'gemini_export');
+    await writer.init();
+
+    // Base64 string for "hello" is "aGVsbG8="
+    await writer.writeFile('files/hello.txt', 'aGVsbG8=', { base64: true });
+    assert.strictEqual(targetFileName, 'hello.txt');
+    assert.ok(writtenData instanceof Uint8Array);
+    assert.strictEqual(Buffer.from(writtenData).toString('utf-8'), 'hello');
+
+    // SubDir pattern
+    await writer.writeFile('assets', 'plain.txt', 'plain text');
+    assert.strictEqual(targetFileName, 'plain.txt');
+    assert.strictEqual(writtenData, 'plain text');
+});
+
+

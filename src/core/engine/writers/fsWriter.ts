@@ -35,6 +35,15 @@ async function ensureSubDir(root: any, subPath: string): Promise<any> {
     return cur;
 }
 
+function isWriteOptions(val: any): boolean {
+    if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
+    if (typeof Uint8Array !== 'undefined' && val instanceof Uint8Array) return false;
+    if (typeof ArrayBuffer !== 'undefined' && (val instanceof ArrayBuffer || ArrayBuffer.isView(val))) return false;
+    if (typeof Blob !== 'undefined' && val instanceof Blob) return false;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) return false;
+    return 'base64' in val || 'compression' in val || 'compressionOptions' in val || 'binary' in val;
+}
+
 class FsWriter implements IExportWriter {
     rootDirHandle: any;
     folderName: string;
@@ -71,13 +80,20 @@ class FsWriter implements IExportWriter {
         return this.batchDirHandle;
     }
 
-    async writeFile(subDirPath: string, fileName?: any, content?: any): Promise<string> {
-        let actualSubDir = subDirPath;
-        let actualFileName = fileName;
-        let actualContent = content;
-        if (arguments.length === 2) {
-            actualContent = fileName;
-            const clean = sanitizeRelativePath(subDirPath, 'file');
+    async writeFile(pathOrSubDir: string, contentOrFileName?: any, optionsOrContent?: any): Promise<string> {
+        let actualSubDir = '';
+        let actualFileName = '';
+        let actualContent: any;
+        let options: any = {};
+
+        if (arguments.length === 3 && optionsOrContent !== undefined && !isWriteOptions(optionsOrContent)) {
+            // Pattern 2: (subDirPath, fileName, content)
+            actualSubDir = pathOrSubDir;
+            actualFileName = contentOrFileName;
+            actualContent = optionsOrContent;
+        } else {
+            // Pattern 1: (relativePath, content, options?)
+            const clean = sanitizeRelativePath(pathOrSubDir, 'file');
             const lastSlash = clean.lastIndexOf('/');
             if (lastSlash !== -1) {
                 actualSubDir = clean.slice(0, lastSlash);
@@ -86,7 +102,18 @@ class FsWriter implements IExportWriter {
                 actualSubDir = '';
                 actualFileName = clean;
             }
+            actualContent = contentOrFileName;
+            options = optionsOrContent || {};
         }
+
+        if (options && options.base64 && typeof actualContent === 'string') {
+            const binStr = atob(actualContent);
+            const len = binStr.length;
+            const b = new Uint8Array(len);
+            for (let k = 0; k < len; k++) b[k] = binStr.charCodeAt(k);
+            actualContent = b;
+        }
+
         if (!this.batchDirHandle) await this.init();
         const targetDir = actualSubDir ? await ensureSubDir(this.batchDirHandle, actualSubDir) : this.batchDirHandle;
         const cleanName = sanitizeFileName(actualFileName, 'file');

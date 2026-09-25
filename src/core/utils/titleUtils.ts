@@ -341,7 +341,7 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
 function computeHasNewerActivity(c: any, rec: any): boolean {
     if (!c || !rec) return false;
     try {
-        const cTs = getEffectiveTimestamp(c);
+        const cTs = Math.max(getEffectiveTimestamp(c), toTimestampMs(c.lastActiveAt) ?? 0);
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;
         const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
 
