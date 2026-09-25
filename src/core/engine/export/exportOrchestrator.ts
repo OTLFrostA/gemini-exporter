@@ -34,15 +34,6 @@ export interface ExportResult {
     aborted?: boolean;
 }
 
-export interface ExportOrchestratorModule {
-    ExportOrchestrator: any;
-    AsyncQueue: any;
-    ensureSubDir: (root: any, subPath: string) => Promise<any>;
-    sanitizeFileName: (name?: string | null, fallback?: string) => string;
-    sanitizeZipPath: (p?: string | null) => string;
-    getExtensionVersion: () => string;
-}
-
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { AssetPipeline as AssetPipelineStatic } from "../assetPipeline.js";
 import GeminiUtils, {
@@ -76,7 +67,7 @@ import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
 
-import { EXT_VERSION, getExtensionVersion, exportedIdsKey, STORAGE_KEYS, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
+import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
 const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', GeminiUtils);
@@ -217,9 +208,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
         }
     }
 
-    async function ensureSubDir(root: any, subPath: string): Promise<any> {
-        return await fsEnsureSubDir(root, subPath);
-    }
+    const ensureSubDir = fsEnsureSubDir;
 
     const getGeminiTab = async (slot?: string): Promise<any> =>
         (__resolveModule('TabService', TabService))?.getGeminiTab?.(slot) ?? null;
@@ -1060,15 +1049,9 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 }
             }
 
-            let isDevMode = false;
-            try {
-                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                    const devData = await chrome.storage.local.get([STORAGE_KEYS.DEV_MODE]);
-                    isDevMode = !!devData?.[STORAGE_KEYS.DEV_MODE];
-                }
-            } catch (e) {
-                if (typeof console !== 'undefined' && console.warn) console.warn('[GemExporter:storage] Storage operation failed:', e);
-            }
+            const isDevMode = Storage && typeof Storage.isDevMode === 'function'
+                ? await Storage.isDevMode()
+                : false;
 
             // B3: 取消时不写 _export_errors.json —— 取消是用户意图，不是失败
             // P1-8: parser 漂移同样触发诊断文件（成功但 partial 的会话不能静默）
@@ -1156,7 +1139,7 @@ export {
     ensureSubDir
 };
 
-export const ExportOrchestratorModule: ExportOrchestratorModule = {
+export const ExportOrchestratorModule = {
     ExportOrchestrator,
     AsyncQueue,
     ensureSubDir,
@@ -1164,5 +1147,7 @@ export const ExportOrchestratorModule: ExportOrchestratorModule = {
     sanitizeZipPath,
     getExtensionVersion
 };
+
+export type ExportOrchestratorModule = typeof ExportOrchestratorModule;
 
 export default ExportOrchestratorModule;
