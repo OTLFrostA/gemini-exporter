@@ -39,13 +39,20 @@ export const WORKBENCH_ACTION_BUTTON_IDS = [
     'btnImportTakeout',
     'btnSetDir',
     'btnClearExported',
-    'btnClearAll'
+    'btnClearAll',
+    'btnSelectAll',
+    'btnSelectNone'
 ] as const;
 
 export function setWorkbenchControlsDisabled(disabled: boolean): void {
     for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
         const el = document.getElementById(id) as HTMLButtonElement | null;
         if (el) el.disabled = !!disabled;
+    }
+    const listEl = document.getElementById('list');
+    if (listEl) {
+        listEl.style.pointerEvents = disabled ? 'none' : '';
+        listEl.style.opacity = disabled ? '0.7' : '';
     }
 }
 

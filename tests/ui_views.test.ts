@@ -825,3 +825,38 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sFailed.isUnexported, false);
 });
 
+test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select buttons, and list pointer-events', () => {
+    const { setWorkbenchControlsDisabled, WORKBENCH_ACTION_BUTTON_IDS } = require('../src/ui/uiCommon.js');
+    const elements: Record<string, any> = {};
+    for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
+        elements[id] = { id, disabled: false };
+    }
+    const mockList = { id: 'list', style: { pointerEvents: '', opacity: '' } };
+    elements['list'] = mockList;
+
+    const origDoc = (globalThis as any).document;
+    try {
+        (globalThis as any).document = {
+            getElementById: (id: string) => elements[id] || null
+        };
+
+        // 1. Disable
+        setWorkbenchControlsDisabled(true);
+        for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
+            assert.strictEqual(elements[id].disabled, true, `Button ${id} should be disabled`);
+        }
+        assert.strictEqual(mockList.style.pointerEvents, 'none', 'List should have pointer-events none');
+        assert.strictEqual(mockList.style.opacity, '0.7', 'List should be dimmed');
+
+        // 2. Enable
+        setWorkbenchControlsDisabled(false);
+        for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
+            assert.strictEqual(elements[id].disabled, false, `Button ${id} should be enabled`);
+        }
+        assert.strictEqual(mockList.style.pointerEvents, '', 'List pointer-events should be restored');
+        assert.strictEqual(mockList.style.opacity, '', 'List opacity should be restored');
+    } finally {
+        (globalThis as any).document = origDoc;
+    }
+});
+

@@ -270,13 +270,11 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
     const nid = normId(chatId);
     const esc = (v: string): string =>
         (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&');
-    const item = (document.querySelector && (
-        document.querySelector(`#list .item[data-chat-id="${esc(nid)}"]`)
-        || document.querySelector(`.item[data-chat-id="${esc(nid)}"]`)
-        || document.querySelector(`[data-chat-id="${esc(chatId)}"]`)
-        || document.querySelector(`[data-chat-id="${esc('c_' + nid)}"]`)
-        || document.querySelector(`[data-chat-id="${esc(nid)}"]`)
-    ));
+    const list = typeof document !== 'undefined'
+        ? ((typeof document.getElementById === 'function' ? document.getElementById('list') : null) || document)
+        : null;
+    if (!list || !list.querySelector) return;
+    const item = list.querySelector(`[data-chat-id="${esc(nid)}"], [data-chat-id="${esc(chatId)}"], [data-chat-id="${esc('c_' + nid)}"]`);
     if (!item) return;
 
     const st = resolveConversationExportState({ id: chatId }, exportRecord || { status: 'ok' });

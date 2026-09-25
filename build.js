@@ -64,7 +64,10 @@ for (const readmeFile of ['README.md', 'README_zh.md']) {
     }
 }
 
-const DEFINE_VERSION = { __EXT_VERSION__: JSON.stringify(EXT_VERSION) };
+const DEFINE_VERSION = {
+    __EXT_VERSION__: JSON.stringify(EXT_VERSION),
+    'process.env.NODE_ENV': JSON.stringify('production'),
+};
 
 const BUNDLE_ENTRIES = {
     'content/content': path.join(SRC, 'content', 'content.ts'),
