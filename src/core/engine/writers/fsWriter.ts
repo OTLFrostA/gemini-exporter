@@ -113,8 +113,12 @@ class FsWriter implements IExportWriter {
             const writable = await fileHandle.createWritable();
             try {
                 await writable.write(actualContent);
-            } finally {
                 await writable.close();
+            } catch (writeErr) {
+                if (typeof (writable as any)?.abort === 'function') {
+                    try { await (writable as any).abort(); } catch (_) {}
+                }
+                throw writeErr;
             }
         } finally {
             releaseGate();

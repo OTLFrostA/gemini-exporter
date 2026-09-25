@@ -22,7 +22,8 @@ test('fsWriter - disk layout uses cid6 filenames under gemini_export folder', as
             getFileHandle: async (file: string) => ({
                 createWritable: async () => ({
                     write: async (content: any) => { written[`${folder}/${file}`] = content; },
-                    close: async () => {}
+                    close: async () => {},
+                    abort: async () => {}
                 })
             }),
             getDirectoryHandle: async (subFolder: string) => ({
@@ -30,7 +31,8 @@ test('fsWriter - disk layout uses cid6 filenames under gemini_export folder', as
                 getFileHandle: async (assetFile: string) => ({
                     createWritable: async () => ({
                         write: async (content: any) => { written[`${folder}/${subFolder}/${assetFile}`] = content; },
-                        close: async () => {}
+                        close: async () => {},
+                        abort: async () => {}
                     })
                 })
             })
@@ -60,3 +62,34 @@ test('fsWriter - disk layout uses cid6 filenames under gemini_export folder', as
         `expected asset under gemini_export/assets/, got: ${Object.keys(written).join(', ')}`
     );
 });
+
+test('fsWriter - invokes abort() on writable when write operation fails', async () => {
+    let abortCalled = false;
+    let closeCalled = false;
+    const mockDir = {
+        name: 'MyVault',
+        getDirectoryHandle: async () => ({
+            getFileHandle: async () => ({
+                createWritable: async () => ({
+                    write: async () => {
+                        throw new Error('Simulated disk full during write');
+                    },
+                    close: async () => { closeCalled = true; },
+                    abort: async () => { abortCalled = true; }
+                })
+            })
+        })
+    };
+
+    const writer = new FsWriter(mockDir, 'gemini_export');
+    await writer.init();
+
+    await assert.rejects(
+        writer.writeFile('', 'broken.md', 'some content'),
+        /Simulated disk full during write/
+    );
+
+    assert.strictEqual(abortCalled, true, 'abort() must be called when write throws');
+    assert.strictEqual(closeCalled, false, 'close() must not be called when write throws');
+});
+

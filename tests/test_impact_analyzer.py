@@ -89,6 +89,25 @@ class TestImpactAnalyzer(unittest.TestCase):
         self.assertEqual(len(res.target_unit_tests), 0)
         self.assertEqual(len(res.target_e2e_specs), 0)
 
+    def test_import_pattern_filtering_and_dynamic_imports(self):
+        """验证 IMPORT_PATTERN 正确跳过 import type / export type，并正确解析动态 import()"""
+        from test_impact_analyzer import IMPORT_PATTERN
+        sample = """
+        import { foo } from "./runtime_foo";
+        import type { BarType } from "./type_bar";
+        export { baz } from "./runtime_baz";
+        export type { QuuxType } from "./type_quux";
+        const lazyMod = import("./dynamic_lazy");
+        const reqMod = require("./cjs_req");
+        """
+        matches = [m.group(1) or m.group(2) for m in IMPORT_PATTERN.finditer(sample)]
+        self.assertIn("./runtime_foo", matches)
+        self.assertIn("./runtime_baz", matches)
+        self.assertIn("./dynamic_lazy", matches)
+        self.assertIn("./cjs_req", matches)
+        self.assertNotIn("./type_bar", matches)
+        self.assertNotIn("./type_quux", matches)
+
 
 if __name__ == "__main__":
     unittest.main()

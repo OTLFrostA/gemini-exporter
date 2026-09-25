@@ -120,7 +120,7 @@ test('writerInterface - isWriter and createWriter factory', () => {
     const mockDirHandle = {
         name: 'test_export',
         getDirectoryHandle: async () => mockDirHandle,
-        getFileHandle: async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {} }) })
+        getFileHandle: async () => ({ createWritable: async () => ({ write: async () => {}, close: async () => {}, abort: async () => {} }) })
     };
     const fsWriter = WriterInterface.createWriter('fs', { dirHandle: mockDirHandle });
     assert.ok(fsWriter);
@@ -140,7 +140,8 @@ test('fsWriter - rejects invalid or empty plain object content before touching f
             return {
                 createWritable: async () => ({
                     write: async () => {},
-                    close: async () => {}
+                    close: async () => {},
+                    abort: async () => {}
                 })
             };
         }
