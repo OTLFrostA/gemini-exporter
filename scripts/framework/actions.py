@@ -438,6 +438,13 @@ class ExtensionActions:
             }}
             const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
             if (btn && !btn.disabled) btn.click();
+
+            setTimeout(() => {{
+                const continueZip = document.getElementById('btnModalContinueZip');
+                if (continueZip && continueZip.offsetParent !== null) {{
+                    continueZip.click();
+                }}
+            }}, 300);
         }})()
         """)
         start_time = time.time()
@@ -445,6 +452,15 @@ class ExtensionActions:
 
         while time.time() - start_time < max_wait:
             time.sleep(1.5)
+            # 若弹出直写文件夹建议弹窗，自动点击继续使用 ZIP 导出
+            cdp_opt.eval("""
+            (() => {
+                const continueZip = document.getElementById('btnModalContinueZip');
+                if (continueZip && continueZip.offsetParent !== null) {
+                    continueZip.click();
+                }
+            })()
+            """)
             if os.path.isdir(output_dir):
                 for f in os.listdir(output_dir):
                     if re.match(r"(?i)gemini_export_.*\.zip$", f):

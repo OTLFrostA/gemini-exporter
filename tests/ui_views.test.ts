@@ -818,6 +818,13 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sUpdated.needsIncrementalExport, true);
     assert.strictEqual(sUpdated.badge.kind, 'updated');
 
+    // 5b. updated via client-observed lastActiveAt (live continued chat where server timestamp is unchanged)
+    const sUpdatedActive = resolveState({ ...chat, lastActiveAt: t0 + 60000 }, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, status: 'ok', messageCount: 2 });
+    assert.strictEqual(sUpdatedActive.state, 'updated');
+    assert.strictEqual(sUpdatedActive.hasNewerActivity, true);
+    assert.strictEqual(sUpdatedActive.needsIncrementalExport, true);
+    assert.strictEqual(sUpdatedActive.badge.kind, 'updated');
+
     // 6. failed in session
     const sFailed = resolveState(chat, null, { isFailedInSession: true });
     assert.strictEqual(sFailed.state, 'failed');

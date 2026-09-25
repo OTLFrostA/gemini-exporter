@@ -123,6 +123,13 @@ class ZipExportDownloadCase(FeatureTestCase):
         try:
             # 确保搜索框已彻底清空并恢复全量工作台项目
             CDPActions.clear_search_workbench(cdp_opt)
+            cdp_opt.eval("""
+            (() => {
+                if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                    chrome.storage.local.set({ gemini_suppress_direct_write_prompt: true });
+                }
+            })()
+            """)
             time.sleep(0.5)
 
             target_ids = []

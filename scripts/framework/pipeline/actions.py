@@ -139,7 +139,14 @@ class UniversalInputAction:
             }}
 
             // 富文本 / ContentEditable / rich-textarea / Quill
-            const p = target.querySelector('p') || target;
+            const rich = target.closest('rich-textarea') || document.querySelector('rich-textarea');
+            if (rich && rich.__quill) {{
+                rich.__quill.setText('');
+                target.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                target.dispatchEvent(new Event('change', {{ bubbles: true, composed: true }}));
+                return true;
+            }}
+
             const range = document.createRange();
             range.selectNodeContents(target);
             const selection = window.getSelection();
@@ -152,7 +159,12 @@ class UniversalInputAction:
             }} catch (e) {{}}
 
             if ((target.textContent || '').trim().length > 0) {{
-                p.innerHTML = '<br>';
+                while (target.firstChild) {{
+                    target.removeChild(target.firstChild);
+                }}
+                const p = document.createElement('p');
+                p.appendChild(document.createElement('br'));
+                target.appendChild(p);
             }}
             target.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'deleteContentBackward' }}));
             target.dispatchEvent(new Event('input', {{ bubbles: true }}));
@@ -202,7 +214,23 @@ class UniversalInputAction:
             }}
 
             if (target) {{
+                target.click();
                 target.focus();
+                if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {{
+                    target.value = {json.dumps(text)};
+                    target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    target.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    return true;
+                }}
+                const p = target.querySelector('p') || target;
+                const sel = window.getSelection();
+                if (sel) {{
+                    const r = document.createRange();
+                    r.selectNodeContents(p);
+                    r.collapse(false);
+                    sel.removeAllRanges();
+                    sel.addRange(r);
+                }}
                 return true;
             }}
             return false;
@@ -210,27 +238,33 @@ class UniversalInputAction:
         """)
         time.sleep(0.05)
 
-        # 2. 原生 CDP insertText
+        # 2. 原生底层 CDP Input.insertText 插入文本（完全遵循物理级真实键盘事件，杜绝 execCommand 脱节）
         if text:
             cdp.call("Input.insertText", {"text": text})
             time.sleep(0.05)
 
-        # 3. 派发 input 与 change 事件保证框架数据绑定感知
-        cdp.eval("""
-        (() => {
-            const el = document.activeElement;
-            if (el) {
-                el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-                const rich = el.closest('rich-textarea');
-                if (rich) {
-                    rich.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-                    rich.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-                }
+        # 3. 派发 input 与 change 事件保证框架数据绑定感知与 Quill delta 刷新
+        target_selector_json = json.dumps(selector or "")
+        cdp.eval(f"""
+        (() => {{
+            const sel = {target_selector_json};
+            const targetEl = (sel ? document.querySelector(sel) : null) || document.activeElement;
+            if (targetEl) {{
+                targetEl.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                targetEl.dispatchEvent(new InputEvent('input', {{ bubbles: true, composed: true, inputType: 'insertText' }}));
+                targetEl.dispatchEvent(new Event('change', {{ bubbles: true, composed: true }}));
+                const rich = targetEl.closest('rich-textarea') || document.querySelector('rich-textarea');
+                if (rich) {{
+                    if (rich.__quill) {{
+                        try {{ rich.__quill.update(); }} catch (e) {{}}
+                    }}
+                    rich.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                    rich.dispatchEvent(new Event('change', {{ bubbles: true, composed: true }}));
+                }}
                 return true;
-            }
+            }}
             return false;
-        })()
+        }})()
         """)
         return True
 
@@ -264,9 +298,10 @@ class StagePromptAction(AtomicAction):
         time.sleep(0.2)
 
         # 3. 校验注入结果
+        editor_sel_json = json.dumps(self.editor_selector)
         staged_len = cdp.eval(f"""
         (() => {{
-            const editor = document.querySelector('{self.editor_selector}');
+            const editor = document.querySelector({editor_sel_json});
             return editor ? (editor.textContent || '').trim().length : 0;
         }})()
         """) or 0
@@ -279,7 +314,7 @@ class StagePromptAction(AtomicAction):
 class SingleClickSendAction(AtomicAction):
     """单次物理点击发送按钮 (Single-Click Guarantee)，绝对不进行多重连击重试循环"""
 
-    def __init__(self, send_btn_selector: Optional[str] = None, timeout: float = 15.0):
+    def __init__(self, send_btn_selector: Optional[str] = None, timeout: float = 30.0):
         self.send_btn_selector = send_btn_selector or GeminiSelectors.SEND_BTN
         self.timeout = timeout
 
@@ -297,12 +332,24 @@ class SingleClickSendAction(AtomicAction):
 
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         # 严格执行唯一点击通道 (Single Channel of Truth)：
-        # 遍历所有候选发送按钮，等待解除禁用并完成单次派发 (最多等待 15 秒，消除 Angular/React 脏检查与输入渲染时序差)
+        # 遍历所有候选发送按钮，等待解除禁用并完成单次派发 (最多等待 30 秒，消除 Angular 脏检查与输入渲染时序差)
+        try:
+            cdp.call("Page.bringToFront", {})
+            cdp.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+        except Exception:
+            pass
+
         start_wait = time.time()
+        selector_combo = f"{self.send_btn_selector}, gem-icon-button.send-button, [data-test-id='send-button-container'] button, [data-test-id='send-button-container'] gem-icon-button, gem-icon-button.send-button button"
+        selector_json = json.dumps(selector_combo)
+        editor_sel_json = json.dumps(GeminiSelectors.EDITOR)
+
         while time.time() - start_wait < self.timeout:
+            elapsed = time.time() - start_wait
             click_info = cdp.eval(f"""
             (() => {{
-                const btns = Array.from(document.querySelectorAll('{self.send_btn_selector}'));
+                const selector = {selector_json};
+                const btns = Array.from(document.querySelectorAll(selector));
                 for (const sendBtn of btns) {{
                     if (!sendBtn || sendBtn.disabled || sendBtn.getAttribute('aria-disabled') === 'true') {{
                         continue;
@@ -316,18 +363,24 @@ class SingleClickSendAction(AtomicAction):
                     }}
                     const label = (sendBtn.getAttribute('aria-label') || '').toLowerCase();
                     if (!label.includes('stop') && !label.includes('停止')) {{
-                        sendBtn.click();
+                        const targetBtn = sendBtn.tagName === 'BUTTON' ? sendBtn : (sendBtn.querySelector('button') || sendBtn);
+                        targetBtn.click();
                         return {{ clicked: true }};
                     }}
                 }}
 
-                // 若超过 2 秒仍未检出可用发送按钮，主动对输入容器派发 input/change 事件以唤醒 Angular 脏检查
-                const editor = document.querySelector('{GeminiSelectors.EDITOR}');
-                if (editor) {{
-                    editor.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
-                    const rich = editor.closest('rich-textarea');
-                    if (rich) {{
-                        rich.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                // 若等待超过 1.5 秒仍未检出可用按钮，主动触发 Quill 模型更新并派发 input 事件驱动 Angular 脏检查
+                if ({elapsed} > 1.5) {{
+                    const rich = document.querySelector('rich-textarea');
+                    if (rich && rich.__quill) {{
+                        try {{ rich.__quill.update(); }} catch (e) {{}}
+                    }}
+                    const editor = document.querySelector({editor_sel_json});
+                    if (editor) {{
+                        editor.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                        editor.dispatchEvent(new InputEvent('input', {{ bubbles: true, composed: true, inputType: 'insertText' }}));
+                        if (rich) rich.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+                        try {{ editor.click(); }} catch (e) {{}}
                     }}
                 }}
                 return null;
@@ -335,9 +388,27 @@ class SingleClickSendAction(AtomicAction):
             """)
             if click_info and click_info.get("clicked"):
                 return ActionResult(True, "发送按钮单次提交成功派发")
-            time.sleep(0.25)
 
-        return ActionResult(False, f"未定位到可用且非禁用的发送按钮 (等待 {int(self.timeout)}s 超时)")
+            time.sleep(0.5)
+
+        # 超时后收集 DOM 诊断详情，便于精准定位原因
+        diag = cdp.eval(f"""
+        (() => {{
+            const btns = Array.from(document.querySelectorAll({selector_json})).map(b => ({{
+                tag: b.tagName,
+                cls: b.className.slice(0, 50),
+                disabled: b.disabled,
+                ariaDisabled: b.getAttribute('aria-disabled'),
+                ariaLabel: b.getAttribute('aria-label')
+            }}));
+            const editor = document.querySelector({editor_sel_json});
+            return {{
+                buttons: btns,
+                editorTextLen: editor ? (editor.textContent || '').trim().length : 0
+            }};
+        }})()
+        """)
+        return ActionResult(False, f"未定位到可用且非禁用的发送按钮 (等待 {int(self.timeout)}s 超时, 诊断: {diag})")
 
 
 
