@@ -25,13 +25,18 @@ test('p1_b2 - P1-020: null scan result reports failure', () => {
 });
 
 // ---------- P1-021: engine construction in try ----------
-// The construction must stay inside the try/finally so a constructor throw
-// still resets the running state. Direct construction (no engineClass alias).
-test('p1_b2 - P1-021: engine constructed inside try', () => {
+// The construction must stay inside the try/finally of runExport so a constructor
+// throw still resets the running state. Direct construction (no engineClass alias).
+test('p1_b2 - P1-021: engine constructed inside try in runExport', () => {
     const src = SRC('ui/controllers/exportController.ts');
-    const tryIdx = src.indexOf('try {');
-    const newIdx = src.indexOf('activeEngine = new ExportEngine()');
-    assert.ok(tryIdx !== -1 && newIdx !== -1 && tryIdx < newIdx, 'construction inside try block');
+    const runExportIdx = src.indexOf('function runExport');
+    assert.ok(runExportIdx !== -1, 'runExport function exists');
+    const runExportBody = src.slice(runExportIdx);
+    const tryIdx = runExportBody.indexOf('try {');
+    const newIdx = runExportBody.indexOf('activeEngine = new ExportEngine()');
+    const finallyIdx = runExportBody.indexOf('finally {');
+    assert.ok(tryIdx !== -1 && newIdx !== -1 && finallyIdx !== -1, 'try, new ExportEngine, and finally exist in runExport');
+    assert.ok(tryIdx < newIdx && newIdx < finallyIdx, 'construction inside runExport try block before finally');
 });
 
 // ---------- P1-024: bounded debounce map ----------

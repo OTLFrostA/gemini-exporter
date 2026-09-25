@@ -45,9 +45,9 @@ STATIC_DOCS_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-# Import/Require 语句正则
+# Import/Require/Dynamic-Import 语句正则 (严格忽略仅类型导入 import type / export type)
 IMPORT_PATTERN = re.compile(
-    r"""(?:import|export)\s+(?:type\s+)?(?:[\s\w{},*]+\s+from\s+)?[\x27\x22]([^\x27\x22]+)[\x27\x22]|require\s*\(\s*[\x27\x22]([^\x27\x22]+)[\x27\x22]\s*\)"""
+    r"""(?:import|export)\s+(?!type\s)(?:[\s\w{},*]+\s+from\s+)?[\x27\x22]([^\x27\x22]+)[\x27\x22]|(?:require|import)\s*\(\s*[\x27\x22]([^\x27\x22]+)[\x27\x22]\s*\)"""
 )
 
 # 组件与 E2E Spec 映射表
