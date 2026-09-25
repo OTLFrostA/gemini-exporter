@@ -80,7 +80,13 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
 
     // 3. Switch back to options page and verify title updated in place without breaking order
     await optionsPage.bringToFront();
-    await optionsPage.waitForTimeout(600);
+    await expect.poll(async () => {
+      const data = await optionsPage.evaluate(async () => {
+        return await chrome.storage.local.get(['gemini_conversations']);
+      }) as Record<string, any>;
+      const c = (data.gemini_conversations || []).find((x: any) => x.id === '39d5b41870e49a67' || x.id === 'c_39d5b41870e49a67');
+      return c?.title;
+    }, { timeout: 10000 }).toBe('量子纠缠物理原理深度解析');
 
     await optionsPage.evaluate(async () => {
       if (typeof window.__workbenchLoadStore === 'function') {
@@ -135,17 +141,17 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     });
 
     await geminiPage.goto('https://gemini.google.com/app/takeout_chat_888');
-    await geminiPage.waitForLoadState('domcontentloaded');
-    await geminiPage.waitForTimeout(800); // Allow content.js syncOnce to run
-
-    // 3. Verify in storage and options page that title NEVER contains "- Google Gemini"
-    const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations']);
-    }) as Record<string, any>;
-    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'takeout_chat_888');
+    // 3. Verify in storage and options page that title lands cleanly and NEVER contains "- Google Gemini"
+    let chat: any = null;
+    await expect.poll(async () => {
+      const storageData = await optionsPage.evaluate(async () => {
+        return await chrome.storage.local.get(['gemini_conversations']);
+      }) as Record<string, any>;
+      chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'takeout_chat_888');
+      return chat?.title;
+    }, { timeout: 10000 }).toBe('微服务与分布式事务设计');
 
     expect(chat).toBeTruthy();
-    expect(chat.title).toBe('微服务与分布式事务设计');
     expect(chat.title).not.toContain('Google Gemini');
     expect(chat.title).not.toContain('Gemini');
 
@@ -196,7 +202,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
 
     await geminiPage.goto('https://gemini.google.com/app/loading_chat_777');
     await geminiPage.waitForLoadState('domcontentloaded');
-    await geminiPage.waitForTimeout(600);
+    await expect(geminiPage.locator('#geminiExportBadge')).toBeVisible();
 
     // 3. Verify that storage and options page RETAINED the real title and NEVER became "Google Gemini"
     const storageData = await optionsPage.evaluate(async () => {

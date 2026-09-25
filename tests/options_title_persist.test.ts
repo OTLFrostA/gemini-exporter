@@ -1,7 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
 
 // ---------------------------------------------------------------------------
 // Regression: optionsExport's onTitleUpdated used to be a pure in-memory dirty
@@ -11,6 +11,10 @@ const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 // update the in-memory item AND persist via storageService.updateConversation
 // (the same atomic read-modify-write path the export chain uses).
 // ---------------------------------------------------------------------------
+
+test.afterEach(() => {
+    __clearModuleOverrides();
+});
 
 function seedConversation() {
     return { id: 'c_aaa111', title: '旧标题', titleSource: 'dom', titles: { dom: '旧标题' } };

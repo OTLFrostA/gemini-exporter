@@ -200,8 +200,8 @@ test('storage_service - legacy conversations slim only via startup migration, no
         const list = await StorageService.getConversations('u0');
         assert.strictEqual(list.length, 1);
 
-        // Give microtasks / lock time; nothing should have been written
-        await new Promise(r => setTimeout(r, 50));
+        // Give microtasks / event loop a turn; nothing should have been written
+        await new Promise(r => setImmediate(r));
 
         // Read is pure: raw storage still holds the fat list
         const untouchedList = mockStorage['gemini_conversations'];

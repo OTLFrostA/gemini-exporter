@@ -83,7 +83,9 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
         if (stepIdx < 5) {
           await nextBtn.click();
           await expect(page.locator('.tour-step-badge')).toHaveText(`${stepIdx + 2} / 6`);
-          await page.waitForTimeout(300);
+          await page.locator('.tour-popover').evaluate((el) => {
+            return Promise.all(el.getAnimations().map(a => a.finished));
+          });
         } else {
           await nextBtn.click();
         }
@@ -166,7 +168,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     // 8. Reload page - spotlight should NOT appear again
     await page.reload();
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(600);
+    await expect(page.locator('#btnSelectAll')).toBeVisible();
     await expect(popover).toBeHidden();
   });
 
@@ -227,7 +229,8 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
 
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(500);
+    await expect(page.locator('#btnSelectAll')).toBeVisible();
+    await expect(page.locator('#btnExport')).toBeVisible();
 
     // Check all primary action buttons for unintentional text overflow
     const truncationAudit = await page.evaluate(() => {

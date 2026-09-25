@@ -9,7 +9,7 @@ test.describe('Popup UI & Action Center Localization', () => {
     await page.waitForLoadState('domcontentloaded');
 
     // Wait for async initLanguage
-    await page.waitForTimeout(400);
+    await expect(page.locator('#btnCurrent')).toHaveText(/(Export|导出)/);
 
     // 2. Ensure zero raw i18n keys are exposed on the page and unwanted debug elements are absent
     const rawKeyCheck = await page.evaluate(() => {
@@ -115,8 +115,8 @@ test.describe('Popup UI & Action Center Localization', () => {
 
     await popupPage.waitForLoadState('domcontentloaded');
     await optionsPage.waitForLoadState('domcontentloaded');
-    await popupPage.waitForTimeout(400);
-    await optionsPage.waitForTimeout(400);
+    await expect(popupPage.locator('#btnCurrent')).toBeVisible();
+    await expect(optionsPage.locator('#btnSelectAll')).toBeVisible();
 
     // 1. Language: Switch in popup to English -> options workbench updates
     await popupPage.click('#labelLangEn');
