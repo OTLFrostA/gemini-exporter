@@ -139,7 +139,7 @@ export function hideDirectWritePrompt(): void {
     if (modal) modal.style.display = 'none';
 }
 
-export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogleLimit?: boolean; force?: boolean; onImportTakeout?: () => void } = {}): Promise<void> {
+export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogleLimit?: boolean; force?: boolean; onImportTakeout?: () => void; onDismiss?: () => void } = {}): Promise<void> {
     const modal = $('takeoutLimitModal');
     const titleEl = $('takeoutLimitPromptTitle');
     const textEl = $('takeoutLimitPromptText');
@@ -192,6 +192,10 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
     modal.style.display = 'flex';
 
     const markCompleted = () => {
+        if (typeof options.onDismiss === 'function') {
+            try { options.onDismiss(); } catch {}
+            return;
+        }
         if (storage && storage.setTakeoutPromptCompleted) {
             void storage.setTakeoutPromptCompleted(true);
         }

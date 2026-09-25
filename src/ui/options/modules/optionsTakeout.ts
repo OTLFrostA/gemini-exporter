@@ -45,7 +45,12 @@ export async function maybePromptTakeout(count: number = 600, hitGoogleLimit: bo
             void Dialogs.showTakeoutLimitPrompt({
                 count: count || 600,
                 hitGoogleLimit: !!hitGoogleLimit,
-                onImportTakeout: () => ($('takeoutFileInput') as HTMLInputElement | null)?.click()
+                onImportTakeout: () => ($('takeoutFileInput') as HTMLInputElement | null)?.click(),
+                onDismiss: () => {
+                    if (Storage && Storage.setTakeoutPromptCompleted) {
+                        void Storage.setTakeoutPromptCompleted(true);
+                    }
+                }
             });
         }
     } catch (e) {

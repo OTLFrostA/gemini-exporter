@@ -92,6 +92,9 @@ const DEFAULT = DEFAULT_FORMAT;
         return normalizeFormat(selectEl ? selectEl.value : DEFAULT, devMode);
     }
 
+    /**
+     * @deprecated Legacy DOM binding helper. UI Controllers should attach event listeners directly.
+     */
     function bindFormatSelect(selectEl: any): void {
         if (!selectEl) return;
         selectEl.addEventListener('change', (e: any) => {
