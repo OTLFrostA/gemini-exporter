@@ -11,6 +11,11 @@ import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
+let _isImporting = false;
+
+export function isImporting(): boolean {
+    return _isImporting;
+}
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (__log) __log(msg, level);
@@ -63,9 +68,10 @@ export async function checkPendingTakeoutPrompt(): Promise<void> {
     }
 }
 
-function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
+export function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
     const TakeoutCtrl = getTakeoutCtrl();
-    if (!f || !TakeoutCtrl) return;
+    if (!f || !TakeoutCtrl || _isImporting) return;
+    _isImporting = true;
 
     const progWrap = $('progWrap');
     const bar = $('bar');
@@ -73,7 +79,14 @@ function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
     if (progWrap) progWrap.style.display = 'block';
     if (bar) bar.style.width = '15%';
 
-    void TakeoutCtrl.handleTakeoutImport(f, {
+    const finalize = () => {
+        _isImporting = false;
+        if (input) {
+            try { input.value = ''; } catch { /* noop */ }
+        }
+    };
+
+    void Promise.resolve(TakeoutCtrl.handleTakeoutImport(f, {
         onProgress: (pct: number, txt: string) => {
             if (bar) bar.style.width = `${pct}%`;
             if (progText) progText.textContent = txt;
@@ -82,18 +95,18 @@ function processTakeoutImport(f: File, input?: HTMLInputElement | null): void {
         onFinished: ({ message }: any) => {
             if (progText) progText.textContent = message;
             if (progWrap) progWrap.style.display = 'none';
-            if (input) {
-                try { input.value = ''; } catch { /* noop */ }
-            }
+            finalize();
             if (__loadStore) void __loadStore();
         },
         onError: (err: any, errMsg?: string) => {
             if (progText) progText.textContent = errMsg || err.message;
             if (progWrap) progWrap.style.display = 'none';
-            if (input) {
-                try { input.value = ''; } catch { /* noop */ }
-            }
+            finalize();
         }
+    })).catch((err: any) => {
+        if (progText) progText.textContent = err?.message || String(err);
+        if (progWrap) progWrap.style.display = 'none';
+        finalize();
     });
 }
 

@@ -45,6 +45,25 @@ export function base64ToUint8Array(base64: string): Uint8Array {
     return bytes;
 }
 
+const _liveWriteLocks = new Map<string, Promise<any>>();
+
+export function withLiveSaveLock<T>(key: string, op: () => Promise<T>): Promise<T> {
+    const prev = _liveWriteLocks.get(key) || Promise.resolve();
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((res) => { releaseGate = res; });
+    _liveWriteLocks.set(key, gate);
+
+    return prev.then(
+        () => op(),
+        () => op()
+    ).finally(() => {
+        releaseGate();
+        if (_liveWriteLocks.get(key) === gate) {
+            _liveWriteLocks.delete(key);
+        }
+    });
+}
+
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
         const { chat, safeTitle, nid, fileName, assets } = payload || {};
@@ -86,58 +105,63 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         }
 
         // Shared live-save writer: filename format + markdown formatting + write.
-        // (Permission checks, dir probing, asset loop and export-record
-        // bookkeeping stay here - they are background-side orchestration.)
-        const writer = await createLiveSaveWriter(handle);
+        // Serialized through withLiveSaveLock per file to prevent concurrent createWritable
+        // collisions (NoModificationAllowedError) when multiple tabs write simultaneously.
+        const fileLockKey = String(fileName || nid || safeTitle || chat?.id || 'live_save');
 
-        const targetFile = await writeLiveSaveMarkdown(
-            writer,
-            { chat, safeTitle, nid },
-            {},
-            { fileName }
-        );
+        const { targetFile, failedAssets } = await withLiveSaveLock(fileLockKey, async () => {
+            const writer = await createLiveSaveWriter(handle);
 
-        // Phase A (P1-2): 附件失败累积，不再 console.warn 了事。
-        // 坏 base64 / 无有效二进制 / 写文件抛错都算失败，决定 ok 与 partial 记录。
-        const failedAssets: Array<{ file: string; error: string }> = [];
-        if (Array.isArray(assets) && assets.length > 0) {
-            for (const asset of assets) {
-                if (asset && asset.fileName) {
-                    let fileData: Uint8Array | null = null;
-                    if (asset.base64 && typeof asset.base64 === 'string') {
-                        try {
-                            fileData = base64ToUint8Array(asset.base64);
-                        } catch (b64Err) {
-                            const msg = b64Err instanceof Error ? b64Err.message : String(b64Err);
-                            console.warn('[Background:liveSave] Failed to decode base64 for asset:', asset.fileName, b64Err);
-                            failedAssets.push({ file: asset.fileName, error: `base64 decode failed: ${msg}` });
+            const target = await writeLiveSaveMarkdown(
+                writer,
+                { chat, safeTitle, nid },
+                {},
+                { fileName }
+            );
+
+            // Phase A (P1-2): 附件失败累积，不再 console.warn 了事。
+            // 坏 base64 / 无有效二进制 / 写文件抛错都算失败，决定 ok 与 partial 记录。
+            const failures: Array<{ file: string; error: string }> = [];
+            if (Array.isArray(assets) && assets.length > 0) {
+                for (const asset of assets) {
+                    if (asset && asset.fileName) {
+                        let fileData: Uint8Array | null = null;
+                        if (asset.base64 && typeof asset.base64 === 'string') {
+                            try {
+                                fileData = base64ToUint8Array(asset.base64);
+                            } catch (b64Err) {
+                                const msg = b64Err instanceof Error ? b64Err.message : String(b64Err);
+                                console.warn('[Background:liveSave] Failed to decode base64 for asset:', asset.fileName, b64Err);
+                                failures.push({ file: asset.fileName, error: `base64 decode failed: ${msg}` });
+                            }
+                        } else if (asset.buffer instanceof ArrayBuffer) {
+                            fileData = new Uint8Array(asset.buffer);
+                        } else if (ArrayBuffer.isView(asset.buffer)) {
+                            fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
+                        } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(asset.buffer)) {
+                            fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
                         }
-                    } else if (asset.buffer instanceof ArrayBuffer) {
-                        fileData = new Uint8Array(asset.buffer);
-                    } else if (ArrayBuffer.isView(asset.buffer)) {
-                        fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
-                    } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(asset.buffer)) {
-                        fileData = new Uint8Array(asset.buffer.buffer, asset.buffer.byteOffset, asset.buffer.byteLength);
-                    }
 
-                    if (!fileData || fileData.byteLength === 0) {
-                        console.warn('[Background:liveSave] Skipping asset with no valid binary data:', asset.fileName);
-                        failedAssets.push({ file: asset.fileName, error: 'no valid binary data' });
-                        continue;
-                    }
+                        if (!fileData || fileData.byteLength === 0) {
+                            console.warn('[Background:liveSave] Skipping asset with no valid binary data:', asset.fileName);
+                            failures.push({ file: asset.fileName, error: 'no valid binary data' });
+                            continue;
+                        }
 
-                    try {
-                        const safeSubDir = sanitizeRelativePath(asset.subDir || 'assets', 'assets');
-                        const safeAssetFileName = sanitizeFileName(asset.fileName, 'attachment');
-                        await writer.writeFile(safeSubDir, safeAssetFileName, fileData);
-                    } catch (assetErr) {
-                        const msg = assetErr instanceof Error ? assetErr.message : String(assetErr);
-                        console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);
-                        failedAssets.push({ file: asset.fileName, error: msg });
+                        try {
+                            const safeSubDir = sanitizeRelativePath(asset.subDir || 'assets', 'assets');
+                            const safeAssetFileName = sanitizeFileName(asset.fileName, 'attachment');
+                            await writer.writeFile(safeSubDir, safeAssetFileName, fileData);
+                        } catch (assetErr) {
+                            const msg = assetErr instanceof Error ? assetErr.message : String(assetErr);
+                            console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);
+                            failures.push({ file: asset.fileName, error: msg });
+                        }
                     }
                 }
             }
-        }
+            return { targetFile: target, failedAssets: failures };
+        });
 
         const now = Date.now();
         try {

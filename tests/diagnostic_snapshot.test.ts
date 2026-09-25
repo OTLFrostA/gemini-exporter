@@ -38,6 +38,9 @@ test('flightRecorder: records events and automatically sanitizes sensitive field
     assert.strictEqual(entries[1].details.apiKey, '[REDACTED]');
     assert.strictEqual(entries[1].details.password, '[REDACTED]');
     assert.strictEqual(entries[1].details.normalKey, 'visible-data');
+
+    // Verify in-memory buffer itself is eagerly redacted (zero raw sensitive tokens in memory)
+    assert.strictEqual((FlightRecorder as any)._events[1].details.SNlM0e, '[REDACTED]', 'Internal in-memory event must be eagerly redacted');
 });
 
 test('maskTitle: masks titles safely while preserving structural metadata for debugging', () => {

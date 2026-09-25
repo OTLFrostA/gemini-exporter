@@ -110,3 +110,30 @@ test('html_export - XSS protection escapes malicious tags', () => {
     assert.ok(!res.content.includes('<script>alert("hacked")</script>'), 'Title script tags must be escaped');
     assert.ok(res.content.includes('&lt;script&gt;alert(&quot;hacked&quot;)&lt;/script&gt;'), 'Title must be HTML encoded');
 });
+
+test('html_export - XSS pseudo-protocols in markdown links are disarmed to safe href', () => {
+    const attackChat = {
+        id: 'xss_link_test',
+        title: 'Safe Title',
+        messages: [
+            {
+                role: 'user',
+                content: '[Click Evil](javascript:alert("pwned")) and [Data Link](data:text/html,<script>alert(1)</script>) and [Safe Link](https://example.com)'
+            },
+            {
+                role: 'model',
+                content: '[![Evil Image](javascript:alert(2))](vbscript:msgbox(1)) and ![Good Image](https://example.com/pic.png)'
+            }
+        ]
+    };
+
+    const res = ChatFormatter.formatContent(attackChat, 'html');
+    const html = res.content;
+    assert.ok(!html.includes('href="javascript:'), 'Must NOT contain javascript: in href');
+    assert.ok(!html.includes('href="vbscript:'), 'Must NOT contain vbscript: in href');
+    assert.ok(!html.includes('href="data:text/html'), 'Must NOT contain data:text/html in href');
+    assert.ok(!html.includes('src="javascript:'), 'Must NOT contain javascript: in src');
+    assert.ok(html.includes('href="https://example.com"'), 'Valid https links must be preserved');
+    assert.ok(html.includes('src="https://example.com/pic.png"'), 'Valid https image sources must be preserved');
+});
+
