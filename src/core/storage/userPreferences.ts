@@ -78,6 +78,14 @@ export async function setZipPreference(useZip: boolean): Promise<void> {
     return setPrefVal(STORAGE_KEYS.ZIP, !!useZip);
 }
 
+export async function getBadgePosition(): Promise<{ left: number; top: number } | null> {
+    const pos = await getPrefVal<{ left: number; top: number }>(STORAGE_KEYS.BADGE_POS, null as any);
+    if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
+        return pos;
+    }
+    return null;
+}
+
 export async function setBadgePosition(pos: { left: number; top: number }): Promise<void> {
     return setPrefVal(STORAGE_KEYS.BADGE_POS, pos);
 }

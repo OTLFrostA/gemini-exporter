@@ -263,3 +263,20 @@ test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报�
     }
 });
 
+test('D-P0-1: migrate() cleans up legacy gemini_conversations_u0 once canonical gemini_conversations is populated', async () => {
+    const m = installMock();
+    try {
+        m.localStore['gemini_conversations_u0'] = [
+            { id: 'legacy_chat', title: 'Legacy Chat', messages: [{ id: 'm1', content: 'hello' }], timestamp: 12345 }
+        ];
+
+        const res = await SchemaMigration.migrate();
+        assert.strictEqual(res.ok, true);
+        assert.strictEqual(m.localStore['gemini_conversations_u0'], undefined, 'Legacy u0 key must be removed');
+        assert.ok(Array.isArray(m.localStore['gemini_conversations']), 'Canonical conversations key must be created');
+        assert.strictEqual(m.localStore['gemini_conversations'][0].id, 'legacy_chat');
+    } finally {
+        m.restore();
+    }
+});
+

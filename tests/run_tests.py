@@ -1005,7 +1005,7 @@ def run_all():
     if args.filter:
         print(f"🔍 正在按关键字过滤单元测试: '{args.filter}'")
         all_test_files = sorted(set(glob.glob(os.path.join(BASE_DIR, "tests", "*.test.js")) + glob.glob(os.path.join(BASE_DIR, "tests", "*.test.ts")) + glob.glob(os.path.join(BASE_DIR, "tests", "arch", "*.test.ts"))))
-        matching = [tf for tf in all_test_files if args.filter.lower() in os.path.basename(tf).lower()]
+        matching = [tf for tf in all_test_files if args.filter.lower() in os.path.relpath(tf, BASE_DIR).lower()]
         if not matching:
             print(f"❌ 未找到匹配关键字 '{args.filter}' 的单元测试！")
             sys.exit(1)
