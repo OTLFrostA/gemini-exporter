@@ -208,9 +208,8 @@ export function mergeConversation(
         old.title !== resolvedTitle ||
         (!old.timestamp && bestTimestamp) ||
         (bestUpdatedAt && bestUpdatedAt !== oldUpdated) ||
-        (oldMsgCount !== null && inMsgCount !== null && oldMsgCount !== inMsgCount) ||
-        (oldBodyLen !== null && inBodyLen !== null && oldBodyLen !== inBodyLen) ||
-        ((oldBodyLen === null || oldBodyLen === 0) && inBodyLen !== null && inBodyLen > 0) ||
+        (inMsgCount !== null && (oldMsgCount === null || inMsgCount > oldMsgCount)) ||
+        (inBodyLen !== null && (oldBodyLen === null ? (oldMsgLen === 0 && inBodyLen > 0) : inBodyLen > oldBodyLen)) ||
         (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount) ||
         bestMsgLen > oldMsgLen ||
         bestActiveMs > (oldActiveMs ?? 0)
@@ -240,6 +239,11 @@ export function mergeConversation(
     if (oldBodyLen2 > 0 && inBodyLen2 < oldBodyLen2) {
         merged.messages = old.messages;
     }
+    const oldTurnsLen2 = Array.isArray(old?.turns) ? old.turns.length : 0;
+    const inTurnsLen2 = Array.isArray(incoming?.turns) ? incoming.turns.length : 0;
+    if (oldTurnsLen2 > 0 && inTurnsLen2 < oldTurnsLen2) {
+        merged.turns = old.turns;
+    }
     if (oldMsgCount !== null && inMsgCount !== null) {
         merged.messageCount = Math.max(oldMsgCount, inMsgCount);
     }
@@ -253,8 +257,21 @@ export function mergeConversation(
         merged.lastActiveAt = bestActiveMs;
     }
     if (incomingShrinksMessages) {
-        if (Array.isArray(old.messages)) merged.messages = old.messages;
-        if (Array.isArray(old.turns)) merged.turns = old.turns;
+        if (Array.isArray(old.messages)) {
+            merged.messages = old.messages;
+        } else {
+            // CRITICAL: old was slimmed (messages stored in IndexedDB).
+            // incoming has fewer messages than old's recorded messageCount/turns.
+            // Under no circumstances should incoming's shorter/partial messages
+            // attach to merged, as that would cause _setConversationsRaw to
+            // overwrite IndexedDB's fuller detail with incoming's truncated body!
+            delete merged.messages;
+        }
+        if (Array.isArray(old.turns)) {
+            merged.turns = old.turns;
+        } else {
+            delete merged.turns;
+        }
         if (typeof old.messageCount === 'number') merged.messageCount = old.messageCount;
         else if (bestMsgLen > 0) merged.messageCount = bestMsgLen;
     }

@@ -227,3 +227,89 @@ test('storage_service - legacy conversations slim only via startup migration, no
     }
 });
 
+test('storageService - merging shorter incoming into slim conversation preserves IDB details monotonically', async () => {
+    const mockStorage: Record<string, any> = {};
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = {
+        storage: {
+            local: {
+                get: async (keys: any) => {
+                    if (keys === null || keys === undefined) return { ...mockStorage };
+                    if (typeof keys === 'string') keys = [keys];
+                    const res: Record<string, any> = {};
+                    for (const k of (keys || [])) {
+                        if (k in mockStorage) res[k] = mockStorage[k];
+                    }
+                    return res;
+                },
+                set: async (obj: any) => {
+                    Object.assign(mockStorage, obj);
+                },
+                remove: async (keys: any) => {
+                    if (typeof keys === 'string') keys = [keys];
+                    for (const k of (keys || [])) delete mockStorage[k];
+                }
+            }
+        }
+    };
+
+    DetailStore.__clearMemoryStore();
+
+    try {
+        const mkMsgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `m${i}`, role: 'user', content: `Message ${i}` }));
+
+        // 1. 初始化一个包含 5 条消息的会话写入存储（setConversations 会将其 slim 并写入 DetailStore）
+        await StorageService.setConversations('u0', [
+            {
+                id: 'chat_protect',
+                title: 'Protected Chat',
+                titles: { rpc: 'Protected Chat' },
+                titleSource: 'rpc',
+                messages: mkMsgs(5),
+                messageCount: 5,
+                timestamp: 1000,
+                updatedAt: 1000
+            }
+        ]);
+
+        // 验证存储中已被 slim，且 DetailStore 存有 5 条消息
+        const slimList = await StorageService.getConversations('u0');
+        assert.strictEqual(slimList[0].messages, undefined);
+        assert.strictEqual(slimList[0].messageCount, 5);
+        let detail = await StorageService.getConversationDetail('chat_protect');
+        assert.strictEqual(detail?.messages.length, 5);
+
+        // 2. 通过 transactConversations 模拟合流逻辑：传入仅带 2 条消息的残缺 incoming
+        const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
+        await StorageService.transactConversations('u0', (list: any[]) => {
+            const existing = list.find((c: any) => c.id === 'chat_protect');
+            const incomingPartial = {
+                id: 'chat_protect',
+                title: 'Protected Chat',
+                messages: mkMsgs(2),
+                messageCount: 2,
+                timestamp: 1000,
+                updatedAt: 1000
+            };
+            const mergeRes = mergeConversation(existing, incomingPartial, { source: 'network-list' });
+            return {
+                list: [mergeRes.merged],
+                changed: mergeRes.isChanged ? 1 : 0
+            };
+        });
+
+        // 3. 验证 DetailStore 中的 5 条消息未被覆盖或截断
+        detail = await StorageService.getConversationDetail('chat_protect');
+        assert.ok(detail);
+        assert.strictEqual(detail.messages.length, 5, '5 条消息正文必须完好保留在 DetailStore 中');
+        assert.strictEqual(detail.messages[4].content, 'Message 4');
+
+        // 4. 验证 storage.local 的列表仍然保持 messageCount: 5
+        const currentList = await StorageService.getConversations('u0');
+        assert.strictEqual(currentList[0].messageCount, 5);
+        assert.strictEqual(currentList[0].messages, undefined);
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+

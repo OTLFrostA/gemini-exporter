@@ -107,6 +107,22 @@ export async function getConversationDetail(id: string): Promise<ConversationDet
     }
 }
 
+function isExistingDetailLonger(
+    existing: ConversationDetailRecord | undefined | null,
+    incoming: ConversationDetailRecord
+): boolean {
+    if (!existing) return false;
+    const incomingLen = Math.max(
+        Array.isArray(incoming.messages) ? incoming.messages.length : 0,
+        Array.isArray(incoming.turns) ? incoming.turns.length : 0
+    );
+    const existingLen = Math.max(
+        Array.isArray(existing.messages) ? existing.messages.length : 0,
+        Array.isArray(existing.turns) ? existing.turns.length : 0
+    );
+    return existingLen > incomingLen;
+}
+
 export async function saveConversationDetail(id: string, detail: Partial<ConversationDetailRecord>): Promise<boolean> {
     const nid = normId(id);
     if (!nid) return false;
@@ -120,18 +136,37 @@ export async function saveConversationDetail(id: string, detail: Partial<Convers
     };
 
     if (typeof indexedDB === 'undefined') {
+        const existing = _memoryDetailStore.get(nid);
+        if (isExistingDetailLonger(existing, record)) {
+            return true;
+        }
         _memoryDetailStore.set(nid, record);
         return true;
     }
 
     try {
         return await withDetailDB('readwrite', async (store) => {
-            store.put(record);
-            return true;
+            return new Promise<boolean>((resolve, reject) => {
+                const getReq = store.get(nid);
+                getReq.onerror = () => reject(getReq.error);
+                getReq.onsuccess = () => {
+                    const existing = getReq.result as ConversationDetailRecord | undefined;
+                    if (isExistingDetailLonger(existing, record)) {
+                        resolve(true);
+                        return;
+                    }
+                    const putReq = store.put(record);
+                    putReq.onerror = () => reject(putReq.error);
+                    putReq.onsuccess = () => resolve(true);
+                };
+            });
         });
     } catch (e) {
         console.error('[ConversationDetailStore] saveConversationDetail failed:', e);
-        _memoryDetailStore.set(nid, record);
+        const existing = _memoryDetailStore.get(nid);
+        if (!isExistingDetailLonger(existing, record)) {
+            _memoryDetailStore.set(nid, record);
+        }
         throw e;
     }
 }
@@ -139,14 +174,14 @@ export async function saveConversationDetail(id: string, detail: Partial<Convers
 export async function saveConversationDetailsBatch(
     records: Record<string, Partial<ConversationDetailRecord>> | ConversationDetailRecord[]
 ): Promise<boolean> {
-    const entries: ConversationDetailRecord[] = [];
+    const rawEntries: ConversationDetailRecord[] = [];
 
     if (Array.isArray(records)) {
         for (const r of records) {
             if (!r || !r.id) continue;
             const nid = normId(r.id);
             if (!nid) continue;
-            entries.push({
+            rawEntries.push({
                 id: nid,
                 messages: Array.isArray(r.messages) ? r.messages : [],
                 turns: Array.isArray(r.turns) ? r.turns : [],
@@ -159,7 +194,7 @@ export async function saveConversationDetailsBatch(
             if (!id || !r) continue;
             const nid = normId(id);
             if (!nid) continue;
-            entries.push({
+            rawEntries.push({
                 id: nid,
                 messages: Array.isArray(r.messages) ? r.messages : [],
                 turns: Array.isArray(r.turns) ? r.turns : [],
@@ -169,26 +204,54 @@ export async function saveConversationDetailsBatch(
         }
     }
 
-    if (entries.length === 0) return true;
+    if (rawEntries.length === 0) return true;
+
+    // Intra-batch dedup: retain fuller record if same ID appears multiple times
+    const dedupedMap = new Map<string, ConversationDetailRecord>();
+    for (const entry of rawEntries) {
+        const prev = dedupedMap.get(entry.id);
+        if (prev && isExistingDetailLonger(prev, entry)) {
+            continue;
+        }
+        dedupedMap.set(entry.id, entry);
+    }
+    const entries = Array.from(dedupedMap.values());
+
+    const setMemoryMonotonic = (entry: ConversationDetailRecord) => {
+        const existing = _memoryDetailStore.get(entry.id);
+        if (isExistingDetailLonger(existing, entry)) return;
+        _memoryDetailStore.set(entry.id, entry);
+    };
 
     if (typeof indexedDB === 'undefined') {
         for (const entry of entries) {
-            _memoryDetailStore.set(entry.id, entry);
+            setMemoryMonotonic(entry);
         }
         return true;
     }
 
     try {
         return await withDetailDB('readwrite', async (store) => {
-            for (const entry of entries) {
-                store.put(entry);
-            }
+            await Promise.all(entries.map(entry => new Promise<void>((resolve, reject) => {
+                const getReq = store.get(entry.id);
+                getReq.onerror = () => reject(getReq.error);
+                getReq.onsuccess = () => {
+                    const existing = getReq.result as ConversationDetailRecord | undefined;
+                    if (isExistingDetailLonger(existing, entry)) {
+                        resolve();
+                        return;
+                    }
+                    const putReq = store.put(entry);
+                    putReq.onerror = () => reject(putReq.error);
+                    putReq.onsuccess = () => resolve();
+                };
+            })));
             return true;
         });
     } catch (e) {
         console.error('[ConversationDetailStore] saveConversationDetailsBatch failed:', e);
         for (const entry of entries) {
-            _memoryDetailStore.set(entry.id, entry);
+            setMemoryMonotonic(entry);
         }
         throw e;
     }
