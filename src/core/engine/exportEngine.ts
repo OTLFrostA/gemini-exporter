@@ -15,8 +15,6 @@ import {
     type ExportOrchestratorModule
 } from "./export/exportOrchestrator.js";
 
-export type ExportEngineModule = ExportOrchestratorModule;
-
 export const ExportEngine = ExportOrchestrator;
 
 export {
@@ -28,7 +26,7 @@ export {
     getExtensionVersion
 };
 
-export const ExportEngineModule: ExportEngineModule = {
+export const ExportEngineModule = {
     ExportOrchestrator,
     AsyncQueue,
     ensureSubDir,
@@ -36,5 +34,7 @@ export const ExportEngineModule: ExportEngineModule = {
     sanitizeZipPath,
     getExtensionVersion
 };
+
+export type ExportEngineModule = typeof ExportEngineModule;
 
 export default ExportOrchestrator;
