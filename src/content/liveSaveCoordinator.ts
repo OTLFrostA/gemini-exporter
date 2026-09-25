@@ -354,6 +354,7 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
     const Utils = getUtils();
     const cid6 = Utils?.shortId ? Utils.shortId(nid) : shortId(nid);
     const targets = new Map<string, ImageDownloadTarget>();
+    const allocatedNames = new Set<string>();
 
     let imgCounter = 0;
 
@@ -378,6 +379,19 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
         } else {
             finalName = `${cid6}_t${turnIndex + 1}_img${imgCounter}_${hash4}.${ext}`;
         }
+
+        if (allocatedNames.has(finalName)) {
+            const dotIdx = finalName.lastIndexOf('.');
+            const base = dotIdx !== -1 ? finalName.slice(0, dotIdx) : finalName;
+            const fileExt = dotIdx !== -1 ? finalName.slice(dotIdx) : '';
+            finalName = `${base}_${hash4}${fileExt}`;
+            let dedupeIdx = 1;
+            while (allocatedNames.has(finalName)) {
+                finalName = `${base}_${dedupeIdx}${fileExt}`;
+                dedupeIdx++;
+            }
+        }
+        allocatedNames.add(finalName);
 
         targets.set(rawUrl, {
             url: rawUrl,

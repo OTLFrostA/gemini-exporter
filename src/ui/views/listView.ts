@@ -202,7 +202,10 @@ export function render(
         // Single canonical probe: expMap is normalized to canonical keys on the
         // read path (triage #5), so legacy 'c_<id>' alias keys no longer exist here.
         const rec = expMap[nid] || null;
-        const st = resolveConversationExportState(c, rec);
+        const isFailedInSession = !!(
+            failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+        );
+        const st = resolveConversationExportState(c, rec, { isFailedInSession });
         let isChecked = false;
         if (canonicalSelectedIds) {
             isChecked = canonicalSelectedIds.has(c.id) || canonicalSelectedIds.has(nid) || canonicalSelectedIds.has('c_' + nid);
@@ -230,9 +233,9 @@ export function render(
         }
 
         let badgeHtml = '';
-        if (rec && st.badge.kind !== 'none') {
+        if (st.badge && st.badge.kind !== 'none') {
             let expDateStr = '';
-            if (rec.exportedAt) {
+            if (rec && rec.exportedAt) {
                 try {
                     const ed = typeof rec.exportedAt === 'string' ? new Date(rec.exportedAt) : new Date(Number(rec.exportedAt));
                     if (!isNaN(ed.getTime())) {

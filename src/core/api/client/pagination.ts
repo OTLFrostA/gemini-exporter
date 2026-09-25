@@ -247,6 +247,8 @@ export interface GeminiClientPaginationModule {
                 }
             }
         };
+        let detailTruncated = false;
+        let truncateReason: string | undefined = undefined;
         do {
             let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
@@ -268,6 +270,8 @@ export interface GeminiClientPaginationModule {
                     // Token loop: the server is repeating a cursor we already
                     // followed — stop instead of pulling up to 20 duplicate pages.
                     token = null;
+                    detailTruncated = true;
+                    truncateReason = 'token_loop';
                     break;
                 }
                 seenTokens.add(nextToken);
@@ -275,6 +279,10 @@ export interface GeminiClientPaginationModule {
             token = nextToken;
             attempts++;
         } while (token && attempts < 20);
+        if (token && attempts >= 20) {
+            detailTruncated = true;
+            truncateReason = 'max_turns_page_limit_20';
+        }
         if (!first) throw new Error("no data");
 
         // If the primary request returned metadata-only (no messages, but raw data present),
@@ -324,7 +332,10 @@ export interface GeminiClientPaginationModule {
             updatedAt: maxTs,
             attachmentCount,
             turnsRejected: mergedTurnsRejected > 0 ? mergedTurnsRejected : void 0,
-            schemaDrift: mergedSchemaDrift.length ? mergedSchemaDrift : void 0
+            schemaDrift: mergedSchemaDrift.length ? mergedSchemaDrift : void 0,
+            truncated: detailTruncated || undefined,
+            isTruncated: detailTruncated || undefined,
+            truncateReason: detailTruncated ? truncateReason : undefined
         };
     }
 

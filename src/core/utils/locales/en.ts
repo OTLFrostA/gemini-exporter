@@ -125,6 +125,7 @@ const __enFactory = (): LocaleDictionary => {
             badgeExported: "Exported",
             badgeExportedPartial: "Exported (Partial Assets)",
             badgeExportingAssets: "Exporting assets...",
+            badgeFailed: "Export Failed",
             badgeNew: "New",
             loadStoreFailed: "Failed to load conversation list: {0}",
             dirCancelled: "Directory setup cancelled: {0}",

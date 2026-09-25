@@ -260,7 +260,7 @@ export type ConversationExportStateKind =
     | 'failed';
 
 export interface ConversationBadgeDescriptor {
-    kind: 'none' | 'exporting_assets' | 'exported_ok' | 'exported_partial' | 'updated';
+    kind: 'none' | 'exporting_assets' | 'exported_ok' | 'exported_partial' | 'updated' | 'failed';
     className: string;
     i18nKey: string;
     defaultLabel: string;
@@ -335,6 +335,15 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
         bg: 'rgba(16,185,129,0.15)',
         border: 'rgba(16,185,129,0.3)',
         color: '#10b981'
+    },
+    failed: {
+        kind: 'failed',
+        className: 'badge badge-failed',
+        i18nKey: 'badgeFailed',
+        defaultLabel: 'Failed',
+        bg: 'rgba(239,68,68,0.15)',
+        border: 'rgba(239,68,68,0.3)',
+        color: '#ef4444'
     }
 };
 
@@ -402,19 +411,19 @@ export function resolveConversationExportState(
 
     if (!hasRecord) {
         state = isFailedInSession ? 'failed' : 'unexported';
-        badgeKind = 'none';
+        badgeKind = isFailedInSession ? 'failed' : 'none';
     } else if (isPendingAssets) {
         state = 'exporting_assets';
         badgeKind = 'exporting_assets';
+    } else if (isRecordFailed || isFailedInSession) {
+        state = 'failed';
+        badgeKind = 'failed';
     } else if (hasNewerActivity) {
         state = 'updated';
         badgeKind = 'updated';
     } else if (isPartial) {
         state = 'exported_partial';
         badgeKind = 'exported_partial';
-    } else if (isRecordFailed || isFailedInSession) {
-        state = 'failed';
-        badgeKind = 'exported_ok';
     } else {
         state = 'exported_ok';
         badgeKind = 'exported_ok';
