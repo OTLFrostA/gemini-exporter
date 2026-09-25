@@ -2,6 +2,7 @@
 
 import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
 import { STORAGE_KEYS } from './constants.js';
+import { setLanguagePreference } from '../storage/storageService.js';
 
 import zhDict from './locales/zh.js';
 import enDict from './locales/en.js';
@@ -49,11 +50,7 @@ async function setLang(lang: string): Promise<void> {
     ensureLocales();
     if (!LOCALES[lang]) return;
     currentLang = lang;
-    try {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            await chrome.storage.local.set({ [STORAGE_KEYS.LANG]: lang });
-        }
-    } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    await setLanguagePreference(lang);
     for (const listener of langChangeListeners) {
         try { listener(currentLang); } catch (e) { console.error('langChangeListener err', e); }
     }

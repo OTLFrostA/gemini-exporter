@@ -251,11 +251,95 @@ export function compareConversations(a?: SortableConversation | null, b?: Sortab
     return lsB - lsA;
 }
 
-export function checkIsUpdated(c: any, rec?: any): boolean {
+export type ConversationExportStateKind =
+    | 'unexported'
+    | 'exporting_assets'
+    | 'exported_ok'
+    | 'exported_partial'
+    | 'updated'
+    | 'failed';
+
+export interface ConversationBadgeDescriptor {
+    kind: 'none' | 'exporting_assets' | 'exported_ok' | 'exported_partial' | 'updated';
+    className: string;
+    i18nKey: string;
+    defaultLabel: string;
+    bg: string;
+    border: string;
+    color: string;
+}
+
+export interface ConversationExportState {
+    state: ConversationExportStateKind;
+    /** True only when conversation activity on server/local advanced past the export record */
+    hasNewerActivity: boolean;
+    /** True when incremental export (skipExported) or default auto-select should include this conversation */
+    needsIncrementalExport: boolean;
+    /** True when the conversation failed in the current session or has a partial/failed export record */
+    isFailed: boolean;
+    /** True when never exported and not failed */
+    isUnexported: boolean;
+    /** True when exported without failure/partial status */
+    isExportedClean: boolean;
+    /** Deterministic badge visual & i18n descriptor */
+    badge: ConversationBadgeDescriptor;
+}
+
+export interface ResolveConversationExportStateOptions {
+    isFailedInSession?: boolean;
+    customHasNewerActivity?: (c: any, rec: any) => boolean;
+}
+
+const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], ConversationBadgeDescriptor> = {
+    none: {
+        kind: 'none',
+        className: '',
+        i18nKey: '',
+        defaultLabel: '',
+        bg: '',
+        border: '',
+        color: ''
+    },
+    exporting_assets: {
+        kind: 'exporting_assets',
+        className: 'badge badge-exporting-assets',
+        i18nKey: 'badgeExportingAssets',
+        defaultLabel: 'Exporting assets...',
+        bg: 'rgba(59,130,246,0.15)',
+        border: 'rgba(59,130,246,0.3)',
+        color: '#3b82f6'
+    },
+    updated: {
+        kind: 'updated',
+        className: 'badge badge-updated',
+        i18nKey: 'badgeUpdated',
+        defaultLabel: 'Updated',
+        bg: 'rgba(245,158,11,0.15)',
+        border: 'rgba(245,158,11,0.35)',
+        color: '#f59e0b'
+    },
+    exported_partial: {
+        kind: 'exported_partial',
+        className: 'badge badge-exported-partial',
+        i18nKey: 'badgeExportedPartial',
+        defaultLabel: 'Exported (Partial Assets)',
+        bg: 'rgba(234,179,8,0.15)',
+        border: 'rgba(234,179,8,0.3)',
+        color: '#eab308'
+    },
+    exported_ok: {
+        kind: 'exported_ok',
+        className: 'badge badge-exported',
+        i18nKey: 'badgeExported',
+        defaultLabel: 'Exported',
+        bg: 'rgba(16,185,129,0.15)',
+        border: 'rgba(16,185,129,0.3)',
+        color: '#10b981'
+    }
+};
+
+function computeHasNewerActivity(c: any, rec: any): boolean {
     if (!c || !rec) return false;
-    // Phase A (P1-2): partial 记录永不视为"已同步"。否则 partial 的 exportedAt=now
-    // 会让下次增量直接跳过，失败附件永远得不到重试。
-    if ((rec as any).status === 'partial' || (rec as any).hasFailedAssets) return true;
     try {
         const cTs = getEffectiveTimestamp(c);
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;
@@ -291,6 +375,73 @@ export function checkIsUpdated(c: any, rec?: any): boolean {
 }
 
 /**
+ * Single Source of Truth (SSoT) for conversation export state, filter predicates,
+ * incremental export inclusion, and badge visual/i18n representation.
+ */
+export function resolveConversationExportState(
+    c: any,
+    rec?: any,
+    options?: ResolveConversationExportStateOptions
+): ConversationExportState {
+    const hasRecord = !!rec;
+    const recStatus = rec ? (rec as any).status : undefined;
+    const isPendingAssets = !!(rec && recStatus === 'pending_assets');
+    const isPartial = !isPendingAssets && !!(rec && (recStatus === 'partial' || !!(rec as any).hasFailedAssets));
+    const isRecordFailed = !!(rec && recStatus === 'failed');
+    const isFailedInSession = !!options?.isFailedInSession;
+
+    const isFailed = isFailedInSession || isPartial || isRecordFailed;
+    const isUnexported = !hasRecord && !isFailed;
+    const isExportedClean = hasRecord && !isFailed;
+
+    const activityChecker = options?.customHasNewerActivity || computeHasNewerActivity;
+    const hasNewerActivity = hasRecord && !isPendingAssets ? activityChecker(c, rec) : false;
+
+    let state: ConversationExportStateKind;
+    let badgeKind: ConversationBadgeDescriptor['kind'];
+
+    if (!hasRecord) {
+        state = isFailedInSession ? 'failed' : 'unexported';
+        badgeKind = 'none';
+    } else if (isPendingAssets) {
+        state = 'exporting_assets';
+        badgeKind = 'exporting_assets';
+    } else if (hasNewerActivity) {
+        state = 'updated';
+        badgeKind = 'updated';
+    } else if (isPartial) {
+        state = 'exported_partial';
+        badgeKind = 'exported_partial';
+    } else if (isRecordFailed || isFailedInSession) {
+        state = 'failed';
+        badgeKind = 'exported_ok';
+    } else {
+        state = 'exported_ok';
+        badgeKind = 'exported_ok';
+    }
+
+    const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity;
+
+    return {
+        state,
+        hasNewerActivity,
+        needsIncrementalExport,
+        isFailed,
+        isUnexported,
+        isExportedClean,
+        badge: BADGE_DESCRIPTORS[badgeKind]
+    };
+}
+
+export function checkIsUpdated(c: any, rec?: any): boolean {
+    if (!c || !rec) return false;
+    // Phase A (P1-2): partial 记录永不视为"已同步"。否则 partial 的 exportedAt=now
+    // 会让下次增量直接跳过，失败附件永远得不到重试。
+    const st = resolveConversationExportState(c, rec);
+    return st.state === 'exported_partial' || st.hasNewerActivity;
+}
+
+/**
  * Sniffs conversation title from the first user message if current title is missing or generic.
  */
 export function resolveDetailTitle(
@@ -320,6 +471,7 @@ export default {
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
+    resolveConversationExportState,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK
 };

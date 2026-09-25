@@ -11,7 +11,8 @@ import {
     getDirHandle as getDirHandleController,
     getLiveStorage,
     getProgressView,
-    getExportCtrl
+    getExportCtrl,
+    getLogView
 } from '../optionsContext.js';
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
@@ -19,6 +20,7 @@ import { normId } from '../../../core/utils/pathUtils.js';
 import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../../../core/utils/constants.js';
 import { isLocalDevelopment } from '../../../core/utils/environment.js';
+import { buildDiagnosticSnapshot } from '../../../core/diagnostics/diagnosticSnapshot.js';
 
 export { normId, cleanTitle, resolveTitle };
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -99,14 +101,21 @@ export async function handleDevChange(devOn: boolean): Promise<void> {
 
 export async function exportDiagnostics(): Promise<void> {
     try {
-        const d = await chrome.storage.local.get([STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS]);
-        const diag = d[STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS];
-        if (!diag) {
-            const noDataMsg = typeof t === 'function' ? t('noDiagData') : 'No diagnostic data yet.';
-            log(noDataMsg, 'info');
-            return;
-        }
-        const jsonStr = JSON.stringify(diag, null, 2);
+        const Store = getStore();
+        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const convs = Store ? Store.getConversations() : [];
+        const expMap = Store ? Store.getExportedIds() : {};
+        const LogView = getLogView();
+        const logs = typeof LogView?.getBuffer === 'function' ? LogView.getBuffer() : [];
+
+        const snapshot = await buildDiagnosticSnapshot({
+            slot,
+            conversations: convs,
+            exportedIds: expMap,
+            workbenchLogs: logs
+        });
+
+        const jsonStr = JSON.stringify(snapshot, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');

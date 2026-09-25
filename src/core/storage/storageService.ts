@@ -83,6 +83,14 @@ export interface StorageServiceModule {
     setTakeoutPromptCompleted: (completed?: boolean) => Promise<void>;
     hasTakeoutData: (slot?: string | null) => Promise<boolean>;
     setHasImportedTakeout: (imported?: boolean) => Promise<void>;
+    isDirectWritePromptSuppressed: () => Promise<boolean>;
+    setDirectWritePromptSuppressed: (suppressed?: boolean) => Promise<void>;
+    getZipPreference: (defaultValue?: boolean) => Promise<boolean>;
+    setZipPreference: (useZip: boolean) => Promise<void>;
+    setBadgePosition: (pos: { left: number; top: number }) => Promise<void>;
+    setLastSyncDiagnostics: (diagnostics: any) => Promise<void>;
+    setPendingTakeoutPrompt: (payload: any) => Promise<void>;
+    setLanguagePreference: (lang: string) => Promise<void>;
 }
 
 
@@ -741,6 +749,72 @@ export interface StorageServiceModule {
         }
     }
 
+    async function isDirectWritePromptSuppressed(): Promise<boolean> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
+        try {
+            const data = await chrome.storage.local.get([STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT]);
+            return !!data?.[STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT];
+        } catch (e) {
+            console.warn("[GemExporter:storage] Storage operation failed:", e);
+            return false;
+        }
+    }
+
+    async function setDirectWritePromptSuppressed(suppressed: boolean = true): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT]: !!suppressed });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
+    async function getZipPreference(defaultValue: boolean = true): Promise<boolean> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return defaultValue;
+        try {
+            const data = await chrome.storage.local.get([STORAGE_KEYS.ZIP]);
+            if (typeof (data as any)?.[STORAGE_KEYS.ZIP] !== 'undefined') {
+                return !!(data as any)[STORAGE_KEYS.ZIP];
+            }
+            return defaultValue;
+        } catch {
+            return defaultValue;
+        }
+    }
+
+    async function setZipPreference(useZip: boolean): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: !!useZip });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
+    async function setBadgePosition(pos: { left: number; top: number }): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.BADGE_POS]: pos });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
+    async function setLastSyncDiagnostics(diagnostics: any): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS]: diagnostics });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
+    async function setPendingTakeoutPrompt(payload: any): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]: payload });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
+    async function setLanguagePreference(lang: string): Promise<void> {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [STORAGE_KEYS.LANG]: lang });
+        } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
+    }
+
     async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<Conversation | null> {
         if (!id) return null;
         const targetId = normId(id);
@@ -794,7 +868,15 @@ export {
     isTakeoutPromptCompleted,
     setTakeoutPromptCompleted,
     hasTakeoutData,
-    setHasImportedTakeout
+    setHasImportedTakeout,
+    isDirectWritePromptSuppressed,
+    setDirectWritePromptSuppressed,
+    getZipPreference,
+    setZipPreference,
+    setBadgePosition,
+    setLastSyncDiagnostics,
+    setPendingTakeoutPrompt,
+    setLanguagePreference
 };
 
 export const StorageService: StorageServiceModule = {
@@ -833,7 +915,15 @@ export const StorageService: StorageServiceModule = {
     isTakeoutPromptCompleted,
     setTakeoutPromptCompleted,
     hasTakeoutData,
-    setHasImportedTakeout
+    setHasImportedTakeout,
+    isDirectWritePromptSuppressed,
+    setDirectWritePromptSuppressed,
+    getZipPreference,
+    setZipPreference,
+    setBadgePosition,
+    setLastSyncDiagnostics,
+    setPendingTakeoutPrompt,
+    setLanguagePreference
 };
 
 

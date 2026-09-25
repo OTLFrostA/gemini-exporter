@@ -33,10 +33,15 @@ import {
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
+    resolveConversationExportState,
     isTakeoutConversation,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
-    type TitleResolution
+    type TitleResolution,
+    type ConversationExportState,
+    type ConversationExportStateKind,
+    type ConversationBadgeDescriptor,
+    type ResolveConversationExportStateOptions
 } from './titleUtils.js';
 import {
     formatExportProgress,
@@ -88,10 +93,15 @@ export {
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
+    resolveConversationExportState,
     isTakeoutConversation,
     TITLE_SOURCE_PRIORITY,
     TITLE_TIER_RANK,
     type TitleResolution,
+    type ConversationExportState,
+    type ConversationExportStateKind,
+    type ConversationBadgeDescriptor,
+    type ResolveConversationExportStateOptions,
     // Progress
     formatExportProgress,
     type ExportProgressFormatted,
@@ -139,6 +149,7 @@ export interface GeminiUtilsModule {
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
     checkIsUpdated: (c: any, rec?: any) => boolean;
+    resolveConversationExportState: (c: any, rec?: any, options?: ResolveConversationExportStateOptions) => ConversationExportState;
     isTakeoutConversation: (c: any) => boolean;
     formatExportProgress: (progress?: ExportProgressInput | number | null, txt?: string, isEn?: boolean) => ExportProgressFormatted;
     mergeConversation: (existing: any, incoming: any, options?: MergeConversationOptions) => MergeConversationResult;
@@ -194,6 +205,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     getEffectiveTimestamp,
     compareConversations,
     checkIsUpdated,
+    resolveConversationExportState,
     isTakeoutConversation,
     formatExportProgress,
     mergeConversation,

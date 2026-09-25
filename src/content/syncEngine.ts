@@ -673,9 +673,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         }
 
         if (all && all.diagnostics) {
-            try {
-                await chrome.storage.local.set({ [STORAGE_KEYS.LAST_SYNC_DIAGNOSTICS]: all.diagnostics });
-            } catch (e) { console.warn('[GemExporter:storage] Storage operation failed:', e); }
+            const setDiag = Storage?.setLastSyncDiagnostics || StorageService.setLastSyncDiagnostics;
+            await setDiag(all.diagnostics);
         }
 
         if (all && all.conversations && all.conversations.length) {
@@ -705,14 +704,14 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 try {
                     const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
                     if (!existing?.[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]) {
-                        chrome.storage.local.set({
-                            [STORAGE_KEYS.PENDING_TAKEOUT_PROMPT]: {
-                                slot,
-                                count: mergedLen,
-                                hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit),
-                                timestamp: Date.now()
-                            }
-                        }).catch(() => {});
+                        // Persist STORAGE_KEYS.PENDING_TAKEOUT_PROMPT via StorageService
+                        const setPending = Storage?.setPendingTakeoutPrompt || StorageService.setPendingTakeoutPrompt;
+                        void setPending({
+                            slot,
+                            count: mergedLen,
+                            hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit),
+                            timestamp: Date.now()
+                        });
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);

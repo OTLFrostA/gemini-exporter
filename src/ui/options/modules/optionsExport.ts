@@ -417,20 +417,23 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     const constants = getConstants();
     const threshold = (constants && constants.DIRECT_WRITE_THRESHOLD) ? constants.DIRECT_WRITE_THRESHOLD : 20;
     if (includeZip && !dirHandle && selected.length > threshold && Dialogs && Dialogs.showDirectWritePrompt) {
-        const suppressKey = (constants && constants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
-        let isSuppressed = false;
-        try {
-            const d = await chrome.storage.local.get([suppressKey]);
-            isSuppressed = !!d[suppressKey];
-        } catch (e) {
-            console.warn('[GemExporter:storage] Storage operation failed:', e);
-        }
+        const Storage = getStorage();
+        const isSuppressed = typeof Storage?.isDirectWritePromptSuppressed === 'function'
+            ? await Storage.isDirectWritePromptSuppressed()
+            : await (async () => {
+                const suppressKey = (constants && constants.STORAGE_KEYS?.SUPPRESS_DIRECT_WRITE_PROMPT) || 'gemini_suppress_direct_write_prompt';
+                try {
+                    const d = await chrome.storage.local.get([suppressKey]);
+                    return !!d[suppressKey];
+                } catch (e) {
+                    console.warn('[GemExporter:storage] Storage operation failed:', e);
+                    return false;
+                }
+            })();
 
         if (!isSuppressed) {
-            try {
-                await chrome.storage.local.set({ [suppressKey]: true });
-            } catch (e) {
-                console.warn('[GemExporter:storage] Storage operation failed:', e);
+            if (typeof Storage?.setDirectWritePromptSuppressed === 'function') {
+                await Storage.setDirectWritePromptSuppressed(true);
             }
 
             // Hold the export mutex until the user actually decides.
@@ -486,10 +489,8 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
                             if (zipCh) {
                                 zipCh.checked = false;
                                 updateZipUi();
-                                try {
-                                    await chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: false });
-                                } catch (e) {
-                                    console.warn('[GemExporter:storage] Storage operation failed:', e);
+                                if (typeof Storage?.setZipPreference === 'function') {
+                                    await Storage.setZipPreference(false);
                                 }
                             }
                             await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
@@ -556,6 +557,7 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
     }
 
     if (zipCheck) {
+        const Storage = getStorage();
         const d = await chrome.storage.local.get([STORAGE_KEYS.ZIP]);
         if (typeof (d as any)[STORAGE_KEYS.ZIP] !== 'undefined') {
             zipCheck.checked = (d as any)[STORAGE_KEYS.ZIP] as boolean;
@@ -565,7 +567,9 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         updateZipUi();
         zipCheck.addEventListener('change', () => {
             updateZipUi();
-            void chrome.storage.local.set({ [STORAGE_KEYS.ZIP]: zipCheck.checked });
+            if (typeof Storage?.setZipPreference === 'function') {
+                void Storage.setZipPreference(zipCheck.checked);
+            }
         });
     }
 
