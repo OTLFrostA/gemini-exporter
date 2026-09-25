@@ -1,6 +1,16 @@
 // src/core/engine/formatters/htmlConverter.ts - HTML to Markdown converter
 import { unescapeHtml } from "../../utils/utils.js";
 
+function stripHtmlTags(str: string): string {
+    let prev = '';
+    let current = str;
+    do {
+        prev = current;
+        current = current.replace(/<[^>]+>/g, '');
+    } while (current !== prev);
+    return current;
+}
+
 /**
  * Convert HTML content (from Google Takeout or HTML-rich model responses) to Markdown.
  */
@@ -47,10 +57,10 @@ export function convertHtmlToMarkdown(html?: string | null): string {
                 let cell = cMatch[1];
                 cell = cell.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1<br>');
                 cell = cell.replace(/<br\s*\/?>/gi, '__TABLE_BR__');
-                cell = cell.replace(/<[^>]+>/g, '');
+                cell = stripHtmlTags(cell);
                 cell = unescapeHtml(cell);
                 cell = cell.replace(/\r?\n/g, ' ').trim();
-                cell = cell.replace(/\\\|/g, '__ESCAPED_PIPE__').replace(/\|/g, '\\|').replace(/__ESCAPED_PIPE__/g, '\\|');
+                cell = cell.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
                 cells.push(cell);
             }
             if (cells.length === 0) continue;
@@ -70,11 +80,7 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     res = res.replace(/<br\s*\/?>/gi, '\n');
     res = res.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
     // 7. Strip any other HTML tags repeatedly to remove nested tags
-    let prev = '';
-    do {
-        prev = res;
-        res = res.replace(/<[^>]+>/g, '');
-    } while (res !== prev);
+    res = stripHtmlTags(res);
     res = __restoreCode(res);
     // 8. Restore table line breaks
     res = res.replace(/__TABLE_BR__/g, '<br>');
