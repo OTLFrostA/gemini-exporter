@@ -216,3 +216,36 @@ test('assetFetcher - inferImageExt correctly detects MIME and URL extensions', (
     assert.strictEqual(AssetFetcher.inferImageExt(undefined, 'https://example.com/pic.png?alr=yes'), 'png');
     assert.strictEqual(AssetFetcher.inferImageExt(undefined, 'https://example.com/unknown'), 'jpg');
 });
+
+test('liveSaveHandler - withLiveSaveLock serializes concurrent writes targeting the same key', async () => {
+    const { withLiveSaveLock } = require('../src/background/liveSaveHandler.js');
+
+    const executionOrder: string[] = [];
+
+    const task1 = withLiveSaveLock('test_concurrency_file.md', async () => {
+        executionOrder.push('task1_start');
+        await new Promise(r => setTimeout(r, 20));
+        executionOrder.push('task1_end');
+        return 'res1';
+    });
+
+    const task2 = withLiveSaveLock('test_concurrency_file.md', async () => {
+        executionOrder.push('task2_start');
+        await new Promise(r => setTimeout(r, 10));
+        executionOrder.push('task2_end');
+        return 'res2';
+    });
+
+    const [r1, r2] = await Promise.all([task1, task2]);
+    assert.strictEqual(r1, 'res1');
+    assert.strictEqual(r2, 'res2');
+
+    // Task 1 must fully finish before Task 2 starts
+    assert.deepStrictEqual(executionOrder, [
+        'task1_start',
+        'task1_end',
+        'task2_start',
+        'task2_end'
+    ]);
+});
+

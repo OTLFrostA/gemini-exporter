@@ -193,3 +193,44 @@ test('dialogView - showTakeoutLimitPrompt differentiates between server limit an
     });
     assert.ok(mockElements.takeoutLimitPromptTitle.textContent.includes('History Exceeds Web Browsing Window'));
 });
+
+test('optionsTakeout - processTakeoutImport blocks concurrent imports with _isImporting lock', async () => {
+    const OptionsTakeout = require('../src/ui/options/modules/optionsTakeout.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+
+    assert.strictEqual(OptionsTakeout.isImporting(), false, 'Initially not importing');
+
+    let importCalls = 0;
+    let finishDeferred: () => void;
+    const waitPromise = new Promise<void>((res) => { finishDeferred = res; });
+
+    __setModuleOverride('TakeoutController', {
+        handleTakeoutImport: async (_f: any, callbacks: any) => {
+            importCalls++;
+            await waitPromise;
+            if (callbacks.onFinished) callbacks.onFinished({ message: 'done' });
+        }
+    });
+
+    const mockFile = { name: 'test.zip', size: 1024 } as any;
+
+    try {
+        // Trigger first import
+        OptionsTakeout.processTakeoutImport(mockFile, null);
+        assert.strictEqual(OptionsTakeout.isImporting(), true, 'isImporting must be true during import');
+        assert.strictEqual(importCalls, 1, 'First import must have started');
+
+        // Trigger second concurrent import
+        OptionsTakeout.processTakeoutImport(mockFile, null);
+        assert.strictEqual(importCalls, 1, 'Second concurrent import must be blocked by lock');
+
+        // Finish first import
+        finishDeferred!();
+        await new Promise(r => setTimeout(r, 10));
+
+        assert.strictEqual(OptionsTakeout.isImporting(), false, 'isImporting must reset to false after completion');
+    } finally {
+        __clearModuleOverrides();
+    }
+});
+

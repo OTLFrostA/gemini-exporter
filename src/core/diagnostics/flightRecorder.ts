@@ -53,14 +53,14 @@ class FlightRecorderImpl {
         details?: Record<string, any>
     ): void {
         const now = Date.now();
-        const rawDetails = details && typeof details === 'object' ? { ...details } : details;
+        const safeDetails = details ? sanitizeValue(details) : undefined;
         const entry: FlightEvent = {
             id: this._nextId++,
             ts: now,
             isoTime: new Date(now).toISOString(),
             subsystem,
             action,
-            details: rawDetails
+            details: safeDetails
         };
         this._events.push(entry);
         if (this._events.length > this.MAX_ENTRIES) {
@@ -71,7 +71,7 @@ class FlightRecorderImpl {
     public getEntries(): FlightEvent[] {
         return this._events.map(e => ({
             ...e,
-            details: e.details ? sanitizeValue(e.details) : undefined
+            details: e.details && typeof e.details === 'object' ? { ...e.details } : e.details
         }));
     }
 

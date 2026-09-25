@@ -38,6 +38,38 @@ function escapeAttr(text?: string | null): string {
 }
 
 /**
+ * Validate and sanitize URLs for use in href or src attributes.
+ * Disarms dangerous schemes like javascript:, vbscript:, and non-image data: schemes.
+ */
+export function sanitizeUrl(rawUrl?: string | null, allowImageData: boolean = false): string {
+    if (!rawUrl || typeof rawUrl !== 'string') return '#';
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return '#';
+
+    // Disarm any control characters
+    if (/[\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return '#';
+
+    // Check scheme if present
+    const schemeMatch = trimmed.match(/^([a-zA-Z0-9+.-]+):/);
+    if (schemeMatch) {
+        const scheme = schemeMatch[1].toLowerCase();
+        if (scheme === 'javascript' || scheme === 'vbscript') {
+            return '#';
+        }
+        if (scheme === 'data') {
+            if (allowImageData && /^data:image\/(?:png|jpeg|jpg|gif|webp|svg\+xml);base64,[a-z0-9+/=]+$/i.test(trimmed)) {
+                return escapeAttr(trimmed);
+            }
+            return '#';
+        }
+        if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto' && scheme !== 'tel') {
+            return '#';
+        }
+    }
+    return escapeAttr(trimmed);
+}
+
+/**
  * Format inline Markdown syntax into HTML (code, math, bold, italic, links, images).
  * Uses delimiter-safe placeholders (@@@GEM_...@@@) to prevent collisions with bold/italic regex.
  */
@@ -63,21 +95,21 @@ function formatInlineMarkdown(text: string): string {
     // 3. Linked Images: [![alt](src)](href)
     processed = processed.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)/g, (_match, alt, src, href) => {
         const safeAlt = escapeAttr(alt);
-        const safeSrc = escapeAttr(src.trim());
-        const safeHref = escapeAttr(href.trim());
-        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="gem-img-link" title="点击查看原图"><img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy" onerror="this.onerror=null;this.src='${safeHref}';"></a>`;
+        const safeSrc = sanitizeUrl(src.trim(), true);
+        const safeHref = sanitizeUrl(href.trim(), false);
+        return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="gem-img-link" title="点击查看原图"><img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy"></a>`;
     });
 
     // 4. Standalone Images: ![alt](src)
     processed = processed.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_match, alt, src) => {
         const safeAlt = escapeAttr(alt);
-        const safeSrc = escapeAttr(src.trim());
+        const safeSrc = sanitizeUrl(src.trim(), true);
         return `<a href="${safeSrc}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${safeSrc}" alt="${safeAlt}" loading="lazy"></a>`;
     });
 
     // 5. Links: [text](href)
     processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
-        const safeHref = escapeAttr(href.trim());
+        const safeHref = sanitizeUrl(href.trim(), false);
         return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="gem-link">${formatInlineMarkdown(label)}</a>`;
     });
 
@@ -394,17 +426,20 @@ function renderAttachmentCarousel(atts: Attachment[], _isEn: boolean): string {
         if (rawLocal && !rawLocal.startsWith('assets/') && !rawLocal.startsWith('http')) {
             rawLocal = `assets/${rawLocal}`;
         }
-        const localPath = escapeAttr(rawLocal);
-        const onlineUrl = escapeAttr(att.src || att.resolvedUrl || att.url || '');
-        const targetHref = localPath || onlineUrl || '#';
+        const localPath = sanitizeUrl(rawLocal, true);
+        const rawOnline = att.src || att.resolvedUrl || att.url || '';
+        const onlineUrl = rawOnline ? sanitizeUrl(rawOnline, true) : '';
+        const safeOnline = onlineUrl !== '#' ? onlineUrl : '';
+        const targetHref = (localPath && localPath !== '#') ? localPath : (safeOnline || '#');
         const extMatch = displayName.match(/\.([a-z0-9]+)$/i);
         const extBadge = extMatch ? extMatch[1].toUpperCase() : (isImage ? 'IMG' : 'FILE');
 
         if (isImage) {
+            const fallbackAttr = safeOnline ? ` onerror="this.onerror=null;if(this.dataset.fallback)this.src=this.dataset.fallback;" data-fallback-src="${safeOnline}"` : '';
             cardsHtml += `
       <a class="gem-att-card gem-att-img" href="${targetHref}" target="_blank" rel="noopener noreferrer" title="点击打开原始图片 ${safeName}">
         <div class="gem-att-preview">
-          <img src="${localPath}" alt="${safeName}" onerror="this.onerror=null;if('${onlineUrl}')this.src='${onlineUrl}';">
+          <img src="${localPath}" alt="${safeName}"${fallbackAttr}>
         </div>
         <div class="gem-att-info">
           <span class="gem-att-name">${safeName}</span>
