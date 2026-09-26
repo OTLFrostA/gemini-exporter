@@ -1,6 +1,6 @@
 /**
  * src/core/export/assets/index.ts
- * Barrel for the inline-asset byte pipeline (decode -> hash -> store).
+ * Barrel for the inline-asset byte pipeline (decode -> hash -> store -> resolve).
  */
 
 export {
@@ -17,3 +17,10 @@ export type {
     DataUrlDecodeErrorCode,
     DataUrlDecodeResult,
 } from './dataUrl.js';
+export { resolveAssets, buildVirtualAssetPath, MAX_ASSET_BYTES } from './resolver.js';
+export type {
+    AssetResolverOptions,
+    InlineByteSource,
+    ResolveAssetsResult,
+    ResolvedAssetEntry,
+} from './resolver.js';
