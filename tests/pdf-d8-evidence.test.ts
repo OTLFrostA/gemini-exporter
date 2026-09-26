@@ -9,8 +9,9 @@
  *  D8-2  selectable math: real convertMath -> PDF text extraction finds the
  *        formula as selectable text; zero image XObjects (no formula-as-image)
  *  D8-3  CJK: long Chinese session -> extracted text covers the input CJK
- *        characters, zero tofu (uses a locally installed CJK font, the same
- *        mechanism production uses via the Local Font Access API)
+ *        characters, zero tofu (constructor fontPaths injection only; the
+ *        production Local Font Access path is covered by
+ *        tests/pdf-local-font-wiring.test.ts test D)
  *  D8-4  50 MiB metadata-only 附件: claimed 50 MiB file attachment compiles;
  *        the asset resolver spy records zero resolve calls (no read, no
  *        hash); the PDF carries the file card (name + "50.0 MB")

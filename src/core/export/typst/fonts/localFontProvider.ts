@@ -206,8 +206,8 @@ export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
     }
 }
 
-const BUNDLED_MATH_FALLBACK = 'NewCMMath (bundled, math only)';
-const SYSTEM_FALLBACK = 'Typst system default (last resort)';
+export const BUNDLED_MATH_FALLBACK = 'NewCMMath (bundled, math only)';
+export const SYSTEM_FALLBACK = 'Typst system default (last resort)';
 
 function toResolved(entry: LocalFontEntry): ResolvedLocalFont {
     const { family, postscriptName, style } = entry;
