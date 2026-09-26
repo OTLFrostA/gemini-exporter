@@ -158,6 +158,13 @@ interface MdParser {
      * run; linkInlineImage writes decoded bytes here instead of any global.
      */
     byteStore: InlineByteStore;
+    /**
+     * Per-message deterministic block id generator (`<msgId>-b0`, `-b1`, ...).
+     * Scoped to one normalizeMessage call so the same conversation always
+     * produces the same block ids -- the old module-global counter made ids
+     * depend on process history (m1-b10 vs m1-b73 on re-normalize).
+     */
+    nextBlockId: () => string;
 }
 
 /**
@@ -181,9 +188,6 @@ interface AssetLinkIndex {
 function newAssetLinkIndex(): AssetLinkIndex {
     return { byRef: new Map(), byBasename: new Map() };
 }
-
-let blockSeq = 0;
-const nextBlockId = (prefix: string): string => `${prefix}-b${blockSeq++}`;
 
 /** Full-reference match keys for linking an inline image src to an attachment asset. */
 function assetRefKeys(ref: string): string[] {
@@ -663,7 +667,7 @@ function parseList(lines: string[], i: number, idPrefix: string, st: MdParser): 
             while (k < items.length && items[k].indent === levelIndent && items[k].ordered === ordered) {
                 if (first) { startNum = items[k].num; first = false; }
                 const blocks: BlockNode[] = [{
-                    id: nextBlockId(idPrefix),
+                    id: st.nextBlockId(),
                     type: 'paragraph',
                     children: parseInline(items[k].text, idPrefix, st),
                 }];
@@ -676,7 +680,7 @@ function parseList(lines: string[], i: number, idPrefix: string, st: MdParser): 
                 listItems.push({ blocks });
             }
             nodes.push({
-                id: nextBlockId(idPrefix),
+                id: st.nextBlockId(),
                 type: 'list',
                 ordered,
                 ...(ordered ? { start: startNum } : {}),
@@ -712,7 +716,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
             }
             const langTok = info.split(/\s+/).filter(Boolean);
             blocks.push({
-                id: nextBlockId(idPrefix),
+                id: st.nextBlockId(),
                 type: 'code',
                 code: codeLines.join('\n'),
                 ...(langTok[0] ? { language: langTok[0] } : {}),
@@ -732,7 +736,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                 trimmed.indexOf('$$', 2) === trimmed.length - 2;
             if (selfClosed) {
                 const inner = trimmed.slice(2, -2).trim();
-                blocks.push({ id: nextBlockId(idPrefix), type: 'math', source: inner, notation: 'latex' });
+                blocks.push({ id: st.nextBlockId(), type: 'math', source: inner, notation: 'latex' });
                 i++;
                 continue;
             }
@@ -747,9 +751,12 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                     mathLines.push(lines[i]);
                     i++;
                 }
+                // The math block id is minted first so the diagnostics above can
+                // reference the exact block they describe.
+                const mathBlockId = st.nextBlockId();
                 if (!closed) {
                     st.diagnostics.push({
-                        id: `math-fence-unclosed:${idPrefix}-b${blockSeq}`,
+                        id: `math-fence-unclosed:${mathBlockId}`,
                         severity: 'warning',
                         code: 'MATH_FENCE_UNCLOSED',
                         message: 'display-math fence never closed; kept collected lines as the formula source',
@@ -760,7 +767,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                 const source = mathLines.join('\n').trim();
                 if (!source) {
                     st.diagnostics.push({
-                        id: `math-empty:${idPrefix}-b${blockSeq}`,
+                        id: `math-empty:${mathBlockId}`,
                         severity: 'warning',
                         code: 'MATH_BLOCK_EMPTY',
                         message: 'empty display-math fence; kept as source evidence',
@@ -768,7 +775,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                         details: { line: trimmed.slice(0, 80) } as JsonValue,
                     });
                 }
-                blocks.push({ id: nextBlockId(idPrefix), type: 'math', source, notation: 'latex' });
+                blocks.push({ id: mathBlockId, type: 'math', source, notation: 'latex' });
                 continue;
             }
             // Starts with '$$' but is neither self-closed nor a lone fence:
@@ -776,7 +783,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
             // the line here (not via the paragraph collector below, whose
             // '$$' break condition would refuse it and loop forever).
             blocks.push({
-                id: nextBlockId(idPrefix),
+                id: st.nextBlockId(),
                 type: 'paragraph',
                 children: parseInline(line, idPrefix, st),
                 sourceRef: st.sourceRef,
@@ -796,7 +803,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
             }
             const cell = (t: string): { children: InlineNode[] } => ({ children: parseInline(t, idPrefix, st) });
             blocks.push({
-                id: nextBlockId(idPrefix),
+                id: st.nextBlockId(),
                 type: 'table',
                 columns: headerCells.map((_, c) => ({ align: aligns[c] ?? 'default' })),
                 headerRows: [{ cells: headerCells.map(cell) }],
@@ -810,7 +817,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
         const hm = line.match(/^(#{1,6})\s+(.*)$/);
         if (hm) {
             blocks.push({
-                id: nextBlockId(idPrefix),
+                id: st.nextBlockId(),
                 type: 'heading',
                 level: hm[1].length as 1 | 2 | 3 | 4 | 5 | 6,
                 children: parseInline(hm[2].trim(), idPrefix, st),
@@ -826,7 +833,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                 i++;
             }
             blocks.push({
-                id: nextBlockId(idPrefix),
+                id: st.nextBlockId(),
                 type: 'quote',
                 blocks: parseMarkdownBlocks(bqLines.join('\n'), idPrefix, st),
             });
@@ -834,7 +841,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
         }
 
         if (/^([-*_]){3,}$/.test(trimmed)) {
-            blocks.push({ id: nextBlockId(idPrefix), type: 'thematicBreak' });
+            blocks.push({ id: st.nextBlockId(), type: 'thematicBreak' });
             i++;
             continue;
         }
@@ -864,7 +871,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                 if (idx > 0) children.push({ type: 'lineBreak', kind: 'soft' });
                 children.push(...parseInline(pl, idPrefix, st));
             });
-            blocks.push({ id: nextBlockId(idPrefix), type: 'paragraph', children });
+            blocks.push({ id: st.nextBlockId(), type: 'paragraph', children });
         }
     }
     return blocks;
@@ -1154,6 +1161,15 @@ function normalizeMessage(
 
     const idPrefix = msgId;
 
+    // Deterministic per-message block id counter (<msgId>-b0, -b1, ...).
+    // A module-global counter used to live here; it made block ids depend on
+    // how many messages had been normalized earlier in the same process, so
+    // normalizing the same conversation twice produced different ids
+    // (m1-b10 vs m1-b73) -- unstable canonical serialization, diff noise, and
+    // unstable diagnostic paths. Scoping the counter to one message fixes it.
+    let blockSeq = 0;
+    const nextBlockId = (): string => `${idPrefix}-b${blockSeq++}`;
+
     // Build attachment assets BEFORE parsing markdown so inline images can
     // link to them through the canonical asset table. The message-level
     // `attachments` array carries generated/pasted files; the bare markdown
@@ -1177,7 +1193,7 @@ function normalizeMessage(
             }
         }
         diagnostics.push(...built.diagnostics);
-        const bid = nextBlockId(idPrefix);
+        const bid = nextBlockId();
         if (built.isImage) {
             attachmentBlocks.push({
                 id: bid, type: 'image', assetId,
@@ -1193,14 +1209,14 @@ function normalizeMessage(
         }
     });
 
-    const st: MdParser = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore };
+    const st: MdParser = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore, nextBlockId };
     const blocks: BlockNode[] = [];
 
     const thoughtsRaw = m.thoughts ?? m.thinking ?? '';
     const thoughtsText = cleanBody(Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : thoughtsRaw);
     if (thoughtsText.trim()) {
         blocks.push({
-            id: nextBlockId(idPrefix),
+            id: nextBlockId(),
             type: 'thought',
             disclosure: 'providerExposed',
             kind: 'reasoning',
@@ -1213,7 +1229,7 @@ function normalizeMessage(
         if (cleaned.trim()) blocks.push(...parseMarkdownBlocks(cleaned, idPrefix, st));
     } else if (m.content !== undefined && m.content !== null) {
         const ub: BlockNode = {
-            id: nextBlockId(idPrefix),
+            id: nextBlockId(),
             type: 'unknown',
             sourceType: 'message-content',
             payload: m.content as JsonValue,
@@ -1263,7 +1279,7 @@ function normalizeMessage(
     if (citations.length) {
         linkCitationMarkers(blocks, citations);
         blocks.push({
-            id: nextBlockId(idPrefix),
+            id: nextBlockId(),
             type: 'citationGroup',
             citationIds: citations.map((c) => c.id),
             sourceRef,
@@ -1348,8 +1364,6 @@ export async function normalizeGeminiConversation(
     // Run-scoped: every normalize call owns its byte store; nothing is shared
     // with previous or future runs in this JS context.
     const byteStore = createInlineByteStore();
-
-    blockSeq = 0;
 
     const messages: MessageNode[] = [];
     const pushMessage = (m: RepoMessage, index: number, locator: string): void => {
