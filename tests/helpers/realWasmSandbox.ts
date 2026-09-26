@@ -153,18 +153,6 @@ export class RealWasmSandboxFrame {
         }
     }
 
-    /** Minimal sfnt table-directory scan for a 'MATH' table tag (mirrors the sandbox entry). */
-    private static fontBytesHaveMathTable(bytes: Uint8Array): boolean {
-        if (bytes.length < 12) return false;
-        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const numTables = view.getUint16(4);
-        if (bytes.length < 12 + numTables * 16) return false;
-        for (let i = 0; i < numTables; i += 1) {
-            if (view.getUint32(12 + i * 16) === 0x4d415448) return true;
-        }
-        return false;
-    }
-
     private async handleCompile(jobId: string, body: Record<string, unknown>): Promise<void> {
         const compiler = this.compiler;
         const fontBuilder = this.fontBuilder;
@@ -194,17 +182,11 @@ export class RealWasmSandboxFrame {
                 compiler.mapShadow(binary.path, new Uint8Array(binary.buf));
                 mappedPaths.push(binary.path);
             }
-            const fontsMissingMath: number[] = [];
             if (fonts.length > 0 && !this.fontsInstalled) {
-                fonts.forEach((font, index) => {
+                for (const font of fonts) {
                     if (!(font instanceof ArrayBuffer)) {
                         throw new Error('compile font entries must be ArrayBuffers');
                     }
-                    if (!RealWasmSandboxFrame.fontBytesHaveMathTable(new Uint8Array(font))) {
-                        fontsMissingMath.push(index);
-                    }
-                });
-                for (const font of fonts) {
                     await fontBuilder.addFontData(new Uint8Array(font as ArrayBuffer));
                 }
                 await fontBuilder.build(async (resolver: unknown) => {
@@ -228,7 +210,6 @@ export class RealWasmSandboxFrame {
                 ok: pdf !== null,
                 pdf,
                 pdfBytes: result ? result.length : 0,
-                fontsMissingMath,
                 diagnostics: (diagnostics ?? []).map((d: unknown) => {
                     const detail = typeof d === 'string' ? { severity: 'error', message: d } : (d as Record<string, unknown>);
                     return {

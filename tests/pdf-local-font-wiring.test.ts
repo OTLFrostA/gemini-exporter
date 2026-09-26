@@ -142,7 +142,6 @@ async function driveCompileRoundTrip(host: FakeHost): Promise<any> {
         jobId: compileMsg.message.jobId,
         pdf: fakePdfBuffer(),
         diagnostics: [],
-        fontsMissingMath: [],
     });
     return compileMsg;
 }

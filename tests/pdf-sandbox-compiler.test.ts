@@ -368,7 +368,6 @@ test('compile: happy path returns PDF bytes and sandbox diagnostics', async () =
         jobId: compileMsg.message.jobId,
         pdf: pdfBytes.buffer,
         diagnostics: [{ severity: 'warning', message: 'overfull box' }],
-        fontsMissingMath: [],
     });
     const result = await promise;
     assert.ok(result.pdfBytes instanceof Uint8Array);
@@ -541,4 +540,44 @@ test('compile: fonts are not resent after a failed compile once installed', asyn
     controller.abort();
     await assert.rejects(promise2, (e: any) => e instanceof DOMException && e.name === 'AbortError');
     compiler.dispose();
+});
+
+async function compileOnce(host: FakeHost, compiler: any, compiledExtras: Record<string, unknown> = {}) {
+    const bundle = makeBundle();
+    const controller = new AbortController();
+    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    await driveInitHandshake(host);
+    await tick();
+    const compileMsg = host.frame!.lastSentType('typst/compile')!;
+    assert.ok(compileMsg, 'expected a compile message');
+    host.frame!.receive({ type: 'typst/fonts-installed', jobId: compileMsg.message.jobId });
+    await tick();
+    host.frame!.receive({
+        type: 'typst/compiled',
+        jobId: compileMsg.message.jobId,
+        pdf: new TextEncoder().encode('%PDF-1.7\n%fake\n').buffer,
+        diagnostics: [],
+        ...compiledExtras,
+    });
+    const result = await promise;
+    compiler.dispose();
+    return result;
+}
+
+test('math gate: runtime fonts without MATH plus a MATH-capable font raise no MATH warnings', async () => {
+    const host = new FakeHost(new Uint8Array([0, 1, 2, 3]), fakeFontBytes(false));
+    const compiler = makeCompiler(host);
+    compiler.setRuntimeFonts([fakeFontBytes(true)]);
+    const result = await compileOnce(host, compiler, { fontsMissingMath: [0] });
+    const codes = result.diagnostics.map((d: any) => d.code);
+    assert.ok(!codes.includes('TYPST_FONT_MISSING_MATH_TABLE'), `unexpected: ${JSON.stringify(codes)}`);
+    assert.ok(!codes.includes('TYPST_MATH_TABLE_MISSING'), `unexpected: ${JSON.stringify(codes)}`);
+});
+
+test('math gate: no loaded font with a MATH table keeps the aggregate warning', async () => {
+    const host = new FakeHost(new Uint8Array([0, 1, 2, 3]), fakeFontBytes(false));
+    const compiler = makeCompiler(host);
+    const result = await compileOnce(host, compiler);
+    const codes = result.diagnostics.map((d: any) => d.code);
+    assert.ok(codes.includes('TYPST_MATH_TABLE_MISSING'), `diagnostics: ${JSON.stringify(codes)}`);
 });

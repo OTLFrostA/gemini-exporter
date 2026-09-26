@@ -113,7 +113,7 @@ interface PendingJob {
 
 type PendingResult =
     | { kind: 'inited'; initMs?: number }
-    | { kind: 'compiled'; pdf: ArrayBuffer | null; diagnostics: Array<{ severity: string; message: string }>; fontsMissingMath?: number[] };
+    | { kind: 'compiled'; pdf: ArrayBuffer | null; diagnostics: Array<{ severity: string; message: string }> };
 
 // OpenType sfnt table directory scan for 'MATH' (0x4D415448).
 export function fontHasMathTable(bytes: Uint8Array): boolean {
@@ -330,7 +330,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 severity: 'warning',
                 code: 'TYPST_MATH_TABLE_MISSING',
                 message:
-                    `No bundled font provides an OpenType MATH table; stripped ${stripped} ` +
+                    `No loaded font provides an OpenType MATH table; stripped ${stripped} ` +
                     `converted math node(s) to the visible LaTeX-source fallback instead of failing the compile.`,
             });
         }
@@ -420,13 +420,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 severity: d.severity === 'warning' ? 'warning' : d.severity === 'info' ? 'info' : 'error',
                 code: 'TYPST_DIAGNOSTIC',
                 message: d.message,
-            });
-        }
-        if (result.fontsMissingMath && result.fontsMissingMath.length > 0) {
-            diagnostics.push({
-                severity: 'warning',
-                code: 'TYPST_FONT_MISSING_MATH_TABLE',
-                message: `Sandbox reports ${result.fontsMissingMath.length} bundled font(s) without a MATH table (index ${result.fontsMissingMath.join(',')}).`,
             });
         }
         if (result.pdf === null) {
@@ -624,9 +617,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                         message: typeof d.message === 'string' ? d.message : String(d.message ?? ''),
                     }))
                     : [],
-                fontsMissingMath: Array.isArray(body.fontsMissingMath)
-                    ? (body.fontsMissingMath as unknown[]).filter((n): n is number => typeof n === 'number')
-                    : undefined,
             });
         } else if (message.type === SANDBOX_TO_HOST.ERROR) {
             const err = body.error as { name?: unknown; message?: unknown } | undefined;

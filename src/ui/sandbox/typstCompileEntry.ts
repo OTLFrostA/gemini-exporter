@@ -66,18 +66,6 @@ function throwIfCancelled(job: CompileJob, jobId: string): void {
     }
 }
 
-function fontBytesHaveMathTable(bytes: Uint8Array): boolean {
-    if (bytes.length < 12) return false;
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const numTables = view.getUint16(4);
-    if (bytes.length < 12 + numTables * 16) return false;
-    for (let i = 0; i < numTables; i += 1) {
-        // 'MATH' == 0x4D415448
-        if (view.getUint32(12 + i * 16) === 0x4d415448) return true;
-    }
-    return false;
-}
-
 async function handleInit(jobId: string, body: Record<string, unknown>): Promise<void> {
     const wasm = body.wasm;
     if (!(wasm instanceof ArrayBuffer)) {
@@ -139,20 +127,15 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             mappedPaths.push(entry.path);
         }
 
-        const fontsMissingMath: number[] = [];
         let fontMs = 0;
         if (fonts.length > 0 && !sandboxFontsInstalled) {
             const tF = performance.now();
-            fonts.forEach((font, index) => {
+            for (const font of fonts) {
                 if (!(font instanceof ArrayBuffer)) {
                     throw new Error('compile font entries must be transferred ArrayBuffers');
                 }
-                const bytes = new Uint8Array(font);
-                if (!fontBytesHaveMathTable(bytes)) fontsMissingMath.push(index);
-            });
-            for (const font of fonts) {
                 throwIfCancelled(job, jobId);
-                await activeFontBuilder.addFontData(new Uint8Array(font as ArrayBuffer));
+                await activeFontBuilder.addFontData(new Uint8Array(font));
             }
             await activeFontBuilder.build(async (resolver) => {
                 activeCompiler.setFonts(resolver);
@@ -170,7 +153,6 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
                 current: 2,
                 total: 3,
                 fontMs,
-                fontsMissingMath,
             });
         }
 
@@ -196,7 +178,6 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
                 pdf,
                 pdfBytes: result ? result.length : 0,
                 compileMs,
-                fontsMissingMath,
                 diagnostics: (diagnostics ?? []).map((d) => {
                     const detail = typeof d === 'string' ? { severity: 'error', message: d } : d;
                     return {
