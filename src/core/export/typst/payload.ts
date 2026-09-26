@@ -1,7 +1,7 @@
 // User text travels strictly as JSON data fields consumed via json() in Typst; only convertMath output is evaluated as Typst math.
 
 import type { Asset } from '../canonical/assets.js';
-import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../canonical/assetReferences.js';
+import { collectCompanionPlacements } from '../canonical/assetReferences.js';
 import type {
     BlockNode,
     TableCell,
@@ -339,6 +339,7 @@ function rolePrefix(message: MessageNode): string | undefined {
 
 function toRenderMessage(
     message: MessageNode,
+    bundle: CanonicalConversationBundle,
     assets: Map<string, Asset>,
     citations: Map<string, { label: string; url?: string }>,
     options: RenderOptions,
@@ -352,31 +353,28 @@ function toRenderMessage(
         if (mapped) blocks.push(mapped);
     });
 
-    // Only emit trailing attachments for associated assets not already placed inline or as a block in the message.
-    const referencedIds = collectReferencedAssetIds(message.blocks);
-    const trailingImageIds = collectUnplacedAssociatedImageIds(
-        message, referencedIds, (id) => assets.get(id)?.kind,
-    );
+    const plan = collectCompanionPlacements(message, bundle);
+    for (const d of plan.diagnostics) diagnostics.push({ ...d });
     const attachments: TypstRenderAttachment[] = [];
-    for (const id of message.associatedAssetIds ?? []) {
-        if (referencedIds.has(id)) continue;
+    for (const id of plan.trailingImages) {
         const asset = assets.get(id);
         if (!asset) continue;
-        if (trailingImageIds.has(id)) {
-            const path = options.assetPath(asset);
-            if (path) {
-                attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes, options.strings)}` });
-            } else {
-                diagnostics.push({
-                    severity: 'warning',
-                    code: 'TYPST_V8_ASSOCIATED_IMAGE_MISSING',
-                    message: `Associated image asset ${id} has no Typst path; dropping the trailing image attachment instead of rendering it.`,
-                    path: `message:${message.id}/attachment:${id}`,
-                });
-            }
+        const path = options.assetPath(asset);
+        if (path) {
+            attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes, options.strings)}` });
         } else {
-            attachments.push({ type: 'file', name: asset.name ?? id, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes, options.strings) });
+            diagnostics.push({
+                severity: 'warning',
+                code: 'TYPST_V8_ASSOCIATED_IMAGE_MISSING',
+                message: `Associated image asset ${id} has no Typst path; dropping the trailing image attachment instead of rendering it.`,
+                path: `message:${message.id}/attachment:${id}`,
+            });
         }
+    }
+    for (const id of plan.trailingFiles) {
+        const asset = assets.get(id);
+        if (!asset) continue;
+        attachments.push({ type: 'file', name: asset.name ?? id, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes, options.strings) });
     }
 
     const plainText = message.blocks
@@ -405,7 +403,7 @@ export function toTypstPayload(
         url: citation.url,
     }]));
     const messages = (options.projectedMessages ?? projectConversation(bundle, { leafMessageId: options.leafMessageId }).messages)
-        .map(message => toRenderMessage(message, assets, citations, renderOptions, diagnostics));
+        .map(message => toRenderMessage(message, bundle, assets, citations, renderOptions, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';
     const date = observed ? observed.slice(0, 10) : strings.dateUnknown;

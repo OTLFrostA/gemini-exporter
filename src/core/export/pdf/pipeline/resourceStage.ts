@@ -1,4 +1,4 @@
-import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../../canonical/assetReferences.js';
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectCompanionPlacements } from '../../canonical/assetReferences.js';
 import { resolveAssets } from '../../assets/resolver.js';
 import type { Asset, AssetStatus } from '../../canonical/assets.js';
 import type {
@@ -74,16 +74,13 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
         const blockIds = collectReferencedAssetIds(message.blocks);
         for (const id of blockIds) referencedIds.add(id);
         for (const id of collectBinaryRenderAssetIds(message.blocks)) binaryIds.add(id);
-        for (const id of message.associatedAssetIds ?? []) {
-            // Skip assets already placed in blocks so inline images do not reappear as trailing attachments.
-            if (blockIds.has(id)) continue;
-            const asset = byId.get(id);
-            if (!asset) continue;
+        const companions = collectCompanionPlacements(message, input.bundle);
+        for (const id of companions.trailingImages) {
             referencedIds.add(id);
-        }
-        for (const id of collectUnplacedAssociatedImageIds(message, blockIds, (aid) => byId.get(aid)?.kind)) {
             binaryIds.add(id);
         }
+        for (const id of companions.trailingFiles) referencedIds.add(id);
+        diagnostics.push(...companions.diagnostics);
     }
     for (const id of binaryIds) {
         const asset = byId.get(id);

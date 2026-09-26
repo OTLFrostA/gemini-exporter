@@ -1,5 +1,5 @@
 import type { Asset } from './assets.js';
-import { collectReferencedAssetIds } from './assetReferences.js';
+import { collectReferencedAssetIds, collectCompanionPlacements } from './assetReferences.js';
 import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
 import type { Citation } from './citations.js';
 import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
@@ -420,13 +420,28 @@ function isAssetBlock(b: BlockNode): b is ImageBlock | FileBlock {
     return b.type === 'image' || b.type === 'file';
 }
 
-function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx): string {
+function renderCompanionCards(msg: MessageNode, bundle: CanonicalConversationBundle, ctx: RenderCtx, path: string): string {
+    const plan = collectCompanionPlacements(msg, bundle);
+    for (const d of plan.diagnostics) diag(ctx, d.severity, d.code, d.message, d.path ?? path);
+    const cards: string[] = [];
+    plan.trailingImages.forEach((id, i) => {
+        cards.push(renderImageCard({ type: 'image', id: `companion:image:${id}`, assetId: id }, ctx, `${path}/companion:${i}`));
+    });
+    plan.trailingFiles.forEach((id, i) => {
+        cards.push(renderFileCard({ type: 'file', id: `companion:file:${id}`, assetId: id }, ctx, `${path}/companion:${i}`));
+    });
+    return cards.join('\n');
+}
+
+function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
     const path = `message:${msg.id}`;
     const assetBlocks = msg.blocks.filter(isAssetBlock);
     const contentBlocks = msg.blocks.filter((b) => !isAssetBlock(b));
-    const carouselHtml = assetBlocks.length
-        ? renderCarousel(assetBlocks.map((b, i) => renderBlock(b, ctx, `${path}/asset:${i}`)).join('\n'))
-        : '';
+    const cards: string[] = [];
+    if (assetBlocks.length) cards.push(assetBlocks.map((b, i) => renderBlock(b, ctx, `${path}/asset:${i}`)).join('\n'));
+    const companions = renderCompanionCards(msg, bundle, ctx, path);
+    if (companions) cards.push(companions);
+    const carouselHtml = cards.length ? renderCarousel(cards.join('\n')) : '';
     const bodyHtml = renderBlocks(contentBlocks, ctx, path);
 
     const plain = contentBlocks.map((b) => extractBlockText(b)).join('\n');
@@ -450,13 +465,15 @@ function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx): s
   </section>`;
 }
 
-function renderModelMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx): string {
+function renderModelMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
     const path = `message:${msg.id}`;
     const assetBlocks = msg.blocks.filter(isAssetBlock);
     const contentBlocks = msg.blocks.filter((b) => !isAssetBlock(b));
-    const carouselHtml = assetBlocks.length
-        ? renderCarousel(assetBlocks.map((b, i) => renderBlock(b, ctx, `${path}/asset:${i}`)).join('\n'))
-        : '';
+    const cards: string[] = [];
+    if (assetBlocks.length) cards.push(assetBlocks.map((b, i) => renderBlock(b, ctx, `${path}/asset:${i}`)).join('\n'));
+    const companions = renderCompanionCards(msg, bundle, ctx, path);
+    if (companions) cards.push(companions);
+    const carouselHtml = cards.length ? renderCarousel(cards.join('\n')) : '';
     return `
   <section class="gem-turn gem-turn-model" id="turn-model-${turnIdx}">
     <div class="gem-model-content">
@@ -486,8 +503,8 @@ export function renderCanonicalHtml(
     for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
         turnsHtml += msg.role === 'user'
-            ? renderUserMessage(msg, i, ctx)
-            : renderModelMessage(msg, i, ctx);
+            ? renderUserMessage(msg, i, ctx, bundle)
+            : renderModelMessage(msg, i, ctx, bundle);
     }
     if (!messages.length) {
         const emptyMsg = ctx.isEn ? 'Empty conversation or fetch failed.' : '暂无对话记录或拉取失败。';
@@ -533,6 +550,9 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
         const referenced = new Set<string>();
         for (const m of view.messages) {
             for (const id of collectReferencedAssetIds(m.blocks)) referenced.add(id);
+            const plan = collectCompanionPlacements(m, context.bundle);
+            for (const id of plan.trailingImages) referenced.add(id);
+            for (const id of plan.trailingFiles) referenced.add(id);
         }
 
         const urlByAssetId = new Map<string, string>();
