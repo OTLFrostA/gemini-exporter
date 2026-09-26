@@ -7,9 +7,14 @@
  *   - normal image asset -> pathMap + mounts (bytes from the byte store)
  *   - inline images inside paragraph/heading/table cells are collected too
  *     (shared recursive collector, same traversal as the payload builder)
+ *   - metadata-only file attachments skip byte resolution entirely: no
+ *     pathMap entry, not "unresolved", no diagnostic, and their bytes are
+ *     never read (spy on the byte store) — file cards render from Asset
+ *     metadata alone
  *   - missing asset -> unresolved + warning diagnostic (never silent)
  *   - remote-only asset -> unresolved + warning (resolver only emits info)
  *   - referenced id absent from bundle.assets -> unresolved + warning
+ *     (unknown kind is fail-safe: still goes through the resolver)
  *   - aborted signal -> AbortError DOMException
  */
 export {};
@@ -144,26 +149,43 @@ test('resources stage: aborted signal throws AbortError', async () => {
     );
 });
 
-test('resources stage: non-image attachments resolve but are not mounted into the sandbox', async () => {
-    // A 40MB-style report.pdf: referenced by a FileBlock, resolves cleanly,
-    // but the Typst template only renders metadata (name/kind/size) — its
-    // bytes must never enter ImageMount.
-    const store = createInlineByteStore();
-    const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
-    store.put('inline/report-pdf', pdfBytes);
+test('resources stage: metadata-only file attachments skip byte resolution entirely', async () => {
+    // A 40MB-style report.pdf: referenced by a FileBlock, rendered by the
+    // Typst template as a metadata-only card (name/kind/size from the Asset
+    // entity). It must never reach the resolver: no byte read, no SHA-256,
+    // no pathMap entry — while a sibling image still resolves normally.
+    const readRefs: Array<[string, string]> = [];
+    const real = createInlineByteStore();
+    const spyStore: any = {
+        put: (r: string, b: Uint8Array) => real.put(r, b),
+        has: (r: string) => { readRefs.push(['has', r]); return real.has(r); },
+        get: (r: string) => { readRefs.push(['get', r]); return real.get(r); },
+        clear: () => real.clear(),
+        get entryCount() { return real.entryCount; },
+    };
+    // Bytes are present in the store on purpose: the stage must not touch
+    // them even when it cheaply could.
+    spyStore.put('inline/report-pdf', new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])); // %PDF-
+    spyStore.put('inline/img-ok', pngBytes(7));
     const bundle = {
         assets: [
             asset('doc-report', {
                 kind: 'file', storageRef: 'inline/report-pdf',
-                mimeType: 'application/pdf', name: 'report.pdf', sizeBytes: 4096,
+                mimeType: 'application/pdf', name: 'report.pdf',
+                // 40MB claimed in metadata; never allocated.
+                sizeBytes: 40 * 1024 * 1024,
             }),
+            asset('img-ok', { storageRef: 'inline/img-ok', mimeType: 'image/png' }),
         ],
     };
     const view = {
         messages: [
             {
                 id: 'm1', role: 'model',
-                blocks: [{ type: 'file', assetId: 'doc-report', label: 'report.pdf' }],
+                blocks: [
+                    { type: 'file', assetId: 'doc-report', label: 'report.pdf' },
+                    { type: 'image', assetId: 'img-ok' },
+                ],
             },
         ],
         rootIds: ['m1'],
@@ -171,18 +193,26 @@ test('resources stage: non-image attachments resolve but are not mounted into th
         omittedBranchMessageIds: [],
     };
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: store }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);
 
-    // Resolved cleanly: stays in pathMap, not "unresolved", no diagnostic.
-    assert.ok(output.pathMap.has('doc-report'), 'cleanly resolved file stays in pathMap');
+    // The image still resolves + mounts as before.
+    assert.ok(output.pathMap.has('img-ok'), 'image asset still resolves');
+    assert.strictEqual(output.mounts.length, 1, 'only the image is mounted');
+    // The file attachment: never resolved, so no pathMap entry; not
+    // "unresolved" either (its card renders from metadata); no diagnostic.
+    assert.strictEqual(output.pathMap.has('doc-report'), false,
+        'metadata-only file never enters pathMap');
     assert.deepStrictEqual(output.unresolved, []);
     const warnPlus = diagnostics.filter(
         (d: any) => d.path === 'asset:doc-report'
             && (d.severity === 'warning' || d.severity === 'error'),
     );
-    assert.strictEqual(warnPlus.length, 0, 'filtered file attachment gets no missing diagnostic');
-    // ...but its bytes never enter the sandbox mounts.
-    assert.strictEqual(output.mounts.length, 0, 'no ImageMount for non-image attachment');
+    assert.strictEqual(warnPlus.length, 0, 'metadata-only file gets no diagnostic');
+    // And its bytes were never read (hence never hashed): zero get/has on
+    // its storageRef, even though bytes were available.
+    const touched = readRefs.filter(([, r]) => r === 'inline/report-pdf');
+    assert.deepStrictEqual(touched, [],
+        'resolver must never touch the file attachment bytes');
 });
 
 test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and reports it exactly once', async () => {

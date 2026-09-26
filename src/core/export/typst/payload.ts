@@ -21,8 +21,8 @@
  */
 
 import type { Asset } from '../canonical/assets.js';
-import { collectReferencedAssetIds } from '../canonical/assetReferences.js';
-export { collectReferencedAssetIds };
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds } from '../canonical/assetReferences.js';
+export { collectReferencedAssetIds, collectBinaryRenderAssetIds };
 import type {
     BlockNode,
     ListBlock,

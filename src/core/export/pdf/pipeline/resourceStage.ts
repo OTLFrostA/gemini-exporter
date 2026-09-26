@@ -5,14 +5,20 @@
  *
  * Collects every asset referenced by the projected view (shared recursive
  * collector — the same traversal the Typst payload builder uses, so the
- * payload stage can never see an asset this stage missed), resolves them
- * through the shared asset resolver against the per-run byte store, and
- * emits:
- *   - pathMap : assetId -> virtual path (only clean resolves)
- *   - mounts  : virtual path -> bytes -> mimeType (sandbox mounts for compile;
- *               only image-kind assets — file/audio/video attachments render
- *               as metadata-only cards and never need sandbox bytes)
- *   - unresolved: referenced-but-not-resolved assets, each with a reason
+ * payload stage can never see an asset this stage missed), resolves the
+ * binary-render subset through the shared asset resolver against the
+ * per-run byte store, and emits:
+ *   - pathMap : assetId -> virtual path (only image-kind assets that
+ *               resolved cleanly; metadata-only attachments never enter)
+ *   - mounts  : virtual path -> bytes -> mimeType (sandbox mounts for
+ *               compile; image-kind assets only)
+ *   - unresolved: binary-referenced-but-not-resolved assets, each with a reason
+ *
+ * Binary vs metadata-only split (collectBinaryRenderAssetIds): file/audio/
+ * video attachments render as metadata-only cards straight from the Asset
+ * entity (name/mimeType/sizeBytes) and skip byte resolution entirely — no
+ * read, no hash, no byteStore traffic. A 40MB report.pdf that only shows
+ * "report.pdf · PDF · 40 MB" therefore costs nothing here.
  *
  * Stage rules honored:
  *   - bytes come from input.byteStore via asset.storageRef; ResolvedAssetEntry
@@ -28,7 +34,7 @@
  *     emitted a warning+ for it.
  *   - abort: throws a DOMException named 'AbortError' promptly.
  */
-import { collectReferencedAssetIds } from '../../typst/payload.js';
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds } from '../../typst/payload.js';
 import { resolveAssets } from '../../assets/resolver.js';
 import type { Asset, AssetStatus } from '../../canonical/assets.js';
 import type {
@@ -99,27 +105,39 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     // Shared recursive collector (typst/payload.ts): walks block trees and
     // every inline tree (paragraph/heading children, table cells, ...), so
     // inline images count exactly like top-level image/file blocks.
-    const referencedIds = new Set<string>();
-    for (const message of input.view.messages) {
-        throwIfAborted(ctx.signal);
-        for (const id of collectReferencedAssetIds(message.blocks)) {
-            referencedIds.add(id);
-        }
-    }
-    ctx.log(`[${STAGE_NAME}] ${referencedIds.size} asset reference(s) in projected view`);
-
-    // ---- 2. resolve only the referenced assets ----
+    // Two sets: every referenced id (for the summary log), and the binary
+    // subset — image-kind assets the renderer needs as bytes. File/audio/
+    // video attachments are metadata-only (file cards render from the Asset
+    // entity) and never reach the resolver.
     const byId = new Map<string, Asset>();
     for (const asset of input.bundle.assets) byId.set(asset.id, asset);
-    const referencedAssets: Asset[] = [];
-    for (const id of referencedIds) {
+    const kindOf = (assetId: string): Asset['kind'] | undefined => byId.get(assetId)?.kind;
+    const referencedIds = new Set<string>();
+    const binaryIds = new Set<string>();
+    for (const message of input.view.messages) {
+        throwIfAborted(ctx.signal);
+        for (const id of collectReferencedAssetIds(message.blocks)) referencedIds.add(id);
+        for (const id of collectBinaryRenderAssetIds(message.blocks, kindOf)) binaryIds.add(id);
+    }
+    const metadataOnlySkipped = referencedIds.size - binaryIds.size;
+    ctx.log(
+        `[${STAGE_NAME}] ${referencedIds.size} asset reference(s) in projected view ` +
+        `(${binaryIds.size} binary, ${metadataOnlySkipped} metadata-only skipped before resolution)`,
+    );
+
+    // ---- 2. resolve only the binary (image-kind) assets ----
+    // Metadata-only attachments skip resolveAssets() entirely: no byte read,
+    // no SHA-256, no byteStore traffic. They are not "unresolved" — their
+    // file cards render from Asset metadata — so they get no diagnostic.
+    const binaryAssets: Asset[] = [];
+    for (const id of binaryIds) {
         const asset = byId.get(id);
-        if (asset) referencedAssets.push(asset);
+        if (asset) binaryAssets.push(asset);
     }
     throwIfAborted(ctx.signal);
     // Default options: MAX_ASSET_BYTES bound stays at its default; no
     // readLocalFile is wired (stage input carries no storage reader).
-    const result = await resolveAssets(referencedAssets, input.byteStore);
+    const result = await resolveAssets(binaryAssets, input.byteStore);
     throwIfAborted(ctx.signal);
     diagnostics.push(...result.diagnostics);
 
@@ -134,10 +152,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     // branch below). They are already in `unresolved` with a dedicated
     // RESOURCE_BYTES_MISSING diagnostic; step 4 must not re-report them.
     const bytesMissing = new Set<string>();
-    // Non-image attachments resolve cleanly but never need sandbox bytes
-    // (they render as metadata-only file cards); counted for the summary log.
-    let nonImageSkipped = 0;
-    for (const assetId of referencedIds) {
+    for (const assetId of binaryIds) {
         const virtualPath = pathMap.get(assetId);
         if (virtualPath === undefined) continue;
         if (mountedPaths.has(virtualPath)) continue;
@@ -157,22 +172,15 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
                 `asset ${assetId}: ${reason} (path '${virtualPath}')`);
             continue;
         }
-        // Sandbox mounts only serve image(path): non-image attachments render
-        // as metadata-only file cards and never need their bytes in the
-        // sandbox. Skipping them saves memory and transfer; they resolved
-        // cleanly, so they stay in pathMap, are not "unresolved", and get no
-        // missing diagnostic.
-        const assetKind = entry?.asset.kind;
-        if (assetKind !== undefined && assetKind !== 'image') {
-            nonImageSkipped++;
-            continue;
-        }
         mountedPaths.add(virtualPath);
         mounts.push({ virtualPath, bytes, mimeType: entry?.mimeType ?? 'application/octet-stream' });
     }
 
-    // ---- 4. unresolved: referenced but not cleanly resolved ----
-    for (const assetId of referencedIds) {
+    // ---- 4. unresolved: binary-referenced but not cleanly resolved ----
+    // Metadata-only attachments are intentionally absent from this list:
+    // their file cards render from Asset metadata, so there is nothing to
+    // resolve and nothing to diagnose.
+    for (const assetId of binaryIds) {
         if (pathMap.has(assetId)) continue;
         if (bytesMissing.has(assetId)) continue; // diagnosed with RESOURCE_BYTES_MISSING above
         const asset = byId.get(assetId);
@@ -187,7 +195,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     ctx.log(
         `[${STAGE_NAME}] resolved ${pathMap.size}, mounts ${mounts.length}, ` +
         `unresolved ${unresolved.length}, diagnostics ${diagnostics.length}, ` +
-        `non-image skipped from mounts ${nonImageSkipped}`,
+        `metadata-only skipped before resolution ${metadataOnlySkipped}`,
     );
     ctx.reportProgress(STAGE_NAME, 1, 1);
     return { output: { pathMap, mounts, unresolved }, diagnostics };
