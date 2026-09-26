@@ -326,7 +326,7 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
             const isDev = (typeof globalThis !== "undefined" && ((globalThis as any).__gemExporterDevMode || (globalThis as any).__gemExporterVerboseLog))
                 || (typeof window !== "undefined" && ((window as any).__gemExporterDevMode || (window as any).__gemExporterVerboseLog));
             if (isDev) {
-                console.warn(`[Gemini Exporter][Schema Drift Warning] Detected ${warnings.length} schema drift(s) in conv ${convId || "unknown"}:`, warnings);
+                console.warn("[Gemini Exporter][Schema Drift Warning] Detected %d schema drift(s) in conv %s:", warnings.length, convId || "unknown", warnings);
             }
         }
 
