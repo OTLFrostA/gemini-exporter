@@ -338,6 +338,7 @@ test('zip: missing generateBlob on the writer fails closed, never reports succes
             conversations: [sample],
             useZip: true,
             writer,
+            downloadHandler: async () => {},
         },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
@@ -347,4 +348,30 @@ test('zip: missing generateBlob on the writer fails closed, never reports succes
     assert.strictEqual(result.failed.length, 1);
     assert.ok(result.failed[0].error!.includes('generateBlob is not available'));
     assert.strictEqual(exported.length, 0, 'no success records committed');
+});
+
+test('zip: missing downloadHandler fails closed, never counts staged as delivered', async () => {
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const exported: any[] = [];
+    const logs: any[] = [];
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: true,
+            writer,
+            // NOTE: no downloadHandler — the ZIP could never reach the user.
+        },
+        {
+            onItemExported: (id: string, record: any) => exported.push({ id, record }),
+            onLog: (msg: string, level?: string) => logs.push({ msg, level }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 0, 'no delivery possible => no success');
+    assert.strictEqual(result.failed.length, 1, 'item reported as failed, retryable');
+    assert.ok(result.failed[0].error!.includes('requires downloadHandler'), 'failure names the missing handler');
+    assert.strictEqual(exported.length, 0, 'no success records committed');
+    assert.strictEqual(writer.files.length, 0, 'fails fast: nothing staged, nothing wasted');
+    assert.ok(logs.some((l) => l.level === 'error'), 'configuration error logged, not swallowed');
 });

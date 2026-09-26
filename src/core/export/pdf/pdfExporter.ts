@@ -12,6 +12,9 @@
  *   A ZIP writeFile() merely STAGES into the in-memory ZIP area; staged
  *   items are never reported successful and no success records are
  *   committed before finalize+delivery (report §1).
+ *   downloadHandler is REQUIRED in ZIP mode: without it the blob can never
+ *   reach the user, so a missing handler is a configuration error and fails
+ *   the batch up front — it is never silently counted as delivered.
  * - One failed item never aborts the batch; failures stay retryable and
  *   are never marked successful.
  * - Cancellation is real: the compile task is aborted via AbortSignal,
@@ -78,6 +81,11 @@ export interface PdfExporterOptions {
     compiler?: IPdfCompiler;
     /** Injected for tests; otherwise created from useZip/dirHandle. */
     writer?: IExportWriter;
+    /**
+     * REQUIRED when useZip is true. The ZIP is only "delivered" once this
+     * handler actually runs — a missing handler is a configuration error and
+     * fails the batch (never silently counted as delivered).
+     */
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
 }
@@ -168,6 +176,18 @@ export class PdfExporter {
 
         if (total === 0) {
             return { total: 0, succeeded: 0, failed, aborted: false };
+        }
+
+        // ZIP delivery contract: a ZIP is only "delivered" when
+        // downloadHandler actually runs. Without a handler the blob can never
+        // reach the user, so ZIP mode without one is a configuration error —
+        // fail every item (retryable, logged) instead of silently counting
+        // staged items as delivered. Fail fast, before any compile/write work.
+        if (useZip && typeof options.downloadHandler !== 'function') {
+            const msg =
+                'zip export requires downloadHandler: without it the ZIP blob can never be delivered to the user';
+            for (const it of items) failItem(it.id, it.title, msg, []);
+            return { total, succeeded: 0, failed, aborted: false };
         }
 
         // Writer setup (fail-closed: no writer, no export).
@@ -328,9 +348,13 @@ export class PdfExporter {
                 const blob = await activeWriter.generateBlob((pct: number) =>
                     onProgress({ current: total, total, pct: Math.floor(pct), title: '打包 ZIP' })
                 );
-                if (options.downloadHandler) {
-                    await options.downloadHandler(blob, zipFileName);
+                // downloadHandler was validated up front in ZIP mode; the
+                // guard below is unreachable defense-in-depth that stays loud.
+                const deliver = options.downloadHandler;
+                if (typeof deliver !== 'function') {
+                    throw new Error('internal invariant: downloadHandler is required for ZIP delivery');
                 }
+                await deliver(blob, zipFileName);
                 // Delivered. Now — and only now — commit final success.
                 for (const s of staged) {
                     succeeded++;
