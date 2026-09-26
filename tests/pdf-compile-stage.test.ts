@@ -514,3 +514,25 @@ test('startxref object with a real /Type /XRef split by a comment still passes',
     const { output } = await compileStage(fakeInput({ compiler }), makeCtx());
     assert.ok(output.pdfBytes.length > 0, 'comment-split /Type /XRef accepted');
 });
+
+test('startxref object with /Type 123 /XRef (number between names) -> rejected', async () => {
+    // Token adjacency: the lexical token right after /Type must be /XRef.
+    // A number in between breaks adjacency even though both names appear.
+    await expectXrefRejected('<< /Type 123 /XRef >>', 'number-between-names decoy rejected');
+});
+
+test('startxref object with /Type (foo) /XRef (string between names) -> rejected', async () => {
+    // The literal string is skipped as one token, so the names are not
+    // adjacent; must not be accepted as an xref stream.
+    await expectXrefRejected('<< /Type (foo) /XRef >>', 'string-between-names decoy rejected');
+});
+
+test('startxref object with /Type true /XRef (boolean between names) -> rejected', async () => {
+    await expectXrefRejected('<< /Type true /XRef >>', 'boolean-between-names decoy rejected');
+});
+
+test('startxref object with /Type /Something /XRef (other name between) -> rejected', async () => {
+    // Only the immediately following name token counts; /Something is a
+    // name but not /XRef, so adjacency fails.
+    await expectXrefRejected('<< /Type /Something /XRef >>', 'other-name-between decoy rejected');
+});

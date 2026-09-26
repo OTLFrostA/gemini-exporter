@@ -199,67 +199,103 @@ function extractFirstDictionary(text: string, from: number): string | null {
  *     backslash escapes (`\(`, `\)`, `\\`);
  *   - `<...>` hex strings are skipped (`<<` / `>>` dictionary delimiters
  *     are not hex strings);
- *   - only real name tokens are compared: `/Type` immediately followed by
- *     `/XRef`, with nothing but whitespace/comments between them.
+ *   - after `/Type`, the *next lexical token* (skipping only
+ *     whitespace/comments) must be the name token `/XRef`. A number,
+ *     string, boolean, array, dictionary, hex string, or any other name in
+ *     between means "not an xref stream" — e.g. `<< /Type 123 /XRef >>`
+ *     is rejected even though both names appear.
  * Not a full PDF parser — just enough to keep the verifier honest. It
- * fails closed: anything it cannot lex as `/Type /XRef` is not an xref
- * stream, and the verifier rejects rather than accepts.
+ * fails closed: anything it cannot lex as `/Type` immediately followed by
+ * `/XRef` is not an xref stream, and the verifier rejects rather than
+ * accepts.
  */
 function dictionaryHasXrefStreamType(dict: string): boolean {
-    const names: string[] = [];
     const isSpace = (c: string): boolean =>
         c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r' || c === '\0';
     const isDelim = (c: string): boolean => '()<>[]{}/%'.includes(c);
     let i = 0;
-    while (i < dict.length) {
-        const c = dict[i];
-        if (isSpace(c)) {
-            i++;
-            continue;
-        }
-        if (c === '%') {
-            while (i < dict.length && dict[i] !== '\n' && dict[i] !== '\r') i++;
-            continue;
-        }
-        if (c === '(') {
-            let depth = 1;
-            i++;
-            while (i < dict.length && depth > 0) {
-                if (dict[i] === '\\') {
-                    i += 2;
-                    continue;
+
+    /**
+     * Minimal lexer over the dictionary text. Skips whitespace and `%`
+     * comments, skips literal `( ... )` strings (nested parens, backslash
+     * escapes) and `<...>` hex strings as single non-name tokens, and
+     * returns each remaining lexical token. Names carry their text;
+     * everything else (numbers, booleans, keywords, brackets) is an
+     * opaque 'other' token — what matters is that it is *not* `/XRef`.
+     */
+    function nextToken(): { kind: 'name' | 'other'; value?: string } | null {
+        while (i < dict.length) {
+            const c = dict[i];
+            if (isSpace(c)) {
+                i++;
+                continue;
+            }
+            if (c === '%') {
+                while (i < dict.length && dict[i] !== '\n' && dict[i] !== '\r') i++;
+                continue;
+            }
+            if (c === '(') {
+                let depth = 1;
+                i++;
+                while (i < dict.length && depth > 0) {
+                    if (dict[i] === '\\') {
+                        i += 2;
+                        continue;
+                    }
+                    if (dict[i] === '(') depth++;
+                    else if (dict[i] === ')') depth--;
+                    i++;
                 }
-                if (dict[i] === '(') depth++;
-                else if (dict[i] === ')') depth--;
-                i++;
+                return { kind: 'other' };
             }
-            continue;
-        }
-        if (c === '<') {
-            if (dict[i + 1] === '<') {
-                i += 2; // dictionary open, not a hex string
-            } else {
-                i++;
-                while (i < dict.length && dict[i] !== '>') i++;
-                if (i < dict.length) i++;
+            if (c === '<') {
+                if (dict[i + 1] === '<') {
+                    i += 2; // dictionary open, not a hex string
+                } else {
+                    i++;
+                    while (i < dict.length && dict[i] !== '>') i++;
+                    if (i < dict.length) i++;
+                }
+                return { kind: 'other' };
             }
-            continue;
-        }
-        if (c === '>') {
-            i += dict[i + 1] === '>' ? 2 : 1; // dictionary close (or stray)
-            continue;
-        }
-        if (c === '/') {
-            let j = i + 1;
+            if (c === '>') {
+                i += dict[i + 1] === '>' ? 2 : 1; // dictionary close (or stray)
+                return { kind: 'other' };
+            }
+            if (c === '/') {
+                let j = i + 1;
+                while (j < dict.length && !isSpace(dict[j]) && !isDelim(dict[j])) j++;
+                const value = dict.slice(i, j);
+                i = j;
+                return { kind: 'name', value };
+            }
+            if (c === '[' || c === ']') {
+                i++;
+                return { kind: 'other' };
+            }
+            // Any other token (number, boolean, keyword, operator): consume
+            // one maximal non-delimiter run so it counts as exactly one
+            // token between /Type and whatever follows.
+            let j = i;
             while (j < dict.length && !isSpace(dict[j]) && !isDelim(dict[j])) j++;
-            names.push(dict.slice(i, j));
-            i = j;
-            continue;
+            i = Math.max(j, i + 1);
+            return { kind: 'other' };
         }
-        i++;
+        return null;
     }
-    for (let k = 0; k + 1 < names.length; k++) {
-        if (names[k] === '/Type' && names[k + 1] === '/XRef') return true;
+
+    let token = nextToken();
+    while (token !== null) {
+        if (token.kind === 'name' && token.value === '/Type') {
+            // Adjacency check: the very next lexical token must be /XRef.
+            const next = nextToken();
+            if (next !== null && next.kind === 'name' && next.value === '/XRef') return true;
+            // Keep scanning from the non-matching token — it may itself be
+            // another /Type (e.g. << /Type /Type /XRef >> is a real match).
+            token = next;
+        } else {
+            token = nextToken();
+        }
     }
     return false;
 }
