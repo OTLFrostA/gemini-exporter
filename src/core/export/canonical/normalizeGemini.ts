@@ -3,9 +3,12 @@
  * F2b: Gemini provider normalizer — repo Conversation -> CanonicalConversationBundle.
  *
  * Implements ProviderNormalizer<Conversation> (see normalizer.ts). Markdown body
- * parsing mirrors the exact subset renderMarkdownToHtml() recognizes
- * (src/core/engine/template/htmlTemplate.ts); bodies are cleaned with the same
- * convertHtmlToMarkdown + stripInternalChipMarkdown pass the HTML exporter uses.
+ * parsing follows a canonical-first policy (see the markdown section below):
+ * it answers "what semantic content did the provider give us?" and is NOT
+ * limited to the subset renderMarkdownToHtml() recognizes
+ * (src/core/engine/template/htmlTemplate.ts). Bodies are still cleaned with the
+ * same convertHtmlToMarkdown + stripInternalChipMarkdown pass the HTML
+ * exporter uses.
  *
  * Mapping decisions (F2b):
  * - thoughts/thinking -> ThoughtBlock{disclosure:'providerExposed',kind:'reasoning'};
@@ -46,7 +49,7 @@ import type {
     TitleCandidate,
 } from './conversation.js';
 import type { Diagnostic } from './diagnostics.js';
-import type { InlineNode } from './inline.js';
+import type { ImageInline, InlineNode } from './inline.js';
 import type { JsonValue } from './json.js';
 import type {
     NormalizationContext,
@@ -114,20 +117,210 @@ function isStr(v: unknown): v is string {
 }
 
 // ---------------------------------------------------------------- markdown ->
+//
+// Canonical-first markdown policy: this parser answers "what semantic content
+// did the provider give us?", never "what subset can a renderer display". It
+// is intentionally decoupled from the legacy HTML renderer's supported subset
+// (src/core/engine/template/htmlTemplate.ts): renderer limitations must not
+// become permanent information-loss rules in canonical data. Where a syntax
+// feature is genuinely unsupported, the source evidence is preserved and an
+// explicit diagnostic is emitted -- content is never silently reinterpreted
+// to match legacy renderer behavior.
 
 interface MdParser {
-    inlineImageDowngrades: number;
+    /** Message-level diagnostics; markdown parsing appends here directly. */
+    diagnostics: Diagnostic[];
+    /** sourceRef stamped on parser-created assets and diagnostics. */
+    sourceRef: SourceRef;
+    /** Normalized attachment reference -> asset id, for inline image linking. */
+    assetIndex: Map<string, string>;
+    /** Assets created for inline markdown images; merged into the bundle by the caller. */
+    inlineAssets: Asset[];
+    /** Message id prefix used for generated asset ids. */
+    idPrefix: string;
 }
 
 let blockSeq = 0;
 const nextBlockId = (prefix: string): string => `${prefix}-b${blockSeq++}`;
 
+/** Normalizable match keys for linking an inline image src to an attachment asset. */
+function assetMatchKeys(ref: string): string[] {
+    const keys = [ref];
+    const noPrefix = ref.replace(/^assets\//, '');
+    if (noPrefix !== ref) keys.push(noPrefix);
+    const base = noPrefix.split('/').pop() ?? '';
+    if (base && base !== noPrefix) keys.push(base);
+    try {
+        const decoded = decodeURIComponent(noPrefix);
+        if (decoded !== noPrefix) keys.push(decoded);
+    } catch {
+        // Not percent-encoded; nothing to add.
+    }
+    return keys;
+}
+
+/**
+ * Build the first-class inline image node for a known `![alt](src)`. The image
+ * links through the canonical asset table: an attachment with a matching
+ * reference is reused, otherwise a new asset records the honest availability
+ * (remote URL -> 'remote', embedded data: URL -> 'available', anything else ->
+ * 'missing' + warning). Known images are never unknownInline.
+ */
+function linkInlineImage(src: string, alt: string, title: string | undefined, st: MdParser): ImageInline {
+    const trimmedSrc = src.trim();
+    for (const key of assetMatchKeys(trimmedSrc)) {
+        const hit = st.assetIndex.get(key);
+        if (hit) {
+            const cleanAlt = alt.trim();
+            return {
+                type: 'image',
+                assetId: hit,
+                ...(cleanAlt ? { alt: cleanAlt } : {}),
+                ...(title ? { title } : {}),
+            };
+        }
+    }
+    const assetId = `${st.idPrefix}-img${st.inlineAssets.length}`;
+    const base = (trimmedSrc.split('/').pop() ?? '').split('?')[0];
+    const name = alt.trim() || base || 'image';
+    let status: AssetStatus;
+    let sourceUrl: string | undefined;
+    let failureReason: string | undefined;
+    if (/^data:/i.test(trimmedSrc)) {
+        status = 'available';
+        sourceUrl = trimmedSrc;
+    } else if (/^https?:\/\//i.test(trimmedSrc)) {
+        status = 'remote';
+        sourceUrl = trimmedSrc;
+    } else if (/^blob:/i.test(trimmedSrc)) {
+        status = 'missing';
+        failureReason = 'blob: URL is not resolvable outside the originating page';
+    } else {
+        status = 'missing';
+        failureReason = `inline image '${trimmedSrc.slice(0, 120)}' has no matching attachment or resolvable URL`;
+    }
+    st.inlineAssets.push({
+        id: assetId,
+        kind: 'image',
+        name,
+        ...(sourceUrl ? { sourceUrl } : {}),
+        status,
+        ...(failureReason ? { failureReason } : {}),
+        sourceRef: st.sourceRef,
+    });
+    for (const key of assetMatchKeys(trimmedSrc)) st.assetIndex.set(key, assetId);
+    if (status === 'missing') {
+        st.diagnostics.push({
+            id: `inline-image-missing:${assetId}`,
+            severity: 'warning',
+            code: 'INLINE_IMAGE_ASSET_MISSING',
+            message: `inline image '${name}' has no resolvable asset; renderers fall back to alt text`,
+            sourceRef: st.sourceRef,
+            details: { src: trimmedSrc.slice(0, 200) } as JsonValue,
+        });
+    }
+    const cleanAlt = alt.trim();
+    return {
+        type: 'image',
+        assetId,
+        ...(cleanAlt ? { alt: cleanAlt } : {}),
+        ...(title ? { title } : {}),
+    };
+}
+
+/** Scan s from i (s[i] === '[') for the matching ']' with bracket nesting. */
+function scanBracket(s: string, i: number): { text: string; end: number } | undefined {
+    let depth = 0;
+    for (let j = i; j < s.length; j++) {
+        if (s[j] === '[') depth++;
+        else if (s[j] === ']') {
+            depth--;
+            if (depth === 0) return { text: s.slice(i + 1, j), end: j + 1 };
+        }
+    }
+    return undefined;
+}
+
+/** Scan s from i (s[i] === '(') for the matching ')' with paren nesting. */
+function scanParen(s: string, i: number): { text: string; end: number } | undefined {
+    let depth = 0;
+    for (let j = i; j < s.length; j++) {
+        if (s[j] === '(') depth++;
+        else if (s[j] === ')') {
+            depth--;
+            if (depth === 0) return { text: s.slice(i + 1, j), end: j + 1 };
+        }
+    }
+    return undefined;
+}
+
+/** Split a link/image destination into URL and an optional quoted title. */
+function parseLinkTarget(inner: string): { href: string; title?: string } {
+    const t = inner.trim();
+    const m = /^(\S+)\s+("(?:[^"]*)"|'(?:[^']*)'|\([^)]*\))$/.exec(t);
+    if (m) return { href: m[1], title: m[2].slice(1, -1) };
+    return { href: t };
+}
+
+/** Try `![alt](src)` at s[i] (s[i] === '!', s[i+1] === '['). */
+function tryParseBareImage(
+    s: string, i: number, st: MdParser,
+): { node: ImageInline; end: number } | undefined {
+    const label = scanBracket(s, i + 1);
+    if (!label || s[label.end] !== '(') return undefined;
+    const dest = scanParen(s, label.end);
+    if (!dest) return undefined;
+    const { href, title } = parseLinkTarget(dest.text);
+    return { node: linkInlineImage(href, label.text, title, st), end: dest.end };
+}
+
+/**
+ * Try `[![alt](src)](href)` at s[i]. A bare `[!text](href)` (no image inside)
+ * is not a linked image and is left for literal/link handling.
+ */
+function tryParseLinkedImage(
+    s: string, i: number, st: MdParser,
+): { node: InlineNode; end: number } | undefined {
+    // s[i] === '[' opens the link; the image (if any) starts at i + 1.
+    // Scan from i so the nested image brackets balance correctly.
+    const outer = scanBracket(s, i);
+    if (!outer || s[outer.end] !== '(' || !outer.text.startsWith('![')) return undefined;
+    const hrefParen = scanParen(s, outer.end);
+    if (!hrefParen) return undefined;
+    const img = tryParseBareImage(outer.text, 0, st);
+    if (!img || img.end !== outer.text.length) return undefined;
+    const { href, title: hrefTitle } = parseLinkTarget(hrefParen.text);
+    return {
+        node: { type: 'link', href, ...(hrefTitle ? { title: hrefTitle } : {}), children: [img.node] },
+        end: hrefParen.end,
+    };
+}
+
+/** Try `[label](dest)` at s[i] (s[i] === '['). */
+function tryParseLink(s: string, i: number): { node: InlineNode; end: number } | undefined {
+    const label = scanBracket(s, i);
+    if (!label || s[label.end] !== '(') return undefined;
+    const dest = scanParen(s, label.end);
+    if (!dest) return undefined;
+    const { href, title } = parseLinkTarget(dest.text);
+    return {
+        node: { type: 'link', href, ...(title ? { title } : {}), children: parseEmphasis(label.text) },
+        end: dest.end,
+    };
+}
+
 function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[] {
+    // Protect code spans first so delimiters inside `code` are never
+    // reinterpreted; then math spans (display `$$..$$` pairs, then `$..$`).
     const codeSpans: string[] = [];
     const mathSpans: string[] = [];
     let s = text.replace(/`([^`\n]+)`/g, (_m, code) => {
         codeSpans.push(code);
         return `\u0000C${codeSpans.length - 1}\u0000`;
+    });
+    s = s.replace(/\$\$([^$\n]+?)\$\$/g, (_m, formula) => {
+        mathSpans.push(formula);
+        return `\u0000M${mathSpans.length - 1}\u0000`;
     });
     s = s.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (_m, formula) => {
         mathSpans.push(formula);
@@ -135,108 +328,148 @@ function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[]
     });
 
     const out: InlineNode[] = [];
-    const pushText = (t: string): void => {
-        if (t) out.push({ type: 'text', text: t });
+    let buf = '';
+    const flush = (): void => {
+        if (buf) {
+            for (const n of parseEmphasis(buf)) out.push(n);
+            buf = '';
+        }
     };
-    // Split on protected spans, linked images, images, links; then emphasis per segment.
-    // NOTE: the linked-image alternative must come before the standalone-image
-    // one, otherwise [![alt](src)](href) would be cut after the inner ](src).
-    const tokenRe = /\u0000[CM]\d+\u0000|\[!\[[^\]]*\]\([^)]+\)\]\([^)]+\)|!?\[[^\]]*\]\([^)]+\)/g;
-    let last = 0;
-    let m: RegExpExecArray | null;
-    const flushEmphasis = (seg: string): void => {
-        for (const n of parseEmphasis(seg)) out.push(n);
-    };
-    while ((m = tokenRe.exec(s)) !== null) {
-        flushEmphasis(s.slice(last, m.index));
-        const tok = m[0];
-        if (tok.startsWith('\u0000C')) {
-            out.push({ type: 'inlineCode', code: codeSpans[Number(tok.slice(2, -1))] ?? '' });
-        } else if (tok.startsWith('\u0000M')) {
-            out.push({ type: 'inlineMath', source: mathSpans[Number(tok.slice(2, -1))] ?? '', notation: 'latex' });
-        } else if (tok.startsWith('[![')) {
-            const lim = tok.match(/^\[!\[([^\]]*)\]\(([^)]+)\)\]\(([^)]+)\)$/);
-            const lalt = lim ? lim[1] : '';
-            const lsrc = lim ? lim[2].trim() : '';
-            const lhref = lim ? lim[3].trim() : '';
-            st.inlineImageDowngrades++;
-            out.push({
-                type: 'link',
-                href: lhref,
-                children: [{
-                    type: 'unknownInline',
-                    sourceType: 'inline-image',
-                    fallbackText: lalt.trim() || '[image]',
-                    rawRef: lsrc || undefined,
-                }],
-            });
-        } else if (tok.startsWith('![')) {
-            const im = tok.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
-            const alt = im ? im[1] : '';
-            const src = im ? im[2].trim() : '';
-            st.inlineImageDowngrades++;
-            out.push({
-                type: 'unknownInline',
-                sourceType: 'inline-image',
-                fallbackText: alt.trim() || '[image]',
-                rawRef: src || undefined,
-            });
-        } else {
-            const lm = tok.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-            if (lm) {
-                out.push({
-                    type: 'link',
-                    href: lm[2].trim(),
-                    children: parseEmphasis(lm[1]),
-                });
-            } else {
-                flushEmphasis(tok);
+    let i = 0;
+    while (i < s.length) {
+        const ph = /^\u0000([CM])(\d+)\u0000/.exec(s.slice(i));
+        if (ph) {
+            flush();
+            const idx = Number(ph[2]);
+            if (ph[1] === 'C') out.push({ type: 'inlineCode', code: codeSpans[idx] ?? '' });
+            else out.push({ type: 'inlineMath', source: mathSpans[idx] ?? '', notation: 'latex' });
+            i += ph[0].length;
+            continue;
+        }
+        if (s[i] === '!' && s[i + 1] === '[') {
+            const bare = tryParseBareImage(s, i, st);
+            if (bare) {
+                flush();
+                out.push(bare.node);
+                i = bare.end;
+                continue;
             }
         }
-        last = m.index + tok.length;
+        if (s[i] === '[') {
+            // A linked image `[![alt](src)](href)` opens with '[' too, so try
+            // it before a plain link.
+            const linked = tryParseLinkedImage(s, i, st);
+            if (linked) {
+                flush();
+                out.push(linked.node);
+                i = linked.end;
+                continue;
+            }
+            const link = tryParseLink(s, i);
+            if (link) {
+                flush();
+                out.push(link.node);
+                i = link.end;
+                continue;
+            }
+        }
+        buf += s[i];
+        i++;
     }
-    flushEmphasis(s.slice(last));
+    flush();
     return out;
 }
 
 function parseEmphasis(seg: string): InlineNode[] {
     if (!seg) return [];
-    // Order mirrors formatInlineMarkdown(): *** / ___, ** / __, * / _, ~~.
-    const patterns: Array<{ re: RegExp; make: (inner: InlineNode[]) => InlineNode }> = [
-        { re: /\*\*\*([^*]+)\*\*\*/, make: (c) => ({ type: 'strong', children: [{ type: 'emphasis', children: c }] }) },
-        { re: /___([^_]+)___/, make: (c) => ({ type: 'strong', children: [{ type: 'emphasis', children: c }] }) },
-        { re: /\*\*([^*]+)\*\*/, make: (c) => ({ type: 'strong', children: c }) },
-        { re: /__([^_]+)__/, make: (c) => ({ type: 'strong', children: c }) },
-        { re: /\*([^*]+)\*/, make: (c) => ({ type: 'emphasis', children: c }) },
-        { re: /_([^_]+)_/, make: (c) => ({ type: 'emphasis', children: c }) },
-        { re: /~~([^~]+)~~/, make: (c) => ({ type: 'strikethrough', children: c }) },
-    ];
-    for (const { re, make } of patterns) {
-        const idx = seg.search(re);
-        if (idx >= 0) {
-            const mt = re.exec(seg.slice(idx))!;
-            return [
-                ...parseEmphasis(seg.slice(0, idx)),
-                make(parseEmphasis(mt[1])),
-                ...parseEmphasis(seg.slice(idx + mt[0].length)),
-            ];
+    // Recursive-descent scanner: at each position take the longest marker
+    // ('***' > '**' > '*', '___' > '__' > '_', plus '~~'), then pair it with
+    // the next "clean" occurrence of the same marker — one that is not part
+    // of a longer run of the same char, so '*a **b** c*' nests correctly
+    // instead of closing at the first '*' of '**'. Unmatched markers stay
+    // literal text (malformed input is preserved, not dropped).
+    const markers = ['***', '___', '**', '__', '~~', '*', '_'] as const;
+    const make = (m: string, children: InlineNode[]): InlineNode => {
+        if (m === '***' || m === '___') {
+            return { type: 'strong', children: [{ type: 'emphasis', children }] };
         }
+        if (m === '**' || m === '__') return { type: 'strong', children };
+        if (m === '~~') return { type: 'strikethrough', children };
+        return { type: 'emphasis', children };
+    };
+    const out: InlineNode[] = [];
+    let buf = '';
+    const flush = (): void => {
+        if (buf) {
+            out.push({ type: 'text', text: buf });
+            buf = '';
+        }
+    };
+    const markerAt = (pos: number): string | undefined => {
+        for (const m of markers) {
+            if (seg.startsWith(m, pos)) return m;
+        }
+        return undefined;
+    };
+    let i = 0;
+    while (i < seg.length) {
+        const m = markerAt(i);
+        if (!m) {
+            buf += seg[i];
+            i++;
+            continue;
+        }
+        const ch = m[0];
+        let j = seg.indexOf(m, i + m.length);
+        let closer = -1;
+        while (j >= 0) {
+            if (seg[j - 1] !== ch && seg[j + m.length] !== ch) {
+                closer = j;
+                break;
+            }
+            j = seg.indexOf(m, j + 1);
+        }
+        if (closer < 0) {
+            buf += m;
+            i += m.length;
+            continue;
+        }
+        flush();
+        out.push(make(m, parseEmphasis(seg.slice(i + m.length, closer))));
+        i = closer + m.length;
     }
-    return [{ type: 'text', text: seg }];
+    flush();
+    return out;
 }
 
 function isTableSeparator(line: string): boolean {
     const t = line.trim();
+    // A delimiter row needs at least one pipe: this keeps a bare `text\n---`
+    // as a setext heading, never a one-column table. Edge pipes are optional
+    // (borderless tables are valid markdown).
     if (!t.includes('|')) return false;
-    const parts = t.split('|').map((p) => p.trim()).filter((_, i, a) => i > 0 && i < a.length - 1);
+    let c = t.startsWith('|') ? t.slice(1) : t;
+    c = c.endsWith('|') ? c.slice(0, -1) : c;
+    const parts = c.split('|').map((p) => p.trim());
     return parts.length > 0 && parts.every((p) => /^:?-+:?$/.test(p));
 }
 
 function parseTableRow(line: string): string[] {
+    // Protect escaped pipes and code spans so a `|` inside `code` (or `\|`)
+    // is not mistaken for a column separator; edge pipes are optional.
+    const spans: string[] = [];
     let c = line.trim();
+    c = c.replace(/\\\|/g, () => {
+        spans.push('|');
+        return `\u0000P${spans.length - 1}\u0000`;
+    });
+    c = c.replace(/`([^`\n]*)`/g, (_m, code) => {
+        spans.push(`\`${code}\``);
+        return `\u0000P${spans.length - 1}\u0000`;
+    });
     if (c.startsWith('|')) c = c.slice(1);
     if (c.endsWith('|')) c = c.slice(0, -1);
-    return c.split('|').map((x) => x.trim());
+    return c.split('|').map((x) => x.trim().replace(/\u0000P(\d+)\u0000/g, (_m, n) => spans[Number(n)] ?? ''));
 }
 
 function tableAlignments(sepLine: string): Array<'left' | 'center' | 'right' | 'default'> {
@@ -313,7 +546,7 @@ function parseList(lines: string[], i: number, idPrefix: string, st: MdParser): 
                 id: nextBlockId(idPrefix),
                 type: 'list',
                 ordered,
-                start: ordered ? startNum : undefined,
+                ...(ordered ? { start: startNum } : {}),
                 items: listItems,
             });
         }
@@ -349,40 +582,82 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                 id: nextBlockId(idPrefix),
                 type: 'code',
                 code: codeLines.join('\n'),
-                language: langTok[0] || undefined,
-                meta: langTok.length > 1 ? langTok.slice(1).join(' ') : undefined,
+                ...(langTok[0] ? { language: langTok[0] } : {}),
+                ...(langTok.length > 1 ? { meta: langTok.slice(1).join(' ') } : {}),
             });
             continue;
         }
 
         if (trimmed.startsWith('$$')) {
-            const mathLines: string[] = [];
-            if (trimmed.length > 2 && trimmed.endsWith('$$') && trimmed !== '$$') {
-                mathLines.push(trimmed.slice(2, -2).trim());
+            // A display-math BLOCK only when the whole line is `$$...$$` with
+            // nothing but whitespace after the closing delimiter. A same-line
+            // formula with trailing text (or several formulas on one line) is
+            // inline math: hand the line to the paragraph parser so the
+            // formula AND the text are preserved (never an empty MathBlock).
+            const selfClosed = trimmed.length > 4 && trimmed !== '$$' &&
+                /\$\$[^$\n]+\$\$\s*$/.test(trimmed) &&
+                trimmed.indexOf('$$', 2) === trimmed.length - 2;
+            if (selfClosed) {
+                const inner = trimmed.slice(2, -2).trim();
+                blocks.push({ id: nextBlockId(idPrefix), type: 'math', source: inner, notation: 'latex' });
                 i++;
-            } else {
+                continue;
+            }
+            if (trimmed === '$$') {
+                const mathLines: string[] = [];
+                let closed = false;
                 i++;
                 while (i < lines.length) {
                     const cur = lines[i].trim();
-                    if (cur === '$$' || cur.endsWith('$$')) {
-                        if (cur !== '$$') mathLines.push(cur.replace(/\$\$$/, '').trim());
-                        i++;
-                        break;
-                    }
+                    if (cur === '$$') { i++; closed = true; break; }
+                    if (cur.endsWith('$$')) { mathLines.push(cur.replace(/\$\$$/, '').trim()); i++; closed = true; break; }
                     mathLines.push(lines[i]);
                     i++;
                 }
+                if (!closed) {
+                    st.diagnostics.push({
+                        id: `math-fence-unclosed:${idPrefix}-b${blockSeq}`,
+                        severity: 'warning',
+                        code: 'MATH_FENCE_UNCLOSED',
+                        message: 'display-math fence never closed; kept collected lines as the formula source',
+                        sourceRef: st.sourceRef,
+                        details: { line: trimmed.slice(0, 80) } as JsonValue,
+                    });
+                }
+                const source = mathLines.join('\n').trim();
+                if (!source) {
+                    st.diagnostics.push({
+                        id: `math-empty:${idPrefix}-b${blockSeq}`,
+                        severity: 'warning',
+                        code: 'MATH_BLOCK_EMPTY',
+                        message: 'empty display-math fence; kept as source evidence',
+                        sourceRef: st.sourceRef,
+                        details: { line: trimmed.slice(0, 80) } as JsonValue,
+                    });
+                }
+                blocks.push({ id: nextBlockId(idPrefix), type: 'math', source, notation: 'latex' });
+                continue;
             }
-            blocks.push({ id: nextBlockId(idPrefix), type: 'math', source: mathLines.join('\n'), notation: 'latex' });
+            // Starts with '$$' but is neither self-closed nor a lone fence:
+            // let the inline scanner split it into InlineMath + text. Consume
+            // the line here (not via the paragraph collector below, whose
+            // '$$' break condition would refuse it and loop forever).
+            blocks.push({
+                id: nextBlockId(idPrefix),
+                type: 'paragraph',
+                children: parseInline(line, idPrefix, st),
+                sourceRef: st.sourceRef,
+            });
+            i++;
             continue;
         }
 
-        if (trimmed.startsWith('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        if (i + 1 < lines.length && trimmed.includes('|') && isTableSeparator(lines[i + 1])) {
             const headerCells = parseTableRow(line);
             const aligns = tableAlignments(lines[i + 1]);
             i += 2;
             const bodyRows: string[][] = [];
-            while (i < lines.length && lines[i].trim().startsWith('|')) {
+            while (i < lines.length && lines[i].includes('|') && !isTableSeparator(lines[i])) {
                 bodyRows.push(parseTableRow(lines[i]));
                 i++;
             }
@@ -444,7 +719,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
             const ct = cur.trim();
             if (!ct) break;
             if (ct.startsWith('```') || ct.startsWith('~~~') || ct.startsWith('$$') ||
-                (ct.startsWith('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) ||
+                (ct.includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) ||
                 /^#{1,6}\s/.test(cur) || ct.startsWith('>') || /^([-*_]){3,}$/.test(ct) ||
                 /^(\s*)([-*+]|\d+\.)\s+/.test(cur)) break;
             pLines.push(cur);
@@ -571,21 +846,27 @@ function buildAsset(
         });
     }
 
+    // Contract: optional asset fields are omitted when absent, never emitted
+    // as explicit `undefined` (which has no JSON representation and would make
+    // the live bundle disagree with its serialized form).
+    const mimeType = a.mimeType || a.mime || undefined;
     const asset: Asset = {
         id,
         kind,
         name: attachmentDisplayName(a, isImage),
-        mimeType: a.mimeType || a.mime || undefined,
-        sizeBytes: typeof a.size === 'number' ? a.size : undefined,
-        dimensions: typeof a.width === 'number' && typeof a.height === 'number'
-            ? { widthPx: a.width, heightPx: a.height }
-            : undefined,
-        sourceUrl,
-        storageRef,
+        ...(mimeType ? { mimeType } : {}),
+        ...(typeof a.size === 'number' ? { sizeBytes: a.size } : {}),
+        ...(typeof a.width === 'number' && typeof a.height === 'number'
+            ? { dimensions: { widthPx: a.width, heightPx: a.height } }
+            : {}),
+        ...(sourceUrl ? { sourceUrl } : {}),
+        ...(storageRef ? { storageRef } : {}),
         status,
-        failureReason: status === 'missing' ? 'no usable bytes, local file or URL in attachment record' : undefined,
+        ...(status === 'missing'
+            ? { failureReason: 'no usable bytes, local file or URL in attachment record' }
+            : {}),
         sourceRef,
-        extensions: a.type ? { gemini: { attachmentType: String(a.type) } as JsonValue } : undefined,
+        ...(a.type ? { extensions: { gemini: { attachmentType: String(a.type) } as JsonValue } } : {}),
     };
     const classified = classifyAssetAvailability(asset, hasInlineBytes || hasLocalFile);
     if (classified.diagnostic) diagnostics.push(classified.diagnostic);
@@ -611,7 +892,7 @@ function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skipped: nu
         for (const c of fromCitations) {
             if (c && typeof c === 'object' && isStr((c as { url?: unknown }).url)) {
                 const o = c as { url: string; title?: unknown };
-                push({ url: o.url, title: isStr(o.title) ? o.title : undefined });
+                push(isStr(o.title) ? { url: o.url, title: o.title } : { url: o.url });
             } else skipped++;
         }
     }
@@ -621,7 +902,7 @@ function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skipped: nu
             if (isStr(s)) push({ url: s });
             else if (s && typeof s === 'object' && isStr((s as { url?: unknown }).url)) {
                 const o = s as { url: string; title?: unknown };
-                push({ url: o.url, title: isStr(o.title) ? o.title : undefined });
+                push(isStr(o.title) ? { url: o.url, title: o.title } : { url: o.url });
             } else skipped++;
         }
     }
@@ -723,7 +1004,7 @@ function normalizeMessage(
     }
     const sourceRef: SourceRef = {
         providerId: ctx.providerId,
-        providerMessageId: isStr(m.id) ? m.id : undefined,
+        ...(isStr(m.id) ? { providerMessageId: m.id } : {}),
         locator,
     };
     const { role, rawRole } = mapRole(m.role);
@@ -739,7 +1020,47 @@ function normalizeMessage(
     }
 
     const idPrefix = msgId;
-    const st: MdParser = { inlineImageDowngrades: 0 };
+
+    // Build attachment assets BEFORE parsing markdown so inline images can
+    // link to them through the canonical asset table. The message-level
+    // `attachments` array carries generated/pasted files; the bare markdown
+    // image syntax `![alt](src)` (and `[![alt](src)](href)`) becomes a
+    // first-class ImageInline node that references an Asset by id -- it is
+    // never demoted to unknownInline.
+    const merged = mergeMessageAttachments(m);
+    const attachmentBlocks: BlockNode[] = [];
+    const assets: Asset[] = [];
+    const assetIds: string[] = [];
+    const assetIndex = new Map<string, string>();
+    merged.forEach((a, ai) => {
+        const assetId = `${msgId}-a${ai}`;
+        const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` },
+            a.isGenerated ? 'generated' : a.__origin === 'attachment' ? 'attachment' : a.__origin === 'image' ? 'inline' : 'unknown');
+        assets.push(built.asset);
+        assetIds.push(assetId);
+        for (const ref of [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {
+            if (typeof ref === 'string' && ref) {
+                for (const key of assetMatchKeys(ref)) assetIndex.set(key, assetId);
+            }
+        }
+        diagnostics.push(...built.diagnostics);
+        const bid = nextBlockId(idPrefix);
+        if (built.isImage) {
+            attachmentBlocks.push({
+                id: bid, type: 'image', assetId,
+                alt: built.asset.name, origin: built.origin,
+                sourceRef,
+            });
+        } else {
+            attachmentBlocks.push({
+                id: bid, type: 'file', assetId,
+                label: built.asset.name, origin: built.origin,
+                sourceRef,
+            });
+        }
+    });
+
+    const st: MdParser = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix };
     const blocks: BlockNode[] = [];
 
     const thoughtsRaw = m.thoughts ?? m.thinking ?? '';
@@ -775,31 +1096,12 @@ function normalizeMessage(
         });
     }
 
-    const assets: Asset[] = [];
-    const assetIds: string[] = [];
-    const merged = mergeMessageAttachments(m);
-    merged.forEach((a, ai) => {
-        const assetId = `${msgId}-a${ai}`;
-        const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` },
-            a.isGenerated ? 'generated' : a.__origin === 'attachment' ? 'attachment' : a.__origin === 'image' ? 'inline' : 'unknown');
-        assets.push(built.asset);
-        assetIds.push(assetId);
-        diagnostics.push(...built.diagnostics);
-        const bid = nextBlockId(idPrefix);
-        if (built.isImage) {
-            blocks.push({
-                id: bid, type: 'image', assetId,
-                alt: built.asset.name, origin: built.origin,
-                sourceRef,
-            });
-        } else {
-            blocks.push({
-                id: bid, type: 'file', assetId,
-                label: built.asset.name, origin: built.origin,
-                sourceRef,
-            });
-        }
-    });
+    // Assets created for inline markdown images join the bundle's asset table.
+    for (const ia of st.inlineAssets) {
+        assets.push(ia);
+        assetIds.push(ia.id);
+    }
+    blocks.push(...attachmentBlocks);
 
     const citations: Citation[] = [];
     const { list: rawCits, skipped } = extractRawCitations(m);
@@ -835,28 +1137,21 @@ function normalizeMessage(
         } as BlockNode);
     }
 
-    if (st.inlineImageDowngrades > 0) {
-        diagnostics.push({
-            id: `inline-image:${msgId}`,
-            severity: 'info',
-            code: 'INLINE_IMAGE_DOWNGRADE',
-            message: `${st.inlineImageDowngrades} inline markdown image(s) mapped to unknownInline with readable fallback`,
-            sourceRef,
-        });
-    }
-
     const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));
+    const createdAt = toIso(m.timestamp);
+    // Contract: optional message fields are omitted when absent, never emitted
+    // as explicit `undefined`.
     const node: MessageNode = {
         id: msgId,
         role,
-        author: rawRole ? { rawRole } : undefined,
-        createdAt: toIso(m.timestamp),
+        ...(rawRole ? { author: { rawRole } } : {}),
+        ...(createdAt ? { createdAt } : {}),
         blocks,
-        associatedAssetIds: assetIds.length ? assetIds : undefined,
+        ...(assetIds.length ? { associatedAssetIds: assetIds } : {}),
         sourceRef,
-        extensions: unknownFields.length
-            ? { gemini: { unknownFields } as JsonValue }
-            : undefined,
+        ...(unknownFields.length
+            ? { extensions: { gemini: { unknownFields } as JsonValue } }
+            : {}),
     };
     return { node, assets, citations, diagnostics };
 }
@@ -987,8 +1282,8 @@ export async function normalizeGeminiConversation(
         observedAt,
         rawCount: rawMessages.length || rawTurns.length,
         parsedCount: messages.length,
-        unknownFields: unknownFields.length ? unknownFields : undefined,
-        rawRef: options.rawRef,
+        ...(unknownFields.length ? { unknownFields } : {}),
+        ...(options.rawRef ? { rawRef: options.rawRef } : {}),
         extensions: {
             gemini: {
                 source: isStr(raw.source) ? raw.source : null,
@@ -999,23 +1294,25 @@ export async function normalizeGeminiConversation(
         },
     };
 
+    const convCreatedAt = toIso(raw.createdAt ?? raw.timestamp ?? raw.chatTime);
+    const convUpdatedAt = toIso(raw.updatedAt ?? raw.lastSeen);
     const bundle: CanonicalConversationBundle = {
         schemaVersion: 1,
         conversation: {
             key: { providerId, accountId, conversationId: isStr(raw.id) ? raw.id : '' },
-            title,
-            createdAt: toIso(raw.createdAt ?? raw.timestamp ?? raw.chatTime),
-            updatedAt: toIso(raw.updatedAt ?? raw.lastSeen),
+            ...(title ? { title } : {}),
+            ...(convCreatedAt ? { createdAt: convCreatedAt } : {}),
+            ...(convUpdatedAt ? { updatedAt: convUpdatedAt } : {}),
             observedAt,
             messages,
-            extensions: raw.url || raw.href
-                ? { gemini: { url: (raw.url || raw.href) as string } as JsonValue }
-                : undefined,
+            ...(raw.url || raw.href
+                ? { extensions: { gemini: { url: (raw.url || raw.href) as string } as JsonValue } }
+                : {}),
         },
         assets,
         citations,
         observations: [observation],
-        diagnostics: diagnostics.length ? diagnostics : undefined,
+        ...(diagnostics.length ? { diagnostics } : {}),
     };
 
     // Structural self-check: our own output must project cleanly.
@@ -1075,19 +1372,43 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
         // through as options.rawRef so it lands in the observation and can
         // be attached to sourceRefs/provenance downstream.
         let rawRef = this.options.rawRef;
+        let rawEvidenceError: string | undefined;
+        const effectiveProviderId = context.providerId || this.options.providerId || this.providerId;
         if (context.rawEvidence && !rawRef) {
             try {
                 rawRef = await context.rawEvidence.put('gemini-conversation', raw);
-            } catch {
+            } catch (err) {
+                // P2-5: a raw-evidence persistence failure must be visible, never
+                // silently swallowed. Normalization continues (policy), but the
+                // diagnostic below makes it explicit that no raw payload was archived.
                 rawRef = this.options.rawRef;
+                rawEvidenceError = err instanceof Error ? err.message : String(err);
             }
         }
-        return normalizeGeminiConversation(raw, {
+        const result = await normalizeGeminiConversation(raw, {
             ...this.options,
             rawRef,
-            providerId: context.providerId || this.options.providerId,
+            providerId: effectiveProviderId,
             accountId: context.accountId,
             observedAt: context.observedAt,
         });
+        if (rawEvidenceError !== undefined) {
+            const diagnostic: Diagnostic = {
+                id: 'raw-evidence:write-failed',
+                severity: 'warning',
+                code: 'RAW_EVIDENCE_WRITE_FAILED',
+                message: 'raw evidence persistence failed; continuing without an archived raw payload',
+                sourceRef: { providerId: effectiveProviderId },
+                details: { error: rawEvidenceError.slice(0, 300) } as JsonValue,
+            };
+            result.diagnostics.push(diagnostic);
+            // rawRef was never persisted: do not let the observation imply it was.
+            if (!result.bundle.diagnostics) {
+                result.bundle.diagnostics = result.diagnostics;
+            } else if (result.bundle.diagnostics !== result.diagnostics) {
+                result.bundle.diagnostics.push(diagnostic);
+            }
+        }
+        return result;
     }
 }

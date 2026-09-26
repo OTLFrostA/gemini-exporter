@@ -181,16 +181,23 @@ function renderInline(
     node: InlineNode,
     citations: Map<string, { label: string; url?: string }>,
     options: TypstPayloadOptions,
+    diagnostics: TypstAdapterDiagnostic[],
+    path: string,
 ): TypstInlineNode {
     switch (node.type) {
         case 'text': return { type: 'text', text: node.text };
-        case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, citations, options)) };
-        case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, citations, options)) };
+        case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, citations, options, diagnostics, path)) };
+        case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, citations, options, diagnostics, path)) };
         case 'strikethrough':
             // v8 transport has no strike node; preserve text rather than styling.
             return { type: 'text', text: node.children.map(n => plainInline([n], new Map())).join('') };
         case 'inlineCode': return { type: 'inlineCode', text: node.code };
-        case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, citations, options)) };
+        case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, citations, options, diagnostics, path)) };
+        case 'image': {
+            // v8 transport has no inline image node; flatten to alt text.
+            diagnostics.push({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_FLATTENED', message: `Inline image ${node.assetId} flattened to alt text; the v8 transport has no inline image node.`, path });
+            return { type: 'text', text: node.alt ?? '' };
+        }
         case 'inlineMath': {
             const typst = options.convertMath?.(node.source, node.notation, false);
             return typst
@@ -231,7 +238,7 @@ function renderBlock(
     diagnostics: TypstAdapterDiagnostic[],
     path: string,
 ): TypstBlockNode | null {
-    const inline = (nodes: InlineNode[]) => nodes.map(n => renderInline(n, citations, options));
+    const inline = (nodes: InlineNode[]) => nodes.map(n => renderInline(n, citations, options, diagnostics, path));
     switch (block.type) {
         case 'paragraph': return { type: 'paragraph', children: inline(block.children) };
         case 'heading': {

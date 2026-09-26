@@ -106,6 +106,26 @@ test('present image asset maps to virtual path', async () => {
     });
 });
 
+test('inline image flattens to alt text with warning diagnostic', async () => {
+    const b = bundle([msg('m1', 'user', [
+        {
+            type: 'paragraph',
+            children: [
+                { type: 'text', text: 'see ' },
+                { type: 'image', assetId: 'a-inline', alt: 'a diagram' },
+                { type: 'text', text: ' here' },
+            ],
+        },
+    ])]);
+    const { payload, diagnostics } = toTypstPayload(b, opts);
+    const para: any = payload.messages[0].blocks[0];
+    assert.strictEqual(para.type, 'paragraph');
+    assert.deepStrictEqual(para.children.map((c: any) => c.type), ['text', 'text', 'text']);
+    assert.strictEqual(para.children.map((c: any) => c.text).join(''), 'see a diagram here');
+    assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_FLATTENED' && d.severity === 'warning'),
+        'inline image degradation must be visible, never silent');
+});
+
 test('unknown blocks are never dropped', async () => {
     const b = bundle([msg('m1', 'assistant', [
         { type: 'unknown', sourceType: 'weird-widget', fallbackBlocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'kept' }] }] },

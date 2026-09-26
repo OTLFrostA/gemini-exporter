@@ -23,6 +23,7 @@ const {
     projectConversation,
     validateMessageTree,
     unknownBlockFallbackText,
+    extractInlineText,
 } = canonical;
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
@@ -76,19 +77,21 @@ test('markdown body keeps block order and structure', async () => {
     assert.strictEqual(textOf(user.blocks[4].blocks[0]), 'remember the receipt');
     assert.strictEqual(user.blocks[5].type, 'thematicBreak');
 
-    // Inline markdown image is NOT an ImageBlock (no placement knowledge):
-    // it degrades to unknownInline with a readable fallback and the raw URL.
+    // Inline markdown image is a first-class ImageInline: it references an
+    // asset by id and is never demoted to unknownInline.
     const imgPara = user.blocks[6];
     assert.strictEqual(imgPara.type, 'paragraph');
-    const img = imgPara.children.find((c: any) => c.type === 'unknownInline');
-    assert.ok(img, 'inline image degraded to unknownInline');
-    assert.strictEqual(img.sourceType, 'inline-image');
-    assert.strictEqual(img.fallbackText, 'alt text');
-    assert.strictEqual(img.rawRef, 'https://example.com/inline.png');
-    assert.ok(
-        diagnostics.some((d: any) => d.code === 'INLINE_IMAGE_DOWNGRADE'),
-        'inline-image downgrade is surfaced as a diagnostic',
-    );
+    const img = imgPara.children.find((c: any) => c.type === 'image');
+    assert.ok(img, 'inline image is a first-class image inline node');
+    assert.strictEqual(img.alt, 'alt text');
+    assert.ok(img.assetId, 'inline image references an asset');
+    const imgAsset = bundle.assets.find((a: any) => a.id === img.assetId);
+    assert.ok(imgAsset, 'inline image asset is in the bundle asset table');
+    assert.strictEqual(imgAsset.kind, 'image');
+    assert.strictEqual(imgAsset.status, 'remote');
+    assert.strictEqual(imgAsset.sourceUrl, 'https://example.com/inline.png');
+    assert.strictEqual(extractInlineText(img), 'alt text', 'alt text survives as readable fallback');
+    assert.ok(!diagnostics.some((d: any) => d.code === 'INLINE_IMAGE_DOWNGRADE'), 'no downgrade diagnostic');
     assert.ok(!diagnostics.some((d: any) => d.severity === 'error'), 'no error diagnostics');
 });
 
@@ -152,7 +155,8 @@ test('citations become Citation entities, a CitationGroupBlock, and citationRef 
 test('attachments map to assets with availability and dedupe', async () => {
     const { bundle, diagnostics } = await normalizeGeminiConversation(sample);
     // receipt.png appears in both attachments[] and images[] -> one asset.
-    assert.strictEqual(bundle.assets.length, 3);
+    // Plus the inline markdown image in m-u1 -> one remote asset.
+    assert.strictEqual(bundle.assets.length, 4);
     const byName: Map<string, any> = new Map(bundle.assets.map((a: any) => [a.name, a]));
     const receipt = byName.get('receipt.png');
     assert.strictEqual(receipt.kind, 'image');
@@ -172,8 +176,11 @@ test('attachments map to assets with availability and dedupe', async () => {
     );
 
     // Placement blocks reference the assets; message keeps the association index.
+    // The inline markdown image asset joins the association too.
     const user = bundle.conversation.messages.find((m: any) => m.id === 'm-u1');
-    assert.deepStrictEqual(user.associatedAssetIds, [receipt.id]);
+    const inlineImg = byName.get('alt text');
+    assert.ok(inlineImg, 'inline image asset present');
+    assert.deepStrictEqual(user.associatedAssetIds, [receipt.id, inlineImg.id]);
     const imgBlock = user.blocks.find((b: any) => b.type === 'image');
     assert.strictEqual(imgBlock.assetId, receipt.id);
     const model = bundle.conversation.messages.find((m: any) => m.id === 'm-a1');
@@ -260,6 +267,35 @@ test('raw evidence is stored before deriving, ref lands in the observation', asy
     assert.strictEqual(stored[0].kind, 'gemini-conversation');
     assert.strictEqual(stored[0].data, sample, 'original payload stored, not the cleaned text');
     assert.strictEqual(bundle.observations[0].rawRef, 'raw://test/evidence-1');
+});
+
+test('raw evidence write failure is visible exactly once and never fabricates a rawRef', async () => {
+    const context = {
+        providerId: 'gemini',
+        accountId: '',
+        observedAt: new Date().toISOString(),
+        rawEvidence: {
+            put: async () => {
+                throw new Error('disk is on fire (test)');
+            },
+        },
+    };
+    const normalizer = new GeminiNormalizer();
+    const { bundle, diagnostics } = await normalizer.normalize(sample, context);
+    // Normalization continues despite the persistence failure.
+    assert.ok(bundle.conversation.messages.length > 0, 'bundle still produced');
+    const hits = diagnostics.filter((d: any) => d.code === 'RAW_EVIDENCE_WRITE_FAILED');
+    assert.strictEqual(hits.length, 1, 'diagnostic reported exactly once in result diagnostics');
+    assert.strictEqual(hits[0].severity, 'warning');
+    assert.ok(
+        String(hits[0].details.error).includes('disk is on fire'),
+        'error message safely extracted into details',
+    );
+    // bundle.diagnostics is the same array: no duplicate from the second push site.
+    const bundleHits = (bundle.diagnostics || []).filter((d: any) => d.code === 'RAW_EVIDENCE_WRITE_FAILED');
+    assert.strictEqual(bundleHits.length, 1, 'no duplicate in bundle diagnostics');
+    // No raw payload was archived, so the observation must not claim one.
+    assert.strictEqual(bundle.observations[0].rawRef, undefined);
 });
 
 test('bundle passes validateBundle and projectConversation self-check', async () => {

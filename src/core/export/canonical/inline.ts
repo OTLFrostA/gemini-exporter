@@ -17,6 +17,7 @@ export type InlineNode =
     | StrikethroughInline
     | InlineCode
     | LinkInline
+    | ImageInline
     | InlineMath
     | CitationRefInline
     | LineBreakInline
@@ -53,6 +54,19 @@ export interface LinkInline {
     href: string;
     title?: string;
     children: InlineNode[];
+}
+
+/**
+ * First-class inline image. A known image inside inline content is known
+ * semantics, not unknown content: it links through the canonical asset table
+ * via assetId so renderers never need provider-specific parsing to recover
+ * the image (see INVARIANTS: "unknown means genuinely unknown").
+ */
+export interface ImageInline {
+    type: 'image';
+    assetId: string;
+    alt?: string;
+    title?: string;
 }
 
 export interface InlineMath {
