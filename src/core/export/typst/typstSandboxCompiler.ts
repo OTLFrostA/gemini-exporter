@@ -213,6 +213,10 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
     return paths;
 }
 
+export interface RuntimeFontConsumer {
+    setRuntimeFonts?(fonts: readonly Uint8Array[]): void;
+}
+
 export class TypstSandboxCompiler implements IPdfCompiler {
     readonly name = 'typst-wasm-sandbox';
 
@@ -230,6 +234,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     private initPromise: Promise<void> | null = null;
     private fontsInstalled = false;
     private fontBytes: Uint8Array[] | null = null;
+    private runtimeFontBytes: readonly Uint8Array[] = [];
     private mathFontAvailable: boolean | null = null;
     /** Serializes compiles: the WASM compiler keeps mutable per-job state. */
     private compileQueue: Promise<void> = Promise.resolve();
@@ -246,6 +251,13 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         this.fontPaths = options.fontPaths ?? BUNDLED_FONT_PATHS;
         this.initTimeoutMs = options.initTimeoutMs ?? 120_000;
         this.compileTimeoutMs = options.compileTimeoutMs ?? 300_000;
+    }
+
+    setRuntimeFonts(fonts: readonly Uint8Array[]): void {
+        if (this.fontsInstalled || this.fontBytes !== null) {
+            return;
+        }
+        this.runtimeFontBytes = fonts.slice();
     }
 
     dispose(): void {
@@ -425,9 +437,10 @@ export class TypstSandboxCompiler implements IPdfCompiler {
 
     private async loadFontBytes(): Promise<Uint8Array[]> {
         if (this.fontBytes) return this.fontBytes;
-        const loaded = await Promise.all(
+        const bundled = await Promise.all(
             this.fontPaths.map((relative) => this.host.fetchBytes(this.host.assetUrl(relative))),
         );
+        const loaded = [...this.runtimeFontBytes, ...bundled];
         this.fontBytes = loaded;
         this.mathFontAvailable = loaded.some((bytes) => fontHasMathTable(bytes));
         return loaded;

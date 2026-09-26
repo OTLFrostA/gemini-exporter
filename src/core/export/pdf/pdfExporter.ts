@@ -8,7 +8,7 @@ import { createWriter, type IExportWriter } from '../../engine/writers/writerInt
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { IPdfCompiler, STUB_PDF_COMPILER_NAME } from './pdfCompiler.js';
-import { TypstSandboxCompiler } from '../typst/typstSandboxCompiler.js';
+import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
 import { projectStage } from './pipeline/projectionStage.js';
 import { resourceStage } from './pipeline/resourceStage.js';
@@ -16,7 +16,10 @@ import { payloadStage } from './pipeline/payloadStage.js';
 import { compileStage } from './pipeline/compileStage.js';
 import { deliverStage, finalizeZipDelivery } from './pipeline/deliveryStage.js';
 import {
+    BUNDLED_MATH_FALLBACK,
+    SYSTEM_FALLBACK,
     resolveLocalFonts,
+    type FontProviderDiagnostic,
     type LocalFontResolution,
 } from '../typst/fonts/localFontProvider.js';
 import type {
@@ -124,6 +127,57 @@ function createProductionCompiler(): IPdfCompiler {
 // Match by name rather than instanceof so the check works across bundle boundaries.
 function isStubCompiler(compiler: IPdfCompiler): boolean {
     return compiler?.name === STUB_PDF_COMPILER_NAME;
+}
+
+export interface MountedRuntimeFonts {
+    readonly mountedCount: number;
+    readonly mountedNames: readonly string[];
+    readonly diagnostics: FontProviderDiagnostic[];
+    readonly effectiveFonts: LocalFontResolution;
+}
+
+export async function mountRuntimeFonts(
+    resolution: LocalFontResolution,
+    compiler: IPdfCompiler,
+): Promise<MountedRuntimeFonts> {
+    const consumer = compiler as unknown as RuntimeFontConsumer;
+    if (typeof consumer.setRuntimeFonts !== 'function') {
+        return { mountedCount: 0, mountedNames: [], diagnostics: [], effectiveFonts: resolution };
+    }
+    const bytes: Uint8Array[] = [];
+    const names: string[] = [];
+    const diagnostics: FontProviderDiagnostic[] = [];
+    for (const font of resolution.fonts) {
+        try {
+            const data = await font.getBytes();
+            if (data && data.length > 0) {
+                bytes.push(data);
+                names.push(`${font.family} (local, ${font.postscriptName})`);
+            } else {
+                diagnostics.push({
+                    severity: 'warning',
+                    code: 'TYPST_LOCAL_FONT_READ_FAILED',
+                    message: `Local font "${font.family}" (${font.postscriptName}) returned empty bytes; it will not be mounted in the Typst sandbox.`,
+                });
+            }
+        } catch (e) {
+            diagnostics.push({
+                severity: 'warning',
+                code: 'TYPST_LOCAL_FONT_READ_FAILED',
+                message: `Local font "${font.family}" (${font.postscriptName}) failed to read bytes (${
+                    (e as Error)?.message ?? String(e)
+                }); it will not be mounted in the Typst sandbox.`,
+            });
+        }
+    }
+    consumer.setRuntimeFonts(bytes);
+    const effectiveFonts: LocalFontResolution = {
+        fonts: [],
+        diagnostics: [...resolution.diagnostics, ...diagnostics],
+        fallbackChain: [...names, BUNDLED_MATH_FALLBACK, SYSTEM_FALLBACK],
+        localFontsAvailable: bytes.length > 0,
+    };
+    return { mountedCount: bytes.length, mountedNames: names, diagnostics, effectiveFonts };
 }
 
 export class PdfExporter {
@@ -309,6 +363,15 @@ export class PdfExporter {
         }
 
         const pipeline = new PdfPipeline(D7_STAGES);
+
+        const mountedFonts = await mountRuntimeFonts(fonts, compiler);
+        if (mountedFonts.mountedCount > 0) {
+            onLog(
+                `[PDF] 已将 ${mountedFonts.mountedCount} 个本地字体装载到 Typst sandbox: ${mountedFonts.mountedNames.join(', ')}`,
+                'info',
+            );
+        }
+        fonts = mountedFonts.effectiveFonts;
 
         for (let i = 0; i < items.length; i++) {
             const { id, title } = items[i];
