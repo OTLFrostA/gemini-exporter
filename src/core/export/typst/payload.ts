@@ -13,6 +13,7 @@ import type {
     CanonicalConversationBundle,
     MessageNode,
 } from '../canonical/conversation.js';
+import { projectConversation } from '../canonical/projection.js';
 import type { InlineNode } from '../canonical/inline.js';
 
 export type TypstInlineNode =
@@ -333,58 +334,6 @@ function renderBlock(
     }
 }
 
-function buildChildMap(messages: MessageNode[]): Map<string | null, MessageNode[]> {
-    const map = new Map<string | null, MessageNode[]>();
-    for (const message of messages) {
-        const key = message.parentId ?? null;
-        const arr = map.get(key) ?? [];
-        arr.push(message);
-        map.set(key, arr);
-    }
-    for (const arr of map.values()) {
-        arr.sort((a, b) => (a.siblingIndex ?? 0) - (b.siblingIndex ?? 0) || (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.id.localeCompare(b.id));
-    }
-    return map;
-}
-
-function linearizeMessages(bundle: CanonicalConversationBundle, leafOverride?: string): MessageNode[] {
-    const messages = bundle.conversation.messages;
-    if (messages.length === 0) return [];
-    const byId = new Map(messages.map(m => [m.id, m]));
-    const leaf = leafOverride ?? bundle.conversation.selectedLeafMessageId;
-    if (leaf) {
-        const chain: MessageNode[] = [];
-        let current = byId.get(leaf);
-        if (!current) throw new Error(`Selected leaf message not found: ${leaf}`);
-        const seen = new Set<string>();
-        while (current) {
-            if (seen.has(current.id)) throw new Error(`Message parent cycle at ${current.id}`);
-            seen.add(current.id);
-            chain.push(current);
-            current = current.parentId ? byId.get(current.parentId) : undefined;
-        }
-        return chain.reverse();
-    }
-
-    if (messages.every(m => !m.parentId)) {
-        return [...messages].sort((a, b) => (a.siblingIndex ?? 0) - (b.siblingIndex ?? 0) || (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.id.localeCompare(b.id));
-    }
-
-    const children = buildChildMap(messages);
-    if ([...children.values()].some(group => group.length > 1)) {
-        throw new Error('Conversation is branched but has no selectedLeafMessageId. Refusing to silently choose a branch.');
-    }
-    const roots = children.get(null) ?? [];
-    if (roots.length !== 1) throw new Error(`Expected one root in unbranched message tree, found ${roots.length}.`);
-    const result: MessageNode[] = [];
-    let current: MessageNode | undefined = roots[0];
-    while (current) {
-        result.push(current);
-        current = (children.get(current.id) ?? [])[0];
-    }
-    return result;
-}
-
 function rolePrefix(message: MessageNode): string | undefined {
     if (message.role === 'system') return 'System message';
     if (message.role === 'developer') return 'Developer message';
@@ -460,7 +409,7 @@ export function toTypstPayload(
     }]));
     const citationLabels = new Map([...citations.entries()].map(([id, c]) => [id, c.label]));
 
-    const messages = (options.projectedMessages ?? linearizeMessages(bundle, options.leafMessageId))
+    const messages = (options.projectedMessages ?? projectConversation(bundle, { leafMessageId: options.leafMessageId }).messages)
         .map(message => toRenderMessage(message, assets, citationLabels, citations, options, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';
