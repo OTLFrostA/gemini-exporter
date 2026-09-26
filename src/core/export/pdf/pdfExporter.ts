@@ -6,8 +6,12 @@
  * compiler in P1b), landing files through IExportWriter.
  *
  * User iron rules enforced here:
- * - Success is ONLY marked after the Writer actually wrote the file
- *   (ArtifactWriteReport). No write, no success. Ever.
+ * - Success is ONLY marked after the artifact is actually delivered:
+ *   folder writer — the moment writeFile() resolves (file is on disk);
+ *   ZIP writer — only after generateBlob() + downloadHandler() resolve.
+ *   A ZIP writeFile() merely STAGES into the in-memory ZIP area; staged
+ *   items are never reported successful and no success records are
+ *   committed before finalize+delivery (report §1).
  * - One failed item never aborts the batch; failures stay retryable and
  *   are never marked successful.
  * - Cancellation is real: the compile task is aborted via AbortSignal,
@@ -142,6 +146,10 @@ export class PdfExporter {
         const total = items.length;
         const failed: PdfExportItemResult[] = [];
         let succeeded = 0;
+        // ZIP transaction boundary (report §1): entries staged into the ZIP
+        // writer are NOT success yet. Final success is committed only after
+        // generateBlob() + downloadHandler() both resolve.
+        const staged: Array<{ id: string; title: string; record: any; diagnostics: RenderDiagnostic[] }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
 
         const report = (current: number, title: string) => {
@@ -270,7 +278,6 @@ export class PdfExporter {
                 };
                 artifact.writeReport = writeReport;
 
-                succeeded++;
                 const record = {
                     title,
                     exportedAt: writeReport.writtenAt,
@@ -279,12 +286,24 @@ export class PdfExporter {
                     bytesWritten: writeReport.bytesWritten,
                     status: 'ok',
                 };
-                try {
-                    await onItemExported(id, record);
-                } catch {
-                    /* intentional: record hook must not fail the export */
+                if (useZip) {
+                    // ZIP transaction boundary (report §1): writeFile() only
+                    // stages the PDF into the in-memory ZIP area. It is NOT
+                    // success — final success is committed only after
+                    // generateBlob() + downloadHandler() both resolve below.
+                    staged.push({ id, title, record, diagnostics: itemDiagnostics });
+                    onLog(`[PDF] ${title} 已暂存 (${artifact.fileName})，等待 ZIP 打包交付后确认`, 'info');
+                } else {
+                    // Folder writer: the file is on disk the moment
+                    // writeFile() resolves — that IS delivery.
+                    succeeded++;
+                    try {
+                        await onItemExported(id, record);
+                    } catch {
+                        /* intentional: record hook must not fail the export (§11 hardens this in the next PR) */
+                    }
+                    onLog(`[PDF] ${title} 导出成功 (${artifact.fileName})`, 'info');
                 }
-                onLog(`[PDF] ${title} 导出成功 (${artifact.fileName})`, 'info');
             } catch (e: any) {
                 if (isAbortError(e) || this.aborted || signal?.aborted) break;
                 failItem(id, title, e?.message || String(e), itemDiagnostics);
@@ -294,20 +313,46 @@ export class PdfExporter {
 
         const wasAborted = this.aborted || !!signal?.aborted;
 
-        // ZIP packaging: never package or download after a cancel (user intent).
-        if (!wasAborted && useZip && succeeded > 0) {
+        // ZIP transaction boundary (report §1): finalize + deliver FIRST,
+        // commit final success records ONLY after the user actually receives
+        // the ZIP. A generateBlob/download failure must never leave staged
+        // items marked successful — they are reported as failed (retryable).
+        // Never package or download after a cancel (user intent); staged
+        // items on abort stay uncommitted (neither succeeded nor failed).
+        if (!wasAborted && useZip && staged.length > 0) {
+            const zipFileName = `gemini_export_pdf_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
             try {
-                if (typeof activeWriter.generateBlob === 'function') {
-                    const blob = await activeWriter.generateBlob((pct: number) =>
-                        onProgress({ current: total, total, pct: Math.floor(pct), title: '打包 ZIP' })
-                    );
-                    const zipFileName = `gemini_export_pdf_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
-                    if (options.downloadHandler) {
-                        await options.downloadHandler(blob, zipFileName);
+                if (typeof activeWriter.generateBlob !== 'function') {
+                    throw new Error('writer.generateBlob is not available; cannot finalize ZIP');
+                }
+                const blob = await activeWriter.generateBlob((pct: number) =>
+                    onProgress({ current: total, total, pct: Math.floor(pct), title: '打包 ZIP' })
+                );
+                if (options.downloadHandler) {
+                    await options.downloadHandler(blob, zipFileName);
+                }
+                // Delivered. Now — and only now — commit final success.
+                for (const s of staged) {
+                    succeeded++;
+                    try {
+                        await onItemExported(s.id, s.record);
+                    } catch {
+                        /* intentional: record hook must not fail the export (§11 hardens this in the next PR) */
                     }
                 }
+                onLog(`[PDF] ZIP 打包交付成功 (${zipFileName})，${staged.length} 个文件确认成功`, 'info');
             } catch (e: any) {
-                onLog(`[PDF] ZIP 打包失败: ${e?.message || String(e)}`, 'error');
+                const msg = e?.message || String(e);
+                onLog(`[PDF] ZIP 打包/交付失败: ${msg}；已暂存的 ${staged.length} 个文件不记为成功`, 'error');
+                for (const s of staged) {
+                    failed.push({
+                        id: s.id,
+                        title: s.title,
+                        ok: false,
+                        error: `zip finalize/delivery failed: ${msg}`,
+                        diagnostics: s.diagnostics,
+                    });
+                }
             }
         }
 
