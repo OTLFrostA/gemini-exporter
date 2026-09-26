@@ -58,6 +58,7 @@ export type TypstBlockNode =
         rows: TypstInlineNode[][][];
         columns?: number[];
         aligns?: ('left' | 'center' | 'right')[];
+        caption?: string;
     }
     | { type: 'image'; asset: string; caption?: string }
     | { type: 'file'; name: string; kind: string; size: string }
@@ -212,7 +213,9 @@ function renderInline(
             const assetPath = asset ? options.assetPath(asset) : undefined;
             if (!asset || !assetPath) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Inline image asset ${node.assetId} unavailable to Typst; showing alt text.`, path });
-                return { type: 'text', text: node.alt ?? `[image: ${node.assetId}]` };
+                // D8-A parity: prefer the human-readable asset name over the internal id,
+                // matching the HTML renderer's missing-image placeholder.
+                return { type: 'text', text: node.alt ?? asset?.name ?? `[image: ${node.assetId}]` };
             }
             return { type: 'image', asset: assetPath, ...(node.alt ? { alt: node.alt } : {}) };
         }
@@ -292,11 +295,14 @@ function renderBlock(
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_TABLE_SPAN_IGNORED', message: 'colSpan/rowSpan are not supported by the v8 transport.', path });
             }
             const aligns = block.columns?.map(c => c.align === 'default' || !c.align ? 'left' : c.align);
+            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
             return {
                 type: 'table',
                 headers,
                 rows: block.rows.map(row => row.cells.map(cell => inline(cell.children))),
                 ...(aligns && aligns.length ? { aligns } : {}),
+                // D8-A parity: table captions are content; the HTML renderer shows them.
+                ...(block.caption?.length ? { caption: plainInline(block.caption, plainCitations) } : {}),
             };
         }
         case 'image': {
@@ -304,7 +310,9 @@ function renderBlock(
             const assetPath = asset ? options.assetPath(asset) : undefined;
             if (!asset || !assetPath) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Image asset ${block.assetId} unavailable to Typst.`, path });
-                return { type: 'unknown', sourceType: 'missing-image', fallback: block.alt ?? `Missing image: ${block.assetId}` };
+                // D8-A parity: prefer the human-readable asset name over the internal id,
+                // matching the HTML renderer's missing-image placeholder.
+                return { type: 'unknown', sourceType: 'missing-image', fallback: block.alt ?? asset?.name ?? `Missing image: ${block.assetId}` };
             }
             const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
             const caption = block.caption ? plainInline(block.caption, plainCitations) : block.alt;
