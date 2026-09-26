@@ -59,23 +59,10 @@ export interface ConversationRenderer {
     render(context: RenderContext): Promise<ExportArtifact>;
 }
 
-export interface TypstDerivedMessageHints {
-    messageId: string;
-    plainText?: string;
-}
-
-export interface TypstDerivedMath {
-    sourceLatex: string;
-    typst?: string;
-    conversionError?: string;
-}
-
 export interface TypstRenderPayload {
     rendererSchemaVersion: 1;
     sourceSchemaVersion: 1;
     bundle: CanonicalConversationBundle;
-    messageHints?: TypstDerivedMessageHints[];
-    convertedMath?: Record<string, TypstDerivedMath>;
     /** Prebuilt Typst payload; when present, compilers skip internal conversion so diagnostics are not duplicated. */
     prebuiltDoc?: TypstConversationRenderPayload;
     /** Maps assetId to the image path embedded in prebuiltDoc so compiler VirtualFS mounting matches prebuilt paths. */

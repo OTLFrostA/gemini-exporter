@@ -11,7 +11,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTypstPayload, collectReferencedAssetIds } = require('../src/core/export/typst/payload.js');
+const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { collectReferencedAssetIds } = require('../src/core/export/canonical/assetReferences.js');
 
 function bundle(messages: any[], extra: any = {}) {
     return {
@@ -313,7 +314,7 @@ test('collectUnplacedAssociatedImageIds: block-placed, non-image and unknown ids
     // Both consumers (resourceStage binary resolution and the payload's
     // trailing attachment emission) import this same symbol from the
     // canonical module, so this one unit test pins the shared rule.
-    const { collectUnplacedAssociatedImageIds } = require('../src/core/export/typst/payload.js');
+    const { collectUnplacedAssociatedImageIds } = require('../src/core/export/canonical/assetReferences.js');
     const message: any = {
         id: 'm1',
         blocks: [
