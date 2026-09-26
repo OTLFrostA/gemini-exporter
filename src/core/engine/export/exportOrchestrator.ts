@@ -754,7 +754,13 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             }
                         }
 
-                        const formatted = ChatFormatter.formatContent(chat, format);
+                        // Item 1: production HTML export goes through the canonical
+                        // path (Conversation -> normalizeGeminiConversation ->
+                        // CanonicalHtmlRenderer); legacy toHtml() is no longer
+                        // the production route.
+                        const formatted = format === 'html'
+                            ? await ChatFormatter.formatHtmlCanonical(chat)
+                            : ChatFormatter.formatContent(chat, format);
 
                         const content = formatted.content;
                         const ext = formatted.ext;
