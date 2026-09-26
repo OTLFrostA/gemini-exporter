@@ -435,8 +435,11 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
         name: 'warning-test-compiler',
         async compile(_payload: any, _context: any) {
             return {
-                // Must pass the pipeline's PDF verification (%PDF- + %%EOF).
-                pdfBytes: new TextEncoder().encode('%PDF-1.4 test\n%%EOF'),
+                // Must pass the pipeline's structural PDF verification
+                // (%PDF- + endobj + trailer/Root + startxref <offset> %%EOF).
+                pdfBytes: new TextEncoder().encode(
+                    '%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\nstartxref\n0\n%%EOF',
+                ),
                 diagnostics: [{ severity: 'warning', code: 'TEST_COMPILE_WARN', message: 'synthetic warning' }],
             };
         },

@@ -46,8 +46,17 @@ import {
 const PDF_MAGIC = '%PDF-';
 /** Trailer marker a structurally complete PDF carries near its end. */
 const PDF_EOF_MARKER = '%%EOF';
+/** Cross-reference table pointer; must precede %%EOF with a numeric offset. */
+const PDF_XREF_MARKER = 'startxref';
+/** At least one indirect object must be closed for the bytes to be parseable. */
+const PDF_ENDOBJ_MARKER = 'endobj';
+/** Catalog reference: a trailer dict or a /Root entry proves a document root. */
+const PDF_TRAILER_MARKER = 'trailer';
+const PDF_ROOT_MARKER = '/Root';
 /** How far back from the end of the file to look for the EOF marker. */
 const EOF_SCAN_BYTES = 1024;
+/** Chunk size for whole-file keyword scans; keeps large PDFs out of one giant string. */
+const SCAN_CHUNK_BYTES = 65536;
 
 function isAbortError(e: unknown): boolean {
     return (
@@ -122,10 +131,33 @@ function makeMountAssetResolver(
 }
 
 /**
- * Minimal PDF well-formedness check. No PDF parser is vendored in the
- * extension, so this is intentionally shallow: non-empty, %PDF- magic, and a
- * %%EOF trailer marker near the end. Noted here, not hidden.
+ * Minimal PDF structural validation. No PDF parser is vendored in the
+ * extension, so this stays dependency-free and shallow — but shallow must
+ * still mean "parseable", not just "starts with %PDF- and ends with %%EOF".
+ * The checks, in order:
+ *   1. non-empty;
+ *   2. starts with the %PDF- magic;
+ *   3. contains at least one `endobj` (a PDF with no indirect objects is
+ *      not a document);
+ *   4. contains `trailer` or `/Root` (proof a document catalog is referenced);
+ *   5. the tail carries `startxref <byte-offset> %%EOF` — a real
+ *      cross-reference table pointer, not a bare marker.
+ * Anything failing a check is rejected; the caller turns it into a
+ * PDF_VERIFY_FAILED stage failure, never a blank PDF marked ok.
  */
+function asciiIncludes(haystack: Uint8Array, needle: string): boolean {
+    if (needle.length === 0) return true;
+    const overlap = needle.length - 1;
+    const decoder = new TextDecoder('ascii');
+    for (let off = 0; off < haystack.length; off += SCAN_CHUNK_BYTES) {
+        const end = Math.min(off + SCAN_CHUNK_BYTES + overlap, haystack.length);
+        if (decoder.decode(haystack.subarray(off, end)).includes(needle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function verifyPdfBytes(pdfBytes: Uint8Array): void {
     if (!pdfBytes || pdfBytes.length === 0) {
         throw new Error('compiler returned empty PDF bytes');
@@ -139,13 +171,16 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
             `compiler returned ${pdfBytes.length} bytes without the %PDF- magic; refusing to treat them as a PDF`,
         );
     }
-    const tailStart = Math.max(0, pdfBytes.length - EOF_SCAN_BYTES);
-    let tail = '';
-    for (let i = tailStart; i < pdfBytes.length; i++) {
-        tail += String.fromCharCode(pdfBytes[i]);
+    if (!asciiIncludes(pdfBytes, PDF_ENDOBJ_MARKER)) {
+        throw new Error('compiler returned %PDF- bytes with no endobj; no indirect objects, refusing to treat them as a parseable PDF');
     }
-    if (!tail.includes(PDF_EOF_MARKER)) {
-        throw new Error('compiler returned %PDF- bytes with no %%EOF trailer marker; refusing to treat them as a complete PDF');
+    if (!asciiIncludes(pdfBytes, PDF_TRAILER_MARKER) && !asciiIncludes(pdfBytes, PDF_ROOT_MARKER)) {
+        throw new Error('compiler returned %PDF- bytes with no trailer or /Root; no document catalog reference, refusing to treat them as a parseable PDF');
+    }
+    const tailStart = Math.max(0, pdfBytes.length - EOF_SCAN_BYTES);
+    const tail = new TextDecoder('ascii').decode(pdfBytes.subarray(tailStart));
+    if (!/startxref[\r\n \t]*[0-9]+[\r\n \t]*%%EOF/.test(tail)) {
+        throw new Error('compiler returned %PDF- bytes without a startxref <offset> %%EOF trailer; refusing to treat them as a complete PDF');
     }
 }
 

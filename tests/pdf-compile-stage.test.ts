@@ -27,6 +27,8 @@ const MINIMAL_PDF_TEXT = [
     '%PDF-1.4',
     '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
     'trailer<</Root 1 0 R>>',
+    'startxref',
+    '0',
     '%%EOF',
     '',
 ].join('\n');
@@ -242,6 +244,47 @@ test('truncated PDF (magic but no %%EOF) -> StageError PDF_VERIFY_FAILED', async
         assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
         return true;
     });
+});
+
+test('garbage with magic + %%EOF but no PDF structure -> StageError PDF_VERIFY_FAILED', async () => {
+    // The exact case from review: old shallow check (magic + EOF only) let this through.
+    const { compiler } = makeStub({ bytes: pdfBytes('%PDF-\nthis is not a PDF at all\n%%EOF') });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/endobj|trailer|startxref/.test(e.message), 'message names the failed structural check');
+        return true;
+    });
+});
+
+test('PDF-shaped bytes without startxref -> StageError PDF_VERIFY_FAILED', async () => {
+    const { compiler } = makeStub({
+        bytes: pdfBytes('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF'),
+    });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/startxref/.test(e.message));
+        return true;
+    });
+});
+
+test('startxref without a numeric offset -> StageError PDF_VERIFY_FAILED', async () => {
+    const { compiler } = makeStub({
+        bytes: pdfBytes('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\nstartxref\n%%EOF'),
+    });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        return true;
+    });
+});
+
+test('structurally complete minimal PDF passes verification', async () => {
+    const { compiler } = makeStub();
+    const { output } = await compileStage(fakeInput({ compiler }), makeCtx());
+    assert.ok(output.pdfBytes.length > 0);
+    assert.strictEqual(String.fromCharCode(...output.pdfBytes.slice(0, 5)), '%PDF-');
 });
 
 test('compiler throw -> StageError COMPILE_FAILED with cause and diagnostics preserved', async () => {
