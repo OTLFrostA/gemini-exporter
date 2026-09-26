@@ -19,6 +19,7 @@ import { resolveProvider } from '../core/provider/providerResolver.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
 import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
+import { isPaginationExhaustive } from '../core/api/client/pagination.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getScraper = () => DomScraper;
@@ -661,8 +662,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             incremental: !effectiveForceFull
         });
 
-        const hitLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit);
-        const isFullExhaustive = effectiveForceFull && !all?.stoppedEarly && !contentContext.isAborted() && !hitLimit && (all?.exhaustive !== false);
+        const isFullExhaustive = effectiveForceFull && !contentContext.isAborted() && isPaginationExhaustive(all);
 
         // If this was a full scan that finished naturally and exhaustively (not stopped early, not hit limit, not aborted)
         if (isFullExhaustive && !stoppedByWatermark) {

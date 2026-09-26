@@ -270,20 +270,17 @@ const pagination = GeminiClientPagination;
                 }
                 return parsed;
             } catch (err: any) {
-                const isConfirmedDeleted = resp?.status === 404
-                    || Boolean(text && /(?:\[\s*["']BardErrorInfo["']\s*,\s*1167\b|BardErrorInfo\b[^\d]*?\b1167\b|\b1167\b[^\d]*?BardErrorInfo)/i.test(text));
-                if (isConfirmedDeleted) {
+                const errCategory = getProtocol().classifyDetailError(text, resp?.status);
+                if (errCategory === 'confirmed_deleted') {
                     if (isDev) {
                         console.info(`[Gemini Exporter Client] Conversation ${id} is confirmed deleted on server (BardErrorInfo: 1167). Skipping.`);
                     }
                     throw new Error(`会话已在服务端删除 (${id}) [BardErrorInfo: 1167]`);
                 }
-                const isRateLimitedLimit = Boolean(text && /(?:\[\s*["']BardErrorInfo["']\s*,\s*1096\b|BardErrorInfo\b[^\d]*?\b1096\b|\b1096\b[^\d]*?BardErrorInfo)/i.test(text));
-                if (isRateLimitedLimit) {
+                if (errCategory === 'rate_limited') {
                     throw new Error(`Google 服务端限流或到达上限 (${id}) [BardErrorInfo: 1096]`);
                 }
-                const isOtherBardError = Boolean(text && text.includes("BardErrorInfo"));
-                if (isOtherBardError) {
+                if (errCategory === 'inaccessible') {
                     throw new Error(`会话暂时不可访问或服务端异常 (${id}) [BardErrorInfo]`);
                 }
                 console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, "raw text snippet:", text.slice(0, 400));

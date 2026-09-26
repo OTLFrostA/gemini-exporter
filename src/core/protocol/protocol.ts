@@ -45,6 +45,13 @@ export const CrossWorldEvents = {
 export const EVENTS = CrossWorldEvents;
 export type CrossWorldEventType = typeof CrossWorldEvents[keyof typeof CrossWorldEvents];
 
+export type DetailErrorCategory =
+    | 'confirmed_deleted'
+    | 'rate_limited'
+    | 'inaccessible'
+    | 'parse_error'
+    | 'unknown';
+
 export interface GeminiProtocolModule {
     PROTOCOL_VERSION: string;
     WRB: string;
@@ -56,6 +63,8 @@ export interface GeminiProtocolModule {
     BL_FALLBACK: string;
     LIMITS: ProtocolLimits;
     createReqidGenerator: () => () => string;
+    isConfirmedDeletedError: (errOrText: unknown, status?: number) => boolean;
+    classifyDetailError: (rawTextOrErr: unknown, status?: number) => DetailErrorCategory;
 }
 
 export const PROTOCOL_VERSION = '2026-09-07';
@@ -120,6 +129,50 @@ export function createReqidGenerator(): () => string {
     };
 }
 
+function extractErrorText(errOrText: unknown): string {
+    if (typeof errOrText === 'string') return errOrText;
+    if (errOrText instanceof Error) return errOrText.message;
+    if (typeof errOrText === 'object' && errOrText !== null && 'message' in errOrText) {
+        return String((errOrText as { message?: unknown }).message || '');
+    }
+    return String(errOrText || '');
+}
+
+/**
+ * Canonical decider for whether an RPC response / error text proves that a
+ * conversation was deleted on the server.
+ * Requires either HTTP 404 or a word-boundary BardErrorInfo 1167 marker (never bare '1167' or '11167').
+ */
+export function isConfirmedDeletedError(errOrText: unknown, status?: number): boolean {
+    if (status === 404) return true;
+    const text = extractErrorText(errOrText);
+    if (!text) return false;
+    if (text.includes('HTTP 404') || text.includes('BardErrorInfo: 1167')) return true;
+    return /(?:\[\s*["']BardErrorInfo["']\s*,\s*1167\b|BardErrorInfo\b[^\d]*?\b1167\b|\b1167\b[^\d]*?BardErrorInfo)/i.test(text);
+}
+
+/**
+ * Classifies detail fetch / parse errors into structured categories so callers
+ * can distinguish confirmed server deletion from rate limits, transient Bard errors,
+ * or general parse errors.
+ */
+export function classifyDetailError(rawTextOrErr: unknown, status?: number): DetailErrorCategory {
+    if (isConfirmedDeletedError(rawTextOrErr, status)) {
+        return 'confirmed_deleted';
+    }
+    const text = extractErrorText(rawTextOrErr);
+    if (status === 429 || /(?:\[\s*["']BardErrorInfo["']\s*,\s*1096\b|BardErrorInfo\b[^\d]*?\b1096\b|\b1096\b[^\d]*?BardErrorInfo)/i.test(text)) {
+        return 'rate_limited';
+    }
+    if (status === 401 || status === 403 || text.includes('BardErrorInfo')) {
+        return 'inaccessible';
+    }
+    if (text.length > 0) {
+        return 'parse_error';
+    }
+    return 'unknown';
+}
+
 export const GeminiProtocol: GeminiProtocolModule = {
     PROTOCOL_VERSION,
     WRB,
@@ -130,7 +183,9 @@ export const GeminiProtocol: GeminiProtocolModule = {
     DELETION_ANCHORS,
     BL_FALLBACK,
     LIMITS,
-    createReqidGenerator
+    createReqidGenerator,
+    isConfirmedDeletedError,
+    classifyDetailError
 };
 
 interface GeminiProtocolModuleExports extends GeminiProtocolModule {

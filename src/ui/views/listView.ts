@@ -250,7 +250,10 @@ export function render(
             badgeHtml = `<span class="${b.className}" style="font-size:10px; padding:2px 6px; border-radius:4px; background:${b.bg}; color:${b.color}; margin-left:8px; border:1px solid ${b.border};">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
         }
 
-        const url = (c as any).url || `https://gemini.google.com/app/${c.id}`;
+        const rawUrl = (c as any).url;
+        const url = (typeof rawUrl === 'string' && /^https?:\/\//i.test(rawUrl.trim()))
+            ? rawUrl.trim()
+            : `https://gemini.google.com/app/${encodeURIComponent(c.id)}`;
 
         htmlArr.push(`
             <div class="item" data-chat-id="${escapeHtml(c.id)}" style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px; cursor:pointer; user-select:none;">
@@ -260,7 +263,7 @@ export function render(
                     ${badgeHtml}
                 </div>
                 <span style="font-size:11px; color:var(--muted); margin-left:12px; white-space:nowrap;">${escapeHtml(dateStr)}</span>
-                <a href="${escapeHtml(url)}" target="_blank" class="open-link" style="color:var(--muted); margin-left:10px; text-decoration:none; font-size:12px;" title="${escapeHtml(typeof t === 'function' ? t('openInGemini') : 'Open in Gemini')}">↗</a>
+                <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="open-link" style="color:var(--muted); margin-left:10px; text-decoration:none; font-size:12px;" title="${escapeHtml(typeof t === 'function' ? t('openInGemini') : 'Open in Gemini')}">↗</a>
             </div>
         `);
     });
