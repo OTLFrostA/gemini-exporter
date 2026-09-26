@@ -82,8 +82,18 @@ export async function runExport(
         const result = await activeEngine.run(options, callbacks);
         return result;
     } finally {
-        setRunning(false);
-        activeEngine = null;
+        // D7 M6 fix (#592 P1): tear down the production-owned Typst sandbox
+        // compiler — the hidden iframe, the window message listener (which
+        // captures the compiler, so without this it is never GC'd), the WASM
+        // sandbox state, and the cached font bytes. ExportEngine has no
+        // dispose, so the optional call skips it. An injected/shared compiler
+        // is never owned by the exporter, so dispose() leaves it alone.
+        try {
+            activeEngine?.dispose?.();
+        } finally {
+            activeEngine = null;
+            setRunning(false);
+        }
     }
 }
 
