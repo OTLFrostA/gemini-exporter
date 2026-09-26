@@ -158,6 +158,8 @@ ChatGPT 官方导出可作为 C1 输入，但不同账户/工作区的导出可�
 
 ## 6. PDF 路线：对照实验、里程碑、验收
 
+Block AST、HTML 共用层、v8 视觉迁入及逐批交付任务见 [PDF 导出专项执行方案](./pdf_export_implementation_plan.md)。
+
 PDF 的产品要求是本地、无打印对话框、可批量、文字可选择/搜索、资源可追踪。**不预选 Typst 或 pdfmake。** 选择发生在 P0 实验完成之后；Block AST 与归档格式不随引擎改变。
 
 ### P0：引擎与运行容器对照实验
