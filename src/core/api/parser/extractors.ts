@@ -248,13 +248,17 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
     }
 
     function hasTurnContentMarkers(turn: unknown[]): boolean {
-        if (Array.isArray(turn[2])) return true;
-        const modelPayload = turn[3];
+        if (Array.isArray(turn[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD])) return true;
+        const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
         if (Array.isArray(modelPayload)) {
-            const cands = modelPayload[0];
+            const cands = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.CANDIDATES];
             if (Array.isArray(cands)) {
                 for (const c of cands) {
-                    if (Array.isArray(c) && typeof c[0] === "string" && c[0].startsWith("rc_")) return true;
+                    if (
+                        Array.isArray(c) &&
+                        typeof c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === "string" &&
+                        (c[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] as string).startsWith("rc_")
+                    ) return true;
                 }
             }
         }

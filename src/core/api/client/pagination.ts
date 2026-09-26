@@ -23,11 +23,21 @@ export interface PaginationOptions {
     [key: string]: any;
 }
 
+export type PaginationCompletionReason =
+    | 'natural_exhaustion'
+    | 'unchanged_boundary'
+    | 'token_loop'
+    | 'max_pages'
+    | 'hit_google_limit'
+    | 'aborted'
+    | 'error';
+
 export interface PaginationResult {
     conversations: ConversationListItem[];
     total: number;
     stoppedEarly?: boolean;
     exhaustive?: boolean;
+    completionReason?: PaginationCompletionReason;
     diagnostics: any;
     hitGoogleLimit: boolean;
 }
@@ -35,6 +45,20 @@ export interface PaginationResult {
 export interface GeminiClientPaginationModule {
     getAllConversations: (client: any, maxPages?: number | PaginationOptions, onProgress?: ((info: PaginationProgressInfo) => void) | null, targetSid?: string | null, opts?: PaginationOptions) => Promise<PaginationResult>;
     getConversationDetail: (client: any, conversationId: string, targetSid?: string | null) => Promise<DetailParseResult>;
+    isPaginationExhaustive: (res: PaginationResult | null | undefined) => boolean;
+}
+
+/**
+ * Canonical predicate for whether a list pagination result is provably complete
+ * (exhausted all server pages naturally without early stop, token loop, limit wall, or abort).
+ */
+export function isPaginationExhaustive(res: PaginationResult | null | undefined): boolean {
+    if (!res) return false;
+    if (res.stoppedEarly) return false;
+    if (res.hitGoogleLimit || res.diagnostics?.hitGoogleLimit) return false;
+    if (res.exhaustive === false) return false;
+    if (res.completionReason && res.completionReason !== 'natural_exhaustion') return false;
+    return true;
 }
 
     /**
@@ -73,6 +97,7 @@ export interface GeminiClientPaginationModule {
                 total: 0,
                 stoppedEarly: true,
                 exhaustive: false,
+                completionReason: 'aborted',
                 diagnostics: diagLog,
                 hitGoogleLimit: false
             };
@@ -92,12 +117,14 @@ export interface GeminiClientPaginationModule {
         let reachedMax = true;
         let interruptedByError = false;
         let stoppedEarly = false;
+        let completionReason: PaginationCompletionReason = 'natural_exhaustion';
         for (let i = 0; i < maxPages; i++) {
             if (isAborted()) {
                 diagLog.stopReason = `用户手动终止同步 (已拉取 ${i} 页，共 ${all.length} 条)`;
                 console.log(`[Gemini Exporter] getAllConversations aborted by user at page ${i + 1}`);
                 reachedMax = false;
                 stoppedEarly = true;
+                completionReason = 'aborted';
                 break;
             }
             let res: any;
@@ -113,6 +140,7 @@ export interface GeminiClientPaginationModule {
                 reachedMax = false;
                 if (all.length > 0) {
                     interruptedByError = true;
+                    completionReason = isLimit ? 'hit_google_limit' : 'error';
                     break;
                 }
                 throw err;
@@ -160,6 +188,7 @@ export interface GeminiClientPaginationModule {
                             total: all.length,
                             stoppedEarly: true,
                             exhaustive: false,
+                            completionReason: 'unchanged_boundary',
                             diagnostics: diagLog,
                             hitGoogleLimit: !!diagLog.hitGoogleLimit
                         };
@@ -172,8 +201,10 @@ export interface GeminiClientPaginationModule {
                     diagLog.hitGoogleLimit = true;
                     diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     stoppedEarly = true;
+                    completionReason = 'hit_google_limit';
                 } else {
                     diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
+                    completionReason = 'natural_exhaustion';
                 }
                 reachedMax = false;
                 console.log(`[Gemini Exporter] getAllConversations reached end at page ${i + 1}, total: ${all.length}, reason: ${diagLog.stopReason}`);
@@ -189,6 +220,7 @@ export interface GeminiClientPaginationModule {
             if (!res.nextPageToken) {
                 diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
                 reachedMax = false;
+                completionReason = 'natural_exhaustion';
                 console.log(`[Gemini Exporter] getAllConversations finished at page ${i + 1}, total: ${all.length}, hitGoogleLimit: ${diagLog.hitGoogleLimit}`);
                 break;
             }
@@ -197,6 +229,7 @@ export interface GeminiClientPaginationModule {
                 console.warn(`[Gemini Exporter] getAllConversations token loop detected at page ${i + 1}`);
                 reachedMax = false;
                 stoppedEarly = true;
+                completionReason = 'token_loop';
                 break;
             }
             seenTokens.add(res.nextPageToken);
@@ -207,6 +240,7 @@ export interface GeminiClientPaginationModule {
         if (reachedMax && maxPages > 0) {
             diagLog.stopReason = `已达到最大页数限制 (${maxPages} 页)`;
             stoppedEarly = true;
+            completionReason = 'max_pages';
         }
         diagLog.totalConversations = all.length;
         diagLog.endTime = new Date().toISOString();
@@ -216,7 +250,8 @@ export interface GeminiClientPaginationModule {
             total: all.length,
             diagnostics: diagLog,
             hitGoogleLimit: !!diagLog.hitGoogleLimit,
-            exhaustive: !isEarly
+            exhaustive: !isEarly,
+            completionReason: isEarly ? (completionReason === 'natural_exhaustion' ? 'hit_google_limit' : completionReason) : 'natural_exhaustion'
         };
         if (isEarly) {
             finalResult.stoppedEarly = true;
@@ -346,7 +381,8 @@ export {
 
 export const GeminiClientPagination: GeminiClientPaginationModule = {
     getAllConversations,
-    getConversationDetail
+    getConversationDetail,
+    isPaginationExhaustive
 };
 
 export default GeminiClientPagination;

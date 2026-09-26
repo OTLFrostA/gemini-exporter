@@ -71,6 +71,7 @@ import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 import TabService from "../../utils/tabService.js";
 import { getConversationDetail } from "../../storage/conversationDetailStore.js";
+import { isConfirmedDeletedError } from "../../protocol/protocol.js";
 
 const injectedUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
 
@@ -405,20 +406,12 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
 
         // 3. Error or empty handling
         if (chat.error || chat._empty) {
-            const isExactDeletedText = (errText: any): boolean => {
-                if (!errText || typeof errText !== 'string') return false;
-                return errText.includes('HTTP 404')
-                    || errText.includes('BardErrorInfo: 1167')
-                    || /BardErrorInfo[^\d]*?\b1167\b/i.test(errText)
-                    || /\[\s*["']BardErrorInfo["']\s*,\s*1167\b/i.test(errText);
-            };
-
             const isConfirmedDeleted = !!chat.isDeleted
                 || !!chat._debug?.isNotFound
                 || !!chat._debug?.domDebug?.isNotFound
                 || !!chat._debug?.batchexecuteEmptyDebug?.isDeleted
-                || isExactDeletedText(chat.error)
-                || isExactDeletedText(chat._debug?.batchexecuteEmptyDebug?.error);
+                || isConfirmedDeletedError(chat.error)
+                || isConfirmedDeletedError(chat._debug?.batchexecuteEmptyDebug?.error);
 
             const rawTitle = chat.title || nid;
             const cleanedTitle = cleanZeroWidth(rawTitle);

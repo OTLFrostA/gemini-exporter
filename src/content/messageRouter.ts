@@ -7,6 +7,7 @@ import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils, getErrorMessage, resolveDetailTitle as defaultResolveDetailTitle } from '../core/utils/utils.js';
 import { normId } from '../core/utils/pathUtils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
+import { isConfirmedDeletedError } from '../core/protocol/protocol.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { registerCleanup } from './cleanupRegistry.js';
@@ -193,10 +194,7 @@ export function init({
                     if (contentContext.isDevMode()) {
                         console.warn('[Gemini Exporter] batchexecute detail fail, fallback to DOM', errMsg);
                     }
-                    const isRpcDeleted = errMsg.includes('BardErrorInfo: 1167')
-                        || /BardErrorInfo[^\d]*?\b1167\b/i.test(errMsg)
-                        || /\[\s*["']BardErrorInfo["']\s*,\s*1167\b/i.test(errMsg)
-                        || errMsg.includes('HTTP 404');
+                    const isRpcDeleted = isConfirmedDeletedError(errMsg);
                     if (isRpcDeleted) {
                         const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                         try {
