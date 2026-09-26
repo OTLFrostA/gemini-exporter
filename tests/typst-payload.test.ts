@@ -208,7 +208,7 @@ test('inline image asset is not duplicated as a trailing attachment', async () =
     assert.strictEqual((attachments[0] as any).name, 'o.png');
     // ... and the inline placements themselves are intact
     assert.strictEqual((payload.messages[0].blocks[0] as any).children[1].type, 'image');
-    assert.strictEqual((payload.messages[0].blocks[1] as any).rows[0][0][0].type, 'image');
+    assert.strictEqual((payload.messages[0].blocks[1] as any).rows[0][0].children[0].type, 'image');
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
 });
 

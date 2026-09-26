@@ -406,8 +406,8 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 return;
             case 'table':
                 if (b.caption) emit(isAsset, b.caption);
-                for (const row of b.headers ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell));
-                for (const row of b.rows ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell));
+                for (const row of b.headers ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell.children));
+                for (const row of b.rows ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell.children));
                 return;
             case 'image':
                 if (b.caption) emit(isAsset, b.caption);

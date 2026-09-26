@@ -108,22 +108,23 @@ test('matrix: headerless table keeps body rows in Typst', () => {
     const { node } = typstOf(blocks);
     assert.deepStrictEqual(node.headers, []);
     assert.strictEqual(node.rows.length, 2);
-    assert.strictEqual(node.rows[1][1][0].text, 'd');
+    assert.strictEqual(node.rows[1][1].children[0].text, 'd');
 });
 
 test('matrix: multi header rows are all preserved in Typst', () => {
     const blocks = [{ type: 'table', headerRows: [row('h1a', 'h1b'), row('h2a', 'h2b')], rows: [row('a', 'b')] }];
     const { node, diagnostics } = typstOf(blocks);
     assert.strictEqual(node.headers.length, 2);
-    assert.strictEqual(node.headers[1][0][0].text, 'h2a');
+    assert.strictEqual(node.headers[1][0].children[0].text, 'h2a');
     noDegradation(diagnostics, 'TYPST_V8_MULTI_HEADER_COLLAPSE');
 });
 
-test('matrix: colSpan/rowSpan degrade with a required diagnostic', () => {
-    const blocks = [{ type: 'table', rows: [{ cells: [cell('wide', { colSpan: 2 })] }] }];
-    const { diagnostics } = typstOf(blocks);
-    assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_TABLE_SPAN_IGNORED' && d.severity === 'warning'),
-        'span must carry a warning diagnostic');
+test('matrix: colSpan/rowSpan are native in Typst with no degradation diagnostic', () => {
+    const blocks = [{ type: 'table', rows: [{ cells: [cell('wide', { colSpan: 2 }), cell('b')] }] }];
+    const { node, diagnostics } = typstOf(blocks);
+    assert.strictEqual(node.rows[0][0].colspan, 2);
+    assert.strictEqual(node.rows[0][0].children[0].text, 'wide');
+    noDegradation(diagnostics, 'TYPST_V8_TABLE_SPAN_IGNORED');
 });
 
 test('matrix: unknown fallbackBlocks render recursively in HTML and Typst', () => {

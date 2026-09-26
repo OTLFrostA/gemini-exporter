@@ -68,8 +68,13 @@
 }
 
 #let render-table(node, scope) = {
-  let headers = node.headers.map(row => row.map(cell => [#render-inlines(cell)]))
-  let rows = node.rows.map(row => row.map(cell => [#render-inlines(cell)]))
+  let mk(cell) = (
+    body: [#render-inlines(cell.children)],
+    colspan: if "colspan" in cell { cell.colspan } else { 1 },
+    rowspan: if "rowspan" in cell { cell.rowspan } else { 1 },
+  )
+  let headers = node.headers.map(row => row.map(mk))
+  let rows = node.rows.map(row => row.map(mk))
   let aligns = if "aligns" in node { node.aligns } else { none }
   let table = modern-table(headers, rows, aligns: aligns)
   if "caption" in node and node.caption != "" {

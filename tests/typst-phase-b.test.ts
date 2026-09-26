@@ -51,22 +51,27 @@ test('multi header rows all reach the transport with no collapse diagnostic', as
     assert.strictEqual(node.type, 'table');
     assert.strictEqual(node.headers.length, 2);
     assert.strictEqual(node.headers[0].length, 2);
-    assert.strictEqual(node.headers[0][0][0].text, 'h1a');
-    assert.strictEqual(node.headers[1][1][0].text, 'h2b');
-    assert.strictEqual(node.rows[0][0][0].text, 'b1a');
+    assert.strictEqual(node.headers[0][0].children[0].text, 'h1a');
+    assert.strictEqual(node.headers[1][1].children[0].text, 'h2b');
+    assert.strictEqual(node.rows[0][0].children[0].text, 'b1a');
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_MULTI_HEADER_COLLAPSE'));
 });
 
-test('colSpan keeps the span-ignored warning and does not reshape the grid', async () => {
+test('colSpan/rowSpan map to native Typst table.cell spans with no warning', async () => {
     const spanned = { children: [{ type: 'text', text: 'wide' }], colSpan: 2 };
+    const tall = { children: [{ type: 'text', text: 'tall' }], rowSpan: 2 };
     const b = bundle([msg('m1', 'assistant', [{
         type: 'table', id: 't1',
-        rows: [{ cells: [spanned, cell('b')] }],
+        rows: [{ cells: [spanned, { children: [{ type: 'text', text: 'b' }] }] }, { cells: [tall, { children: [{ type: 'text', text: 'c' }] }] }],
     }])]);
     const { payload, diagnostics } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.rows[0].length, 2);
-    assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_TABLE_SPAN_IGNORED'));
+    assert.strictEqual(node.rows[0][0].colspan, 2);
+    assert.strictEqual(node.rows[0][0].children[0].text, 'wide');
+    assert.ok(!('colspan' in node.rows[0][1]), 'span of 1 is not emitted');
+    assert.strictEqual(node.rows[1][0].rowspan, 2);
+    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_TABLE_SPAN_IGNORED'));
 });
 
 test('citationGroup title becomes the note label', async () => {
