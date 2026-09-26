@@ -334,7 +334,6 @@ class SingleClickSendAction(AtomicAction):
         # 严格执行唯一点击通道 (Single Channel of Truth)：
         # 遍历所有候选发送按钮，等待解除禁用并完成单次派发 (最多等待 30 秒，消除 Angular 脏检查与输入渲染时序差)
         try:
-            cdp.call("Page.bringToFront", {})
             cdp.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         except Exception:
             pass
