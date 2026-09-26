@@ -1,6 +1,6 @@
 declare const __EXT_VERSION__: string | undefined;
 
-export type AllowedFormat = 'markdown' | 'html' | 'json_openai' | 'json' | 'json_raw';
+export type AllowedFormat = 'markdown' | 'html' | 'json_openai' | 'json' | 'json_raw' | 'pdf';
 
 export const STORAGE_KEYS = {
     FORMAT: 'gemini_export_format',
@@ -44,7 +44,7 @@ export interface GeminiConstantsModule {
     exportedIdsKey: (slot: string | null | undefined) => string;
 }
 
-export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'html', 'json_openai', 'json', 'json_raw'];
+export const ALLOWED_FORMATS: AllowedFormat[] = ['markdown', 'html', 'json_openai', 'json', 'json_raw', 'pdf'];
 export const DEFAULT_FORMAT: AllowedFormat = 'markdown';
 export const DIRECT_WRITE_THRESHOLD = 20;
 export const FEEDBACK_URL = 'https://tally.so/r/Y56ZBB';

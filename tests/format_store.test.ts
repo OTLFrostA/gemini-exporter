@@ -6,13 +6,14 @@ import * as FormatStore from '../src/core/storage/formatStore.js';
 
 
 test('formatStore - ALLOWED_FORMATS and DEFAULT_FORMAT', () => {
-    assert.deepStrictEqual(FormatStore.ALLOWED_FORMATS, ['markdown', 'html', 'json_openai', 'json', 'json_raw']);
+    assert.deepStrictEqual(FormatStore.ALLOWED_FORMATS, ['markdown', 'html', 'json_openai', 'json', 'json_raw', 'pdf']);
     assert.strictEqual(FormatStore.DEFAULT_FORMAT, 'markdown');
 });
 
 test('formatStore - isAllowed', () => {
     assert.strictEqual(FormatStore.isAllowed('markdown'), true);
     assert.strictEqual(FormatStore.isAllowed('html'), true);
+    assert.strictEqual(FormatStore.isAllowed('pdf'), true);
     assert.strictEqual(FormatStore.isAllowed('json_openai'), true);
     assert.strictEqual(FormatStore.isAllowed('json'), true);
     assert.strictEqual(FormatStore.isAllowed('json_raw'), true);
