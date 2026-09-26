@@ -41,6 +41,7 @@ export type TypstInlineNode =
     | { type: 'inlineCode'; text: string }
     | { type: 'link'; url: string; children: TypstInlineNode[] }
     | { type: 'lineBreak' }
+    | { type: 'image'; asset: string; alt?: string }
     | { type: 'inlineMath'; latex: string; typst?: string };
 
 export type TypstBlockNode =
@@ -179,6 +180,7 @@ function plainBlock(block: BlockNode, citations: Map<string, string>): string {
 
 function renderInline(
     node: InlineNode,
+    assets: Map<string, Asset>,
     citations: Map<string, { label: string; url?: string }>,
     options: TypstPayloadOptions,
     diagnostics: TypstAdapterDiagnostic[],
@@ -186,17 +188,23 @@ function renderInline(
 ): TypstInlineNode {
     switch (node.type) {
         case 'text': return { type: 'text', text: node.text };
-        case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, citations, options, diagnostics, path)) };
-        case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, citations, options, diagnostics, path)) };
+        case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
+        case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'strikethrough':
             // v8 transport has no strike node; preserve text rather than styling.
             return { type: 'text', text: node.children.map(n => plainInline([n], new Map())).join('') };
         case 'inlineCode': return { type: 'inlineCode', text: node.code };
-        case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, citations, options, diagnostics, path)) };
+        case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'image': {
-            // v8 transport has no inline image node; flatten to alt text.
-            diagnostics.push({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_FLATTENED', message: `Inline image ${node.assetId} flattened to alt text; the v8 transport has no inline image node.`, path });
-            return { type: 'text', text: node.alt ?? '' };
+            // Inline images are first-class transport nodes now; only a missing
+            // asset (not the transport) forces a visible fallback.
+            const asset = assets.get(node.assetId);
+            const assetPath = asset ? options.assetPath(asset) : undefined;
+            if (!asset || !assetPath) {
+                diagnostics.push({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Inline image asset ${node.assetId} unavailable to Typst; showing alt text.`, path });
+                return { type: 'text', text: node.alt ?? `[image: ${node.assetId}]` };
+            }
+            return { type: 'image', asset: assetPath, ...(node.alt ? { alt: node.alt } : {}) };
         }
         case 'inlineMath': {
             const typst = options.convertMath?.(node.source, node.notation, false);
@@ -238,7 +246,7 @@ function renderBlock(
     diagnostics: TypstAdapterDiagnostic[],
     path: string,
 ): TypstBlockNode | null {
-    const inline = (nodes: InlineNode[]) => nodes.map(n => renderInline(n, citations, options, diagnostics, path));
+    const inline = (nodes: InlineNode[]) => nodes.map(n => renderInline(n, assets, citations, options, diagnostics, path));
     switch (block.type) {
         case 'paragraph': return { type: 'paragraph', children: inline(block.children) };
         case 'heading': {
@@ -383,6 +391,67 @@ function rolePrefix(message: MessageNode): string | undefined {
     return undefined;
 }
 
+/**
+ * Recursively collect every asset id a message's blocks reference, walking
+ * both the block tree and every inline tree (paragraph/heading children, table
+ * cells, list items, quote/thought/display blocks, link/strong/emphasis
+ * children, ...). An inline image is inline placement, so its asset id must
+ * count as "already placed" exactly like a top-level image/file block.
+ */
+export function collectReferencedAssetIds(blocks: BlockNode[]): Set<string> {
+    const ids = new Set<string>();
+    const walkInline = (nodes: InlineNode[]): void => {
+        for (const node of nodes) {
+            switch (node.type) {
+                case 'image': ids.add(node.assetId); break;
+                case 'strong':
+                case 'emphasis':
+                case 'strikethrough':
+                case 'link': walkInline(node.children); break;
+                default: break;
+            }
+        }
+    };
+    const walkBlocks = (list: BlockNode[]): void => {
+        for (const block of list) {
+            switch (block.type) {
+                case 'image':
+                case 'file': ids.add(block.assetId); break;
+                default: break;
+            }
+            switch (block.type) {
+                case 'paragraph':
+                case 'heading': walkInline(block.children); break;
+                case 'list':
+                    for (const item of block.items) walkBlocks(item.blocks);
+                    break;
+                case 'quote':
+                case 'thought': walkBlocks(block.blocks); break;
+                case 'table': {
+                    for (const row of [...(block.headerRows ?? []), ...block.rows]) {
+                        for (const cell of row.cells) walkInline(cell.children);
+                    }
+                    if (block.caption) walkInline(block.caption);
+                    break;
+                }
+                case 'image': if (block.caption) walkInline(block.caption); break;
+                case 'file': if (block.description) walkInline(block.description); break;
+                case 'citationGroup': if (block.title) walkInline(block.title); break;
+                case 'toolCall':
+                case 'toolResult':
+                    if (block.displayBlocks) walkBlocks(block.displayBlocks);
+                    break;
+                case 'unknown':
+                    if (block.fallbackBlocks) walkBlocks(block.fallbackBlocks);
+                    break;
+                default: break;
+            }
+        }
+    };
+    walkBlocks(blocks);
+    return ids;
+}
+
 function toRenderMessage(
     message: MessageNode,
     assets: Map<string, Asset>,
@@ -400,12 +469,13 @@ function toRenderMessage(
     });
 
     // Message-level asset association is NOT used to invent ordering. It only
-    // supplies attachments for assets that are associated but have no explicit
-    // image/file block in the message.
-    const explicitIds = new Set(message.blocks.flatMap(b => (b.type === 'image' || b.type === 'file') ? [b.assetId] : []));
+    // supplies attachments for associated assets that have no placement in the
+    // message: an inline image is inline placement, so its asset must not also
+    // appear as a trailing attachment.
+    const referencedIds = collectReferencedAssetIds(message.blocks);
     const attachments: TypstRenderAttachment[] = [];
     for (const id of message.associatedAssetIds ?? []) {
-        if (explicitIds.has(id)) continue;
+        if (referencedIds.has(id)) continue;
         const asset = assets.get(id);
         if (!asset) continue;
         if (asset.kind === 'image') {
