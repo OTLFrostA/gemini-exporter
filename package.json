@@ -44,5 +44,10 @@
     "oxlint": "^1.85.0",
     "oxlint-tsgolint": "^7.0.2002",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@myriaddreamin/typst-ts-renderer": "0.7.0",
+    "@myriaddreamin/typst-ts-web-compiler": "0.7.0",
+    "@myriaddreamin/typst.ts": "0.7.0"
   }
 }

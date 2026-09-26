@@ -77,12 +77,20 @@ const BUNDLE_ENTRIES = {
     'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),
 };
 
+// P1b: Typst sandbox compile container. Built as ESM (loaded via
+// <script type="module"> from the MV3 sandbox page) — NOT IIFE. The v8
+// Typst templates are embedded as text via the .typ loader.
+const SANDBOX_ENTRIES = {
+    'ui/sandbox/typst-compile': path.join(SRC, 'ui', 'sandbox', 'typstCompileEntry.ts'),
+};
+
 const EXPECTED_BUNDLES = [
     'dist/content/content.js',
     'dist/content/hook.js',
     'dist/background/background.js',
     'dist/ui/popup.js',
     'dist/ui/options.js',
+    'dist/ui/sandbox/typst-compile.js',
 ];
 
 async function build() {
@@ -125,6 +133,34 @@ async function build() {
         throw new Error(`esbuild bundle build failed with ${errors} error(s)`);
     }
 
+    // 1b. Build the Typst sandbox entry as a separate ESM bundle (the
+    // sandbox page loads it with <script type="module">).
+    for (const [entryName, entryFile] of Object.entries(SANDBOX_ENTRIES)) {
+        if (!fs.existsSync(entryFile)) {
+            throw new Error(`Sandbox entrypoint source missing for ${entryName}: ${entryFile}`);
+        }
+    }
+    const sandboxResult = await esbuild.build({
+        entryPoints: SANDBOX_ENTRIES,
+        outdir: DIST,
+        bundle: true,
+        format: 'esm',
+        minify: false,
+        sourcemap: false,
+        target: ['chrome120'],
+        legalComments: 'none',
+        define: DEFINE_VERSION,
+        loader: { '.typ': 'text', '.tmTheme': 'text' },
+        logLevel: 'silent',
+        logOverride: {
+            'commonjs-variable-in-esm': 'silent'
+        },
+        write: true,
+    });
+    if ((sandboxResult.errors || []).length > 0) {
+        throw new Error(`esbuild sandbox build failed with ${sandboxResult.errors.length} error(s)`);
+    }
+
     // 2. Verify all expected production bundles exist
     for (const bundle of EXPECTED_BUNDLES) {
         const fullPath = path.join(ROOT, bundle);
@@ -161,7 +197,7 @@ function packageExtension() {
     const { execSync } = require('child_process');
     execSync(`zip -r "${zipName}" manifest.json _locales icons lib LICENSE THIRD_PARTY_NOTICES.md README.md README_zh.md`, { cwd: ROOT, stdio: 'ignore' });
     execSync(`zip -r "${zipName}" src -x 'src/*.ts' 'src/*/*.ts' 'src/*/*/*.ts' 'src/*/*/*/*.ts' 'src/README.md'`, { cwd: ROOT, stdio: 'ignore' });
-    execSync(`zip -r "${zipName}" dist -i 'dist/background/background.js' 'dist/content/content.js' 'dist/content/hook.js' 'dist/ui/options.js' 'dist/ui/popup.js'`, { cwd: ROOT, stdio: 'ignore' });
+    execSync(`zip -r "${zipName}" dist -i 'dist/background/background.js' 'dist/content/content.js' 'dist/content/hook.js' 'dist/ui/options.js' 'dist/ui/popup.js' 'dist/ui/sandbox/typst-compile.js'`, { cwd: ROOT, stdio: 'ignore' });
 
     const stats = fs.statSync(zipPath);
     const kb = (stats.size / 1024).toFixed(1);

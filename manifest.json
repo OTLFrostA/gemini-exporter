@@ -32,6 +32,14 @@
   "background": {
     "service_worker": "dist/background/background.js"
   },
+  "sandbox": {
+    "pages": [
+      "src/ui/sandbox/typst-compile.html"
+    ]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval';"
+  },
   "content_scripts": [
     {
       "matches": [
