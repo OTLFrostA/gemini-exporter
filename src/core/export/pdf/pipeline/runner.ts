@@ -1,3 +1,4 @@
+import { isAbortError } from '../errors.js';
 import type { RenderDiagnostic } from '../../canonical/rendering.js';
 import {
     StageError,
@@ -5,13 +6,6 @@ import {
     type StageContext,
     type StageFn,
 } from './types.js';
-
-function isAbortError(e: unknown): boolean {
-    return (
-        (e instanceof DOMException && e.name === 'AbortError') ||
-        (typeof e === 'object' && e !== null && (e as any).name === 'AbortError')
-    );
-}
 
 export async function runStage<I, O>(
     stage: PipelineStageName,

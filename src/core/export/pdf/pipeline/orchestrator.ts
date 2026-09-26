@@ -1,3 +1,4 @@
+import { isAbortError } from '../errors.js';
 import { runStage } from './runner.js';
 import {
     PIPELINE_STAGE_ORDER,
@@ -10,13 +11,6 @@ import {
     type RenderDiagnostic,
     type StageContext,
 } from './types.js';
-
-function isAbortError(e: unknown): boolean {
-    return (
-        (e instanceof DOMException && e.name === 'AbortError') ||
-        (typeof e === 'object' && e !== null && (e as any).name === 'AbortError')
-    );
-}
 
 export class PdfPipeline {
     constructor(private readonly stages: PipelineStages) {}

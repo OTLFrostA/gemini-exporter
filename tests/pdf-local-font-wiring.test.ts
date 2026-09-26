@@ -298,7 +298,13 @@ test('mountRuntimeFonts is a no-op for compilers without the runtime-font capabi
         const mounted = await mountRuntimeFonts(resolution, stubCompiler as any);
         assert.strictEqual(mounted.mountedCount, 0);
         assert.strictEqual(blobCalls, 0, 'bytes must not be read when the compiler cannot consume them');
-        assert.strictEqual(mounted.effectiveFonts, resolution);
+        assert.notStrictEqual(mounted.effectiveFonts, resolution);
+        assert.strictEqual(
+            mounted.effectiveFonts.localFontsAvailable,
+            false,
+            'fonts resolved but not mounted must not report localFontsAvailable=true',
+        );
+        assert.deepStrictEqual(mounted.effectiveFonts.diagnostics, resolution.diagnostics);
     } finally {
         restore();
     }

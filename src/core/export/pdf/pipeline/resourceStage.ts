@@ -1,4 +1,4 @@
-import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../../typst/payload.js';
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../../canonical/assetReferences.js';
 import { resolveAssets } from '../../assets/resolver.js';
 import type { Asset, AssetStatus } from '../../canonical/assets.js';
 import type {

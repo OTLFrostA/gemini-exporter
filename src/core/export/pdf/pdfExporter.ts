@@ -7,6 +7,7 @@ import { normalizeGeminiConversation } from '../canonical/normalizeGemini.js';
 import { createWriter, type IExportWriter } from '../../engine/writers/writerInterface.js';
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
+import { isAbortError } from './errors.js';
 import { IPdfCompiler, STUB_PDF_COMPILER_NAME } from './pdfCompiler.js';
 import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
@@ -86,13 +87,6 @@ function toRenderDiagnostic(d: Diagnostic): RenderDiagnostic {
     };
 }
 
-function isAbortError(e: unknown): boolean {
-    return (
-        (e instanceof DOMException && e.name === 'AbortError') ||
-        (typeof e === 'object' && e !== null && (e as any).name === 'AbortError')
-    );
-}
-
 const D7_STAGES: PipelineStages = {
     project: projectStage,
     resources: resourceStage,
@@ -142,7 +136,12 @@ export async function mountRuntimeFonts(
 ): Promise<MountedRuntimeFonts> {
     const consumer = compiler as unknown as RuntimeFontConsumer;
     if (typeof consumer.setRuntimeFonts !== 'function') {
-        return { mountedCount: 0, mountedNames: [], diagnostics: [], effectiveFonts: resolution };
+        return {
+            mountedCount: 0,
+            mountedNames: [],
+            diagnostics: [],
+            effectiveFonts: { ...resolution, localFontsAvailable: false },
+        };
     }
     const bytes: Uint8Array[] = [];
     const names: string[] = [];

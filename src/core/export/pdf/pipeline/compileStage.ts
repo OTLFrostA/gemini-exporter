@@ -1,3 +1,4 @@
+import { isAbortError } from '../errors.js';
 import type {
     AssetResolver,
     RenderContext,
@@ -20,13 +21,6 @@ const PDF_TRAILER_MARKER = 'trailer';
 const PDF_ROOT_MARKER = '/Root';
 const EOF_SCAN_BYTES = 1024;
 const SCAN_CHUNK_BYTES = 65536;
-
-function isAbortError(e: unknown): boolean {
-    return (
-        (e instanceof DOMException && e.name === 'AbortError') ||
-        (typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError')
-    );
-}
 
 // Resolve strictly via pathMap[assetId] -> virtualPath so content-addressed mounts cannot collide with asset IDs.
 function makeMountAssetResolver(
