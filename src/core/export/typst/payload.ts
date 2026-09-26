@@ -11,7 +11,8 @@ import type {
     MessageNode,
 } from '../canonical/conversation.js';
 import { projectConversation } from '../canonical/projection.js';
-import { extractBlockText, extractInlineText } from '../canonical/unknownFallback.js';
+import { extractBlockText, extractInlineText, resolveUnknownBlockFallback } from '../canonical/unknownFallback.js';
+import { getRendererStrings, type RendererStrings } from '../canonical/rendererStrings.js';
 import type { InlineNode } from '../canonical/inline.js';
 
 export type TypstInlineNode =
@@ -32,7 +33,7 @@ export type TypstBlockNode =
     | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: TypstInlineNode[] }
     | { type: 'list'; ordered: boolean; start?: number; items: TypstListItem[] }
     | { type: 'code'; language: string; text: string; filename?: string; meta?: string }
-    | { type: 'math'; latex: string; typst?: string }
+    | { type: 'math'; latex: string; typst?: string; fallbackLabel: string }
     | {
         type: 'table';
         headers: TypstInlineNode[][][];
@@ -45,7 +46,7 @@ export type TypstBlockNode =
     | { type: 'quote'; blocks: TypstBlockNode[] }
     | { type: 'note'; label?: string; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
     | { type: 'thematicBreak' }
-    | { type: 'unknown'; sourceType?: string; blocks?: TypstBlockNode[]; fallback?: string };
+    | { type: 'unknown'; sourceType?: string; label: string; blocks?: TypstBlockNode[]; fallback?: string };
 
 export type TypstRenderAttachment =
     | { type: 'file'; name: string; kind: string; size: string }
@@ -81,15 +82,22 @@ export interface TypstPayloadOptions {
     convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
     projectedMessages?: MessageNode[];
     leafMessageId?: string;
+    locale?: 'zh' | 'en';
 }
+
+type RenderOptions = TypstPayloadOptions & { strings: RendererStrings };
 
 export interface TypstPayloadResult {
     payload: TypstConversationRenderPayload;
     diagnostics: TypstAdapterDiagnostic[];
 }
 
-function humanBytes(value?: number): string {
-    if (value == null || !Number.isFinite(value)) return 'size unknown';
+function unknownLabel(sourceType: string | undefined, strings: RendererStrings): string {
+    return sourceType ? `${strings.unsupportedContent} · ${sourceType}` : strings.unsupportedContent;
+}
+
+function humanBytes(value: number | undefined, strings: RendererStrings): string {
+    if (value == null || !Number.isFinite(value)) return strings.sizeUnknown;
     if (value < 1024) return `${value} B`;
     const units = ['KB', 'MB', 'GB', 'TB'];
     let n = value / 1024;
@@ -127,7 +135,7 @@ function renderInline(
     node: InlineNode,
     assets: Map<string, Asset>,
     citations: Map<string, { label: string; url?: string }>,
-    options: TypstPayloadOptions,
+    options: RenderOptions,
     diagnostics: TypstAdapterDiagnostic[],
     path: string,
 ): TypstInlineNode {
@@ -173,7 +181,7 @@ function renderBlock(
     block: BlockNode,
     assets: Map<string, Asset>,
     citations: Map<string, { label: string; url?: string }>,
-    options: TypstPayloadOptions,
+    options: RenderOptions,
     diagnostics: TypstAdapterDiagnostic[],
     path: string,
 ): TypstBlockNode | null {
@@ -221,7 +229,10 @@ function renderBlock(
         };
         case 'math': {
             const typst = options.convertMath?.(block.source, block.notation, true);
-            return typst ? { type: 'math', latex: block.source, typst } : { type: 'math', latex: block.source };
+            const fallbackLabel = options.strings.mathFallback;
+            return typst
+                ? { type: 'math', latex: block.source, typst, fallbackLabel }
+                : { type: 'math', latex: block.source, fallbackLabel };
         }
         case 'table': {
             const headers = (block.headerRows ?? []).map(row => row.cells.map(c => inline(cellInline(c))));
@@ -242,19 +253,19 @@ function renderBlock(
             const assetPath = asset ? options.assetPath(asset) : undefined;
             if (!asset || !assetPath) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Image asset ${block.assetId} unavailable to Typst.`, path });
-                return { type: 'unknown', sourceType: 'missing-image', fallback: block.alt ?? asset?.name ?? `Missing image: ${block.assetId}` };
+                return { type: 'unknown', sourceType: 'missing-image', label: unknownLabel('missing-image', options.strings), fallback: block.alt ?? asset?.name ?? `Missing image: ${block.assetId}` };
             }
             const caption = block.caption ? inlineText(block.caption) : block.alt;
             return { type: 'image', asset: assetPath, ...(caption ? { caption } : {}) };
         }
         case 'file': {
             const asset = assets.get(block.assetId);
-            if (!asset) return { type: 'unknown', sourceType: 'missing-file', fallback: block.label ?? `Missing file: ${block.assetId}` };
+            if (!asset) return { type: 'unknown', sourceType: 'missing-file', label: unknownLabel('missing-file', options.strings), fallback: block.label ?? `Missing file: ${block.assetId}` };
             return {
                 type: 'file',
                 name: block.label ?? asset.name ?? block.assetId,
                 kind: mimeLabel(asset),
-                size: humanBytes(asset.sizeBytes),
+                size: humanBytes(asset.sizeBytes, options.strings),
                 ...(block.description?.length ? { description: inlineText(block.description) } : {}),
             };
         }
@@ -264,7 +275,7 @@ function renderBlock(
             return {
                 type: 'note',
                 ...(title ? { label: title } : {}),
-                children: [{ type: 'text', text: text || 'Sources' }],
+                children: [{ type: 'text', text: text || options.strings.sources }],
             };
         }
         case 'thought': {
@@ -273,9 +284,9 @@ function renderBlock(
                 const rendered = sub(child, index, 'thought');
                 if (rendered) kids.push(rendered);
             });
-            const label = block.kind === 'summary' ? 'Thinking Summary'
-                : block.kind === 'progress' ? 'Thinking Progress'
-                : block.kind === 'reasoning' ? 'Thinking Process'
+            const label = block.kind === 'summary' ? options.strings.thinkingSummary
+                : block.kind === 'progress' ? options.strings.thinkingProgress
+                : block.kind === 'reasoning' ? options.strings.thinkingProcess
                 : undefined;
             return { type: 'note', ...(label ? { label } : {}), blocks: kids };
         }
@@ -283,8 +294,8 @@ function renderBlock(
         case 'toolResult': {
             const kids: TypstBlockNode[] = [];
             const label = block.type === 'toolCall'
-                ? `Tool call: ${block.toolName}`
-                : `Tool result: ${block.toolName ?? block.callId}`;
+                ? `${options.strings.toolCall}: ${block.toolName}`
+                : `${options.strings.toolResult}: ${block.toolName ?? block.callId}`;
             kids.push({ type: 'paragraph', children: [{ type: 'text', text: label }] });
             (block.displayBlocks ?? []).forEach((child, index) => {
                 const rendered = sub(child, index, block.type);
@@ -301,15 +312,19 @@ function renderBlock(
         }
         case 'thematicBreak': return { type: 'thematicBreak' };
         case 'unknown': {
-            if (block.fallbackBlocks) {
+            if (block.fallbackBlocks?.length) {
                 const kids: TypstBlockNode[] = [];
                 block.fallbackBlocks.forEach((child, index) => {
                     const rendered = sub(child, index, 'unknown');
                     if (rendered) kids.push(rendered);
                 });
-                return { type: 'unknown', sourceType: block.sourceType, blocks: kids };
+                return { type: 'unknown', sourceType: block.sourceType, label: unknownLabel(block.sourceType, options.strings), blocks: kids };
             }
-            return { type: 'unknown', sourceType: block.sourceType, fallback: 'Content preserved in archive but unavailable in this renderer.' };
+            const resolved = resolveUnknownBlockFallback(block);
+            if (resolved.truncated) {
+                diagnostics.push({ severity: 'warning', code: 'TYPST_UNKNOWN_PAYLOAD_TRUNCATED', message: `Unknown block payload truncated (sourceType=${block.sourceType}).`, path });
+            }
+            return { type: 'unknown', sourceType: block.sourceType, label: unknownLabel(block.sourceType, options.strings), fallback: resolved.text };
         }
     }
 }
@@ -326,7 +341,7 @@ function toRenderMessage(
     message: MessageNode,
     assets: Map<string, Asset>,
     citations: Map<string, { label: string; url?: string }>,
-    options: TypstPayloadOptions,
+    options: RenderOptions,
     diagnostics: TypstAdapterDiagnostic[],
 ): TypstRenderMessage {
     const blocks: TypstBlockNode[] = [];
@@ -350,7 +365,7 @@ function toRenderMessage(
         if (trailingImageIds.has(id)) {
             const path = options.assetPath(asset);
             if (path) {
-                attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes)}` });
+                attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes, options.strings)}` });
             } else {
                 diagnostics.push({
                     severity: 'warning',
@@ -360,7 +375,7 @@ function toRenderMessage(
                 });
             }
         } else {
-            attachments.push({ type: 'file', name: asset.name ?? id, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes) });
+            attachments.push({ type: 'file', name: asset.name ?? id, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes, options.strings) });
         }
     }
 
@@ -382,16 +397,18 @@ export function toTypstPayload(
     options: TypstPayloadOptions,
 ): TypstPayloadResult {
     const diagnostics: TypstAdapterDiagnostic[] = [];
+    const strings = getRendererStrings(options.locale ?? 'en');
+    const renderOptions: RenderOptions = { ...options, strings };
     const assets = new Map(bundle.assets.map(asset => [asset.id, asset]));
     const citations = new Map(bundle.citations.map((citation, index) => [citation.id, {
         label: `[${index + 1}]`,
         url: citation.url,
     }]));
     const messages = (options.projectedMessages ?? projectConversation(bundle, { leafMessageId: options.leafMessageId }).messages)
-        .map(message => toRenderMessage(message, assets, citations, options, diagnostics));
+        .map(message => toRenderMessage(message, assets, citations, renderOptions, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';
-    const date = observed ? observed.slice(0, 10) : 'date unknown';
+    const date = observed ? observed.slice(0, 10) : strings.dateUnknown;
 
     return {
         payload: {

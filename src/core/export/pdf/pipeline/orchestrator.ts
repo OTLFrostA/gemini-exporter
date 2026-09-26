@@ -58,6 +58,7 @@ export class PdfPipeline {
                 bundle: input.bundle,
                 view: projected.output.view,
                 pathMap: resources.output.pathMap,
+                locale: input.locale,
             }, ctx);
             diagnostics.push(...payload.diagnostics);
 

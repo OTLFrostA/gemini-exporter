@@ -1,6 +1,7 @@
 import type { BlockNode, UnknownBlock } from './blocks.js';
 import type { Diagnostic } from './diagnostics.js';
 import type { InlineNode, UnknownInline } from './inline.js';
+import type { JsonValue } from './json.js';
 
 export interface UnknownRenderFallback {
     text: string;
@@ -11,6 +12,56 @@ export interface TextExtractOptions {
     citationLabel?: (citationId: string) => string | undefined;
 }
 
+export type UnknownFallbackKind = 'blocks' | 'payload' | 'rawRef' | 'generic';
+
+export interface UnknownBlockFallback {
+    kind: UnknownFallbackKind;
+    text: string;
+    truncated: boolean;
+}
+
+const UNKNOWN_PAYLOAD_MAX_DEPTH = 4;
+const UNKNOWN_PAYLOAD_MAX_LENGTH = 2000;
+
+function stringifyLimited(value: JsonValue, depth: number): string {
+    if (value === null) return 'null';
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (depth >= UNKNOWN_PAYLOAD_MAX_DEPTH) return Array.isArray(value) ? '[…]' : '{…}';
+    if (Array.isArray(value)) {
+        return `[${value.map((v) => stringifyLimited(v as JsonValue, depth + 1)).join(', ')}]`;
+    }
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}: ${stringifyLimited((value as Record<string, JsonValue>)[k], depth + 1)}`).join(', ')}}`;
+}
+
+export function formatUnknownPayload(payload: JsonValue): { text: string; truncated: boolean } {
+    let text: string;
+    try {
+        text = stringifyLimited(payload, 0);
+    } catch {
+        text = '[unprintable payload]';
+    }
+    if (text.length > UNKNOWN_PAYLOAD_MAX_LENGTH) {
+        return { text: text.slice(0, UNKNOWN_PAYLOAD_MAX_LENGTH) + '…', truncated: true };
+    }
+    return { text, truncated: false };
+}
+
+export function resolveUnknownBlockFallback(block: UnknownBlock): UnknownBlockFallback {
+    if (block.fallbackBlocks?.length) {
+        return { kind: 'blocks', text: '', truncated: false };
+    }
+    if (block.payload !== undefined) {
+        const { text, truncated } = formatUnknownPayload(block.payload);
+        return { kind: 'payload', text, truncated };
+    }
+    if (block.rawRef) {
+        return { kind: 'rawRef', text: `[Unknown content: ${block.sourceType}] (archived evidence: ${block.rawRef})`, truncated: false };
+    }
+    return { kind: 'generic', text: `[Unknown content: ${block.sourceType}]`, truncated: false };
+}
+
 export function unknownBlockFallbackText(block: UnknownBlock, options?: TextExtractOptions): string {
     const fromBlocks = block.fallbackBlocks
         ?.map((b) => extractBlockText(b, options))
@@ -18,9 +69,7 @@ export function unknownBlockFallbackText(block: UnknownBlock, options?: TextExtr
         .join('\n')
         .trim();
     if (fromBlocks) return fromBlocks;
-    const parts = [`[Unknown content: ${block.sourceType}]`];
-    if (block.rawRef) parts.push(`(archived evidence: ${block.rawRef})`);
-    return parts.join(' ');
+    return resolveUnknownBlockFallback(block).text;
 }
 
 export function unknownInlineFallbackText(inline: UnknownInline): string {

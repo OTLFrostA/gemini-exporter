@@ -24,6 +24,7 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
     const mathDiagnostics: TypstAdapterDiagnostic[] = [];
     const result = toTypstPayload(input.bundle, {
         assetPath: (asset) => input.pathMap.get(asset.id),
+        locale: input.locale,
         convertMath: (source, notation, display) => {
             const converted = convertMathWithDiagnostic(source, notation, display);
             if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);

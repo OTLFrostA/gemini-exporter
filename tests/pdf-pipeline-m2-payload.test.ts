@@ -66,7 +66,7 @@ test('degraded math is diagnosed, never silent', async () => {
     const m2 = message('m2', 'assistant', 'm1', [mathBlock('\\begin{matrix} x \\end{matrix}')]);
     const bundle = bundleWith([m1, m2]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, view: viewOf([m1, m2]), pathMap: new Map() },
+        { bundle, view: viewOf([m1, m2]), pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     // diagnostic channel carries the failure
@@ -86,7 +86,7 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
     const m1 = message('m1', 'user', null, [mathBlock('\\frac{a}{b}')]);
     const bundle = bundleWith([m1]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, view: viewOf([m1]), pathMap: new Map() },
+        { bundle, view: viewOf([m1]), pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     const mathNodes = output.payload.messages[0].blocks.filter((b: any) => b.type === 'math');
@@ -101,7 +101,7 @@ test('consumes the projected view verbatim, never re-linearizes', async () => {
     const m3 = message('m3', 'assistant', 'm1', [para('a3')]);
     const bundle = bundleWith([m1, m2, m3]);
     const { output } = await payloadStage(
-        { bundle, view: viewOf([m1, m2]), pathMap: new Map() },
+        { bundle, view: viewOf([m1, m2]), pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     assert.strictEqual(output.payload.messageCount, 2);
@@ -115,7 +115,7 @@ test('asset paths come from the S2 pathMap without re-resolution', async () => {
     ]);
     const pathMap = new Map([['img1', 'assets/sha256/ab/x.png']]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, view: viewOf([m1]), pathMap },
+        { bundle, view: viewOf([m1]), pathMap, locale: 'en' },
         makeCtx(),
     );
     const images = output.payload.messages[0].blocks.filter((b: any) => b.type === 'image');
@@ -130,7 +130,7 @@ test('aborted signal throws AbortError', async () => {
     const ctx = makeCtx();
     ctx.controller.abort();
     await assert.rejects(
-        payloadStage({ bundle, view: viewOf([m1]), pathMap: new Map() }, ctx),
+        payloadStage({ bundle, view: viewOf([m1]), pathMap: new Map(), locale: 'en' }, ctx),
         (e: any) => e instanceof DOMException && e.name === 'AbortError',
     );
 });

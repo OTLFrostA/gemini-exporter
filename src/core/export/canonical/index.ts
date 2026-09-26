@@ -13,6 +13,7 @@ export * from './projection.js';
 export * from './assetReferences.js';
 export * from './titleAuthority.js';
 export * from './unknownFallback.js';
+export * from './rendererStrings.js';
 export * from './assetResolution.js';
 export * from './validate.js';
 export * from './normalizeGemini.js';

@@ -65,7 +65,7 @@ test('maps paragraph, heading, code and table blocks', async () => {
 test('math without converter keeps latex only; with converter adds typst', async () => {
     const mathBlock = { type: 'math', source: '\\frac{1}{2}', notation: 'latex' };
     const noConv = toTypstPayload(bundle([msg('m1', 'assistant', [mathBlock])]), opts);
-    assert.deepStrictEqual(noConv.payload.messages[0].blocks[0], { type: 'math', latex: '\\frac{1}{2}' });
+    assert.deepStrictEqual(noConv.payload.messages[0].blocks[0], { type: 'math', latex: '\\frac{1}{2}', fallbackLabel: 'Could not typeset this formula; original LaTeX preserved:' });
     assert.ok(!('typst' in noConv.payload.messages[0].blocks[0]), 'no typst key without converter');
 
     const withConv = toTypstPayload(bundle([msg('m1', 'assistant', [mathBlock])]), {
