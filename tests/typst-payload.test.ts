@@ -268,3 +268,63 @@ test('system role becomes a visible note prefix', async () => {
     assert.strictEqual(payload.messages[0].role, 'assistant');
     assert.strictEqual((payload.messages[0].blocks[0] as any).type, 'note');
 });
+
+test('associated image companion with no path emits TYPST_V8_ASSOCIATED_IMAGE_MISSING (no silent drop)', async () => {
+    // The companion rule promises a trailing image attachment, but the stage
+    // output gave it no path (not resolved, or missing). Dropping it silently
+    // is forbidden: the payload must say so.
+    const b = bundle(
+        [msg('m1', 'model', [
+            { type: 'paragraph', children: [{ type: 'text', text: 'see attached' }] },
+        ], { associatedAssetIds: ['comp-img'] })],
+        { assets: [
+            { id: 'comp-img', kind: 'image', name: 'comp.png', mimeType: 'image/png', status: 'available' },
+        ] },
+    );
+    const { payload, diagnostics } = toTypstPayload(b, opts); // opts.assetPath always returns undefined
+    const attachments = payload.messages[0].attachments ?? [];
+    assert.strictEqual(attachments.length, 0, 'unresolvable companion image must not vanish silently');
+    const d = diagnostics.find((x: any) => x.code === 'TYPST_V8_ASSOCIATED_IMAGE_MISSING');
+    assert.ok(d, 'must emit TYPST_V8_ASSOCIATED_IMAGE_MISSING');
+    assert.strictEqual(d.severity, 'warning');
+    assert.strictEqual(d.path, 'message:m1/attachment:comp-img');
+});
+
+test('associated image companion with a path renders trailing attachment without diagnostic', async () => {
+    const b = bundle(
+        [msg('m1', 'model', [
+            { type: 'paragraph', children: [{ type: 'text', text: 'see attached' }] },
+        ], { associatedAssetIds: ['comp-img'] })],
+        { assets: [
+            { id: 'comp-img', kind: 'image', name: 'comp.png', mimeType: 'image/png', status: 'available' },
+        ] },
+    );
+    const { payload, diagnostics } = toTypstPayload(b, { assetPath: (a: any) => `assets/${a.id}.png` });
+    const attachments = payload.messages[0].attachments ?? [];
+    assert.strictEqual(attachments.length, 1);
+    assert.strictEqual((attachments[0] as any).type, 'image');
+    assert.strictEqual((attachments[0] as any).asset, 'assets/comp-img.png');
+    assert.ok(!diagnostics.some((x: any) => x.code === 'TYPST_V8_ASSOCIATED_IMAGE_MISSING'),
+        'resolved companion must not emit the missing diagnostic');
+});
+
+test('collectUnplacedAssociatedImageIds: block-placed, non-image and unknown ids excluded', async () => {
+    // Both consumers (resourceStage binary resolution and the payload's
+    // trailing attachment emission) import this same symbol from the
+    // canonical module, so this one unit test pins the shared rule.
+    const { collectUnplacedAssociatedImageIds } = require('../src/core/export/typst/payload.js');
+    const message: any = {
+        id: 'm1',
+        blocks: [
+            { type: 'image', assetId: 'blk-img' },
+            { type: 'paragraph', children: [{ type: 'image', assetId: 'inl-img' }] },
+        ],
+        associatedAssetIds: ['blk-img', 'comp-img', 'comp-doc', 'ghost-img'],
+    };
+    const referenced = new Set(['blk-img', 'inl-img']);
+    const kindOf = (id: string) =>
+        ({ 'comp-img': 'image', 'comp-doc': 'file' } as Record<string, string | undefined>)[id];
+    const out = collectUnplacedAssociatedImageIds(message, referenced, kindOf);
+    assert.deepStrictEqual([...out].sort(), ['comp-img'],
+        'only unplaced kind:image companions qualify (ghost-img unknown -> excluded like the payload skips it)');
+});

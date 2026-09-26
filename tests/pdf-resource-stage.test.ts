@@ -508,3 +508,60 @@ test('resources stage: block-placed id also listed in associatedAssetIds resolve
         'kind:image block placement gets no mismatch warning',
     );
 });
+
+test('resources stage + payload agree on companion image set (shared helper, no drift)', async () => {
+    // The stage and the payload builder consume the same shared helper, so
+    // every trailing image attachment the payload emits must have a pathMap
+    // entry from the stage, and TYPST_V8_ASSOCIATED_IMAGE_MISSING must never
+    // fire when the stage ran first.
+    const real = createInlineByteStore();
+    real.put('inline/blk', pngBytes(31));
+    real.put('inline/comp', pngBytes(32));
+    const bundle = {
+        assets: [
+            asset('blk-img', { storageRef: 'inline/blk', mimeType: 'image/png', name: 'b.png' }),
+            asset('comp-img', { storageRef: 'inline/comp', mimeType: 'image/png', name: 'c.png' }),
+            asset('comp-doc', { kind: 'file', mimeType: 'application/pdf', name: 'n.pdf', sizeBytes: 10 }),
+        ],
+    };
+    const msgBlocks = [
+        { type: 'image', assetId: 'blk-img' },
+        { type: 'paragraph', children: [{ type: 'text', text: 'x' }] },
+    ];
+    const associated = ['blk-img', 'comp-img', 'comp-doc'];
+    const view = {
+        messages: [{ id: 'm1', role: 'model', blocks: msgBlocks, associatedAssetIds: associated }],
+        rootIds: ['m1'], selectedPathIds: ['m1'], omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output } = await resourceStage({ bundle, view, byteStore: real }, ctx);
+    assert.ok(output.pathMap.has('blk-img') && output.pathMap.has('comp-img'));
+    assert.ok(!output.pathMap.has('comp-doc'), 'file companion stays metadata-only');
+
+    const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+    const payloadBundle = {
+        schemaVersion: 1,
+        conversation: {
+            key: { providerId: 'gemini', accountId: 'test', conversationId: 'c1' },
+            title: { value: 't', source: 'derived', candidates: [] },
+            createdAt: '2026-09-20T10:00:00Z',
+            messages: [{ id: 'm1', role: 'model', blocks: msgBlocks, associatedAssetIds: associated }],
+        },
+        assets: bundle.assets,
+        citations: [],
+    };
+    const { payload, diagnostics } = toTypstPayload(payloadBundle, {
+        assetPath: (a: any) => output.pathMap.get(a.id),
+    });
+    const imageAttachments = (payload.messages[0].attachments ?? []).filter((a: any) => a.type === 'image');
+    assert.strictEqual(imageAttachments.length, 1,
+        'only the unplaced image companion becomes a trailing image (blk-img is block-placed)');
+    assert.strictEqual(imageAttachments[0].asset, output.pathMap.get('comp-img'));
+    const fileAttachments = (payload.messages[0].attachments ?? []).filter((a: any) => a.type === 'file');
+    assert.strictEqual(fileAttachments.length, 1, 'file companion still renders its metadata card');
+    assert.deepStrictEqual(
+        diagnostics.filter((d: any) => d.code === 'TYPST_V8_ASSOCIATED_IMAGE_MISSING'),
+        [],
+        'stage resolved everything the payload needs; the missing diagnostic must not fire',
+    );
+});

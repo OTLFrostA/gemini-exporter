@@ -15,6 +15,7 @@
 
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
+import type { MessageNode } from './conversation.js';
 
 /**
  * Shared walker for both collectors below. When imagesOnly is true, only
@@ -115,4 +116,37 @@ export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<
  */
 export function collectBinaryRenderAssetIds(blocks: BlockNode[] | undefined): Set<string> {
     return collectImpl(blocks, true);
+}
+
+/**
+ * Collect message-level associated asset ids that render as trailing image
+ * attachments: ids in message.associatedAssetIds with no block placement
+ * (absent from referencedIds) whose asset kind is 'image'.
+ *
+ * The kind check is legitimate here because the Typst payload builder's own
+ * `asset.kind === 'image'` branch is what defines that usage as an image:
+ * kind-'image' companions without block placement become trailing image
+ * attachments (Typst image()); other/unknown kinds render metadata-only
+ * file cards and never need bytes. Unknown ids (kindOf() === undefined)
+ * are excluded, matching the payload's skip of unknown ids.
+ *
+ * Shared by resourceStage (binary resolution) and the Typst payload builder
+ * (trailing attachment emission) so the two can never disagree about which
+ * companions need image bytes. Placement still decides for block-tree
+ * images (see collectBinaryRenderAssetIds); this helper covers only the
+ * message-level association index (roadmap §43: messages link resources via
+ * blocks AND associatedAssetIds).
+ */
+export function collectUnplacedAssociatedImageIds(
+    message: MessageNode | undefined,
+    referencedIds: ReadonlySet<string>,
+    kindOf: (id: string) => string | undefined,
+): Set<string> {
+    const out = new Set<string>();
+    for (const id of message?.associatedAssetIds ?? []) {
+        if (referencedIds.has(id)) continue;
+        if (kindOf(id) !== 'image') continue;
+        out.add(id);
+    }
+    return out;
 }

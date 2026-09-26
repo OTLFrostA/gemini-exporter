@@ -49,7 +49,7 @@
  *     emitted a warning+ for it.
  *   - abort: throws a DOMException named 'AbortError' promptly.
  */
-import { collectReferencedAssetIds, collectBinaryRenderAssetIds } from '../../typst/payload.js';
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../../typst/payload.js';
 import { resolveAssets } from '../../assets/resolver.js';
 import type { Asset, AssetStatus } from '../../canonical/assets.js';
 import type {
@@ -132,6 +132,14 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     // attachments in the Typst payload and need bytes; other kinds render
     // metadata-only file cards. See the file header for why the kind check
     // is legitimate for companions.
+    // Message-level companions (associatedAssetIds with no block placement)
+    // join the same sets. Every unplaced associated id counts as referenced
+    // (metadata-only file cards render from the Asset entity); which of them
+    // are trailing image attachments — and therefore need bytes — is decided
+    // by the shared collectUnplacedAssociatedImageIds helper, the same rule
+    // the Typst payload builder uses, so the two stages can never disagree.
+    // See the file header for why the kind check is legitimate for
+    // companions.
     const byId = new Map<string, Asset>();
     for (const asset of input.bundle.assets) byId.set(asset.id, asset);
     const referencedIds = new Set<string>();
@@ -149,7 +157,9 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
             const asset = byId.get(id);
             if (!asset) continue; // payload skips unknown ids the same way
             referencedIds.add(id);
-            if (asset.kind === 'image') binaryIds.add(id);
+        }
+        for (const id of collectUnplacedAssociatedImageIds(message, blockIds, (aid) => byId.get(aid)?.kind)) {
+            binaryIds.add(id);
         }
     }
     // Kind/placement mismatch is diagnostic-only: placement wins for
