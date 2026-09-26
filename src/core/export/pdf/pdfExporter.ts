@@ -1,9 +1,15 @@
 /**
  * src/core/export/pdf/pdfExporter.ts
  *
- * P3 PDF export orchestration: single + batch export of conversations to
- * PDF through the frozen IPdfCompiler interface (stub in P3, real Typst
- * compiler in P1b), landing files through IExportWriter.
+ * D7 M5: PDF export orchestration — batch driver over the frozen D7 pipeline.
+ *
+ * Each item runs the full S1->S5 pipeline (project -> resources -> payload ->
+ * compile -> deliver) through PdfPipeline.runOne. The deliver stage lands the
+ * PDF through IExportWriter with the staged/finalized batch-ZIP semantics:
+ * folder mode — writeFile() resolving IS delivery; ZIP mode — the stage only
+ * STAGES into the shared writer and the driver runs the single
+ * finalizeZipDelivery() (one generateBlob + downloadHandler) at the end of
+ * the batch, then flips staged items to delivered.
  *
  * User iron rules enforced here:
  * - Success is ONLY marked after the artifact is actually delivered:
@@ -17,17 +23,21 @@
  *   the batch up front — it is never silently counted as delivered.
  * - One failed item never aborts the batch; failures stay retryable and
  *   are never marked successful.
- * - Cancellation is real: the compile task is aborted via AbortSignal,
+ * - Cancellation is real: the pipeline's AbortSignal stops stages promptly,
  *   no partial file is written, the batch stops, and every item that never
  *   reached a terminal state is reported as failed (retryable) — nothing
  *   silently dropped.
  * - Nothing is lost quietly: warning/error diagnostics from normalize /
- *   compile / write are surfaced through onLog (which feeds the extension
- *   Error page) and returned in the result; a failed export-record write
- *   keeps the artifact successful but emits EXPORT_RECORD_WRITE_FAILED.
+ *   pipeline stages / write are surfaced through onLog (which feeds the
+ *   extension Error page) and returned in the result; a failed export-record
+ *   write keeps the artifact successful but emits EXPORT_RECORD_WRITE_FAILED.
  * - The result carries UI-contract aliases (failedChats/landedChats/
  *   exportedCount) so the options-page summary, failure banner and retry
  *   flow see PDF failures instead of counting everything successful.
+ * - The #584 discriminated union is honored: a 'staged' result carries NO
+ *   writeReport (staged is not delivery proof). The batch driver builds the
+ *   real writeReport for flipped items only after finalizeZipDelivery
+ *   resolves; `if (result.writeReport)` misuse stays a compile error.
  *
  * Engine shape mirrors ExportOrchestrator (run/abort) so
  * exportController can route `format === 'pdf'` here without changes
@@ -36,11 +46,7 @@
 
 import type {
     ArtifactWriteReport,
-    CompanionResourcePlan,
-    ExportArtifact,
-    RenderContext,
     RenderDiagnostic,
-    TypstRenderPayload,
 } from '../canonical/rendering.js';
 import type { Diagnostic } from '../canonical/diagnostics.js';
 import { normalizeGeminiConversation } from '../canonical/normalizeGemini.js';
@@ -48,6 +54,21 @@ import { createWriter, type IExportWriter } from '../../engine/writers/writerInt
 import { buildExportFileName, normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { IPdfCompiler, StubPdfCompiler } from './pdfCompiler.js';
+import { PdfPipeline } from './pipeline/orchestrator.js';
+import { projectStage } from './pipeline/projectionStage.js';
+import { resourceStage } from './pipeline/resourceStage.js';
+import { payloadStage } from './pipeline/payloadStage.js';
+import { compileStage } from './pipeline/compileStage.js';
+import { deliverStage, finalizeZipDelivery } from './pipeline/deliveryStage.js';
+import {
+    resolveLocalFonts,
+    type LocalFontResolution,
+} from '../typst/fonts/localFontProvider.js';
+import type {
+    PipelineItemInput,
+    PipelineStages,
+    StageContext,
+} from './pipeline/types.js';
 
 export interface PdfExportItemResult {
     id: string;
@@ -92,7 +113,7 @@ export interface PdfExporterOptions {
     useZip?: boolean;
     dirHandle?: any;
     folderName?: string;
-    /** Defaults to StubPdfCompiler. P1b injects the real compiler here. */
+    /** Defaults to StubPdfCompiler. M6 injects the real Typst sandbox compiler here. */
     compiler?: IPdfCompiler;
     /** Injected for tests; otherwise created from useZip/dirHandle. */
     writer?: IExportWriter;
@@ -127,6 +148,15 @@ function isAbortError(e: unknown): boolean {
     );
 }
 
+/** The five frozen D7 stage implementations, wired into the orchestrator. */
+const D7_STAGES: PipelineStages = {
+    project: projectStage,
+    resources: resourceStage,
+    payload: payloadStage,
+    compile: compileStage,
+    deliver: deliverStage,
+};
+
 export class PdfExporter {
     aborted = false;
     private _abortController: AbortController | null = null;
@@ -153,7 +183,11 @@ export class PdfExporter {
 
         this.aborted = false;
         this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const signal = this._abortController ? this._abortController.signal : undefined;
+        // The pipeline requires a real AbortSignal; in the pathological
+        // no-AbortController environment the `aborted` flag still drives the
+        // per-item loop breaks below.
+        const signal: AbortSignal =
+            this._abortController?.signal ?? new AbortController().signal;
 
         const selected = Array.isArray(options.selected) ? options.selected : [];
         const useZip = options.useZip !== false;
@@ -171,8 +205,10 @@ export class PdfExporter {
         let succeeded = 0;
         // ZIP transaction boundary (report §1): entries staged into the ZIP
         // writer are NOT success yet. Final success is committed only after
-        // generateBlob() + downloadHandler() both resolve.
-        const staged: Array<{ id: string; title: string; record: any; diagnostics: RenderDiagnostic[] }> = [];
+        // finalizeZipDelivery() (single generateBlob + downloadHandler)
+        // resolves. A staged item carries no writeReport — the driver builds
+        // the real delivery proof at flip time.
+        const staged: Array<{ id: string; title: string; diagnostics: RenderDiagnostic[] }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
 
         const report = (current: number, title: string) => {
@@ -278,9 +314,34 @@ export class PdfExporter {
 
         const activeWriter: IExportWriter = writer;
 
+        // Local fonts are resolved once per batch (best-effort): the compile
+        // stage forwards their diagnostics and falls back to bundled fonts,
+        // so a resolution failure degrades loudly instead of failing items.
+        let fonts: LocalFontResolution;
+        try {
+            fonts = await resolveLocalFonts();
+        } catch (e: any) {
+            const msg = e?.message || String(e);
+            onLog(`[PDF] 本地字体解析失败，已回退到内置字体: ${msg}`, 'warn');
+            fonts = {
+                fonts: [],
+                diagnostics: [
+                    {
+                        severity: 'warning',
+                        code: 'TYPST_LOCAL_FONTS_QUERY_FAILED',
+                        message: `resolveLocalFonts threw: ${msg}; falling back to bundled fonts`,
+                    },
+                ],
+                fallbackChain: [],
+                localFontsAvailable: false,
+            };
+        }
+
+        const pipeline = new PdfPipeline(D7_STAGES);
+
         for (let i = 0; i < items.length; i++) {
             const { id, title } = items[i];
-            if (this.aborted || signal?.aborted) break;
+            if (this.aborted || signal.aborted) break;
             report(i, title);
 
             const chat =
@@ -290,159 +351,169 @@ export class PdfExporter {
 
             const itemDiagnostics: RenderDiagnostic[] = [];
             try {
-                // 1. Normalize repo conversation -> canonical bundle (F2b).
-                const { bundle, diagnostics } = await normalizeGeminiConversation(chat as any);
+                // S0: normalize the repo conversation -> canonical bundle.
+                // The normalizer owns a per-run byte store; S2 consumes it.
+                const { bundle, diagnostics, byteStore } = await normalizeGeminiConversation(chat as any);
                 for (const d of diagnostics) itemDiagnostics.push(toRenderDiagnostic(d));
 
-                // 2. Build the frozen compile input. P1a will enrich this with
-                //    messageHints/convertedMath; the bundle alone is sufficient
-                //    for the orchestration contract.
-                const payload: TypstRenderPayload = {
-                    rendererSchemaVersion: 1,
-                    sourceSchemaVersion: 1,
+                // S1->S5: the frozen D7 pipeline. runOne never throws for
+                // item-level failures (they come back as 'failed'); an abort
+                // comes back as 'aborted' and is never converted to failure.
+                const itemInput: PipelineItemInput = {
+                    conversationId: id,
+                    title,
                     bundle,
-                };
-                const context: RenderContext = {
-                    bundle,
-                    assets: {
-                        // P3: no asset byte resolution yet; every asset is
-                        // recorded as omitted (see companion plan below),
-                        // never silently dropped.
-                        resolve: async () => null,
-                    },
+                    byteStore,
                     locale,
-                    signal: signal as AbortSignal,
+                    compiler,
+                    fonts,
+                    useZip,
+                    writer: activeWriter,
+                    downloadHandler: options.downloadHandler,
+                    folderName,
+                };
+                const result = await pipeline.runOne(itemInput, {
+                    signal,
                     reportProgress: (stage, current, ptotal) => {
+                        const frac = ptotal > 0 ? current / ptotal : 0;
                         onProgress({
-                            current: i + (ptotal > 0 ? current / ptotal : 0),
+                            current: i + frac,
                             total,
-                            pct: Math.round(((i + (ptotal > 0 ? current / ptotal : 0)) / total) * 100),
+                            pct: Math.round(((i + frac) / total) * 100),
                             title: `${title} (${stage})`,
                         });
                     },
-                };
+                    log: (message, level) => onLog(message, level),
+                });
+                for (const d of result.diagnostics) itemDiagnostics.push(d);
 
-                // 3. Compile (stub in P3, real Typst compiler in P1b).
-                const { pdfBytes, diagnostics: compileDiags } = await compiler.compile(payload, context);
-                for (const d of compileDiags) itemDiagnostics.push(d);
+                if (this.aborted || signal.aborted) break;
 
-                // Cancelled mid-compile: never write a partial file.
-                if (this.aborted || signal?.aborted) break;
-
-                // 4. Companion resource plan: stub phase cannot resolve asset
-                //    bytes, so every asset is explicitly omitted with a reason
-                //    + a warning diagnostic. Loud, not silent.
-                const companionPlan: CompanionResourcePlan = {
-                    resourceIds: [],
-                    omitted: bundle.assets.map((a) => ({
-                        resourceId: a.id,
-                        reason: 'P3 stub phase: asset bytes not resolved; real resolution lands with P1b/P2',
-                    })),
-                };
-                if (companionPlan.omitted.length > 0) {
-                    itemDiagnostics.push({
-                        severity: 'warning',
-                        code: 'ASSETS_OMITTED_STUB',
-                        message: `${companionPlan.omitted.length} asset(s) omitted in stub phase; recorded, not silently dropped.`,
-                    });
+                switch (result.status) {
+                    case 'delivered': {
+                        // The deliver stage finalized: writeFile() resolved,
+                        // so the artifact is REALLY delivered. The writeReport
+                        // on a 'delivered' item is the delivery proof.
+                        const writeReport: ArtifactWriteReport = result.writeReport;
+                        const record = {
+                            title,
+                            exportedAt: writeReport.writtenAt,
+                            format: 'pdf',
+                            fileName: writeReport.fileName,
+                            bytesWritten: writeReport.bytesWritten,
+                            status: 'ok',
+                        };
+                        succeeded++;
+                        completed.add(id);
+                        await commitRecord(id, record, itemDiagnostics);
+                        surfaceDiagnostics(id, title, itemDiagnostics);
+                        onLog(`[PDF] ${title} 导出成功 (${writeReport.fileName})`, 'info');
+                        break;
+                    }
+                    case 'staged': {
+                        // ZIP transaction boundary (report §1): the PDF is
+                        // staged into the shared in-memory ZIP area. NOT
+                        // success — the driver runs finalizeZipDelivery()
+                        // once at the end of the batch and flips these.
+                        // (No writeReport here by construction: the #584
+                        // union makes carrying one a compile error.)
+                        staged.push({ id, title, diagnostics: itemDiagnostics });
+                        onLog(`[PDF] ${title} 已暂存，等待 ZIP 打包交付后确认`, 'info');
+                        break;
+                    }
+                    case 'failed':
+                        failItem(
+                            id,
+                            title,
+                            `[${result.error.stage}:${result.error.code}] ${result.error.message}`,
+                            itemDiagnostics,
+                        );
+                        break;
+                    case 'aborted':
+                        // Batch-level abort handling below marks every
+                        // unfinished item; never convert abort to failure.
+                        break;
                 }
-
-                const artifact: ExportArtifact = {
-                    fileName: buildExportFileName(title, id, 'pdf'),
-                    mimeType: 'application/pdf',
-                    content: pdfBytes,
-                    companionResourceIds: [],
-                    companionPlan,
-                    diagnostics: itemDiagnostics,
-                };
-
-                // 5. Writer is the ONLY thing that can mark success.
-                await activeWriter.writeFile(artifact.fileName, artifact.content as Uint8Array);
-                const writeReport: ArtifactWriteReport = {
-                    fileName: artifact.fileName,
-                    target: useZip ? 'zip' : 'folder',
-                    bytesWritten: pdfBytes.byteLength,
-                    writtenAt: new Date().toISOString(),
-                };
-                artifact.writeReport = writeReport;
-
-                const record = {
-                    title,
-                    exportedAt: writeReport.writtenAt,
-                    format: 'pdf',
-                    fileName: artifact.fileName,
-                    bytesWritten: writeReport.bytesWritten,
-                    status: 'ok',
-                };
-                if (useZip) {
-                    // ZIP transaction boundary (report §1): writeFile() only
-                    // stages the PDF into the in-memory ZIP area. It is NOT
-                    // success — final success is committed only after
-                    // generateBlob() + downloadHandler() both resolve below.
-                    staged.push({ id, title, record, diagnostics: itemDiagnostics });
-                    onLog(`[PDF] ${title} 已暂存 (${artifact.fileName})，等待 ZIP 打包交付后确认`, 'info');
-                } else {
-                    // Folder writer: the file is on disk the moment
-                    // writeFile() resolves — that IS delivery.
-                    succeeded++;
-                    completed.add(id);
-                    await commitRecord(id, record, itemDiagnostics);
-                    surfaceDiagnostics(id, title, itemDiagnostics);
-                    onLog(`[PDF] ${title} 导出成功 (${artifact.fileName})`, 'info');
-                }
+                if (result.status === 'aborted') break;
             } catch (e: any) {
-                if (isAbortError(e) || this.aborted || signal?.aborted) break;
-                failItem(id, title, e?.message || String(e), itemDiagnostics);
+                // runOne only throws for programmer errors outside the stage
+                // contract; map them to a loud retryable item failure.
+                if (isAbortError(e) || this.aborted || signal.aborted) break;
+                failItem(id, title, `[pipeline:PIPELINE_THREW] ${e?.message || String(e)}`, itemDiagnostics);
             }
             report(i + 1, title);
         }
 
-        wasAborted = this.aborted || !!signal?.aborted;
+        wasAborted = this.aborted || signal.aborted;
 
         // ZIP transaction boundary (report §1): finalize + deliver FIRST,
         // commit final success records ONLY after the user actually receives
         // the ZIP. A generateBlob/download failure must never leave staged
         // items marked successful — they are reported as failed (retryable).
-        // Never package or download after a cancel (user intent); staged
-        // items on abort are reported as failed/retryable below, never
-        // counted as succeeded.
+        // Never package or download after a cancel (user intent); an abort
+        // during finalize falls through to the abort branch below.
         if (!wasAborted && useZip && staged.length > 0) {
             const zipFileName = `gemini_export_pdf_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
+            const finalizeCtx: StageContext = {
+                signal,
+                reportProgress: (_s, _c, _t) =>
+                    onProgress({ current: total, total, pct: 100, title: '打包 ZIP' }),
+                log: (message, level) => onLog(message, level),
+            };
             try {
-                if (typeof activeWriter.generateBlob !== 'function') {
-                    throw new Error('writer.generateBlob is not available; cannot finalize ZIP');
-                }
-                const blob = await activeWriter.generateBlob((pct: number) =>
-                    onProgress({ current: total, total, pct: Math.floor(pct), title: '打包 ZIP' })
-                );
                 // downloadHandler was validated up front in ZIP mode; the
                 // guard below is unreachable defense-in-depth that stays loud.
                 const deliver = options.downloadHandler;
                 if (typeof deliver !== 'function') {
                     throw new Error('internal invariant: downloadHandler is required for ZIP delivery');
                 }
-                await deliver(blob, zipFileName);
+                const { bytesWritten } = await finalizeZipDelivery(
+                    activeWriter,
+                    deliver,
+                    zipFileName,
+                    finalizeCtx,
+                );
                 // Delivered. Now — and only now — commit final success.
+                // The writeReport is built here from the actual delivery
+                // (the delivered ZIP), not from the staged per-item report:
+                // staged items never carried delivery proof (#584).
+                const writtenAt = new Date().toISOString();
                 for (const s of staged) {
+                    const fileName = buildExportFileName(s.title, s.id, 'pdf');
+                    const record = {
+                        title: s.title,
+                        exportedAt: writtenAt,
+                        format: 'pdf',
+                        fileName,
+                        bytesWritten,
+                        status: 'ok',
+                    };
                     succeeded++;
                     completed.add(s.id);
-                    await commitRecord(s.id, s.record, s.diagnostics);
+                    await commitRecord(s.id, record, s.diagnostics);
                     surfaceDiagnostics(s.id, s.title, s.diagnostics);
                 }
                 onLog(`[PDF] ZIP 打包交付成功 (${zipFileName})，${staged.length} 个文件确认成功`, 'info');
             } catch (e: any) {
-                const msg = e?.message || String(e);
-                onLog(`[PDF] ZIP 打包/交付失败: ${msg}；已暂存的 ${staged.length} 个文件不记为成功`, 'error');
-                for (const s of staged) {
-                    failed.push({
-                        id: s.id,
-                        title: s.title,
-                        ok: false,
-                        error: `zip finalize/delivery failed: ${msg}`,
-                        diagnostics: s.diagnostics,
-                    });
-                    completed.add(s.id);
-                    surfaceDiagnostics(s.id, s.title, s.diagnostics);
+                if (isAbortError(e)) {
+                    // Abort during finalize: no package/download completed.
+                    // The abort branch below reports unfinished items.
+                    wasAborted = true;
+                } else {
+                    const code = e?.code ? `[${e.code}] ` : '';
+                    const msg = `${code}${e?.message || String(e)}`;
+                    onLog(`[PDF] ZIP 打包/交付失败: ${msg}；已暂存的 ${staged.length} 个文件不记为成功`, 'error');
+                    for (const s of staged) {
+                        failed.push({
+                            id: s.id,
+                            title: s.title,
+                            ok: false,
+                            error: `zip finalize/delivery failed: ${msg}`,
+                            diagnostics: s.diagnostics,
+                        });
+                        completed.add(s.id);
+                        surfaceDiagnostics(s.id, s.title, s.diagnostics);
+                    }
                 }
             }
         }
