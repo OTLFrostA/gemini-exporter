@@ -4,9 +4,12 @@
  *
  * 背景：P0 正式实验（~/workspace/goals/gemini-exporter/hidden_files/p0-formal/REPORT.md）
  * 测得 121 消息长会话可编译、100 会话最慢 50.6s（含真编译）、300 次编译 0 失败、
- * 无内存泄漏信号。真编译器（Typst WASM sandbox，Phase D）尚未落地，本文件只覆盖
- * **预处理阶段**：normalizeGeminiConversation（F2b）+ toTypstPayload（F2c 前端）。
- * 真编译器落地后，本文件的压力测试必须升级为端到端（含编译）门禁。
+ * 无内存泄漏信号。
+ *
+ * §1–§4 是预处理阶段门禁：normalizeGeminiConversation（F2b）+ toTypstPayload（F2c 前端），
+ * 日常 CI 常开。§5（Item 4）是真编译器（Typst WASM sandbox，Phase D）落地后的端到端门禁：
+ * 完整链路 PdfExporter → project → resources → payload → real Typst → delivery；
+ * release-only——RELEASE_STRESS=1 时跑 100 会话 / 2000 消息全量，日常 CI 只跑 2 会话微型冒烟。
  *
  * 预算依据（实测于 2026-09-26 本机 VM，Node 24）：
  * - 单个 121 消息会话 normalize+payload：~1.1s → 预算 60s（约 55 倍余量）。
@@ -23,6 +26,16 @@ const assert = require('node:assert');
 
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+
+// §5 全链路门禁的依赖（真编译器 + 文本提取）。§1–§4 不需要它们。
+const { PdfExporter } = require('../src/core/export/pdf/index.js');
+const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const {
+    RealWasmSandboxHost,
+    repoRoot,
+    resolveLocalCjkFont,
+} = require('./helpers/realWasmSandbox.js');
+const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 
 const BASE_TS = 1727000000000;
 const TYPST_OPTS = { assetPath: (_a: any) => undefined };
@@ -318,4 +331,227 @@ test('attachment gate spec: set budget boundary at exactly 50MiB', async () => {
         { id: 'a2', sizeBytes: fortyMiB + 1, contentHash: 'sha256:2' },
     ]);
     assert.strictEqual(over.accepted, false, 'one byte over the set budget is rejected');
+});
+
+// ---------------------------------------------------------------------------
+// 5. Item 4 (P0)：100 会话 full-pipeline release stress（含真编译）
+//
+// 完整链路：PdfExporter → normalize → project → resources → payload →
+// real Typst (WASM sandbox) → delivery（in-memory writer 落盘断言）。
+//
+// release-only：RELEASE_STRESS=1 时跑全量（100 会话 / 2000 消息）；
+// 日常 CI（无环境变量）只跑微型冒烟（2 会话 / 40 消息），验证端到端接线
+// 不腐化，但不吃掉 CI 时间（约数秒）。
+//
+// 门（全量口径）：
+//   a) 0 crash：exporter.run() 不抛异常；
+//   b) 0 blank PDF：每份 PDF 有 %PDF- 魔数、pageCount ≥ 1、可提取文本非空；
+//   c) 0 false success：failed 列表为空；每条 exported 记录 status=ok 且
+//      1:1 对应一份已写入的非空 PDF（fileName / bytesWritten 对得上）；
+//   d) all conversations accounted for：succeeded + failed == N，输入 id
+//      在 exported + failed 中恰好出现一次；
+//   e) 全量 < 10 分钟。
+//
+// 字体说明：与 D8-3 同策略——本机有 Noto CJK 时经构造函数注入（constructor
+// fontPaths injection only），中文可提取；没有时退回 bundled 字体，中文走
+// 已知降级（提取文本只剩 ASCII/公式/代码部分），blank 门依然有效
+// （页数 + 非空文本）。生产环境的 Local Font Access 路径由
+// tests/pdf-local-font-wiring.test.ts 覆盖。
+//
+// 内存说明：rough peak 只是 Node 堆采样（onItemExported 回调处）；WASM 堆内
+// 内存无法从外部单独归因（P0 REPORT.md §3）。fake writer 为断言而持有全部
+// PDF 字节，peak 天然包含约 100 份 PDF 的体量。
+// ---------------------------------------------------------------------------
+
+const RELEASE_STRESS = process.env.RELEASE_STRESS === '1';
+
+function makeFullConversation(n: number, msgCount: number): any {
+    const messages: any[] = [];
+    for (let i = 0; i < msgCount; i++) {
+        const role = i % 2 === 0 ? 'user' : 'model';
+        const msg: any = {
+            id: `s${n}-m${i}`,
+            role,
+            content: mdFor(i + n * msgCount, role),
+            timestamp: BASE_TS + n * 100000 + i * 1000,
+        };
+        if (role === 'model') {
+            if (i % 4 === 1) msg.thoughts = `思考 ${n}-${i}：需要结构化回答。`;
+            // 缺失附件：走 resource stage 的 missing-asset 可见路径（P0 s4 同款构成）
+            if (i % 4 === 3) msg.attachments = [attachmentFor(i, 'missing')];
+            if (i % 3 === 0) {
+                msg.citations = [{ title: `来源 ${n}-${i}`, url: 'https://example.com/src' }];
+            }
+        } else if (i % 5 === 0) {
+            msg.images = [attachmentFor(i, 'image')];
+        }
+        messages.push(msg);
+    }
+    return {
+        id: `c_stress_full_${n}`,
+        title: `全链路压力会话 ${n}`,
+        titleSource: 'derived',
+        createdAt: BASE_TS,
+        updatedAt: BASE_TS + msgCount * 1000,
+        source: 'synthetic',
+        messages,
+    };
+}
+
+test('stress: full-pipeline release stress with real Typst compile (Item 4)', async () => {
+    const N = RELEASE_STRESS ? 100 : 2;
+    const MSG_PER_CONV = 20;
+    const totalMessages = N * MSG_PER_CONV;
+    const conversations = Array.from({ length: N }, (_, n) => makeFullConversation(n, MSG_PER_CONV));
+    assert.strictEqual(
+        conversations.reduce((s, c) => s + c.messages.length, 0),
+        totalMessages,
+        'synthetic input must carry the expected message count',
+    );
+
+    const cjkFont = resolveLocalCjkFont();
+    const fontPaths = cjkFont
+        ? ['src/ui/sandbox/fonts/NewCMMath-Regular.otf', cjkFont]
+        : undefined;
+
+    const host = new RealWasmSandboxHost(repoRoot());
+    const compiler = new TypstSandboxCompiler({ host, ...(fontPaths ? { fontPaths } : {}) });
+
+    // in-memory writer：delivery stage 的落盘断言目标（useZip: false 只走 writeFile）。
+    const files: Array<{ name: string; bytes: Uint8Array }> = [];
+    const writer = {
+        async writeFile(relativePath: string, content: any) {
+            const bytes =
+                content instanceof Uint8Array ? content : new TextEncoder().encode(String(content));
+            files.push({ name: relativePath, bytes });
+            return relativePath;
+        },
+    };
+
+    const exported: Array<{ id: string; record: any }> = [];
+    const errorLogs: string[] = [];
+    const exporter = new PdfExporter(compiler); // 真编译器，非 stub：stub 门禁不触发
+
+    const heapStart = process.memoryUsage().heapUsed;
+    let heapPeak = heapStart;
+    const sampleHeap = () => {
+        const h = process.memoryUsage().heapUsed;
+        if (h > heapPeak) heapPeak = h;
+    };
+
+    let crash: unknown = null;
+    let result: any = null;
+    const t0 = Date.now();
+    try {
+        result = await exporter.run(
+            {
+                selected: conversations.map((c) => ({ id: c.id, title: c.title })),
+                conversations,
+                useZip: false,
+                writer,
+            },
+            {
+                onItemExported: (id: string, record: any) => {
+                    exported.push({ id, record });
+                    sampleHeap();
+                },
+                onLog: (msg: string, level?: string) => {
+                    if (level === 'error') errorLogs.push(msg);
+                },
+            },
+        );
+    } catch (e) {
+        crash = e;
+    } finally {
+        // compiler 是外部注入的（PdfExporter 不拥有），这里负责 dispose。
+        compiler.dispose();
+    }
+    const elapsedMs = Date.now() - t0;
+    const heapEnd = process.memoryUsage().heapUsed;
+    sampleHeap();
+
+    const mib = (b: number) => (b / 1048576).toFixed(1);
+    console.log(
+        `  Item4 stress: mode=${RELEASE_STRESS ? 'FULL' : 'smoke'}, N=${N}, ` +
+        `messages=${totalMessages}, cjkFont=${cjkFont ? 'injected' : 'absent (known degradation)'}, ` +
+        `succeeded=${result?.succeeded ?? 'CRASH'}, failed=${result?.failed?.length ?? 'CRASH'}, ` +
+        `elapsed=${(elapsedMs / 1000).toFixed(1)}s, ` +
+        `heap start=${mib(heapStart)}MiB peak=${mib(heapPeak)}MiB end=${mib(heapEnd)}MiB` +
+        (errorLogs.length ? `, errorLogs=${errorLogs.length}` : ''),
+    );
+
+    // Gate a) 0 crash
+    assert.strictEqual(
+        crash, null,
+        `exporter.run threw: ${(crash as Error)?.stack ?? String(crash)}`,
+    );
+    assert.ok(result, 'result must be present when nothing crashed');
+    assert.strictEqual(result.aborted, false, 'run must not report aborted');
+    assert.strictEqual(result.total, N, 'result.total must equal the input conversation count');
+
+    // Gate d) all conversations accounted for —— 先算账，再谈别的
+    const inputIds = new Set(conversations.map((c) => c.id));
+    const exportedIds = exported.map((e) => e.id);
+    const failedIds = result.failed.map((f: any) => f.id);
+    assert.strictEqual(
+        result.succeeded + result.failed.length, N,
+        'succeeded + failed must equal N',
+    );
+    assert.strictEqual(
+        new Set([...exportedIds, ...failedIds]).size, N,
+        'every input id must appear exactly once across exported + failed',
+    );
+    for (const id of inputIds) {
+        assert.ok(
+            exportedIds.includes(id) || failedIds.includes(id),
+            `conversation ${id} is unaccounted for`,
+        );
+    }
+
+    // Gate c) 0 false success：failed 必须为空；每条成功记录 1:1 对应真实落盘字节
+    assert.deepStrictEqual(
+        result.failed.map((f: any) => ({ id: f.id, error: f.error })),
+        [],
+        `stress gate allows 0 failures; got ${result.failed.length}`,
+    );
+    assert.strictEqual(exported.length, result.succeeded, 'onItemExported count must match succeeded');
+    assert.strictEqual(
+        files.length, exported.length,
+        'written files must match exported records 1:1 (no orphan file, no missing file)',
+    );
+    const filesByName = new Map(files.map((f) => [f.name, f.bytes]));
+    for (const { id, record } of exported) {
+        assert.strictEqual(record.status, 'ok', `record ${id} must be ok`);
+        const bytes = filesByName.get(record.fileName);
+        if (bytes === undefined) {
+            // assert.ok 在此仓库的 @types/node 下不收窄类型，用 throw 保证类型安全；
+            // node:test 中 throw 即测试失败，信息同样明确。
+            throw new Error(
+                `record ${id} points at ${record.fileName} which was never written (false success)`,
+            );
+        }
+        assert.ok(bytes.length > 0, `record ${id}: written PDF is empty (false success)`);
+        assert.strictEqual(
+            bytes.length, record.bytesWritten,
+            `record ${id}: bytesWritten mismatch (false success)`,
+        );
+        assert.strictEqual(
+            Buffer.from(bytes.slice(0, 5)).toString('latin1'), '%PDF-',
+            `record ${id}: missing %PDF- magic (false success)`,
+        );
+    }
+
+    // Gate b) 0 blank PDF：每份 PDF 至少 1 页且可提取文本非空
+    const blank: string[] = [];
+    for (const f of files) {
+        const ex = extractPdfText(f.bytes);
+        if (!(ex.pageCount >= 1 && ex.text.trim().length > 0)) blank.push(f.name);
+    }
+    assert.deepStrictEqual(blank, [], `blank PDFs detected: ${blank.slice(0, 5).join(', ')}`);
+
+    // Gate e) < 10 分钟（全量口径；冒烟天然远小于此）
+    assert.ok(
+        elapsedMs < 600_000,
+        `full-pipeline stress took ${(elapsedMs / 1000).toFixed(1)}s, over the 10-minute budget`,
+    );
 });
