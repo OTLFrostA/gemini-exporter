@@ -70,9 +70,11 @@ export async function runExport(
 ): Promise<any> {
     setRunning(true);
     try {
-        // PDF goes through its own orchestrator (normalize -> IPdfCompiler ->
-        // Writer) while reusing the same progress/cancel UI wiring. The stub
-        // compiler ships in P3; P1b injects the real Typst compiler here.
+        // PDF goes through its own orchestrator (normalize -> D7 pipeline ->
+        // Typst sandbox compile -> Writer) while reusing the same
+        // progress/cancel UI wiring. D7 M6: the default compiler is the real
+        // Typst sandbox compiler; StubPdfCompiler is test-only behind an
+        // explicit allowStub opt-in (the M6 stub gate throws otherwise).
         activeEngine = new ExportEngine();
         if (options && options.format === 'pdf') {
             activeEngine = new PdfExporter();

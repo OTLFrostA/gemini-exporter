@@ -25,6 +25,13 @@ import type {
     TypstRenderPayload,
 } from '../canonical/rendering.js';
 
+/**
+ * Stable compiler name of the test stub. The D7 M6 stub gate in
+ * pdfExporter.ts matches on this name (not instanceof) so a stub can never
+ * silently reach the production export path, even across bundle boundaries.
+ */
+export const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
+
 export interface PdfCompileResult {
     pdfBytes: Uint8Array;
     diagnostics: RenderDiagnostic[];
@@ -97,13 +104,14 @@ export interface StubPdfCompilerOptions {
 /**
  * StubPdfCompiler — deterministic stand-in for the real Typst compiler.
  *
- * Exists ONLY so P3 (UI + batch orchestration + Writer) can be built,
- * tested and merged in parallel with P1b/P2. P1b replaces this file's
- * export with the real implementation behind the same IPdfCompiler
- * interface. Not for production use: output carries no real content.
+ * Exists ONLY so tests and parallel UI work can run the export plumbing
+ * without the WASM sandbox. Test-only: D7 M6 gates the production export
+ * path against this class (see the stub gate in pdfExporter.ts) — a stub
+ * reaching production without an explicit `allowStub` opt-in is a hard
+ * error, never a silent placeholder PDF.
  */
 export class StubPdfCompiler implements IPdfCompiler {
-    readonly name = 'stub-pdf-compiler';
+    readonly name = STUB_PDF_COMPILER_NAME;
 
     constructor(private readonly options: StubPdfCompilerOptions = {}) {}
 
