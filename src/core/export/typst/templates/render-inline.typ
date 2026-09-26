@@ -15,13 +15,18 @@
   }
 
   // asset is an adapter-controlled virtual path, never user text.
-  let inline-image(path, alt: none) = image(
-    path,
-    height: 4.5em,
-    width: 100%,
-    fit: "contain",
-    alt: alt,
-  )
+  // Inline images sit on the text baseline: fixed height budget (4.5em ≈ 3.3
+  // body line boxes), width following the natural aspect ratio, clamped to the
+  // enclosing column width so a wide image scales down instead of overflowing
+  // (never forced to full column width). fit: "contain" preserves the aspect
+  // ratio; nothing here is keyed to any particular fixture image. alt is a
+  // data parameter (never interpolated into source), so no markup escaping
+  // applies.
+  let inline-image(path, alt: none) = layout(size => {
+    let natural = measure(image(path, height: 4.5em, alt: alt))
+    let w = calc.min(natural.width, size.width)
+    image(path, width: w, fit: "contain", alt: alt)
+  })
 
   let kind = node.type
   if kind == "text" {
