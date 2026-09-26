@@ -275,6 +275,13 @@ function initPopupEvents(): void {
                 __releaseExportGuard();
                 return;
             }
+            if (format === 'pdf') {
+                // PDF needs the async normalize -> IPdfCompiler pipeline, which
+                // only runs from the Options page batch flow (exportController).
+                log(i18n.t('popupPdfUseOptions'));
+                __releaseExportGuard();
+                return;
+            }
             sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000).then(async (res: any) => {
                 try {
                     if (!res || !res.success) {

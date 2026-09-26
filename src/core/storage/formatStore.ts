@@ -30,7 +30,7 @@ export interface FormatStoreModule {
 
 import { ALLOWED_FORMATS as CONST_ALLOWED_FORMATS, DEFAULT_FORMAT as CONST_DEFAULT_FORMAT, STORAGE_KEYS } from "../utils/constants.js";
 
-export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'html', 'json_openai', 'json', 'json_raw'];
+export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'html', 'json_openai', 'json', 'json_raw', 'pdf'];
 export const DEFAULT_FORMAT: string = CONST_DEFAULT_FORMAT || 'markdown';
 const ALLOWED = ALLOWED_FORMATS;
 const DEFAULT = DEFAULT_FORMAT;

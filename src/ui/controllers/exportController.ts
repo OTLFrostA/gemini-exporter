@@ -1,5 +1,6 @@
 import type { ExportControllerContract } from '../../types/ui.js';
 import ExportEngine from '../../core/engine/exportEngine.js';
+import { PdfExporter } from "../../core/export/pdf/pdfExporter.js";
 import { ProgressView } from '../views/progressView.js';
 import { $, setWorkbenchControlsDisabled } from '../uiCommon.js';
 import { normId } from '../../core/utils/pathUtils.js';
@@ -69,7 +70,13 @@ export async function runExport(
 ): Promise<any> {
     setRunning(true);
     try {
+        // PDF goes through its own orchestrator (normalize -> IPdfCompiler ->
+        // Writer) while reusing the same progress/cancel UI wiring. The stub
+        // compiler ships in P3; P1b injects the real Typst compiler here.
         activeEngine = new ExportEngine();
+        if (options && options.format === 'pdf') {
+            activeEngine = new PdfExporter();
+        }
         const result = await activeEngine.run(options, callbacks);
         return result;
     } finally {
