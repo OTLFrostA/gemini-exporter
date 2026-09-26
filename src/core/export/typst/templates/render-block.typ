@@ -33,9 +33,19 @@
   }
 }
 
-#let render-list(node, scope) = {
-  let items = node.items.map(item => [#render-inlines(item.children)])
-  let body = if node.ordered { [#enum(..items)] } else { [#list(..items)] }
+#let render-list(node, scope, recurse) = {
+  let items = node.items.map(item => {
+    let body = {
+      for (index, sub) in item.blocks.enumerate() {
+        if index > 0 { v(block-gap(item.blocks.at(index - 1), sub)) }
+        recurse(sub, scope: scope)
+      }
+    }
+    [#body]
+  })
+  let body = if node.ordered {
+    if "start" in node { [#enum(start: node.start, ..items)] } else { [#enum(..items)] }
+  } else { [#list(..items)] }
   in-flow(body, scope)
 }
 
@@ -75,11 +85,11 @@
 )
 #let render-file(node, scope) = file-attachment(node.name, node.kind, node.size)
 
-#let render-quote(node, scope) = {
+#let render-quote(node, scope, recurse) = {
   let body = {
     for (index, sub) in node.blocks.enumerate() {
       if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
-      render-block(sub, scope: scope)
+      recurse(sub, scope: scope)
     }
   }
   if scope == "user" {
@@ -89,12 +99,12 @@
   }
 }
 
-#let render-note(node, scope) = {
+#let render-note(node, scope, recurse) = {
   if "blocks" in node {
     let body = {
       for (index, sub) in node.blocks.enumerate() {
         if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
-        render-block(sub, scope: scope)
+        recurse(sub, scope: scope)
       }
     }
     quiet-note(body)
@@ -103,24 +113,37 @@
   }
 }
 
-#let render-unknown(node, scope) = unknown-surface(
-  if "sourceType" in node { "Unsupported · " + node.sourceType } else { "Unsupported content" },
-  if "fallback" in node { node.fallback } else { [Content preserved in archive but unavailable in this renderer.] },
-)
+#let render-unknown(node, scope, recurse) = {
+  let label = if "sourceType" in node { "Unsupported · " + node.sourceType } else { "Unsupported content" }
+  if "blocks" in node {
+    let body = {
+      for (index, sub) in node.blocks.enumerate() {
+        if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
+        recurse(sub, scope: scope)
+      }
+    }
+    unknown-surface(label, body)
+  } else {
+    unknown-surface(
+      label,
+      if "fallback" in node { node.fallback } else { [Content preserved in archive but unavailable in this renderer.] },
+    )
+  }
+}
 
 #let render-block(node, scope: "assistant", sticky: false) = {
   let kind = node.type
   if kind == "paragraph" { render-paragraph(node, scope, sticky: sticky) }
   else if kind == "heading" { render-heading(node, scope) }
-  else if kind == "list" { render-list(node, scope) }
+  else if kind == "list" { render-list(node, scope, render-block) }
   else if kind == "code" { render-code(node, scope) }
   else if kind == "math" { render-math(node, scope) }
   else if kind == "table" { render-table(node, scope) }
   else if kind == "image" { render-image(node, scope) }
   else if kind == "file" { render-file(node, scope) }
-  else if kind == "quote" { render-quote(node, scope) }
-  else if kind == "note" { render-note(node, scope) }
-  else { render-unknown(node, scope) }
+  else if kind == "quote" { render-quote(node, scope, render-block) }
+  else if kind == "note" { render-note(node, scope, render-block) }
+  else { render-unknown(node, scope, render-block) }
 }
 
 #let should-keep-with-next(blocks, index) = {

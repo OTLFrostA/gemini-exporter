@@ -220,7 +220,9 @@ test('unknown blocks are never dropped', async () => {
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'unknown');
     assert.strictEqual(node.sourceType, 'weird-widget');
-    assert.ok(node.fallback.includes('kept'));
+    assert.ok(!('fallback' in node), 'fallbackBlocks present: recursive blocks, not a flattened string');
+    assert.strictEqual(node.blocks[0].type, 'paragraph');
+    assert.strictEqual(node.blocks[0].children[0].text, 'kept');
 });
 
 test('heading level clamps with diagnostic', async () => {
