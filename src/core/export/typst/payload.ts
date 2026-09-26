@@ -13,6 +13,7 @@ import type {
 import { projectConversation } from '../canonical/projection.js';
 import { extractBlockText, extractInlineText, resolveUnknownBlockFallback } from '../canonical/unknownFallback.js';
 import { getRendererStrings, type RendererStrings } from '../canonical/rendererStrings.js';
+import { citationDisplayLabel } from '../canonical/citations.js';
 import type { InlineNode } from '../canonical/inline.js';
 
 export type TypstInlineNode =
@@ -293,9 +294,10 @@ function renderBlock(
         case 'toolCall':
         case 'toolResult': {
             const kids: TypstBlockNode[] = [];
-            const label = block.type === 'toolCall'
+            const failedSuffix = block.status === 'failed' ? ` · ${options.strings.toolFailed}` : '';
+            const label = (block.type === 'toolCall'
                 ? `${options.strings.toolCall}: ${block.toolName}`
-                : `${options.strings.toolResult}: ${block.toolName ?? block.callId}`;
+                : `${options.strings.toolResult}: ${block.toolName ?? block.callId}`) + failedSuffix;
             kids.push({ type: 'paragraph', children: [{ type: 'text', text: label }] });
             (block.displayBlocks ?? []).forEach((child, index) => {
                 const rendered = sub(child, index, block.type);
@@ -399,7 +401,7 @@ export function toTypstPayload(
     const renderOptions: RenderOptions = { ...options, strings };
     const assets = new Map(bundle.assets.map(asset => [asset.id, asset]));
     const citations = new Map(bundle.citations.map((citation, index) => [citation.id, {
-        label: `[${index + 1}]`,
+        label: citationDisplayLabel(citation, index + 1),
         url: citation.url,
     }]));
     const messages = (options.projectedMessages ?? projectConversation(bundle, { leafMessageId: options.leafMessageId }).messages)

@@ -4,6 +4,7 @@ export interface RendererStrings {
     thinkingProcess: string;
     toolCall: string;
     toolResult: string;
+    toolFailed: string;
     sources: string;
     sizeUnknown: string;
     dateUnknown: string;
@@ -17,6 +18,7 @@ const EN: RendererStrings = {
     thinkingProcess: 'Thinking Process',
     toolCall: 'Tool call',
     toolResult: 'Tool result',
+    toolFailed: 'Failed',
     sources: 'Sources',
     sizeUnknown: 'size unknown',
     dateUnknown: 'date unknown',
@@ -30,6 +32,7 @@ const ZH: RendererStrings = {
     thinkingProcess: '思考过程',
     toolCall: '工具调用',
     toolResult: '工具结果',
+    toolFailed: '失败',
     sources: '来源',
     sizeUnknown: '大小未知',
     dateUnknown: '日期未知',

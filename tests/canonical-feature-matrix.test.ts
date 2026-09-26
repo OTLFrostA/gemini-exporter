@@ -163,3 +163,82 @@ test('matrix: thematic break is a native divider in HTML and Typst', () => {
     assert.strictEqual(node.type, 'thematicBreak');
     assert.ok(!diagnostics.some((d: any) => /thematic/i.test(d.code)));
 });
+
+const toolCall = (status?: string) => ({ type: 'toolCall', id: 't1', callId: 'call-1', toolName: 'search', ...(status ? { status } : {}) });
+const toolResult = (status?: string) => ({ type: 'toolResult', id: 't2', callId: 'call-1', toolName: 'search', ...(status ? { status } : {}) });
+
+function typstLabelText(blocks: any[], extra: any = {}, opts: any = {}) {
+    const { payload } = toTypstPayload(bundle(blocks, extra), { ...opts, assetPath: (a: any) => `assets/${a.id}.png` });
+    const note: any = payload.messages[0].blocks[0];
+    return (note.blocks[0].children[0] as any).text as string;
+}
+
+test('matrix: failed tool call shows failed badge in HTML and Typst', () => {
+    const zh = htmlOf([toolCall('failed')]);
+    assert.ok(zh.includes('<span class="gem-tool-failed">'), 'html has failed badge element');
+    assert.ok(zh.includes('失败'), 'html badge uses zh renderer string');
+    const en = htmlOf([toolResult('failed')], {}, { lang: 'en' });
+    assert.ok(en.includes('<span class="gem-tool-failed">'), 'html has failed badge element (en)');
+    assert.ok(en.includes('Failed'), 'html badge uses en renderer string');
+    assert.ok(typstLabelText([toolCall('failed')]).includes('Failed'), 'typst label carries en failed marker');
+    assert.ok(typstLabelText([toolResult('failed')], {}, { locale: 'zh' }).includes('失败'), 'typst label carries zh failed marker');
+});
+
+test('matrix: completed and pending tool status stay unemphasized', () => {
+    assert.ok(!htmlOf([toolResult('completed')]).includes('<span class="gem-tool-failed">'), 'html: completed has no badge');
+    assert.ok(!htmlOf([toolCall('pending')]).includes('<span class="gem-tool-failed">'), 'html: pending stays light');
+    assert.ok(!htmlOf([toolCall()]).includes('<span class="gem-tool-failed">'), 'html: absent status has no badge');
+    assert.ok(!typstLabelText([toolResult('completed')]).includes('Failed'), 'typst: completed has no marker');
+    assert.ok(!typstLabelText([toolCall('pending')]).includes('Failed'), 'typst: pending stays light');
+});
+
+const citeRef = (citationId: string, label?: string) => ({
+    type: 'paragraph',
+    children: [{ type: 'citationRef', citationId, ...(label ? { label } : {}) }],
+});
+
+function typstRefLabel(blocks: any[], extra: any) {
+    const { payload } = toTypstPayload(bundle(blocks, extra), { assetPath: (a: any) => `assets/${a.id}.png` });
+    const para: any = payload.messages[0].blocks[0];
+    const link = para.children[0];
+    return (link.children ? link.children[0].text : link.text) as string;
+}
+
+test('matrix: citation label priority is identical in HTML and Typst', () => {
+    const cases: Array<[any, string]> = [
+        [{ id: 'c1', title: 'Title', publisher: 'Pub' }, 'Title'],
+        [{ id: 'c1', publisher: 'Pub' }, 'Pub'],
+        [{ id: 'c1' }, '[1]'],
+    ];
+    for (const [citation, expected] of cases) {
+        const extra = { citations: [citation] };
+        assert.ok(htmlOf([citeRef('c1')], extra).includes(expected), `html label priority -> ${expected}`);
+        assert.strictEqual(typstRefLabel([citeRef('c1')], extra), expected, `typst label priority -> ${expected}`);
+    }
+    const extra = { citations: [{ id: 'c1', title: 'Title' }] };
+    assert.ok(htmlOf([citeRef('c1', 'See here')], extra).includes('See here'), 'html explicit inline label wins');
+    assert.strictEqual(typstRefLabel([citeRef('c1', 'See here')], extra), 'See here', 'typst explicit inline label wins');
+});
+
+test('matrix: citation group chips follow the unified label rule', () => {
+    const blocks = [{ type: 'citationGroup', citationIds: ['c1', 'c2'] }];
+    const extra = { citations: [{ id: 'c1', publisher: 'PubOne' }, { id: 'c2' }] };
+    const html = htmlOf(blocks, extra);
+    assert.ok(html.includes('PubOne'), 'html chip uses publisher');
+    assert.ok(html.includes('[2]'), 'html chip falls back to [n]');
+    const { payload } = toTypstPayload(bundle(blocks, extra), { assetPath: (a: any) => `assets/${a.id}.png` });
+    const text = JSON.stringify(payload.messages[0].blocks[0]);
+    assert.ok(text.includes('PubOne'), 'typst group uses publisher');
+    assert.ok(text.includes('[2]'), 'typst group falls back to [n]');
+});
+
+test('matrix: citation snippet and assetId are metadata-only', () => {
+    const extra = { citations: [{ id: 'c1', title: 'T', snippet: 'secret-snippet-xyz', assetId: 'asset-9' }] };
+    const html = htmlOf([citeRef('c1')], extra);
+    assert.ok(!html.includes('secret-snippet-xyz'), 'html does not render snippet');
+    assert.ok(!html.includes('asset-9'), 'html does not render citation assetId');
+    const { payload } = toTypstPayload(bundle([citeRef('c1')], extra), { assetPath: (a: any) => `assets/${a.id}.png` });
+    const text = JSON.stringify(payload.messages[0].blocks[0]);
+    assert.ok(!text.includes('secret-snippet-xyz'), 'typst does not render snippet');
+    assert.ok(!text.includes('asset-9'), 'typst does not render citation assetId');
+});
