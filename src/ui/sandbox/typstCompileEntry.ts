@@ -1,35 +1,7 @@
-/**
- * src/ui/sandbox/typstCompileEntry.ts
- *
- * Sandbox-side entry for the Typst compile container.
- * Bundled by build.js (esbuild, ESM) to dist/ui/sandbox/typst-compile.js and
- * loaded by src/ui/sandbox/typst-compile.html inside the MV3 sandbox page.
- *
- * Runs the @myriaddreamin/typst.ts WASM compiler (pinned 0.7.0, recipe
- * verified by the P0 probe):
- * - init is fully offline: createOfflineInitOptions() disables typst.ts's
- *   default jsdelivr font pull (beforeBuild assets:false). The WASM module
- *   bytes arrive via postMessage from the extension host.
- * - the v8 Typst templates are embedded as text at bundle time; the host
- *   only sends payload.json content plus binary assets and fonts.
- * - fonts are installed exactly once (re-running the font builder with an
- *   empty set on later compiles wedges the WASM module -- P0 finding).
- * - every inbound message passes the protocol origin/source gate; anything
- *   failing validation is ignored.
- * - compile jobs are cancellable between stages; a cancelled or aborted job
- *   reports an AbortError and never resolves with a PDF.
- *
- * User text never enters Typst source here: it travels as JSON data only.
- */
-
 import { createTypstCompiler, createTypstFontBuilder } from '@myriaddreamin/typst.ts';
 import type { TypstCompiler, TypstFontBuilder } from '@myriaddreamin/typst.ts';
 
-/**
- * Explicit PDF format for compiler.compile(). Equals
- * CompileFormatEnum.pdf (not exported from the package index); the P0
- * recipe pins the numeric value 1.
- */
+// Numeric value of CompileFormatEnum.pdf (not re-exported from @myriaddreamin/typst.ts index).
 const PDF_FORMAT = 1;
 
 import { createOfflineInitOptions } from './offlineInit.js';
@@ -42,7 +14,6 @@ import {
     sandboxExpectedHostOrigin,
 } from '../../core/export/typst/sandboxProtocol.js';
 
-// v8 templates, embedded as text by the esbuild '.typ' loader.
 import themeTyp from '../../core/export/typst/templates/theme.typ';
 import documentTyp from '../../core/export/typst/templates/document.typ';
 import componentsTyp from '../../core/export/typst/templates/components.typ';
@@ -58,15 +29,9 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/render-block.typ', renderBlockTyp],
     ['/render-inline.typ', renderInlineTyp],
     ['/render-message.typ', renderMessageTyp],
-    // Referenced by components.typ as theme: "quiet-light.tmTheme",
-    // resolved relative to /components.typ.
     ['/quiet-light.tmTheme', syntaxTheme],
 ];
 
-/**
- * Generated per compile. The templates consume the payload via json();
- * no user text is ever interpolated into Typst source.
- */
 const MAIN_TYP = '#import "document.typ": render-document\n#let payload = json("/payload.json")\n#render-document(payload)\n';
 
 interface CompileJob {
@@ -77,15 +42,8 @@ let compiler: TypstCompiler | null = null;
 let fontBuilder: TypstFontBuilder | null = null;
 const jobs = new Map<string, CompileJob>();
 
-/**
- * Sandbox-side one-time font state. The host decides whether to *send*
- * fonts (it tracks the FONTS_INSTALLED ACK), but the sandbox is the
- * authority on *running the builder*: if a compile arrives with fonts
- * after a successful install -- e.g. the host dispatched it before the
- * ACK arrived, or across an abort race -- the builder must not run again
- * (re-running it wedges the WASM module, P0). Set only after build()
- * succeeds; reset on init, which creates a fresh builder.
- */
+// Guard against running the WASM font builder more than once (re-running build() wedges the
+// WASM module), even if the host resends fonts before seeing FONTS_INSTALLED.
 let sandboxFontsInstalled = false;
 
 function postToHost(message: Record<string, unknown>, transfer?: Transferable[]): void {
@@ -108,7 +66,6 @@ function throwIfCancelled(job: CompileJob, jobId: string): void {
     }
 }
 
-/** Minimal sfnt table-directory scan for a 'MATH' table tag. */
 function fontBytesHaveMathTable(bytes: Uint8Array): boolean {
     if (bytes.length < 12) return false;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -157,7 +114,6 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             throw new Error('compile message must carry files/binaries/fonts arrays');
         }
 
-        // 1. Template + generated sources.
         for (const [path, text] of TEMPLATE_FILES) {
             throwIfCancelled(job, jobId);
             activeCompiler.addSource(path, text);
@@ -173,7 +129,6 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
         }
         reply(jobId, { type: SANDBOX_TO_HOST.PROGRESS, stage: 'sources', current: 1, total: 3 });
 
-        // 2. Binary shadows (images). Cleaned up in finally via resetShadow().
         for (const binary of binaries) {
             throwIfCancelled(job, jobId);
             const entry = binary as { path?: unknown; buf?: unknown };
@@ -184,11 +139,6 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             mappedPaths.push(entry.path);
         }
 
-        // 3. Fonts, installed exactly once. Re-running the font builder
-        // wedges the WASM module (P0) -- even if the host re-sends fonts
-        // (abort race, or a compile dispatched before the ACK arrived), so
-        // the sandbox keeps its own one-time state, independent of the
-        // host's. Only a successful build() counts as installed.
         const fontsMissingMath: number[] = [];
         let fontMs = 0;
         if (fonts.length > 0 && !sandboxFontsInstalled) {
@@ -209,14 +159,8 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             });
             sandboxFontsInstalled = true;
             fontMs = Math.round(performance.now() - tF);
-            // Fonts are now installed exactly once. ACK immediately so the
-            // host stops sending fonts even if the document compile below
-            // fails; a font resend would re-run the font builder and wedge
-            // the WASM module (P0 finding).
             reply(jobId, { type: SANDBOX_TO_HOST.FONTS_INSTALLED });
         } else if (fonts.length > 0) {
-            // Fonts re-sent after a successful install: skip the builder,
-            // still ACK so the host converges on installed.
             reply(jobId, { type: SANDBOX_TO_HOST.FONTS_INSTALLED });
         }
         if (fonts.length > 0) {
@@ -230,7 +174,6 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             });
         }
 
-        // 4. Compile. format is explicitly 1 == PDF (see PDF_FORMAT above).
         throwIfCancelled(job, jobId);
         const tC = performance.now();
         const { result, diagnostics } = await activeCompiler.compile({
@@ -268,11 +211,10 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
         replyError(jobId, error);
     } finally {
         jobs.delete(jobId);
-        // Never leak one job's binary shadows into the next compile.
         try {
             for (const path of mappedPaths) activeCompiler.unmapShadow(path);
         } catch {
-            // Best effort; a failed unmap must not mask the real result.
+            // Best-effort cleanup.
         }
     }
 }
@@ -285,7 +227,6 @@ window.addEventListener('message', (event: MessageEvent) => {
     }
     const { message } = parsed;
     const jobId = message.jobId;
-    // TS: READY never arrives here (host never sends it), so jobId is set.
     if (jobId === null) return;
     void (async () => {
         try {
@@ -303,5 +244,4 @@ window.addEventListener('message', (event: MessageEvent) => {
     })();
 });
 
-// Signal readiness to the host frame.
 postToHost({ type: SANDBOX_TO_HOST.READY });

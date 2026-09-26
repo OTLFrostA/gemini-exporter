@@ -1,8 +1,3 @@
-/**
- * src/core/export/assets/index.ts
- * Barrel for the inline-asset byte pipeline (decode -> hash -> store -> resolve).
- */
-
 export { createInlineByteStore } from './byteStore.js';
 export type { InlineByteStore } from './byteStore.js';
 export { sha256Hex } from './sha256.js';

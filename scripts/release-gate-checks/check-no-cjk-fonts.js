@@ -1,29 +1,8 @@
 #!/usr/bin/env node
 /**
- * scripts/release-gate-checks/check-no-cjk-fonts.js
- * §16 P0 release-blocker gate: CJK 字体不得随包。
- *
- * P0 formal experiment结论 (包体增量对照 30MiB):
- *  - typst WASM + glue + NewCMMath ≈ 11.1MiB, 通过;
- *  - 关键: CJK 不随包 (实验捆绑的 16.4MB NotoSansCJK 仅为实验手段)。
- *    产品策略 = Local Font Access 本地字体优先 + 最小兜底; 若回退到
- *    "全量 CJK 随包", 单字体 16.4MB 直接吃掉一半以上预算。
- *
- * 本门禁在 `node build.js` 之后运行, 扫描商店包实际会带上的文件
- * (build.js --pack 的 zip 输入: dist/ + src/ 非 .ts + lib/ + icons/ + _locales/):
- *  1. 硬失败: 文件名命中 CJK 特征的字体文件 (改名也躲不过第 2 条);
- *  2. 硬失败: 字体文件总大小 >= 5MiB (单份全量 CJK 16.4MB; 允许的
- *     NewCMMath-Regular.otf 仅 1.3MB, 5MiB 留足余量);
- *  3. 硬失败: dist/ JS 里出现 data:font/ 内嵌字体 (字体必须以文件形式
- *     存在, 才能被 1/2 两条检查看见; base64 内嵌 CJK 会绕过文件扫描)。
- *
- * 实测基线 (2026-09-26): 当前 build 产物 dist/ 仅 5 个 JS bundle (828K),
- * 打包范围内无任何字体文件, 本门禁以 PASS 基线落地, 为 Phase D
- * (sandbox + typst WASM + 字体文件落地) 做回归防线。
- *
- * 用法: node scripts/release-gate-checks/check-no-cjk-fonts.js
- *       npm run test:release-gates
- * 退出码: 0 通过, 1 失败 (CI 红)。
+ * Release gate: ensures full CJK fonts (~16 MB each) are never bundled into the
+ * extension package (either as font files or base64 data:font/ URIs); CJK rendering
+ * relies on Local Font Access at runtime.
  */
 'use strict';
 
@@ -31,17 +10,15 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-// build.js --pack 的 zip 输入范围 (精确对应, 见 build.js packageExtension)
 const SCAN_ROOTS = ['dist', 'src', 'lib', 'icons', '_locales'];
 
 const FONT_EXTS = new Set(['.ttf', '.otf', '.ttc', '.otc', '.woff', '.woff2', '.eot']);
 
-/** 文件名命中任一模式即判为 CJK 字体 (大小写不敏感)。 */
 const CJK_NAME_PATTERNS = [
     /cjk/i,
     /hansans/i, /sourcehan/i,
     /noto.*(sans|serif).*(sc|tc|jp|kr|hk)/i,
-    /wqy/i, // 文泉驿
+    /wqy/i,
     /uming/i, /ukai/i, /zenhei/i,
     /hanazono/i,
     /pingfang/i, /songti/i, /kaiti/i, /heiti/i, /fangsong/i, /lishu/i,
@@ -52,18 +29,13 @@ const CJK_NAME_PATTERNS = [
     /meiryo/i, /msgothic/i, /msmincho/i, /yumin/i, /yugothic/i,
     /malgun/i, /gulim/i, /batang/i, /dotum/i,
     /hanzipen/i,
-    /sarasa/i, /lxgw/i, // 更纱黑体 / 霞鹜文楷
+    /sarasa/i, /lxgw/i,
     /misans/i,
-    /arphic/i, /cwtex/i, // 文鼎 / cwTeX
+    /arphic/i, /cwtex/i,
     /dfkai/i, /mingliu/i, /pmingliu/i,
     /adobe(fan|song|hei|kai|fangsong)/i,
 ];
 
-/**
- * 字体总大小预算: 5MiB。
- *  - 单份全量 CJK (NotoSansCJKsc-Regular) = 16.4MB >> 5MiB, 必被拦;
- *  - 允许的最小数学兜底 (NewCMMath-Regular.otf) = 1.3MB < 5MiB, 放行。
- */
 const TOTAL_FONT_BUDGET_BYTES = 5 * 1024 * 1024;
 
 function walkFonts(dir, out) {
@@ -71,7 +43,7 @@ function walkFonts(dir, out) {
     try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
-        return; // 目录不存在 (如 lib/) 直接跳过
+        return;
     }
     for (const e of entries) {
         const full = path.join(dir, e.name);
@@ -111,7 +83,6 @@ function main() {
         }
     }
 
-    // 检查 3: dist/ JS 里内嵌的 data:font/ (base64 字体绕过文件扫描)
     const embeddedFontHits = [];
     const distDir = path.join(ROOT, 'dist');
     if (fs.existsSync(distDir)) {

@@ -1,21 +1,9 @@
-/**
- * src/core/export/canonical/unknownFallback.ts
- * Readable fallbacks for unknown content.
- *
- * Implements integration doc section 3, item 3 ("unknown content"): canonical
- * keeps the original evidence (rawRef/payload); the render view must always
- * have visible fallback text or an explicit diagnostic. Unknown blocks are
- * never swallowed as blank gaps.
- */
-
 import type { BlockNode, UnknownBlock } from './blocks.js';
 import type { Diagnostic } from './diagnostics.js';
 import type { InlineNode, UnknownInline } from './inline.js';
 
 export interface UnknownRenderFallback {
-    /** Always non-empty, human-readable text for the render view. */
     text: string;
-    /** Explicit diagnostic describing what was preserved and what degraded. */
     diagnostic: Diagnostic;
 }
 
@@ -40,10 +28,6 @@ export function unknownInlineFallbackText(inline: UnknownInline): string {
     return `[Unknown inline content: ${inline.sourceType}]`;
 }
 
-/**
- * Convert an UnknownBlock into renderable fallback blocks plus a diagnostic.
- * Guarantees: the returned blocks are never empty.
- */
 export function unknownBlockToFallbackBlocks(block: UnknownBlock): { blocks: BlockNode[]; diagnostic: Diagnostic } {
     const text = unknownBlockFallbackText(block);
     const fallbackBlocks: BlockNode[] = block.fallbackBlocks && block.fallbackBlocks.length > 0
@@ -60,10 +44,6 @@ export function unknownBlockToFallbackBlocks(block: UnknownBlock): { blocks: Blo
     return { blocks: fallbackBlocks, diagnostic };
 }
 
-/**
- * Best-effort plain text extraction used to surface fallback content.
- * Never throws; returns '' when nothing readable exists.
- */
 export function extractBlockText(block: BlockNode): string {
     try {
         switch (block.type) {

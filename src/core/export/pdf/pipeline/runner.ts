@@ -1,11 +1,3 @@
-/**
- * src/core/export/pdf/pipeline/runner.ts
- *
- * D7 M1: cross-cutting stage execution. Runs stages sequentially, accumulates
- * diagnostics in stage order, wraps failures as StageError, and lets aborts
- * propagate untouched (an abort is never converted into a quiet failure).
- */
-
 import type { RenderDiagnostic } from '../../canonical/rendering.js';
 import {
     StageError,
@@ -21,12 +13,6 @@ function isAbortError(e: unknown): boolean {
     );
 }
 
-/**
- * Run one stage with uniform error semantics:
- * - AbortError propagates as-is (caller maps it to 'aborted', not 'failed').
- * - StageError passes through untouched.
- * - Anything else is wrapped in a StageError (retryable, with the stage name).
- */
 export async function runStage<I, O>(
     stage: PipelineStageName,
     fn: StageFn<I, O>,

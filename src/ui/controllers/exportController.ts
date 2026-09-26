@@ -70,11 +70,6 @@ export async function runExport(
 ): Promise<any> {
     setRunning(true);
     try {
-        // PDF goes through its own orchestrator (normalize -> D7 pipeline ->
-        // Typst sandbox compile -> Writer) while reusing the same
-        // progress/cancel UI wiring. D7 M6: the default compiler is the real
-        // Typst sandbox compiler; StubPdfCompiler is test-only behind an
-        // explicit allowStub opt-in (the M6 stub gate throws otherwise).
         activeEngine = new ExportEngine();
         if (options && options.format === 'pdf') {
             activeEngine = new PdfExporter();
@@ -82,12 +77,6 @@ export async function runExport(
         const result = await activeEngine.run(options, callbacks);
         return result;
     } finally {
-        // D7 M6 fix (#592 P1): tear down the production-owned Typst sandbox
-        // compiler — the hidden iframe, the window message listener (which
-        // captures the compiler, so without this it is never GC'd), the WASM
-        // sandbox state, and the cached font bytes. ExportEngine has no
-        // dispose, so the optional call skips it. An injected/shared compiler
-        // is never owned by the exporter, so dispose() leaves it alone.
         try {
             activeEngine?.dispose?.();
         } finally {

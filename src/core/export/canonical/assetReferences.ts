@@ -1,34 +1,7 @@
-/**
- * src/core/export/canonical/assetReferences.ts
- * Shared asset-reference collector for the canonical Block AST.
- *
- * Single implementation of "every asset id a message's blocks reference",
- * consumed by every renderer (HTML, Typst, future). Walks both the block
- * tree and every inline tree (paragraph/heading children, table cells, list
- * items, quote/thought/display blocks, link/strong/emphasis children, ...).
- *
- * An inline image is inline placement, so its asset id counts as "already
- * placed" exactly like a top-level image/file block: renderers must not
- * invent a second (attachment/carousel/companion) placement for it, and
- * companion-resource plans must know about it.
- */
-
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
 import type { MessageNode } from './conversation.js';
 
-/**
- * Shared walker for both collectors below. When imagesOnly is true, only
- * image placements (ImageBlock / ImageInline) are collected; otherwise every
- * referenced asset id is collected. The traversal shape is identical in
- * both modes so the two sets can never disagree about *where* assets are
- * referenced — only about which placements count.
- *
- * Nested positions covered: paragraph/heading children, table cells +
- * table caption, image captions, file descriptions, citationGroup titles,
- * list items, quote/thought blocks, toolCall/toolResult displayBlocks,
- * unknown fallbackBlocks.
- */
 function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<string> {
     const ids = new Set<string>();
     const walkInline = (nodes: InlineNode[]): void => {
@@ -46,10 +19,6 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
     const walkBlocks = (list: BlockNode[]): void => {
         for (const block of list) {
             switch (block.type) {
-                // Image placements always count. File blocks only count in
-                // full-reference mode: in images-only mode they are
-                // metadata-only (their file card renders from the Asset
-                // entity), even if the asset's kind claims 'image'.
                 case 'image': ids.add(block.assetId); break;
                 case 'file': if (!imagesOnly) ids.add(block.assetId); break;
                 default: break;
@@ -87,55 +56,21 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
     return ids;
 }
 
-/**
- * Recursively collect every asset id a message's blocks reference, walking
- * both the block tree and every inline tree. Returns a set of asset ids;
- * resolution (bytes/URLs/omissions) is the caller's job.
- */
 export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<string> {
     return collectImpl(blocks, false);
 }
 
 /**
- * Collect the subset of referenced asset ids a renderer needs as binary
- * bytes (Typst image(), sandbox mounts), decided by AST placement — every
- * ImageBlock.assetId and ImageInline.assetId, including nested positions —
- * not by Asset.kind metadata.
- *
- * Placement is what makes Typst call image(path): the canonical validator
- * does not force ImageBlock -> Asset.kind === 'image', so a block can
- * reference a kind:'file' asset whose bytes are genuinely a PNG. Judging
- * by kind would skip its bytes and silently degrade the image; judging by
- * placement keeps it. Conversely a FileBlock referencing a kind:'image'
- * asset is metadata-only (its file card renders from the Asset entity) and
- * never needs bytes.
- *
- * A kind/placement mismatch (image placement -> known kind !== 'image')
- * still resolves by placement, but resourceStage emits an
- * ASSET_KIND_MISMATCH warning diagnostic for it.
+ * Binary byte resolution follows AST placement (ImageBlock / ImageInline) rather than
+ * Asset.kind, since a 'file'-kind asset placed as an image still needs bytes while a FileBlock only renders metadata.
  */
 export function collectBinaryRenderAssetIds(blocks: BlockNode[] | undefined): Set<string> {
     return collectImpl(blocks, true);
 }
 
 /**
- * Collect message-level associated asset ids that render as trailing image
- * attachments: ids in message.associatedAssetIds with no block placement
- * (absent from referencedIds) whose asset kind is 'image'.
- *
- * The kind check is legitimate here because the Typst payload builder's own
- * `asset.kind === 'image'` branch is what defines that usage as an image:
- * kind-'image' companions without block placement become trailing image
- * attachments (Typst image()); other/unknown kinds render metadata-only
- * file cards and never need bytes. Unknown ids (kindOf() === undefined)
- * are excluded, matching the payload's skip of unknown ids.
- *
- * Shared by resourceStage (binary resolution) and the Typst payload builder
- * (trailing attachment emission) so the two can never disagree about which
- * companions need image bytes. Placement still decides for block-tree
- * images (see collectBinaryRenderAssetIds); this helper covers only the
- * message-level association index (roadmap §43: messages link resources via
- * blocks AND associatedAssetIds).
+ * Unplaced message-level attachments have no AST block placement, so their Asset.kind
+ * determines whether they render as trailing images (requiring bytes) or metadata-only file cards.
  */
 export function collectUnplacedAssociatedImageIds(
     message: MessageNode | undefined,

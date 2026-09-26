@@ -1,10 +1,3 @@
-/**
- * src/core/export/canonical/index.ts
- * Public entry for the canonical contract (F2a).
- *
- * Pure addition: no existing export path imports this module yet.
- */
-
 export * from './json.js';
 export * from './provenance.js';
 export * from './inline.js';

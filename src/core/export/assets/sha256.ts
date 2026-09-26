@@ -1,12 +1,3 @@
-/**
- * src/core/export/assets/sha256.ts
- * Synchronous SHA-256 over bytes, dependency-free.
- *
- * Normalize runs in one synchronous pass and must work in every target
- * context (extension page, content script, service worker), so this ships a
- * small self-contained implementation instead of node:crypto / SubtleCrypto.
- */
-
 const K = new Uint32Array([
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -20,7 +11,6 @@ const K = new Uint32Array([
 
 const rotr = (x: number, n: number): number => (x >>> n) | (x << (32 - n));
 
-/** SHA-256 digest of `data`, as 64 lowercase hex characters. */
 export function sha256Hex(data: Uint8Array): string {
     const bitLen = data.length * 8;
     const paddedLen = (((data.length + 9 + 63) >> 6) << 6);
@@ -28,7 +18,7 @@ export function sha256Hex(data: Uint8Array): string {
     msg.set(data);
     msg[data.length] = 0x80;
     const view = new DataView(msg.buffer);
-    // 64-bit big-endian length; lengths here never exceed 2^32 bits.
+    // High 32 bits at paddedLen - 8 remain 0 (inputs never exceed 512 MiB).
     view.setUint32(paddedLen - 4, bitLen >>> 0);
 
     let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;

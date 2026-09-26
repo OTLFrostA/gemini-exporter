@@ -1,18 +1,3 @@
-/**
- * src/core/export/pdf/pipeline/orchestrator.ts
- *
- * D7 M1: per-conversation pipeline orchestrator skeleton.
- *
- * Wires S1->S5 in the frozen order. Stage implementations are injected, so
- * M2-M5 can be built and tested independently against the frozen contracts.
- * This skeleton owns only the wiring and the failure mapping:
- *
- * - diagnostics from every stage accumulate in stage order and are never dropped;
- * - a stage failure marks the item failed (retryable per StageError.retryable);
- * - an abort marks the item aborted, never failed;
- * - 'delivered' is returned ONLY after the deliver stage completes.
- */
-
 import { runStage } from './runner.js';
 import {
     PIPELINE_STAGE_ORDER,
@@ -36,14 +21,6 @@ function isAbortError(e: unknown): boolean {
 export class PdfPipeline {
     constructor(private readonly stages: PipelineStages) {}
 
-    /**
-     * Run the full S1->S5 pipeline for one conversation.
-     * Never throws for item-level failures: they are returned as
-     * { status: 'failed' }. A 'staged' status means the deliver stage parked
-     * the artifact in a batch writer; the batch driver must finalize it.
-     * AbortError from the signal propagates to the caller (batch-level abort
-     * handling lives in the caller, per #571).
-     */
     async runOne(input: PipelineItemInput, pctx: PipelineContext): Promise<PipelineItemResult> {
         const diagnostics: RenderDiagnostic[] = [];
         const ctx: StageContext = {
@@ -67,7 +44,6 @@ export class PdfPipeline {
         });
 
         try {
-            // S1: projection (shared; PDF never linearizes on its own).
             ctx.reportProgress('project', 0, PIPELINE_STAGE_ORDER.length);
             const projected = await runStage('project', this.stages.project, {
                 bundle: input.bundle,
@@ -75,7 +51,6 @@ export class PdfPipeline {
             }, ctx);
             diagnostics.push(...projected.diagnostics);
 
-            // S2: resources (must precede S3: payload.assetPath reads pathMap).
             ctx.reportProgress('resources', 1, PIPELINE_STAGE_ORDER.length);
             const resources = await runStage('resources', this.stages.resources, {
                 bundle: input.bundle,
@@ -84,7 +59,6 @@ export class PdfPipeline {
             }, ctx);
             diagnostics.push(...resources.diagnostics);
 
-            // S3: Typst payload (consumes the S1 view; no private linearize).
             ctx.reportProgress('payload', 2, PIPELINE_STAGE_ORDER.length);
             const payload = await runStage('payload', this.stages.payload, {
                 bundle: input.bundle,
@@ -93,7 +67,6 @@ export class PdfPipeline {
             }, ctx);
             diagnostics.push(...payload.diagnostics);
 
-            // S4: compile + verify.
             ctx.reportProgress('compile', 3, PIPELINE_STAGE_ORDER.length);
             const compiled = await runStage('compile', this.stages.compile, {
                 payload: payload.output.payload,
@@ -106,7 +79,6 @@ export class PdfPipeline {
             }, ctx);
             diagnostics.push(...compiled.diagnostics);
 
-            // S5: delivery. Only a completed delivery marks the item delivered.
             ctx.reportProgress('deliver', 4, PIPELINE_STAGE_ORDER.length);
             const delivered = await runStage('deliver', this.stages.deliver, {
                 conversationId: input.conversationId,
@@ -120,15 +92,6 @@ export class PdfPipeline {
             diagnostics.push(...delivered.diagnostics);
 
             ctx.reportProgress('done', PIPELINE_STAGE_ORDER.length, PIPELINE_STAGE_ORDER.length);
-            // 'delivered' only when the deliver stage finalized the artifact.
-            // A batch-ZIP stage only STAGES into the shared writer; the batch
-            // driver runs the single generateBlob()+downloadHandler() finalize
-            // and flips 'staged' items to delivered afterwards. Staged items
-            // carry NO writeReport: they have no delivery proof yet, and the
-            // union type above makes attaching one a compile error. They DO
-            // carry stagedArtifact — the item's own file name + PDF byte
-            // length — so the batch driver can write honest per-item records
-            // (never the whole-ZIP size; #585 HIGH fix).
             if (delivered.output.finalized) {
                 return {
                     conversationId,
@@ -150,8 +113,6 @@ export class PdfPipeline {
             };
         } catch (e) {
             if (isAbortError(e)) {
-                // Abort is terminal for this item but NOT a failure: the item
-                // stays retryable and must not be recorded as failed (#571).
                 return { conversationId, title, status: 'aborted', diagnostics };
             }
             if (e instanceof StageError) {
@@ -159,10 +120,6 @@ export class PdfPipeline {
                     `[PDF] ${title || conversationId} pipeline failed at stage '${e.stage}': ${e.message}`,
                     'error',
                 );
-                // A stage may emit diagnostics and then throw: the frozen
-                // contract says diagnostics from every stage accumulate and
-                // are never dropped, so the error's diagnostics join the
-                // accumulated list before the item is marked failed.
                 diagnostics.push(...e.diagnostics);
                 return fail(e.stage, e.code, e.message, e.retryable);
             }

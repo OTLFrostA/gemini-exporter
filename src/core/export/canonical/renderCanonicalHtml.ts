@@ -1,22 +1,3 @@
-/**
- * src/core/export/canonical/renderCanonicalHtml.ts
- * F2c: HTML renderer consuming the canonical AST.
- *
- * Renders a CanonicalConversationBundle (produced by F2b's normalizeGeminiConversation)
- * into the historical 1:1 Gemini-faithful standalone HTML document. Content comes
- * exclusively from the AST -- this renderer never parses Markdown and never reads
- * provider DOM. The visual layer (gem-* CSS + interaction JS) is shared verbatim
- * with the legacy template/htmlTemplate.ts so the look stays identical while the
- * data pipeline changes.
- *
- * Content-fidelity rules:
- * - every block/inline type has a visible rendering; unknown content is never blank
- * - assets resolve through options.assetUrl ?? asset.storageRef; unresolvable
- *   assets get a visible placeholder + diagnostic (never a silent gap)
- * - interaction state (prompt collapse, theme, thought folding) is renderer
- *   configuration, not canonical content
- */
-
 import type { Asset } from './assets.js';
 import { collectReferencedAssetIds } from './assetReferences.js';
 import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
@@ -43,24 +24,15 @@ import {
 } from '../../engine/template/htmlTemplate.js';
 
 export interface CanonicalHtmlOptions {
-    /** Document/UI language. Default 'zh'. */
     lang?: 'zh' | 'en';
-    /** Default follows the OS color scheme; 'light' forces body.light-theme. */
     theme?: 'dark' | 'light';
-    /**
-     * Return the offline URL to use for an asset (e.g. a relative path inside
-     * the export archive). Defaults to asset.storageRef. When neither yields a
-     * URL the asset renders as a visible placeholder + diagnostic.
-     */
     assetUrl?: (asset: Asset) => string | undefined;
-    /** Collapse thought accordions by default. Default false (historical: open). */
     thoughtInitiallyCollapsed?: boolean;
 }
 
 export interface CanonicalHtmlResult {
     html: string;
     diagnostics: RenderDiagnostic[];
-    /** Ids of the projected (rendered) messages, in render order. */
     projectedMessageIds: string[];
 }
 
@@ -73,7 +45,6 @@ interface RenderCtx {
     diagnostics: RenderDiagnostic[];
 }
 
-/** Extra CSS for AST-only constructs the legacy stylesheet never defined. */
 const CANONICAL_EXTRA_CSS = `
 .gem-unknown-block {
   border: 1px dashed var(--border-color);
@@ -145,7 +116,6 @@ function diag(ctx: RenderCtx, severity: RenderDiagnostic['severity'], code: stri
     ctx.diagnostics.push({ severity, code, message, path });
 }
 
-/** Resolve an asset to a sanitized offline URL, or undefined when unresolvable. */
 function resolveAssetUrl(asset: Asset | undefined, ctx: RenderCtx): string | undefined {
     if (!asset) return undefined;
     const raw = ctx.assetUrl?.(asset) ?? asset.storageRef;
@@ -184,7 +154,6 @@ function renderInline(node: InlineNode, ctx: RenderCtx): string {
         case 'lineBreak':
             return '<br>';
         case 'image': {
-            // First-class inline image (#555 contract): render inline, never drop.
             const asset = ctx.assets.get(node.assetId);
             const url = resolveAssetUrl(asset, ctx);
             const name = node.alt ?? asset?.name ?? node.assetId;
@@ -259,7 +228,6 @@ function renderFileCard(block: FileBlock, ctx: RenderCtx, path: string): string 
       </a>`;
 }
 
-/** Historical attachment carousel wrapper around pre-rendered cards. */
 function renderCarousel(cardsHtml: string): string {
     const count = (cardsHtml.match(/gem-att-card/g) || []).length;
     const showNav = count > 2;
@@ -350,8 +318,6 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
         case 'table':
             return renderTable(block as TableBlock, ctx);
         case 'image':
-            // Image/file blocks are grouped into carousels at message level;
-            // standalone rendering keeps the card so content is never lost.
             return renderImageCard(block as ImageBlock, ctx, path);
         case 'file':
             return renderFileCard(block as FileBlock, ctx, path);
@@ -466,10 +432,6 @@ function renderModelMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx): 
   </section>`;
 }
 
-/**
- * Render a canonical bundle to the standalone 1:1 Gemini-faithful HTML document.
- * Pure function of (bundle, options); never touches provider DOM or Markdown.
- */
 export function renderCanonicalHtml(
     bundle: CanonicalConversationBundle,
     options: CanonicalHtmlOptions = {},
@@ -484,9 +446,6 @@ export function renderCanonicalHtml(
         diagnostics,
     };
 
-    // Branch selection is the canonical projection's job: render only the
-    // projected view (selected root->leaf path, or all messages in source
-    // order when nothing is selected). Never re-implement branch choice here.
     const view = projectConversation(bundle);
     const messages = view.messages;
     let turnsHtml = '';
@@ -527,11 +486,6 @@ ${CANONICAL_EXTRA_CSS}</style>
     return { html, diagnostics, projectedMessageIds: view.messages.map((m) => m.id) };
 }
 
-/**
- * ConversationRenderer adapter around renderCanonicalHtml.
- * Pre-resolves referenced assets through the RenderContext's AssetResolver so
- * the artifact carries a companion resource plan (ids to ship + omissions).
- */
 export class CanonicalHtmlRenderer implements ConversationRenderer {
     readonly format = 'html' as const;
 
@@ -541,10 +495,6 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
         context.signal.throwIfAborted();
         context.reportProgress('html:collect-assets', 0, 1);
 
-        // Asset collection uses the shared canonical collector (block tree +
-        // inline tree), over exactly the projected messages the HTML renders.
-        // The pure render call below performs the same single projection, so
-        // the companion plan can never miss an asset the document references.
         const view = projectConversation(context.bundle);
         const referenced = new Set<string>();
         for (const m of view.messages) {

@@ -3,14 +3,6 @@
 <head>
 <meta charset="utf-8">
 <title>Typst compile sandbox</title>
-<!--
-  MV3 sandbox page for the Typst WASM compile container (P1b).
-  Listed in manifest.json sandbox.pages with the sandbox CSP
-  (script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'), which is the only
-  context where typst.ts's wasm-bindgen glue (new Function at init) can run.
-  No UI: all inputs arrive via postMessage, see
-  src/core/export/typst/sandboxProtocol.ts.
--->
 </head>
 <body>
 <script type="module" src="/dist/ui/sandbox/typst-compile.js"></script>

@@ -77,9 +77,6 @@ const BUNDLE_ENTRIES = {
     'ui/options': path.join(SRC, 'ui', 'options', 'options.ts'),
 };
 
-// P1b: Typst sandbox compile container. Built as ESM (loaded via
-// <script type="module"> from the MV3 sandbox page) — NOT IIFE. The v8
-// Typst templates are embedded as text via the .typ loader.
 const SANDBOX_ENTRIES = {
     'ui/sandbox/typst-compile': path.join(SRC, 'ui', 'sandbox', 'typstCompileEntry.ts'),
 };
@@ -133,8 +130,7 @@ async function build() {
         throw new Error(`esbuild bundle build failed with ${errors} error(s)`);
     }
 
-    // 1b. Build the Typst sandbox entry as a separate ESM bundle (the
-    // sandbox page loads it with <script type="module">).
+    // Build the Typst sandbox entry as ESM (loaded via <script type="module"> in the sandbox page)
     for (const [entryName, entryFile] of Object.entries(SANDBOX_ENTRIES)) {
         if (!fs.existsSync(entryFile)) {
             throw new Error(`Sandbox entrypoint source missing for ${entryName}: ${entryFile}`);

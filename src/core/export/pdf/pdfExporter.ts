@@ -1,65 +1,3 @@
-/**
- * src/core/export/pdf/pdfExporter.ts
- *
- * D7 M5: PDF export orchestration — batch driver over the frozen D7 pipeline.
- *
- * Each item runs the full S1->S5 pipeline (project -> resources -> payload ->
- * compile -> deliver) through PdfPipeline.runOne. The deliver stage lands the
- * PDF through IExportWriter with the staged/finalized batch-ZIP semantics:
- * folder mode — writeFile() resolving IS delivery; ZIP mode — the stage only
- * STAGES into the shared writer and the driver runs the single
- * finalizeZipDelivery() (one generateBlob + downloadHandler) at the end of
- * the batch, then flips staged items to delivered.
- *
- * User iron rules enforced here:
- * - Success is ONLY marked after the artifact is actually delivered:
- *   folder writer — the moment writeFile() resolves (file is on disk);
- *   ZIP writer — only after generateBlob() + downloadHandler() resolve.
- *   A ZIP writeFile() merely STAGES into the in-memory ZIP area; staged
- *   items are never reported successful and no success records are
- *   committed before finalize+delivery (report §1).
- *   downloadHandler is REQUIRED in ZIP mode: without it the blob can never
- *   reach the user, so a missing handler is a configuration error and fails
- *   the batch up front — it is never silently counted as delivered.
- * - One failed item never aborts the batch; failures stay retryable and
- *   are never marked successful.
- * - Cancellation is real: the pipeline's AbortSignal stops stages promptly,
- *   no partial file is written, the batch stops, and every item that never
- *   reached a terminal state is reported as failed (retryable) — nothing
- *   silently dropped.
- * - Nothing is lost quietly: warning/error diagnostics from normalize /
- *   pipeline stages / write are surfaced through onLog (which feeds the
- *   extension Error page) and returned in the result; a failed export-record
- *   write keeps the artifact successful but emits EXPORT_RECORD_WRITE_FAILED.
- * - The result carries UI-contract aliases (failedChats/landedChats/
- *   exportedCount) so the options-page summary, failure banner and retry
- *   flow see PDF failures instead of counting everything successful.
- * - The #584 discriminated union is honored: a 'staged' result carries NO
- *   writeReport (staged is not delivery proof). It carries stagedArtifact —
- *   the item's own file name + PDF byte length — so flipped per-item records
- *   stay honest; the ZIP's own name/size is the batch-level delivery proof
- *   (PdfExportResult.zipDelivery), never a per-item bytesWritten (#585).
- *   `if (result.writeReport)` misuse stays a compile error.
- *
- * D7 M6: production wiring. The default compiler is the real Typst sandbox
- * compiler (TypstSandboxCompiler, MV3 sandbox + WASM). StubPdfCompiler is
- * test-only: constructing without a compiler outside an extension page
- * throws, and a stub reaching run() without an explicit `allowStub` opt-in
- * is a hard error (the M6 stub gate) — a placeholder PDF is never produced
- * silently on the production path.
- *
- * Lifecycle (#592 P1 fix): the exporter owns the compiler it creates itself
- * (ownsCompiler) and releases it via dispose() — hidden sandbox iframe,
- * window message listener, WASM state, cached font bytes. The production
- * controller calls dispose() in its run-finally after every run (success,
- * failure, or abort); abort() alone only cancels and never disposes.
- * Injected/shared compilers are never disposed here.
- *
- * Engine shape mirrors ExportOrchestrator (run/abort) so
- * exportController can route `format === 'pdf'` here without changes
- * to the progress/cancel UI wiring.
- */
-
 import type {
     ArtifactWriteReport,
     RenderDiagnostic,
@@ -91,10 +29,8 @@ export interface PdfExportItemResult {
     id: string;
     title: string;
     ok: boolean;
-    /** Present only when the Writer actually landed the file. */
     fileName?: string;
     bytesWritten?: number;
-    /** Machine-readable failure reason; absent on success. */
     error?: string;
     diagnostics: RenderDiagnostic[];
 }
@@ -104,20 +40,8 @@ export interface PdfExportResult {
     succeeded: number;
     failed: PdfExportItemResult[];
     aborted: boolean;
-    /**
-     * Batch-level delivery proof for ZIP mode: the delivered ZIP artifact
-     * itself (its file name + byte size). Per-item records always carry each
-     * PDF's OWN fileName/bytesWritten — the ZIP proof lives here so the two
-     * never mix (#585 HIGH fix). Absent in folder mode, where each item's
-     * writeReport is already its own delivery proof.
-     */
     zipDelivery?: { fileName: string; bytesWritten: number; deliveredAt: string };
-    /**
-     * UI-contract aliases (additive): the options-page summary, failure
-     * banner and retry flow read failedChats/landedChats/exportedCount.
-     * Without these, PDF failures would be invisible to that UI (every item
-     * would look successful and retry would find nothing).
-     */
+    /** Aliases matching ExportEngine's return shape for the shared Options UI summary and retry flow. */
     failedChats?: PdfExportItemResult[];
     landedChats?: number;
     exportedCount?: number;
@@ -132,27 +56,14 @@ export interface PdfExportProgress {
 
 export interface PdfExporterOptions {
     selected: Array<string | { id: string; title?: string }>;
-    /** Full conversation objects for the normalizer; falls back to the selected item itself. */
     conversations?: any[];
     format?: string;
     useZip?: boolean;
     dirHandle?: any;
     folderName?: string;
-    /** Defaults to the real Typst sandbox compiler (D7 M6). Stub is test-only, see allowStub. */
     compiler?: IPdfCompiler;
-    /**
-     * Explicit opt-in to let a StubPdfCompiler through the production path.
-     * Tests/drills only. Without this, run() throws the M6 stub gate error
-     * instead of silently producing placeholder PDFs.
-     */
     allowStub?: boolean;
-    /** Injected for tests; otherwise created from useZip/dirHandle. */
     writer?: IExportWriter;
-    /**
-     * REQUIRED when useZip is true. The ZIP is only "delivered" once this
-     * handler actually runs — a missing handler is a configuration error and
-     * fails the batch (never silently counted as delivered).
-     */
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
 }
@@ -179,7 +90,6 @@ function isAbortError(e: unknown): boolean {
     );
 }
 
-/** The five frozen D7 stage implementations, wired into the orchestrator. */
 const D7_STAGES: PipelineStages = {
     project: projectStage,
     resources: resourceStage,
@@ -189,19 +99,9 @@ const D7_STAGES: PipelineStages = {
 };
 
 export interface PdfExporterConstructorOptions {
-    /**
-     * Explicit opt-in to let a StubPdfCompiler through the production path.
-     * Tests/drills only. Defaults to false: a stub reaching run() without
-     * this is a hard error, never a silent placeholder PDF.
-     */
     allowStub?: boolean;
 }
 
-/**
- * True only in a real extension page (options page, popup, background):
- * the Typst sandbox compiler needs `document` for its hidden iframe and
- * `chrome.runtime.getURL` for the sandbox page + WASM/font assets.
- */
 function isExtensionPageContext(): boolean {
     return (
         typeof document !== 'undefined' &&
@@ -210,12 +110,6 @@ function isExtensionPageContext(): boolean {
     );
 }
 
-/**
- * D7 M6 production default: the real Typst sandbox compiler. Fail-fast
- * outside an extension page context — the old behavior (silently falling
- * back to the stub) is exactly the failure mode #558 removed: a test that
- * forgets to inject its compiler must explode here, not ship a fake PDF.
- */
 function createProductionCompiler(): IPdfCompiler {
     if (!isExtensionPageContext()) {
         throw new Error(
@@ -227,7 +121,7 @@ function createProductionCompiler(): IPdfCompiler {
     return new TypstSandboxCompiler();
 }
 
-/** Name-based (not instanceof): a stub must never cross bundle boundaries silently. */
+// Match by name rather than instanceof so the check works across bundle boundaries.
 function isStubCompiler(compiler: IPdfCompiler): boolean {
     return compiler?.name === STUB_PDF_COMPILER_NAME;
 }
@@ -237,12 +131,6 @@ export class PdfExporter {
     private _abortController: AbortController | null = null;
     private _compiler: IPdfCompiler;
     private _allowStub: boolean;
-    /**
-     * Ownership (D7 M6 fix, #592 P1): the exporter only owns — and therefore
-     * only ever disposes — a compiler it created itself (the production
-     * default). An injected/shared compiler belongs to its caller and must
-     * never be torn down here.
-     */
     private readonly ownsCompiler: boolean;
 
     constructor(compiler?: IPdfCompiler, opts?: PdfExporterConstructorOptions) {
@@ -252,11 +140,7 @@ export class PdfExporter {
     }
 
     abort(): void {
-        // Cancellation only: aborting never disposes the compiler. The owned
-        // compiler is disposed exactly once, at run end, by the caller's
-        // finally (exportController.runExport). Disposing here would race the
-        // in-flight run's own teardown and could strand a retry that reuses
-        // the exporter.
+        // Do not dispose the compiler here; runExport's finally block disposes it after the in-flight run settles.
         this.aborted = true;
         try {
             this._abortController?.abort();
@@ -265,19 +149,7 @@ export class PdfExporter {
         }
     }
 
-    /**
-     * Release the owned compiler's resources: the hidden sandbox iframe,
-     * the window message listener (which captures the compiler, so without
-     * this the compiler is never GC'd), the WASM sandbox state, and the
-     * cached font bytes. Idempotent — safe to call more than once.
-     *
-     * Only a compiler created by this exporter (ownsCompiler) is ever
-     * disposed; an injected/shared compiler is owned by its caller and is
-     * left alone. Called by the production controller's finally after every
-     * run — success, failure, or abort — so one export never leaks a sandbox
-     * into the next one. Duck-typed: IPdfCompiler does not declare dispose,
-     * so compilers without one are simply skipped.
-     */
+    /** Disposes the sandbox compiler only if this instance created it, leaving injected compilers to their caller. */
     dispose(): void {
         if (!this.ownsCompiler) return;
         const maybeDisposable = this._compiler as { dispose?: unknown };
@@ -292,11 +164,6 @@ export class PdfExporter {
         const onItemExported = callbacks.onItemExported ?? (() => {});
         const compiler = options.compiler ?? this._compiler;
 
-        // M6 stub gate (carries #558's mechanical defense into D7): the stub
-        // is test-only. A stub reaching this point without an explicit
-        // allowStub opt-in (constructor or per-run) is a configuration error
-        // and throws BEFORE any export work — a placeholder PDF is never
-        // produced, and nothing is ever marked successful.
         const allowStub = options.allowStub ?? this._allowStub;
         if (!allowStub && isStubCompiler(compiler)) {
             throw new Error(
@@ -308,9 +175,6 @@ export class PdfExporter {
 
         this.aborted = false;
         this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        // The pipeline requires a real AbortSignal; in the pathological
-        // no-AbortController environment the `aborted` flag still drives the
-        // per-item loop breaks below.
         const signal: AbortSignal =
             this._abortController?.signal ?? new AbortController().signal;
 
@@ -328,12 +192,7 @@ export class PdfExporter {
         const total = items.length;
         const failed: PdfExportItemResult[] = [];
         let succeeded = 0;
-        // ZIP transaction boundary (report §1): entries staged into the ZIP
-        // writer are NOT success yet. Final success is committed only after
-        // finalizeZipDelivery() (single generateBlob + downloadHandler)
-        // resolves. A staged item carries no writeReport — but it does carry
-        // stagedArtifact (its own PDF file name + byte length), which the
-        // driver uses for honest per-item records (#585).
+        // In ZIP mode, items are staged in memory and only marked succeeded after finalizeZipDelivery() completes.
         const staged: Array<{
             id: string;
             title: string;
@@ -342,9 +201,6 @@ export class PdfExporter {
             pdfBytesWritten: number;
         }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
-        // Batch-level delivery proof (ZIP mode): set only after
-        // finalizeZipDelivery() resolves. Per-item records keep each PDF's
-        // own bytesWritten; the ZIP size lives here (#585 HIGH fix).
         let zipDelivery: PdfExportResult['zipDelivery'];
 
         const report = (current: number, title: string) => {
@@ -363,26 +219,15 @@ export class PdfExporter {
             surfaceDiagnostics(id, title, diagnostics);
         };
 
-        /**
-         * Warning/error diagnostics must reach the visible log channel
-         * (which feeds the extension Error page) — never swallowed.
-         * Info-level diagnostics stay in the result only, to avoid spam.
-         */
         const surfaceDiagnostics = (id: string, title: string, diagnostics: RenderDiagnostic[]): void => {
             for (const d of diagnostics) {
                 if (d.severity === 'warning' || d.severity === 'error') {
-                    // Map onto the onLog channel convention ('warn', not 'warning').
                     onLog(`[PDF] ${title || id} ${d.severity}: [${d.code}] ${d.message}`, d.severity === 'warning' ? 'warn' : 'error');
                 }
             }
         };
 
-        /**
-         * §11: persist the export record. A record-write failure must NOT
-         * flip the artifact to failed (the file was delivered) — but it must
-         * be LOUD: a visible warning + an EXPORT_RECORD_WRITE_FAILED
-         * diagnostic, never a silent catch.
-         */
+        // Record persistence failure emits a warning diagnostic without failing the already-delivered file.
         const commitRecord = async (id: string, record: any, diagnostics: RenderDiagnostic[]): Promise<void> => {
             try {
                 await onItemExported(id, record);
@@ -399,7 +244,6 @@ export class PdfExporter {
             }
         };
 
-        /** Terminal-state tracker: every item that reached succeeded/failed. */
         const completed = new Set<string>();
 
         let wasAborted = false;
@@ -409,7 +253,6 @@ export class PdfExporter {
             failed,
             aborted: wasAborted,
             zipDelivery,
-            // UI-contract aliases so the summary/banner/retry flow sees PDF failures.
             failedChats: failed,
             landedChats: succeeded,
             exportedCount: succeeded,
@@ -419,11 +262,6 @@ export class PdfExporter {
             return buildResult();
         }
 
-        // ZIP delivery contract: a ZIP is only "delivered" when
-        // downloadHandler actually runs. Without a handler the blob can never
-        // reach the user, so ZIP mode without one is a configuration error —
-        // fail every item (retryable, logged) instead of silently counting
-        // staged items as delivered. Fail fast, before any compile/write work.
         if (useZip && typeof options.downloadHandler !== 'function') {
             const msg =
                 'zip export requires downloadHandler: without it the ZIP blob can never be delivered to the user';
@@ -431,7 +269,6 @@ export class PdfExporter {
             return buildResult();
         }
 
-        // Writer setup (fail-closed: no writer, no export).
         try {
             if (!writer) {
                 if (!useZip && !options.dirHandle) {
@@ -451,9 +288,6 @@ export class PdfExporter {
 
         const activeWriter: IExportWriter = writer;
 
-        // Local fonts are resolved once per batch (best-effort): the compile
-        // stage forwards their diagnostics and falls back to bundled fonts,
-        // so a resolution failure degrades loudly instead of failing items.
         let fonts: LocalFontResolution;
         try {
             fonts = await resolveLocalFonts();
@@ -488,14 +322,9 @@ export class PdfExporter {
 
             const itemDiagnostics: RenderDiagnostic[] = [];
             try {
-                // S0: normalize the repo conversation -> canonical bundle.
-                // The normalizer owns a per-run byte store; S2 consumes it.
                 const { bundle, diagnostics, byteStore } = await normalizeGeminiConversation(chat as any);
                 for (const d of diagnostics) itemDiagnostics.push(toRenderDiagnostic(d));
 
-                // S1->S5: the frozen D7 pipeline. runOne never throws for
-                // item-level failures (they come back as 'failed'); an abort
-                // comes back as 'aborted' and is never converted to failure.
                 const itemInput: PipelineItemInput = {
                     conversationId: id,
                     title,
@@ -528,9 +357,6 @@ export class PdfExporter {
 
                 switch (result.status) {
                     case 'delivered': {
-                        // The deliver stage finalized: writeFile() resolved,
-                        // so the artifact is REALLY delivered. The writeReport
-                        // on a 'delivered' item is the delivery proof.
                         const writeReport: ArtifactWriteReport = result.writeReport;
                         const record = {
                             title,
@@ -548,14 +374,6 @@ export class PdfExporter {
                         break;
                     }
                     case 'staged': {
-                        // ZIP transaction boundary (report §1): the PDF is
-                        // staged into the shared in-memory ZIP area. NOT
-                        // success — the driver runs finalizeZipDelivery()
-                        // once at the end of the batch and flips these.
-                        // (No writeReport here by construction: the #584
-                        // union makes carrying one a compile error. The
-                        // item's own artifact identity rides along as
-                        // stagedArtifact so the flip writes honest records.)
                         staged.push({
                             id,
                             title,
@@ -575,14 +393,10 @@ export class PdfExporter {
                         );
                         break;
                     case 'aborted':
-                        // Batch-level abort handling below marks every
-                        // unfinished item; never convert abort to failure.
                         break;
                 }
                 if (result.status === 'aborted') break;
             } catch (e: any) {
-                // runOne only throws for programmer errors outside the stage
-                // contract; map them to a loud retryable item failure.
                 if (isAbortError(e) || this.aborted || signal.aborted) break;
                 failItem(id, title, `[pipeline:PIPELINE_THREW] ${e?.message || String(e)}`, itemDiagnostics);
             }
@@ -591,12 +405,6 @@ export class PdfExporter {
 
         wasAborted = this.aborted || signal.aborted;
 
-        // ZIP transaction boundary (report §1): finalize + deliver FIRST,
-        // commit final success records ONLY after the user actually receives
-        // the ZIP. A generateBlob/download failure must never leave staged
-        // items marked successful — they are reported as failed (retryable).
-        // Never package or download after a cancel (user intent); an abort
-        // during finalize falls through to the abort branch below.
         if (!wasAborted && useZip && staged.length > 0) {
             const zipFileName = `gemini_export_pdf_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
             const finalizeCtx: StageContext = {
@@ -606,8 +414,6 @@ export class PdfExporter {
                 log: (message, level) => onLog(message, level),
             };
             try {
-                // downloadHandler was validated up front in ZIP mode; the
-                // guard below is unreachable defense-in-depth that stays loud.
                 const deliver = options.downloadHandler;
                 if (typeof deliver !== 'function') {
                     throw new Error('internal invariant: downloadHandler is required for ZIP delivery');
@@ -618,12 +424,6 @@ export class PdfExporter {
                     zipFileName,
                     finalizeCtx,
                 );
-                // Delivered. Now — and only now — commit final success.
-                // Per-item records describe each conversation's OWN PDF
-                // (file name + byte length captured at stage time), never the
-                // whole-ZIP size (#585 HIGH fix). The ZIP artifact itself is
-                // the batch-level delivery proof and lives on the result, not
-                // on any item record.
                 const writtenAt = new Date().toISOString();
                 for (const s of staged) {
                     const record = {
@@ -647,8 +447,6 @@ export class PdfExporter {
                 onLog(`[PDF] ZIP 打包交付成功 (${zipFileName})，${staged.length} 个文件确认成功`, 'info');
             } catch (e: any) {
                 if (isAbortError(e)) {
-                    // Abort during finalize: no package/download completed.
-                    // The abort branch below reports unfinished items.
                     wasAborted = true;
                 } else {
                     const code = e?.code ? `[${e.code}] ` : '';
@@ -670,11 +468,7 @@ export class PdfExporter {
         }
 
         if (wasAborted) {
-            // Batch partial-failure semantics on abort: every item that never
-            // reached a terminal state is reported as failed (retryable), so
-            // a retry covers exactly the unfinished work — nothing is
-            // silently dropped, and staged-but-undelivered items are NOT
-            // counted as succeeded.
+            // Mark unfinished and staged-but-undelivered items as failed so retry covers them.
             const stagedById = new Map(staged.map((s) => [s.id, s.diagnostics]));
             for (const it of items) {
                 if (!completed.has(it.id)) {

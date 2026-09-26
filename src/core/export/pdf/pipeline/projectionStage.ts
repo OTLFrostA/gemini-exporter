@@ -1,15 +1,3 @@
-/**
- * src/core/export/pdf/pipeline/projectionStage.ts
- *
- * D7 S1 (M2): branch projection stage.
- *
- * The projection is computed by the shared canonical projectConversation()
- * (src/core/export/canonical/projection.ts); this stage never re-derives
- * branch policy itself. CanonicalProjectionError (an invalid message tree)
- * becomes a non-retryable StageError: bad data does not get better by
- * retrying.
- */
-
 import {
     CanonicalProjectionError,
     projectConversation,

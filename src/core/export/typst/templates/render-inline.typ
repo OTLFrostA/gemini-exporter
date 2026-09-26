@@ -1,27 +1,12 @@
 #import "components.typ": inline-code, safe-text
 
-// Inline images sit on the text baseline with a font-relative size budget:
-// never taller than a few line boxes (4.5em ≈ 3.3 body line boxes) and never
-// wider than the enclosing column. `fit: "contain"` preserves the aspect
-// ratio; nothing here is keyed to any particular fixture image. alt is a data
-// parameter (never interpolated into source), so no markup escaping applies.
-
-// v8 keeps declaration-order recursion safety: nested children are rendered through a
-// local helper inside render-inline instead of calling render-inlines before it
-// exists at module initialization time.
+// Nested children recurse via a local helper so render-inline does not reference render-inlines before its declaration.
 #let render-inline(node) = {
   let children(nodes) = {
     for child in nodes { render-inline(child) }
   }
 
-  // asset is an adapter-controlled virtual path, never user text.
-  // Inline images sit on the text baseline: fixed height budget (4.5em ≈ 3.3
-  // body line boxes), width following the natural aspect ratio, clamped to the
-  // enclosing column width so a wide image scales down instead of overflowing
-  // (never forced to full column width). fit: "contain" preserves the aspect
-  // ratio; nothing here is keyed to any particular fixture image. alt is a
-  // data parameter (never interpolated into source), so no markup escaping
-  // applies.
+  // Measure natural width at a 4.5em height budget, then clamp to column width so wide inline images scale down without overflowing.
   let inline-image(path, alt: none) = layout(size => {
     let natural = measure(image(path, height: 4.5em, alt: alt))
     let w = calc.min(natural.width, size.width)
@@ -44,7 +29,6 @@
   } else if kind == "image" {
     inline-image(node.asset, alt: if "alt" in node { node.alt } else { none })
   } else if kind == "inlineMath" {
-    // typst is a trusted renderer-derived field, never raw provider/user input.
     if "typst" in node { eval(node.typst, mode: "math") } else { inline-code(node.latex) }
   } else {
     if "text" in node { node.text } else { [�] }

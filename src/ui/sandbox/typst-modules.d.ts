@@ -1,8 +1,4 @@
-/**
- * Ambient declarations for Typst template text imports.
- * build.js bundles .typ/.tmTheme files with the esbuild 'text' loader;
- * tsc only needs to know they resolve to strings.
- */
+// Loaded as raw strings via esbuild's 'text' loader in build.js.
 declare module '*.typ' {
     const text: string;
     export default text;
