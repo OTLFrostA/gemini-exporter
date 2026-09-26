@@ -136,13 +136,15 @@ test('tool displayBlocks are rendered recursively alongside the json payload', a
     assert.deepStrictEqual(kinds, ['paragraph', 'paragraph', 'code']);
 });
 
-test('strikethrough degradation emits a diagnostic instead of silent loss', async () => {
+test('strikethrough is transported natively without a warning', async () => {
     const b = bundle([msg('m1', 'user', [
         { type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'text', text: 'gone' }] }] },
     ])]);
     const { payload, diagnostics } = toTypstPayload(b, withPath);
-    assert.ok(diagnostics.some((d: any) => d.severity === 'warning' && d.code === 'TYPST_STRIKETHROUGH_DROPPED'));
-    assert.strictEqual((payload.messages[0].blocks[0] as any).children[0].text, 'gone');
+    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_STRIKETHROUGH_DROPPED'));
+    const node = (payload.messages[0].blocks[0] as any).children[0];
+    assert.strictEqual(node.type, 'strikethrough');
+    assert.strictEqual(node.children[0].text, 'gone');
 });
 
 test('unserializable tool input emits a diagnostic instead of silent loss', async () => {

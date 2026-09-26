@@ -426,7 +426,11 @@
 #let modern-table(headers, rows, columns: none, aligns: none) = wide(
   block(width: 100%)[
     #set text(size: 8.5pt)
-    #let cols = if columns == none { headers.len() } else { columns.map(x => x * 1fr) }
+    #let cols = if columns == none {
+      if headers.len() > 0 { headers.len() }
+      else if rows.len() > 0 { rows.first().len() }
+      else { 1 }
+    } else { columns.map(x => x * 1fr) }
     #let al = if aligns == none { left } else {
       aligns.map(x => if x == "center" { center } else if x == "right" { right } else { left })
     }
@@ -439,12 +443,15 @@
       stroke: (bottom: 0.3pt + rule),
       cell,
     ))
+    #let header-arg = if headers.len() > 0 {
+      (table.header(repeat: true, ..header-cells),)
+    } else { () }
     #table(
       columns: cols,
       inset: (x: 7pt, y: 6.5pt),
       align: al,
       stroke: none,
-      table.header(repeat: true, ..header-cells),
+      ..header-arg,
       ..body-cells,
     )
   ]

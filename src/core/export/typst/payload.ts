@@ -18,6 +18,7 @@ export type TypstInlineNode =
     | { type: 'text'; text: string }
     | { type: 'strong'; children: TypstInlineNode[] }
     | { type: 'emphasis'; children: TypstInlineNode[] }
+    | { type: 'strikethrough'; children: TypstInlineNode[] }
     | { type: 'inlineCode'; text: string }
     | { type: 'link'; url: string; children: TypstInlineNode[] }
     | { type: 'lineBreak' }
@@ -44,6 +45,7 @@ export type TypstBlockNode =
     | { type: 'file'; name: string; kind: string; size: string }
     | { type: 'quote'; blocks: TypstBlockNode[] }
     | { type: 'note'; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
+    | { type: 'thematicBreak' }
     | { type: 'unknown'; sourceType?: string; blocks?: TypstBlockNode[]; fallback?: string };
 
 export type TypstRenderAttachment =
@@ -172,10 +174,7 @@ function renderInline(
         case 'text': return { type: 'text', text: node.text };
         case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
-        case 'strikethrough': {
-            diagnostics.push({ severity: 'warning', code: 'TYPST_STRIKETHROUGH_DROPPED', message: 'Strikethrough formatting is not supported by the Typst transport; rendering plain text.', path });
-            return { type: 'text', text: node.children.map(n => plainInline([n], new Map())).join('') };
-        }
+        case 'strikethrough': return { type: 'strikethrough', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'inlineCode': return { type: 'inlineCode', text: node.code };
         case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'image': {
@@ -327,7 +326,7 @@ function renderBlock(
             }
             return { type: 'note', blocks: kids };
         }
-        case 'thematicBreak': return { type: 'paragraph', children: [{ type: 'text', text: '—' }] };
+        case 'thematicBreak': return { type: 'thematicBreak' };
         case 'unknown': {
             if (block.fallbackBlocks) {
                 const kids: TypstBlockNode[] = [];
