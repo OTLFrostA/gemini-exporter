@@ -87,6 +87,10 @@ test('deliver stage returning finalized:false yields staged, never delivered', a
     // consumer can mistake it for success (#556/#567).
     assert.strictEqual(res.writeReport, undefined);
     assert.strictEqual(res.error, undefined);
+    // ...but it carries its OWN artifact identity (file name + PDF byte
+    // length) so the batch driver can write honest per-item records — never
+    // the whole-ZIP size (#585 HIGH fix).
+    assert.deepStrictEqual(res.stagedArtifact, { fileName: 'a.pdf', bytesWritten: 2 });
 });
 test('diagnostics accumulate in stage order and are never dropped', async () => {
     const seen: string[] = [];

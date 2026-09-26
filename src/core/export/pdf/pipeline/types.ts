@@ -277,6 +277,16 @@ export type PipelineItemResult =
       })
     | (PipelineItemResultBase & {
           status: 'staged';
+          /**
+           * The item's OWN artifact identity: the file name it will have
+           * inside the batch ZIP plus its own PDF byte length. NOT delivery
+           * proof — a staged artifact has no delivery proof yet. The batch
+           * driver issues the real delivery proof (ZIP file name + ZIP byte
+           * size) at batch level when finalizeZipDelivery() resolves, and
+           * per-item records keep the item's own bytesWritten (never the ZIP
+           * size) — see the #585 HIGH fix.
+           */
+          stagedArtifact: { fileName: string; bytesWritten: number };
       })
     | (PipelineItemResultBase & {
           status: 'failed';

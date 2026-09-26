@@ -510,3 +510,62 @@ test('abort marks unfinished items as failed/retryable instead of silently dropp
     );
     assert.strictEqual(result.failedChats!.length, 3, 'UI aliases stay consistent on abort');
 });
+
+test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585)', async () => {
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const exported: any[] = [];
+    let delivered: { blob: Blob; filename: string } | null = null;
+    // Compiler returns a different-sized PDF per conversation id.
+    const sizedCompiler = {
+        name: 'sized-test-compiler',
+        async compile(payload: any, _context: any) {
+            const convId = payload?.bundle?.conversation?.key?.conversationId ?? '';
+            const pad = convId.includes('szBig') ? 5000 : 500;
+            const bytes = new TextEncoder().encode(`%PDF-1.4\n${'x'.repeat(pad)}\n%%EOF`);
+            return { pdfBytes: bytes, diagnostics: [] };
+        },
+    };
+    const convSmall = makeSample('szSmall', 'small chat');
+    const convBig = makeSample('szBig', 'big chat');
+    const result = await exporter.run(
+        {
+            selected: [convSmall, convBig].map((c) => ({ id: c.id, title: c.title })),
+            conversations: [convSmall, convBig],
+            useZip: true,
+            writer,
+            compiler: sizedCompiler,
+            downloadHandler: async (blob: Blob, filename: string) => {
+                delivered = { blob, filename };
+            },
+        },
+        {
+            onItemExported: (id: string, record: any) => exported.push({ id, record }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 2);
+    assert.strictEqual(exported.length, 2);
+    assert.ok(delivered, 'zip was delivered');
+    const zipSize = (delivered as any).blob.size;
+    const recSmall = exported.find((e) => e.id === convSmall.id)!.record;
+    const recBig = exported.find((e) => e.id === convBig.id)!.record;
+    // Each record describes its OWN pdf: different sizes, matching the staged files.
+    const stagedSmall = writer.files.find((f) => f.name.includes('small'));
+    const stagedBig = writer.files.find((f) => f.name.includes('big'));
+    if (!stagedSmall || !stagedBig) throw new Error('both pdfs were staged in the writer');
+    assert.strictEqual(recSmall.fileName, stagedSmall.name);
+    assert.strictEqual(recBig.fileName, stagedBig.name);
+    assert.strictEqual(recSmall.bytesWritten, stagedSmall.bytes.length);
+    assert.strictEqual(recBig.bytesWritten, stagedBig.bytes.length);
+    assert.ok(recBig.bytesWritten > recSmall.bytesWritten, 'records reflect per-PDF sizes');
+    assert.ok(
+        recSmall.bytesWritten < zipSize && recBig.bytesWritten < zipSize,
+        'no item record carries the whole-ZIP size'
+    );
+    // The ZIP artifact itself is the batch-level delivery proof — on the
+    // result, not on any item record.
+    assert.ok(result.zipDelivery, 'batch result carries the ZIP delivery proof');
+    assert.strictEqual(result.zipDelivery!.fileName, (delivered as any).filename);
+    assert.strictEqual(result.zipDelivery!.bytesWritten, zipSize);
+    assert.ok(result.zipDelivery!.deliveredAt, 'delivery timestamp present');
+});
