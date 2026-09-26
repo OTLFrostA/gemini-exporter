@@ -257,7 +257,12 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
     const paths = new Set<string>();
     const visitInline = (nodes: TypstInlineNode[]): void => {
         for (const node of nodes) {
-            if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'link') && 'children' in node) {
+            if (node.type === 'image') {
+                // Inline images are first-class transport nodes (#562);
+                // their bytes must be mounted or the template's image()
+                // call fails the compile.
+                paths.add(node.asset);
+            } else if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'link') && 'children' in node) {
                 visitInline(node.children);
             }
         }
@@ -403,7 +408,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 diagnostics.push({
                     severity: 'warning',
                     code: 'TYPST_ASSET_PATH_UNMAPPED',
-                    message: `Image path ${imagePath} could not be mapped back to a canonical asset; the template renders a visible placeholder.`,
+                    message: `Image path ${imagePath} could not be mapped back to a canonical asset; the template calls image() on this path, so the compile will fail on the missing file.`,
                 });
                 continue;
             }
@@ -414,7 +419,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 diagnostics.push({
                     severity: 'warning',
                     code: 'TYPST_ASSET_RESOLVE_FAILED',
-                    message: `Image asset ${assetId} failed to resolve (${error instanceof Error ? error.message : String(error)}); the template renders a visible placeholder.`,
+                    message: `Image asset ${assetId} failed to resolve (${error instanceof Error ? error.message : String(error)}); the template calls image() on its path, so the compile will fail on the missing file.`,
                 });
                 continue;
             }
@@ -426,7 +431,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 diagnostics.push({
                     severity: 'warning',
                     code: 'TYPST_ASSET_EMPTY',
-                    message: `Image asset ${assetId} resolved to no bytes; the template renders a visible placeholder.`,
+                    message: `Image asset ${assetId} resolved to no bytes; the template calls image() on its path, so the compile will fail on the missing file.`,
                 });
                 continue;
             }
@@ -461,9 +466,9 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             context.signal,
             (stage, current, total) => context.reportProgress(`typst-${stage}`, current, total),
         );
-        // The sandbox installs fonts when it handles the compile message, so
-        // after a successful round-trip we never need to send them again.
-        this.fontsInstalled = true;
+        // Font-installed state is driven by the sandbox's FONTS_INSTALLED ACK
+        // (see handleHostMessage), not by the compile outcome, so a failed
+        // compile never triggers a font resend.
         if (result.kind !== 'compiled') {
             throw new Error(`unexpected sandbox reply for compile job ${jobId}`);
         }
@@ -658,6 +663,15 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         }
         const jobId = message.jobId;
         if (jobId === null) return;
+        if (message.type === SANDBOX_TO_HOST.FONTS_INSTALLED) {
+            // Fonts are installed in the sandbox exactly once. This ACK is
+            // decoupled from the compile outcome: the sandbox sends it right
+            // after the font builder finishes, before the document compile
+            // runs, so a failed compile no longer causes a font resend on
+            // the next compile (re-running the font builder wedges WASM).
+            this.fontsInstalled = true;
+            return;
+        }
         const job = this.pending.get(jobId);
         if (!job) return; // Unknown or already settled: ignore late/duplicate replies.
         const body = message.body;

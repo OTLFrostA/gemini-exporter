@@ -100,8 +100,17 @@ test('protocol: sandbox messages arrive with the opaque origin', () => {
     assert.strictEqual(SANDBOX_OPAQUE_ORIGIN, 'null');
     assert.ok(SANDBOX_MESSAGE_TYPES.has(SANDBOX_TO_HOST.READY));
     assert.ok(SANDBOX_MESSAGE_TYPES.has(SANDBOX_TO_HOST.COMPILED));
+    assert.ok(SANDBOX_MESSAGE_TYPES.has(SANDBOX_TO_HOST.FONTS_INSTALLED));
     assert.ok(HOST_MESSAGE_TYPES.has(HOST_TO_SANDBOX.INIT));
     assert.ok(HOST_MESSAGE_TYPES.has(HOST_TO_SANDBOX.CANCEL));
+});
+
+test('protocol: accepts a well-formed fonts-installed ACK', () => {
+    const r = parseProtocolMessage(
+        { type: 'typst/fonts-installed', jobId: 'j1' }, SANDBOX_MESSAGE_TYPES);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(r.message.type, 'typst/fonts-installed');
+    assert.strictEqual(r.message.jobId, 'j1');
 });
 
 // ---------------------------------------------------------------------------
@@ -350,6 +359,10 @@ test('compile: happy path returns PDF bytes and sandbox diagnostics', async () =
     assert.strictEqual(sentPayload.messageCount, 2);
 
     const pdfBytes = new TextEncoder().encode('%PDF-1.7\n%fake\n');
+    // The real sandbox ACKs the font install before compiling; the fake
+    // must do the same or the host (correctly) resends fonts next time.
+    host.frame!.receive({ type: 'typst/fonts-installed', jobId: compileMsg.message.jobId });
+    await tick();
     host.frame!.receive({
         type: 'typst/compiled',
         jobId: compileMsg.message.jobId,
@@ -451,5 +464,81 @@ test('compile: without a MATH font, converted math is stripped with a diagnostic
     assert.strictEqual(mathBlock.latex, 'x^2', 'latex source must be preserved');
     controller.abort();
     await assert.rejects(promise, (e: any) => e instanceof DOMException && e.name === 'AbortError');
+    compiler.dispose();
+});
+
+// ---------------------------------------------------------------------------
+// Inline image bytes reach the sandbox (collectImagePaths covers image nodes)
+// ---------------------------------------------------------------------------
+
+test('compile: inline image asset bytes are mounted as shadow files', async () => {
+    const host = new FakeHost();
+    const compiler = makeCompiler(host);
+    const controller = new AbortController();
+    const bundle = makeBundle({
+        assets: [{ id: 'a1', kind: 'image', name: 'pic.png', mimeType: 'image/png' }],
+    });
+    bundle.conversation.messages[0].blocks = [{
+        type: 'paragraph',
+        children: [
+            { type: 'text', text: 'see ' },
+            { type: 'image', assetId: 'a1', alt: 'diagram' },
+            { type: 'strong', children: [{ type: 'image', assetId: 'a1', alt: 'nested' }] },
+        ],
+    }];
+    const imageBytes = new Uint8Array([137, 80, 78, 71]);
+    const assets = { resolve: async (id: any) => (id === 'a1' ? { bytes: imageBytes } : null) };
+    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal, assets), bundle });
+    await driveInitHandshake(host);
+    await tick();
+    const compileMsg = host.frame!.lastSentType('typst/compile')!;
+    assert.ok(compileMsg, 'expected a compile message after init');
+    const binaries = compileMsg.message.binaries;
+    assert.ok(Array.isArray(binaries), 'compile message must carry binaries');
+    const paths = binaries.map((b: any) => b.path);
+    assert.ok(paths.includes('assets/a1.png'), `inline image path must be mounted, got ${JSON.stringify(paths)}`);
+    const mounted = binaries.find((b: any) => b.path === 'assets/a1.png');
+    assert.ok(mounted.buf instanceof ArrayBuffer, 'image bytes must cross as a transferred ArrayBuffer');
+    assert.deepStrictEqual(new Uint8Array(mounted.buf), imageBytes);
+    // No bogus placeholder diagnostic for a successfully mounted image.
+    controller.abort();
+    await assert.rejects(promise, (e: any) => e instanceof DOMException && e.name === 'AbortError');
+    compiler.dispose();
+});
+
+// ---------------------------------------------------------------------------
+// Font install state is ACK-driven, not compile-outcome-driven
+// ---------------------------------------------------------------------------
+
+test('compile: fonts are not resent after a failed compile once installed', async () => {
+    const host = new FakeHost();
+    const compiler = makeCompiler(host);
+    const controller = new AbortController();
+    const bundle = makeBundle();
+    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    await driveInitHandshake(host);
+    await tick();
+    const compileMsg = host.frame!.lastSentType('typst/compile')!;
+    assert.ok(compileMsg, 'expected a compile message after init');
+    assert.strictEqual(compileMsg.message.fonts.length, 1, 'first compile ships fonts');
+    // Sandbox installs fonts, ACKs, then the document compile fails.
+    host.frame!.receive({ type: 'typst/fonts-installed', jobId: compileMsg.message.jobId });
+    await tick();
+    host.frame!.receive({
+        type: 'typst/error',
+        jobId: compileMsg.message.jobId,
+        error: { name: 'Error', message: 'typst: file not found' },
+    });
+    await assert.rejects(promise, /file not found/);
+    // Next compile must NOT resend fonts: the install was already ACKed.
+    const promise2 = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    await tick(10);
+    const compileMsg2 = host.frame!.lastSentType('typst/compile')!;
+    assert.ok(compileMsg2, 'expected a second compile message');
+    assert.strictEqual(
+        compileMsg2.message.fonts.length, 0,
+        'fonts must not be resent after FONTS_INSTALLED, even though the previous compile failed');
+    controller.abort();
+    await assert.rejects(promise2, (e: any) => e instanceof DOMException && e.name === 'AbortError');
     compiler.dispose();
 });

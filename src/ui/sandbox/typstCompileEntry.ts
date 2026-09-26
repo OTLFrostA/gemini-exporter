@@ -77,6 +77,17 @@ let compiler: TypstCompiler | null = null;
 let fontBuilder: TypstFontBuilder | null = null;
 const jobs = new Map<string, CompileJob>();
 
+/**
+ * Sandbox-side one-time font state. The host decides whether to *send*
+ * fonts (it tracks the FONTS_INSTALLED ACK), but the sandbox is the
+ * authority on *running the builder*: if a compile arrives with fonts
+ * after a successful install -- e.g. the host dispatched it before the
+ * ACK arrived, or across an abort race -- the builder must not run again
+ * (re-running it wedges the WASM module, P0). Set only after build()
+ * succeeds; reset on init, which creates a fresh builder.
+ */
+let sandboxFontsInstalled = false;
+
 function postToHost(message: Record<string, unknown>, transfer?: Transferable[]): void {
     window.parent.postMessage(message, '*', transfer ?? []);
 }
@@ -121,6 +132,7 @@ async function handleInit(jobId: string, body: Record<string, unknown>): Promise
     await compiler.init(createOfflineInitOptions(() => wasmBytes));
     fontBuilder = createTypstFontBuilder();
     await fontBuilder.init(createOfflineInitOptions(() => wasmBytes));
+    sandboxFontsInstalled = false;
     reply(jobId, {
         type: SANDBOX_TO_HOST.INITED,
         ok: true,
@@ -172,10 +184,14 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             mappedPaths.push(entry.path);
         }
 
-        // 3. Fonts, installed exactly once. Re-running the font builder with
-        // an empty set on later compiles wedges the WASM module (P0).
+        // 3. Fonts, installed exactly once. Re-running the font builder
+        // wedges the WASM module (P0) -- even if the host re-sends fonts
+        // (abort race, or a compile dispatched before the ACK arrived), so
+        // the sandbox keeps its own one-time state, independent of the
+        // host's. Only a successful build() counts as installed.
         const fontsMissingMath: number[] = [];
-        if (fonts.length > 0) {
+        let fontMs = 0;
+        if (fonts.length > 0 && !sandboxFontsInstalled) {
             const tF = performance.now();
             fonts.forEach((font, index) => {
                 if (!(font instanceof ArrayBuffer)) {
@@ -191,12 +207,25 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             await activeFontBuilder.build(async (resolver) => {
                 activeCompiler.setFonts(resolver);
             });
+            sandboxFontsInstalled = true;
+            fontMs = Math.round(performance.now() - tF);
+            // Fonts are now installed exactly once. ACK immediately so the
+            // host stops sending fonts even if the document compile below
+            // fails; a font resend would re-run the font builder and wedge
+            // the WASM module (P0 finding).
+            reply(jobId, { type: SANDBOX_TO_HOST.FONTS_INSTALLED });
+        } else if (fonts.length > 0) {
+            // Fonts re-sent after a successful install: skip the builder,
+            // still ACK so the host converges on installed.
+            reply(jobId, { type: SANDBOX_TO_HOST.FONTS_INSTALLED });
+        }
+        if (fonts.length > 0) {
             reply(jobId, {
                 type: SANDBOX_TO_HOST.PROGRESS,
                 stage: 'fonts',
                 current: 2,
                 total: 3,
-                fontMs: Math.round(performance.now() - tF),
+                fontMs,
                 fontsMissingMath,
             });
         }
