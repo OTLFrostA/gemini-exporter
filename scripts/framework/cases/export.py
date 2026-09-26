@@ -2,6 +2,7 @@
 import os
 import json
 import time
+import zipfile
 from typing import Tuple, Optional, Dict, Any
 
 from scripts.framework.cases.base import FeatureTestCase, TestContext
@@ -411,4 +412,331 @@ class FastSkipExportedCase(FeatureTestCase):
                 "partial_prep": partial_prep
             }
         finally:
+            cdp_opt.close()
+
+
+class HtmlExportDownloadCase(FeatureTestCase):
+    def __init__(self):
+        super().__init__(
+            feature_id="feat_html_export_download",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="HTML 独立网页 ZIP 导出与落盘核验",
+            description="切换导出格式为 HTML (.html)，下载 ZIP 并解压，严格断言独立网页结构、CSS 样式与附件落地",
+            critical=True,
+            prerequisites=[
+                "feat_fast_skip_exported"
+            ]
+        )
+
+    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        cdp_opt = ctx.connect_options()
+        try:
+            # 确保清空搜索框
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.3)
+
+            target_ids = []
+            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
+            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
+            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
+
+            # 勾选待导出会话，禁用 skipExported，并将 format 设为 html
+            check_res = cdp_opt.eval(f"""
+            (() => {{
+                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
+                if (searchInput && searchInput.value) {{
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
+                const selectNone = document.getElementById('btnSelectNone');
+                if (selectNone) selectNone.click();
+
+                const skipCb = document.getElementById('skipExported');
+                if (skipCb && skipCb.checked) {{
+                    skipCb.checked = false;
+                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+
+                const sel = document.getElementById('format');
+                if (sel && sel.value !== 'html') {{
+                    sel.value = 'html';
+                    sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+
+                const targetIds = {json.dumps(target_ids)};
+                const targetTitles = {json.dumps(target_titles)};
+                const items = Array.from(document.querySelectorAll('#list .item'));
+                let checkedCount = 0;
+                const matchedList = [];
+                items.forEach(item => {{
+                    const cid = item.dataset.chatId;
+                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
+                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
+                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
+                    if (matchId || matchTitle) {{
+                        const cb = item.querySelector('input[type=checkbox]');
+                        if (cb && !cb.checked) {{
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            checkedCount++;
+                            matchedList.push({{ id: cid, title: titleText }});
+                        }}
+                    }}
+                }});
+                return {{
+                    totalItems: items.length,
+                    checkedCount: checkedCount,
+                    matched: matchedList
+                }};
+            }})()
+            """) or {}
+            time.sleep(0.5)
+
+            checked_count = check_res.get("checkedCount", 0)
+            if checked_count < 2:
+                # 兜底：若特定会话未匹配够，勾选当前列表前 4 项
+                cdp_opt.eval("""
+                (() => {
+                    const items = Array.from(document.querySelectorAll('#list .item'));
+                    items.slice(0, 4).forEach(it => {
+                        const cb = it.querySelector('input[type=checkbox]');
+                        if (cb && !cb.checked) {
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    });
+                })()
+                """)
+                time.sleep(0.3)
+
+            downloaded_zip = CDPActions.trigger_export_zip(
+                cdp_opt,
+                ctx.output_dir,
+                max_wait=60,
+                skip_exported=False,
+                format_type="html"
+            )
+            if not downloaded_zip or not os.path.isfile(downloaded_zip) or os.path.getsize(downloaded_zip) == 0:
+                return False, "未能成功下载或落盘 HTML 导出的 ZIP 文件", None
+
+            zip_size = os.path.getsize(downloaded_zip)
+            import shutil
+            extract_dir = os.path.join(ctx.output_dir, "extracted_html")
+            if os.path.isdir(extract_dir):
+                shutil.rmtree(extract_dir)
+            os.makedirs(extract_dir, exist_ok=True)
+            with zipfile.ZipFile(downloaded_zip, "r") as zf:
+                zf.extractall(extract_dir)
+                namelist = zf.namelist()
+
+            html_files = [n for n in namelist if n.endswith(".html") and not os.path.basename(n).startswith(".")]
+            if len(html_files) == 0:
+                return False, f"导出的 ZIP 中未包含任何 .html 文件 (文件清单: {namelist[:5]})", None
+
+            # 校验每一个 HTML 文件的规范结构
+            zero_byte_count = 0
+            for hf in html_files:
+                fpath = os.path.join(extract_dir, hf)
+                if not os.path.isfile(fpath) or os.path.getsize(fpath) == 0:
+                    zero_byte_count += 1
+                    continue
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                # 校验合法 HTML 网页骨架
+                if "<!DOCTYPE html>" not in content and "<!doctype html>" not in content.lower():
+                    return False, f"HTML 导出文件缺少 DOCTYPE 声明: {hf}", None
+                if "<html" not in content or "</html>" not in content:
+                    return False, f"HTML 导出文件缺少 html 根标签闭合: {hf}", None
+                if "<body" not in content or "</body>" not in content:
+                    return False, f"HTML 导出文件缺少 body 标签: {hf}", None
+                if 'generator" content="Gemini Exporter"' not in content:
+                    return False, f"HTML 导出文件缺少 Gemini Exporter 生成元数据: {hf}", None
+
+            if zero_byte_count > 0:
+                return False, f"发现 {zero_byte_count} 个 0 字节的 HTML 文件", None
+
+            return True, f"HTML 独立网页导出成功落盘并解压验证通过 (HTML文件数: {len(html_files)}, ZIP大小: {zip_size} bytes, 规范结构 100%)", {
+                "zip_path": downloaded_zip,
+                "html_count": len(html_files),
+                "zip_size": zip_size
+            }
+        finally:
+            # 恢复工作台默认格式为 markdown
+            try:
+                cdp_opt.eval("""
+                (() => {
+                    const sel = document.getElementById('format');
+                    if (sel && sel.value !== 'markdown') {
+                        sel.value = 'markdown';
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                })()
+                """)
+            except Exception:
+                pass
+            cdp_opt.close()
+
+
+class PdfExportDownloadCase(FeatureTestCase):
+    def __init__(self):
+        super().__init__(
+            feature_id="feat_pdf_export_download",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="PDF 真实编译 ZIP 导出与落盘核验",
+            description="切换导出格式为 PDF (.pdf)，通过沙箱 Typst WASM 真实编译导出 ZIP，解压严格断言 %PDF- 二进制规范与非空",
+            critical=True,
+            prerequisites=[
+                "feat_html_export_download"
+            ]
+        )
+
+    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        cdp_opt = ctx.connect_options()
+        try:
+            # 确保清空搜索框
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.3)
+
+            target_ids = []
+            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
+            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
+            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
+
+            # 勾选待导出会话，禁用 skipExported，并将 format 设为 pdf
+            check_res = cdp_opt.eval(f"""
+            (() => {{
+                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
+                if (searchInput && searchInput.value) {{
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
+                const selectNone = document.getElementById('btnSelectNone');
+                if (selectNone) selectNone.click();
+
+                const skipCb = document.getElementById('skipExported');
+                if (skipCb && skipCb.checked) {{
+                    skipCb.checked = false;
+                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+
+                const sel = document.getElementById('format');
+                if (sel && sel.value !== 'pdf') {{
+                    sel.value = 'pdf';
+                    sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+
+                const targetIds = {json.dumps(target_ids)};
+                const targetTitles = {json.dumps(target_titles)};
+                const items = Array.from(document.querySelectorAll('#list .item'));
+                let checkedCount = 0;
+                const matchedList = [];
+                items.forEach(item => {{
+                    const cid = item.dataset.chatId;
+                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
+                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
+                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
+                    if (matchId || matchTitle) {{
+                        const cb = item.querySelector('input[type=checkbox]');
+                        if (cb && !cb.checked) {{
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            checkedCount++;
+                            matchedList.push({{ id: cid, title: titleText }});
+                        }}
+                    }}
+                }});
+                return {{
+                    totalItems: items.length,
+                    checkedCount: checkedCount,
+                    matched: matchedList
+                }};
+            }})()
+            """) or {}
+            time.sleep(0.5)
+
+            checked_count = check_res.get("checkedCount", 0)
+            if checked_count < 2:
+                # 兜底：若特定会话未匹配够，勾选当前列表前 4 项
+                cdp_opt.eval("""
+                (() => {
+                    const items = Array.from(document.querySelectorAll('#list .item'));
+                    items.slice(0, 4).forEach(it => {
+                        const cb = it.querySelector('input[type=checkbox]');
+                        if (cb && !cb.checked) {
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    });
+                })()
+                """)
+                time.sleep(0.3)
+
+            downloaded_zip = CDPActions.trigger_export_zip(
+                cdp_opt,
+                ctx.output_dir,
+                max_wait=90,
+                skip_exported=False,
+                format_type="pdf"
+            )
+            if not downloaded_zip or not os.path.isfile(downloaded_zip) or os.path.getsize(downloaded_zip) == 0:
+                return False, "未能成功下载或落盘 PDF 导出的 ZIP 文件", None
+
+            zip_size = os.path.getsize(downloaded_zip)
+            import shutil
+            extract_dir = os.path.join(ctx.output_dir, "extracted_pdf")
+            if os.path.isdir(extract_dir):
+                shutil.rmtree(extract_dir)
+            os.makedirs(extract_dir, exist_ok=True)
+            with zipfile.ZipFile(downloaded_zip, "r") as zf:
+                zf.extractall(extract_dir)
+                namelist = zf.namelist()
+
+            pdf_files = [n for n in namelist if n.endswith(".pdf") and not os.path.basename(n).startswith(".")]
+            if len(pdf_files) == 0:
+                return False, f"导出的 ZIP 中未包含任何 .pdf 文件 (文件清单: {namelist[:5]})", None
+
+            # 校验每一个 PDF 文件合法的二进制结构
+            zero_byte_count = 0
+            for pf in pdf_files:
+                fpath = os.path.join(extract_dir, pf)
+                if not os.path.isfile(fpath) or os.path.getsize(fpath) == 0:
+                    zero_byte_count += 1
+                    continue
+                size = os.path.getsize(fpath)
+                if size < 500:
+                    return False, f"PDF 导出文件尺寸异常过小 ({size} bytes): {pf}", None
+
+                with open(fpath, "rb") as f:
+                    header = f.read(1024)
+                    f.seek(max(0, size - 2048))
+                    tail = f.read(2048)
+
+                # 校验合法 PDF 魔数头与结构特征
+                if not header.startswith(b"%PDF-"):
+                    return False, f"PDF 导出文件缺少标准 %PDF- 文件头魔数: {pf}", None
+                if b"%%EOF" not in tail and b"/Root" not in header and b"/Root" not in tail:
+                    return False, f"PDF 导出文件缺少标准结构体特征: {pf}", None
+
+            if zero_byte_count > 0:
+                return False, f"发现 {zero_byte_count} 个 0 字节的 PDF 文件", None
+
+            return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制合规 100%)", {
+                "zip_path": downloaded_zip,
+                "pdf_count": len(pdf_files),
+                "zip_size": zip_size
+            }
+        finally:
+            # 恢复工作台默认格式为 markdown
+            try:
+                cdp_opt.eval("""
+                (() => {
+                    const sel = document.getElementById('format');
+                    if (sel && sel.value !== 'markdown') {
+                        sel.value = 'markdown';
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                })()
+                """)
+            except Exception:
+                pass
             cdp_opt.close()

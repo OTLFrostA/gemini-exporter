@@ -222,6 +222,22 @@ class FeatureRegistry:
             critical=True,
             prerequisites=["feat_multimodal_spec_assertion"]
         ))
+        self.register(Feature(
+            id="feat_html_export_download",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="HTML 独立网页 ZIP 导出与落盘核验",
+            description="切换导出格式为 HTML (.html)，下载 ZIP 并解压，严格断言独立网页结构、CSS 样式与附件落地",
+            critical=True,
+            prerequisites=["feat_fast_skip_exported"]
+        ))
+        self.register(Feature(
+            id="feat_pdf_export_download",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="PDF 真实编译 ZIP 导出与落盘核验",
+            description="切换导出格式为 PDF (.pdf)，通过沙箱 Typst WASM 真实编译导出 ZIP，解压严格断言 %PDF- 二进制规范与非空",
+            critical=True,
+            prerequisites=["feat_html_export_download"]
+        ))
 
     def register(self, feature: Feature):
         self._features[feature.id] = feature

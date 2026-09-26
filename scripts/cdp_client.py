@@ -153,7 +153,8 @@ class CDPConnection:
         res = self.call("Runtime.evaluate", params, timeout=timeout)
         result = res.get("result", {})
         if "exceptionDetails" in result:
-            desc = result["exceptionDetails"].get("text") or result["exceptionDetails"].get("exception", {}).get("description")
+            exc = result["exceptionDetails"].get("exception", {})
+            desc = exc.get("description") or result["exceptionDetails"].get("text")
             print(f"    ⚠️ JS 执行异常: {desc}")
         return result.get("result", {}).get("value")
 
