@@ -144,25 +144,61 @@ function styleRank(style: string): number {
 function entryMatchesRequest(entry: LocalFontEntry, requested: string): boolean {
     const want = normalizeFontName(requested);
     if (normalizeFontName(entry.family) === want) return true;
-    // Heuristic: postscript name is typically family (no spaces) + "-" + style,
-    // e.g. "NotoSansCJKsc-Regular" for family "Noto Sans CJK SC".
-    const ps = normalizeFontName(entry.postscriptName);
-    return ps === want || ps.startsWith(want);
+    // Heuristic: postscript name is family stem + style suffix, e.g.
+    // "NotoSansCJKsc-Regular" -> stem "notosanscjksc". The stem must EQUAL the
+    // requested family; an arbitrary prefix is not a match ("Noto Sans" must
+    // not claim "NotoSansCJKsc-Regular").
+    return postscriptFamilyStem(normalizeFontName(entry.postscriptName)) === want;
+}
+
+/**
+ * PostScript style suffixes stripped when a PS name has no '-' separator
+ * (e.g. "ArialBold" -> "arial"). Only true style/foundry tokens; width
+ * variants like Condensed stay part of the family stem.
+ */
+const PS_STYLE_SUFFIXES: readonly string[] = [
+    'bolditalic', 'extrabold', 'semibold', 'demibold', 'extralight',
+    'bold', 'italic', 'oblique', 'regular', 'light', 'medium',
+    'black', 'heavy', 'thin', 'book', 'roman', 'mt',
+];
+
+/**
+ * Split a normalized PostScript name into its family stem:
+ * "notosanscjksc-regular" -> "notosanscjksc"; "arialbold" -> "arial".
+ * The stem is what participates in family matching -- never a raw prefix.
+ */
+function postscriptFamilyStem(ps: string): string {
+    const dash = ps.lastIndexOf('-');
+    if (dash > 0) return ps.slice(0, dash);
+    for (const suffix of PS_STYLE_SUFFIXES) {
+        if (ps.length > suffix.length && ps.endsWith(suffix)) {
+            return ps.slice(0, ps.length - suffix.length);
+        }
+    }
+    return ps;
 }
 
 /**
  * Match available FontData entries against the requested families.
  *
- * Pure function: no `window`, no async, no side effects. Each entry is used at
- * most once, claimed by the first requested family (in priority order) it
- * matches. Candidates are sorted by (requested order, style rank,
- * postscriptName) so index 0 is the best choice.
+ * Each entry is used at most once, claimed by the first requested family (in
+ * priority order) it matches. Candidates are sorted by (requested order,
+ * style rank, postscriptName) so index 0 is the best choice.
+ *
+ * Pure w.r.t. the environment: no `window`, no async. It does record its
+ * claims into the caller-provided `claimed` set (when given) -- that is the
+ * mechanism that keeps one font file from being returned twice.
+ *
+ * @param claimed Optional shared claim set: entry indices already taken by an
+ *   earlier stack (e.g. CJK) are skipped, so the same font file is never
+ *   returned twice across stacks. The set is updated in place.
  */
 export function rankLocalFontCandidates(
     entries: readonly LocalFontEntry[],
     requested: readonly string[],
+    claimed?: Set<number>,
 ): LocalFontCandidate[] {
-    const used = new Set<number>();
+    const used = claimed ?? new Set<number>();
     const out: LocalFontCandidate[] = [];
     requested.forEach((family, requestedIndex) => {
         const matched: Array<{ entry: LocalFontEntry; index: number }> = [];
@@ -322,17 +358,33 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
 
     const diagnostics: FontProviderDiagnostic[] = [];
     const fonts: ResolvedLocalFont[] = [];
+    // One claim set across both stacks: a font file claimed for CJK is never
+    // returned again as a Latin fallback (no duplicate mounts, no wrong-family
+    // Latin choice). CJK runs first, so it keeps priority.
+    const claimedEntries = new Set<number>();
 
     const resolveStack = (stack: readonly string[], label: string): void => {
-        const candidates = rankLocalFontCandidates(query.fonts, stack);
+        const candidates = rankLocalFontCandidates(query.fonts, stack, claimedEntries);
         for (const family of stack) {
             const best = bestCandidateForFamily(candidates, family);
             if (!best) {
-                diagnostics.push({
-                    severity: 'warning',
-                    code: 'TYPST_LOCAL_FONTS_MISSING',
-                    message: `Requested ${label} font "${family}" not found among installed local fonts; it will not be mounted.`,
-                });
+                // Honest miss classification: an entry that matches but was
+                // already claimed by the other stack is already mounted -- say
+                // so instead of crying "missing".
+                const wouldMatch = rankLocalFontCandidates(query.fonts, [family]).length > 0;
+                diagnostics.push(
+                    wouldMatch
+                        ? {
+                              severity: 'info',
+                              code: 'TYPST_LOCAL_FONTS_ALREADY_MOUNTED',
+                              message: `Requested ${label} font "${family}" matches an installed font that is already mounted for the other script stack; it is not mounted twice.`,
+                          }
+                        : {
+                              severity: 'warning',
+                              code: 'TYPST_LOCAL_FONTS_MISSING',
+                              message: `Requested ${label} font "${family}" not found among installed local fonts; it will not be mounted.`,
+                          },
+                );
                 continue;
             }
             if (styleRank(best.style) !== 0) {
@@ -374,6 +426,9 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
         fonts: limited,
         diagnostics,
         fallbackChain: chain,
-        localFontsAvailable: true,
+        // False exactly when the sandbox must compile with bundled fonts only:
+        // no local font was mounted (query succeeded but nothing matched, or
+        // the limit truncated everything away).
+        localFontsAvailable: limited.length > 0,
     };
 }
