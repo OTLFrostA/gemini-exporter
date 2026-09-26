@@ -239,3 +239,112 @@ test('zip mode packages only after successful writes', async () => {
     assert.ok((downloaded as any).name.endsWith('.zip'));
     assert.strictEqual(writer.files.length, 1, 'the pdf itself was written to the zip writer');
 });
+
+test('zip: generateBlob failure never reports success and commits no records (§1)', async () => {
+    const writer = makeFakeWriter();
+    (writer as any).generateBlob = async () => {
+        throw new Error('boom: simulated blob failure');
+    };
+    const exporter = new PdfExporter();
+    const exported: any[] = [];
+    const logs: any[] = [];
+    let downloads = 0;
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: true,
+            writer,
+            downloadHandler: async () => {
+                downloads++;
+            },
+        },
+        {
+            onItemExported: (id: string, record: any) => exported.push({ id, record }),
+            onLog: (msg: string, level?: string) => logs.push({ msg, level }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 0, 'no success without ZIP delivery');
+    assert.strictEqual(result.failed.length, 1, 'staged item reported as failed, retryable');
+    assert.ok(
+        result.failed[0].error!.includes('zip finalize/delivery failed'),
+        'failure reason names the finalize step'
+    );
+    assert.strictEqual(exported.length, 0, 'no success records committed');
+    assert.strictEqual(downloads, 0, 'nothing delivered to the user');
+    assert.strictEqual(writer.files.length, 1, 'the pdf was staged before finalize failed');
+    assert.ok(logs.some((l) => l.level === 'error'), 'finalize failure logged, not swallowed');
+});
+
+test('zip: downloadHandler failure never reports success and commits no records (§1)', async () => {
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const exported: any[] = [];
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: true,
+            writer,
+            downloadHandler: async () => {
+                throw new Error('boom: simulated download failure');
+            },
+        },
+        {
+            onItemExported: (id: string, record: any) => exported.push({ id, record }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 0, 'no success without ZIP delivery');
+    assert.strictEqual(result.failed.length, 1);
+    assert.ok(result.failed[0].error!.includes('zip finalize/delivery failed'));
+    assert.strictEqual(exported.length, 0, 'no success records committed');
+});
+
+test('zip: success records are committed only after delivery, in item order (§1)', async () => {
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const events: string[] = [];
+    const result = await exporter.run(
+        {
+            selected: [1, 2].map((n) => ({ id: `ord-${n}`, title: `ord ${n}` })),
+            conversations: [1, 2].map((n) => makeSample(`ord${n}`, `ord ${n}`)),
+            useZip: true,
+            writer,
+            downloadHandler: async () => {
+                events.push('delivered');
+            },
+        },
+        {
+            onItemExported: (id: string) => events.push(`record:${id}`),
+        }
+    );
+    assert.strictEqual(result.succeeded, 2);
+    assert.strictEqual(result.failed.length, 0);
+    assert.deepStrictEqual(
+        events,
+        ['delivered', 'record:ord-1', 'record:ord-2'],
+        'records committed after delivery, in item order'
+    );
+});
+
+test('zip: missing generateBlob on the writer fails closed, never reports success (§1)', async () => {
+    const writer = makeFakeWriter();
+    delete (writer as any).generateBlob;
+    const exporter = new PdfExporter();
+    const exported: any[] = [];
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: true,
+            writer,
+        },
+        {
+            onItemExported: (id: string, record: any) => exported.push({ id, record }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 0, 'cannot finalize => cannot succeed');
+    assert.strictEqual(result.failed.length, 1);
+    assert.ok(result.failed[0].error!.includes('generateBlob is not available'));
+    assert.strictEqual(exported.length, 0, 'no success records committed');
+});
