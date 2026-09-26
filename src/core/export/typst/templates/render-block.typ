@@ -62,7 +62,7 @@
     if scope == "user" { block(width: 100%)[#align(center)[#math]] } else { math-surface(math) }
   } else {
     quiet-note[
-      无法排版该公式；保留原始 LaTeX：#inline-code(node.latex)
+      #node.fallbackLabel#inline-code(node.latex)
     ]
   }
 }
@@ -127,7 +127,6 @@
 }
 
 #let render-unknown(node, scope, recurse) = {
-  let label = if "sourceType" in node { "Unsupported · " + node.sourceType } else { "Unsupported content" }
   if "blocks" in node {
     let body = {
       for (index, sub) in node.blocks.enumerate() {
@@ -135,12 +134,9 @@
         recurse(sub, scope: scope)
       }
     }
-    unknown-surface(label, body)
+    unknown-surface(node.label, body)
   } else {
-    unknown-surface(
-      label,
-      if "fallback" in node { node.fallback } else { [Content preserved in archive but unavailable in this renderer.] },
-    )
+    unknown-surface(node.label, node.fallback)
   }
 }
 

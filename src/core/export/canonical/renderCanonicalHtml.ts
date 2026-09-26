@@ -4,6 +4,7 @@ import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './
 import type { Citation } from './citations.js';
 import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
 import type { InlineNode } from './inline.js';
+import { getRendererStrings } from './rendererStrings.js';
 import { projectConversation } from './projection.js';
 import type {
     CompanionResourcePlan,
@@ -14,7 +15,7 @@ import type {
 } from './rendering.js';
 import {
     extractBlockText,
-    unknownBlockFallbackText,
+    resolveUnknownBlockFallback,
     unknownInlineFallbackText,
 } from './unknownFallback.js';
 import {
@@ -57,6 +58,22 @@ const CANONICAL_EXTRA_CSS = `
   font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 6px;
+}
+.gem-unknown-payload {
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+.gem-att-caption, .gem-att-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 0 12px 10px;
+}
+.gem-code-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 8px;
 }
 .gem-figure { margin: 1em 0; }
 .gem-figure figcaption {
@@ -198,6 +215,7 @@ function renderImageCard(block: ImageBlock, ctx: RenderCtx, path: string): strin
     const name = block.alt ?? asset?.name ?? block.assetId;
     const safeName = escapeHtml(name);
     if (!url) return missingAssetHtml(block.assetId, name, ctx, path);
+    const caption = block.caption?.length ? `<div class="gem-att-caption">${renderInlines(block.caption, ctx)}</div>` : '';
     return `
       <a class="gem-att-card gem-att-img" href="${url}" target="_blank" rel="noopener noreferrer" title="点击查看原图 ${safeName}">
         <div class="gem-att-preview">
@@ -207,6 +225,7 @@ function renderImageCard(block: ImageBlock, ctx: RenderCtx, path: string): strin
           <span class="gem-att-name">${safeName}</span>
           <span class="gem-att-badge">${extBadge(name, 'IMG')}</span>
         </div>
+        ${caption}
         <div class="gem-att-open-btn">${OPEN_SVG}</div>
       </a>`;
 }
@@ -217,6 +236,7 @@ function renderFileCard(block: FileBlock, ctx: RenderCtx, path: string): string 
     const name = block.label ?? asset?.name ?? block.assetId;
     const safeName = escapeHtml(name);
     if (!url) return missingAssetHtml(block.assetId, name, ctx, path);
+    const description = block.description?.length ? `<div class="gem-att-desc">${renderInlines(block.description, ctx)}</div>` : '';
     return `
       <a class="gem-att-card gem-att-file" href="${url}" target="_blank" download="${safeName}" title="点击打开或下载 ${safeName}">
         <div class="gem-att-icon">${FILE_SVG}</div>
@@ -224,6 +244,7 @@ function renderFileCard(block: FileBlock, ctx: RenderCtx, path: string): string 
           <span class="gem-att-name">${safeName}</span>
           <span class="gem-att-badge">${extBadge(name, 'FILE')}</span>
         </div>
+        ${description}
         <div class="gem-att-open-btn">${OPEN_SVG}</div>
       </a>`;
 }
@@ -248,11 +269,15 @@ function renderCarousel(cardsHtml: string): string {
 }
 
 function renderTable(block: TableBlock, ctx: RenderCtx): string {
+    const alignOf = (index: number): string => {
+        const align = block.columns?.[index]?.align;
+        return align === 'left' || align === 'center' || align === 'right' ? ` style="text-align:${align}"` : '';
+    };
     const renderRow = (cells: TableBlock['rows'][number]['cells'], header: boolean): string => {
         const tag = header ? 'th' : 'td';
-        return `<tr>${cells.map((c) => {
+        return `<tr>${cells.map((c, i) => {
             const span = `${c.colSpan && c.colSpan !== 1 ? ` colspan="${c.colSpan}"` : ''}${c.rowSpan && c.rowSpan !== 1 ? ` rowspan="${c.rowSpan}"` : ''}`;
-            return `<${tag}${span}>${renderInlines(c.children, ctx)}</${tag}>`;
+            return `<${tag}${span}${alignOf(i)}>${renderInlines(c.children, ctx)}</${tag}>`;
         }).join('')}</tr>`;
     };
     let html = '<div class="gem-table-wrapper"><table class="gem-table">';
@@ -267,17 +292,11 @@ function renderTable(block: TableBlock, ctx: RenderCtx): string {
 }
 
 function thoughtTitle(kind: string | undefined, isEn: boolean): string {
-    if (isEn) {
-        switch (kind) {
-            case 'summary': return 'Thinking Summary';
-            case 'progress': return 'Thinking Progress';
-            default: return 'Thinking Process';
-        }
-    }
+    const strings = getRendererStrings(isEn ? 'en' : 'zh');
     switch (kind) {
-        case 'summary': return '思考摘要';
-        case 'progress': return '思考过程';
-        default: return '思考过程';
+        case 'summary': return strings.thinkingSummary;
+        case 'progress': return strings.thinkingProgress;
+        default: return strings.thinkingProcess;
     }
 }
 
@@ -301,10 +320,14 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
         case 'code': {
             const lang = block.language || 'text';
             const safeLang = escapeHtml(lang);
+            const headerText = block.filename
+                ? (lang !== 'text' ? `${block.filename} · ${lang}` : block.filename)
+                : lang;
+            const meta = block.meta ? `<span class="gem-code-meta"> · ${escapeHtml(block.meta)}</span>` : '';
             return `
 <div class="gem-code-block">
   <div class="gem-code-header">
-    <span class="gem-code-lang">${safeLang}</span>
+    <span class="gem-code-lang">${escapeHtml(headerText)}</span>${meta}
     <button class="gem-copy-btn" onclick="copyCode(this)" title="Copy Code">
       ${COPY_SVG}
       <span class="copy-text">复制</span>
@@ -351,9 +374,10 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
         }
         case 'toolCall':
         case 'toolResult': {
+            const strings = getRendererStrings(ctx.isEn ? 'en' : 'zh');
             const label = block.type === 'toolCall'
-                ? `Tool call · ${block.toolName}`
-                : `Tool result · ${block.toolName ?? block.callId}`;
+                ? `${strings.toolCall} · ${block.toolName}`
+                : `${strings.toolResult} · ${block.toolName ?? block.callId}`;
             const display = (block.displayBlocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/tool:${i}`)).join('');
             const payload = block.type === 'toolCall' ? block.input : block.output;
             const payloadHtml = payload !== undefined ? `<pre><code>${escapeHtml(JSON.stringify(payload, null, 2))}</code></pre>` : '';
@@ -369,8 +393,18 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
             return '<hr class="gem-hr">';
         case 'unknown': {
             diag(ctx, 'info', 'HTML_UNKNOWN_BLOCK', `unknown block rendered visibly (sourceType=${block.sourceType})`, path);
-            const fallback = (block.fallbackBlocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/fallback:${i}`)).join('');
-            const body = fallback || `<div>${escapeHtml(unknownBlockFallbackText(block))}</div>`;
+            const resolved = resolveUnknownBlockFallback(block);
+            let body: string;
+            if (resolved.kind === 'blocks') {
+                body = (block.fallbackBlocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/fallback:${i}`)).join('');
+            } else if (resolved.kind === 'payload') {
+                if (resolved.truncated) {
+                    diag(ctx, 'warning', 'HTML_UNKNOWN_PAYLOAD_TRUNCATED', `unknown block payload truncated (sourceType=${block.sourceType})`, path);
+                }
+                body = `<pre class="gem-unknown-payload">${escapeHtml(resolved.text)}</pre>`;
+            } else {
+                body = `<div>${escapeHtml(resolved.text)}</div>`;
+            }
             return `<section class="gem-unknown-block" data-source-type="${escapeHtml(block.sourceType)}"><div class="gem-unknown-label">Unsupported · ${escapeHtml(block.sourceType)}</div>${body}</section>`;
         }
         default:

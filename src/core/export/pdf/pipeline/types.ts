@@ -87,6 +87,7 @@ export interface PayloadStageInput {
     bundle: CanonicalConversationBundle;
     view: ProjectedView;
     pathMap: Map<string, string>;
+    locale: 'zh' | 'en';
 }
 
 export interface PayloadStageOutput {

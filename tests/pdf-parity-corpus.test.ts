@@ -392,10 +392,14 @@ function typstTextParts(payload: any, bundle: any): TextParts {
             case 'list':
                 for (const item of b.items ?? []) for (const sub of item.blocks ?? []) emitBlock(sub, canonType);
                 return;
-            case 'code':
-                emit(isAsset, b.language);
+            case 'code': {
+                const header = b.filename
+                    ? (b.language && b.language !== 'text' ? `${b.filename} · ${b.language}` : b.filename)
+                    : b.language;
+                emit(isAsset, header + (b.meta ? ` · ${b.meta}` : ''));
                 emit(isAsset, b.text);
                 return;
+            }
             case 'math':
                 emit(isAsset, b.latex);
                 return;
