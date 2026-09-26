@@ -54,8 +54,8 @@ test('headerless table keeps empty headers and full body rows', async () => {
     assert.deepStrictEqual(node.headers, []);
     assert.strictEqual(node.rows.length, 2);
     assert.strictEqual(node.rows[0].length, 2);
-    assert.strictEqual(node.rows[0][0][0].text, 'north-one');
-    assert.strictEqual(node.rows[1][1][0].text, 'south-two');
+    assert.strictEqual(node.rows[0][0].children[0].text, 'north-one');
+    assert.strictEqual(node.rows[1][1].children[0].text, 'south-two');
 });
 
 test('thematicBreak becomes a native divider node, not an em-dash paragraph', async () => {

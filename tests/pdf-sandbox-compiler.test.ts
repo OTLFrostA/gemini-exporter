@@ -175,8 +175,8 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
                     ],
                 },
                 {
-                    type: 'table', headers: [[[{ type: 'text', text: 'h' }]]],
-                    rows: [[[{ type: 'inlineMath', latex: 'w', typst: 'w' }]]],
+                    type: 'table', headers: [[{ children: [{ type: 'text', text: 'h' }] }]],
+                    rows: [[{ children: [{ type: 'inlineMath', latex: 'w', typst: 'w' }] }]],
                 },
             ],
         }],
@@ -188,7 +188,7 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
     const paraChildren = doc.messages[0].blocks[1].children;
     assert.strictEqual('typst' in paraChildren[1], false);
     assert.strictEqual('typst' in paraChildren[2].children[0], false);
-    assert.strictEqual('typst' in doc.messages[0].blocks[2].rows[0][0][0], false);
+    assert.strictEqual('typst' in doc.messages[0].blocks[2].rows[0][0].children[0], false);
 });
 
 // ---------------------------------------------------------------------------

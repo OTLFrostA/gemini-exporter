@@ -29,6 +29,12 @@ export type TypstInlineNode =
 
 export type TypstListItem = { blocks: TypstBlockNode[] };
 
+export type TypstTableCell = {
+    children: TypstInlineNode[];
+    colspan?: number;
+    rowspan?: number;
+};
+
 export type TypstBlockNode =
     | { type: 'paragraph'; children: TypstInlineNode[] }
     | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: TypstInlineNode[] }
@@ -37,8 +43,8 @@ export type TypstBlockNode =
     | { type: 'math'; latex: string; typst?: string; fallbackLabel: string }
     | {
         type: 'table';
-        headers: TypstInlineNode[][][];
-        rows: TypstInlineNode[][][];
+        headers: TypstTableCell[][];
+        rows: TypstTableCell[][];
         aligns?: ('left' | 'center' | 'right')[];
         caption?: string;
     }
@@ -236,15 +242,17 @@ function renderBlock(
                 : { type: 'math', latex: block.source, fallbackLabel };
         }
         case 'table': {
-            const headers = (block.headerRows ?? []).map(row => row.cells.map(c => inline(cellInline(c))));
-            if ([...(block.headerRows ?? []), ...block.rows].some(r => r.cells.some(c => (c.colSpan ?? 1) !== 1 || (c.rowSpan ?? 1) !== 1))) {
-                diagnostics.push({ severity: 'warning', code: 'TYPST_V8_TABLE_SPAN_IGNORED', message: 'colSpan/rowSpan are not supported by the v8 transport.', path });
-            }
+            const renderCell = (c: TableCell): TypstTableCell => ({
+                children: inline(cellInline(c)),
+                ...(c.colSpan && c.colSpan > 1 ? { colspan: c.colSpan } : {}),
+                ...(c.rowSpan && c.rowSpan > 1 ? { rowspan: c.rowSpan } : {}),
+            });
+            const headers = (block.headerRows ?? []).map(row => row.cells.map(renderCell));
             const aligns = block.columns?.map(c => c.align === 'default' || !c.align ? 'left' : c.align);
             return {
                 type: 'table',
                 headers,
-                rows: block.rows.map(row => row.cells.map(cell => inline(cell.children))),
+                rows: block.rows.map(row => row.cells.map(renderCell)),
                 ...(aligns && aligns.length ? { aligns } : {}),
                 ...(block.caption?.length ? { caption: inlineText(block.caption) } : {}),
             };

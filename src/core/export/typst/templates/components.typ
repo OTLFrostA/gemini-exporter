@@ -428,22 +428,29 @@
 #let modern-table(headers, rows, columns: none, aligns: none) = wide(
   block(width: 100%)[
     #set text(size: 8.5pt)
+    #let logical-cols = (headers + rows).map(row => row.fold(0, (n, c) => n + c.colspan)).fold(0, calc.max)
     #let cols = if columns == none {
-      if headers.len() > 0 { headers.first().len() }
-      else if rows.len() > 0 { rows.first().len() }
-      else { 1 }
+      if logical-cols > 0 { logical-cols } else { 1 }
     } else { columns.map(x => x * 1fr) }
     #let al = if aligns == none { left } else {
       aligns.map(x => if x == "center" { center } else if x == "right" { right } else { left })
     }
+    #let span-args(cell) = {
+      let args = (:)
+      if cell.colspan > 1 { args.insert("colspan", cell.colspan) }
+      if cell.rowspan > 1 { args.insert("rowspan", cell.rowspan) }
+      args
+    }
     #let header-cells = headers.flatten().map(h => table.cell(
       fill: header-fill,
       stroke: (bottom: 0.4pt + rule),
-      text(size: 8.1pt, weight: 600)[#h],
+      ..span-args(h),
+      text(size: 8.1pt, weight: 600)[#h.body],
     ))
     #let body-cells = rows.flatten().map(cell => table.cell(
       stroke: (bottom: 0.3pt + rule),
-      cell,
+      ..span-args(cell),
+      cell.body,
     ))
     #let header-arg = if headers.len() > 0 {
       (table.header(repeat: true, ..header-cells),)

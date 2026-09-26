@@ -145,10 +145,10 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
                 break;
             case 'table':
                 for (const row of block.headers) {
-                    for (const cell of row) stripInline(cell);
+                    for (const cell of row) stripInline(cell.children);
                 }
                 for (const row of block.rows) {
-                    for (const cell of row) stripInline(cell);
+                    for (const cell of row) stripInline(cell.children);
                 }
                 break;
             case 'math':
@@ -197,9 +197,9 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
         } else if (block.type === 'unknown') {
             if (block.blocks) for (const child of block.blocks) visitBlock(child);
         } else if (block.type === 'table') {
-            for (const row of block.headers) for (const cell of row) visitInline(cell);
+            for (const row of block.headers) for (const cell of row) visitInline(cell.children);
             for (const row of block.rows) {
-                for (const cell of row) visitInline(cell);
+                for (const cell of row) visitInline(cell.children);
             }
         }
     };
