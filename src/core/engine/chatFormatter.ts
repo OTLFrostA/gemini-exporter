@@ -1,9 +1,9 @@
 /**
  * chatFormatter.ts
  * Unified export formatter facade for Gemini conversations.
- * Delegates to specialized formatters: markdownFormatter, jsonFormatter, htmlConverter, and htmlTemplate.
+ * Delegates to specialized formatters: markdownFormatter, jsonFormatter, htmlConverter,
+ * plus the canonical HTML renderer (formatHtmlCanonical).
  */
-import { toHtml } from "./template/htmlTemplate.js";
 import {
     normalizeGeminiConversation,
     CanonicalHtmlRenderer,
@@ -39,7 +39,6 @@ export interface ChatFormatterModule {
     cleanMessageBody: (text?: string | null) => string;
     toMarkdown: (chat: any, opts?: ChatFormatterOptions) => string;
     toOpenAIJson: (chat: any) => string;
-    toHtml: (chat: any, opts?: ChatFormatterOptions) => string;
     formatContent: (chat: any, formatType?: string, opts?: ChatFormatterOptions) => FormattedResult;
     formatHtmlCanonical: (chat: any, opts?: CanonicalHtmlExportOptions) => Promise<FormattedResult>;
 }
@@ -98,9 +97,10 @@ function dedupeMessagesById(chat: any): any {
  * layout the export pipeline already writes), so the renderer needs no
  * external AssetResolver plumbing here.
  *
- * The legacy sync toHtml() stays as a reference/visual-shell helper only
- * (renderCanonicalHtml still shares GEM_HTML_CSS / GEM_HTML_SCRIPT from
- * htmlTemplate.ts); it is no longer the production export path.
+ * Item 2 (P0): the legacy sync toHtml() was removed entirely
+ * (htmlTemplate.ts now only provides shared GEM_HTML_CSS /
+ * GEM_HTML_SCRIPT / sanitizeUrl for the canonical renderer).
+ * HTML export is solely the canonical path below.
  */
 export async function formatHtmlCanonical(
     chat: any,
@@ -162,13 +162,9 @@ export function formatContent(
             mime: 'text/markdown'
         };
     }
-    if (formatType === 'html') {
-        return {
-            content: toHtml(chat, opts),
-            ext: 'html',
-            mime: 'text/html'
-        };
-    }
+    // NOTE (Item 2): 'html' is intentionally not handled here. HTML export
+    // must go through the async formatHtmlCanonical() (Canonical AST path);
+    // the legacy sync toHtml() was removed.
     // P2 fail-closed: unsupported format must throw explicitly
     throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
 }
@@ -182,8 +178,7 @@ export {
     toMarkdown,
     toOpenAIJson,
     toJsonStandard,
-    toJsonRaw,
-    toHtml
+    toJsonRaw
 };
 
 export const ChatFormatter: ChatFormatterModule = {
@@ -193,7 +188,6 @@ export const ChatFormatter: ChatFormatterModule = {
     cleanMessageBody,
     toMarkdown,
     toOpenAIJson,
-    toHtml,
     formatContent,
     formatHtmlCanonical
 };
