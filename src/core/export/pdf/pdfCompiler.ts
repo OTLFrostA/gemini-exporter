@@ -52,6 +52,8 @@ const MINIMAL_PDF_TEXT = [
     'endobj',
     '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj',
     'trailer<</Root 1 0 R>>',
+    'startxref',
+    '0',
     '%%EOF',
     '',
 ].join('\n');

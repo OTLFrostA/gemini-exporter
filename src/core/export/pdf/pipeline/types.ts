@@ -175,7 +175,10 @@ export interface CompileStageInput {
 
 export interface CompileStageOutput {
     /**
-     * Verified PDF bytes: non-empty, starts with %PDF, parseable.
+     * Verified PDF bytes — minimal structural validation, dependency-free:
+     * non-empty, starts with %PDF-, contains at least one `endobj`,
+     * contains `trailer` or `/Root`, and the tail carries
+     * `startxref <byte-offset> %%EOF`.
      * A failed verification is a stage failure, never a blank PDF marked ok.
      */
     pdfBytes: Uint8Array;
