@@ -76,14 +76,32 @@
 #let render-file(node, scope) = file-attachment(node.name, node.kind, node.size)
 
 #let render-quote(node, scope) = {
+  let body = {
+    for (index, sub) in node.blocks.enumerate() {
+      if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
+      render-block(sub, scope: scope)
+    }
+  }
   if scope == "user" {
-    block(width: 100%, stroke: (left: 1pt + rule-strong), inset: (left: 7pt))[#render-inlines(node.children)]
+    block(width: 100%, stroke: (left: 1pt + rule-strong), inset: (left: 7pt))[#body]
   } else {
-    quote-surface(render-inlines(node.children))
+    quote-surface(body)
   }
 }
 
-#let render-note(node, scope) = quiet-note(render-inlines(node.children))
+#let render-note(node, scope) = {
+  if "blocks" in node {
+    let body = {
+      for (index, sub) in node.blocks.enumerate() {
+        if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
+        render-block(sub, scope: scope)
+      }
+    }
+    quiet-note(body)
+  } else {
+    quiet-note(render-inlines(node.children))
+  }
+}
 
 #let render-unknown(node, scope) = unknown-surface(
   if "sourceType" in node { "Unsupported · " + node.sourceType } else { "Unsupported content" },

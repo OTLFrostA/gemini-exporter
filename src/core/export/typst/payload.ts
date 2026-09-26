@@ -41,8 +41,8 @@ export type TypstBlockNode =
     }
     | { type: 'image'; asset: string; caption?: string }
     | { type: 'file'; name: string; kind: string; size: string }
-    | { type: 'quote'; children: TypstInlineNode[] }
-    | { type: 'note'; children: TypstInlineNode[] }
+    | { type: 'quote'; blocks: TypstBlockNode[] }
+    | { type: 'note'; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
     | { type: 'unknown'; sourceType?: string; fallback?: string };
 
 export type TypstRenderAttachment =
@@ -111,6 +111,16 @@ function mimeLabel(asset: Asset): string {
     return asset.kind.toUpperCase();
 }
 
+function safeJsonStringify(value: unknown): string | undefined {
+    if (value === undefined) return undefined;
+    try {
+        const text = JSON.stringify(value, null, 2);
+        return typeof text === 'string' ? text : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 function plainInline(nodes: InlineNode[], citations: Map<string, string>): string {
     return nodes.map(node => {
         switch (node.type) {
@@ -161,8 +171,10 @@ function renderInline(
         case 'text': return { type: 'text', text: node.text };
         case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
-        case 'strikethrough':
+        case 'strikethrough': {
+            diagnostics.push({ severity: 'warning', code: 'TYPST_STRIKETHROUGH_DROPPED', message: 'Strikethrough formatting is not supported by the Typst transport; rendering plain text.', path });
             return { type: 'text', text: node.children.map(n => plainInline([n], new Map())).join('') };
+        }
         case 'inlineCode': return { type: 'inlineCode', text: node.code };
         case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'image': {
@@ -215,6 +227,8 @@ function renderBlock(
     path: string,
 ): TypstBlockNode | null {
     const inline = (nodes: InlineNode[]) => nodes.map(n => renderInline(n, assets, citations, options, diagnostics, path));
+    const sub = (child: BlockNode, index: number, tag: string): TypstBlockNode | null =>
+        renderBlock(child, assets, citationLabels, citations, options, diagnostics, `${path}/${tag}:${index}`);
     switch (block.type) {
         case 'paragraph': return { type: 'paragraph', children: inline(block.children) };
         case 'heading': {
@@ -234,8 +248,12 @@ function renderBlock(
             };
         }
         case 'quote': {
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            return { type: 'quote', children: [{ type: 'text', text: block.blocks.map(b => plainBlock(b, plainCitations)).join('\n') }] };
+            const kids: TypstBlockNode[] = [];
+            block.blocks.forEach((child, index) => {
+                const rendered = sub(child, index, 'quote');
+                if (rendered) kids.push(rendered);
+            });
+            return { type: 'quote', blocks: kids };
         }
         case 'code': return { type: 'code', language: block.language ?? 'text', text: block.code };
         case 'math': {
@@ -280,17 +298,32 @@ function renderBlock(
             return { type: 'note', children: [{ type: 'text', text: text || 'Sources' }] };
         }
         case 'thought': {
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            return { type: 'note', children: [{ type: 'text', text: block.blocks.map(b => plainBlock(b, plainCitations)).join('\n') }] };
+            const kids: TypstBlockNode[] = [];
+            block.blocks.forEach((child, index) => {
+                const rendered = sub(child, index, 'thought');
+                if (rendered) kids.push(rendered);
+            });
+            return { type: 'note', blocks: kids };
         }
         case 'toolCall':
         case 'toolResult': {
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            return {
-                type: 'unknown',
-                sourceType: block.type,
-                fallback: block.displayBlocks?.map(b => plainBlock(b, plainCitations)).join('\n') ?? (block.type === 'toolCall' ? `Tool call: ${block.toolName}` : `Tool result: ${block.toolName ?? block.callId}`),
-            };
+            const kids: TypstBlockNode[] = [];
+            const label = block.type === 'toolCall'
+                ? `Tool call: ${block.toolName}`
+                : `Tool result: ${block.toolName ?? block.callId}`;
+            kids.push({ type: 'paragraph', children: [{ type: 'text', text: label }] });
+            (block.displayBlocks ?? []).forEach((child, index) => {
+                const rendered = sub(child, index, block.type);
+                if (rendered) kids.push(rendered);
+            });
+            const raw = block.type === 'toolCall' ? block.input : block.output;
+            const json = safeJsonStringify(raw);
+            if (json) {
+                kids.push({ type: 'code', language: 'json', text: json });
+            } else if (raw !== undefined) {
+                diagnostics.push({ severity: 'warning', code: 'TYPST_TOOL_PAYLOAD_FLATTENED', message: 'Tool input/output could not be serialized; omitting structured payload.', path });
+            }
+            return { type: 'note', blocks: kids };
         }
         case 'thematicBreak': return { type: 'paragraph', children: [{ type: 'text', text: '—' }] };
         case 'unknown': {

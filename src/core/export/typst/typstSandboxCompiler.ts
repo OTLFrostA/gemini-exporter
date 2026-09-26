@@ -145,9 +145,14 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
         switch (block.type) {
             case 'paragraph':
             case 'heading':
-            case 'quote':
-            case 'note':
                 stripInline(block.children);
+                break;
+            case 'quote':
+                for (const child of block.blocks) stripBlock(child);
+                break;
+            case 'note':
+                if (block.children) stripInline(block.children);
+                if (block.blocks) for (const child of block.blocks) stripBlock(child);
                 break;
             case 'list':
                 for (const item of block.items) stripInline(item.children);
@@ -191,24 +196,30 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
             }
         }
     };
+    const visitBlock = (block: TypstBlockNode): void => {
+        if (block.type === 'image') {
+            paths.add(block.asset);
+        } else if (block.type === 'paragraph' || block.type === 'heading') {
+            visitInline(block.children);
+        } else if (block.type === 'quote') {
+            for (const child of block.blocks) visitBlock(child);
+        } else if (block.type === 'note') {
+            if (block.children) visitInline(block.children);
+            if (block.blocks) for (const child of block.blocks) visitBlock(child);
+        } else if (block.type === 'list') {
+            for (const item of block.items) visitInline(item.children);
+        } else if (block.type === 'table') {
+            for (const row of block.headers) visitInline(row);
+            for (const row of block.rows) {
+                for (const cell of row) visitInline(cell);
+            }
+        }
+    };
     for (const message of doc.messages) {
         for (const attachment of message.attachments ?? []) {
             if (attachment.type === 'image') paths.add(attachment.asset);
         }
-        for (const block of message.blocks) {
-            if (block.type === 'image') {
-                paths.add(block.asset);
-            } else if (block.type === 'paragraph' || block.type === 'heading' || block.type === 'quote' || block.type === 'note') {
-                visitInline(block.children);
-            } else if (block.type === 'list') {
-                for (const item of block.items) visitInline(item.children);
-            } else if (block.type === 'table') {
-                for (const row of block.headers) visitInline(row);
-                for (const row of block.rows) {
-                    for (const cell of row) visitInline(cell);
-                }
-            }
-        }
+        for (const block of message.blocks) visitBlock(block);
     }
     return paths;
 }
