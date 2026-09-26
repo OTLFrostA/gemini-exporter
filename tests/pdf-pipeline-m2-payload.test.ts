@@ -96,9 +96,6 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
 });
 
 test('consumes the projected view verbatim, never re-linearizes', async () => {
-    // Branched bundle with NO selected leaf: the adapter's internal
-    // linearizeMessages would throw here ("branched but no selected leaf").
-    // The stage must succeed because it uses view.messages directly.
     const m1 = message('m1', 'user', null, [para('q')]);
     const m2 = message('m2', 'assistant', 'm1', [para('a2')]);
     const m3 = message('m3', 'assistant', 'm1', [para('a3')]);
