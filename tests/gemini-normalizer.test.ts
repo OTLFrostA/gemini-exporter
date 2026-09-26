@@ -401,3 +401,47 @@ test('exact full ref wins over an ambiguous basename', async () => {
     assert.strictEqual(inlineImgs[0].assetId, 'm1-a1', 'exact full ref binds deterministically to the right asset');
     assert.ok(!diagnostics.some((d: any) => d.code === 'AMBIGUOUS_INLINE_IMAGE_ASSET'), 'no ambiguity diagnostic');
 });
+test('block ids are deterministic and scoped per message', async () => {
+    const first = await normalizeGeminiConversation(sample);
+    const second = await normalizeGeminiConversation(sample);
+    const idsOf = (bundle: any) =>
+        bundle.conversation.messages.flatMap((m: any) => m.blocks.map((b: any) => `${m.id}:${b.id}`));
+    assert.deepStrictEqual(
+        idsOf(first.bundle), idsOf(second.bundle),
+        'normalizing the same conversation twice yields identical block ids',
+    );
+    // Per-message scoping: every block id (top-level and nested) is <msgId>-b<N>,
+    // so no numbering can leak in from other messages or from earlier
+    // normalizations in the same process. (Nested blocks such as list items
+    // share the message counter, so top-level ids need not be contiguous.)
+    const allBlockIds = (bundle: any): string[] => {
+        const out: string[] = [];
+        const walk = (blocks: any[]) => {
+            for (const b of blocks || []) {
+                out.push(b.id);
+                walk(b.blocks);
+                for (const it of b.items || []) walk(it.blocks);
+            }
+        };
+        for (const m of bundle.conversation.messages) {
+            const before = out.length;
+            walk(m.blocks);
+            for (const id of out.slice(before)) {
+                assert.ok(
+                    new RegExp(`^${m.id}-b\\d+$`).test(id),
+                    `block id ${id} scoped to its message ${m.id}`,
+                );
+            }
+        }
+        return out;
+    };
+    assert.deepStrictEqual(
+        allBlockIds(first.bundle), allBlockIds(second.bundle),
+        'same conversation normalized twice -> identical block ids at every level',
+    );
+    allBlockIds(first.bundle);
+    assert.ok(
+        first.bundle.conversation.messages.filter((m: any) => m.blocks.length > 0).length > 1,
+        'fixture has multiple non-empty messages, so cross-message leakage would be visible',
+    );
+});
