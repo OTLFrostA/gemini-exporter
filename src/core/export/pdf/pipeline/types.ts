@@ -178,7 +178,9 @@ export interface CompileStageOutput {
      * Verified PDF bytes — minimal structural validation, dependency-free:
      * non-empty, starts with %PDF-, contains at least one `endobj`,
      * contains `trailer` or `/Root`, and the tail carries
-     * `startxref <byte-offset> %%EOF`.
+     * `startxref <byte-offset> %%EOF` where the offset is a real pointer:
+     * numeric, inside the byte range, and landing on a classic `xref`
+     * table or an indirect object whose dictionary carries `/Type` `/XRef`.
      * A failed verification is a stage failure, never a blank PDF marked ok.
      */
     pdfBytes: Uint8Array;

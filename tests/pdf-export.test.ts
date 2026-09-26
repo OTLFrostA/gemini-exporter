@@ -17,7 +17,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { PdfExporter, StubPdfCompiler } = require('../src/core/export/pdf/index.js');
+const { PdfExporter, StubPdfCompiler, buildMinimalValidPdf } = require('../src/core/export/pdf/index.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
@@ -479,10 +479,8 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
         async compile(_payload: any, _context: any) {
             return {
                 // Must pass the pipeline's structural PDF verification
-                // (%PDF- + endobj + trailer/Root + startxref <offset> %%EOF).
-                pdfBytes: new TextEncoder().encode(
-                    '%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\nstartxref\n0\n%%EOF',
-                ),
+                // (real xref table + startxref pointer, built not hand-written).
+                pdfBytes: buildMinimalValidPdf(),
                 diagnostics: [{ severity: 'warning', code: 'TEST_COMPILE_WARN', message: 'synthetic warning' }],
             };
         },
