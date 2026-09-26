@@ -1,0 +1,1428 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gemini-exporter.local/schema/canonical-conversation-v1.schema.json",
+  "title": "Gemini Exporter Canonical Conversation Bundle v1",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "conversation",
+    "assets",
+    "citations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "conversation": {
+      "$ref": "#/$defs/Conversation"
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Asset"
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Citation"
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SourceObservation"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Diagnostic"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "JsonValue": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
+    },
+    "ProviderExtensions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      }
+    },
+    "SourceRef": {
+      "type": "object",
+      "required": [
+        "providerId"
+      ],
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "providerMessageId": {
+          "type": "string"
+        },
+        "locator": {
+          "type": "string"
+        },
+        "rawRef": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "InlineNode": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextInline"
+        },
+        {
+          "$ref": "#/$defs/StrongInline"
+        },
+        {
+          "$ref": "#/$defs/EmphasisInline"
+        },
+        {
+          "$ref": "#/$defs/StrikethroughInline"
+        },
+        {
+          "$ref": "#/$defs/InlineCode"
+        },
+        {
+          "$ref": "#/$defs/LinkInline"
+        },
+        {
+          "$ref": "#/$defs/InlineMath"
+        },
+        {
+          "$ref": "#/$defs/CitationRefInline"
+        },
+        {
+          "$ref": "#/$defs/LineBreakInline"
+        },
+        {
+          "$ref": "#/$defs/UnknownInline"
+        }
+      ]
+    },
+    "TextInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "text"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StrongInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "strong"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EmphasisInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "emphasis"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "StrikethroughInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "strikethrough"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "InlineCode": {
+      "type": "object",
+      "required": [
+        "type",
+        "code"
+      ],
+      "properties": {
+        "type": {
+          "const": "inlineCode"
+        },
+        "code": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LinkInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "href",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "link"
+        },
+        "href": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "InlineMath": {
+      "type": "object",
+      "required": [
+        "type",
+        "source",
+        "notation"
+      ],
+      "properties": {
+        "type": {
+          "const": "inlineMath"
+        },
+        "source": {
+          "type": "string"
+        },
+        "notation": {
+          "enum": [
+            "latex",
+            "mathml",
+            "asciimath",
+            "plain",
+            "unknown"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CitationRefInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "citationId"
+      ],
+      "properties": {
+        "type": {
+          "const": "citationRef"
+        },
+        "citationId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "LineBreakInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "kind"
+      ],
+      "properties": {
+        "type": {
+          "const": "lineBreak"
+        },
+        "kind": {
+          "enum": [
+            "soft",
+            "hard"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "UnknownInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "sourceType"
+      ],
+      "properties": {
+        "type": {
+          "const": "unknownInline"
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "fallbackText": {
+          "type": "string"
+        },
+        "rawRef": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BlockNode": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ParagraphBlock"
+        },
+        {
+          "$ref": "#/$defs/HeadingBlock"
+        },
+        {
+          "$ref": "#/$defs/ListBlock"
+        },
+        {
+          "$ref": "#/$defs/QuoteBlock"
+        },
+        {
+          "$ref": "#/$defs/CodeBlock"
+        },
+        {
+          "$ref": "#/$defs/MathBlock"
+        },
+        {
+          "$ref": "#/$defs/TableBlock"
+        },
+        {
+          "$ref": "#/$defs/ImageBlock"
+        },
+        {
+          "$ref": "#/$defs/FileBlock"
+        },
+        {
+          "$ref": "#/$defs/CitationGroupBlock"
+        },
+        {
+          "$ref": "#/$defs/ThoughtBlock"
+        },
+        {
+          "$ref": "#/$defs/ToolCallBlock"
+        },
+        {
+          "$ref": "#/$defs/ToolResultBlock"
+        },
+        {
+          "$ref": "#/$defs/ThematicBreakBlock"
+        },
+        {
+          "$ref": "#/$defs/UnknownBlock"
+        }
+      ]
+    },
+    "ParagraphBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "paragraph"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "HeadingBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "level",
+        "children"
+      ],
+      "properties": {
+        "type": {
+          "const": "heading"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ListItem": {
+      "type": "object",
+      "required": [
+        "blocks"
+      ],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ListBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "ordered",
+        "items"
+      ],
+      "properties": {
+        "type": {
+          "const": "list"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "ordered": {
+          "type": "boolean"
+        },
+        "start": {
+          "type": "integer"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ListItem"
+          }
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "QuoteBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "blocks"
+      ],
+      "properties": {
+        "type": {
+          "const": "quote"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CodeBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "code"
+      ],
+      "properties": {
+        "type": {
+          "const": "code"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "code": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "meta": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MathBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "source",
+        "notation"
+      ],
+      "properties": {
+        "type": {
+          "const": "math"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "notation": {
+          "enum": [
+            "latex",
+            "mathml",
+            "asciimath",
+            "plain",
+            "unknown"
+          ]
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TableColumn": {
+      "type": "object",
+      "properties": {
+        "align": {
+          "enum": [
+            "left",
+            "center",
+            "right",
+            "default"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "TableCell": {
+      "type": "object",
+      "required": [
+        "children"
+      ],
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "colSpan": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rowSpan": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "TableRow": {
+      "type": "object",
+      "required": [
+        "cells"
+      ],
+      "properties": {
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TableCell"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TableBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "rows"
+      ],
+      "properties": {
+        "type": {
+          "const": "table"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "caption": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TableColumn"
+          }
+        },
+        "headerRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TableRow"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TableRow"
+          }
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ImageBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "assetId"
+      ],
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        },
+        "caption": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "origin": {
+          "enum": [
+            "inline",
+            "attachment",
+            "generated",
+            "citation",
+            "tool",
+            "unknown"
+          ]
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "FileBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "assetId"
+      ],
+      "properties": {
+        "type": {
+          "const": "file"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "origin": {
+          "enum": [
+            "inline",
+            "attachment",
+            "generated",
+            "citation",
+            "tool",
+            "unknown"
+          ]
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CitationGroupBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "citationIds"
+      ],
+      "properties": {
+        "type": {
+          "const": "citationGroup"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "citationIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "title": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InlineNode"
+          }
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThoughtBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "disclosure",
+        "blocks"
+      ],
+      "properties": {
+        "type": {
+          "const": "thought"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "disclosure": {
+          "const": "providerExposed"
+        },
+        "kind": {
+          "enum": [
+            "summary",
+            "progress",
+            "reasoning",
+            "unknown"
+          ]
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "initiallyCollapsed": {
+          "type": "boolean"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolCallBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "callId",
+        "toolName"
+      ],
+      "properties": {
+        "type": {
+          "const": "toolCall"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "callId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "displayBlocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "running",
+            "completed",
+            "failed"
+          ]
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ToolResultBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "callId"
+      ],
+      "properties": {
+        "type": {
+          "const": "toolResult"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "callId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "output": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "displayBlocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "assetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "failed"
+          ]
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThematicBreakBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id"
+      ],
+      "properties": {
+        "type": {
+          "const": "thematicBreak"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "UnknownBlock": {
+      "type": "object",
+      "required": [
+        "type",
+        "id",
+        "sourceType"
+      ],
+      "properties": {
+        "type": {
+          "const": "unknown"
+        },
+        "id": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "sourceType": {
+          "type": "string"
+        },
+        "fallbackBlocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "rawRef": {
+          "type": "string"
+        },
+        "payload": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConversationKey": {
+      "type": "object",
+      "required": [
+        "providerId",
+        "accountId",
+        "conversationId"
+      ],
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "accountId": {
+          "type": "string"
+        },
+        "conversationId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ConversationTitle": {
+      "type": "object",
+      "required": [
+        "value",
+        "source"
+      ],
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "provider",
+            "user",
+            "derived"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "MessageAuthor": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "rawRole": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MessageNode": {
+      "type": "object",
+      "required": [
+        "id",
+        "role",
+        "blocks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "parentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "siblingIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "role": {
+          "enum": [
+            "user",
+            "assistant",
+            "system",
+            "developer",
+            "tool",
+            "unknown"
+          ]
+        },
+        "author": {
+          "$ref": "#/$defs/MessageAuthor"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "complete",
+            "partial",
+            "error"
+          ]
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "associatedAssetIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Conversation": {
+      "type": "object",
+      "required": [
+        "key",
+        "messages"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/ConversationKey"
+        },
+        "title": {
+          "$ref": "#/$defs/ConversationTitle"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "observedAt": {
+          "type": "string"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageNode"
+          }
+        },
+        "selectedLeafMessageId": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Asset": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "image",
+            "file",
+            "audio",
+            "video",
+            "other"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "dimensions": {
+          "type": "object",
+          "required": [
+            "widthPx",
+            "heightPx"
+          ],
+          "properties": {
+            "widthPx": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "heightPx": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "sourceUrl": {
+          "type": "string"
+        },
+        "storageRef": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "remote",
+            "missing",
+            "failed",
+            "notFetched"
+          ]
+        },
+        "failureReason": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Citation": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "web",
+            "file",
+            "attachment",
+            "provider",
+            "other"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ObservationIssue": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SourceObservation": {
+      "type": "object",
+      "required": [
+        "id",
+        "providerId",
+        "sourceType",
+        "observedAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "sourceType": {
+          "enum": [
+            "live",
+            "official-export",
+            "archive-import",
+            "legacy-migration",
+            "other"
+          ]
+        },
+        "observedAt": {
+          "type": "string"
+        },
+        "requestScope": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "batchId": {
+          "type": "string"
+        },
+        "rawCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "parsedCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ObservationIssue"
+          }
+        },
+        "unknownFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rawRef": {
+          "type": "string"
+        },
+        "extensions": {
+          "$ref": "#/$defs/ProviderExtensions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Diagnostic": {
+      "type": "object",
+      "required": [
+        "id",
+        "severity",
+        "code",
+        "message"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "details": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "sourceRef": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
