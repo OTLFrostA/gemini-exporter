@@ -21,8 +21,8 @@
  */
 
 import type { Asset } from '../canonical/assets.js';
-import { collectReferencedAssetIds, collectBinaryRenderAssetIds } from '../canonical/assetReferences.js';
-export { collectReferencedAssetIds, collectBinaryRenderAssetIds };
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../canonical/assetReferences.js';
+export { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds };
 import type {
     BlockNode,
     ListBlock,
@@ -428,16 +428,34 @@ function toRenderMessage(
     // Message-level asset association is NOT used to invent ordering. It only
     // supplies attachments for associated assets that have no placement in the
     // message: an inline image is inline placement, so its asset must not also
-    // appear as a trailing attachment.
+    // appear as a trailing attachment. Which companions become trailing
+    // *image* attachments is decided by the shared
+    // collectUnplacedAssociatedImageIds helper — the same rule resourceStage
+    // uses for binary resolution, so the two stages can never disagree.
     const referencedIds = collectReferencedAssetIds(message.blocks);
+    const trailingImageIds = collectUnplacedAssociatedImageIds(
+        message, referencedIds, (id) => assets.get(id)?.kind,
+    );
     const attachments: TypstRenderAttachment[] = [];
     for (const id of message.associatedAssetIds ?? []) {
         if (referencedIds.has(id)) continue;
         const asset = assets.get(id);
         if (!asset) continue;
-        if (asset.kind === 'image') {
+        if (trailingImageIds.has(id)) {
             const path = options.assetPath(asset);
-            if (path) attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes)}` });
+            if (path) {
+                attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes)}` });
+            } else {
+                // Never a silent drop: the companion was promised as a
+                // trailing image attachment, but the stage output gave it no
+                // path (not resolved, or missing). The PDF must say so.
+                diagnostics.push({
+                    severity: 'warning',
+                    code: 'TYPST_V8_ASSOCIATED_IMAGE_MISSING',
+                    message: `Associated image asset ${id} has no Typst path; dropping the trailing image attachment instead of rendering it.`,
+                    path: `message:${message.id}/attachment:${id}`,
+                });
+            }
         } else {
             attachments.push({ type: 'file', name: asset.name ?? id, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes) });
         }
