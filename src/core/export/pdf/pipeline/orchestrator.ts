@@ -39,8 +39,10 @@ export class PdfPipeline {
     /**
      * Run the full S1->S5 pipeline for one conversation.
      * Never throws for item-level failures: they are returned as
-     * { status: 'failed' }. AbortError from the signal propagates to the
-     * caller (batch-level abort handling lives in the caller, per #571).
+     * { status: 'failed' }. A 'staged' status means the deliver stage parked
+     * the artifact in a batch writer; the batch driver must finalize it.
+     * AbortError from the signal propagates to the caller (batch-level abort
+     * handling lives in the caller, per #571).
      */
     async runOne(input: PipelineItemInput, pctx: PipelineContext): Promise<PipelineItemResult> {
         const diagnostics: RenderDiagnostic[] = [];
@@ -117,10 +119,15 @@ export class PdfPipeline {
             diagnostics.push(...delivered.diagnostics);
 
             ctx.reportProgress('done', PIPELINE_STAGE_ORDER.length, PIPELINE_STAGE_ORDER.length);
+            // 'delivered' only when the deliver stage finalized the artifact.
+            // A batch-ZIP stage only STAGES into the shared writer; the batch
+            // driver runs the single generateBlob()+downloadHandler() finalize
+            // and flips 'staged' items to delivered afterwards. Staged items
+            // are never reported as success.
             return {
                 conversationId,
                 title,
-                status: 'delivered',
+                status: delivered.output.finalized ? 'delivered' : 'staged',
                 writeReport: delivered.output.writeReport,
                 diagnostics,
             };
