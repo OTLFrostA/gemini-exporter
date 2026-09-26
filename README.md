@@ -13,7 +13,7 @@
 </p>
 
 > **The easiest, privacy-first way to export and archive your Google Gemini conversations.**  
-> Batch export your chat history into clean **Markdown**, standalone **1:1 HTML** (with Dark/Light theme toggle & print-ready PDF stylesheet), **JSON**, or a complete **ZIP archive** with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
+> Batch export your chat history into clean **Markdown**, standalone **1:1 HTML** (with Dark/Light theme toggle), **PDF**, **JSON**, or a complete **ZIP archive** with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
 
 ---
 
@@ -28,7 +28,8 @@
   - **1-Click Reauthorization**: If browser restart resets directory handle permissions to `prompt`, the extension provides 1-click UI reauthorization to seamlessly resume background auto-saving.
 - 📝 **Beautiful Markdown & Standalone 1:1 HTML Output**:
   - **Clean Markdown (`.md`)**: Full syntax highlighting for code blocks, formatted LaTeX mathematical formulas, collapsible thinking / reasoning processes (`<details>`), and preserved web source citations.
-  - **Standalone 1:1 Gemini-Faithful HTML (`.html`)**: Pixel-accurate replica of the Gemini web interface in a self-contained `.html` file, featuring an interactive Dark/Light theme toggle, 1-click code copy (with offline fallback), KaTeX math rendering, collapsible thinking blocks, relative `assets/` media support, and a print-ready `@media print` stylesheet for clean vector PDF printing.
+  - **Standalone 1:1 Gemini-Faithful HTML (`.html`)**: Pixel-accurate replica of the Gemini web interface in a self-contained `.html` file, featuring an interactive Dark/Light theme toggle, 1-click code copy (with offline fallback), KaTeX math rendering, collapsible thinking blocks, relative `assets/` media support, and a `@media print` stylesheet (legacy alternative for printing to PDF via `Cmd/Ctrl + P`).
+  - **Local PDF Export (`.pdf`)**: Native PDF export compiled 100% on your device — nothing is sent to any server. Limitations: keep the workbench export page open while exporting; your browser may ask for permission to read your installed font names (Local Font Access) for CJK text; math formulas render as selectable text.
 - 🖼️ **Complete Media & Attachment Backups**:
   - Automatically saves user-uploaded files (PDFs, docs, images).
   - Downloads AI-generated high-resolution images (Imagen).
@@ -164,7 +165,7 @@ If you have thousands of chats dating back years, Google's web interface limits 
 
 - **Obsidian**: Unzip the exported archive directly into your Obsidian Vault folder, or set Live Auto-Save directly to your Vault root. All Markdown notes and `assets/` images render instantly with working relative links.
 - **Notion**: Drag and drop the exported Markdown files into Notion to import them as native workspace pages.
-- **Standalone Browser Archive & PDF Printing**: Export in **HTML** format to open conversations in any browser offline with 1:1 Gemini styling, Dark/Light theme switching, and native `Cmd/Ctrl + P` vector PDF printing.
+- **Standalone Browser Archive**: Export in **HTML** format to open conversations in any browser offline with 1:1 Gemini styling and Dark/Light theme switching. (Printing HTML to PDF via `Cmd/Ctrl + P` remains as a legacy alternative; for direct PDF output, use Local PDF Export.)
 - **Logseq / Local Folders**: Use the **"Export to Local Folder"** option in the Workbench to write directly to your local notes directory via the FileSystem API.
 
 ---

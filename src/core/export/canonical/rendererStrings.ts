@@ -10,6 +10,10 @@ export interface RendererStrings {
     dateUnknown: string;
     unsupportedContent: string;
     mathFallback: string;
+    systemMessage: string;
+    developerMessage: string;
+    toolMessage: string;
+    unknownRole: string;
 }
 
 const EN: RendererStrings = {
@@ -24,6 +28,10 @@ const EN: RendererStrings = {
     dateUnknown: 'date unknown',
     unsupportedContent: 'Unsupported content',
     mathFallback: 'Could not typeset this formula; original LaTeX preserved:',
+    systemMessage: 'System message',
+    developerMessage: 'Developer message',
+    toolMessage: 'Tool message',
+    unknownRole: 'Unknown role',
 };
 
 const ZH: RendererStrings = {
@@ -38,6 +46,10 @@ const ZH: RendererStrings = {
     dateUnknown: '日期未知',
     unsupportedContent: '不支持的内容',
     mathFallback: '无法排版该公式；保留原始 LaTeX：',
+    systemMessage: '系统消息',
+    developerMessage: '开发者消息',
+    toolMessage: '工具消息',
+    unknownRole: '未知角色',
 };
 
 export function getRendererStrings(locale: 'zh' | 'en'): RendererStrings {
