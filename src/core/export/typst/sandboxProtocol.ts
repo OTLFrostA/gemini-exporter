@@ -36,6 +36,14 @@ export const SANDBOX_TO_HOST = {
     READY: 'typst/ready',
     INITED: 'typst/inited',
     PROGRESS: 'typst/progress',
+    /**
+     * Sent right after the font builder finishes installing fonts, before
+     * the document compile runs. Lets the host mark fonts as installed
+     * independently of whether the later compile succeeds or fails, so a
+     * failed compile never triggers a font resend (re-running the font
+     * builder wedges the WASM module -- P0 finding).
+     */
+    FONTS_INSTALLED: 'typst/fonts-installed',
     COMPILED: 'typst/compiled',
     ERROR: 'typst/error',
 } as const;
