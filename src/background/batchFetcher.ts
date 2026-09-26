@@ -3,7 +3,7 @@
 import { TabService } from '../core/utils/tabService.js';
 import { isRateLimited, calculateBackoff, abortableSleep } from '../core/engine/export/rateLimiter.js';
 import { interruptibleSleep } from '../core/api/client/retryPolicy.js';
-import { isSlotAborted, getSlotAbortSignal, __bgControllers } from './abortManager.js';
+import { isSlotAborted, getSlotAbortSignal, getSlotEpoch, __bgControllers } from './abortManager.js';
 import { startKeepAlive } from './keepAlive.js';
 
 // Tab communication service helper (delegates to TabService: handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
@@ -39,6 +39,9 @@ export async function fetchBatch(
     const stopKeepAlive = startKeepAlive();
     try {
         const slot = accountSlot || 'u0';
+        const batchEpoch = getSlotEpoch(slot);
+        const isAborted = () => isSlotAborted(slot) || getSlotEpoch(slot) !== batchEpoch;
+
         if (!list || !list.length) {
             if (portSendResponse) portSendResponse({ success: true, results: [], skipped: 0 });
             return;
@@ -59,19 +62,19 @@ export async function fetchBatch(
         let done = 0;
 
         for (const item of list) {
-            if (isSlotAborted(slot)) break;
+            if (isAborted()) break;
             const cid = item.id || item;
             try {
                 let res: any = null;
                 let retryCount = 0;
                 const maxRetries = 3;
 
-                while (retryCount <= maxRetries && !isSlotAborted(slot)) {
+                while (retryCount <= maxRetries && !isAborted()) {
                     res = await sendToGeminiTabCancellable({
                         action: 'getConversationDetail',
                         conversationId: cid
                     }, slot);
-                    if ((res as any)?.__slotAborted) { res = null; break; }
+                    if ((res as any)?.__slotAborted || isAborted()) { res = null; break; }
 
                     const isRateLimit = isRateLimited(res);
 
@@ -82,15 +85,15 @@ export async function fetchBatch(
                             : undefined;
                         const delayMs = calculateBackoff(retryCount, { retryAfterMs });
                         console.warn(`[Gemini Exporter Background] fetchBatch 429 rate limit for ${cid}, backoff ${delayMs}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                        const wasAborted = await interruptibleSleep(delayMs, undefined, () => isSlotAborted(slot));
-                        if (wasAborted) break;
+                        const wasAborted = await interruptibleSleep(delayMs, undefined, isAborted);
+                        if (wasAborted || isAborted()) break;
                         retryCount++;
                         continue;
                     }
                     break;
                 }
 
-                if (isSlotAborted(slot)) break;
+                if (isAborted()) break;
 
                 if (res && res.success) {
                     const chat = res.data || res.chat || res;
@@ -130,7 +133,7 @@ export async function fetchBatch(
             }).catch(() => {});
         }
 
-        const wasAborted = isSlotAborted(slot);
+        const wasAborted = isAborted();
         if (portSendResponse) {
             portSendResponse({
                 success: !wasAborted,

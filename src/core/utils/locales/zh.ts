@@ -231,6 +231,8 @@ const __zhFactory = (): LocaleDictionary => {
             tourStep1BtnRefresh: "🔄 刷新 Gemini 页面",
             tourStep1Checking: "正在检测连接状态…",
             tourStep1NoTabStatus: "未连接到 Gemini",
+            tourStep1ErrorStatus: "连接异常",
+            tourStep1ErrorDesc: "未能与 Gemini 建立连接，请检查页面是否正常或刷新后重试。",
             tourStep2Title: "步骤 2/6: 同步对话列表",
             tourStep2Desc: "点击【同步最新会话】获取最近对话；如需备份全部历史，可点击【全量拉取历史】。",
             tourStep3Title: "步骤 3/6: 勾选要导出的对话",

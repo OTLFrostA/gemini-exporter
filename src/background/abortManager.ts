@@ -65,6 +65,16 @@ export function isSlotAborted(slot: string = 'u0'): boolean {
     return !!__bgAborts.get(slot || 'u0');
 }
 
+export const __slotEpochs: Map<string, number> = new Map();
+
+/**
+ * Returns the current monotonically increasing generation/epoch for the given slot.
+ * Any batch launched at epoch E will be invalidated if the slot is aborted or reset (epoch changed).
+ */
+export function getSlotEpoch(slot: string = 'u0'): number {
+    return __slotEpochs.get(slot || 'u0') || 0;
+}
+
 /**
  * Set or clear abort flag for a specific account slot, syncing with chrome.storage.session.
  */
@@ -73,6 +83,7 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
         await _restorePromise;
     }
     const s = slot || 'u0';
+    __slotEpochs.set(s, getSlotEpoch(s) + 1);
     if (val) {
         __bgAborts.set(s, true);
         // B2: abort 对应 controller，让在途的 abortableSleep / race 即时醒来
@@ -105,4 +116,5 @@ export function clearAllAborts(): void {
     __bgAborts.clear();
     // B2: 连带清空 controllers；旗标已清，下次重建的 controller 为全新未 abort 状态
     __bgControllers.clear();
+    __slotEpochs.clear();
 }

@@ -290,11 +290,21 @@ async function updateStepContent(step: any): Promise<void> {
                     </button>
                 </div>
             `;
-        } else {
+        } else if (status.status === 'CONNECTED') {
             bodyHtml = `
                 <div class="tour-content">${t('tourStep1ConnectedDesc') || t('tourStep1Connected')}</div>
                 <div class="tour-action-box">
                     <div class="tour-status-indicator tour-status-ok ok">✅ ${t('tourStep1Connected')}</div>
+                </div>
+            `;
+        } else {
+            bodyHtml = `
+                <div class="tour-content">${t('tourStep1ErrorDesc') || status.error || t('tourStep1NeedRefresh')}</div>
+                <div class="tour-action-box">
+                    <div class="tour-status-indicator tour-status-warn warn">⚠️ ${t('tourStep1ErrorStatus') || 'Connection error'}</div>
+                    <button id="tourBtnReloadGemini" class="tour-action-btn secondary">
+                        ${t('tourStep1BtnRefresh')}
+                    </button>
                 </div>
             `;
         }

@@ -61,16 +61,17 @@ export async function getSession(): Promise<ExportSessionData | null> {
  * Replaces the export session state with a fresh session snapshot.
  */
 export async function setSession(session: Partial<ExportSessionData>): Promise<void> {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            const payload = {
-                ...session,
-                updatedAt: session.updatedAt || Date.now()
-            };
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const payload = {
+            ...session,
+            updatedAt: session.updatedAt || Date.now()
+        };
+        try {
             await chrome.storage.local.set({ [EXPORT_SESSION_KEY]: payload });
+        } catch (e) {
+            console.error('[GemExporter:sessionStore] setSession error', e);
+            throw e;
         }
-    } catch (e) {
-        console.debug('[GemExporter:sessionStore] setSession error', e);
     }
 }
 
@@ -81,18 +82,19 @@ export async function setSession(session: Partial<ExportSessionData>): Promise<v
  */
 export async function updateSession(patch: Partial<ExportSessionData>): Promise<void> {
     return withSessionLock(async () => {
-        try {
-            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                const current = (await getSession()) || {};
-                const merged = {
-                    ...current,
-                    ...patch,
-                    updatedAt: Date.now()
-                };
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            const current = (await getSession()) || {};
+            const merged = {
+                ...current,
+                ...patch,
+                updatedAt: Date.now()
+            };
+            try {
                 await chrome.storage.local.set({ [EXPORT_SESSION_KEY]: merged });
+            } catch (e) {
+                console.error('[GemExporter:sessionStore] updateSession error', e);
+                throw e;
             }
-        } catch (e) {
-            console.debug('[GemExporter:sessionStore] updateSession error', e);
         }
     });
 }
@@ -101,12 +103,13 @@ export async function updateSession(patch: Partial<ExportSessionData>): Promise<
  * Clears the export session from Chrome local storage.
  */
 export async function clearSession(): Promise<void> {
-    try {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        try {
             await chrome.storage.local.remove([EXPORT_SESSION_KEY]);
+        } catch (e) {
+            console.error('[GemExporter:sessionStore] clearSession error', e);
+            throw e;
         }
-    } catch (e) {
-        console.debug('[GemExporter:sessionStore] clearSession error', e);
     }
 }
 

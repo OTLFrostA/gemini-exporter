@@ -15,6 +15,8 @@ export interface FetchChatDetailResult {
     skipped?: number;
     error?: string;
     status?: number;
+    rawResponse?: any;
+    [key: string]: any;
 }
 
 export interface ResolveChatResult {
@@ -180,13 +182,18 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                     }, currentSlot);
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) {
-                        settled = true;
                         if (directRes && directRes.success) {
+                            settled = true;
                             const chat = directRes.data || directRes.chat || directRes;
                             resolve({ success: true, results: [chat], skipped: 0 });
                             return;
                         } else if (directRes && directRes.error) {
+                            settled = true;
                             resolve(directRes);
+                            return;
+                        } else if (directRes !== null && directRes !== undefined) {
+                            settled = true;
+                            resolve({ success: false, error: 'Malformed direct response envelope', rawResponse: directRes });
                             return;
                         }
                     }
@@ -211,17 +218,25 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                     globalTotal: totalChats,
                     accountSlot: currentSlot
                 };
-                sender(msg, (response: any) => {
+                try {
+                    sender(msg, (response: any) => {
+                        if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
+                        if (!settled) {
+                            settled = true;
+                            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
+                                resolve({ success: false, error: chrome.runtime.lastError.message });
+                            } else {
+                                resolve(response);
+                            }
+                        }
+                    });
+                } catch (sendErr: any) {
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) {
                         settled = true;
-                        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
-                            resolve({ success: false, error: chrome.runtime.lastError.message });
-                        } else {
-                            resolve(response);
-                        }
+                        resolve({ success: false, error: sendErr?.message || String(sendErr) });
                     }
-                });
+                }
             } else {
                 if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                 if (!settled) {
