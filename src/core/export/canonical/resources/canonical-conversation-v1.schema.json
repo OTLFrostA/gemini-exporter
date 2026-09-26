@@ -119,6 +119,9 @@
           "$ref": "#/$defs/LinkInline"
         },
         {
+          "$ref": "#/$defs/ImageInline"
+        },
+        {
           "$ref": "#/$defs/InlineMath"
         },
         {
@@ -744,6 +747,28 @@
       },
       "additionalProperties": false
     },
+    "ImageInline": {
+      "type": "object",
+      "required": [
+        "type",
+        "assetId"
+      ],
+      "properties": {
+        "type": {
+          "const": "image"
+        },
+        "assetId": {
+          "type": "string"
+        },
+        "alt": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "FileBlock": {
       "type": "object",
       "required": [
@@ -858,9 +883,6 @@
           "items": {
             "$ref": "#/$defs/BlockNode"
           }
-        },
-        "initiallyCollapsed": {
-          "type": "boolean"
         },
         "sourceRef": {
           "$ref": "#/$defs/SourceRef"
@@ -1049,6 +1071,40 @@
       "type": "object",
       "required": [
         "value",
+        "source",
+        "candidates"
+      ],
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "rpc",
+            "api-detail",
+            "dom",
+            "takeout",
+            "sniff",
+            "legacy",
+            "provider",
+            "user",
+            "derived",
+            "default"
+          ]
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TitleCandidate"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "TitleCandidate": {
+      "type": "object",
+      "required": [
+        "value",
         "source"
       ],
       "properties": {
@@ -1057,10 +1113,20 @@
         },
         "source": {
           "enum": [
+            "rpc",
+            "api-detail",
+            "dom",
+            "takeout",
+            "sniff",
+            "legacy",
             "provider",
             "user",
-            "derived"
+            "derived",
+            "default"
           ]
+        },
+        "observedAt": {
+          "type": "string"
         }
       },
       "additionalProperties": false

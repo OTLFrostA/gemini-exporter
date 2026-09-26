@@ -152,6 +152,61 @@ test('same-tier newer observation overwrites (repo setTitleBySource semantics)',
     assert.strictEqual(title!.value, 'DOM新标题');
 });
 
+test('same-tier older observation can never overwrite a newer title', () => {
+    let title = resolveTitle([{ value: 'DOM新标题', source: 'dom', observedAt: '2026-02-01T00:00:00Z' }]);
+    assert.ok(title);
+    title = applyTitleCandidate(title, { value: 'DOM旧标题', source: 'dom', observedAt: '2026-01-01T00:00:00Z' });
+    assert.strictEqual(title!.value, 'DOM新标题');
+    assert.strictEqual(title!.candidates.length, 2, 'stale observation still recorded');
+});
+
+test('same-tier: candidate with a timestamp beats one without', () => {
+    const title = resolveTitle([
+        { value: '无时间', source: 'dom' },
+        { value: '有时间', source: 'dom', observedAt: '2026-03-01T00:00:00Z' },
+    ]);
+    assert.strictEqual(title!.value, '有时间');
+});
+
+test('same-tier: later insertion wins when both timestamps are missing', () => {
+    const title = resolveTitle([
+        { value: '先到', source: 'dom' },
+        { value: '后到', source: 'dom' },
+    ]);
+    assert.strictEqual(title!.value, '后到');
+});
+
+test('same-tier: later insertion wins on equal timestamps', () => {
+    const at = '2026-03-01T00:00:00Z';
+    const title = resolveTitle([
+        { value: '先到', source: 'dom', observedAt: at },
+        { value: '后到', source: 'dom', observedAt: at },
+    ]);
+    assert.strictEqual(title!.value, '后到');
+});
+
+test('authority tier beats recency: newer sniff cannot beat older rpc', () => {
+    let title = resolveTitle([{ value: 'RPC旧', source: 'rpc', observedAt: '2026-01-01T00:00:00Z' }]);
+    assert.ok(title);
+    title = applyTitleCandidate(title, { value: 'sniff新', source: 'sniff', observedAt: '2026-06-01T00:00:00Z' });
+    assert.strictEqual(title!.value, 'RPC旧');
+    assert.strictEqual(title!.source, 'rpc');
+});
+
+test('unusable candidates keep the previous title (winner-not-in-candidates defense)', () => {
+    const title = applyTitleCandidate(
+        { value: 'Keep', source: 'rpc', candidates: [] },
+        { value: '', source: 'sniff' },
+    );
+    assert.strictEqual(title.value, 'Keep');
+    assert.strictEqual(title.source, 'rpc');
+});
+
+test('resolveTitle returns undefined when no candidate is usable', () => {
+    assert.strictEqual(resolveTitle([]), undefined);
+    assert.strictEqual(resolveTitle([{ value: '   ', source: 'dom' }]), undefined);
+});
+
 test('title tiers mirror the repo TITLE_TIER_RANK ladder', () => {
     assert.strictEqual(titleAuthorityRank('rpc'), 50);
     assert.strictEqual(titleAuthorityRank('api-detail'), 50);

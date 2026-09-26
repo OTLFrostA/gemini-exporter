@@ -52,6 +52,10 @@ function pickWinner(candidates: TitleCandidate[]): TitleCandidate | undefined {
             winner = c;
         } else if (rankDiff === 0) {
             // Same tier: a newer observation overwrites (repo setTitleBySource semantics).
+            // Tie policy (deterministic): a present observedAt beats a missing one;
+            // equal or both-missing timestamps resolve to the later-observed
+            // candidate (insertion order). An older same-tier observation can
+            // never overwrite a newer title.
             const cTime = c.observedAt ? Date.parse(c.observedAt) : NaN;
             const wTime = winner.observedAt ? Date.parse(winner.observedAt) : NaN;
             if (!Number.isNaN(cTime) && (Number.isNaN(wTime) || cTime >= wTime)) winner = c;
@@ -78,10 +82,12 @@ export function resolveTitle(candidates: TitleCandidate[]): ConversationTitle | 
 
 /**
  * Fold one new observation into an existing title record. The candidate is
- * always retained in the candidates history; the resolved value/source only
- * changes when the candidate's authority is >= the current tier, so a
- * low-authority observation (e.g. sniff) can never downgrade a high-authority
- * title (e.g. rpc).
+ * always retained in the candidates history; the resolved value/source is
+ * recomputed from the complete candidate set through the single resolution
+ * path (resolveTitle -> pickWinner), so there is exactly one definition of
+ * title authority and tie-breaking. A lower-authority observation (e.g. sniff)
+ * can never downgrade a higher-authority title (e.g. rpc), and an older
+ * same-tier observation can never overwrite a newer one.
  */
 export function applyTitleCandidate(
     title: ConversationTitle | undefined,
@@ -91,16 +97,10 @@ export function applyTitleCandidate(
     if (candidate && typeof candidate.value === 'string' && candidate.value) {
         candidates.push(candidate);
     }
-    if (!title) {
-        const resolved = resolveTitle(candidates);
-        // resolveTitle is defined here because candidates is non-empty when we
-        // reach this branch with a usable candidate; fall back defensively.
-        return resolved ?? { value: candidate.value, source: candidate.source, candidates };
-    }
-    const incomingRank = titleAuthorityRank(candidate.source);
-    const currentRank = titleAuthorityRank(title.source);
-    if (candidate && typeof candidate.value === 'string' && candidate.value && incomingRank >= currentRank) {
-        return { value: candidate.value, source: candidate.source, candidates };
-    }
-    return { value: title.value, source: title.source, candidates };
+    const resolved = resolveTitle(candidates);
+    if (resolved) return resolved;
+    // No usable candidate at all: keep the previous title rather than
+    // synthesizing one from an empty observation.
+    if (title) return { value: title.value, source: title.source, candidates };
+    return { value: candidate.value, source: candidate.source, candidates };
 }

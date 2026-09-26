@@ -115,6 +115,8 @@ export function extractInlineText(inline: InlineNode): string {
                 return (inline.children ?? []).map(extractInlineText).join('');
             case 'inlineCode':
                 return inline.code ?? '';
+            case 'image':
+                return inline.alt ?? '';
             case 'link':
                 return (inline.children ?? []).map(extractInlineText).join('');
             case 'inlineMath':

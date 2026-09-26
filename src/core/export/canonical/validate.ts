@@ -43,6 +43,8 @@ const URL_ALLOWLIST = new Set(['http:', 'https:', 'blob:', 'data:']);
 const BANNED_RENDERER_KEYS = new Set([
     'typst', 'html', 'className', 'style', 'plainText', 'bubbleWidth', 'radius',
     'padding', 'shadow', 'elevation', 'sticky', 'keepWithNext', 'pageBreak', 'syntaxTheme',
+    // View state is not content: a thought block must never carry collapse state.
+    'initiallyCollapsed',
 ]);
 
 class Collector {
@@ -290,6 +292,9 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
                     }
                     if (n.type === 'citationRef' && !citationIds.has(n.citationId)) {
                         c.add('error', 'CITATION_UNRESOLVED', `citationRef to unknown citation ${n.citationId}`, full);
+                    }
+                    if (n.type === 'image' && !assetIds.has(n.assetId)) {
+                        c.add('error', 'ASSET_UNRESOLVED', `inline image references unknown asset ${n.assetId}`, full);
                     }
                     if (n.type === 'unknownInline' && !n.fallbackText && !n.rawRef && !n.extensions) {
                         c.add('error', 'UNKNOWN_INLINE_EMPTY', 'unknownInline has no fallbackText, rawRef or extensions; evidence would be lost', full);
