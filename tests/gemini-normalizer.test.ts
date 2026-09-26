@@ -313,3 +313,91 @@ test('bundle passes validateBundle and projectConversation self-check', async ()
         );
     }
 });
+
+function inlineImagesOf(message: any) {
+    const out = [];
+    for (const b of message.blocks || []) {
+        for (const c of b.children || []) {
+            if (c.type === 'image') out.push(c);
+        }
+    }
+    return out;
+}
+
+test('ambiguous inline image basename never binds arbitrarily', async () => {
+    const input = {
+        id: 'conv-amb',
+        title: 'amb',
+        source: 'gemini',
+        messages: [{
+            id: 'm1',
+            role: 'user',
+            content: 'two images:\n\n![x](image.png)\n',
+            attachments: [
+                { localName: 'assets/foo/image.png', name: 'image.png', type: 'image', mimeType: 'image/png' },
+                { localName: 'assets/bar/image.png', name: 'image.png', type: 'image', mimeType: 'image/png' },
+            ],
+        }],
+    };
+    const { bundle, diagnostics } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    const inlineImgs = inlineImagesOf(m1);
+    assert.strictEqual(inlineImgs.length, 1, 'one inline image parsed');
+    const attachmentIds = new Set(bundle.assets.filter((a: any) => a.id.startsWith('m1-a')).map((a: any) => a.id));
+    assert.strictEqual(attachmentIds.size, 2, 'both attachments become assets');
+    assert.ok(!attachmentIds.has(inlineImgs[0].assetId),
+        'inline image must NOT bind to either attachment when the basename is ambiguous');
+    assert.ok(
+        diagnostics.some((d: any) => d.code === 'AMBIGUOUS_INLINE_IMAGE_ASSET' && d.severity === 'warning'),
+        'ambiguous basename emits AMBIGUOUS_INLINE_IMAGE_ASSET',
+    );
+    assert.ok(
+        !diagnostics.some((d: any) => d.code === 'INLINE_IMAGE_ASSET_MISSING'),
+        'ambiguity is reported once, not also as generic missing',
+    );
+});
+
+test('unique inline image basename still binds to its attachment', async () => {
+    const input = {
+        id: 'conv-unique',
+        title: 'unique',
+        source: 'gemini',
+        messages: [{
+            id: 'm1',
+            role: 'user',
+            content: 'one image:\n\n![x](image.png)\n',
+            attachments: [
+                { localName: 'assets/foo/image.png', name: 'image.png', type: 'image', mimeType: 'image/png' },
+            ],
+        }],
+    };
+    const { bundle, diagnostics } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    const inlineImgs = inlineImagesOf(m1);
+    assert.strictEqual(inlineImgs.length, 1);
+    assert.strictEqual(inlineImgs[0].assetId, 'm1-a0', 'unique basename binds to the attachment asset');
+    assert.ok(!diagnostics.some((d: any) => d.code === 'AMBIGUOUS_INLINE_IMAGE_ASSET'), 'no ambiguity diagnostic');
+});
+
+test('exact full ref wins over an ambiguous basename', async () => {
+    const input = {
+        id: 'conv-exact',
+        title: 'exact',
+        source: 'gemini',
+        messages: [{
+            id: 'm1',
+            role: 'user',
+            content: 'exact ref:\n\n![x](assets/bar/image.png)\n',
+            attachments: [
+                { localName: 'assets/foo/image.png', name: 'image.png', type: 'image', mimeType: 'image/png' },
+                { localName: 'assets/bar/image.png', name: 'image.png', type: 'image', mimeType: 'image/png' },
+            ],
+        }],
+    };
+    const { bundle, diagnostics } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    const inlineImgs = inlineImagesOf(m1);
+    assert.strictEqual(inlineImgs.length, 1);
+    assert.strictEqual(inlineImgs[0].assetId, 'm1-a1', 'exact full ref binds deterministically to the right asset');
+    assert.ok(!diagnostics.some((d: any) => d.code === 'AMBIGUOUS_INLINE_IMAGE_ASSET'), 'no ambiguity diagnostic');
+});
