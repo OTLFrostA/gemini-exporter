@@ -342,7 +342,7 @@ function typstInlineText(nodes: any[]): string {
     for (const n of nodes ?? []) {
         switch (n.type) {
             case 'text': s += n.text; break;
-            case 'strong': case 'emphasis': case 'link': s += typstInlineText(n.children); break;
+            case 'strong': case 'emphasis': case 'strikethrough': case 'link': s += typstInlineText(n.children); break;
             case 'inlineCode': s += n.text; break;
             case 'lineBreak': s += '\n'; break;
             case 'image': s += n.alt ?? `[image: ${n.asset}]`; break;
@@ -353,13 +353,6 @@ function typstInlineText(nodes: any[]): string {
     return s;
 }
 
-/**
- * Extract the text the Typst templates will typeset, partitioned like the
- * HTML side. `bundle` is used only to identify thematic-break dividers: the
- * payload maps them to an em-dash paragraph while HTML renders <hr> with no
- * text, so only a "—" that really is a thematic break is dropped -- a genuine
- * "—" (e.g. a table cell meaning N/A) is content and is kept.
- */
 function typstTextParts(payload: any, bundle: any): TextParts {
     const canonById = new Map<string, any>(
         ((bundle.conversation.messages ?? []) as any[]).map((m) => [m.id, m]),
@@ -378,11 +371,11 @@ function typstTextParts(payload: any, bundle: any): TextParts {
         const isAsset = b.type === 'image' || b.type === 'file' || canonType === 'image' || canonType === 'file';
         switch (b.type) {
             case 'paragraph': {
-                const text = typstInlineText(b.children);
-                if (normalizeLine(text) === '—' && canonType === 'thematicBreak') return;
-                emit(isAsset, text);
+                emit(isAsset, typstInlineText(b.children));
                 return;
             }
+            case 'thematicBreak':
+                return;
             case 'heading':
                 emit(isAsset, typstInlineText(b.children));
                 return;

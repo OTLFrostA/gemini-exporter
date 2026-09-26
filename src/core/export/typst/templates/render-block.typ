@@ -131,6 +131,14 @@
   }
 }
 
+#let render-thematic-break(node, scope) = {
+  in-flow([
+    #v(2pt)
+    #line(length: 100%, stroke: 0.6pt + muted)
+    #v(2pt)
+  ], scope)
+}
+
 #let render-block(node, scope: "assistant", sticky: false) = {
   let kind = node.type
   if kind == "paragraph" { render-paragraph(node, scope, sticky: sticky) }
@@ -141,6 +149,7 @@
   else if kind == "table" { render-table(node, scope) }
   else if kind == "image" { render-image(node, scope) }
   else if kind == "file" { render-file(node, scope) }
+  else if kind == "thematicBreak" { render-thematic-break(node, scope) }
   else if kind == "quote" { render-quote(node, scope, render-block) }
   else if kind == "note" { render-note(node, scope, render-block) }
   else { render-unknown(node, scope, render-block) }

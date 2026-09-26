@@ -20,6 +20,8 @@
     strong(children(node.children))
   } else if kind == "emphasis" {
     emph(children(node.children))
+  } else if kind == "strikethrough" {
+    strike(children(node.children))
   } else if kind == "inlineCode" {
     inline-code(node.text)
   } else if kind == "link" {
