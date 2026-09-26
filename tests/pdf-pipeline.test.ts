@@ -57,7 +57,7 @@ function fakeStages(seen: string[], overrides: any = {}) {
         resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [] }, [], seen),
         payload: okStage('payload', { payload: { schemaVersion: 1 } }, [], seen),
         compile: okStage('compile', { pdfBytes: new Uint8Array([0x25, 0x50]) }, [], seen),
-        deliver: okStage('deliver', { writeReport: { fileName: 'a.pdf', target: 'zip', bytesWritten: 2, writtenAt: 't' } }, [], seen),
+        deliver: okStage('deliver', { writeReport: { fileName: 'a.pdf', target: 'zip', bytesWritten: 2, writtenAt: 't' }, finalized: true }, [], seen),
         ...overrides,
     };
 }
@@ -72,13 +72,27 @@ test('stages run in S1->S5 order and happy path delivers', async () => {
     assert.strictEqual(res.error, undefined);
 });
 
+test('deliver stage returning finalized:false yields staged, never delivered', async () => {
+    const seen: string[] = [];
+    const stages = fakeStages(seen, {
+        deliver: okStage('deliver', {
+            writeReport: { fileName: 'a.pdf', target: 'zip', bytesWritten: 2, writtenAt: 't' },
+            finalized: false,
+        }, [], seen),
+    });
+    const p = new PdfPipeline(stages);
+    const res: any = await p.runOne(fakeInput(), makeCtx());
+    assert.strictEqual(res.status, 'staged');
+    assert.ok(res.writeReport);
+    assert.strictEqual(res.error, undefined);
+});
 test('diagnostics accumulate in stage order and are never dropped', async () => {
     const seen: string[] = [];
     const d = (code: string) => ({ severity: 'warning' as const, code, message: code });
     const stages = fakeStages(seen, {
         project: okStage('project', { bundle: {}, view: {} }, [d('P')], seen),
         payload: okStage('payload', { payload: {} }, [d('T1'), d('T2')], seen),
-        deliver: okStage('deliver', { writeReport: {} }, [d('D')], seen),
+        deliver: okStage('deliver', { writeReport: {}, finalized: true }, [d('D')], seen),
     });
     const p = new PdfPipeline(stages);
     const res: any = await p.runOne(fakeInput(), makeCtx());

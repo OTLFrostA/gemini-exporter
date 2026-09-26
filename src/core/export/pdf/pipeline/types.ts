@@ -195,6 +195,14 @@ export interface DeliveryStageInput {
 
 export interface DeliveryStageOutput {
     writeReport: ArtifactWriteReport;
+    /**
+     * True when the artifact bytes are durably delivered (folder writeFile
+     * resolved). False when the artifact is only STAGED into a batch writer
+     * (batch ZIP mode): the batch driver must still run the single
+     * generateBlob() + downloadHandler() finalize before staged items count
+     * as delivered. A 'staged' item is never reported as success.
+     */
+    finalized: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +242,7 @@ export interface PipelineContext {
     log(message: string, level?: 'info' | 'warn' | 'error'): void;
 }
 
-export type PipelineItemStatus = 'delivered' | 'failed' | 'aborted';
+export type PipelineItemStatus = 'delivered' | 'staged' | 'failed' | 'aborted';
 
 export interface PipelineItemResult {
     conversationId: string;
