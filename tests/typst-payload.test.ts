@@ -312,23 +312,29 @@ test('associated image companion with a path renders trailing attachment without
         'resolved companion must not emit the missing diagnostic');
 });
 
-test('collectUnplacedAssociatedImageIds: block-placed, non-image and unknown ids excluded', async () => {
-    // Both consumers (resourceStage binary resolution and the payload's
-    // trailing attachment emission) import this same symbol from the
-    // canonical module, so this one unit test pins the shared rule.
-    const { collectUnplacedAssociatedImageIds } = require('../src/core/export/canonical/assetReferences.js');
+test('collectCompanionPlacements: explicit placement wins, images/files split, unknown ignored with diagnostic', async () => {
+    const { collectCompanionPlacements } = require('../src/core/export/canonical/assetReferences.js');
     const message: any = {
         id: 'm1',
         blocks: [
             { type: 'image', assetId: 'blk-img' },
             { type: 'paragraph', children: [{ type: 'image', assetId: 'inl-img' }] },
+            { type: 'toolResult', callId: 'c1', assetIds: ['tool-img', 'blk-img'] },
         ],
-        associatedAssetIds: ['blk-img', 'comp-img', 'comp-doc', 'ghost-img'],
+        associatedAssetIds: ['blk-img', 'comp-img', 'comp-doc', 'tool-img', 'ghost'],
     };
-    const referenced = new Set(['blk-img', 'inl-img']);
-    const kindOf = (id: string) =>
-        ({ 'comp-img': 'image', 'comp-doc': 'file' } as Record<string, string | undefined>)[id];
-    const out = collectUnplacedAssociatedImageIds(message, referenced, kindOf);
-    assert.deepStrictEqual([...out].sort(), ['comp-img'],
-        'only unplaced kind:image companions qualify (ghost-img unknown -> excluded like the payload skips it)');
+    const bundle: any = {
+        assets: [
+            { id: 'blk-img', kind: 'image' },
+            { id: 'inl-img', kind: 'image' },
+            { id: 'comp-img', kind: 'image' },
+            { id: 'comp-doc', kind: 'file' },
+            { id: 'tool-img', kind: 'image' },
+        ],
+    };
+    const plan = collectCompanionPlacements(message, bundle);
+    assert.deepStrictEqual(plan.trailingImages, ['comp-img', 'tool-img']);
+    assert.deepStrictEqual(plan.trailingFiles, ['comp-doc']);
+    assert.deepStrictEqual(plan.ignored.map((x: any) => x.assetId), ['ghost']);
+    assert.ok(plan.diagnostics.some((x: any) => x.code === 'ASSET_UNRESOLVED' && x.severity === 'warning'));
 });

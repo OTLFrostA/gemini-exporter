@@ -1,6 +1,6 @@
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
-import type { MessageNode } from './conversation.js';
+import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
 
 function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<string> {
     const ids = new Set<string>();
@@ -72,16 +72,72 @@ export function collectBinaryRenderAssetIds(blocks: BlockNode[] | undefined): Se
  * Unplaced message-level attachments have no AST block placement, so their Asset.kind
  * determines whether they render as trailing images (requiring bytes) or metadata-only file cards.
  */
-export function collectUnplacedAssociatedImageIds(
-    message: MessageNode | undefined,
-    referencedIds: ReadonlySet<string>,
-    kindOf: (id: string) => string | undefined,
-): Set<string> {
-    const out = new Set<string>();
-    for (const id of message?.associatedAssetIds ?? []) {
-        if (referencedIds.has(id)) continue;
-        if (kindOf(id) !== 'image') continue;
-        out.add(id);
-    }
+export interface CompanionPlacementPlan {
+    trailingImages: string[];
+    trailingFiles: string[];
+    ignored: Array<{ assetId: string; reason: string }>;
+    diagnostics: Array<{ severity: 'warning'; code: string; message: string; path?: string }>;
+}
+
+function collectToolResultAssetIds(blocks: BlockNode[] | undefined): string[] {
+    const out: string[] = [];
+    const walk = (list: BlockNode[]): void => {
+        for (const block of list) {
+            if (block.type === 'toolResult') {
+                for (const id of block.assetIds ?? []) out.push(id);
+            }
+            switch (block.type) {
+                case 'list':
+                    for (const item of block.items) walk(item.blocks);
+                    break;
+                case 'quote':
+                case 'thought':
+                    walk(block.blocks);
+                    break;
+                case 'toolCall':
+                case 'toolResult':
+                    if (block.displayBlocks) walk(block.displayBlocks);
+                    break;
+                case 'unknown':
+                    if (block.fallbackBlocks) walk(block.fallbackBlocks);
+                    break;
+                default: break;
+            }
+        }
+    };
+    walk(blocks ?? []);
     return out;
+}
+
+export function collectCompanionPlacements(
+    message: MessageNode | undefined,
+    bundle: CanonicalConversationBundle,
+): CompanionPlacementPlan {
+    const trailingImages: string[] = [];
+    const trailingFiles: string[] = [];
+    const ignored: Array<{ assetId: string; reason: string }> = [];
+    const diagnostics: CompanionPlacementPlan['diagnostics'] = [];
+    const seen = new Set<string>(collectReferencedAssetIds(message?.blocks));
+    const byId = new Map((bundle.assets ?? []).map((a) => [a.id, a]));
+    const consider = (id: string, source: string): void => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        const asset = byId.get(id);
+        if (!asset) {
+            const reason = `${source} references unknown asset ${id}; skipping companion placement`;
+            ignored.push({ assetId: id, reason });
+            diagnostics.push({
+                severity: 'warning',
+                code: 'ASSET_UNRESOLVED',
+                message: reason,
+                path: message?.id ? `message:${message.id}` : undefined,
+            });
+            return;
+        }
+        if (asset.kind === 'image') trailingImages.push(id);
+        else trailingFiles.push(id);
+    };
+    for (const id of message?.associatedAssetIds ?? []) consider(id, 'associatedAssetIds');
+    for (const id of collectToolResultAssetIds(message?.blocks)) consider(id, 'toolResult.assetIds');
+    return { trailingImages, trailingFiles, ignored, diagnostics };
 }
