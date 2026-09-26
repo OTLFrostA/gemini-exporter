@@ -7,13 +7,13 @@ export interface UnknownRenderFallback {
     diagnostic: Diagnostic;
 }
 
-function blockDiagnosticId(block: UnknownBlock): string {
-    return `unknown-fallback:${block.id}`;
+export interface TextExtractOptions {
+    citationLabel?: (citationId: string) => string | undefined;
 }
 
-export function unknownBlockFallbackText(block: UnknownBlock): string {
+export function unknownBlockFallbackText(block: UnknownBlock, options?: TextExtractOptions): string {
     const fromBlocks = block.fallbackBlocks
-        ?.map((b) => extractBlockText(b))
+        ?.map((b) => extractBlockText(b, options))
         .filter((t) => t.trim())
         .join('\n')
         .trim();
@@ -28,54 +28,38 @@ export function unknownInlineFallbackText(inline: UnknownInline): string {
     return `[Unknown inline content: ${inline.sourceType}]`;
 }
 
-export function unknownBlockToFallbackBlocks(block: UnknownBlock): { blocks: BlockNode[]; diagnostic: Diagnostic } {
-    const text = unknownBlockFallbackText(block);
-    const fallbackBlocks: BlockNode[] = block.fallbackBlocks && block.fallbackBlocks.length > 0
-        ? block.fallbackBlocks
-        : [{ id: `${block.id}-fallback`, type: 'paragraph', children: [{ type: 'text', text }] }];
-    const diagnostic: Diagnostic = {
-        id: blockDiagnosticId(block),
-        severity: 'warning',
-        code: 'UNKNOWN_FALLBACK',
-        message: `unknown block rendered as readable fallback (sourceType=${block.sourceType})`,
-        sourceRef: block.sourceRef,
-        details: { rawRef: block.rawRef ?? null, hadPayload: block.payload !== undefined },
-    };
-    return { blocks: fallbackBlocks, diagnostic };
-}
-
-export function extractBlockText(block: BlockNode): string {
+export function extractBlockText(block: BlockNode, options?: TextExtractOptions): string {
     try {
         switch (block.type) {
             case 'paragraph':
             case 'heading':
-                return (block.children ?? []).map(extractInlineText).join('');
+                return (block.children ?? []).map((i) => extractInlineText(i, options)).join('');
             case 'list':
-                return (block.items ?? []).map((i) => (i.blocks ?? []).map(extractBlockText).join('\n')).join('\n');
+                return (block.items ?? []).map((i) => (i.blocks ?? []).map((b) => extractBlockText(b, options)).join('\n')).join('\n');
             case 'quote':
             case 'thought':
-                return (block.blocks ?? []).map(extractBlockText).join('\n');
+                return (block.blocks ?? []).map((b) => extractBlockText(b, options)).join('\n');
             case 'code':
                 return block.code ?? '';
             case 'math':
                 return block.source ?? '';
             case 'table': {
                 const rows = [...(block.headerRows ?? []), ...(block.rows ?? [])];
-                return rows.map((r) => (r.cells ?? []).map((c) => (c.children ?? []).map(extractInlineText).join('')).join(' | ')).join('\n');
+                return rows.map((r) => (r.cells ?? []).map((c) => (c.children ?? []).map((i) => extractInlineText(i, options)).join('')).join(' | ')).join('\n');
             }
             case 'image':
                 return block.alt ?? '';
             case 'file':
                 return block.label ?? '';
             case 'citationGroup':
-                return (block.title ?? []).map(extractInlineText).join('');
+                return (block.title ?? []).map((i) => extractInlineText(i, options)).join('');
             case 'toolCall':
             case 'toolResult':
-                return (block.displayBlocks ?? []).map(extractBlockText).join('\n');
+                return (block.displayBlocks ?? []).map((b) => extractBlockText(b, options)).join('\n');
             case 'thematicBreak':
                 return '';
             case 'unknown':
-                return unknownBlockFallbackText(block);
+                return unknownBlockFallbackText(block, options);
             default:
                 return '';
         }
@@ -84,7 +68,7 @@ export function extractBlockText(block: BlockNode): string {
     }
 }
 
-export function extractInlineText(inline: InlineNode): string {
+export function extractInlineText(inline: InlineNode, options?: TextExtractOptions): string {
     try {
         switch (inline.type) {
             case 'text':
@@ -92,17 +76,17 @@ export function extractInlineText(inline: InlineNode): string {
             case 'strong':
             case 'emphasis':
             case 'strikethrough':
-                return (inline.children ?? []).map(extractInlineText).join('');
+                return (inline.children ?? []).map((i) => extractInlineText(i, options)).join('');
             case 'inlineCode':
                 return inline.code ?? '';
             case 'image':
                 return inline.alt ?? '';
             case 'link':
-                return (inline.children ?? []).map(extractInlineText).join('');
+                return (inline.children ?? []).map((i) => extractInlineText(i, options)).join('');
             case 'inlineMath':
                 return inline.source ?? '';
             case 'citationRef':
-                return inline.label ?? '';
+                return inline.label ?? options?.citationLabel?.(inline.citationId) ?? '';
             case 'lineBreak':
                 return '\n';
             case 'unknownInline':

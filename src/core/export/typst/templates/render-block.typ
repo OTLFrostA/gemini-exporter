@@ -70,9 +70,8 @@
 #let render-table(node, scope) = {
   let headers = node.headers.map(row => row.map(cell => [#render-inlines(cell)]))
   let rows = node.rows.map(row => row.map(cell => [#render-inlines(cell)]))
-  let cols = if "columns" in node { node.columns } else { none }
   let aligns = if "aligns" in node { node.aligns } else { none }
-  let table = modern-table(headers, rows, columns: cols, aligns: aligns)
+  let table = modern-table(headers, rows, aligns: aligns)
   if "caption" in node and node.caption != "" {
     [
       #align(center)[#text(size: 7.35pt, fill: muted)[#node.caption]]

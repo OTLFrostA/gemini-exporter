@@ -20,7 +20,6 @@ const {
     resolveTitle,
     applyTitleCandidate,
     titleAuthorityRank,
-    unknownBlockToFallbackBlocks,
     unknownBlockFallbackText,
     classifyAssetAvailability,
     resolveAssetBytes,
@@ -232,10 +231,6 @@ test('unknown block always yields readable fallback, never blank', () => {
     const block = unknownFx().conversation.messages[0].blocks[0];
     const text = unknownBlockFallbackText(block);
     assert.ok(text && text.trim().length > 0, 'fallback text must be non-empty');
-    const { blocks, diagnostic } = unknownBlockToFallbackBlocks(block);
-    assert.ok(blocks.length > 0);
-    assert.strictEqual(diagnostic.code, 'UNKNOWN_FALLBACK');
-    assert.strictEqual(diagnostic.severity, 'warning');
 });
 
 test('bare unknown block (rawRef only) still produces visible fallback', () => {
