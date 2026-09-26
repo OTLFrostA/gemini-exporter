@@ -48,6 +48,13 @@
  * is a hard error (the M6 stub gate) — a placeholder PDF is never produced
  * silently on the production path.
  *
+ * Lifecycle (#592 P1 fix): the exporter owns the compiler it creates itself
+ * (ownsCompiler) and releases it via dispose() — hidden sandbox iframe,
+ * window message listener, WASM state, cached font bytes. The production
+ * controller calls dispose() in its run-finally after every run (success,
+ * failure, or abort); abort() alone only cancels and never disposes.
+ * Injected/shared compilers are never disposed here.
+ *
  * Engine shape mirrors ExportOrchestrator (run/abort) so
  * exportController can route `format === 'pdf'` here without changes
  * to the progress/cancel UI wiring.
@@ -230,18 +237,52 @@ export class PdfExporter {
     private _abortController: AbortController | null = null;
     private _compiler: IPdfCompiler;
     private _allowStub: boolean;
+    /**
+     * Ownership (D7 M6 fix, #592 P1): the exporter only owns — and therefore
+     * only ever disposes — a compiler it created itself (the production
+     * default). An injected/shared compiler belongs to its caller and must
+     * never be torn down here.
+     */
+    private readonly ownsCompiler: boolean;
 
     constructor(compiler?: IPdfCompiler, opts?: PdfExporterConstructorOptions) {
         this._allowStub = opts?.allowStub ?? false;
+        this.ownsCompiler = compiler === undefined;
         this._compiler = compiler ?? createProductionCompiler();
     }
 
     abort(): void {
+        // Cancellation only: aborting never disposes the compiler. The owned
+        // compiler is disposed exactly once, at run end, by the caller's
+        // finally (exportController.runExport). Disposing here would race the
+        // in-flight run's own teardown and could strand a retry that reuses
+        // the exporter.
         this.aborted = true;
         try {
             this._abortController?.abort();
         } catch {
             /* intentional */
+        }
+    }
+
+    /**
+     * Release the owned compiler's resources: the hidden sandbox iframe,
+     * the window message listener (which captures the compiler, so without
+     * this the compiler is never GC'd), the WASM sandbox state, and the
+     * cached font bytes. Idempotent — safe to call more than once.
+     *
+     * Only a compiler created by this exporter (ownsCompiler) is ever
+     * disposed; an injected/shared compiler is owned by its caller and is
+     * left alone. Called by the production controller's finally after every
+     * run — success, failure, or abort — so one export never leaks a sandbox
+     * into the next one. Duck-typed: IPdfCompiler does not declare dispose,
+     * so compilers without one are simply skipped.
+     */
+    dispose(): void {
+        if (!this.ownsCompiler) return;
+        const maybeDisposable = this._compiler as { dispose?: unknown };
+        if ('dispose' in this._compiler && typeof maybeDisposable.dispose === 'function') {
+            maybeDisposable.dispose();
         }
     }
 
