@@ -141,8 +141,8 @@ function makeMountAssetResolver(
  *   5. the tail carries `startxref <byte-offset> %%EOF` where the offset is
  *      a real cross-reference pointer: it parses as a number, lies inside
  *      the byte range, and the bytes there begin a classic `xref` table or
- *      an indirect object whose dictionary carries `/Type` `/XRef`
- *      (cross-reference stream). A bare numeric marker — e.g. the
+ *      an indirect object whose own first dictionary (bounded by the
+ *      object's `endobj`) carries `/Type /XRef` (cross-reference stream). A bare numeric marker — e.g. the
  *      `startxref 0` hand-written fixtures used to carry — is rejected.
  * Anything failing a check is rejected; the caller turns it into a
  * PDF_VERIFY_FAILED stage failure, never a blank PDF marked ok.
@@ -158,6 +158,31 @@ function asciiIncludes(haystack: Uint8Array, needle: string): boolean {
         }
     }
     return false;
+}
+
+/**
+ * Extract the first `<< ... >>` dictionary starting at `from`, with
+ * nested-dictionary depth counting so `<< /DecodeParms << /Columns 5 >> >>`
+ * pairs correctly. Returns null when no balanced dictionary opens there.
+ */
+function extractFirstDictionary(text: string, from: number): string | null {
+    const open = text.indexOf('<<', from);
+    if (open < 0) return null;
+    let depth = 0;
+    let i = open;
+    while (i < text.length - 1) {
+        if (text[i] === '<' && text[i + 1] === '<') {
+            depth++;
+            i += 2;
+        } else if (text[i] === '>' && text[i + 1] === '>') {
+            depth--;
+            i += 2;
+            if (depth === 0) return text.slice(open, i);
+        } else {
+            i++;
+        }
+    }
+    return null;
 }
 
 function verifyPdfBytes(pdfBytes: Uint8Array): void {
@@ -193,17 +218,27 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
     }
     // Inspect the bytes at the claimed offset. A classic PDF points at its
     // 'xref' table; an xref-stream PDF points at the indirect object whose
-    // dictionary carries /Type /XRef. Anything else (e.g. offset 0, which
-    // lands on the %PDF- header) is a decorative marker, not a pointer.
+    // own first dictionary carries /Type /XRef. The /Type /XRef check is
+    // scoped to that dictionary alone (bounded by the object's endobj):
+    // an ordinary object that merely sits within 2 KiB of a later xref
+    // stream must not pass. Anything else (e.g. offset 0, which lands on
+    // the %PDF- header) is a decorative marker, not a pointer.
     const probeEnd = Math.min(pdfBytes.length, xrefOffset + 2048);
     const probe = new TextDecoder('ascii')
         .decode(pdfBytes.subarray(xrefOffset, probeEnd))
         .replace(/^[\r\n \t]+/, '');
     const isClassicXref = probe.startsWith('xref');
-    const isXrefStream =
-        /^\d+[\r\n \t]+\d+[\r\n \t]+obj/.test(probe) &&
-        probe.includes('/Type') &&
-        probe.includes('/XRef');
+    let isXrefStream = false;
+    const objHeader = /^\d+[\r\n \t]+\d+[\r\n \t]+obj/.exec(probe);
+    if (objHeader) {
+        // Stay inside the first indirect object: stop at its endobj so a
+        // dictionary belonging to a *later* object can never leak in.
+        const bodyStart = objHeader[0].length;
+        const endobjIdx = probe.indexOf('endobj', bodyStart);
+        const bodyEnd = endobjIdx < 0 ? probe.length : endobjIdx;
+        const dict = extractFirstDictionary(probe.slice(0, bodyEnd), bodyStart);
+        isXrefStream = dict !== null && /\/Type\s*\/XRef\b/.test(dict);
+    }
     if (!isClassicXref && !isXrefStream) {
         throw new Error(
             `compiler returned %PDF- bytes whose startxref offset ${xrefOffset} does not point at a cross-reference table or cross-reference stream; refusing to treat them as a complete PDF`,
