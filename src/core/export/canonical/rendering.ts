@@ -16,6 +16,7 @@
 
 import type { Asset } from './assets.js';
 import type { CanonicalConversationBundle } from './conversation.js';
+import type { TypstConversationRenderPayload } from '../typst/payload.js';
 
 export interface RenderDiagnostic {
     severity: 'info' | 'warning' | 'error';
@@ -112,4 +113,18 @@ export interface TypstRenderPayload {
     bundle: CanonicalConversationBundle;
     messageHints?: TypstDerivedMessageHints[];
     convertedMath?: Record<string, TypstDerivedMath>;
+    /**
+     * D7 S3's prebuilt Typst JSON doc. When present, IPdfCompiler
+     * implementations skip their internal toTypstPayload and compile this
+     * doc directly (single conversion; S3 already captured the adapter
+     * diagnostics in its own stage channel).
+     */
+    prebuiltDoc?: TypstConversationRenderPayload;
+    /**
+     * assetId -> image path used inside prebuiltDoc. Must be consistent
+     * with the assetPath the S3 stage used (derived from S2's pathMap);
+     * the compiler builds its imagePath -> assetId map from this instead
+     * of its own payloadOptions.assetPath.
+     */
+    prebuiltAssetPaths?: ReadonlyMap<string, string>;
 }

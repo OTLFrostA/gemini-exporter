@@ -157,6 +157,13 @@ export interface CompileStageInput {
     /** From S2. */
     mounts: ImageMount[];
     /**
+     * From S2 (assetId -> virtualPath). S4 builds the mount-backed
+     * AssetResolver as resolve(assetId) = mounts[pathMap[assetId]].bytes;
+     * without it the stage would have to guess the mapping from virtual
+     * paths, which is unsound for content-hash-shaped paths.
+     */
+    pathMap: ReadonlyMap<string, string>;
+    /**
      * Resolved inside S4 via resolveLocalFonts(); carried here so tests can
      * inject a canned resolution without touching the font provider.
      */

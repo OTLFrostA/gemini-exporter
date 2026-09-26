@@ -358,13 +358,21 @@ export class TypstSandboxCompiler implements IPdfCompiler {
 
         const diagnostics: RenderDiagnostic[] = [];
 
-        // 1. Canonical bundle -> Typst JSON payload (P1a adapter).
-        const { payload: doc, diagnostics: adapterDiagnostics } = toTypstPayload(
-            payload.bundle,
-            this.payloadOptions,
-        );
-        for (const d of adapterDiagnostics) {
-            diagnostics.push({ severity: d.severity, code: d.code, message: d.message, path: d.path });
+        // 1. Canonical bundle -> Typst JSON payload (P1a adapter), or reuse the
+        // D7 S3 stage's prebuilt doc (single conversion; S3 already captured
+        // the adapter diagnostics in its own stage channel).
+        let doc: TypstConversationRenderPayload;
+        if (payload.prebuiltDoc) {
+            doc = payload.prebuiltDoc;
+        } else {
+            const { payload: built, diagnostics: adapterDiagnostics } = toTypstPayload(
+                payload.bundle,
+                this.payloadOptions,
+            );
+            doc = built;
+            for (const d of adapterDiagnostics) {
+                diagnostics.push({ severity: d.severity, code: d.code, message: d.message, path: d.path });
+            }
         }
         context.reportProgress('typst-payload', 1, 4);
         context.signal.throwIfAborted();
@@ -395,7 +403,13 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         const binaries: Array<{ path: string; buf: ArrayBuffer }> = [];
         const transfer: ArrayBuffer[] = [];
         const pathToAssetId = new Map<string, string>();
-        if (this.payloadOptions.assetPath) {
+        if (payload.prebuiltAssetPaths) {
+            // D7: the doc's image paths came from S2's pathMap; map back
+            // through the same table instead of this.payloadOptions.assetPath.
+            for (const [assetId, path] of payload.prebuiltAssetPaths) {
+                if (path) pathToAssetId.set(path, assetId);
+            }
+        } else if (this.payloadOptions.assetPath) {
             for (const asset of payload.bundle.assets) {
                 const path = this.payloadOptions.assetPath(asset);
                 if (path) pathToAssetId.set(path, asset.id);

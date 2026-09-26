@@ -99,6 +99,7 @@ export class PdfPipeline {
                 payload: payload.output.payload,
                 bundle: input.bundle,
                 mounts: resources.output.mounts,
+                pathMap: resources.output.pathMap,
                 fonts: input.fonts,
                 compiler: input.compiler,
                 locale: input.locale,
