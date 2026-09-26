@@ -57,7 +57,18 @@
   let rows = node.rows.map(row => row.map(cell => [#render-inlines(cell)]))
   let cols = if "columns" in node { node.columns } else { none }
   let aligns = if "aligns" in node { node.aligns } else { none }
-  modern-table(headers, rows, columns: cols, aligns: aligns)
+  let table = modern-table(headers, rows, columns: cols, aligns: aligns)
+  // D8-A parity: table captions are content (HTML renders <caption>); keep the
+  // caption glued to the table with the same muted figure-caption styling.
+  if "caption" in node and node.caption != "" {
+    [
+      #align(center)[#text(size: 7.35pt, fill: muted)[#node.caption]]
+      #v(4pt)
+      #table
+    ]
+  } else {
+    table
+  }
 }
 
 #let render-image(node, scope) = image-surface(
