@@ -18,10 +18,16 @@
  * - One failed item never aborts the batch; failures stay retryable and
  *   are never marked successful.
  * - Cancellation is real: the compile task is aborted via AbortSignal,
- *   no partial file is written, and the batch stops.
- * - Nothing is lost quietly: normalize/compile/write diagnostics are all
- *   surfaced through onLog (which feeds the extension Error page) and
- *   returned in the result.
+ *   no partial file is written, the batch stops, and every item that never
+ *   reached a terminal state is reported as failed (retryable) — nothing
+ *   silently dropped.
+ * - Nothing is lost quietly: warning/error diagnostics from normalize /
+ *   compile / write are surfaced through onLog (which feeds the extension
+ *   Error page) and returned in the result; a failed export-record write
+ *   keeps the artifact successful but emits EXPORT_RECORD_WRITE_FAILED.
+ * - The result carries UI-contract aliases (failedChats/landedChats/
+ *   exportedCount) so the options-page summary, failure banner and retry
+ *   flow see PDF failures instead of counting everything successful.
  *
  * Engine shape mirrors ExportOrchestrator (run/abort) so
  * exportController can route `format === 'pdf'` here without changes
@@ -60,6 +66,15 @@ export interface PdfExportResult {
     succeeded: number;
     failed: PdfExportItemResult[];
     aborted: boolean;
+    /**
+     * UI-contract aliases (additive): the options-page summary, failure
+     * banner and retry flow read failedChats/landedChats/exportedCount.
+     * Without these, PDF failures would be invisible to that UI (every item
+     * would look successful and retry would find nothing).
+     */
+    failedChats?: PdfExportItemResult[];
+    landedChats?: number;
+    exportedCount?: number;
 }
 
 export interface PdfExportProgress {
@@ -172,10 +187,63 @@ export class PdfExporter {
         const failItem = (id: string, title: string, error: string, diagnostics: RenderDiagnostic[]): void => {
             onLog(`[PDF] ${title || id} 导出失败: ${error}`, 'error');
             failed.push({ id, title, ok: false, error, diagnostics });
+            completed.add(id);
+            surfaceDiagnostics(id, title, diagnostics);
         };
 
+        /**
+         * Warning/error diagnostics must reach the visible log channel
+         * (which feeds the extension Error page) — never swallowed.
+         * Info-level diagnostics stay in the result only, to avoid spam.
+         */
+        const surfaceDiagnostics = (id: string, title: string, diagnostics: RenderDiagnostic[]): void => {
+            for (const d of diagnostics) {
+                if (d.severity === 'warning' || d.severity === 'error') {
+                    // Map onto the onLog channel convention ('warn', not 'warning').
+                    onLog(`[PDF] ${title || id} ${d.severity}: [${d.code}] ${d.message}`, d.severity === 'warning' ? 'warn' : 'error');
+                }
+            }
+        };
+
+        /**
+         * §11: persist the export record. A record-write failure must NOT
+         * flip the artifact to failed (the file was delivered) — but it must
+         * be LOUD: a visible warning + an EXPORT_RECORD_WRITE_FAILED
+         * diagnostic, never a silent catch.
+         */
+        const commitRecord = async (id: string, record: any, diagnostics: RenderDiagnostic[]): Promise<void> => {
+            try {
+                await onItemExported(id, record);
+            } catch (e: any) {
+                const rmsg = e?.message || String(e);
+                diagnostics.push({
+                    severity: 'warning',
+                    code: 'EXPORT_RECORD_WRITE_FAILED',
+                    message:
+                        `Export record persistence failed for ${id}: ${rmsg}. ` +
+                        `The file itself was delivered successfully; the record can be rebuilt on retry.`,
+                    path: id,
+                });
+            }
+        };
+
+        /** Terminal-state tracker: every item that reached succeeded/failed. */
+        const completed = new Set<string>();
+
+        let wasAborted = false;
+        const buildResult = (): PdfExportResult => ({
+            total,
+            succeeded,
+            failed,
+            aborted: wasAborted,
+            // UI-contract aliases so the summary/banner/retry flow sees PDF failures.
+            failedChats: failed,
+            landedChats: succeeded,
+            exportedCount: succeeded,
+        });
+
         if (total === 0) {
-            return { total: 0, succeeded: 0, failed, aborted: false };
+            return buildResult();
         }
 
         // ZIP delivery contract: a ZIP is only "delivered" when
@@ -187,7 +255,7 @@ export class PdfExporter {
             const msg =
                 'zip export requires downloadHandler: without it the ZIP blob can never be delivered to the user';
             for (const it of items) failItem(it.id, it.title, msg, []);
-            return { total, succeeded: 0, failed, aborted: false };
+            return buildResult();
         }
 
         // Writer setup (fail-closed: no writer, no export).
@@ -205,7 +273,7 @@ export class PdfExporter {
             const msg = e?.message || String(e);
             onLog(`[PDF] 写入器初始化失败: ${msg}`, 'error');
             for (const it of items) failItem(it.id, it.title, `writer init failed: ${msg}`, []);
-            return { total, succeeded: 0, failed, aborted: false };
+            return buildResult();
         }
 
         const activeWriter: IExportWriter = writer;
@@ -317,11 +385,9 @@ export class PdfExporter {
                     // Folder writer: the file is on disk the moment
                     // writeFile() resolves — that IS delivery.
                     succeeded++;
-                    try {
-                        await onItemExported(id, record);
-                    } catch {
-                        /* intentional: record hook must not fail the export (§11 hardens this in the next PR) */
-                    }
+                    completed.add(id);
+                    await commitRecord(id, record, itemDiagnostics);
+                    surfaceDiagnostics(id, title, itemDiagnostics);
                     onLog(`[PDF] ${title} 导出成功 (${artifact.fileName})`, 'info');
                 }
             } catch (e: any) {
@@ -331,14 +397,15 @@ export class PdfExporter {
             report(i + 1, title);
         }
 
-        const wasAborted = this.aborted || !!signal?.aborted;
+        wasAborted = this.aborted || !!signal?.aborted;
 
         // ZIP transaction boundary (report §1): finalize + deliver FIRST,
         // commit final success records ONLY after the user actually receives
         // the ZIP. A generateBlob/download failure must never leave staged
         // items marked successful — they are reported as failed (retryable).
         // Never package or download after a cancel (user intent); staged
-        // items on abort stay uncommitted (neither succeeded nor failed).
+        // items on abort are reported as failed/retryable below, never
+        // counted as succeeded.
         if (!wasAborted && useZip && staged.length > 0) {
             const zipFileName = `gemini_export_pdf_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
             try {
@@ -358,11 +425,9 @@ export class PdfExporter {
                 // Delivered. Now — and only now — commit final success.
                 for (const s of staged) {
                     succeeded++;
-                    try {
-                        await onItemExported(s.id, s.record);
-                    } catch {
-                        /* intentional: record hook must not fail the export (§11 hardens this in the next PR) */
-                    }
+                    completed.add(s.id);
+                    await commitRecord(s.id, s.record, s.diagnostics);
+                    surfaceDiagnostics(s.id, s.title, s.diagnostics);
                 }
                 onLog(`[PDF] ZIP 打包交付成功 (${zipFileName})，${staged.length} 个文件确认成功`, 'info');
             } catch (e: any) {
@@ -376,11 +441,31 @@ export class PdfExporter {
                         error: `zip finalize/delivery failed: ${msg}`,
                         diagnostics: s.diagnostics,
                     });
+                    completed.add(s.id);
+                    surfaceDiagnostics(s.id, s.title, s.diagnostics);
                 }
             }
         }
 
         if (wasAborted) {
+            // Batch partial-failure semantics on abort: every item that never
+            // reached a terminal state is reported as failed (retryable), so
+            // a retry covers exactly the unfinished work — nothing is
+            // silently dropped, and staged-but-undelivered items are NOT
+            // counted as succeeded.
+            const stagedById = new Map(staged.map((s) => [s.id, s.diagnostics]));
+            for (const it of items) {
+                if (!completed.has(it.id)) {
+                    completed.add(it.id);
+                    failed.push({
+                        id: it.id,
+                        title: it.title,
+                        ok: false,
+                        error: 'export aborted before completion (retryable)',
+                        diagnostics: stagedById.get(it.id) ?? [],
+                    });
+                }
+            }
             onLog('[PDF] 导出已取消', 'warn');
         }
 
@@ -390,7 +475,7 @@ export class PdfExporter {
             /* intentional */
         }
 
-        return { total, succeeded, failed, aborted: wasAborted };
+        return buildResult();
     }
 }
 
