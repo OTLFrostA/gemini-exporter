@@ -1,12 +1,14 @@
 /**
  * tests/html-canonical-migration.test.ts
- * Item 1 (P0): production HTML export now routes through the canonical path
+ * Item 1 (P0): production HTML export routes through the canonical path
  * (ChatFormatter.formatHtmlCanonical: normalizeGeminiConversation ->
- * CanonicalHtmlRenderer) instead of the legacy toHtml().
+ * CanonicalHtmlRenderer).
  *
- * Method: same fixture Conversation rendered by old toHtml() and by the new
- * production entry; compare turn count/order and assert no content class is
- * dropped (text, attachments, images, thought, code, table, citation).
+ * History: this file originally compared the legacy toHtml() output with
+ * the new production entry as migration evidence. Item 2 (P0) removed the
+ * legacy toHtml() pipeline entirely; the remaining assertions verify the
+ * production entry directly: turn count/order and no dropped content
+ * class (text, attachments, images, thought, code, table, citation).
  * Not pixel-perfect: tags/styles may differ.
  */
 export {};
@@ -14,7 +16,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-const { toHtml } = require('../src/core/engine/template/htmlTemplate.js');
 
 const chat: any = {
     id: 'migrate_001',
@@ -74,11 +75,9 @@ function turnRoles(html: string): string[] {
     return roles;
 }
 
-let oldHtml: string;
 let newHtml: string;
 
 test('migration setup: production entry returns a valid HTML FormattedResult', async () => {
-    oldHtml = toHtml(chat);
     const res = await ChatFormatter.formatHtmlCanonical(chat);
     assert.strictEqual(res.ext, 'html');
     assert.strictEqual(res.mime, 'text/html');
@@ -86,10 +85,8 @@ test('migration setup: production entry returns a valid HTML FormattedResult', a
     newHtml = String(res.content);
 });
 
-test('migration: message count and order match the legacy output', () => {
-    const oldRoles = turnRoles(oldHtml);
+test('migration: message count and order are correct', () => {
     const newRoles = turnRoles(newHtml);
-    assert.deepStrictEqual(newRoles, oldRoles, 'turn roles must be identical');
     assert.deepStrictEqual(newRoles, ['user', 'model', 'user', 'model']);
 });
 
@@ -135,11 +132,11 @@ test('migration: citation not dropped', () => {
     assert.ok(newHtml.includes('gem-citation'), 'citation markup missing');
 });
 
-test('migration: duplicate message ids do not fail the export (legacy tolerated them)', async () => {
+test('migration: duplicate message ids do not fail the export', async () => {
     // Mirrors the real pagination re-fetch shape: a message whose id equals
-    // the conversation id is returned on two pages. Legacy toHtml rendered
-    // both; the canonical projection requires unique ids, so the migration
-    // adapter dedupes (keeps first, preserves order).
+    // the conversation id is returned on two pages. The canonical projection
+    // requires unique ids, so the migration adapter dedupes (keeps first,
+    // preserves order).
     const dupChat: any = {
         id: 'dup_001',
         title: 'Duplicate Id Chat',
@@ -155,6 +152,4 @@ test('migration: duplicate message ids do not fail the export (legacy tolerated 
     assert.deepStrictEqual(turnRoles(html), ['user', 'model'], 'duplicate turn must be dropped, order kept');
     assert.ok(html.includes('first user prompt'));
     assert.ok(html.includes('model answer'));
-    // legacy reference renders the same fixture without throwing
-    assert.ok(toHtml(dupChat).includes('first user prompt'));
 });

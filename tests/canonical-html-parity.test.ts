@@ -1,17 +1,22 @@
 /**
  * tests/canonical-html-parity.test.ts
- * F2c: content-consistency between the legacy 1:1 HTML exporter (toHtml) and
- * the new canonical-AST HTML renderer (renderCanonicalHtml).
+ * F2c: content-completeness of the canonical-AST HTML renderer
+ * (renderCanonicalHtml).
  *
- * Method: same desensitized Conversation -> old path (toHtml) vs new path
- * (normalizeGeminiConversation -> renderCanonicalHtml). Visible text is
- * extracted per turn and compared as an order-preserving subsequence:
- * every text line the old renderer shows must appear in the new output in
- * the same order (tags/styles may differ; content must not).
+ * History: this file originally compared the legacy 1:1 HTML exporter
+ * (toHtml) against the canonical renderer as migration evidence.
+ * Item 2 (P0) removed the legacy toHtml() pipeline entirely, so the
+ * legacy reference is gone; the remaining assertions now verify directly
+ * that the canonical renderer drops no content class (text, attachments,
+ * images, thoughts, code, table, math, citations, unknown content).
  *
- * Known intentional supersets (asserted separately, not as parity failures):
- * - citations: the legacy template drops them; the AST renderer shows chips
- * - unknown content: legacy renders blank; the AST renderer shows a fallback
+ * Method: desensitized Conversation -> normalizeGeminiConversation ->
+ * renderCanonicalHtml; visible text is extracted per turn and checked
+ * for content-completeness (tags/styles may differ; content must not).
+ *
+ * Asserted canonical behaviors (kept from the parity era):
+ * - citations: rendered as visible chips (legacy dropped them)
+ * - unknown content: visible fallback, never a blank gap
  */
 export {};
 const test = require('node:test');
@@ -19,7 +24,6 @@ const assert = require('node:assert');
 
 const canonical = require('../src/core/export/canonical/index.js');
 const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
-const { toHtml } = require('../src/core/engine/template/htmlTemplate.js');
 
 const chat: any = {
     id: 'parity_chat_001',
@@ -103,61 +107,62 @@ function textLines(fragment: string): string[] {
         .map((l: string) => l.replace(/\[(\d+)\]/g, '$1'));
 }
 
-/** Order-preserving subsequence check. */
-function isSubsequence(needles: string[], haystack: string[]): string | null {
-    let h = 0;
-    for (const n of needles) {
-        let found = false;
-        while (h < haystack.length) {
-            if (haystack[h] === n) { found = true; h++; break; }
-            h++;
-        }
-        if (!found) return n;
-    }
-    return null;
-}
-
-let oldHtml: string;
 let newHtml: string;
 let newDiagnostics: Array<{ code: string }>;
 
 
-test('parity setup: both renderers produce output', async () => {
-    oldHtml = toHtml(chat);
+test('parity setup: canonical renderer produces output', async () => {
     const { bundle } = await normalizeGeminiConversation(chat);
     const res = renderCanonicalHtml(bundle);
     newHtml = res.html;
     newDiagnostics = res.diagnostics;
-    assert.ok(oldHtml.startsWith('<!DOCTYPE html>'), 'legacy output is a document');
     assert.ok(newHtml.startsWith('<!DOCTYPE html>'), 'AST output is a document');
 });
 
 test('parity: same turn count and structure', () => {
-    const oldTurns = splitTurns(oldHtml);
     const newTurns = splitTurns(newHtml);
-    assert.strictEqual(oldTurns.length, 4, 'legacy renders 4 turns');
     assert.strictEqual(newTurns.length, 4, 'AST renderer renders 4 turns');
     assert.ok(newHtml.includes('gem-turn-user'), 'user turn kept');
     assert.ok(newHtml.includes('gem-user-bubble'), 'user bubble kept');
     assert.ok(newHtml.includes('gem-turn-model'), 'model turns kept');
 });
 
-test('parity: user turn text is a subsequence (content not lost)', () => {
-    const oldLines = textLines(splitTurns(oldHtml)[0]);
-    const newLines = textLines(splitTurns(newHtml)[0]);
-    const missing = isSubsequence(oldLines, newLines);
-    assert.strictEqual(missing, null, `legacy user-turn line missing from AST output: ${missing}`);
+test('parity: user turn text is complete (content not lost)', () => {
+    const newText = textLines(splitTurns(newHtml)[0]).join(' ');
+    for (const needle of [
+        'Please explain',
+        'binary search',
+        'in detail',
+        'intuition',
+        'O(log n)',
+        'complexity analysis',
+        'edge cases list',
+        'Quote me the key invariant',
+        'deliberately long',
+    ]) {
+        assert.ok(newText.includes(needle), `user-turn content missing from AST output: ${needle}`);
+    }
 });
 
-test('parity: model turn text is a subsequence (content not lost)', () => {
-    const oldLines = textLines(splitTurns(oldHtml)[1]);
-    const newLines = textLines(splitTurns(newHtml)[1]);
-    const missing = isSubsequence(oldLines, newLines);
-    assert.strictEqual(missing, null, `legacy model-turn line missing from AST output: ${missing}`);
+test('parity: model turn text is complete (content not lost)', () => {
+    const newText = textLines(splitTurns(newHtml)[1]).join(' ');
+    for (const needle of [
+        'Binary Search',
+        'Binary search finds a target',
+        'sorted',
+        'def bsearch(a, x):',
+        'Case',
+        'Complexity',
+        'Best',
+        'Worst',
+        'Key invariant:',
+        'always contains the answer',
+    ]) {
+        assert.ok(newText.includes(needle), `model-turn content missing from AST output: ${needle}`);
+    }
 });
 
-test('parity: long prompt collapses in both', () => {
-    assert.ok(oldHtml.includes('gem-prompt-content collapsed'), 'legacy collapses long prompt');
+test('parity: long prompt collapses', () => {
     assert.ok(newHtml.includes('gem-prompt-content collapsed'), 'AST renderer collapses long prompt');
     assert.ok(newHtml.includes('gem-prompt-toggle'), 'AST renderer keeps expand toggle');
 });
@@ -175,8 +180,7 @@ test('parity: thoughts accordion, code copy, carousel kept', () => {
     assert.ok(newHtml.includes('gem-math-block') || newHtml.includes('gem-math-inline'), 'math kept');
 });
 
-test('improvement: citations are visible (legacy drops them)', () => {
-    assert.ok(!textLines(splitTurns(oldHtml)[1]).join(' ').includes('Binary search reference'), 'legacy drops citation titles');
+test('improvement: citations are visible', () => {
     assert.ok(newHtml.includes('Binary search reference'), 'AST renderer shows citation chip');
     assert.ok(newHtml.includes('https://example.com/bsearch'), 'AST renderer links citation URL');
 });
