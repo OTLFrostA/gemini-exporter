@@ -30,3 +30,4 @@ export {
 } from './types.js';
 export { runStage } from './runner.js';
 export { PdfPipeline } from './orchestrator.js';
+export { deliverStage, finalizeZipDelivery } from './deliveryStage.js';
