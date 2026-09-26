@@ -421,10 +421,36 @@ class ExtensionActions:
         return False
 
     @staticmethod
-    def trigger_export_zip(cdp_opt, output_dir: str, max_wait: int = 60, skip_exported: Optional[bool] = False) -> Optional[str]:
-        """确保启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
+    def trigger_export_zip(
+        cdp_opt,
+        output_dir: str,
+        max_wait: int = 60,
+        skip_exported: Optional[bool] = False,
+        format_type: Optional[str] = None
+    ) -> Optional[str]:
+        """确保设置 format_type、启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
+        # 记录导出触发前已存在的全部 ZIP 文件集合与修改时间戳，杜绝连续导出时的旧文件误命中
+        baseline_files = {}
+        for check_d in [output_dir, os.path.expanduser("~/Downloads")]:
+            if os.path.isdir(check_d):
+                for f in os.listdir(check_d):
+                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
+                        fp = os.path.abspath(os.path.join(check_d, f))
+                        try:
+                            baseline_files[fp] = os.path.getmtime(fp)
+                        except OSError:
+                            pass
+
         cdp_opt.eval(f"""
         (() => {{
+            const formatType = {json.dumps(format_type)};
+            if (formatType) {{
+                const fmtSelect = document.getElementById('format');
+                if (fmtSelect && fmtSelect.value !== formatType) {{
+                    fmtSelect.value = formatType;
+                    fmtSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+            }}
             const skipCb = document.getElementById('skipExported');
             if (skipCb) {{
                 const shouldSkip = {json.dumps(skip_exported)};
@@ -464,25 +490,37 @@ class ExtensionActions:
             })()
             """)
             if os.path.isdir(output_dir):
+                candidates = []
                 for f in os.listdir(output_dir):
                     if re.match(r"(?i)gemini_export_.*\.zip$", f):
-                        fp = os.path.join(output_dir, f)
-                        if os.path.getmtime(fp) >= start_time - 3:
-                            downloaded_zip = fp
-                            break
-            if downloaded_zip:
-                break
+                        fp = os.path.abspath(os.path.join(output_dir, f))
+                        try:
+                            mtime = os.path.getmtime(fp)
+                            if (fp not in baseline_files or mtime > baseline_files[fp]) and os.path.getsize(fp) > 0:
+                                candidates.append((mtime, fp))
+                        except OSError:
+                            pass
+                if candidates:
+                    candidates.sort(key=lambda x: x[0], reverse=True)
+                    downloaded_zip = candidates[0][1]
+                    break
 
             sys_dl = os.path.expanduser("~/Downloads")
             if os.path.isdir(sys_dl):
+                candidates = []
                 for f in os.listdir(sys_dl):
                     if re.match(r"(?i)gemini_export_.*\.zip$", f):
-                        fp = os.path.join(sys_dl, f)
-                        if os.path.getmtime(fp) >= start_time - 3:
-                            downloaded_zip = fp
-                            break
-            if downloaded_zip:
-                break
+                        fp = os.path.abspath(os.path.join(sys_dl, f))
+                        try:
+                            mtime = os.path.getmtime(fp)
+                            if (fp not in baseline_files or mtime > baseline_files[fp]) and os.path.getsize(fp) > 0:
+                                candidates.append((mtime, fp))
+                        except OSError:
+                            pass
+                if candidates:
+                    candidates.sort(key=lambda x: x[0], reverse=True)
+                    downloaded_zip = candidates[0][1]
+                    break
 
         if downloaded_zip and os.path.expanduser("~/Downloads") in downloaded_zip:
             dest_zip = os.path.join(output_dir, os.path.basename(downloaded_zip))

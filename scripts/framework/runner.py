@@ -39,6 +39,8 @@ from scripts.framework.cases import (
     ZipExportDownloadCase,
     MultimodalSpecCase,
     FastSkipExportedCase,
+    HtmlExportDownloadCase,
+    PdfExportDownloadCase,
     DESIGNATED_HISTORICAL_CHATS
 )
 
@@ -163,6 +165,8 @@ class FrameworkRunner:
         dag.register(ZipExportDownloadCase())
         dag.register(MultimodalSpecCase())
         dag.register(FastSkipExportedCase())
+        dag.register(HtmlExportDownloadCase())
+        dag.register(PdfExportDownloadCase())
         dag.register(UninstallLifecycleCase())
         return dag
 
@@ -248,7 +252,7 @@ class FrameworkRunner:
             print(f"🎯 显式目标特性: {self.target_ids}")
             print("⚡ 运行模式: DAG 局部依赖闭包剪枝执行 (免发无谓帖子，非必要不发帖)")
         else:
-            print("🌐 运行模式: 全量 20 大特性闭环全量执行 (Full Regression)")
+            print(f"🌐 运行模式: 全量 {len(self.dag.cases)} 大特性闭环全量执行 (Full Regression)")
         print("=" * 80)
 
         # 步骤 0：统一环境初始化 (扩展卸载重装、标签页确保、Gemini 刷新、下载落盘)

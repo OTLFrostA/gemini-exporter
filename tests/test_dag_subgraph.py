@@ -42,13 +42,13 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.dag = FrameworkRunner._assemble_dag()
 
     def test_dag_registration_and_count(self):
-        """验证 20 大特性全部成功注册进 DAG"""
-        self.assertEqual(len(self.dag.cases), 20)
+        """验证 22 大特性全部成功注册进 DAG"""
+        self.assertEqual(len(self.dag.cases), 22)
 
     def test_topological_sort_order(self):
         """验证拓扑排序：所有前置依赖必须在其依赖者之前执行"""
         order = self.dag.get_execution_order()
-        self.assertEqual(len(order), 20)
+        self.assertEqual(len(order), 22)
 
         position = {case.feature_id: idx for idx, case in enumerate(order)}
 
@@ -70,6 +70,20 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertLess(
             position["feat_search_clear_restore"],
             position["feat_zip_export_download"]
+        )
+        # HTML 导出必须在 Markdown 极速跳过之后，PDF 导出在 HTML 之后
+        self.assertLess(
+            position["feat_fast_skip_exported"],
+            position["feat_html_export_download"]
+        )
+        self.assertLess(
+            position["feat_html_export_download"],
+            position["feat_pdf_export_download"]
+        )
+        # 扩展卸载必须在 PDF 导出之后
+        self.assertLess(
+            position["feat_pdf_export_download"],
+            position["feat_uninstall_lifecycle"]
         )
 
     def test_get_ancestors_closure(self):

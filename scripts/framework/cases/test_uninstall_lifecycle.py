@@ -28,6 +28,8 @@ class UninstallLifecycleCase(FeatureTestCase):
             prerequisites=[
                 "feat_multimodal_spec_assertion",
                 "feat_fast_skip_exported",
+                "feat_html_export_download",
+                "feat_pdf_export_download",
                 "feat_updated_badge_display",
                 "feat_authoritative_title_upgrade"
             ]

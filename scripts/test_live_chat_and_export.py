@@ -77,7 +77,7 @@ def run_live_chat_and_export(
 ):
     """
     执行全流程特性驱动测试。
-    实例化 FrameworkRunner 并执行 5 大领域 20 项功能特性 DAG 调度验证。
+    实例化 FrameworkRunner 并执行 5 大领域 22 项功能特性 DAG 调度验证。
     """
     runner = FrameworkRunner(
         port=port,
