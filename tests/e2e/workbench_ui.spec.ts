@@ -5,7 +5,7 @@ test.describe('Workbench UI & Selection Controls', () => {
     const page = await context.newPage();
 
     // 1. Navigate to options page
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     // 2. Seed mock conversations into chrome.storage.local via page execution
@@ -123,7 +123,7 @@ test.describe('Workbench UI & Selection Controls', () => {
 
   test('should display "已更新" badge for previously exported conversations with new activity and auto-select', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.evaluate(async () => {

@@ -56,7 +56,7 @@ test.describe('Export Workflow & State Update', () => {
 
     // 2. Open Workbench Options page
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     // Seed test conversation
@@ -105,7 +105,7 @@ test.describe('Export Workflow & State Update', () => {
   test('should fast-skip already exported items without generating empty zip', async ({ context, extensionId }) => {
     // 1. Open Workbench Options page
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     // Seed test conversation and mark it already exported in exportedIds

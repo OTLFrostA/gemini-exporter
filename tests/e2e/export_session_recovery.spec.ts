@@ -3,7 +3,7 @@ import { test, expect } from './fixtures';
 test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () => {
   test('should update chat title in storage & workbench during export, and restore session banner on reload', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     // 1. Pre-populate initial Takeout imported chat
@@ -147,7 +147,7 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
 
     // 2. Open Workbench Options page
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     // Seed test conversation

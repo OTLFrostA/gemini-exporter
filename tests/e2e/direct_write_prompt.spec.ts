@@ -5,7 +5,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
     const page = await context.newPage();
 
     // 1. Navigate to options page
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     // 2. Seed 55 mock conversations into chrome.storage.local

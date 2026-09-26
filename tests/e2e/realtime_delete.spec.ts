@@ -4,7 +4,7 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
   test('should prune deleted conversation from storage and update options workbench in real time upon deletion event', async ({ context, extensionId }) => {
     // 1. 打开扩展 Options 工作台页面并预置 3 条会话
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     const targetId = '8888abcd1234ef01';
