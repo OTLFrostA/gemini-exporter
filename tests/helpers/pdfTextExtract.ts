@@ -20,9 +20,9 @@ export {};
 
 const zlib = require('node:zlib');
 
-interface PdfObject { num: number; dict: string; stream: Buffer | null }
+export interface PdfObject { num: number; dict: string; stream: Buffer | null }
 
-function parseObjects(data: Buffer): Map<number, PdfObject> {
+export function parseObjects(data: Buffer): Map<number, PdfObject> {
     const objs = new Map<number, PdfObject>();
     const text = data.toString('latin1');
     const re = /(\d+)\s+0\s+obj([\s\S]*?)endobj/g;
@@ -46,7 +46,7 @@ function parseObjects(data: Buffer): Map<number, PdfObject> {
     return objs;
 }
 
-function inflateIfNeeded(obj: PdfObject): Buffer | null {
+export function inflateIfNeeded(obj: PdfObject): Buffer | null {
     if (!obj.stream) return null;
     if (/\/FlateDecode/.test(obj.dict)) {
         try { return zlib.inflateSync(obj.stream); } catch { return null; }
@@ -54,7 +54,7 @@ function inflateIfNeeded(obj: PdfObject): Buffer | null {
     return obj.stream;
 }
 
-function parseHexPdfString(s: string): number[] {
+export function parseHexPdfString(s: string): number[] {
     const bytes: number[] = [];
     for (let i = 0; i < s.length; i += 2) {
         bytes.push(parseInt(s.substr(i, 2), 16));
@@ -62,7 +62,7 @@ function parseHexPdfString(s: string): number[] {
     return bytes;
 }
 
-function parseLiteralPdfString(s: string): number[] {
+export function parseLiteralPdfString(s: string): number[] {
     // s is latin1-decoded; handle \( \) \\ escapes minimally
     const out: number[] = [];
     for (let i = 0; i < s.length; i += 1) {
@@ -93,7 +93,7 @@ function parseLiteralPdfString(s: string): number[] {
 }
 
 /** Parse a ToUnicode CMap stream into code->unicode-string map. Codes are hex strings (may be multi-byte). */
-function parseToUnicode(stream: Buffer): Map<string, string> {
+export function parseToUnicode(stream: Buffer): Map<string, string> {
     const map = new Map<string, string>();
     const text = stream.toString('latin1');
     const hexToStr = (hex: string): string => {
@@ -145,7 +145,7 @@ function winAnsiFallback(code: number): string {
     return String.fromCharCode(extra[code] ?? code);
 }
 
-function decodeBytes(bytes: number[], toUnicode: Map<string, string> | null): string {
+export function decodeBytes(bytes: number[], toUnicode: Map<string, string> | null): string {
     if (toUnicode && toUnicode.size > 0) {
         // Determine code length from the first key.
         const firstKey = toUnicode.keys().next().value as string;
@@ -162,7 +162,7 @@ function decodeBytes(bytes: number[], toUnicode: Map<string, string> | null): st
     return bytes.map(winAnsiFallback).join('');
 }
 
-function tokenizeContent(content: string): string[] {
+export function tokenizeContent(content: string): string[] {
     // Manual scanner (not a single regex): literal strings may contain RAW
     // balanced '(' / ')' bytes (Typst emits CID bytes 0x28/0x29 unescaped,
     // legal per PDF 7.3.4.2), which a flat regex cannot match.
