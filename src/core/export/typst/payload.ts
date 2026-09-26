@@ -108,6 +108,14 @@ export interface TypstPayloadOptions {
      */
     convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
 
+    /**
+     * D7 S3: pre-projected messages from the S1 projection stage.
+     * When provided, the adapter skips its internal linearizeMessages and
+     * uses these verbatim; the PDF pipeline must never re-derive the view.
+     * When absent, behavior is unchanged (internal linearization).
+     */
+    projectedMessages?: MessageNode[];
+
     /** Explicit branch leaf overrides conversation.selectedLeafMessageId. */
     leafMessageId?: string;
 }
@@ -455,7 +463,9 @@ export function toTypstPayload(
     }]));
     const citationLabels = new Map([...citations.entries()].map(([id, c]) => [id, c.label]));
 
-    const messages = linearizeMessages(bundle, options.leafMessageId)
+    // D7 S3 may hand us the S1 projected view directly; only fall back to
+    // internal linearization for callers that do not project first.
+    const messages = (options.projectedMessages ?? linearizeMessages(bundle, options.leafMessageId))
         .map(message => toRenderMessage(message, assets, citationLabels, citations, options, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';
