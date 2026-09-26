@@ -128,29 +128,38 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     const pathMap = result.pathMap;
     const mounts: ImageMount[] = [];
     const mountedPaths = new Set<string>();
+    // Asset ids whose bytes vanished between resolve and mount (defensive
+    // branch below). They are already in `unresolved` with a dedicated
+    // RESOURCE_BYTES_MISSING diagnostic; step 4 must not re-report them.
+    const bytesMissing = new Set<string>();
     for (const assetId of referencedIds) {
         const virtualPath = pathMap.get(assetId);
         if (virtualPath === undefined) continue;
         if (mountedPaths.has(virtualPath)) continue;
-        mountedPaths.add(virtualPath);
         const entry = result.resolved.get(assetId);
         const storageRef = entry?.asset.storageRef;
         const bytes = storageRef !== undefined ? input.byteStore.get(storageRef) : undefined;
         if (bytes === undefined) {
             // Defensive: cannot happen with default options (resolved implies
             // bytes were read from this store), but never go silent about it.
+            // Keep the output contract honest: pathMap is only for assets
+            // that resolved cleanly, so drop the stale entry.
+            pathMap.delete(assetId);
+            bytesMissing.add(assetId);
             const reason = 'resolved to a virtual path but its bytes were unavailable from the byte store';
             unresolved.push({ assetId, reason });
             diagFor(diagnostics, assetId, 'error', 'RESOURCE_BYTES_MISSING',
                 `asset ${assetId}: ${reason} (path '${virtualPath}')`);
             continue;
         }
+        mountedPaths.add(virtualPath);
         mounts.push({ virtualPath, bytes, mimeType: entry?.mimeType ?? 'application/octet-stream' });
     }
 
     // ---- 4. unresolved: referenced but not cleanly resolved ----
     for (const assetId of referencedIds) {
         if (pathMap.has(assetId)) continue;
+        if (bytesMissing.has(assetId)) continue; // diagnosed with RESOURCE_BYTES_MISSING above
         const asset = byId.get(assetId);
         const reason = unresolvedReason(asset, result.effectiveStatus);
         unresolved.push({ assetId, reason });

@@ -143,3 +143,50 @@ test('resources stage: aborted signal throws AbortError', async () => {
         (err: any) => err instanceof DOMException && err.name === 'AbortError',
     );
 });
+
+test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and reports it exactly once', async () => {
+    // Simulate bytes vanishing between resolveAssets and the mount re-read:
+    // the resolver's single get() sees bytes, the stage's re-read misses.
+    const real = createInlineByteStore();
+    const doomed = pngBytes(9);
+    real.put('inline/doomed', doomed);
+    const victimRef = 'inline/doomed';
+    let gets = 0;
+    const vanishing: any = {
+        put: (r: string, b: Uint8Array) => real.put(r, b),
+        has: (r: string) => real.has(r),
+        get: (r: string) => {
+            if (r !== victimRef) return real.get(r);
+            gets++;
+            return gets === 1 ? real.get(r) : undefined;
+        },
+        clear: () => real.clear(),
+        get entryCount() { return real.entryCount; },
+    };
+
+    const bundle = {
+        assets: [asset('img-doomed', { storageRef: 'inline/doomed', mimeType: 'image/png' })],
+    };
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model',
+                blocks: [{ type: 'image', assetId: 'img-doomed' }],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: vanishing }, ctx);
+
+    // pathMap must not claim a clean resolve for an asset with no mount.
+    assert.ok(!output.pathMap.has('img-doomed'), 'pathMap must drop the bytes-missing asset');
+    assert.strictEqual(output.mounts.length, 0);
+    // Exactly one unresolved entry and one error diagnostic — no duplicates.
+    assert.deepStrictEqual(output.unresolved.map((u: any) => u.assetId), ['img-doomed']);
+    const hits = diagnostics.filter((d: any) => d.code === 'RESOURCE_BYTES_MISSING');
+    assert.strictEqual(hits.length, 1, 'exactly one RESOURCE_BYTES_MISSING diagnostic');
+    assert.strictEqual(hits[0].severity, 'error');
+});
