@@ -1,6 +1,8 @@
 # PDF 导出专项执行方案：Block AST → Typst v8 视觉 → PDF
 
-> 状态：待实施的设计与任务清单，2026-09-25。本文不表示 PDF 导出已经可用。
+> 状态（2026-09-26）：**D0 PASS · D1 PASS · D2 PASS · D3 PARTIAL**（production HTML migration in flight，W1 的分支在并行做）**· D4 PASS · D5 PASS · D6 PASS · D7 PASS · D8 PARTIAL**（final release validation pending）
+>
+> 生产 PDF 引擎（Production PDF engine）：**Typst WASM**（`@myriaddreamin/typst.ts` 生态），扩展内本地编译。
 >
 > 范围：先交付 Gemini 会话的本地 PDF 导出，同时建立与现有 HTML 导出共用的内容层。多平台身份、可携带归档及跨平台发布门槛遵循[长期路线图](./multi_platform_pdf_roadmap.md)；本文细化其中 F2/F4、P0–P5 的 PDF 工作。
 
@@ -62,7 +64,7 @@ HTML 与 PDF 各实现一个 renderer。`ExportArtifact` 的资源清单要经 W
 1. **资源先行**：PDF 编译需要的图片必须在编译前取得。无法取得时把该图片标为 `missing/failed`，PDF 仍保留图片位置、名称和缺失说明；下载错误写入诊断。非图片附件可作为文件卡片呈现。图片数据可能需转换为 Typst 支持的格式，转换也要保留失败状态。
 2. **Typst 适配器**：以包内 `toTypstV8Payload()` 为起点，只把经验证的 AST 字段映射成 v8 所需 JSON/虚拟文件。文本始终走 JSON 数据而非拼进 `.typ` 源；URL 只允许预期协议。公式保留原始 notation/source；受控转换器能证明可转换时才产生 Typst math，失败时使用原文回退。v8 当前 `eval` 读取的 `typst` 字段绝不接受平台原文直通。嵌套列表、表格合并等不能永久以压平代替，节点升级清单见接入方案第 4 节。
 3. **视觉迁入**：以包内 `renderers/typst-v8/` 为视觉与模板基线，将 theme、components、render 文件作为版本化生产资源迁入仓库，保留独立的 demo/stress 夹具做视觉回归。迁入前记录原始文件版本与必要许可证；不得把机器上的字体名当成用户环境保证。生产模板读取适配器产物，不能依赖 fixture 路径。
-4. **编译容器**：优先评估 Options 页启动的扩展内 Worker；WASM、模板和中英文字体随包提供。`PdfCompiler` 封装初始化、虚拟文件、编译、诊断、取消和释放资源。Typst 是目标视觉实现；运行链是否可用须以最终 MV3 包的离线实测决定。若 Typst 运行链不达门槛，按长期路线图 P0 与替代引擎做同夹具对照，不改变 AST。
+4. **编译容器**：Options 页启动的扩展内 Worker；WASM、模板和中英文字体随包提供。`PdfCompiler` 封装初始化、虚拟文件、编译、诊断、取消和释放资源。生产 PDF 引擎已确定为 Typst WASM（`@myriaddreamin/typst.ts` 生态），已在最终 MV3 包离线实测中验证。
 5. **内存边界**：按会话编译并及时释放虚拟文件、图片字节和 PDF 中间对象；远程资源获取可有限并发，Typst 编译初版单任务串行。复用资源字节供 PDF 嵌入与原件写入，避免重复下载和跨线程反复复制大 Blob。
 6. **产物验证与提交**：检查编译返回非空、PDF 签名和解析结果，之后调用 Writer。会话最终状态以 PDF 写入结果和资源诊断决定；失败不能生成空白 `.pdf` 后记成功。已落地的 PDF 不因别的会话失败而丢失。
 
@@ -103,8 +105,8 @@ HTML renderer 以包内 `renderers/html/` 为迁移骨架，读取同一 Block A
 
 ## 8. 尚待实验确定的技术点
 
-1. Typst WASM 的具体包、版本、初始化方式与许可证；最终以离线 MV3 包、中文字体和压力测试结果决定。
-2. Worker 后端需要的跨源隔离是否与当前扩展资源访问相容；若不可用，验证可支持的替代运行后端或按 P0 比较其他本地 PDF 引擎。
+1. ~~Typst WASM 的具体包、版本、初始化方式与许可证；最终以离线 MV3 包、中文字体和压力测试结果决定。~~ → **已确定**：生产引擎为 Typst WASM（`@myriaddreamin/typst.ts` 0.7.0 生态），许可证见 `THIRD_PARTY_NOTICES.md`；已通过离线 MV3 包、中文字体和压力测试验证。
+2. Worker 后端需要的跨源隔离是否与当前扩展资源访问相容。（“按 P0 比较其他本地 PDF 引擎”备选方案已废弃：生产引擎已定为 Typst WASM。）
 3. 字体子集和 emoji 覆盖范围；需量化商店包体增长及缺字行为。
 4. 对旧 `content` 混合 HTML/Markdown 的识别边界；必须用真实脱敏样本记录误判与回退率。
 5. PDF 内嵌图片与“另存原始附件”选项的最终 UI 文案，避免用户误解输出内容。

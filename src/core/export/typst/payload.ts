@@ -339,11 +339,11 @@ function renderBlock(
     }
 }
 
-function rolePrefix(message: MessageNode): string | undefined {
-    if (message.role === 'system') return 'System message';
-    if (message.role === 'developer') return 'Developer message';
-    if (message.role === 'tool') return 'Tool message';
-    if (message.role === 'unknown') return message.author?.rawRole ? `Role: ${message.author.rawRole}` : 'Unknown role';
+function rolePrefix(message: MessageNode, strings: RendererStrings): string | undefined {
+    if (message.role === 'system') return strings.systemMessage;
+    if (message.role === 'developer') return strings.developerMessage;
+    if (message.role === 'tool') return strings.toolMessage;
+    if (message.role === 'unknown') return message.author?.rawRole ? `${strings.unknownRole}: ${message.author.rawRole}` : strings.unknownRole;
     return undefined;
 }
 
@@ -356,7 +356,7 @@ function toRenderMessage(
     diagnostics: TypstAdapterDiagnostic[],
 ): TypstRenderMessage {
     const blocks: TypstBlockNode[] = [];
-    const prefix = rolePrefix(message);
+    const prefix = rolePrefix(message, options.strings);
     if (prefix) blocks.push({ type: 'note', children: [{ type: 'text', text: prefix }] });
     message.blocks.forEach((block, index) => {
         const mapped = renderBlock(block, assets, citations, options, diagnostics, `message:${message.id}/block:${index}`);
