@@ -91,6 +91,36 @@ export function unescapeHtml(text?: string | null): string {
         .replace(/&amp;/g, '&');
 }
 
+function removeElementBlocks(input: string, tagName: string): string {
+    let current = input;
+    const openToken = `<${tagName}`;
+    const closeToken = `</${tagName}`;
+    let searchFrom = 0;
+    while (searchFrom < current.length) {
+        const lower = current.toLowerCase();
+        const startIdx = lower.indexOf(openToken, searchFrom);
+        if (startIdx === -1) break;
+        const afterOpen = current.charAt(startIdx + openToken.length);
+        if (afterOpen && afterOpen !== '>' && afterOpen !== '/' && !/\s/.test(afterOpen)) {
+            searchFrom = startIdx + openToken.length;
+            continue;
+        }
+        const closeStart = lower.indexOf(closeToken, startIdx + openToken.length);
+        if (closeStart === -1) {
+            current = current.slice(0, startIdx);
+            break;
+        }
+        const closeEnd = current.indexOf('>', closeStart + closeToken.length);
+        if (closeEnd === -1) {
+            current = current.slice(0, startIdx);
+            break;
+        }
+        current = current.slice(0, startIdx) + current.slice(closeEnd + 1);
+        searchFrom = startIdx;
+    }
+    return current;
+}
+
 /**
  * Strips HTML tags recursively to ensure safe plain text output.
  */
@@ -100,10 +130,15 @@ export function stripHtmlTags(html?: string | null): string {
     let prev = '';
     while (res !== prev) {
         prev = res;
-        res = res
-            .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
-            .replace(/<style\b[\s\S]*?<\/style\s*>/gi, '')
-            .replace(/<[^>]+>/g, '');
+        res = removeElementBlocks(res, 'script');
+        res = removeElementBlocks(res, 'style');
+        let tagStart = res.indexOf('<');
+        while (tagStart !== -1) {
+            const tagEnd = res.indexOf('>', tagStart + 1);
+            if (tagEnd === -1) break;
+            res = res.slice(0, tagStart) + res.slice(tagEnd + 1);
+            tagStart = res.indexOf('<');
+        }
     }
     return res;
 }
