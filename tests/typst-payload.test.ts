@@ -11,7 +11,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { toTypstPayload, collectReferencedAssetIds } = require('../src/core/export/typst/payload.js');
 
 function bundle(messages: any[], extra: any = {}) {
     return {
@@ -106,24 +106,109 @@ test('present image asset maps to virtual path', async () => {
     });
 });
 
-test('inline image flattens to alt text with warning diagnostic', async () => {
+test('inline image maps to a formal transport node', async () => {
+    const b = bundle(
+        [msg('m1', 'user', [
+            {
+                type: 'paragraph',
+                children: [
+                    { type: 'text', text: 'see ' },
+                    { type: 'image', assetId: 'a-inline', alt: 'a diagram' },
+                    { type: 'text', text: ' here' },
+                ],
+            },
+        ])],
+        { assets: [{ id: 'a-inline', kind: 'image', name: 'd.png', mimeType: 'image/png', status: 'available' }] },
+    );
+    const { payload, diagnostics } = toTypstPayload(b, { assetPath: (a: any) => `assets/${a.id}.png` });
+    const para: any = payload.messages[0].blocks[0];
+    assert.strictEqual(para.type, 'paragraph');
+    assert.deepStrictEqual(para.children.map((c: any) => c.type), ['text', 'image', 'text']);
+    assert.deepStrictEqual(para.children[1], { type: 'image', asset: 'assets/a-inline.png', alt: 'a diagram' });
+    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_FLATTENED'),
+        'TYPST_V8_INLINE_IMAGE_FLATTENED is retired');
+});
+
+test('inline image without alt omits the alt key', async () => {
+    const b = bundle(
+        [msg('m1', 'user', [
+            { type: 'paragraph', children: [{ type: 'image', assetId: 'a-inline' }] },
+        ])],
+        { assets: [{ id: 'a-inline', kind: 'image', name: 'd.png', mimeType: 'image/png', status: 'available' }] },
+    );
+    const { payload } = toTypstPayload(b, { assetPath: (a: any) => `assets/${a.id}.png` });
+    assert.deepStrictEqual((payload.messages[0].blocks[0] as any).children[0],
+        { type: 'image', asset: 'assets/a-inline.png' });
+});
+
+test('missing inline image asset falls back to visible text with missing-asset diagnostic', async () => {
     const b = bundle([msg('m1', 'user', [
-        {
-            type: 'paragraph',
-            children: [
-                { type: 'text', text: 'see ' },
-                { type: 'image', assetId: 'a-inline', alt: 'a diagram' },
-                { type: 'text', text: ' here' },
-            ],
-        },
+        { type: 'paragraph', children: [{ type: 'image', assetId: 'a-gone', alt: 'a diagram' }] },
     ])]);
     const { payload, diagnostics } = toTypstPayload(b, opts);
     const para: any = payload.messages[0].blocks[0];
-    assert.strictEqual(para.type, 'paragraph');
-    assert.deepStrictEqual(para.children.map((c: any) => c.type), ['text', 'text', 'text']);
-    assert.strictEqual(para.children.map((c: any) => c.text).join(''), 'see a diagram here');
-    assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_FLATTENED' && d.severity === 'warning'),
-        'inline image degradation must be visible, never silent');
+    assert.deepStrictEqual(para.children[0], { type: 'text', text: 'a diagram' });
+    assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING' && d.severity === 'warning'),
+        'asset absence must be visible, never silent');
+    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_FLATTENED'),
+        'TYPST_V8_INLINE_IMAGE_FLATTENED is retired');
+});
+
+test('missing inline image asset without alt shows [image: id] placeholder', async () => {
+    const b = bundle([msg('m1', 'user', [
+        { type: 'paragraph', children: [{ type: 'image', assetId: 'a-gone' }] },
+    ])]);
+    const { payload } = toTypstPayload(b, opts);
+    assert.strictEqual((payload.messages[0].blocks[0] as any).children[0].text, '[image: a-gone]');
+});
+
+test('collectReferencedAssetIds walks block and inline trees recursively', async () => {
+    const blocks = [
+        { type: 'image', assetId: 'top-img' },
+        { type: 'file', assetId: 'top-file' },
+        { type: 'paragraph', children: [{ type: 'image', assetId: 'para-img', alt: 'p' }] },
+        { type: 'heading', level: 1, children: [{ type: 'strong', children: [{ type: 'image', assetId: 'heading-img' }] }] },
+        {
+            type: 'table',
+            rows: [{ cells: [{ children: [{ type: 'link', url: 'https://x', children: [{ type: 'image', assetId: 'cell-img' }] }] }] }],
+        },
+        {
+            type: 'list', ordered: false,
+            items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'list-img' }] }] }],
+        },
+        { type: 'quote', blocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'quote-img' }] }] },
+        { type: 'unknown', sourceType: 'x', fallbackBlocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'unknown-img' }] }] },
+    ];
+    const ids = collectReferencedAssetIds(blocks as any);
+    assert.deepStrictEqual([...ids].sort(), [
+        'cell-img', 'heading-img', 'list-img', 'para-img',
+        'quote-img', 'top-file', 'top-img', 'unknown-img',
+    ].sort());
+});
+
+test('inline image asset is not duplicated as a trailing attachment', async () => {
+    const b = bundle(
+        [msg('m1', 'user', [
+            { type: 'paragraph', children: [{ type: 'text', text: 'see ' }, { type: 'image', assetId: 'a-inline', alt: 'd' }] },
+            {
+                type: 'table',
+                rows: [{ cells: [{ children: [{ type: 'image', assetId: 'a-cell' }] }] }],
+            },
+        ], { associatedAssetIds: ['a-inline', 'a-cell', 'a-orphan'] })],
+        { assets: [
+            { id: 'a-inline', kind: 'image', name: 'd.png', mimeType: 'image/png', status: 'available' },
+            { id: 'a-cell', kind: 'image', name: 'c.png', mimeType: 'image/png', status: 'available' },
+            { id: 'a-orphan', kind: 'image', name: 'o.png', mimeType: 'image/png', status: 'available' },
+        ] },
+    );
+    const { payload, diagnostics } = toTypstPayload(b, { assetPath: (a: any) => `assets/${a.id}.png` });
+    const attachments = payload.messages[0].attachments ?? [];
+    assert.strictEqual(attachments.length, 1, 'inline-placed assets must not reappear as attachments');
+    assert.strictEqual((attachments[0] as any).name, 'o.png');
+    // ... and the inline placements themselves are intact
+    assert.strictEqual((payload.messages[0].blocks[0] as any).children[1].type, 'image');
+    assert.strictEqual((payload.messages[0].blocks[1] as any).rows[0][0][0].type, 'image');
+    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
 });
 
 test('unknown blocks are never dropped', async () => {
