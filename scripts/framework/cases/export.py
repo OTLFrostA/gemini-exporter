@@ -3,6 +3,8 @@ import os
 import json
 import time
 import zipfile
+import re
+import subprocess
 from typing import Tuple, Optional, Dict, Any
 
 from scripts.framework.cases.base import FeatureTestCase, TestContext
@@ -552,6 +554,11 @@ class HtmlExportDownloadCase(FeatureTestCase):
                 if 'generator" content="Gemini Exporter"' not in content:
                     return False, f"HTML 导出文件缺少 Gemini Exporter 生成元数据: {hf}", None
 
+                # 校验包含真实会话消息节点（防止空文档假通过）
+                has_turns = 'class="gem-turn' in content or '<div class="bubble' in content or 'gem-user-bubble' in content
+                if not has_turns:
+                    return False, f"HTML 导出文件缺少对话轮次节点 (未渲染真实对话消息): {hf}", None
+
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 HTML 文件", None
 
@@ -589,6 +596,37 @@ class PdfExportDownloadCase(FeatureTestCase):
                 "feat_html_export_download"
             ]
         )
+
+    @staticmethod
+    def _extract_pdf_info(pdf_path: str) -> Dict[str, Any]:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        ts_register = os.path.join(repo_root, "tests", "ts_register.js")
+        extractor = os.path.join(repo_root, "tests", "helpers", "pdfTextExtract.ts")
+        cmd = [
+            "node",
+            "-r", ts_register,
+            "-e",
+            """
+            const { extractPdfText } = require(process.argv[1]);
+            const fs = require('fs');
+            const buf = fs.readFileSync(process.argv[2]);
+            const res = extractPdfText(buf);
+            console.log(JSON.stringify({
+                pageCount: res.pageCount,
+                textLength: res.text.length,
+                text: res.text
+            }));
+            """,
+            extractor,
+            pdf_path
+        ]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if proc.returncode != 0:
+                return {"pageCount": 0, "textLength": 0, "text": "", "error": proc.stderr}
+            return json.loads(proc.stdout)
+        except Exception as e:
+            return {"pageCount": 0, "textLength": 0, "text": "", "error": str(e)}
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
@@ -717,10 +755,22 @@ class PdfExportDownloadCase(FeatureTestCase):
                 if b"%%EOF" not in tail and b"/Root" not in header and b"/Root" not in tail:
                     return False, f"PDF 导出文件缺少标准结构体特征: {pf}", None
 
+                # 提取并严格断言 PDF 内部真实文本与消息渲染（物理杜绝空会话假通过）
+                pdf_info = self._extract_pdf_info(fpath)
+                pdf_text = pdf_info.get("text", "")
+                text_len = pdf_info.get("textLength", 0)
+
+                # 物理禁止空会话 0 messages 占位
+                if re.search(r"\b0\s*(messages|条消息)\b", pdf_text, re.IGNORECASE):
+                    return False, f"PDF 导出文件 [{pf}] 正文缺失（包含 '0 messages' 占位符，未渲染真实对话消息）: text={pdf_text!r}", pdf_info
+
+                if text_len < 100:
+                    return False, f"PDF 导出文件 [{pf}] 提取文本长度异常过短 ({text_len} 字符): text={pdf_text!r}", pdf_info
+
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 PDF 文件", None
 
-            return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制合规 100%)", {
+            return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制与内容合规 100%)", {
                 "zip_path": downloaded_zip,
                 "pdf_count": len(pdf_files),
                 "zip_size": zip_size
