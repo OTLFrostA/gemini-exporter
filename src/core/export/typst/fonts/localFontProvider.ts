@@ -1,35 +1,6 @@
-/**
- * src/core/export/typst/fonts/localFontProvider.ts
- * Local-first font provider (Phase D item 3).
- *
- * P0 decision: CJK fonts are NOT bundled with the extension (package delta
- * budget is 30 MiB; measured WASM + glue + NewCMMath compressed is ~11.1 MiB).
- * This module resolves fonts from the user's own OS via the browser
- * Local Font Access API (`window.queryLocalFonts()`). The sandbox compiler
- * (P1b) mounts the resolved bytes via `mapShadow`; this module is the
- * provider side only and defines the interface P2 wiring will consume.
- *
- * Contract rules:
- *  - Every failure mode (API missing, permission denied, font missing) is
- *    reported as a diagnostic with an explicit fallback chain. Never silently
- *    substitute a font: an unnoticed swap changes pagination.
- *  - `queryLocalFontsProvider()` never throws; it returns a discriminated
- *    union with a machine-readable `reason`.
- *  - Matching is a pure function (`rankLocalFontCandidates`) so Tier 1 can
- *    unit-test it with a mocked `queryLocalFonts`.
- *
- * UNVALIDATED (real-device UX red lines -- Tier 1 does NOT cover these;
- * do not claim they pass):
- *  - Local Font Access permission prompt behavior on real devices
- *  - user denies the permission
- *  - user dismisses the prompt without answering
- *  - requested CJK font not installed on the device
- *  - font set changing mid-export
- *  - math font MATH table validation (P1b sandbox duty at font-load time)
- *  - browser / OS differences in API availability and FontData field fidelity
- */
+// Resolves CJK and Latin fonts from the OS via window.queryLocalFonts() to avoid
+// bundling multi-megabyte CJK font files in the extension package.
 
-/** Structural shape of one FontData entry from `queryLocalFonts()`. */
 export interface LocalFontEntry {
     readonly family: string;
     readonly fullName: string;
@@ -38,13 +9,11 @@ export interface LocalFontEntry {
     blob(): Promise<Blob>;
 }
 
-/** One font resolved for the sandbox compiler. Freeze-conscious: fields are readonly. */
 export interface ResolvedLocalFont {
     readonly family: string;
     readonly postscriptName: string;
     readonly style: string;
     readonly source: 'local';
-    /** Lazily reads the font bytes (FontData.blob() -> ArrayBuffer). */
     getBytes(): Promise<Uint8Array>;
 }
 
@@ -55,26 +24,18 @@ export interface FontProviderDiagnostic {
 }
 
 export interface LocalFontResolution {
-    /** Resolved fonts in fallback priority order (index 0 = first choice). */
     readonly fonts: readonly ResolvedLocalFont[];
-    /** Every miss / denial / substitution, so pagination drift is always visible. */
     readonly diagnostics: readonly FontProviderDiagnostic[];
-    /** Human-readable effective fallback chain, e.g. for the export log. */
     readonly fallbackChain: readonly string[];
-    /** False when the sandbox must compile with bundled fonts only. */
     readonly localFontsAvailable: boolean;
 }
 
 export interface LocalFontRequest {
-    /** Requested CJK families in priority order. Defaults to CJK_FONT_STACK. */
     cjk?: readonly string[];
-    /** Requested Latin fallback families in priority order. Defaults to LATIN_FONT_STACK. */
     latin?: readonly string[];
-    /** Max fonts to return overall. Default 8. */
     limit?: number;
 }
 
-/** Default CJK request stack (highest priority first). Common cross-OS coverage. */
 export const CJK_FONT_STACK: readonly string[] = [
     'Noto Sans CJK SC',
     'Noto Sans CJK',
@@ -91,7 +52,6 @@ export const CJK_FONT_STACK: readonly string[] = [
     'Hiragino Sans GB',
 ];
 
-/** Default Latin fallback stack (highest priority first). Mirrors theme.typ font-ui. */
 export const LATIN_FONT_STACK: readonly string[] = [
     'SF Pro Text',
     'SF Pro Display',
@@ -103,25 +63,17 @@ export const LATIN_FONT_STACK: readonly string[] = [
     'DejaVu Sans',
 ];
 
-/** Math font pinned by P1a (NewCMMath bundled by P1b; Noto Sans Math local fallback). */
 export const MATH_FONT_STACK: readonly string[] = [
     'NewCMMath',
     'Noto Sans Math',
 ];
 
-// ---------------------------------------------------------------------------
-// Pure matching (Tier 1 testable, no window / no DOM access)
-// ---------------------------------------------------------------------------
-
-/** One matched candidate: the FontData entry plus which requested family it serves. */
 export interface LocalFontCandidate {
     readonly family: string;
     readonly postscriptName: string;
     readonly style: string;
-    /** Index into the `requested` array that produced this candidate. */
     readonly requestedIndex: number;
     readonly requestedFamily: string;
-    /** Internal handle; the public surface is ResolvedLocalFont.getBytes(). */
     readonly entry: LocalFontEntry;
 }
 
@@ -129,7 +81,6 @@ function normalizeFontName(name: string): string {
     return name.toLowerCase().replace(/[\s\-_]/g, '');
 }
 
-/** Style priority for body text: Regular < Italic < Bold < Bold Italic < other. */
 function styleRank(style: string): number {
     const s = style.toLowerCase();
     const bold = s.includes('bold') || s.includes('black') || s.includes('heavy');
@@ -144,29 +95,17 @@ function styleRank(style: string): number {
 function entryMatchesRequest(entry: LocalFontEntry, requested: string): boolean {
     const want = normalizeFontName(requested);
     if (normalizeFontName(entry.family) === want) return true;
-    // Heuristic: postscript name is family stem + style suffix, e.g.
-    // "NotoSansCJKsc-Regular" -> stem "notosanscjksc". The stem must EQUAL the
-    // requested family; an arbitrary prefix is not a match ("Noto Sans" must
-    // not claim "NotoSansCJKsc-Regular").
+    // Match the PostScript family stem rather than a prefix so "Noto Sans" does not claim "NotoSansCJKsc-Regular".
     return postscriptFamilyStem(normalizeFontName(entry.postscriptName)) === want;
 }
 
-/**
- * PostScript style suffixes stripped when a PS name has no '-' separator
- * (e.g. "ArialBold" -> "arial"). Only true style/foundry tokens; width
- * variants like Condensed stay part of the family stem.
- */
+// Style tokens stripped when a PostScript name has no '-' separator (e.g. "ArialBold" -> "arial").
 const PS_STYLE_SUFFIXES: readonly string[] = [
     'bolditalic', 'extrabold', 'semibold', 'demibold', 'extralight',
     'bold', 'italic', 'oblique', 'regular', 'light', 'medium',
     'black', 'heavy', 'thin', 'book', 'roman', 'mt',
 ];
 
-/**
- * Split a normalized PostScript name into its family stem:
- * "notosanscjksc-regular" -> "notosanscjksc"; "arialbold" -> "arial".
- * The stem is what participates in family matching -- never a raw prefix.
- */
 function postscriptFamilyStem(ps: string): string {
     const dash = ps.lastIndexOf('-');
     if (dash > 0) return ps.slice(0, dash);
@@ -179,19 +118,8 @@ function postscriptFamilyStem(ps: string): string {
 }
 
 /**
- * Match available FontData entries against the requested families.
- *
- * Each entry is used at most once, claimed by the first requested family (in
- * priority order) it matches. Candidates are sorted by (requested order,
- * style rank, postscriptName) so index 0 is the best choice.
- *
- * Pure w.r.t. the environment: no `window`, no async. It does record its
- * claims into the caller-provided `claimed` set (when given) -- that is the
- * mechanism that keeps one font file from being returned twice.
- *
- * @param claimed Optional shared claim set: entry indices already taken by an
- *   earlier stack (e.g. CJK) are skipped, so the same font file is never
- *   returned twice across stacks. The set is updated in place.
+ * @param claimed Shared index set mutated in place so a font file claimed by an
+ *   earlier stack (e.g. CJK) is not returned again for Latin.
  */
 export function rankLocalFontCandidates(
     entries: readonly LocalFontEntry[],
@@ -227,21 +155,12 @@ export function rankLocalFontCandidates(
     return out;
 }
 
-/**
- * Best candidate for one requested family: Regular-style first (pagination is
- * computed against body text), then style-rank order. Candidates for a fixed
- * family are already sorted by styleRank by rankLocalFontCandidates.
- */
 export function bestCandidateForFamily(
     candidates: readonly LocalFontCandidate[],
     requestedFamily: string,
 ): LocalFontCandidate | undefined {
     return candidates.find((c) => c.requestedFamily === requestedFamily);
 }
-
-// ---------------------------------------------------------------------------
-// Provider wrapper: window.queryLocalFonts(), never throws
-// ---------------------------------------------------------------------------
 
 export type LocalFontQueryReason = 'api-unavailable' | 'permission-denied' | 'query-failed';
 
@@ -263,19 +182,12 @@ function getQueryLocalFontsFn(): QueryLocalFontsFn | undefined {
 function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detail: string } {
     const name = (err as { name?: string } | null)?.name ?? '';
     const message = err instanceof Error ? err.message : String(err);
-    // Best-effort: a rejected queryLocalFonts() surfaces as NotAllowedError when
-    // the user denies or dismisses the permission prompt. The exact prompt UX
-    // is UNVALIDATED (see module header).
     if (name === 'NotAllowedError' || name === 'SecurityError') {
         return { reason: 'permission-denied', detail: `Local Font Access denied/blocked (${name}): ${message}` };
     }
     return { reason: 'query-failed', detail: `queryLocalFonts() failed (${name || 'unknown'}): ${message}` };
 }
 
-/**
- * Query the browser's installed fonts. Never throws: the API being absent or
- * the user denying access is a normal, reportable outcome, not an exception.
- */
 export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
     const fn = getQueryLocalFontsFn();
     if (!fn) {
@@ -294,10 +206,6 @@ export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Resolution: query -> match -> diagnostics + explicit fallback chain
-// ---------------------------------------------------------------------------
-
 const BUNDLED_MATH_FALLBACK = 'NewCMMath (bundled, math only)';
 const SYSTEM_FALLBACK = 'Typst system default (last resort)';
 
@@ -315,16 +223,6 @@ function toResolved(entry: LocalFontEntry): ResolvedLocalFont {
     };
 }
 
-/**
- * Resolve local fonts for the requested CJK + Latin stacks.
- *
- * Freeze-conscious signature: options object, readonly return. v1 contract;
- * extend additively (new optional fields) rather than changing fields.
- *
- * Every font that could NOT be resolved gets a diagnostic naming exactly what
- * was wanted and what will be used instead -- silent substitution is what
- * causes unnoticed pagination drift, so it is forbidden here.
- */
 export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise<LocalFontResolution> {
     const cjk = request.cjk ?? CJK_FONT_STACK;
     const latin = request.latin ?? LATIN_FONT_STACK;
@@ -358,9 +256,6 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
 
     const diagnostics: FontProviderDiagnostic[] = [];
     const fonts: ResolvedLocalFont[] = [];
-    // One claim set across both stacks: a font file claimed for CJK is never
-    // returned again as a Latin fallback (no duplicate mounts, no wrong-family
-    // Latin choice). CJK runs first, so it keeps priority.
     const claimedEntries = new Set<number>();
 
     const resolveStack = (stack: readonly string[], label: string): void => {
@@ -368,9 +263,6 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
         for (const family of stack) {
             const best = bestCandidateForFamily(candidates, family);
             if (!best) {
-                // Honest miss classification: an entry that matches but was
-                // already claimed by the other stack is already mounted -- say
-                // so instead of crying "missing".
                 const wouldMatch = rankLocalFontCandidates(query.fonts, [family]).length > 0;
                 diagnostics.push(
                     wouldMatch
@@ -426,9 +318,6 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
         fonts: limited,
         diagnostics,
         fallbackChain: chain,
-        // False exactly when the sandbox must compile with bundled fonts only:
-        // no local font was mounted (query succeeded but nothing matched, or
-        // the limit truncated everything away).
         localFontsAvailable: limited.length > 0,
     };
 }

@@ -1,9 +1,5 @@
 #import "theme.typ": *
 
-// -----------------------------------------------------------------------------
-// Shared containers
-// -----------------------------------------------------------------------------
-
 #let reading(body, sticky: false) = block(width: reading-width, sticky: sticky, body)
 #let wide(body) = block(width: 100%, body)
 
@@ -14,9 +10,7 @@
   text(font: font-mono, size: 8.05pt, fill: ink-soft)[#code],
 )
 
-// Long unbroken tokens (URLs, hashes, generated IDs) can otherwise overflow
-// narrow cells. Insert zero-width layout break opportunities only inside long
-// non-whitespace runs; the visible source text remains unchanged.
+// Insert zero-width break opportunities into long unbroken tokens (URLs, hashes) so they wrap inside narrow cells.
 #let safe-text(value, run-limit: 18) = {
   let token-pattern = regex("[A-Za-z0-9_./:?&=#%+\\-]{24,}")
   let token-char = regex("[A-Za-z0-9_./:?&=#%+\\-]")
@@ -40,8 +34,7 @@
   }
 }
 
-// Draw a soft two-layer elevation behind a fixed-size rounded rectangle.
-// This is not CSS blur; it is a deliberately restrained PDF-native approximation.
+// Typst has no CSS box-shadow blur; approximate elevation with two offset translucent rects.
 #let elevated-frame(width, height, radius, fill, body, stroke: none, level: 1) = box(
   width: width,
   height: height + if level > 0 { elevation-far-y } else { 0pt },
@@ -71,8 +64,6 @@
   #place(top + left, body)
 ]
 
-// Typography-aware truncation for visually bounded labels such as filenames.
-// The source data stays complete in the AST/archive; only the reading surface is shortened.
 #let truncate-to-width(value, width, font-size: 8.25pt, weight: 560) = {
   if measure(text(size: font-size, weight: weight)[#value]).width <= width {
     value
@@ -89,8 +80,6 @@
   }
 }
 
-// File labels preserve a useful extension while truncating only the basename.
-// This is renderer-only presentation; the payload keeps the full source name.
 #let truncate-filename-to-width(value, width, font-size: 8.25pt, weight: 560) = {
   if measure(text(size: font-size, weight: weight)[#value]).width <= width {
     value
@@ -113,10 +102,6 @@
     }
   }
 }
-
-// -----------------------------------------------------------------------------
-// Conversation identity + turn spacing
-// -----------------------------------------------------------------------------
 
 #let user-to-assistant-gap() = v(sp-xl)
 #let assistant-to-user-gap() = v(sp-turn)
@@ -143,15 +128,8 @@
   }
 }
 
-// -----------------------------------------------------------------------------
-// Adaptive user bubble
-// -----------------------------------------------------------------------------
-
-// Three sizing modes are used implicitly:
-// 1) short text: true content width, no percentage floor;
-// 2) medium text: natural width until it becomes visually too wide;
-// 3) long text: wrap-aware candidate widths up to 72%.
-// Very long turns drop elevation and become breakable flow content.
+// Fit medium/long user prompts to candidate widths up to 72%, dropping elevation above
+// user-elevation-max-height so multi-page prompts can break across pages.
 #let user-bubble(body, plain-text: "") = layout(size => {
   let px = 12.5pt
   let py = 8.4pt
@@ -224,10 +202,6 @@
   ]
 })
 
-// -----------------------------------------------------------------------------
-// Attachments
-// -----------------------------------------------------------------------------
-
 #let file-icon() = box(width: 22pt, height: 22pt)[
   #place(center)[
     #rect(width: 22pt, height: 22pt, radius: 6pt, fill: accent-soft)
@@ -289,8 +263,6 @@
   ]
 })
 
-// Responsive file-only attachment group. The layout decision uses the actual
-// available width and projected single-column height rather than a magic count.
 #let file-attachment-group(attachments) = layout(size => {
   let group-width = size.width * attachment-group-width-ratio
   let col-width = (group-width - attachment-grid-gap) / 2
@@ -322,9 +294,7 @@
   ]
 })
 
-// Image attachments keep the image at its requested size, while allowing the
-// caption container to be slightly wider for tiny images so filenames do not
-// wrap simply because the preview itself is small.
+// Allow the caption container to exceed small image widths (up to 62% column width) so filenames don't wrap prematurely.
 #let image-attachment(path, name, meta, width: 50%) = block(width: 100%)[
   #align(right)[
     #layout(size => {
@@ -363,10 +333,6 @@
   ]
 ]
 
-// -----------------------------------------------------------------------------
-// Rich blocks
-// -----------------------------------------------------------------------------
-
 #let code-surface(lang, code) = wide(
   block(
     width: 100%,
@@ -376,7 +342,6 @@
     clip: true,
     breakable: true,
   )[
-    // Sticky label keeps the language tag with the first code lines.
     #block(sticky: true, inset: (left: 12pt, right: 12pt, top: 7pt, bottom: 2pt))[
       #text(size: 7.05pt, weight: 530, fill: muted)[#lang]
     ]
@@ -390,9 +355,6 @@
   block(width: 100%, breakable: false)[#align(center)[#body]]
 )
 
-// A figure is a semantic reading unit: image + caption stay together. Tall
-// images are automatically scaled to a page-relative document-body budget so a
-// portrait screenshot cannot consume a full page and strand its introduction.
 #let image-surface(path, caption: none) = wide(
   layout(size => {
     let full = image(path, width: size.width)
@@ -461,7 +423,6 @@
   ]
 )
 
-// Header cells are wrapped in table.header so they repeat on every table page.
 #let modern-table(headers, rows, columns: none, aligns: none) = wide(
   block(width: 100%)[
     #set text(size: 8.5pt)

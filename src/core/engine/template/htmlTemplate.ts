@@ -556,11 +556,6 @@ function renderModelTurn(m: ChatMessage, turnIdx: number, isEn: boolean): string
   </section>`;
 }
 
-/**
- * Shared 1:1 visual layer (extracted verbatim from the historical template).
- * Both the legacy toHtml() and the canonical-AST renderer use these so the
- * visual output stays identical while the data pipeline changes.
- */
 export const GEM_HTML_CSS = `
 :root {
   --bg-main: #131314;
@@ -1222,9 +1217,6 @@ window.addEventListener('resize', function() {
 });
 `;
 
-/**
- * Main export function: generate a complete, 1:1 styled HTML string from a Conversation.
- */
 export function toHtml(chat: Conversation | any, opts: HtmlTemplateOptions = {}): string {
     if (!chat) return '';
 

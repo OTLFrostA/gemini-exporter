@@ -1,16 +1,3 @@
-/**
- * src/core/export/canonical/projection.ts
- * Shared branch projection for the canonical message tree.
- *
- * Implements integration doc section 3, item 1 ("message tree and branches"):
- * a single projectConversation() used by every renderer, with structural
- * validation (unique ids, resolvable parents, acyclic graph, valid leaf) and
- * explicit policies for no-selection / multi-root / legacy-linear input.
- *
- * Branches that are not selected stay in the canonical bundle/archive; they
- * are reported as omittedBranchMessageIds, never deleted or flattened.
- */
-
 import type { CanonicalConversationBundle, Conversation, MessageNode } from './conversation.js';
 
 export class CanonicalProjectionError extends Error {
@@ -23,32 +10,16 @@ export class CanonicalProjectionError extends Error {
 }
 
 export interface ProjectionSelection {
-    /**
-     * Explicit leaf to project. When omitted, the bundle's
-     * selectedLeafMessageId is used; when that is absent too, the policy is
-     * 'allInSourceOrder' (see below).
-     */
     leafMessageId?: string | null;
 }
 
 export interface ProjectedView {
-    /** Messages in render order (root -> leaf for a selected branch). */
     messages: MessageNode[];
-    /** Ids of root messages in the bundle, in source order. */
     rootIds: string[];
-    /** The selected root->leaf path, or null when no leaf was selected. */
     selectedPathIds: string[] | null;
-    /**
-     * Message ids that exist in the canonical bundle but are not part of the
-     * projected view (other branches). They are retained in the bundle.
-     */
     omittedBranchMessageIds: string[];
 }
 
-/**
- * Validate the message tree structurally. Returns a list of issues; an empty
- * list means the tree is projectable. Does not throw.
- */
 export function validateMessageTree(conversation: Conversation): CanonicalProjectionError[] {
     const issues: CanonicalProjectionError[] = [];
     const seen = new Map<string, MessageNode>();
@@ -73,7 +44,7 @@ export function validateMessageTree(conversation: Conversation): CanonicalProjec
             }
         }
     }
-    // Cycle detection (iterative DFS over parent edges).
+    // Iterative DFS over parent edges to detect cycles without call-stack overflow.
     const WHITE = 0, GRAY = 1, BLACK = 2;
     const color = new Map<string, number>();
     for (const id of seen.keys()) color.set(id, WHITE);
@@ -115,18 +86,6 @@ function resolveLeafId(bundle: CanonicalConversationBundle, selection?: Projecti
     return bundleLeaf === undefined ? null : bundleLeaf;
 }
 
-/**
- * Project the canonical message tree to the renderable view.
- *
- * Policies:
- * - explicit or bundle-selected leaf: project the single root->leaf path;
- *   every other branch is reported in omittedBranchMessageIds and retained
- *   in the bundle/archive.
- * - no selection: project ALL messages in source (array) order. Legacy
- *   linear conversations (no parentId) and multi-root trees use this policy.
- * - invalid tree (duplicate ids, orphan parents, cycles, unknown leaf):
- *   throws CanonicalProjectionError; renderers must not silently drop content.
- */
 export function projectConversation(
     bundle: CanonicalConversationBundle,
     selection?: ProjectionSelection,
@@ -149,8 +108,7 @@ export function projectConversation(
 
     const leafId = resolveLeafId(bundle, selection);
     if (leafId === null || leafId === undefined) {
-        // No-selection policy: every message in source order (covers legacy
-        // linear conversations, multi-root trees and unknown branch state).
+        // Without a target leaf, fall back to source array order so linear and multi-root conversations render intact.
         return {
             messages: [...conversation.messages],
             rootIds,
@@ -161,7 +119,6 @@ export function projectConversation(
     if (!byId.has(leafId)) {
         throw new CanonicalProjectionError('MSG_BAD_LEAF', `selected leaf message id not found: ${leafId}`);
     }
-    // Walk leaf -> root, then reverse for render order.
     const path: MessageNode[] = [];
     const pathIds: string[] = [];
     let cursor: string | null | undefined = leafId;

@@ -1,45 +1,23 @@
-/**
- * src/core/export/assets/dataUrl.ts
- * data: URL -> byte-backed inline asset decoding (Scheme B, user-approved).
- *
- * The normalizer decodes `data:` image sources into real bytes at normalize
- * time so the resulting asset is byte-backed ('available' + content-addressed
- * storageRef + bytes in the inline byte store) instead of pseudo-available.
- * Nothing is silent: malformed URLs and oversized payloads become 'missing'
- * with a failureReason and a warning diagnostic.
- */
-
 import { sha256Hex } from './sha256.js';
 
-/**
- * Inline data: payloads decoding to more than this are never decoded at
- * normalize time. 10 MiB (not the 50 MiB attachment gate): inline markdown
- * images are small pasted/UI images, and decoding blocks the normalize pass
- * in memory, so the bound stays tight.
- */
 export const INLINE_DATA_URL_MAX_BYTES = 10 * 1024 * 1024;
 
 export type DataUrlDecodeErrorCode = 'DATA_URL_TOO_LARGE' | 'DATA_URL_MALFORMED';
 
 export interface DecodedDataUrlAsset {
     ok: true;
-    /** Lowercased media type; 'application/octet-stream' when the URL carries none. */
     mimeType: string;
     bytes: Uint8Array;
     sizeBytes: number;
     sha256: string;
-    /** Archive-local logical reference, e.g. assets/sha256/ab/cd/<hex>.png */
     storageRef: string;
-    /** Display-friendly file name, e.g. image.png */
     suggestedName: string;
 }
 
 export interface DataUrlDecodeError {
     ok: false;
     code: DataUrlDecodeErrorCode;
-    /** Short machine-readable reason; also used as the asset failureReason. */
     reason: string;
-    /** Human-readable message for diagnostics. */
     message: string;
 }
 
@@ -73,12 +51,9 @@ function extensionForMimeType(mimeType: string): string {
 
 const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-/** Strict base64 -> bytes. Throws on any deviation (whitespace is stripped by the caller). */
 function decodeBase64Strict(clean: string): Uint8Array {
     if (clean.length % 4 !== 0) throw new Error('base64 length is not a multiple of 4');
     const pad = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
-    // Padding is only legal as the final 1-2 chars; anything else ('=' in the
-    // body, illegal chars) is malformed.
     if (!/^[A-Za-z0-9+/]*$/.test(clean.slice(0, clean.length - pad))) {
         throw new Error('illegal base64 character or misplaced padding');
     }
@@ -89,7 +64,6 @@ function decodeBase64Strict(clean: string): Uint8Array {
         const b = B64_ALPHABET.indexOf(clean[i + 1]);
         const c = clean[i + 2] === '=' ? 0 : B64_ALPHABET.indexOf(clean[i + 2]);
         const d = clean[i + 3] === '=' ? 0 : B64_ALPHABET.indexOf(clean[i + 3]);
-        // Unreachable after the body check above; kept as a safety net.
         if (a < 0 || b < 0 || c < 0 || d < 0) throw new Error('illegal base64 character');
         out[o++] = (a << 2) | (b >> 4);
         if (clean[i + 2] !== '=') out[o++] = ((b & 15) << 4) | (c >> 2);
@@ -108,11 +82,6 @@ function tooLarge(estimatedBytes: number): DataUrlDecodeError {
     return { ok: false, code: 'DATA_URL_TOO_LARGE', reason, message: `inline data: image exceeds the ${limitMiB} MiB inline decode limit; marked missing` };
 }
 
-/**
- * Decode a `data:[<mediatype>][;base64],<payload>` URL into a byte-backed
- * asset record. Handles base64 and percent-encoded payloads; anything else
- * is a DataUrlDecodeError (never silent, never throws).
- */
 export function decodeDataUrlAsset(url: string): DataUrlDecodeResult {
     const comma = url.indexOf(',');
     if (comma < 0) return malformed('no comma separating the header from the payload');
@@ -125,7 +94,6 @@ export function decodeDataUrlAsset(url: string): DataUrlDecodeResult {
 
     let bytes: Uint8Array;
     if (isBase64) {
-        // Forgiving-base64: ASCII whitespace is insignificant.
         const clean = payload.replace(/\s+/g, '');
         if (clean.length > 0) {
             const estimated = Math.floor((clean.length * 3) / 4);
@@ -137,9 +105,6 @@ export function decodeDataUrlAsset(url: string): DataUrlDecodeResult {
             return malformed(`base64 payload is invalid (${err instanceof Error ? err.message : String(err)})`);
         }
     } else {
-        // Percent-encoded: payload.length is a safe upper bound on decoded
-        // bytes (each source char yields at most one byte; anything else
-        // makes decodeURIComponent throw).
         if (payload.length > INLINE_DATA_URL_MAX_BYTES) return tooLarge(payload.length);
         try {
             bytes = new TextEncoder().encode(decodeURIComponent(payload));

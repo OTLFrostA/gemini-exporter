@@ -1,36 +1,3 @@
-/**
- * src/core/export/typst/typstSandboxCompiler.ts
- *
- * TypstSandboxCompiler: IPdfCompiler backed by the real Typst WASM compiler
- * running in the MV3 sandbox compile container
- * (src/ui/sandbox/typst-compile.html).
- *
- * Pipeline per compile():
- *  1. canonical bundle -> TypstConversationRenderPayload via P1a's
- *     toTypstPayload (user text travels as JSON data only; Typst source is
- *     never built from user text);
- *  2. MATH-table verification of the bundled fonts at load time. When no
- *     loaded font provides a MATH table, converted math (`typst` fields) is
- *     stripped from the payload so the templates degrade to the visible
- *     LaTeX-source note instead of hard-failing the compile, and a
- *     diagnostic is emitted (theme.typ typography contract);
- *  3. image asset bytes resolved through context.assets and mounted as
- *     Typst shadow files; anything unresolvable becomes a diagnostic,
- *     never a silent hole;
- *  4. payload JSON + binaries + fonts cross into the sandbox via
- *     postMessage with transferable ArrayBuffers; the compiled PDF comes
- *     back the same way.
- *
- * Cancellation: an aborted context.signal rejects the in-flight compile
- * with a DOMException named 'AbortError' and notifies the sandbox; the
- * sandbox drops the job at the next stage boundary.
- *
- * The sandbox frame (and its one-time WASM init / font install) is created
- * lazily on first compile and reused across compiles. Compiles are
- * serialized: the Typst compiler keeps mutable per-job state, so
- * interleaving two compiles would corrupt both.
- */
-
 import type { Asset } from '../canonical/assets.js';
 import type {
     RenderContext,
@@ -59,16 +26,9 @@ import {
     type TypstPayloadOptions,
 } from './payload.js';
 
-/** PDF magic, checked on every compiled result before it leaves this class. */
 const PDF_MAGIC = '%PDF-';
 
-/**
- * Abstraction over the hidden sandbox iframe so unit tests can drive the
- * protocol without a DOM. The production implementation lives in
- * BrowserSandboxHost below.
- */
 export interface SandboxFrame {
-    /** The iframe's contentWindow; identity-checked against message events. */
     readonly contentWindow: unknown;
     postToSandbox(message: Record<string, unknown>, transfer?: Transferable[]): void;
     onMessage(handler: (event: { source: unknown; origin: string; data: unknown }) => void): () => void;
@@ -76,18 +36,12 @@ export interface SandboxFrame {
 }
 
 export interface SandboxHost {
-    /** Absolute extension URL of the sandbox page. */
     pageUrl(): string;
-    /** Absolute extension URL for an extension-relative asset path. */
     assetUrl(relativePath: string): string;
     fetchBytes(url: string): Promise<Uint8Array>;
     createFrame(url: string): SandboxFrame;
 }
 
-/**
- * Production host: hidden iframe in the current extension page,
- * chrome.runtime URLs, window.fetch. Requires a DOM + extension context.
- */
 export class BrowserSandboxHost implements SandboxHost {
     pageUrl(): string {
         return chrome.runtime.getURL(SANDBOX_PAGE_PATH);
@@ -107,9 +61,7 @@ export class BrowserSandboxHost implements SandboxHost {
 
     createFrame(url: string): SandboxFrame {
         const iframe = document.createElement('iframe');
-        // The manifest sandbox.pages entry + sandbox CSP already confine
-        // this page; no extra iframe sandbox attribute is needed or wanted
-        // (it would only further restrict the already-sandboxed page).
+        // Do not set iframe.sandbox: manifest.json sandbox.pages already applies the MV3 sandbox CSP.
         iframe.src = url;
         iframe.style.display = 'none';
         iframe.setAttribute('aria-hidden', 'true');
@@ -131,19 +83,8 @@ export class BrowserSandboxHost implements SandboxHost {
 }
 
 export interface TypstSandboxPayloadOptions {
-    /**
-     * Maps a canonical asset to the virtual path mounted into Typst.
-     * Defaults to `assets/<assetId><ext>`. The same function is forwarded
-     * to P1a's toTypstPayload and reused here to map payload image paths
-     * back to canonical asset ids for byte resolution.
-     */
     assetPath?: (asset: Asset) => string | undefined;
-    /**
-     * Controlled math conversion: source LaTeX -> trusted Typst math.
-     * See TypstPayloadOptions.convertMath.
-     */
     convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
-    /** Explicit branch leaf override, see TypstPayloadOptions.leafMessageId. */
     leafMessageId?: string;
 }
 
@@ -155,9 +96,7 @@ function defaultAssetPath(asset: Asset): string {
 }
 
 export interface TypstSandboxCompilerOptions {
-    /** Payload adapter options, forwarded to P1a's toTypstPayload. */
     payloadOptions?: TypstSandboxPayloadOptions;
-    /** DI hook for tests; defaults to BrowserSandboxHost. */
     host?: SandboxHost;
     wasmPath?: string;
     fontPaths?: readonly string[];
@@ -176,28 +115,20 @@ type PendingResult =
     | { kind: 'inited'; initMs?: number }
     | { kind: 'compiled'; pdf: ArrayBuffer | null; diagnostics: Array<{ severity: string; message: string }>; fontsMissingMath?: number[] };
 
-/**
- * True when the font's sfnt table directory contains a 'MATH' table.
- * Pure function over bytes; no font parsing dependency.
- */
+// OpenType sfnt table directory scan for 'MATH' (0x4D415448).
 export function fontHasMathTable(bytes: Uint8Array): boolean {
     if (bytes.length < 12) return false;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const numTables = view.getUint16(4);
     if (bytes.length < 12 + numTables * 16) return false;
     for (let i = 0; i < numTables; i += 1) {
-        // 'MATH' == 0x4D415448
         if (view.getUint32(12 + i * 16) === 0x4d415448) return true;
     }
     return false;
 }
 
-/**
- * Remove converted Typst math (`typst` fields) from a render payload so the
- * templates fall back to the visible LaTeX-source note. Used when no loaded
- * font provides a MATH table; without this the compile hard-fails.
- * Mutates the (freshly built) payload in place; returns the stripped count.
- */
+// Typst hard-fails math layout if no loaded font has an OpenType MATH table;
+// stripping `typst` fields degrades math nodes to their raw LaTeX fallback.
 export function stripConvertedMath(doc: TypstConversationRenderPayload): number {
     let stripped = 0;
     const stripInline = (nodes: TypstInlineNode[]): void => {
@@ -249,18 +180,11 @@ function abortError(message: string): DOMException {
     return new DOMException(message, 'AbortError');
 }
 
-/**
- * Collect every image asset path referenced by the render payload
- * (block images + image attachments).
- */
 function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
     const paths = new Set<string>();
     const visitInline = (nodes: TypstInlineNode[]): void => {
         for (const node of nodes) {
             if (node.type === 'image') {
-                // Inline images are first-class transport nodes (#562);
-                // their bytes must be mounted or the template's image()
-                // call fails the compile.
                 paths.add(node.asset);
             } else if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'link') && 'children' in node) {
                 visitInline(node.children);
@@ -324,7 +248,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         this.compileTimeoutMs = options.compileTimeoutMs ?? 300_000;
     }
 
-    /** Tear down the sandbox frame. Safe to call multiple times. */
     dispose(): void {
         this.detachListener?.();
         this.detachListener = null;
@@ -343,9 +266,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     }
 
     async compile(payload: TypstRenderPayload, context: RenderContext): Promise<PdfCompileResult> {
-        // Serialize: never interleave two compiles on one WASM instance.
         const run = this.compileQueue.then(() => this.compileOne(payload, context));
-        // Keep the queue alive even if this compile rejects.
         this.compileQueue = run.then(
             () => undefined,
             () => undefined,
@@ -358,9 +279,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
 
         const diagnostics: RenderDiagnostic[] = [];
 
-        // 1. Canonical bundle -> Typst JSON payload (P1a adapter), or reuse the
-        // D7 S3 stage's prebuilt doc (single conversion; S3 already captured
-        // the adapter diagnostics in its own stage channel).
         let doc: TypstConversationRenderPayload;
         if (payload.prebuiltDoc) {
             doc = payload.prebuiltDoc;
@@ -377,17 +295,12 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         context.reportProgress('typst-payload', 1, 4);
         context.signal.throwIfAborted();
 
-        // 2. Sandbox ready + WASM init (once) + bundled fonts (once).
         await this.ensureInitialized(context.signal);
         context.reportProgress('typst-init', 2, 4);
         context.signal.throwIfAborted();
 
-        // Load the bundled font bytes now: the MATH-table gate below needs
-        // the verification result before the payload JSON is finalized.
         const fonts = this.fontsInstalled ? [] : await this.loadFontBytes();
 
-        // 3. MATH-table gate: without a MATH font, converted math must be
-        // stripped so templates degrade to the LaTeX note (theme.typ contract).
         if (this.mathFontAvailable === false) {
             const stripped = stripConvertedMath(doc);
             diagnostics.push({
@@ -399,13 +312,10 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             });
         }
 
-        // 4. Resolve image bytes through context.assets; mount as shadows.
         const binaries: Array<{ path: string; buf: ArrayBuffer }> = [];
         const transfer: ArrayBuffer[] = [];
         const pathToAssetId = new Map<string, string>();
         if (payload.prebuiltAssetPaths) {
-            // D7: the doc's image paths came from S2's pathMap; map back
-            // through the same table instead of this.payloadOptions.assetPath.
             for (const [assetId, path] of payload.prebuiltAssetPaths) {
                 if (path) pathToAssetId.set(path, assetId);
             }
@@ -449,7 +359,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 });
                 continue;
             }
-            // Copy into a fresh ArrayBuffer so the transfer neuters only our copy.
+            // Copy into a fresh ArrayBuffer so transferring neuters only our copy.
             const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
             binaries.push({ path: imagePath, buf });
             transfer.push(buf);
@@ -457,7 +367,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         context.reportProgress('typst-assets', 3, 4);
         context.signal.throwIfAborted();
 
-        // 5. Ship the job to the sandbox.
         const payloadText = JSON.stringify(doc);
         const fontBuffers: ArrayBuffer[] = fonts.map((bytes) => {
             const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
@@ -480,9 +389,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             context.signal,
             (stage, current, total) => context.reportProgress(`typst-${stage}`, current, total),
         );
-        // Font-installed state is driven by the sandbox's FONTS_INSTALLED ACK
-        // (see handleHostMessage), not by the compile outcome, so a failed
-        // compile never triggers a font resend.
         if (result.kind !== 'compiled') {
             throw new Error(`unexpected sandbox reply for compile job ${jobId}`);
         }
@@ -517,7 +423,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         return { pdfBytes, diagnostics };
     }
 
-    /** Load (once) and MATH-verify the bundled font bytes. */
     private async loadFontBytes(): Promise<Uint8Array[]> {
         if (this.fontBytes) return this.fontBytes;
         const loaded = await Promise.all(
@@ -528,16 +433,13 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         return loaded;
     }
 
-    /** Create the frame, wait for ready, run WASM init. Idempotent. */
     private ensureInitialized(signal: AbortSignal): Promise<void> {
         if (this.initPromise) return this.initPromise;
         this.initPromise = (async () => {
             const frame = this.host.createFrame(this.host.pageUrl());
             this.frame = frame;
             this.detachListener = frame.onMessage((event) => this.handleHostMessage(event));
-            // Wait for the sandbox-ready broadcast.
             await this.readyPromiseOrTimeout(signal);
-            // Ship the WASM module bytes; the sandbox inits offline from them.
             const wasm = await this.host.fetchBytes(this.host.assetUrl(this.wasmPath));
             signal.throwIfAborted();
             const wasmBuffer = wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) as ArrayBuffer;
@@ -553,7 +455,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 throw new Error(`unexpected sandbox reply for init job ${jobId}`);
             }
         })();
-        // A failed init must not poison later compiles: allow retry.
         this.initPromise.then(
             () => undefined,
             () => {
@@ -603,10 +504,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         return this.readyPromise;
     }
 
-    /**
-     * Send one request job and await its terminal reply (inited / compiled /
-     * error). AbortSignal rejection wins over any late sandbox reply.
-     */
     private roundTrip(
         jobId: string,
         message: Record<string, unknown>,
@@ -632,7 +529,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 try {
                     frame.postToSandbox({ type: HOST_TO_SANDBOX.CANCEL, jobId });
                 } catch {
-                    // The frame may already be gone; the rejection below is what matters.
+                    // Frame may already be disposed.
                 }
                 reject(abortError('Typst compile aborted'));
             };
@@ -662,7 +559,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         });
     }
 
-    /** Route one inbound sandbox message to its pending job (or drop it). */
     private handleHostMessage(event: { source: unknown; origin: string; data: unknown }): void {
         const frame = this.frame;
         if (!frame) return;
@@ -678,16 +574,12 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         const jobId = message.jobId;
         if (jobId === null) return;
         if (message.type === SANDBOX_TO_HOST.FONTS_INSTALLED) {
-            // Fonts are installed in the sandbox exactly once. This ACK is
-            // decoupled from the compile outcome: the sandbox sends it right
-            // after the font builder finishes, before the document compile
-            // runs, so a failed compile no longer causes a font resend on
-            // the next compile (re-running the font builder wedges WASM).
+            // Decoupled from compile completion because re-running the WASM font builder after a failed compile wedges the module.
             this.fontsInstalled = true;
             return;
         }
         const job = this.pending.get(jobId);
-        if (!job) return; // Unknown or already settled: ignore late/duplicate replies.
+        if (!job) return;
         const body = message.body;
         if (message.type === SANDBOX_TO_HOST.INITED) {
             job.resolve({ kind: 'inited', initMs: typeof body.initMs === 'number' ? body.initMs : undefined });

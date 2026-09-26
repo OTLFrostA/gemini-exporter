@@ -1,32 +1,3 @@
-/**
- * src/core/export/pdf/pipeline/compileStage.ts
- *
- * D7 M4: S4 compile stage. Builds the RenderContext the frozen IPdfCompiler
- * expects (bundle + mount-backed asset resolver + locale + signal), runs the
- * injected compiler, and verifies the PDF bytes. A failed verification is a
- * StageError, never a blank PDF marked ok.
- *
- * Asset mapping is deterministic (D7 M1c contract): S2 produces
- * assetId -> virtualPath (pathMap) and the orchestrator threads it S2 -> S4.
- * The stage never guesses: resolve(assetId) = mounts[pathMap[assetId]].bytes.
- * Anything unmapped, unmatched, or empty resolves to null + a diagnostic so
- * the template renders its visible placeholder (never a silent hole).
- *
- * Notes on the frozen boundaries (do not widen; report gaps to the D7
- * coordinator instead):
- * - IPdfCompiler.compile takes TypstRenderPayload (bundle carrier) with the
- *   D7 S3 prebuilt doc + asset paths: prebuiltDoc lets the compiler skip its
- *   internal toTypstPayload (single conversion), and prebuiltAssetPaths lets
- *   it map imagePath -> assetId back through S2's pathMap instead of its own
- *   payloadOptions.assetPath. The bundle still travels alongside for
- *   compilers that compile from the bundle directly (non-D7 callers).
- * - LocalFontResolution cannot be pushed through IPdfCompiler: the production
- *   compiler only takes bundled font paths at construction. The stage
- *   surfaces the font diagnostics (never silently swaps fonts) and logs the
- *   effective fallback chain; feeding local font bytes into the sandbox is
- *   open M6 wiring work.
- */
-
 import type {
     AssetResolver,
     RenderContext,
@@ -42,18 +13,12 @@ import {
     type StageFn,
 } from './types.js';
 
-/** PDF magic, checked on every compile result before it leaves this stage. */
 const PDF_MAGIC = '%PDF-';
-/** Trailer marker a structurally complete PDF carries near its end. */
 const PDF_EOF_MARKER = '%%EOF';
-/** At least one indirect object must be closed for the bytes to be parseable. */
 const PDF_ENDOBJ_MARKER = 'endobj';
-/** Catalog reference: a trailer dict or a /Root entry proves a document root. */
 const PDF_TRAILER_MARKER = 'trailer';
 const PDF_ROOT_MARKER = '/Root';
-/** How far back from the end of the file to look for the EOF marker. */
 const EOF_SCAN_BYTES = 1024;
-/** Chunk size for whole-file keyword scans; keeps large PDFs out of one giant string. */
 const SCAN_CHUNK_BYTES = 65536;
 
 function isAbortError(e: unknown): boolean {
@@ -63,13 +28,7 @@ function isAbortError(e: unknown): boolean {
     );
 }
 
-/**
- * Mount-backed AssetResolver with a deterministic lookup contract:
- * resolve(assetId) = mounts[pathMap[assetId]].bytes. Best-effort guessing
- * (e.g. matching a mount whose virtualPath merely equals the assetId) is
- * deliberately gone: with content-hash-shaped virtual paths such a match
- * would silently bind the wrong bytes to an asset.
- */
+// Resolve strictly via pathMap[assetId] -> virtualPath so content-addressed mounts cannot collide with asset IDs.
 function makeMountAssetResolver(
     mounts: ImageMount[],
     input: CompileStageInput,
@@ -128,27 +87,6 @@ function makeMountAssetResolver(
     };
 }
 
-/**
- * Minimal PDF structural validation. No PDF parser is vendored in the
- * extension, so this stays dependency-free and shallow — but shallow must
- * still mean "parseable", not just "starts with %PDF- and ends with %%EOF".
- * The checks, in order:
- *   1. non-empty;
- *   2. starts with the %PDF- magic;
- *   3. contains at least one `endobj` (a PDF with no indirect objects is
- *      not a document);
- *   4. contains `trailer` or `/Root` (proof a document catalog is referenced);
- *   5. the tail carries `startxref <byte-offset> %%EOF` where the offset is
- *      a real cross-reference pointer: it parses as a number, lies inside
- *      the byte range, and the bytes there begin a classic `xref` table or
- *      an indirect object whose own first dictionary (bounded by the
- *      object's `endobj`) carries `/Type /XRef` as real name tokens
- *      (cross-reference stream; a literal string or comment merely
- *      containing those characters does not count). A bare numeric marker — e.g. the
- *      `startxref 0` hand-written fixtures used to carry — is rejected.
- * Anything failing a check is rejected; the caller turns it into a
- * PDF_VERIFY_FAILED stage failure, never a blank PDF marked ok.
- */
 function asciiIncludes(haystack: Uint8Array, needle: string): boolean {
     if (needle.length === 0) return true;
     const overlap = needle.length - 1;
@@ -162,11 +100,7 @@ function asciiIncludes(haystack: Uint8Array, needle: string): boolean {
     return false;
 }
 
-/**
- * Extract the first `<< ... >>` dictionary starting at `from`, with
- * nested-dictionary depth counting so `<< /DecodeParms << /Columns 5 >> >>`
- * pairs correctly. Returns null when no balanced dictionary opens there.
- */
+// Extracts the first balanced << ... >> dictionary starting at `from`, handling nested dictionaries.
 function extractFirstDictionary(text: string, from: number): string | null {
     const open = text.indexOf('<<', from);
     if (open < 0) return null;
@@ -187,42 +121,13 @@ function extractFirstDictionary(text: string, from: number): string | null {
     return null;
 }
 
-/**
- * Token-aware check for `/Type /XRef` inside a PDF dictionary.
- *
- * The old check was a plain string regex, which fired on a literal string
- * or comment that merely *contains* the characters — e.g.
- * `<< /Note (/Type /XRef) >>` is not an xref stream. This scanner walks the
- * dictionary's lexical structure instead:
- *   - `%` comments are skipped to end of line;
- *   - `( ... )` literal strings are skipped, honoring nested parens and
- *     backslash escapes (`\(`, `\)`, `\\`);
- *   - `<...>` hex strings are skipped (`<<` / `>>` dictionary delimiters
- *     are not hex strings);
- *   - after `/Type`, the *next lexical token* (skipping only
- *     whitespace/comments) must be the name token `/XRef`. A number,
- *     string, boolean, array, dictionary, hex string, or any other name in
- *     between means "not an xref stream" — e.g. `<< /Type 123 /XRef >>`
- *     is rejected even though both names appear.
- * Not a full PDF parser — just enough to keep the verifier honest. It
- * fails closed: anything it cannot lex as `/Type` immediately followed by
- * `/XRef` is not an xref stream, and the verifier rejects rather than
- * accepts.
- */
+// Lexes a PDF dictionary for adjacent /Type /XRef name tokens while skipping comments, literal strings, and hex strings.
 function dictionaryHasXrefStreamType(dict: string): boolean {
     const isSpace = (c: string): boolean =>
         c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r' || c === '\0';
     const isDelim = (c: string): boolean => '()<>[]{}/%'.includes(c);
     let i = 0;
 
-    /**
-     * Minimal lexer over the dictionary text. Skips whitespace and `%`
-     * comments, skips literal `( ... )` strings (nested parens, backslash
-     * escapes) and `<...>` hex strings as single non-name tokens, and
-     * returns each remaining lexical token. Names carry their text;
-     * everything else (numbers, booleans, keywords, brackets) is an
-     * opaque 'other' token — what matters is that it is *not* `/XRef`.
-     */
     function nextToken(): { kind: 'name' | 'other'; value?: string } | null {
         while (i < dict.length) {
             const c = dict[i];
@@ -250,7 +155,7 @@ function dictionaryHasXrefStreamType(dict: string): boolean {
             }
             if (c === '<') {
                 if (dict[i + 1] === '<') {
-                    i += 2; // dictionary open, not a hex string
+                    i += 2;
                 } else {
                     i++;
                     while (i < dict.length && dict[i] !== '>') i++;
@@ -259,7 +164,7 @@ function dictionaryHasXrefStreamType(dict: string): boolean {
                 return { kind: 'other' };
             }
             if (c === '>') {
-                i += dict[i + 1] === '>' ? 2 : 1; // dictionary close (or stray)
+                i += dict[i + 1] === '>' ? 2 : 1;
                 return { kind: 'other' };
             }
             if (c === '/') {
@@ -273,9 +178,6 @@ function dictionaryHasXrefStreamType(dict: string): boolean {
                 i++;
                 return { kind: 'other' };
             }
-            // Any other token (number, boolean, keyword, operator): consume
-            // one maximal non-delimiter run so it counts as exactly one
-            // token between /Type and whatever follows.
             let j = i;
             while (j < dict.length && !isSpace(dict[j]) && !isDelim(dict[j])) j++;
             i = Math.max(j, i + 1);
@@ -287,11 +189,8 @@ function dictionaryHasXrefStreamType(dict: string): boolean {
     let token = nextToken();
     while (token !== null) {
         if (token.kind === 'name' && token.value === '/Type') {
-            // Adjacency check: the very next lexical token must be /XRef.
             const next = nextToken();
             if (next !== null && next.kind === 'name' && next.value === '/XRef') return true;
-            // Keep scanning from the non-matching token — it may itself be
-            // another /Type (e.g. << /Type /Type /XRef >> is a real match).
             token = next;
         } else {
             token = nextToken();
@@ -331,13 +230,7 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
             `compiler returned %PDF- bytes whose startxref offset ${xrefMatch[1]} lies outside the byte range (length ${pdfBytes.length}); not a real cross-reference pointer`,
         );
     }
-    // Inspect the bytes at the claimed offset. A classic PDF points at its
-    // 'xref' table; an xref-stream PDF points at the indirect object whose
-    // own first dictionary carries /Type /XRef. The /Type /XRef check is
-    // scoped to that dictionary alone (bounded by the object's endobj):
-    // an ordinary object that merely sits within 2 KiB of a later xref
-    // stream must not pass. Anything else (e.g. offset 0, which lands on
-    // the %PDF- header) is a decorative marker, not a pointer.
+    // Verify startxref points to either a classic 'xref' table or an indirect object whose own dictionary has /Type /XRef.
     const probeEnd = Math.min(pdfBytes.length, xrefOffset + 2048);
     const probe = new TextDecoder('ascii')
         .decode(pdfBytes.subarray(xrefOffset, probeEnd))
@@ -346,14 +239,10 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
     let isXrefStream = false;
     const objHeader = /^\d+[\r\n \t]+\d+[\r\n \t]+obj/.exec(probe);
     if (objHeader) {
-        // Stay inside the first indirect object: stop at its endobj so a
-        // dictionary belonging to a *later* object can never leak in.
         const bodyStart = objHeader[0].length;
         const endobjIdx = probe.indexOf('endobj', bodyStart);
         const bodyEnd = endobjIdx < 0 ? probe.length : endobjIdx;
         const dict = extractFirstDictionary(probe.slice(0, bodyEnd), bodyStart);
-        // Token-aware: a literal string or comment merely containing the
-        // characters "/Type /XRef" must not count as an xref stream.
         isXrefStream = dict !== null && dictionaryHasXrefStreamType(dict);
     }
     if (!isClassicXref && !isXrefStream) {
@@ -363,25 +252,11 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
     }
 }
 
-/**
- * S4: compile the Typst payload to verified PDF bytes.
- *
- * Mounts reach the sandbox compiler through the RenderContext asset
- * resolver: the compiler maps its payload image paths back to asset ids
- * through prebuiltAssetPaths and calls context.assets.resolve(assetId); per
- * job it ships the resolved bytes to the sandbox as binaries (transferable
- * ArrayBuffers) which the sandbox mounts as shadow files. Abort propagates
- * untouched (never wrapped).
- */
 export const compileStage: StageFn<CompileStageInput, CompileStageOutput> = async (input, ctx) => {
     ctx.signal.throwIfAborted();
 
     const diagnostics: RenderDiagnostic[] = [];
 
-    // Fonts: the resolution is injected (tests) or resolved by M6 via
-    // resolveLocalFonts() outside the stage. The frozen compiler interface has
-    // no font slot, so the stage forwards every font diagnostic (a silent font
-    // swap changes pagination) and logs the effective fallback chain.
     for (const d of input.fonts.diagnostics) {
         diagnostics.push({ severity: d.severity, code: d.code, message: d.message });
     }
@@ -399,9 +274,7 @@ export const compileStage: StageFn<CompileStageInput, CompileStageOutput> = asyn
         reportProgress: ctx.reportProgress,
     };
 
-    // D7 S3 hands the stage a prebuilt Typst JSON doc + the S2 pathMap: the
-    // compiler skips its internal toTypstPayload (single conversion) and maps
-    // imagePath -> assetId back through the same pathMap.
+    // Pass prebuilt payload and asset paths so the compiler skips re-converting the bundle.
     const compilerPayload: TypstRenderPayload = {
         rendererSchemaVersion: 1,
         sourceSchemaVersion: 1,

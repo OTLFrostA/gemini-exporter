@@ -1,16 +1,3 @@
-/**
- * src/core/export/canonical/validate.ts
- * Runtime structural validation for canonical bundles.
- *
- * Implements integration doc section 3, item 7 ("input validation"): type +
- * JSON Schema alignment plus runtime structural/size/path/URL checks and
- * negative cases (cycles, orphan parents, pseudo-available assets, malicious
- * links, corrupt resources). Contract tests run in the repo CI.
- *
- * Validation never throws on data problems; it returns diagnostics. Use
- * projection.projectConversation() when an invalid tree must fail loudly.
- */
-
 import type { Asset } from './assets.js';
 import type { BlockNode } from './blocks.js';
 import type { CanonicalConversationBundle, Conversation } from './conversation.js';
@@ -23,7 +10,6 @@ export interface CanonicalValidationOptions {
     maxBlocks?: number;
     maxStringLength?: number;
     maxJsonDepth?: number;
-    /** Asset ids whose bytes are known to be resolvable (e.g. already fetched). */
     knownByteAssetIds?: Set<string>;
 }
 
@@ -36,14 +22,9 @@ export const CANONICAL_VALIDATION_LIMITS = {
 
 const URL_ALLOWLIST = new Set(['http:', 'https:', 'blob:', 'data:']);
 
-/**
- * Renderer-only keys that must never leak into canonical storage
- * (canonical/docs/INVARIANTS.md, "Render independence").
- */
 const BANNED_RENDERER_KEYS = new Set([
     'typst', 'html', 'className', 'style', 'plainText', 'bubbleWidth', 'radius',
     'padding', 'shadow', 'elevation', 'sticky', 'keepWithNext', 'pageBreak', 'syntaxTheme',
-    // View state is not content: a thought block must never carry collapse state.
     'initiallyCollapsed',
 ]);
 
@@ -177,10 +158,6 @@ function inlineHosts(block: BlockNode): Array<{ inlines: InlineNode[]; at: strin
     return out;
 }
 
-/**
- * Validate a canonical bundle structurally. Returns diagnostics (errors and
- * warnings); an empty array means the bundle is contract-clean.
- */
 export function validateBundle(bundle: unknown, options: CanonicalValidationOptions = {}): Diagnostic[] {
     const c = new Collector();
     const limits = {
@@ -207,7 +184,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     const citations = Array.isArray((bundle as Record<string, unknown>).citations)
         ? ((bundle as Record<string, unknown>).citations as Array<{ id: string; url?: string }>) : [];
 
-    // Identity.
     const key = conversation.key as unknown as Record<string, unknown> | undefined;
     if (!isRecord(key) || typeof key.providerId !== 'string' || !key.providerId) {
         c.add('error', 'KEY_BAD', 'conversation.key.providerId must be a non-empty string');
@@ -219,7 +195,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         c.add('warning', 'ACCOUNT_ID_PENDING_F1', 'conversation.key.accountId is missing; F1 composite-identity migration owns this value -- never synthesize one');
     }
 
-    // Message tree.
     const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
     if (!Array.isArray(conversation.messages)) {
         c.add('error', 'BUNDLE_SHAPE', 'conversation.messages must be an array');
@@ -240,7 +215,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     checkTimestamp(conversation.updatedAt, c, 'conversation.updatedAt');
     checkTimestamp(conversation.observedAt, c, 'conversation.observedAt');
 
-    // Reference indexes.
     const assetIds = new Set<string>();
     for (const a of assets) {
         if (!a || typeof a.id !== 'string' || !a.id) {
@@ -269,7 +243,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         checkUrl(cit.url, c, `citations[${cit.id}].url`);
     }
 
-    // Blocks.
     const blockIds = new Set<string>();
     let totalBlocks = 0;
     messages.forEach((m, mi) => {
@@ -322,7 +295,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         c.add('error', 'LIMIT_BLOCKS', `block count ${totalBlocks} exceeds limit ${limits.maxBlocks}`);
     }
 
-    // String length + depth + banned renderer keys over the whole bundle.
     let longest = 0;
     const scanStrings = (v: unknown): void => {
         if (typeof v === 'string') {

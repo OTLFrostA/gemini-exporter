@@ -276,8 +276,6 @@ function initPopupEvents(): void {
                 return;
             }
             if (format === 'pdf') {
-                // PDF needs the async normalize -> IPdfCompiler pipeline, which
-                // only runs from the Options page batch flow (exportController).
                 log(i18n.t('popupPdfUseOptions'));
                 __releaseExportGuard();
                 return;

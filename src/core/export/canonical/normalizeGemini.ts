@@ -1,33 +1,3 @@
-/**
- * src/core/export/canonical/normalizeGemini.ts
- * F2b: Gemini provider normalizer — repo Conversation -> CanonicalConversationBundle.
- *
- * Implements ProviderNormalizer<Conversation> (see normalizer.ts). Markdown body
- * parsing follows a canonical-first policy (see the markdown section below):
- * it answers "what semantic content did the provider give us?" and is NOT
- * limited to the subset renderMarkdownToHtml() recognizes
- * (src/core/engine/template/htmlTemplate.ts). Bodies are still cleaned with the
- * same convertHtmlToMarkdown + stripInternalChipMarkdown pass the HTML
- * exporter uses.
- *
- * Mapping decisions (F2b):
- * - thoughts/thinking -> ThoughtBlock{disclosure:'providerExposed',kind:'reasoning'};
- *   view state (initiallyCollapsed) stays in renderer config, never canonical.
- * - citations {url,title} -> Citation entities + trailing CitationGroupBlock;
- *   inline [n] markers become citationRef (label preserved).
- * - attachments/images/documents merged with the same dedupe rule as the HTML
- *   exporter's normalizeAttachments(); kind by mime/type; status honest:
- *   inline bytes or a real local file -> 'available', URL only -> 'remote',
- *   nothing usable -> 'missing' + diagnostic. A localName that is really a
- *   remote URL is treated as remote (pseudo-available guard).
- * - title candidates -> resolveTitle() (titleAuthority.ts); unknown source
- *   coerced to 'default' with a diagnostic, raw kept in observation.
- * - accountId: F1 owns it; never synthesized here (defaults to '').
- * - Unrecognized content -> unknown/unknownInline with readable fallback;
- *   nothing is silently dropped. Message tree self-checked via
- *   projectConversation(); structural failure becomes a diagnostic, never a throw.
- */
-
 import { convertHtmlToMarkdown } from '../../engine/formatters/htmlConverter.js';
 import { stripInternalChipMarkdown } from '../../utils/chipUtils.js';
 import type {
@@ -66,21 +36,11 @@ import { validateBundle } from './validate.js';
 
 export interface GeminiNormalizationOptions {
     providerId?: string;
-    /** TODO(F1): composite identity owns this. Never synthesize a colliding id. */
     accountId?: string;
-    /** Observation time (not provider time). Defaults to now. */
     observedAt?: string;
     rawRef?: string;
 }
 
-/**
- * NormalizationResult plus the run-scoped inline-asset byte store.
- *
- * The store is created fresh by every normalizeGeminiConversation() call;
- * its lifetime is exactly that one run. Consumers (the PDF asset resolver)
- * read bytes from the returned instance instead of any module-global store,
- * so bytes decoded for one conversation can never leak into another.
- */
 export interface GeminiNormalizationResult extends NormalizationResult {
     byteStore: InlineByteStore;
 }
@@ -130,56 +90,16 @@ function isStr(v: unknown): v is string {
     return typeof v === 'string';
 }
 
-// ---------------------------------------------------------------- markdown ->
-//
-// Canonical-first markdown policy: this parser answers "what semantic content
-// did the provider give us?", never "what subset can a renderer display". It
-// is intentionally decoupled from the legacy HTML renderer's supported subset
-// (src/core/engine/template/htmlTemplate.ts): renderer limitations must not
-// become permanent information-loss rules in canonical data. Where a syntax
-// feature is genuinely unsupported, the source evidence is preserved and an
-// explicit diagnostic is emitted -- content is never silently reinterpreted
-// to match legacy renderer behavior.
-
 interface MdParser {
-    /** Message-level diagnostics; markdown parsing appends here directly. */
     diagnostics: Diagnostic[];
-    /** sourceRef stamped on parser-created assets and diagnostics. */
     sourceRef: SourceRef;
-    /** Attachment reference index for inline image linking (see AssetLinkIndex). */
     assetIndex: AssetLinkIndex;
-    /** Assets created for inline markdown images; merged into the bundle by the caller. */
     inlineAssets: Asset[];
-    /** Message id prefix used for generated asset ids. */
     idPrefix: string;
-    /**
-     * Run-scoped byte store. One instance is created per
-     * normalizeGeminiConversation() call and shared by every message in that
-     * run; linkInlineImage writes decoded bytes here instead of any global.
-     */
     byteStore: InlineByteStore;
-    /**
-     * Per-message deterministic block id generator (`<msgId>-b0`, `-b1`, ...).
-     * Scoped to one normalizeMessage call so the same conversation always
-     * produces the same block ids -- the old module-global counter made ids
-     * depend on process history (m1-b10 vs m1-b73 on re-normalize).
-     */
     nextBlockId: () => string;
 }
 
-/**
- * Attachment reference index for inline image linking.
- *
- * Two tiers, looked up in order:
- * - byRef: full-reference keys (exact ref, `assets/`-stripped, URI-decoded).
- *   A full ref identifies one asset; collisions are data anomalies.
- * - byBasename: basename -> candidate asset ids. A basename may match several
- *   attachments (e.g. `assets/foo/image.png` and `assets/bar/image.png` both
- *   register `image.png`); binding by basename is only allowed when it is
- *   unique, otherwise an AMBIGUOUS_INLINE_IMAGE_ASSET diagnostic is emitted
- *   and no binding is made -- silently binding the wrong image is worse than
- *   reporting the image missing.
- */
 interface AssetLinkIndex {
     byRef: Map<string, string>;
     byBasename: Map<string, Set<string>>;
@@ -189,7 +109,6 @@ function newAssetLinkIndex(): AssetLinkIndex {
     return { byRef: new Map(), byBasename: new Map() };
 }
 
-/** Full-reference match keys for linking an inline image src to an attachment asset. */
 function assetRefKeys(ref: string): string[] {
     const keys = [ref];
     const noPrefix = ref.replace(/^assets\//, '');
@@ -198,19 +117,16 @@ function assetRefKeys(ref: string): string[] {
         const decoded = decodeURIComponent(noPrefix);
         if (decoded !== noPrefix) keys.push(decoded);
     } catch {
-        // Not percent-encoded; nothing to add.
     }
     return keys;
 }
 
-/** Basename key: last path segment. May be ambiguous across attachments. */
 function assetBasename(ref: string): string | undefined {
     const noPrefix = ref.replace(/^assets\//, '');
     const base = noPrefix.split('/').pop() ?? '';
     return base && base !== noPrefix ? base : undefined;
 }
 
-/** Register one attachment reference (any of localName/url/sourceUrl/...) into the index. */
 function indexAssetRef(index: AssetLinkIndex, ref: string, assetId: string): void {
     for (const key of assetRefKeys(ref)) index.byRef.set(key, assetId);
     const base = assetBasename(ref);
@@ -224,15 +140,6 @@ function indexAssetRef(index: AssetLinkIndex, ref: string, assetId: string): voi
     }
 }
 
-/**
- * Build the first-class inline image node for a known `![alt](src)`. The image
- * links through the canonical asset table: an attachment with a matching
- * reference is reused, otherwise a new asset records the honest availability
- * (remote URL -> 'remote', embedded data: URL -> decoded to a byte-backed
- * 'available' asset, anything else -> 'missing' + warning). Known images are
- * never unknownInline.
- */
-/** Short, payload-free preview of a data: URL for diagnostics. */
 function dataUrlPreview(url: string): string {
     const head = url.slice(0, 64);
     return url.length > 64 ? `${head}…(${url.length} chars total)` : head;
@@ -240,15 +147,12 @@ function dataUrlPreview(url: string): string {
 
 function linkInlineImage(src: string, alt: string, title: string | undefined, st: MdParser): ImageInline {
     const trimmedSrc = src.trim();
-    // Tier 1: exact / normalized full reference -- unambiguous.
     for (const key of assetRefKeys(trimmedSrc)) {
         const hit = st.assetIndex.byRef.get(key);
         if (hit) {
             return makeImageInline(hit, alt, title);
         }
     }
-    // Tier 2: basename, only when it identifies exactly one asset.
-    // A bare src with no path segments IS a basename candidate.
     let ambiguous = false;
     const base = assetBasename(trimmedSrc) ?? trimmedSrc;
     if (base) {
@@ -280,16 +184,9 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
     let sizeBytes: number | undefined;
     let sha256: string | undefined;
     let failureReason: string | undefined;
-    // Set when a data: URL is refused or fails to decode; the generic
-    // INLINE_IMAGE_ASSET_MISSING diagnostic below is skipped in that case.
     let dataUrlDiag: { code: 'DATA_URL_TOO_LARGE' | 'DATA_URL_MALFORMED'; message: string } | undefined;
     if (/^data:/i.test(trimmedSrc)) {
-        // Scheme B: decode the data: URL into real bytes at normalize time.
-        // The asset becomes byte-backed ('available' with a content-addressed
-        // storageRef and bytes in the inline byte store), never
-        // pseudo-available. sourceUrl is deliberately omitted -- embedding the
-        // full data: URL would explode the serialized bundle; the bytes are
-        // the source of truth.
+        // Omit sourceUrl so the raw data: URI payload is not duplicated in the serialized bundle.
         const decoded = decodeDataUrlAsset(trimmedSrc);
         if (decoded.ok) {
             status = 'available';
@@ -303,7 +200,7 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
             status = 'missing';
             failureReason = decoded.reason;
             dataUrlDiag = { code: decoded.code, message: decoded.message };
-            // Never leak a payload tail into the asset name.
+            // fileBase contains the base64 payload after 'image/<subType>'; avoid leaking it into name.
             if (!altName) name = 'image';
         }
     } else if (/^https?:\/\//i.test(trimmedSrc)) {
@@ -354,7 +251,6 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
     return makeImageInline(assetId, alt, title);
 }
 
-/** Build the ImageInline node; alt/title are only set when non-empty. */
 function makeImageInline(assetId: string, alt: string, title: string | undefined): ImageInline {
     const cleanAlt = alt.trim();
     return {
@@ -365,7 +261,6 @@ function makeImageInline(assetId: string, alt: string, title: string | undefined
     };
 }
 
-/** Scan s from i (s[i] === '[') for the matching ']' with bracket nesting. */
 function scanBracket(s: string, i: number): { text: string; end: number } | undefined {
     let depth = 0;
     for (let j = i; j < s.length; j++) {
@@ -378,7 +273,6 @@ function scanBracket(s: string, i: number): { text: string; end: number } | unde
     return undefined;
 }
 
-/** Scan s from i (s[i] === '(') for the matching ')' with paren nesting. */
 function scanParen(s: string, i: number): { text: string; end: number } | undefined {
     let depth = 0;
     for (let j = i; j < s.length; j++) {
@@ -391,7 +285,6 @@ function scanParen(s: string, i: number): { text: string; end: number } | undefi
     return undefined;
 }
 
-/** Split a link/image destination into URL and an optional quoted title. */
 function parseLinkTarget(inner: string): { href: string; title?: string } {
     const t = inner.trim();
     const m = /^(\S+)\s+("(?:[^"]*)"|'(?:[^']*)'|\([^)]*\))$/.exec(t);
@@ -399,7 +292,6 @@ function parseLinkTarget(inner: string): { href: string; title?: string } {
     return { href: t };
 }
 
-/** Try `![alt](src)` at s[i] (s[i] === '!', s[i+1] === '['). */
 function tryParseBareImage(
     s: string, i: number, st: MdParser,
 ): { node: ImageInline; end: number } | undefined {
@@ -411,15 +303,9 @@ function tryParseBareImage(
     return { node: linkInlineImage(href, label.text, title, st), end: dest.end };
 }
 
-/**
- * Try `[![alt](src)](href)` at s[i]. A bare `[!text](href)` (no image inside)
- * is not a linked image and is left for literal/link handling.
- */
 function tryParseLinkedImage(
     s: string, i: number, st: MdParser,
 ): { node: InlineNode; end: number } | undefined {
-    // s[i] === '[' opens the link; the image (if any) starts at i + 1.
-    // Scan from i so the nested image brackets balance correctly.
     const outer = scanBracket(s, i);
     if (!outer || s[outer.end] !== '(' || !outer.text.startsWith('![')) return undefined;
     const hrefParen = scanParen(s, outer.end);
@@ -433,7 +319,6 @@ function tryParseLinkedImage(
     };
 }
 
-/** Try `[label](dest)` at s[i] (s[i] === '['). */
 function tryParseLink(s: string, i: number): { node: InlineNode; end: number } | undefined {
     const label = scanBracket(s, i);
     if (!label || s[label.end] !== '(') return undefined;
@@ -447,8 +332,7 @@ function tryParseLink(s: string, i: number): { node: InlineNode; end: number } |
 }
 
 function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[] {
-    // Protect code spans first so delimiters inside `code` are never
-    // reinterpreted; then math spans (display `$$..$$` pairs, then `$..$`).
+    // Mask code and math spans with NUL placeholders so their delimiters are ignored by link/emphasis scanners.
     const codeSpans: string[] = [];
     const mathSpans: string[] = [];
     let s = text.replace(/`([^`\n]+)`/g, (_m, code) => {
@@ -493,8 +377,6 @@ function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[]
             }
         }
         if (s[i] === '[') {
-            // A linked image `[![alt](src)](href)` opens with '[' too, so try
-            // it before a plain link.
             const linked = tryParseLinkedImage(s, i, st);
             if (linked) {
                 flush();
@@ -519,12 +401,6 @@ function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[]
 
 function parseEmphasis(seg: string): InlineNode[] {
     if (!seg) return [];
-    // Recursive-descent scanner: at each position take the longest marker
-    // ('***' > '**' > '*', '___' > '__' > '_', plus '~~'), then pair it with
-    // the next "clean" occurrence of the same marker — one that is not part
-    // of a longer run of the same char, so '*a **b** c*' nests correctly
-    // instead of closing at the first '*' of '**'. Unmatched markers stay
-    // literal text (malformed input is preserved, not dropped).
     const markers = ['***', '___', '**', '__', '~~', '*', '_'] as const;
     const make = (m: string, children: InlineNode[]): InlineNode => {
         if (m === '***' || m === '___') {
@@ -559,6 +435,7 @@ function parseEmphasis(seg: string): InlineNode[] {
         const ch = m[0];
         let j = seg.indexOf(m, i + m.length);
         let closer = -1;
+        // Reject closers adjacent to the same marker char so '*a **b** c*' does not close at '**'.
         while (j >= 0) {
             if (seg[j - 1] !== ch && seg[j + m.length] !== ch) {
                 closer = j;
@@ -581,9 +458,7 @@ function parseEmphasis(seg: string): InlineNode[] {
 
 function isTableSeparator(line: string): boolean {
     const t = line.trim();
-    // A delimiter row needs at least one pipe: this keeps a bare `text\n---`
-    // as a setext heading, never a one-column table. Edge pipes are optional
-    // (borderless tables are valid markdown).
+    // Require at least one pipe so setext headings ('text\n---') are not misparsed as 1-column tables.
     if (!t.includes('|')) return false;
     let c = t.startsWith('|') ? t.slice(1) : t;
     c = c.endsWith('|') ? c.slice(0, -1) : c;
@@ -592,8 +467,6 @@ function isTableSeparator(line: string): boolean {
 }
 
 function parseTableRow(line: string): string[] {
-    // Protect escaped pipes and code spans so a `|` inside `code` (or `\|`)
-    // is not mistaken for a column separator; edge pipes are optional.
     const spans: string[] = [];
     let c = line.trim();
     c = c.replace(/\\\|/g, () => {
@@ -641,14 +514,11 @@ function parseList(lines: string[], i: number, idPrefix: string, st: MdParser): 
             j++;
         }
     }
-    // Recursive indent-based build. Every scanned item lands in exactly one
-    // list; a marker-type change at the same indent starts a sibling list.
     const buildAt = (start: number, levelIndent: number): { nodes: BlockNode[]; next: number } => {
         const nodes: BlockNode[] = [];
         let k = start;
         while (k < items.length && items[k].indent >= levelIndent) {
             if (items[k].indent > levelIndent) {
-                // Defensive: deeper item with no parent at this level (no loss).
                 const nested = buildAt(k, items[k].indent);
                 const lastNode = nodes[nodes.length - 1];
                 if (lastNode && lastNode.type === 'list') {
@@ -726,11 +596,6 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
         }
 
         if (trimmed.startsWith('$$')) {
-            // A display-math BLOCK only when the whole line is `$$...$$` with
-            // nothing but whitespace after the closing delimiter. A same-line
-            // formula with trailing text (or several formulas on one line) is
-            // inline math: hand the line to the paragraph parser so the
-            // formula AND the text are preserved (never an empty MathBlock).
             const selfClosed = trimmed.length > 4 && trimmed !== '$$' &&
                 /\$\$[^$\n]+\$\$\s*$/.test(trimmed) &&
                 trimmed.indexOf('$$', 2) === trimmed.length - 2;
@@ -751,8 +616,6 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                     mathLines.push(lines[i]);
                     i++;
                 }
-                // The math block id is minted first so the diagnostics above can
-                // reference the exact block they describe.
                 const mathBlockId = st.nextBlockId();
                 if (!closed) {
                     st.diagnostics.push({
@@ -778,10 +641,7 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
                 blocks.push({ id: mathBlockId, type: 'math', source, notation: 'latex' });
                 continue;
             }
-            // Starts with '$$' but is neither self-closed nor a lone fence:
-            // let the inline scanner split it into InlineMath + text. Consume
-            // the line here (not via the paragraph collector below, whose
-            // '$$' break condition would refuse it and loop forever).
+            // Consume inline '$$...$$' with trailing text here because the paragraph collector below breaks on '$$'.
             blocks.push({
                 id: st.nextBlockId(),
                 type: 'paragraph',
@@ -876,8 +736,6 @@ function parseMarkdownBlocks(markdown: string, idPrefix: string, st: MdParser): 
     }
     return blocks;
 }
-
-// ---------------------------------------------------------------- attachments
 
 interface MergedAttachment extends RepoAttachment {
     __origin: 'attachment' | 'image' | 'document';
@@ -986,9 +844,6 @@ function buildAsset(
         });
     }
 
-    // Contract: optional asset fields are omitted when absent, never emitted
-    // as explicit `undefined` (which has no JSON representation and would make
-    // the live bundle disagree with its serialized form).
     const mimeType = a.mimeType || a.mime || undefined;
     const asset: Asset = {
         id,
@@ -1012,8 +867,6 @@ function buildAsset(
     if (classified.diagnostic) diagnostics.push(classified.diagnostic);
     return { asset, diagnostics, isImage, origin };
 }
-
-// ---------------------------------------------------------------- citations
 
 interface RawCitation {
     url?: string;
@@ -1049,7 +902,6 @@ function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skipped: nu
     return { list, skipped };
 }
 
-/** Replace [n] markers in text inlines with citationRef when they resolve. */
 function linkCitationMarkers(blocks: BlockNode[], citations: Citation[]): void {
     if (!citations.length) return;
     const byIndex = new Map(citations.map((c, i) => [i + 1, c]));
@@ -1110,8 +962,6 @@ function linkCitationMarkers(blocks: BlockNode[], citations: Citation[]): void {
     blocks.forEach(walkBlock);
 }
 
-// ---------------------------------------------------------------- messages
-
 function mapRole(role: unknown): { role: MessageRole; rawRole?: string } {
     if (role === 'user') return { role: 'user' };
     if (role === 'model' || role === 'assistant') return { role: 'assistant' };
@@ -1160,22 +1010,10 @@ function normalizeMessage(
     }
 
     const idPrefix = msgId;
-
-    // Deterministic per-message block id counter (<msgId>-b0, -b1, ...).
-    // A module-global counter used to live here; it made block ids depend on
-    // how many messages had been normalized earlier in the same process, so
-    // normalizing the same conversation twice produced different ids
-    // (m1-b10 vs m1-b73) -- unstable canonical serialization, diff noise, and
-    // unstable diagnostic paths. Scoping the counter to one message fixes it.
     let blockSeq = 0;
     const nextBlockId = (): string => `${idPrefix}-b${blockSeq++}`;
 
-    // Build attachment assets BEFORE parsing markdown so inline images can
-    // link to them through the canonical asset table. The message-level
-    // `attachments` array carries generated/pasted files; the bare markdown
-    // image syntax `![alt](src)` (and `[![alt](src)](href)`) becomes a
-    // first-class ImageInline node that references an Asset by id -- it is
-    // never demoted to unknownInline.
+    // Index attachments before markdown parsing so inline ![alt](src) nodes can link to their Asset IDs.
     const merged = mergeMessageAttachments(m);
     const attachmentBlocks: BlockNode[] = [];
     const assets: Asset[] = [];
@@ -1245,7 +1083,6 @@ function normalizeMessage(
         });
     }
 
-    // Assets created for inline markdown images join the bundle's asset table.
     for (const ia of st.inlineAssets) {
         assets.push(ia);
         assetIds.push(ia.id);
@@ -1288,8 +1125,6 @@ function normalizeMessage(
 
     const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));
     const createdAt = toIso(m.timestamp);
-    // Contract: optional message fields are omitted when absent, never emitted
-    // as explicit `undefined`.
     const node: MessageNode = {
         id: msgId,
         role,
@@ -1304,8 +1139,6 @@ function normalizeMessage(
     };
     return { node, assets, citations, diagnostics };
 }
-
-// ---------------------------------------------------------------- titles
 
 function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[]): ConversationTitle | undefined {
     const candidates: TitleCandidate[] = [];
@@ -1338,8 +1171,6 @@ function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[]): Conve
     return resolveTitle(candidates);
 }
 
-// ---------------------------------------------------------------- entry
-
 function observationSourceType(source: unknown): SourceObservation['sourceType'] {
     if (isStr(source)) {
         const s = source.toLowerCase();
@@ -1361,8 +1192,6 @@ export async function normalizeGeminiConversation(
     const diagnostics: Diagnostic[] = [];
     const assets: Asset[] = [];
     const citations: Citation[] = [];
-    // Run-scoped: every normalize call owns its byte store; nothing is shared
-    // with previous or future runs in this JS context.
     const byteStore = createInlineByteStore();
 
     const messages: MessageNode[] = [];
@@ -1465,7 +1294,6 @@ export async function normalizeGeminiConversation(
         ...(diagnostics.length ? { diagnostics } : {}),
     };
 
-    // Structural self-check: our own output must project cleanly.
     try {
         const treeIssues = validateMessageTree(bundle.conversation);
         if (treeIssues.length) {
@@ -1486,8 +1314,6 @@ export async function normalizeGeminiConversation(
             message: `projectConversation self-check failed: ${err instanceof Error ? err.message : String(err)}`,
         });
     }
-    // Canonical runtime validation: any contract violation in our own output
-    // is a normalizer bug and must be visible, never silently accepted.
     try {
         const issues = validateBundle(bundle);
         for (const issue of issues) {
@@ -1517,10 +1343,6 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
     }
 
     async normalize(raw: RepoConversation, context: NormalizationContext): Promise<NormalizationResult> {
-        // Preserve the provider's original payload as raw evidence before
-        // deriving anything from it. The returned logical ref is threaded
-        // through as options.rawRef so it lands in the observation and can
-        // be attached to sourceRefs/provenance downstream.
         let rawRef = this.options.rawRef;
         let rawEvidenceError: string | undefined;
         const effectiveProviderId = context.providerId || this.options.providerId || this.providerId;
@@ -1528,9 +1350,6 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
             try {
                 rawRef = await context.rawEvidence.put('gemini-conversation', raw);
             } catch (err) {
-                // P2-5: a raw-evidence persistence failure must be visible, never
-                // silently swallowed. Normalization continues (policy), but the
-                // diagnostic below makes it explicit that no raw payload was archived.
                 rawRef = this.options.rawRef;
                 rawEvidenceError = err instanceof Error ? err.message : String(err);
             }
@@ -1552,7 +1371,6 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
                 details: { error: rawEvidenceError.slice(0, 300) } as JsonValue,
             };
             result.diagnostics.push(diagnostic);
-            // rawRef was never persisted: do not let the observation imply it was.
             if (!result.bundle.diagnostics) {
                 result.bundle.diagnostics = result.diagnostics;
             } else if (result.bundle.diagnostics !== result.diagnostics) {

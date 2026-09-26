@@ -1,21 +1,3 @@
-/**
- * src/core/export/pdf/pipeline/types.ts
- *
- * D7: frozen inter-stage contracts for the end-to-end PDF pipeline.
- *
- * These interfaces are FROZEN as of the M1 PR. M2-M5 implement the stages;
- * they must implement these signatures, not change them. If a stage finds
- * its contract truly insufficient, it must report back to the D7
- * coordinator instead of silently widening it.
- *
- * Pipeline order (per conversation):
- *   S1 project   (M2): projectConversation -> ProjectedView
- *   S2 resources (M3): shared asset collection -> resolveAssets -> pathMap + mounts
- *   S3 payload   (M2): toTypstPayload(bundle, { assetPath, convertMath, projectedMessages })
- *   S4 compile   (M4): resolveLocalFonts -> IPdfCompiler.compile -> verified PDF bytes
- *   S5 deliver   (M5): writer/delivery transaction (#556/#567/#571 semantics) -> write report
- */
-
 import type { CanonicalConversationBundle } from '../../canonical/conversation.js';
 import type { ProjectedView } from '../../canonical/projection.js';
 import type {
@@ -28,10 +10,8 @@ import type { LocalFontResolution } from '../../typst/fonts/localFontProvider.js
 import type { IPdfCompiler } from '../pdfCompiler.js';
 import type { IExportWriter } from '../../../engine/writers/writerInterface.js';
 
-/** Re-exported so stage implementers have a single import site. */
 export type { RenderDiagnostic } from '../../canonical/rendering.js';
 
-/** Stage names in pipeline order. */
 export type PipelineStageName = 'project' | 'resources' | 'payload' | 'compile' | 'deliver';
 
 export const PIPELINE_STAGE_ORDER: readonly PipelineStageName[] = [
@@ -42,28 +22,17 @@ export const PIPELINE_STAGE_ORDER: readonly PipelineStageName[] = [
     'deliver',
 ];
 
-/**
- * Cross-cutting context every stage receives. Cancellation must propagate:
- * stages MUST stop promptly when ctx.signal aborts and throw a DOMException
- * named 'AbortError' (never convert an abort into a quiet failure).
- */
 export interface StageContext {
     signal: AbortSignal;
     reportProgress(stage: string, current: number, total: number): void;
     log(message: string, level?: 'info' | 'warn' | 'error'): void;
 }
 
-/**
- * Uniform stage signature: typed input, typed output, diagnostics travel
- * alongside. A stage never swallows content loss: anything dropped or
- * degraded must appear in diagnostics (severity warning or error).
- */
 export type StageFn<I, O> = (
     input: I,
     ctx: StageContext,
 ) => Promise<{ output: O; diagnostics: RenderDiagnostic[] }>;
 
-/** Typed error thrown (or wrapped) when a stage fails. Never silent. */
 export class StageError extends Error {
     readonly stage: PipelineStageName;
     readonly code: string;
@@ -85,13 +54,8 @@ export class StageError extends Error {
     }
 }
 
-// ---------------------------------------------------------------------------
-// S1: projection (M2)
-// ---------------------------------------------------------------------------
-
 export interface ProjectStageInput {
     bundle: CanonicalConversationBundle;
-    /** Explicit leaf override; defaults to bundle.conversation.selectedLeafMessageId. */
     leafMessageId?: string;
 }
 
@@ -100,11 +64,6 @@ export interface ProjectStageOutput {
     view: ProjectedView;
 }
 
-// ---------------------------------------------------------------------------
-// S2: resources (M3)
-// ---------------------------------------------------------------------------
-
-/** One sandbox-mountable image: virtual path -> bytes. */
 export interface ImageMount {
     virtualPath: string;
     bytes: Uint8Array;
@@ -114,40 +73,19 @@ export interface ImageMount {
 export interface ResourceStageInput {
     bundle: CanonicalConversationBundle;
     view: ProjectedView;
-    /** Per-run byte store, created alongside normalize and threaded through. */
     byteStore: InlineByteStore;
 }
 
 export interface ResourceStageOutput {
-    /**
-     * assetId -> virtual path, only for assets needing binary bytes —
-     * block image placements (ImageBlock/ImageInline) and kind:'image'
-     * message companions (associatedAssetIds with no block placement) —
-     * that resolved cleanly. Metadata-only attachments (file/audio/video
-     * blocks, non-image companions) render from the Asset entity and never
-     * enter this map; the payload stage queries it through assetPath().
-     */
+    /** assetId -> virtual path for resolved binary image assets (metadata-only attachments are excluded). */
     pathMap: Map<string, string>;
-    /** virtual path -> bytes, mounted into the sandbox before compile (images only). */
     mounts: ImageMount[];
-    /**
-     * Binary-referenced assets (image placements + kind:'image' companions)
-     * not resolved. Every entry is diagnosed (never silent); the payload
-     * stage renders them as visible unknown nodes + diagnostics.
-     * Metadata-only attachments are intentionally absent: their file cards
-     * need no resolution.
-     */
     unresolved: Array<{ assetId: string; reason: string }>;
 }
-
-// ---------------------------------------------------------------------------
-// S3: Typst payload (M2)
-// ---------------------------------------------------------------------------
 
 export interface PayloadStageInput {
     bundle: CanonicalConversationBundle;
     view: ProjectedView;
-    /** From S2. The payload stage must NOT re-resolve assets. */
     pathMap: Map<string, string>;
 }
 
@@ -155,50 +93,19 @@ export interface PayloadStageOutput {
     payload: TypstConversationRenderPayload;
 }
 
-// ---------------------------------------------------------------------------
-// S4: compile + verify (M4)
-// ---------------------------------------------------------------------------
-
 export interface CompileStageInput {
     payload: TypstConversationRenderPayload;
-    /** For building the RenderContext the compiler expects. */
     bundle: CanonicalConversationBundle;
-    /** From S2. */
     mounts: ImageMount[];
-    /**
-     * From S2 (assetId -> virtualPath). S4 builds the mount-backed
-     * AssetResolver as resolve(assetId) = mounts[pathMap[assetId]].bytes;
-     * without it the stage would have to guess the mapping from virtual
-     * paths, which is unsound for content-hash-shaped paths.
-     */
     pathMap: ReadonlyMap<string, string>;
-    /**
-     * Resolved inside S4 via resolveLocalFonts(); carried here so tests can
-     * inject a canned resolution without touching the font provider.
-     */
     fonts: LocalFontResolution;
-    /** Injected: stub in tests, TypstSandboxCompiler in production (M6). */
     compiler: IPdfCompiler;
     locale: 'zh' | 'en';
 }
 
 export interface CompileStageOutput {
-    /**
-     * Verified PDF bytes — minimal structural validation, dependency-free:
-     * non-empty, starts with %PDF-, contains at least one `endobj`,
-     * contains `trailer` or `/Root`, and the tail carries
-     * `startxref <byte-offset> %%EOF` where the offset is a real pointer:
-     * numeric, inside the byte range, and landing on a classic `xref`
-     * table or an indirect object whose own first dictionary (scoped to
-     * that object's `endobj`) carries `/Type` `/XRef`.
-     * A failed verification is a stage failure, never a blank PDF marked ok.
-     */
     pdfBytes: Uint8Array;
 }
-
-// ---------------------------------------------------------------------------
-// S5: delivery (M5)
-// ---------------------------------------------------------------------------
 
 export interface DeliveryStageInput {
     conversationId: string;
@@ -206,32 +113,16 @@ export interface DeliveryStageInput {
     pdfBytes: Uint8Array;
     useZip: boolean;
     writer: IExportWriter;
-    /**
-     * REQUIRED when useZip is true. Delivery is complete only after this
-     * handler resolves; a missing handler is a configuration error and
-     * fails the item (never silently counted as delivered).
-     */
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     folderName: string;
 }
 
 export interface DeliveryStageOutput {
     writeReport: ArtifactWriteReport;
-    /**
-     * True when the artifact bytes are durably delivered (folder writeFile
-     * resolved). False when the artifact is only STAGED into a batch writer
-     * (batch ZIP mode): the batch driver must still run the single
-     * generateBlob() + downloadHandler() finalize before staged items count
-     * as delivered. A 'staged' item is never reported as success.
-     */
+    /** True when written directly to disk (folder mode); false when staged in memory awaiting batch ZIP finalization. */
     finalized: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Orchestrator I/O
-// ---------------------------------------------------------------------------
-
-/** All five stage implementations, injected into the orchestrator. */
 export interface PipelineStages {
     project: StageFn<ProjectStageInput, ProjectStageOutput>;
     resources: StageFn<ResourceStageInput, ResourceStageOutput>;
@@ -240,12 +131,10 @@ export interface PipelineStages {
     deliver: StageFn<DeliveryStageInput, DeliveryStageOutput>;
 }
 
-/** One conversation entering the pipeline (post-normalize). */
 export interface PipelineItemInput {
     conversationId: string;
     title: string;
     bundle: CanonicalConversationBundle;
-    /** Per-run store created alongside normalize; S2 consumes it. */
     byteStore: InlineByteStore;
     locale: 'zh' | 'en';
     compiler: IPdfCompiler;
@@ -254,7 +143,6 @@ export interface PipelineItemInput {
     writer: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     folderName: string;
-    /** Explicit branch leaf override for S1; defaults to the bundle's selection. */
     leafMessageId?: string;
 }
 
@@ -269,40 +157,21 @@ export type PipelineItemStatus = 'delivered' | 'staged' | 'failed' | 'aborted';
 interface PipelineItemResultBase {
     conversationId: string;
     title: string;
-    /** Every diagnostic from every stage, in stage order. Never dropped. */
     diagnostics: RenderDiagnostic[];
 }
 
-/**
- * Discriminated union: `status` decides which fields exist. A 'staged' item
- * MUST NOT carry `writeReport` — a batch-ZIP staged artifact has no delivery
- * proof yet; the batch driver issues the real writeReport when it finalizes
- * the ZIP. Making the misuse a type error (instead of a runtime `undefined`
- * check) keeps `if (result.writeReport)` from reintroducing the false-success
- * #556/#567 eliminated.
- */
+/** Discriminated union ensuring 'staged' ZIP items cannot carry a delivery writeReport before finalization. */
 export type PipelineItemResult =
     | (PipelineItemResultBase & {
           status: 'delivered';
-          /** Delivery proof. Present ONLY on delivered items. */
           writeReport: ArtifactWriteReport;
       })
     | (PipelineItemResultBase & {
           status: 'staged';
-          /**
-           * The item's OWN artifact identity: the file name it will have
-           * inside the batch ZIP plus its own PDF byte length. NOT delivery
-           * proof — a staged artifact has no delivery proof yet. The batch
-           * driver issues the real delivery proof (ZIP file name + ZIP byte
-           * size) at batch level when finalizeZipDelivery() resolves, and
-           * per-item records keep the item's own bytesWritten (never the ZIP
-           * size) — see the #585 HIGH fix.
-           */
           stagedArtifact: { fileName: string; bytesWritten: number };
       })
     | (PipelineItemResultBase & {
           status: 'failed';
-          /** Present ONLY on failed items. */
           error: {
               stage: PipelineStageName | 'pipeline';
               code: string;

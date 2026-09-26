@@ -1,89 +1,35 @@
-/**
- * src/core/export/assets/resolver.ts
- * Real asset resolution pipeline for the PDF/Typst export route (Phase D-2).
- *
- * Turns canonical Assets into content-addressed virtual paths of the form
- *   assets/sha256/<h0h1>/<h2h3>/<hex-sha256>.<ext>
- * for Typst image() consumption (TypstPayloadOptions.assetPath).
- *
- * Offline iron rule: this stage NEVER performs network fetches. Remote-only
- * assets are reported, never fetched. Every omission produces a diagnostic;
- * nothing is silent and no bytes are invented.
- *
- * Byte-source wiring (done by the follow-up P2 integration PR, not here):
- * - byteStore: the per-run InlineByteStore instance from the normalize
- *   result (createInlineByteStore(); NOT the old module-global functions,
- *   which are being removed). Pass it positionally:
- *       resolveAssets(assets, byteStore, { readLocalFile })
- * - options.readLocalFile: wire to the export storage layer for archive-local
- *   refs in normalizeLocalName form (e.g. 'assets/photo.png').
- *
- * Frozen surface (additive-only evolution): resolveAssets,
- * AssetResolverOptions, InlineByteSource, ResolveAssetsResult,
- * ResolvedAssetEntry, MAX_ASSET_BYTES, buildVirtualAssetPath.
- */
-
 import { classifyAssetAvailability } from '../canonical/assetResolution.js';
 import type { Asset, AssetStatus } from '../canonical/assets.js';
 import type { RenderDiagnostic } from '../canonical/rendering.js';
 import { sha256Hex } from './sha256.js';
 
-/**
- * Size gate: assets larger than this are refused with a diagnostic.
- * Exported as a constant so the threshold is a single source of truth.
- */
 export const MAX_ASSET_BYTES = 50 * 1024 * 1024;
 
-/**
- * Structural read subset of the per-run InlineByteStore contract
- * (createInlineByteStore(); put/get/has/clear/entryCount). The resolver only
- * needs has/get, so the full store instance is assignable here. Defined
- * locally (not imported from ./byteStore.js) so this module never depends on
- * module-global byte state.
- */
 export interface InlineByteSource {
     has(storageRef: string): boolean;
     get(storageRef: string): Uint8Array | undefined;
 }
 
 export interface AssetResolverOptions {
-    /**
-     * Reads bytes for a normalized local storageRef (e.g. 'assets/photo.png').
-     * Wire to the export storage layer in the P2 PR. Absent => local refs
-     * resolve as missing with a diagnostic (never silent).
-     */
     readLocalFile?: (storageRef: string) => Promise<Uint8Array | undefined | null>;
-    /**
-     * Hex SHA-256 of bytes. Defaults to the sibling dependency-free
-     * implementation (./sha256.js), which works in every extension context
-     * (page, content script, service worker). Inject for determinism in tests.
-     */
     hashBytes?: (bytes: Uint8Array) => string;
-    /** Override for MAX_ASSET_BYTES. Primarily for tests; production uses the constant. */
     maxBytes?: number;
 }
 
 export interface ResolvedAssetEntry {
     asset: Asset;
-    /** Virtual path for Typst image(), e.g. assets/sha256/ab/cd/<hex>.png */
     path: string;
     sizeBytes: number;
-    /** Content type the bytes were validated as. */
     mimeType: string;
 }
 
 export interface ResolveAssetsResult {
-    /** assetId -> virtual path, only for assets that resolved cleanly. */
     pathMap: Map<string, string>;
-    /** Per-asset detail for resolved assets, keyed by asset id. */
     resolved: Map<string, ResolvedAssetEntry>;
-    /** Effective status per asset id (canonical classifyAssetAvailability semantics). */
     effectiveStatus: Map<string, AssetStatus>;
-    /** Every omission is diagnosed; a clean resolve emits no diagnostic. */
     diagnostics: RenderDiagnostic[];
 }
 
-/** Pure helper: build the content-addressed virtual path for a hash + extension. */
 export function buildVirtualAssetPath(hashHex: string, ext: string): string {
     const h = hashHex.toLowerCase();
     return `assets/sha256/${h.slice(0, 2)}/${h.slice(2, 4)}/${h}.${ext}`;
@@ -116,7 +62,6 @@ function startsWithAscii(b: Uint8Array, s: string): boolean {
     return true;
 }
 
-/** Image types Typst image() can render. Magic-sniffed, never trusted from metadata alone. */
 const SUPPORTED_IMAGE_TYPES: ImageTypeInfo[] = [
     { mime: 'image/png', ext: 'png', magic: (b) => startsWithBytes(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) },
     { mime: 'image/jpeg', ext: 'jpg', magic: (b) => startsWithBytes(b, [0xff, 0xd8, 0xff]) },
@@ -138,7 +83,6 @@ function sniffImage(bytes: Uint8Array): ImageTypeInfo | undefined {
     return SUPPORTED_IMAGE_TYPES.find((t) => t.magic(bytes));
 }
 
-/** XML whitespace bytes. */
 function isXmlWs(c: number): boolean {
     return c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
 }
@@ -156,46 +100,40 @@ function matchAscii(b: Uint8Array, i: number, s: string): boolean {
     return true;
 }
 
-/** Skip a <!-- ... --> comment starting at i. Returns the index after '-->', or -1 if unterminated. */
 function skipXmlComment(b: Uint8Array, i: number): number {
-    let j = i + 4; // past '<!--'
+    let j = i + 4;
     while (j + 2 < b.length) {
-        if (b[j] === 0x2d && b[j + 1] === 0x2d && b[j + 2] === 0x3e) return j + 3; // '-->'
+        if (b[j] === 0x2d && b[j + 1] === 0x2d && b[j + 2] === 0x3e) return j + 3;
         j++;
     }
     return -1;
 }
 
-/** Skip a <?...?> processing instruction starting at i. Returns the index after '?>', or -1 if unterminated. */
 function skipProcessingInstruction(b: Uint8Array, i: number): number {
-    let j = i + 2; // past '<?'
+    let j = i + 2;
     while (j + 1 < b.length) {
-        if (b[j] === 0x3f && b[j + 1] === 0x3e) return j + 2; // '?>'
+        if (b[j] === 0x3f && b[j + 1] === 0x3e) return j + 2;
         j++;
     }
     return -1;
 }
 
-/**
- * Skip a <!DOCTYPE ...> declaration starting at i (including an internal
- * subset in [...] and quoted '>' inside it). Returns the index after the
- * closing '>', or -1 if unterminated.
- */
+// Handles nested [...] internal DTD subsets and quoted '>' so DOCTYPE does not terminate early.
 function skipDoctype(b: Uint8Array, i: number): number {
-    let j = i + 9; // past '<!DOCTYPE' (caller matches case-insensitively first)
+    let j = i + 9;
     let subsetDepth = 0;
     let quote = 0;
     while (j < b.length) {
         const c = b[j];
         if (quote !== 0) {
             if (c === quote) quote = 0;
-        } else if (c === 0x22 || c === 0x27) { // '"' or "'"
+        } else if (c === 0x22 || c === 0x27) {
             quote = c;
-        } else if (c === 0x5b) { // '['
+        } else if (c === 0x5b) {
             subsetDepth++;
-        } else if (c === 0x5d) { // ']'
+        } else if (c === 0x5d) {
             if (subsetDepth > 0) subsetDepth--;
-        } else if (c === 0x3e && subsetDepth === 0) { // '>'
+        } else if (c === 0x3e && subsetDepth === 0) {
             return j + 1;
         }
         j++;
@@ -203,23 +141,17 @@ function skipDoctype(b: Uint8Array, i: number): number {
     return -1;
 }
 
-/**
- * True when the bytes are an SVG document: after an optional UTF-8 BOM,
- * whitespace, at most one XML declaration, comments and a DOCTYPE, the root
- * element must be <svg followed by a name terminator (whitespace, '>', '/',
- * or a namespace ':'). A bare '<' (e.g. <html>, <foo>, <script>) is NOT
- * enough — the old check accepted any of those as SVG.
- */
+// Skips optional UTF-8 BOM, XML declaration, comments, and DOCTYPE before requiring a root <svg> tag.
 function isSvgDocument(b: Uint8Array): boolean {
     let i = 0;
-    if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) i = 3; // UTF-8 BOM
+    if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) i = 3;
     let sawXmlDecl = false;
     for (let guard = 0; guard < 32; guard++) {
         i = skipXmlWs(b, i);
         if (matchAscii(b, i, '<?xml') || matchAscii(b, i, '<?XML')) {
             if (sawXmlDecl) return false;
             const after = i + 5;
-            if (after >= b.length || (!isXmlWs(b[after]) && b[after] !== 0x3f)) return false; // '<?xmlfoo' is not a declaration
+            if (after >= b.length || (!isXmlWs(b[after]) && b[after] !== 0x3f)) return false;
             const end = skipProcessingInstruction(b, i);
             if (end < 0) return false;
             sawXmlDecl = true;
@@ -247,7 +179,7 @@ function isSvgDocument(b: Uint8Array): boolean {
     const t = i + 4;
     if (t >= b.length) return false;
     const c = b[t];
-    return isXmlWs(c) || c === 0x3e || c === 0x2f || c === 0x3a; // ws | '>' | '/' | ':'
+    return isXmlWs(c) || c === 0x3e || c === 0x2f || c === 0x3a;
 }
 
 function normalizeMime(mimeType?: string): string | undefined {
@@ -267,7 +199,6 @@ function extFromName(name?: string): string | undefined {
     return /^[a-z0-9]{1,10}$/.test(ext) ? ext : undefined;
 }
 
-/** Extension for non-image kinds: from name, else sanitized MIME subtype, else 'bin'. */
 function extForGenericAsset(asset: Asset): string {
     const fromName = extFromName(asset.name);
     if (fromName) return fromName;
@@ -279,16 +210,6 @@ function extForGenericAsset(asset: Asset): string {
     return 'bin';
 }
 
-/**
- * Resolve real bytes for available assets, validate them, and assign
- * content-addressed virtual paths. Content addressing gives collision
- * handling for free: same bytes -> same path (dedup), same name with
- * different bytes -> different paths (no collision).
- *
- * @param byteStore per-run InlineByteStore from the normalize result
- *   (createInlineByteStore()). `undefined` is tolerated: inline refs then
- *   resolve as missing with a diagnostic, never silently.
- */
 export async function resolveAssets(
     assets: readonly Asset[],
     byteStore: InlineByteSource | undefined,
@@ -311,7 +232,6 @@ export async function resolveAssets(
     };
 
     for (const asset of assets) {
-        // ---- status gate: remote / missing / failed / notFetched never resolve bytes ----
         if (asset.status === 'remote') {
             effectiveStatus.set(asset.id, 'remote');
             diag(asset.id, 'info', 'ASSET_REMOTE_ONLY',
@@ -327,7 +247,6 @@ export async function resolveAssets(
             continue;
         }
 
-        // ---- status 'available': resolve real bytes ----
         let bytes: Uint8Array | undefined;
         let fetchNote: string | undefined;
         const ref = asset.storageRef;
@@ -353,8 +272,6 @@ export async function resolveAssets(
             fetchNote = `no bytes for storageRef '${ref}' (no inline bytes; no local file reader wired)`;
         }
 
-        // Canonical pseudo-available classification: available from metadata
-        // alone is not enough. Reuses assetResolution.ts, does not reinvent it.
         const classified = classifyAssetAvailability(asset, bytes !== undefined);
         if (classified.pseudoAvailable) {
             effectiveStatus.set(asset.id, 'missing');
@@ -366,7 +283,6 @@ export async function resolveAssets(
 
         const b = bytes as Uint8Array;
 
-        // ---- byte validation: non-empty, size gate ----
         if (b.length === 0) {
             effectiveStatus.set(asset.id, 'failed');
             diag(asset.id, 'warning', 'ASSET_ZERO_BYTES',
@@ -380,7 +296,6 @@ export async function resolveAssets(
             continue;
         }
 
-        // ---- content-type validation ----
         let ext: string;
         let mime: string;
         if (asset.kind === 'image') {
@@ -396,7 +311,6 @@ export async function resolveAssets(
             mime = normalizeMime(asset.mimeType) ?? 'application/octet-stream';
         }
 
-        // ---- content addressing ----
         let hash: string;
         try {
             hash = hashBytes(b);
@@ -415,11 +329,6 @@ export async function resolveAssets(
     return { pathMap, resolved, effectiveStatus, diagnostics };
 }
 
-/**
- * Validate image-kind bytes against supported Typst-renderable types.
- * Sniffed magic wins over declared metadata; garbage bytes are corrupt;
- * unrenderable types are refused. Emits diagnostics, never throws.
- */
 function checkImageContent(
     asset: Asset,
     bytes: Uint8Array,

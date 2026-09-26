@@ -22,8 +22,6 @@
   }
 
   if file-only {
-    // The component chooses stack vs grid from available width and projected
-    // stack height; the message renderer does not hard-code an item threshold.
     file-attachment-group(attachments)
   } else {
     for (index, attachment) in attachments.enumerate() {

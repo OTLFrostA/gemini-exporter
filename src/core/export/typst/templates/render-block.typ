@@ -58,8 +58,6 @@
   let cols = if "columns" in node { node.columns } else { none }
   let aligns = if "aligns" in node { node.aligns } else { none }
   let table = modern-table(headers, rows, columns: cols, aligns: aligns)
-  // D8-A parity: table captions are content (HTML renders <caption>); keep the
-  // caption glued to the table with the same muted figure-caption styling.
   if "caption" in node and node.caption != "" {
     [
       #align(center)[#text(size: 7.35pt, fill: muted)[#node.caption]]
@@ -107,9 +105,6 @@
   else { render-unknown(node, scope) }
 }
 
-// Generic keep-with-next grammar. The rule is semantic and type-based, never
-// keyed to a fixture/page number. All target blocks are either naturally small
-// or page-breakable; images additionally have a page-relative height budget in v8.
 #let should-keep-with-next(blocks, index) = {
   if index >= blocks.len() - 1 { false }
   else {

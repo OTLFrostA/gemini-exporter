@@ -1,90 +1,39 @@
-/**
- * src/core/export/typst/mathConverter.ts
- * Controlled LaTeX -> Typst math converter (Phase D, item 1).
- *
- * This is the only sanctioned way to turn canonical math nodes into Typst
- * math source for the v8 templates. It plugs directly into the payload
- * adapter hook:
- *
- *     convertMath?: (source: string, notation: string, display: boolean) => string | undefined
- *
- * Safety red line: the input is raw LaTeX source and the output is Typst
- * built ONLY from a whitelist (mapped commands, mapped single characters,
- * and escaped string literals for \text{}). User text is never spliced raw
- * into the Typst source. Any command or structure outside the whitelist
- * fails the WHOLE conversion (returns undefined + a RenderDiagnostic), so
- * the caller falls back to the raw latex plus a visible diagnostic instead
- * of emitting half-converted mixed output.
- *
- * Supported subset:
- * - \frac{a}{b} (brace or single-token args), \sqrt{x}, \sqrt[n]{x}
- * - sub/superscripts ^ _ incl. multi-char ^{...}, on \sum \int \prod
- * - lowercase Greek \alpha..\omega, distinct uppercase \Gamma \Delta \Theta
- *   \Lambda \Xi \Pi \Sigma \Phi \Psi \Omega
- * - + - = < > \times \div \leq \geq \neq \approx \pm \cdot \infty
- *   \ldots \cdots \to \rightarrow \leftarrow \Rightarrow \Leftarrow
- *   \leftrightarrow \mapsto
- * - \sin \cos \tan, \partial \nabla, \in \notin \forall \exists,
- *   \cup \cap \subset \subseteq \supset \supseteq
- * - accents \hat \bar \tilde \dot \ddot (single group arg)
- * - \text{...} (escaped into a Typst string literal)
- * - \left \right delimiters: ( ) [ ] \{ \} | \| \langle \rangle
- *   \lvert \rvert \lVert \rVert \lbrace \rbrace, and the null delimiter .
- * - \\ line break, display mode only (inline math has no line breaks)
- *
- * Deliberately NOT supported (whole conversion fails, caller keeps raw
- * latex): \begin environments, matrices, \mathrm/\mathbf/\mathit,
- * \vec, \underbrace/\overbrace, \middle, alignment &, % comments,
- * \displaystyle/\textstyle, unknown commands, unclosed braces.
- */
+// Output is built strictly from a whitelist of mapped tokens and escaped string literals so
+// untrusted LaTeX is never spliced into Typst `eval(mode: "math")`; any unsupported token fails the whole conversion.
 
 import type { MathNotation } from '../canonical/inline.js';
 import type { RenderDiagnostic } from '../canonical/rendering.js';
 
-/** Result of a diagnostic-carrying conversion attempt. */
 export interface MathConversionResult {
     typst?: string;
     diagnostic?: RenderDiagnostic;
 }
 
-/** Whitelisted simple command -> Typst math token (no arguments). */
 const SYMBOLS: Record<string, string> = {
-    // big operators (scripts attach: \sum_{i=1}^{n} -> sum_(i = 1)^n)
     sum: 'sum', int: 'int', prod: 'prod',
     alpha: 'alpha', beta: 'beta', gamma: 'gamma', delta: 'delta', epsilon: 'epsilon',
     zeta: 'zeta', eta: 'eta', theta: 'theta', iota: 'iota', kappa: 'kappa',
     lambda: 'lambda', mu: 'mu', nu: 'nu', xi: 'xi', pi: 'pi', rho: 'rho',
     sigma: 'sigma', tau: 'tau', upsilon: 'upsilon', phi: 'phi', chi: 'chi',
     psi: 'psi', omega: 'omega',
-    // Greek, uppercase (only forms distinct from Latin capitals)
     Gamma: 'Gamma', Delta: 'Delta', Theta: 'Theta', Lambda: 'Lambda',
     Xi: 'Xi', Pi: 'Pi', Sigma: 'Sigma', Phi: 'Phi', Psi: 'Psi', Omega: 'Omega',
-    // binary operators / relations
     times: 'times', div: 'div', pm: 'plus.minus', cdot: 'dot',
     leq: '<=', geq: '>=', neq: '!=', approx: 'approx',
-    // arrows
     to: '->', rightarrow: '->', leftarrow: '<-', Rightarrow: '=>',
     Leftarrow: '<=', leftrightarrow: '<->', mapsto: '|->',
-    // calculus / logic / sets
     infty: 'oo', partial: 'diff', nabla: 'nabla',
     in: 'in', notin: 'in.not', forall: 'forall', exists: 'exists',
     cup: 'union', cap: 'inter',
     subset: 'subset', subseteq: 'subset.eq', supset: 'supset', supseteq: 'supset.eq',
-    // upright function names (Typst math builtins)
     sin: 'sin', cos: 'cos', tan: 'tan',
-    // dots
     ldots: 'dots', cdots: 'dots.c',
 };
 
-/** Accent commands taking exactly one brace group: \hat{x} -> hat(x). */
 const ACCENTS: Record<string, string> = {
     hat: 'hat', bar: 'bar', tilde: 'tilde', dot: 'dot', ddot: 'dot.double',
 };
 
-/**
- * Delimiter after \left / \right, keyed by the LaTeX spelling.
- * '' is the null delimiter (\left. / \right.).
- */
 const DELIMITERS: Record<string, string> = {
     '(': '(', ')': ')', '[': '[', ']': ']',
     '{': 'brace.l', '}': 'brace.r',
@@ -94,10 +43,9 @@ const DELIMITERS: Record<string, string> = {
     'lbrace': 'brace.l', 'rbrace': 'brace.r',
 };
 
-/** Single non-letter characters allowed verbatim in Typst math. */
 const LITERAL_CHARS = new Set('+-=<>!,;:.\'?*/()[]|'.split(''));
 
-/** Own-property lookup: avoids prototype-chain hits like `\toString`. */
+// Avoid prototype-chain hits like `\toString`.
 function hasKey(map: Record<string, string>, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(map, key);
 }
@@ -105,7 +53,6 @@ function hasKey(map: Record<string, string>, key: string): boolean {
 class ConvertError extends Error {}
 
 interface Atom {
-    /** Typst source fragment for this atom. */
     text: string;
     /** True when a script (^/_) may attach directly without parens. */
     atomic: boolean;
@@ -142,7 +89,6 @@ class Parser {
         return atoms.map(a => a.text).join(' ');
     }
 
-    /** Parse atoms until end of input or a closing brace (not consumed). */
     private parseSequence(): Atom[] {
         const atoms: Atom[] = [];
         for (;;) {
@@ -162,7 +108,6 @@ class Parser {
         return atoms;
     }
 
-    /** Attach trailing scripts to a base atom: x_i^2, \sum_{i=1}^{n}, ... */
     private attachScripts(atom: Atom): Atom {
         for (;;) {
             this.skipSpace();
@@ -176,28 +121,24 @@ class Parser {
         }
     }
 
-    /** A script argument: a brace group or a single atom (command or char). */
     private parseScriptUnit(): Atom {
         this.skipSpace();
         if (this.peek() === '{') return this.parseGroup();
         return this.parseAtom();
     }
 
-    /** Parse a {...} group; the braces are consumed. */
     private parseGroup(): Atom {
-        this.pos += 1; // consume '{'
+        this.pos += 1;
         const atoms = this.parseSequence();
         this.skipSpace();
         if (this.peek() !== '}') {
             this.fail('unclosed brace: reached end of input inside {...}');
         }
-        this.pos += 1; // consume '}'
-        // A group holding a single atomic atom needs no parens: x^{2} -> x^2.
+        this.pos += 1;
         if (atoms.length === 1 && atoms[0]!.atomic) return atoms[0]!;
         return { text: atoms.map(a => a.text).join(' '), atomic: false };
     }
 
-    /** Parse one [...] optional argument for \sqrt[n]{...}. */
     private parseOptionalArg(): string | undefined {
         this.skipSpace();
         if (this.peek() !== '[') return undefined;
@@ -217,7 +158,6 @@ class Parser {
         return atoms.map(a => a.text).join(' ');
     }
 
-    /** A \frac/\sqrt argument: brace group or a SINGLE token (\frac12 -> frac(1, 2)). */
     private parseArg(what: string): Atom {
         this.skipSpace();
         if (this.peek() === '{') return this.parseGroup();
@@ -232,9 +172,8 @@ class Parser {
         if (c === '\\') return this.parseCommand();
         if (c === '{') return this.parseGroup();
         if (c === '') this.fail('unexpected end of input');
-        // Merge digit runs (incl. decimals) into one atom: "10", "3.14".
-        // Splitting them ("1 0") would render with a visible gap. A bare
-        // \frac/\sqrt argument takes exactly one token: \frac12 -> frac(1, 2).
+        // Merge digit runs into one atom so "10" doesn't render as "1 0", except bare
+        // \frac/\sqrt arguments which take a single TeX token (\frac12 -> frac(1, 2)).
         if (/[0-9]/.test(c)) {
             let num = '';
             const take = singleToken ? 1 : Infinity;
@@ -259,9 +198,8 @@ class Parser {
     }
 
     private parseCommand(): Atom {
-        this.pos += 1; // consume '\'
+        this.pos += 1;
         const c = this.peek();
-        // Escaped single non-letter char: \{ \} \| ...
         if (c !== '' && !/[A-Za-z]/.test(c)) {
             this.pos += 1;
             if (c === '{') return { text: 'brace.l', atomic: true };
@@ -305,7 +243,6 @@ class Parser {
         this.fail(`unsupported command '\\${name}'`);
     }
 
-    /** \text{...}: raw text, no math parsing inside, escaped to a Typst string. */
     private parseTextArg(): string {
         this.skipSpace();
         if (this.peek() !== '{') {
@@ -327,7 +264,6 @@ class Parser {
         return `"${escapeTypstString(raw)}"`;
     }
 
-    /** Delimiter following \left or \right. */
     private parseDelimiter(which: string): string {
         this.skipSpace();
         let key: string;
@@ -357,21 +293,14 @@ class Parser {
         return DELIMITERS[key]!;
     }
 
-    /** \\ line break: only meaningful in display math. */
     private parseNewline(): Atom {
         if (!this.display) {
             this.fail("'\\\\' line break is not supported in inline math");
         }
-        // Typst math line break is a backslash followed by a newline.
         return { text: '\\\n', atomic: true };
     }
 }
 
-/**
- * Escape arbitrary text into a Typst string literal body. Control
- * characters become \u{...} escapes so no raw control byte can leak into
- * the generated Typst source.
- */
 function escapeTypstString(raw: string): string {
     let out = '';
     for (const ch of raw) {
@@ -396,10 +325,6 @@ function warn(code: string, message: string): RenderDiagnostic {
     return { severity: 'warning', code, message };
 }
 
-/**
- * Controlled conversion with a diagnostic channel. On success returns
- * { typst }; on any failure returns { diagnostic } (no partial output).
- */
 export function convertMathWithDiagnostic(
     source: string,
     notation: MathNotation | string,
@@ -444,12 +369,6 @@ export function convertMathWithDiagnostic(
     }
 }
 
-/**
- * Drop-in for the payload adapter hook
- * `convertMath?: (source: string, notation: string, display: boolean) => string | undefined`.
- * Returns the Typst math body (the `$ ... $` wrapping is the template's
- * job), or undefined when the input cannot be safely converted.
- */
 export function convertMath(
     source: string,
     notation: string,

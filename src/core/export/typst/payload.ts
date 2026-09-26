@@ -1,24 +1,4 @@
-/**
- * src/core/export/typst/payload.ts
- * Canonical bundle -> Typst v8 render payload adapter (P1a).
- *
- * The payload is a disposable transport for the proven v8 templates in
- * ./templates/; it is deliberately NOT the canonical archive model.
- *
- * Injection red line: user text travels ONLY as JSON data fields. This module
- * never interpolates user text into Typst source, and the templates consume
- * the payload via json() + eval() of adapter-controlled math only.
- *
- * Math: `convertMath` is the single controlled conversion hook
- * (source LaTeX -> trusted Typst math). Without a converter the raw `latex`
- * source is preserved and the template renders it as a visible note, never
- * silently dropped.
- *
- * P1b contract (not this PR): the sandbox compiler must pass
- * `beforeBuild: [loadFonts([], { assets: false })]` so typst.ts never pulls
- * fonts from jsdelivr, and must verify the MATH table at font-load time.
- * Scope here is payload only: no WASM loading, no sandbox page (P1b).
- */
+// User text travels strictly as JSON data fields consumed via json() in Typst; only convertMath output is evaluated as Typst math.
 
 import type { Asset } from '../canonical/assets.js';
 import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../canonical/assetReferences.js';
@@ -35,7 +15,6 @@ import type {
 } from '../canonical/conversation.js';
 import type { InlineNode } from '../canonical/inline.js';
 
-/** Disposable transport consumed by the proven Typst v8 templates. */
 export type TypstInlineNode =
     | { type: 'text'; text: string }
     | { type: 'strong'; children: TypstInlineNode[] }
@@ -96,28 +75,9 @@ export interface TypstAdapterDiagnostic {
 }
 
 export interface TypstPayloadOptions {
-    /**
-     * Maps a canonical asset to the virtual path made available to Typst,
-     * e.g. assets/sha256/ab/cd/image.png. Return undefined when the asset
-     * has no path; the adapter emits a visible unknown node + diagnostic.
-     */
     assetPath(asset: Asset): string | undefined;
-
-    /**
-     * Controlled math conversion: source math -> trusted Typst math.
-     * Failure is represented by undefined (raw latex preserved).
-     */
     convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
-
-    /**
-     * D7 S3: pre-projected messages from the S1 projection stage.
-     * When provided, the adapter skips its internal linearizeMessages and
-     * uses these verbatim; the PDF pipeline must never re-derive the view.
-     * When absent, behavior is unchanged (internal linearization).
-     */
     projectedMessages?: MessageNode[];
-
-    /** Explicit branch leaf overrides conversation.selectedLeafMessageId. */
     leafMessageId?: string;
 }
 
@@ -202,19 +162,14 @@ function renderInline(
         case 'strong': return { type: 'strong', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'emphasis': return { type: 'emphasis', children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'strikethrough':
-            // v8 transport has no strike node; preserve text rather than styling.
             return { type: 'text', text: node.children.map(n => plainInline([n], new Map())).join('') };
         case 'inlineCode': return { type: 'inlineCode', text: node.code };
         case 'link': return { type: 'link', url: node.href, children: node.children.map(n => renderInline(n, assets, citations, options, diagnostics, path)) };
         case 'image': {
-            // Inline images are first-class transport nodes now; only a missing
-            // asset (not the transport) forces a visible fallback.
             const asset = assets.get(node.assetId);
             const assetPath = asset ? options.assetPath(asset) : undefined;
             if (!asset || !assetPath) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_INLINE_IMAGE_MISSING', message: `Inline image asset ${node.assetId} unavailable to Typst; showing alt text.`, path });
-                // D8-A parity: prefer the human-readable asset name over the internal id,
-                // matching the HTML renderer's missing-image placeholder.
                 return { type: 'text', text: node.alt ?? asset?.name ?? `[image: ${node.assetId}]` };
             }
             return { type: 'image', asset: assetPath, ...(node.alt ? { alt: node.alt } : {}) };
@@ -301,7 +256,6 @@ function renderBlock(
                 headers,
                 rows: block.rows.map(row => row.cells.map(cell => inline(cell.children))),
                 ...(aligns && aligns.length ? { aligns } : {}),
-                // D8-A parity: table captions are content; the HTML renderer shows them.
                 ...(block.caption?.length ? { caption: plainInline(block.caption, plainCitations) } : {}),
             };
         }
@@ -310,8 +264,6 @@ function renderBlock(
             const assetPath = asset ? options.assetPath(asset) : undefined;
             if (!asset || !assetPath) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Image asset ${block.assetId} unavailable to Typst.`, path });
-                // D8-A parity: prefer the human-readable asset name over the internal id,
-                // matching the HTML renderer's missing-image placeholder.
                 return { type: 'unknown', sourceType: 'missing-image', fallback: block.alt ?? asset?.name ?? `Missing image: ${block.assetId}` };
             }
             const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
@@ -381,7 +333,6 @@ function linearizeMessages(bundle: CanonicalConversationBundle, leafOverride?: s
         return chain.reverse();
     }
 
-    // Flat legacy conversations often have no parent ids at all.
     if (messages.every(m => !m.parentId)) {
         return [...messages].sort((a, b) => (a.siblingIndex ?? 0) - (b.siblingIndex ?? 0) || (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.id.localeCompare(b.id));
     }
@@ -425,13 +376,7 @@ function toRenderMessage(
         if (mapped) blocks.push(mapped);
     });
 
-    // Message-level asset association is NOT used to invent ordering. It only
-    // supplies attachments for associated assets that have no placement in the
-    // message: an inline image is inline placement, so its asset must not also
-    // appear as a trailing attachment. Which companions become trailing
-    // *image* attachments is decided by the shared
-    // collectUnplacedAssociatedImageIds helper — the same rule resourceStage
-    // uses for binary resolution, so the two stages can never disagree.
+    // Only emit trailing attachments for associated assets not already placed inline or as a block in the message.
     const referencedIds = collectReferencedAssetIds(message.blocks);
     const trailingImageIds = collectUnplacedAssociatedImageIds(
         message, referencedIds, (id) => assets.get(id)?.kind,
@@ -446,9 +391,6 @@ function toRenderMessage(
             if (path) {
                 attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes)}` });
             } else {
-                // Never a silent drop: the companion was promised as a
-                // trailing image attachment, but the stage output gave it no
-                // path (not resolved, or missing). The PDF must say so.
                 diagnostics.push({
                     severity: 'warning',
                     code: 'TYPST_V8_ASSOCIATED_IMAGE_MISSING',
@@ -473,10 +415,6 @@ function toRenderMessage(
     };
 }
 
-/**
- * Convert a canonical conversation bundle to the Typst v8 render payload.
- * Text travels as JSON data only; this function builds no Typst source.
- */
 export function toTypstPayload(
     bundle: CanonicalConversationBundle,
     options: TypstPayloadOptions,
@@ -489,8 +427,6 @@ export function toTypstPayload(
     }]));
     const citationLabels = new Map([...citations.entries()].map(([id, c]) => [id, c.label]));
 
-    // D7 S3 may hand us the S1 projected view directly; only fall back to
-    // internal linearization for callers that do not project first.
     const messages = (options.projectedMessages ?? linearizeMessages(bundle, options.leafMessageId))
         .map(message => toRenderMessage(message, assets, citationLabels, citations, options, diagnostics));
 

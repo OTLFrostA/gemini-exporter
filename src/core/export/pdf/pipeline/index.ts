@@ -1,10 +1,3 @@
-/**
- * src/core/export/pdf/pipeline/index.ts
- *
- * D7 end-to-end PDF pipeline: frozen stage contracts (M1) + orchestrator.
- * Stage implementations land in M2-M5; the production compiler swap in M6.
- */
-
 export {
     PIPELINE_STAGE_ORDER,
     StageError,

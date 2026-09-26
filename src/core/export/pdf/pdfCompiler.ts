@@ -1,35 +1,9 @@
-/**
- * src/core/export/pdf/pdfCompiler.ts
- *
- * Frozen PDF compile interface for the PDF export route.
- *
- * P1b WILL REPLACE the stub below with the real Typst compiler
- * (sandbox page + postMessage, WASM). The interface is frozen: P1b must
- * implement IPdfCompiler, not change it. If P1b finds the interface truly
- * insufficient, it must report back instead of silently widening it.
- *
- * Compile contract:
- * - input:  TypstRenderPayload (canonical bundle; P1a fills messageHints/
- *           convertedMath) + RenderContext (bundle, assets, locale,
- *           AbortSignal, reportProgress)
- * - output: { pdfBytes, diagnostics }
- * - cancellation: implementations MUST stop promptly when
- *   context.signal aborts and throw a DOMException named 'AbortError'.
- * - no silent loss: every dropped/omitted piece of content must surface
- *   as a diagnostic, never disappear quietly.
- */
-
 import type {
     RenderContext,
     RenderDiagnostic,
     TypstRenderPayload,
 } from '../canonical/rendering.js';
 
-/**
- * Stable compiler name of the test stub. The D7 M6 stub gate in
- * pdfExporter.ts matches on this name (not instanceof) so a stub can never
- * silently reach the production export path, even across bundle boundaries.
- */
 export const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
 
 export interface PdfCompileResult {
@@ -38,26 +12,11 @@ export interface PdfCompileResult {
 }
 
 export interface IPdfCompiler {
-    /** Stable name for logs/diagnostics, e.g. 'typst-wasm' or 'stub'. */
     readonly name: string;
     compile(payload: TypstRenderPayload, context: RenderContext): Promise<PdfCompileResult>;
 }
 
-/**
- * Minimal one-page PDF used by the stub. Parseable, text-extractable,
- * deliberately content-free: it only proves the plumbing (normalize ->
- * compile -> writer) works end to end.
- */
-/**
- * Builds a minimal but genuinely valid one-page PDF: real indirect objects,
- * a classic xref table whose byte offsets are computed (never hardcoded),
- * and a startxref pointer aimed at the actual xref table.
- *
- * Test fixtures and the stub compiler MUST use this. Hand-written
- * "startxref 0" fixtures are not valid PDFs (offset 0 points at the
- * %PDF- header, not a cross-reference table) and are rejected by the S4
- * verifier's pointer check.
- */
+/** Computes real xref byte offsets so the output passes structural PDF verification. */
 export function buildMinimalValidPdf(): Uint8Array {
     const objects = [
         '<< /Type /Catalog /Pages 2 0 R >>',
@@ -105,27 +64,10 @@ function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 export interface StubPdfCompilerOptions {
-    /**
-     * When set, compile() throws Error(failWith) instead of returning a
-     * PDF. Deterministic failure for Tier 1 tests and UI retry drills.
-     */
     failWith?: string;
-    /**
-     * Artificial delay in ms before producing output. Lets cancellation
-     * tests win the race deterministically.
-     */
     delayMs?: number;
 }
 
-/**
- * StubPdfCompiler — deterministic stand-in for the real Typst compiler.
- *
- * Exists ONLY so tests and parallel UI work can run the export plumbing
- * without the WASM sandbox. Test-only: D7 M6 gates the production export
- * path against this class (see the stub gate in pdfExporter.ts) — a stub
- * reaching production without an explicit `allowStub` opt-in is a hard
- * error, never a silent placeholder PDF.
- */
 export class StubPdfCompiler implements IPdfCompiler {
     readonly name = STUB_PDF_COMPILER_NAME;
 
