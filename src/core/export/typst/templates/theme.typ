@@ -127,6 +127,24 @@
     below: 0pt,
     text(size: 10.1pt, weight: 620, fill: ink, it.body),
   )
+  show heading.where(level: 4): it => block(
+    sticky: true,
+    above: 0pt,
+    below: 0pt,
+    text(size: 9.3pt, weight: 610, fill: ink, it.body),
+  )
+  show heading.where(level: 5): it => block(
+    sticky: true,
+    above: 0pt,
+    below: 0pt,
+    text(size: 8.7pt, weight: 600, fill: ink, it.body),
+  )
+  show heading.where(level: 6): it => block(
+    sticky: true,
+    above: 0pt,
+    below: 0pt,
+    text(size: 8.2pt, weight: 600, fill: ink-soft, it.body),
+  )
 
   show link: set text(fill: accent)
   show raw.where(block: true): set text(font: font-mono, size: code-size)

@@ -5,7 +5,6 @@ import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplaced
 import type {
     BlockNode,
     TableCell,
-    TableRow,
 } from '../canonical/blocks.js';
 import type {
     CanonicalConversationBundle,
@@ -29,22 +28,22 @@ export type TypstListItem = { blocks: TypstBlockNode[] };
 
 export type TypstBlockNode =
     | { type: 'paragraph'; children: TypstInlineNode[] }
-    | { type: 'heading'; level: 1 | 2 | 3; children: TypstInlineNode[] }
+    | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: TypstInlineNode[] }
     | { type: 'list'; ordered: boolean; start?: number; items: TypstListItem[] }
-    | { type: 'code'; language: string; text: string }
+    | { type: 'code'; language: string; text: string; filename?: string; meta?: string }
     | { type: 'math'; latex: string; typst?: string }
     | {
         type: 'table';
-        headers: TypstInlineNode[][];
+        headers: TypstInlineNode[][][];
         rows: TypstInlineNode[][][];
         columns?: number[];
         aligns?: ('left' | 'center' | 'right')[];
         caption?: string;
     }
     | { type: 'image'; asset: string; caption?: string }
-    | { type: 'file'; name: string; kind: string; size: string }
+    | { type: 'file'; name: string; kind: string; size: string; description?: string }
     | { type: 'quote'; blocks: TypstBlockNode[] }
-    | { type: 'note'; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
+    | { type: 'note'; label?: string; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
     | { type: 'thematicBreak' }
     | { type: 'unknown'; sourceType?: string; blocks?: TypstBlockNode[]; fallback?: string };
 
@@ -204,10 +203,6 @@ function renderInline(
     }
 }
 
-function firstHeaderRow(rows?: TableRow[]): TableRow | undefined {
-    return rows && rows.length > 0 ? rows[0] : undefined;
-}
-
 function cellInline(cell: TableCell): InlineNode[] {
     return cell.children;
 }
@@ -227,9 +222,7 @@ function renderBlock(
     switch (block.type) {
         case 'paragraph': return { type: 'paragraph', children: inline(block.children) };
         case 'heading': {
-            const level = Math.min(block.level, 3) as 1 | 2 | 3;
-            if (block.level > 3) diagnostics.push({ severity: 'warning', code: 'TYPST_V8_HEADING_CLAMP', message: `Heading level ${block.level} rendered as level 3.`, path });
-            return { type: 'heading', level, children: inline(block.children) };
+            return { type: 'heading', level: block.level, children: inline(block.children) };
         }
         case 'list': {
             const items: TypstListItem[] = [];
@@ -256,15 +249,19 @@ function renderBlock(
             });
             return { type: 'quote', blocks: kids };
         }
-        case 'code': return { type: 'code', language: block.language ?? 'text', text: block.code };
+        case 'code': return {
+            type: 'code',
+            language: block.language ?? 'text',
+            text: block.code,
+            ...(block.filename !== undefined ? { filename: block.filename } : {}),
+            ...(block.meta !== undefined ? { meta: block.meta } : {}),
+        };
         case 'math': {
             const typst = options.convertMath?.(block.source, block.notation, true);
             return typst ? { type: 'math', latex: block.source, typst } : { type: 'math', latex: block.source };
         }
         case 'table': {
-            const header = firstHeaderRow(block.headerRows);
-            const headers = header?.cells.map(c => inline(cellInline(c))) ?? [];
-            if ((block.headerRows?.length ?? 0) > 1) diagnostics.push({ severity: 'warning', code: 'TYPST_V8_MULTI_HEADER_COLLAPSE', message: 'Only the first canonical header row is native in the v8 transport.', path });
+            const headers = (block.headerRows ?? []).map(row => row.cells.map(c => inline(cellInline(c))));
             if ([...(block.headerRows ?? []), ...block.rows].some(r => r.cells.some(c => (c.colSpan ?? 1) !== 1 || (c.rowSpan ?? 1) !== 1))) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_TABLE_SPAN_IGNORED', message: 'colSpan/rowSpan are not supported by the v8 transport.', path });
             }
@@ -292,11 +289,24 @@ function renderBlock(
         case 'file': {
             const asset = assets.get(block.assetId);
             if (!asset) return { type: 'unknown', sourceType: 'missing-file', fallback: block.label ?? `Missing file: ${block.assetId}` };
-            return { type: 'file', name: block.label ?? asset.name ?? block.assetId, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes) };
+            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
+            return {
+                type: 'file',
+                name: block.label ?? asset.name ?? block.assetId,
+                kind: mimeLabel(asset),
+                size: humanBytes(asset.sizeBytes),
+                ...(block.description?.length ? { description: plainInline(block.description, plainCitations) } : {}),
+            };
         }
         case 'citationGroup': {
             const text = block.citationIds.map(id => citations.get(id)?.label ?? id).join(' · ');
-            return { type: 'note', children: [{ type: 'text', text: text || 'Sources' }] };
+            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
+            const title = block.title?.length ? plainInline(block.title, plainCitations) : undefined;
+            return {
+                type: 'note',
+                ...(title ? { label: title } : {}),
+                children: [{ type: 'text', text: text || 'Sources' }],
+            };
         }
         case 'thought': {
             const kids: TypstBlockNode[] = [];
@@ -304,7 +314,11 @@ function renderBlock(
                 const rendered = sub(child, index, 'thought');
                 if (rendered) kids.push(rendered);
             });
-            return { type: 'note', blocks: kids };
+            const label = block.kind === 'summary' ? 'Thinking Summary'
+                : block.kind === 'progress' ? 'Thinking Progress'
+                : block.kind === 'reasoning' ? 'Thinking Process'
+                : undefined;
+            return { type: 'note', ...(label ? { label } : {}), blocks: kids };
         }
         case 'toolCall':
         case 'toolResult': {

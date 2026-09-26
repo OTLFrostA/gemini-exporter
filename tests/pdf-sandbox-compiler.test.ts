@@ -175,7 +175,7 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
                     ],
                 },
                 {
-                    type: 'table', headers: [[{ type: 'text', text: 'h' }]],
+                    type: 'table', headers: [[[{ type: 'text', text: 'h' }]]],
                     rows: [[[{ type: 'inlineMath', latex: 'w', typst: 'w' }]]],
                 },
             ],

@@ -333,7 +333,7 @@
   ]
 ]
 
-#let code-surface(lang, code) = wide(
+#let code-surface(lang, code, filename: none, meta: none) = wide(
   block(
     width: 100%,
     fill: embedded-fill,
@@ -343,7 +343,9 @@
     breakable: true,
   )[
     #block(sticky: true, inset: (left: 12pt, right: 12pt, top: 7pt, bottom: 2pt))[
-      #text(size: 7.05pt, weight: 530, fill: muted)[#lang]
+      #text(size: 7.05pt, weight: 530, fill: muted)[
+        #if filename == none { lang } else if lang == "text" { filename } else { filename + " · " + lang }#if meta != none and meta != "" [ · #meta]
+      ]
     ]
     #block(inset: (left: 12pt, right: 12pt, top: 2.5pt, bottom: 9.5pt))[
       #raw(code, block: true, lang: lang, theme: "quiet-light.tmTheme")
@@ -427,14 +429,14 @@
   block(width: 100%)[
     #set text(size: 8.5pt)
     #let cols = if columns == none {
-      if headers.len() > 0 { headers.len() }
+      if headers.len() > 0 { headers.first().len() }
       else if rows.len() > 0 { rows.first().len() }
       else { 1 }
     } else { columns.map(x => x * 1fr) }
     #let al = if aligns == none { left } else {
       aligns.map(x => if x == "center" { center } else if x == "right" { right } else { left })
     }
-    #let header-cells = headers.map(h => table.cell(
+    #let header-cells = headers.flatten().map(h => table.cell(
       fill: header-fill,
       stroke: (bottom: 0.4pt + rule),
       text(size: 8.1pt, weight: 600)[#h],
