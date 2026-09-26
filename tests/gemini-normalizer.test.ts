@@ -1,0 +1,279 @@
+/**
+ * tests/gemini-normalizer.test.ts
+ * Tier 1 tests for the F2b Gemini -> canonical normalizer.
+ *
+ * Covers: markdown body structure + block order, thoughts -> ThoughtBlock,
+ * citations -> Citation entities + CitationGroupBlock + [n] markers,
+ * attachment/image/document mapping + dedupe, unknown/unknownInline
+ * fallbacks, title authority tiers, attachment availability diagnostics,
+ * turns-shape fallback, raw evidence preservation, and the
+ * projectConversation + validateBundle self-checks.
+ */
+export {};
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const canonical = require('../src/core/export/canonical/index.js');
+const {
+    normalizeGeminiConversation,
+    GeminiNormalizer,
+    validateBundle,
+    projectConversation,
+    validateMessageTree,
+    unknownBlockFallbackText,
+} = canonical;
+
+const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
+const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
+const turnsSample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-turns.json'), 'utf8'));
+
+function textOf(node: any) {
+    return (node.children || []).map((c: any) => c.text || '').join('');
+}
+
+test('markdown body keeps block order and structure', async () => {
+    const { bundle, diagnostics } = await normalizeGeminiConversation(sample);
+    const user = bundle.conversation.messages.find((m: any) => m.id === 'm-u1');
+    assert.ok(user, 'user message m-u1 present');
+    const kinds = user.blocks.map((b: any) => b.type);
+    assert.deepStrictEqual(kinds, [
+        'heading', 'paragraph', 'list', 'list', 'quote', 'thematicBreak', 'paragraph', 'image',
+    ]);
+
+    // Heading.
+    assert.strictEqual(user.blocks[0].level, 1);
+    assert.strictEqual(textOf(user.blocks[0]), 'Shopping list');
+
+    // Inline emphasis in the paragraph.
+    const inlineKinds = user.blocks[1].children.map((c: any) => c.type);
+    assert.ok(inlineKinds.includes('strong'), 'bold survives');
+    assert.ok(inlineKinds.includes('emphasis'), 'italic survives');
+    assert.ok(inlineKinds.includes('strikethrough'), 'strikethrough survives');
+    const strong = user.blocks[1].children.find((c: any) => c.type === 'strong');
+    assert.strictEqual(textOf(strong), 'milk');
+
+    // Unordered list with a nested list under the first item.
+    const ul = user.blocks[2];
+    assert.strictEqual(ul.ordered, false);
+    assert.strictEqual(ul.items.length, 2);
+    assert.strictEqual(ul.items[0].blocks.length, 2);
+    assert.strictEqual(ul.items[0].blocks[1].type, 'list');
+    assert.deepStrictEqual(
+        ul.items[0].blocks[1].items.map((it: any) => textOf(it.blocks[0])),
+        ['fuji', 'gala'],
+    );
+
+    // Ordered list.
+    const ol = user.blocks[3];
+    assert.strictEqual(ol.ordered, true);
+    assert.strictEqual(ol.start, 1);
+    assert.strictEqual(ol.items.length, 2);
+
+    // Quote + thematic break.
+    assert.strictEqual(user.blocks[4].type, 'quote');
+    assert.strictEqual(textOf(user.blocks[4].blocks[0]), 'remember the receipt');
+    assert.strictEqual(user.blocks[5].type, 'thematicBreak');
+
+    // Inline markdown image is NOT an ImageBlock (no placement knowledge):
+    // it degrades to unknownInline with a readable fallback and the raw URL.
+    const imgPara = user.blocks[6];
+    assert.strictEqual(imgPara.type, 'paragraph');
+    const img = imgPara.children.find((c: any) => c.type === 'unknownInline');
+    assert.ok(img, 'inline image degraded to unknownInline');
+    assert.strictEqual(img.sourceType, 'inline-image');
+    assert.strictEqual(img.fallbackText, 'alt text');
+    assert.strictEqual(img.rawRef, 'https://example.com/inline.png');
+    assert.ok(
+        diagnostics.some((d: any) => d.code === 'INLINE_IMAGE_DOWNGRADE'),
+        'inline-image downgrade is surfaced as a diagnostic',
+    );
+    assert.ok(!diagnostics.some((d: any) => d.severity === 'error'), 'no error diagnostics');
+});
+
+test('thoughts become ThoughtBlock without rendering state', async () => {
+    const { bundle } = await normalizeGeminiConversation(sample);
+    const model = bundle.conversation.messages.find((m: any) => m.id === 'm-a1');
+    const thought = model.blocks[0];
+    assert.strictEqual(thought.type, 'thought');
+    assert.strictEqual(thought.kind, 'reasoning');
+    assert.strictEqual(thought.disclosure, 'providerExposed');
+    assert.ok(textOf(thought.blocks[0]).includes('The user wants a plan'), 'thought text preserved');
+    assert.ok(!('initiallyCollapsed' in thought), 'no rendering state leaks into canonical');
+});
+
+test('citations become Citation entities, a CitationGroupBlock, and citationRef inlines', async () => {
+    const { bundle } = await normalizeGeminiConversation(sample);
+    // Duplicate URL collapses to one Citation entity.
+    assert.strictEqual(bundle.citations.length, 2);
+    assert.deepStrictEqual(
+        bundle.citations.map((c: any) => c.url).sort(),
+        ['https://example.com/docs-page', 'https://example.com/plan'],
+    );
+    assert.deepStrictEqual(
+        bundle.citations.map((c: any) => c.title).sort(),
+        ['Docs reference', 'Plan source'],
+    );
+
+    const model = bundle.conversation.messages.find((m: any) => m.id === 'm-a1');
+    const group = model.blocks[model.blocks.length - 1];
+    assert.strictEqual(group.type, 'citationGroup');
+    assert.strictEqual(group.citationIds.length, 2);
+
+    // [1]/[2] markers map to citationRef inlines pointing at the right ids.
+    const para = model.blocks[1];
+    const refs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(refs.length, 2);
+    const byId: Map<string, any> = new Map(bundle.citations.map((c: any) => [c.id, c.url]));
+    assert.strictEqual(byId.get(refs[0].citationId), 'https://example.com/plan');
+    assert.strictEqual(byId.get(refs[1].citationId), 'https://example.com/docs-page');
+    assert.strictEqual(refs[0].label, '[1]');
+    assert.strictEqual(refs[1].label, '[2]');
+
+    // Inline math and link survive in the same paragraph.
+    const math = para.children.find((c: any) => c.type === 'inlineMath');
+    assert.ok(math && math.source === 'E=mc^2');
+    const link = model.blocks.find((b: any) => b.type === 'paragraph' && b.children.some((c: any) => c.type === 'link'));
+    assert.ok(link.children.find((c: any) => c.type === 'link' && c.href === 'https://example.com/docs'));
+
+    // Code fence, table, display math.
+    const code = model.blocks.find((b: any) => b.type === 'code');
+    assert.strictEqual(code.language, 'python');
+    assert.ok(code.code.includes('print("hello")'));
+    const table = model.blocks.find((b: any) => b.type === 'table');
+    assert.deepStrictEqual(table.columns.map((c: any) => c.align), ['left', 'right']);
+    assert.deepStrictEqual(table.headerRows[0].cells.map((c: any) => textOf(c)), ['item', 'qty']);
+    assert.deepStrictEqual(table.rows[0].cells.map((c: any) => textOf(c)), ['milk', '2']);
+    const mathBlock = model.blocks.find((b: any) => b.type === 'math');
+    assert.strictEqual(mathBlock.source, '\\frac{a}{b}');
+});
+
+test('attachments map to assets with availability and dedupe', async () => {
+    const { bundle, diagnostics } = await normalizeGeminiConversation(sample);
+    // receipt.png appears in both attachments[] and images[] -> one asset.
+    assert.strictEqual(bundle.assets.length, 3);
+    const byName: Map<string, any> = new Map(bundle.assets.map((a: any) => [a.name, a]));
+    const receipt = byName.get('receipt.png');
+    assert.strictEqual(receipt.kind, 'image');
+    assert.strictEqual(receipt.status, 'available');
+    assert.strictEqual(receipt.mimeType, 'image/png');
+
+    const plan = byName.get('plan.pdf');
+    assert.strictEqual(plan.kind, 'file');
+    assert.strictEqual(plan.status, 'remote');
+    assert.strictEqual(plan.sourceUrl, 'https://example.com/files/plan.pdf');
+
+    const corrupt = byName.get('corrupt.bin');
+    assert.strictEqual(corrupt.status, 'missing');
+    assert.ok(
+        diagnostics.some((d: any) => d.code === 'ATTACHMENT_NO_SOURCE' && d.severity === 'warning'),
+        'attachment with no usable source raises a warning, not silent loss',
+    );
+
+    // Placement blocks reference the assets; message keeps the association index.
+    const user = bundle.conversation.messages.find((m: any) => m.id === 'm-u1');
+    assert.deepStrictEqual(user.associatedAssetIds, [receipt.id]);
+    const imgBlock = user.blocks.find((b: any) => b.type === 'image');
+    assert.strictEqual(imgBlock.assetId, receipt.id);
+    const model = bundle.conversation.messages.find((m: any) => m.id === 'm-a1');
+    const fileBlocks = model.blocks.filter((b: any) => b.type === 'file');
+    assert.strictEqual(fileBlocks.length, 2);
+});
+
+test('unknown role and non-string content are preserved, never dropped', async () => {
+    const { bundle, diagnostics } = await normalizeGeminiConversation(sample);
+    const weird = bundle.conversation.messages.find((m: any) => m.id === 'm-x1');
+    assert.ok(weird, 'message with unknown role is kept');
+    assert.strictEqual(weird.role, 'unknown');
+    assert.strictEqual(weird.author && weird.author.rawRole, 'weird-role');
+    assert.ok(diagnostics.some((d: any) => d.code === 'UNKNOWN_ROLE'), 'unknown role is diagnosed');
+
+    const ub = weird.blocks[0];
+    assert.strictEqual(ub.type, 'unknown');
+    assert.strictEqual(ub.sourceType, 'message-content');
+    assert.deepStrictEqual(ub.payload, { not: 'a string' });
+    assert.ok(unknownBlockFallbackText(ub).length > 0, 'unknown block has a readable fallback');
+    assert.ok(diagnostics.some((d: any) => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
+});
+
+test('title authority: rpc candidate wins over takeout/sniff', async () => {
+    const { bundle } = await normalizeGeminiConversation(sample);
+    const title = bundle.conversation.title;
+    assert.strictEqual(title.value, 'RPC Authoritative Title');
+    assert.strictEqual(title.source, 'rpc');
+    const seen = new Set(title.candidates.map((c: any) => `${c.source}:${c.value}`));
+    assert.ok(seen.has('rpc:RPC Authoritative Title'));
+    assert.ok(seen.has('sniff:Sniff Observed Title'));
+    assert.ok(seen.has('takeout:Takeout Provisional Title'));
+
+    // A low-authority candidate alone must not claim a higher tier.
+    const low = await normalizeGeminiConversation({ id: 'x', titles: { takeout: 'T' }, messages: [] });
+    assert.strictEqual(low.bundle.conversation.title.source, 'takeout');
+});
+
+test('conversation timestamps and key are preserved', async () => {
+    const { bundle } = await normalizeGeminiConversation(sample);
+    const conv = bundle.conversation;
+    assert.strictEqual(conv.key.providerId, 'gemini');
+    assert.strictEqual(conv.key.conversationId, 'c_f2b_sample_001');
+    assert.strictEqual(conv.createdAt, '2024-09-22T10:13:20.000Z');
+    assert.strictEqual(conv.updatedAt, '2024-09-22T11:13:20.000Z');
+    assert.strictEqual(conv.extensions.gemini.url, 'https://gemini.google.com/share/f2b-sample');
+});
+
+test('turns shape flattens to user/assistant messages', async () => {
+    const { bundle } = await normalizeGeminiConversation(turnsSample);
+    assert.strictEqual(bundle.conversation.messages.length, 4);
+    assert.deepStrictEqual(
+        bundle.conversation.messages.map((m: any) => m.role),
+        ['user', 'assistant', 'user', 'assistant'],
+    );
+    const t1Model = bundle.conversation.messages[1];
+    assert.strictEqual(t1Model.blocks[0].type, 'thought');
+    assert.ok(textOf(t1Model.blocks[0].blocks[0]).includes('greeting detected'));
+    assert.strictEqual(textOf(t1Model.blocks[1]), 'I am a test assistant.');
+    const t2Model = bundle.conversation.messages[3];
+    const code = t2Model.blocks.find((b: any) => b.type === 'code');
+    assert.strictEqual(code.language, 'js');
+    const gen = bundle.assets.find((a: any) => a.name === 'generated.png');
+    assert.ok(gen, 'generated attachment mapped');
+    assert.strictEqual(gen.status, 'remote');
+});
+
+test('raw evidence is stored before deriving, ref lands in the observation', async () => {
+    const stored: Array<{ kind: string; data: any }> = [];
+    const context = {
+        providerId: 'gemini',
+        accountId: '',
+        observedAt: new Date().toISOString(),
+        rawEvidence: {
+            put: async (kind: any, data: any) => {
+                stored.push({ kind, data });
+                return 'raw://test/evidence-1';
+            },
+        },
+    };
+    const normalizer = new GeminiNormalizer();
+    const { bundle } = await normalizer.normalize(sample, context);
+    assert.strictEqual(stored.length, 1);
+    assert.strictEqual(stored[0].kind, 'gemini-conversation');
+    assert.strictEqual(stored[0].data, sample, 'original payload stored, not the cleaned text');
+    assert.strictEqual(bundle.observations[0].rawRef, 'raw://test/evidence-1');
+});
+
+test('bundle passes validateBundle and projectConversation self-check', async () => {
+    for (const raw of [sample, turnsSample]) {
+        const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
+        const issues = validateBundle(bundle);
+        const errors = issues.filter((d: any) => d.severity === 'error');
+        assert.deepStrictEqual(errors, [], `validateBundle errors for ${raw.id}`);
+        const treeIssues = validateMessageTree(bundle.conversation);
+        assert.deepStrictEqual(treeIssues, [], `message tree valid for ${raw.id}`);
+        assert.doesNotThrow(() => projectConversation(bundle), `projectConversation for ${raw.id}`);
+        assert.ok(
+            !diagnostics.some((d: any) => d.code === 'SELFCHECK_TREE_INVALID' || d.code === 'SELFCHECK_PROJECT_FAILED'),
+            'normalizer self-check clean',
+        );
+    }
+});
