@@ -21,6 +21,14 @@
  *         (placement wins), with an ASSET_KIND_MISMATCH warning
  *       - FileBlock referencing a kind:'image' asset is metadata-only:
  *         never resolved, no pathMap entry, no diagnostic, bytes untouched
+ *   - message-level companions (associatedAssetIds):
+ *       - kind:'image' companion with no block placement resolves + mounts
+ *         (regression: #591 dropped it silently; the Typst payload still
+ *         builds a trailing image attachment for it via assetPath)
+ *       - non-image companion is metadata-only: never resolved, bytes
+ *         untouched
+ *       - id with block placement AND in associatedAssetIds resolves
+ *         exactly once (no double mount, no companion duplication)
  */
 export {};
 const test = require('node:test');
@@ -354,4 +362,149 @@ test('resources stage: FileBlock referencing a kind:image asset is metadata-only
     assert.strictEqual(warnPlus.length, 0, 'metadata-only FileBlock gets no diagnostic');
     assert.deepStrictEqual(readRefs, [],
         'resolver must never touch the FileBlock bytes');
+});
+
+test('resources stage: kind:image companion via associatedAssetIds resolves + mounts (no silent drop)', async () => {
+    // Regression: #591 changed the stage to resolve only block-tree image
+    // placements, but the Typst payload still turns a kind:'image'
+    // associatedAssetIds entry with no block placement into a trailing
+    // image attachment via options.assetPath(asset). Without a pathMap
+    // entry the attachment was silently skipped. Roadmap §43 lists
+    // associatedAssetIds as a first-class association path alongside
+    // blocks, so the stage must resolve these companions.
+    const real = createInlineByteStore();
+    real.put('inline/comp', pngBytes(21));
+    const compAsset = asset('comp-img', {
+        storageRef: 'inline/comp', mimeType: 'image/png', name: 'comp.png',
+    });
+    const bundle = { assets: [compAsset] };
+    const msgBlocks = [
+        { type: 'paragraph', children: [{ type: 'text', text: 'see attached' }] },
+    ];
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model', blocks: msgBlocks,
+                associatedAssetIds: ['comp-img'],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: real }, ctx);
+
+    assert.ok(output.pathMap.has('comp-img'), 'companion image resolves');
+    assert.strictEqual(output.mounts.length, 1, 'companion image is mounted');
+    assert.deepStrictEqual(output.mounts[0].bytes, pngBytes(21));
+    assert.deepStrictEqual(output.unresolved, []);
+    const warnPlus = diagnostics.filter(
+        (d: any) => d.path === 'asset:comp-img'
+            && (d.severity === 'warning' || d.severity === 'error'),
+    );
+    assert.strictEqual(warnPlus.length, 0, 'clean companion gets no diagnostic');
+
+    // End-to-end: the payload's trailing attachment now has a real path.
+    const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+    const payloadBundle = {
+        schemaVersion: 1,
+        conversation: {
+            key: { providerId: 'gemini', accountId: 'test', conversationId: 'c1' },
+            title: { value: 't', source: 'derived', candidates: [] },
+            createdAt: '2026-09-20T10:00:00Z',
+            messages: [{ id: 'm1', role: 'model', blocks: msgBlocks, associatedAssetIds: ['comp-img'] }],
+        },
+        assets: [compAsset],
+        citations: [],
+    };
+    const { payload } = toTypstPayload(payloadBundle, {
+        assetPath: (a: any) => output.pathMap.get(a.id),
+    });
+    const attachments = payload.messages[0].attachments ?? [];
+    assert.strictEqual(attachments.length, 1, 'companion appears as trailing attachment');
+    assert.strictEqual(attachments[0].type, 'image');
+    assert.strictEqual(attachments[0].asset, output.pathMap.get('comp-img'));
+});
+
+test('resources stage: non-image companion via associatedAssetIds is metadata-only', async () => {
+    // A kind:'file' associated id renders as a metadata-only file card in
+    // the payload (payload else-branch) and must never reach the resolver.
+    const readRefs: Array<[string, string]> = [];
+    const real = createInlineByteStore();
+    const spyStore: any = {
+        put: (r: string, b: Uint8Array) => real.put(r, b),
+        has: (r: string) => { readRefs.push(['has', r]); return real.has(r); },
+        get: (r: string) => { readRefs.push(['get', r]); return real.get(r); },
+        clear: () => real.clear(),
+        get entryCount() { return real.entryCount; },
+    };
+    spyStore.put('inline/comp-doc', new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]));
+    const bundle = {
+        assets: [
+            asset('comp-doc', {
+                kind: 'file', storageRef: 'inline/comp-doc',
+                mimeType: 'application/pdf', name: 'notes.pdf', sizeBytes: 1234,
+            }),
+        ],
+    };
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model',
+                blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'notes attached' }] }],
+                associatedAssetIds: ['comp-doc'],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);
+
+    assert.strictEqual(output.pathMap.has('comp-doc'), false,
+        'file companion never enters pathMap');
+    assert.strictEqual(output.mounts.length, 0, 'nothing mounted');
+    assert.deepStrictEqual(output.unresolved, []);
+    const warnPlus = diagnostics.filter(
+        (d: any) => d.path === 'asset:comp-doc'
+            && (d.severity === 'warning' || d.severity === 'error'),
+    );
+    assert.strictEqual(warnPlus.length, 0, 'metadata-only companion gets no diagnostic');
+    assert.deepStrictEqual(readRefs, [],
+        'resolver must never touch the file companion bytes');
+});
+
+test('resources stage: block-placed id also listed in associatedAssetIds resolves exactly once', async () => {
+    // The payload skips block-referenced ids when building companions (an
+    // inline image must not reappear as a trailing attachment); the stage
+    // must agree and not double-count or double-resolve.
+    const real = createInlineByteStore();
+    real.put('inline/dup', pngBytes(22));
+    const bundle = {
+        assets: [asset('dup-img', { storageRef: 'inline/dup', mimeType: 'image/png' })],
+    };
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model',
+                blocks: [{ type: 'image', assetId: 'dup-img' }],
+                associatedAssetIds: ['dup-img'],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: real }, ctx);
+
+    assert.ok(output.pathMap.has('dup-img'), 'image still resolves');
+    assert.strictEqual(output.mounts.length, 1, 'mounted exactly once');
+    assert.deepStrictEqual(output.unresolved, []);
+    assert.strictEqual(
+        diagnostics.filter((d: any) => d.code === 'ASSET_KIND_MISMATCH').length, 0,
+        'kind:image block placement gets no mismatch warning',
+    );
 });

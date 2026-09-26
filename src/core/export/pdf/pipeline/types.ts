@@ -120,20 +120,22 @@ export interface ResourceStageInput {
 
 export interface ResourceStageOutput {
     /**
-     * assetId -> virtual path, only for assets referenced by image
-     * placements (ImageBlock/ImageInline) that resolved cleanly.
-     * Metadata-only attachments (file/audio/video blocks) render from the
-     * Asset entity and never enter this map; the payload stage queries it
-     * through assetPath(), which is only called for image nodes.
+     * assetId -> virtual path, only for assets needing binary bytes —
+     * block image placements (ImageBlock/ImageInline) and kind:'image'
+     * message companions (associatedAssetIds with no block placement) —
+     * that resolved cleanly. Metadata-only attachments (file/audio/video
+     * blocks, non-image companions) render from the Asset entity and never
+     * enter this map; the payload stage queries it through assetPath().
      */
     pathMap: Map<string, string>;
     /** virtual path -> bytes, mounted into the sandbox before compile (images only). */
     mounts: ImageMount[];
     /**
-     * Binary-referenced assets (image placements) not resolved. Every entry is
-     * diagnosed (never silent); the payload stage renders them as visible
-     * unknown nodes + diagnostics. Metadata-only attachments are
-     * intentionally absent: their file cards need no resolution.
+     * Binary-referenced assets (image placements + kind:'image' companions)
+     * not resolved. Every entry is diagnosed (never silent); the payload
+     * stage renders them as visible unknown nodes + diagnostics.
+     * Metadata-only attachments are intentionally absent: their file cards
+     * need no resolution.
      */
     unresolved: Array<{ assetId: string; reason: string }>;
 }

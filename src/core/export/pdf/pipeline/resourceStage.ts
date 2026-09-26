@@ -8,11 +8,12 @@
  * payload stage can never see an asset this stage missed), resolves the
  * binary-render subset through the shared asset resolver against the
  * per-run byte store, and emits:
- *   - pathMap : assetId -> virtual path (only assets referenced by image
- *               placements — ImageBlock/ImageInline — that resolved
- *               cleanly; metadata-only attachments never enter)
+ *   - pathMap : assetId -> virtual path (assets needing binary bytes —
+ *               block image placements plus kind:'image' message
+ *               companions — that resolved cleanly; metadata-only
+ *               attachments never enter)
  *   - mounts  : virtual path -> bytes -> mimeType (sandbox mounts for
- *               compile; image placements only)
+ *               compile; binary assets only)
  *   - unresolved: binary-referenced-but-not-resolved assets, each with a reason
  *
  * Binary vs metadata-only split (collectBinaryRenderAssetIds): the decision
@@ -24,6 +25,15 @@
  * "report.pdf · PDF · 40 MB" therefore costs nothing here. An image
  * placement referencing a known non-image kind still resolves (placement
  * wins) but gets an ASSET_KIND_MISMATCH warning.
+ * Message-level companions (associatedAssetIds, roadmap §43: messages link
+ * resources via blocks AND associatedAssetIds) follow the same doctrine:
+ * an associated id with kind 'image' and no block placement becomes a
+ * trailing image attachment in the Typst payload (renderMessage calls
+ * options.assetPath(asset) for it), so it needs bytes exactly like a block
+ * image placement. The kind check is legitimate for companions because the
+ * payload's own `asset.kind === 'image'` branch is what defines that usage
+ * as an image; other/unknown kinds render metadata-only file cards and
+ * never touch bytes.
  *
  * Stage rules honored:
  *   - bytes come from input.byteStore via asset.storageRef; ResolvedAssetEntry
@@ -117,14 +127,30 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     // kind:'file' asset under an ImageBlock genuinely needs its bytes.
     // File/audio/video blocks are metadata-only (file cards render from the
     // Asset entity) and never reach the resolver.
+    // Message-level companions (associatedAssetIds with no block placement)
+    // join the same sets: kind 'image' companions become trailing image
+    // attachments in the Typst payload and need bytes; other kinds render
+    // metadata-only file cards. See the file header for why the kind check
+    // is legitimate for companions.
     const byId = new Map<string, Asset>();
     for (const asset of input.bundle.assets) byId.set(asset.id, asset);
     const referencedIds = new Set<string>();
     const binaryIds = new Set<string>();
     for (const message of input.view.messages) {
         throwIfAborted(ctx.signal);
-        for (const id of collectReferencedAssetIds(message.blocks)) referencedIds.add(id);
+        const blockIds = collectReferencedAssetIds(message.blocks);
+        for (const id of blockIds) referencedIds.add(id);
         for (const id of collectBinaryRenderAssetIds(message.blocks)) binaryIds.add(id);
+        for (const id of message.associatedAssetIds ?? []) {
+            // The payload builder skips block-referenced ids for companions
+            // (an inline image must not reappear as a trailing attachment),
+            // so only ids with no block placement can be companions here.
+            if (blockIds.has(id)) continue;
+            const asset = byId.get(id);
+            if (!asset) continue; // payload skips unknown ids the same way
+            referencedIds.add(id);
+            if (asset.kind === 'image') binaryIds.add(id);
+        }
     }
     // Kind/placement mismatch is diagnostic-only: placement wins for
     // resolution, but a known non-image kind under an image placement
@@ -142,7 +168,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
         `(${binaryIds.size} binary, ${metadataOnlySkipped} metadata-only skipped before resolution)`,
     );
 
-    // ---- 2. resolve only the binary (image-placement) assets ----
+    // ---- 2. resolve only the binary (image-placement + image-companion) assets ----
     // Metadata-only attachments skip resolveAssets() entirely: no byte read,
     // no SHA-256, no byteStore traffic. They are not "unresolved" — their
     // file cards render from Asset metadata — so they get no diagnostic.
