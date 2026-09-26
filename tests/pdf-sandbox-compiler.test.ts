@@ -30,6 +30,10 @@ const {
 const { createOfflineInitOptions } = require('../src/ui/sandbox/offlineInit.js');
 
 const {
+    toTypstPayload,
+} = require('../src/core/export/typst/payload.js');
+
+const {
     TypstSandboxCompiler,
     fontHasMathTable,
     stripConvertedMath,
@@ -209,8 +213,25 @@ function makeBundle(extra: any = {}) {
     };
 }
 
-function makePayload(bundle: any) {
-    return { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle };
+function assetPathFor(asset: any) {
+    const name = asset.name ?? '';
+    const dot = name.lastIndexOf('.');
+    const ext = dot >= 0 && dot < name.length - 1 ? name.slice(dot) : '';
+    return `assets/${asset.id}${ext}`;
+}
+
+function makePayload(bundle: any, opts: { convertMath?: (source: string, notation: string, display: boolean) => string | undefined } = {}) {
+    const { payload: document } = toTypstPayload(bundle, {
+        assetPath: assetPathFor,
+        ...(opts.convertMath ? { convertMath: opts.convertMath } : {}),
+    });
+    return {
+        rendererSchemaVersion: 1,
+        sourceSchemaVersion: 1,
+        bundle,
+        document,
+        assetPaths: new Map((bundle.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
+    };
 }
 
 function makeContext(signal: AbortSignal, assets?: any) {
@@ -335,6 +356,22 @@ test('compile: mid-flight abort rejects with AbortError and notifies the sandbox
 // Full fake-sandbox round trip
 // ---------------------------------------------------------------------------
 
+test('compile: missing document rejects loudly instead of converting the bundle internally', async () => {
+    const host = new FakeHost();
+    const compiler = makeCompiler(host);
+    const controller = new AbortController();
+    const bundle = makeBundle();
+    await assert.rejects(
+        compiler.compile(
+            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as any,
+            { ...makeContext(controller.signal), bundle },
+        ),
+        /requires a prebuilt Typst document payload/,
+    );
+    assert.strictEqual(host.frame, null, 'no sandbox frame should be created');
+    compiler.dispose();
+});
+
 test('compile: happy path returns PDF bytes and sandbox diagnostics', async () => {
     const host = new FakeHost();
     const compiler = makeCompiler(host);
@@ -446,13 +483,14 @@ test('compile: messages with bad origin or unknown jobId are ignored', async () 
 
 test('compile: without a MATH font, converted math is stripped with a diagnostic', async () => {
     const host = new FakeHost(new Uint8Array([0, 1, 2, 3]), fakeFontBytes(false));
-    const compiler = makeCompiler(host, {
-        payloadOptions: { convertMath: () => 'x^2' },
-    });
+    const compiler = makeCompiler(host);
     const controller = new AbortController();
     const bundle = makeBundle();
     bundle.conversation.messages[0].blocks.push({ type: 'math', source: 'x^2', notation: 'latex' });
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const promise = compiler.compile(
+        makePayload(bundle, { convertMath: () => 'x^2' }),
+        { ...makeContext(controller.signal), bundle },
+    );
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;

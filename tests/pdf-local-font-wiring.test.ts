@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const {
     resolveLocalFonts,
     BUNDLED_MATH_FALLBACK,
@@ -181,8 +182,22 @@ function makeContext(bundle: any) {
     };
 }
 
+function assetPathFor(asset: any) {
+    const name = asset.name ?? '';
+    const dot = name.lastIndexOf('.');
+    const ext = dot >= 0 && dot < name.length - 1 ? name.slice(dot) : '';
+    return `assets/${asset.id}${ext}`;
+}
+
 function makePayload(bundle: any) {
-    return { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle };
+    const { payload: document } = toTypstPayload(bundle, { assetPath: assetPathFor });
+    return {
+        rendererSchemaVersion: 1,
+        sourceSchemaVersion: 1,
+        bundle,
+        document,
+        assetPaths: new Map((bundle.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
+    };
 }
 
 test('A: resolveLocalFonts -> mountRuntimeFonts -> sandbox receives the runtime font bytes', async () => {
@@ -362,7 +377,7 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
             reportProgress: () => undefined,
         };
         const result = await compiler.compile(
-            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle },
+            makePayload(bundle),
             context,
         );
         compiler.dispose();

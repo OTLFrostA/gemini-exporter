@@ -1,4 +1,3 @@
-import type { Asset } from '../canonical/assets.js';
 import type {
     RenderContext,
     RenderDiagnostic,
@@ -19,11 +18,9 @@ import {
     SANDBOX_MESSAGE_TYPES,
 } from './sandboxProtocol.js';
 import {
-    toTypstPayload,
     type TypstBlockNode,
     type TypstConversationRenderPayload,
     type TypstInlineNode,
-    type TypstPayloadOptions,
 } from './payload.js';
 
 const PDF_MAGIC = '%PDF-';
@@ -82,21 +79,7 @@ export class BrowserSandboxHost implements SandboxHost {
     }
 }
 
-export interface TypstSandboxPayloadOptions {
-    assetPath?: (asset: Asset) => string | undefined;
-    convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
-    leafMessageId?: string;
-}
-
-function defaultAssetPath(asset: Asset): string {
-    const name = asset.name ?? '';
-    const dot = name.lastIndexOf('.');
-    const ext = dot >= 0 && dot < name.length - 1 ? name.slice(dot) : '';
-    return `assets/${asset.id}${ext}`;
-}
-
 export interface TypstSandboxCompilerOptions {
-    payloadOptions?: TypstSandboxPayloadOptions;
     host?: SandboxHost;
     wasmPath?: string;
     fontPaths?: readonly string[];
@@ -236,7 +219,6 @@ export interface RuntimeFontConsumer {
 export class TypstSandboxCompiler implements IPdfCompiler {
     readonly name = 'typst-wasm-sandbox';
 
-    private readonly payloadOptions: TypstPayloadOptions;
     private readonly host: SandboxHost;
     private readonly wasmPath: string;
     private readonly fontPaths: readonly string[];
@@ -256,12 +238,6 @@ export class TypstSandboxCompiler implements IPdfCompiler {
     private compileQueue: Promise<void> = Promise.resolve();
 
     constructor(options: TypstSandboxCompilerOptions = {}) {
-        const userPayloadOptions = options.payloadOptions ?? {};
-        this.payloadOptions = {
-            assetPath: userPayloadOptions.assetPath ?? defaultAssetPath,
-            convertMath: userPayloadOptions.convertMath,
-            leafMessageId: userPayloadOptions.leafMessageId,
-        };
         this.host = options.host ?? new BrowserSandboxHost();
         this.wasmPath = options.wasmPath ?? TYPST_WASM_PATH;
         this.fontPaths = options.fontPaths ?? BUNDLED_FONT_PATHS;
@@ -307,18 +283,12 @@ export class TypstSandboxCompiler implements IPdfCompiler {
 
         const diagnostics: RenderDiagnostic[] = [];
 
-        let doc: TypstConversationRenderPayload;
-        if (payload.prebuiltDoc) {
-            doc = payload.prebuiltDoc;
-        } else {
-            const { payload: built, diagnostics: adapterDiagnostics } = toTypstPayload(
-                payload.bundle,
-                this.payloadOptions,
+        const doc = payload.document;
+        if (!doc) {
+            throw new Error(
+                'TypstSandboxCompiler requires a prebuilt Typst document payload; ' +
+                'pass { document, assetPaths } built by the PDF pipeline payloadStage.',
             );
-            doc = built;
-            for (const d of adapterDiagnostics) {
-                diagnostics.push({ severity: d.severity, code: d.code, message: d.message, path: d.path });
-            }
         }
         context.reportProgress('typst-payload', 1, 4);
         context.signal.throwIfAborted();
@@ -343,15 +313,8 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         const binaries: Array<{ path: string; buf: ArrayBuffer }> = [];
         const transfer: ArrayBuffer[] = [];
         const pathToAssetId = new Map<string, string>();
-        if (payload.prebuiltAssetPaths) {
-            for (const [assetId, path] of payload.prebuiltAssetPaths) {
-                if (path) pathToAssetId.set(path, assetId);
-            }
-        } else if (this.payloadOptions.assetPath) {
-            for (const asset of payload.bundle.assets) {
-                const path = this.payloadOptions.assetPath(asset);
-                if (path) pathToAssetId.set(path, asset.id);
-            }
+        for (const [assetId, path] of payload.assetPaths) {
+            if (path) pathToAssetId.set(path, assetId);
         }
         for (const imagePath of collectImagePaths(doc)) {
             context.signal.throwIfAborted();

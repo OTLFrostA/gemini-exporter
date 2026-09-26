@@ -63,8 +63,6 @@ export interface TypstRenderPayload {
     rendererSchemaVersion: 1;
     sourceSchemaVersion: 1;
     bundle: CanonicalConversationBundle;
-    /** Prebuilt Typst payload; when present, compilers skip internal conversion so diagnostics are not duplicated. */
-    prebuiltDoc?: TypstConversationRenderPayload;
-    /** Maps assetId to the image path embedded in prebuiltDoc so compiler VirtualFS mounting matches prebuilt paths. */
-    prebuiltAssetPaths?: ReadonlyMap<string, string>;
+    document: TypstConversationRenderPayload;
+    assetPaths: ReadonlyMap<string, string>;
 }

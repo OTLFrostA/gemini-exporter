@@ -29,6 +29,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
+const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const { convertMath } = require('../src/core/export/typst/mathConverter.js');
 const { withNetworkGate, assertZeroExternalRequests } = require('./helpers/compileNetworkGate.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
@@ -96,6 +97,25 @@ function makeContext(overrides: { assets?: Record<string, Uint8Array>; bundle?: 
     };
 }
 
+/** Build the converged compiler contract payload: prebuilt document + asset paths. */
+function compilerPayload(
+    bundle: unknown,
+    convertMathFn?: (source: string, notation: string, display: boolean) => string | undefined,
+) {
+    const assetPath = (a: any) => `/assets/${a.id}`;
+    const { payload: document } = toTypstPayload(bundle as any, {
+        assetPath,
+        ...(convertMathFn ? { convertMath: convertMathFn } : {}),
+    });
+    return {
+        rendererSchemaVersion: 1,
+        sourceSchemaVersion: 1,
+        bundle,
+        document,
+        assetPaths: new Map((((bundle as any).assets ?? []) as any[]).map((a: any) => [a.id, assetPath(a)])),
+    };
+}
+
 interface CompiledEvidence {
     pdfBytes: Uint8Array;
     diagnostics: Array<{ severity: string; code?: string; message: string }>;
@@ -114,14 +134,13 @@ async function compileOnce(
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({
         host,
-        payloadOptions: { convertMath: opts.convertMathFn ?? convertMath },
         ...(opts.fontPaths ? { fontPaths: opts.fontPaths } : {}),
     });
     const { context } = makeContext({ assets: opts.assets, bundle });
     const t0 = Date.now();
     try {
         const result = await compiler.compile(
-            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+            compilerPayload(bundle, opts.convertMathFn ?? convertMath) as never,
             context as never,
         );
         return { pdfBytes: result.pdfBytes, diagnostics: result.diagnostics, ms: Date.now() - t0, host };
@@ -145,11 +164,11 @@ test('D8-1: full WASM init + font install + compile makes 0 external requests', 
     ]);
     const gated = await withNetworkGate(async () => {
         const host = new RealWasmSandboxHost(repoRoot());
-        const compiler = new TypstSandboxCompiler({ host, payloadOptions: { convertMath } });
+        const compiler = new TypstSandboxCompiler({ host });
         const { context } = makeContext({ bundle });
         try {
             return await compiler.compile(
-                { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+                compilerPayload(bundle, convertMath) as never,
                 context as never,
             );
         } finally {
@@ -277,12 +296,12 @@ test('D8-4: 50 MiB file attachment stays metadata-only (no read, no hash, no OOM
     );
     const heapBefore = process.memoryUsage().heapUsed;
     const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({ host, payloadOptions: { convertMath } });
+    const compiler = new TypstSandboxCompiler({ host });
     const { context, calls } = makeContext({ bundle });
     let result: { pdfBytes: Uint8Array; diagnostics: Array<{ severity: string; message: string }> };
     try {
         result = await compiler.compile(
-            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+            compilerPayload(bundle, convertMath) as never,
             context as never,
         );
     } finally {
@@ -312,7 +331,7 @@ test('D8-4: 50 MiB file attachment stays metadata-only (no read, no hash, no OOM
 
 test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async () => {
     const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({ host, payloadOptions: { convertMath } });
+    const compiler = new TypstSandboxCompiler({ host });
     const heapStart = process.memoryUsage().heapUsed;
     let heapPeak = heapStart;
     const times: number[] = [];
@@ -340,7 +359,7 @@ test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async ()
             const t0 = Date.now();
             try {
                 const r = await compiler.compile(
-                    { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+                    compilerPayload(bundle, convertMath) as never,
                     context as never,
                 );
                 assertPdfMagic(r.pdfBytes);
@@ -376,14 +395,14 @@ test('D8-6: repeated create -> compile -> dispose leaves no frame/listener growt
     const CYCLES = 5;
     const host = new RealWasmSandboxHost(repoRoot());
     for (let i = 0; i < CYCLES; i += 1) {
-        const compiler = new TypstSandboxCompiler({ host, payloadOptions: { convertMath } });
+        const compiler = new TypstSandboxCompiler({ host });
         const bundle = makeBundle(
             [msg('m1', 'user', [para(`第 ${i + 1} 次导出`)])],
             { conversationId: `d8-dispose-${i}` },
         );
         const { context } = makeContext({ bundle });
         const result = await compiler.compile(
-            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+            compilerPayload(bundle, convertMath) as never,
             context as never,
         );
         assertPdfMagic(result.pdfBytes);
