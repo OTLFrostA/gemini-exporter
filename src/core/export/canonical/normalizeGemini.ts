@@ -37,7 +37,8 @@ import type {
     TitleSource,
 } from '../../../types/conversation.js';
 import type { Asset, AssetKind, AssetStatus } from './assets.js';
-import { decodeDataUrlAsset, putInlineAssetBytes } from '../assets/index.js';
+import { decodeDataUrlAsset, createInlineByteStore } from '../assets/index.js';
+import type { InlineByteStore } from '../assets/index.js';
 import { classifyAssetAvailability } from './assetResolution.js';
 import type { BlockNode } from './blocks.js';
 import type { Citation } from './citations.js';
@@ -70,6 +71,18 @@ export interface GeminiNormalizationOptions {
     /** Observation time (not provider time). Defaults to now. */
     observedAt?: string;
     rawRef?: string;
+}
+
+/**
+ * NormalizationResult plus the run-scoped inline-asset byte store.
+ *
+ * The store is created fresh by every normalizeGeminiConversation() call;
+ * its lifetime is exactly that one run. Consumers (the PDF asset resolver)
+ * read bytes from the returned instance instead of any module-global store,
+ * so bytes decoded for one conversation can never leak into another.
+ */
+export interface GeminiNormalizationResult extends NormalizationResult {
+    byteStore: InlineByteStore;
 }
 
 const KNOWN_TITLE_SOURCES: ReadonlySet<string> = new Set([
@@ -139,6 +152,12 @@ interface MdParser {
     inlineAssets: Asset[];
     /** Message id prefix used for generated asset ids. */
     idPrefix: string;
+    /**
+     * Run-scoped byte store. One instance is created per
+     * normalizeGeminiConversation() call and shared by every message in that
+     * run; linkInlineImage writes decoded bytes here instead of any global.
+     */
+    byteStore: InlineByteStore;
 }
 
 let blockSeq = 0;
@@ -217,7 +236,7 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
             sizeBytes = decoded.sizeBytes;
             sha256 = decoded.sha256;
             name = altName || decoded.suggestedName;
-            putInlineAssetBytes(storageRef, decoded.bytes);
+            st.byteStore.put(storageRef, decoded.bytes);
         } else {
             status = 'missing';
             failureReason = decoded.reason;
@@ -1041,7 +1060,7 @@ function normalizeMessage(
     m: RepoMessage,
     index: number,
     locator: string,
-    ctx: { providerId: string; diag: Diagnostic[] },
+    ctx: { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore },
 ): MessageBuild {
     const diagnostics: Diagnostic[] = [];
     const msgId = isStr(m.id) && m.id ? m.id : `msg-${index}`;
@@ -1111,7 +1130,7 @@ function normalizeMessage(
         }
     });
 
-    const st: MdParser = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix };
+    const st: MdParser = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore };
     const blocks: BlockNode[] = [];
 
     const thoughtsRaw = m.thoughts ?? m.thinking ?? '';
@@ -1256,13 +1275,16 @@ function observationSourceType(source: unknown): SourceObservation['sourceType']
 export async function normalizeGeminiConversation(
     raw: RepoConversation,
     options: GeminiNormalizationOptions = {},
-): Promise<NormalizationResult> {
+): Promise<GeminiNormalizationResult> {
     const providerId = options.providerId ?? 'gemini';
     const accountId = options.accountId ?? '';
     const observedAt = options.observedAt ?? new Date().toISOString();
     const diagnostics: Diagnostic[] = [];
     const assets: Asset[] = [];
     const citations: Citation[] = [];
+    // Run-scoped: every normalize call owns its byte store; nothing is shared
+    // with previous or future runs in this JS context.
+    const byteStore = createInlineByteStore();
 
     blockSeq = 0;
 
@@ -1278,7 +1300,7 @@ export async function normalizeGeminiConversation(
             });
             return;
         }
-        const built = normalizeMessage(m, index, locator, { providerId, diag: diagnostics });
+        const built = normalizeMessage(m, index, locator, { providerId, diag: diagnostics, byteStore });
         messages.push(built.node);
         assets.push(...built.assets);
         citations.push(...built.citations);
@@ -1406,7 +1428,7 @@ export async function normalizeGeminiConversation(
     }
     if (diagnostics.length && !bundle.diagnostics) bundle.diagnostics = diagnostics;
 
-    return { bundle, diagnostics };
+    return { bundle, diagnostics, byteStore };
 }
 
 export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {

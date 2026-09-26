@@ -1,34 +1,46 @@
 /**
  * src/core/export/assets/byteStore.ts
- * In-memory byte store for inline assets decoded during normalize.
+ * Per-run in-memory byte store for inline assets decoded during normalize.
  *
- * PdfExporter.run() calls normalizeGeminiConversation in the same JS context
- * that later resolves asset bytes, so a session-scoped in-memory store is
- * sufficient -- no persistence or cross-context plumbing. Keys are
- * content-addressed storageRefs, so storing the same bytes twice is harmless.
- *
- * API freeze note: the asset resolver track reads bytes through these
- * functions. Do not rename or retype them without coordinating with it.
+ * Session ownership: each normalizeGeminiConversation() call creates its own
+ * InlineByteStore via createInlineByteStore() and returns it on the result.
+ * Bytes decoded for one conversation can therefore never leak into (or linger
+ * past) the normalization of another. This replaces the old module-global
+ * singleton, which had exactly that defect: consecutive normalize calls in
+ * one JS context shared one store and bytes accumulated across sessions.
  */
 
-const store = new Map<string, Uint8Array>();
-
-/** Record the decoded bytes of an inline asset under its storageRef. */
-export function putInlineAssetBytes(storageRef: string, bytes: Uint8Array): void {
-    store.set(storageRef, bytes);
+export interface InlineByteStore {
+    /** Record the decoded bytes of an inline asset under its storageRef. */
+    put(storageRef: string, bytes: Uint8Array): void;
+    /** Previously stored bytes for a storageRef, or undefined when absent. */
+    get(storageRef: string): Uint8Array | undefined;
+    /** True when bytes were previously stored for a storageRef. */
+    has(storageRef: string): boolean;
+    /** Drop all stored bytes. */
+    clear(): void;
+    /** Number of stored entries. */
+    readonly entryCount: number;
 }
 
-/** Previously stored bytes for a storageRef, or undefined when absent. */
-export function getInlineAssetBytes(storageRef: string): Uint8Array | undefined {
-    return store.get(storageRef);
-}
-
-/** True when bytes were previously stored for this storageRef. */
-export function hasInlineAssetBytes(storageRef: string): boolean {
-    return store.has(storageRef);
-}
-
-/** Drop all stored bytes. Primarily for test isolation. */
-export function clearInlineAssetBytes(): void {
-    store.clear();
+/** Create a fresh, run-scoped byte store. Never share one across runs. */
+export function createInlineByteStore(): InlineByteStore {
+    const map = new Map<string, Uint8Array>();
+    return {
+        put(storageRef: string, bytes: Uint8Array): void {
+            map.set(storageRef, bytes);
+        },
+        get(storageRef: string): Uint8Array | undefined {
+            return map.get(storageRef);
+        },
+        has(storageRef: string): boolean {
+            return map.has(storageRef);
+        },
+        clear(): void {
+            map.clear();
+        },
+        get entryCount(): number {
+            return map.size;
+        },
+    };
 }
