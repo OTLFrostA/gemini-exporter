@@ -37,6 +37,7 @@ import type {
     TitleSource,
 } from '../../../types/conversation.js';
 import type { Asset, AssetKind, AssetStatus } from './assets.js';
+import { decodeDataUrlAsset, putInlineAssetBytes } from '../assets/index.js';
 import { classifyAssetAvailability } from './assetResolution.js';
 import type { BlockNode } from './blocks.js';
 import type { Citation } from './citations.js';
@@ -163,9 +164,16 @@ function assetMatchKeys(ref: string): string[] {
  * Build the first-class inline image node for a known `![alt](src)`. The image
  * links through the canonical asset table: an attachment with a matching
  * reference is reused, otherwise a new asset records the honest availability
- * (remote URL -> 'remote', embedded data: URL -> 'available', anything else ->
- * 'missing' + warning). Known images are never unknownInline.
+ * (remote URL -> 'remote', embedded data: URL -> decoded to a byte-backed
+ * 'available' asset, anything else -> 'missing' + warning). Known images are
+ * never unknownInline.
  */
+/** Short, payload-free preview of a data: URL for diagnostics. */
+function dataUrlPreview(url: string): string {
+    const head = url.slice(0, 64);
+    return url.length > 64 ? `${head}…(${url.length} chars total)` : head;
+}
+
 function linkInlineImage(src: string, alt: string, title: string | undefined, st: MdParser): ImageInline {
     const trimmedSrc = src.trim();
     for (const key of assetMatchKeys(trimmedSrc)) {
@@ -182,13 +190,41 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
     }
     const assetId = `${st.idPrefix}-img${st.inlineAssets.length}`;
     const base = (trimmedSrc.split('/').pop() ?? '').split('?')[0];
-    const name = alt.trim() || base || 'image';
+    const altName = alt.trim();
+    let name = altName || base || 'image';
     let status: AssetStatus;
     let sourceUrl: string | undefined;
+    let storageRef: string | undefined;
+    let mimeType: string | undefined;
+    let sizeBytes: number | undefined;
+    let sha256: string | undefined;
     let failureReason: string | undefined;
+    // Set when a data: URL is refused or fails to decode; the generic
+    // INLINE_IMAGE_ASSET_MISSING diagnostic below is skipped in that case.
+    let dataUrlDiag: { code: 'DATA_URL_TOO_LARGE' | 'DATA_URL_MALFORMED'; message: string } | undefined;
     if (/^data:/i.test(trimmedSrc)) {
-        status = 'available';
-        sourceUrl = trimmedSrc;
+        // Scheme B: decode the data: URL into real bytes at normalize time.
+        // The asset becomes byte-backed ('available' with a content-addressed
+        // storageRef and bytes in the inline byte store), never
+        // pseudo-available. sourceUrl is deliberately omitted -- embedding the
+        // full data: URL would explode the serialized bundle; the bytes are
+        // the source of truth.
+        const decoded = decodeDataUrlAsset(trimmedSrc);
+        if (decoded.ok) {
+            status = 'available';
+            storageRef = decoded.storageRef;
+            mimeType = decoded.mimeType;
+            sizeBytes = decoded.sizeBytes;
+            sha256 = decoded.sha256;
+            name = altName || decoded.suggestedName;
+            putInlineAssetBytes(storageRef, decoded.bytes);
+        } else {
+            status = 'missing';
+            failureReason = decoded.reason;
+            dataUrlDiag = { code: decoded.code, message: decoded.message };
+            // Never leak a payload tail into the asset name.
+            if (!altName) name = 'image';
+        }
     } else if (/^https?:\/\//i.test(trimmedSrc)) {
         status = 'remote';
         sourceUrl = trimmedSrc;
@@ -203,21 +239,36 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
         id: assetId,
         kind: 'image',
         name,
+        ...(mimeType ? { mimeType } : {}),
+        ...(sizeBytes !== undefined ? { sizeBytes } : {}),
+        ...(sha256 ? { sha256 } : {}),
         ...(sourceUrl ? { sourceUrl } : {}),
+        ...(storageRef ? { storageRef } : {}),
         status,
         ...(failureReason ? { failureReason } : {}),
         sourceRef: st.sourceRef,
     });
     for (const key of assetMatchKeys(trimmedSrc)) st.assetIndex.set(key, assetId);
     if (status === 'missing') {
-        st.diagnostics.push({
-            id: `inline-image-missing:${assetId}`,
-            severity: 'warning',
-            code: 'INLINE_IMAGE_ASSET_MISSING',
-            message: `inline image '${name}' has no resolvable asset; renderers fall back to alt text`,
-            sourceRef: st.sourceRef,
-            details: { src: trimmedSrc.slice(0, 200) } as JsonValue,
-        });
+        if (dataUrlDiag) {
+            st.diagnostics.push({
+                id: `inline-image-dataurl:${assetId}`,
+                severity: 'warning',
+                code: dataUrlDiag.code,
+                message: dataUrlDiag.message,
+                sourceRef: st.sourceRef,
+                details: { src: dataUrlPreview(trimmedSrc) } as JsonValue,
+            });
+        } else {
+            st.diagnostics.push({
+                id: `inline-image-missing:${assetId}`,
+                severity: 'warning',
+                code: 'INLINE_IMAGE_ASSET_MISSING',
+                message: `inline image '${name}' has no resolvable asset; renderers fall back to alt text`,
+                sourceRef: st.sourceRef,
+                details: { src: trimmedSrc.slice(0, 200) } as JsonValue,
+            });
+        }
     }
     const cleanAlt = alt.trim();
     return {
