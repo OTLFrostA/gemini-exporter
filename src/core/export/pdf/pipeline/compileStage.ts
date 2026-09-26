@@ -142,7 +142,9 @@ function makeMountAssetResolver(
  *      a real cross-reference pointer: it parses as a number, lies inside
  *      the byte range, and the bytes there begin a classic `xref` table or
  *      an indirect object whose own first dictionary (bounded by the
- *      object's `endobj`) carries `/Type /XRef` (cross-reference stream). A bare numeric marker — e.g. the
+ *      object's `endobj`) carries `/Type /XRef` as real name tokens
+ *      (cross-reference stream; a literal string or comment merely
+ *      containing those characters does not count). A bare numeric marker — e.g. the
  *      `startxref 0` hand-written fixtures used to carry — is rejected.
  * Anything failing a check is rejected; the caller turns it into a
  * PDF_VERIFY_FAILED stage failure, never a blank PDF marked ok.
@@ -183,6 +185,83 @@ function extractFirstDictionary(text: string, from: number): string | null {
         }
     }
     return null;
+}
+
+/**
+ * Token-aware check for `/Type /XRef` inside a PDF dictionary.
+ *
+ * The old check was a plain string regex, which fired on a literal string
+ * or comment that merely *contains* the characters — e.g.
+ * `<< /Note (/Type /XRef) >>` is not an xref stream. This scanner walks the
+ * dictionary's lexical structure instead:
+ *   - `%` comments are skipped to end of line;
+ *   - `( ... )` literal strings are skipped, honoring nested parens and
+ *     backslash escapes (`\(`, `\)`, `\\`);
+ *   - `<...>` hex strings are skipped (`<<` / `>>` dictionary delimiters
+ *     are not hex strings);
+ *   - only real name tokens are compared: `/Type` immediately followed by
+ *     `/XRef`, with nothing but whitespace/comments between them.
+ * Not a full PDF parser — just enough to keep the verifier honest. It
+ * fails closed: anything it cannot lex as `/Type /XRef` is not an xref
+ * stream, and the verifier rejects rather than accepts.
+ */
+function dictionaryHasXrefStreamType(dict: string): boolean {
+    const names: string[] = [];
+    const isSpace = (c: string): boolean =>
+        c === ' ' || c === '\t' || c === '\n' || c === '\f' || c === '\r' || c === '\0';
+    const isDelim = (c: string): boolean => '()<>[]{}/%'.includes(c);
+    let i = 0;
+    while (i < dict.length) {
+        const c = dict[i];
+        if (isSpace(c)) {
+            i++;
+            continue;
+        }
+        if (c === '%') {
+            while (i < dict.length && dict[i] !== '\n' && dict[i] !== '\r') i++;
+            continue;
+        }
+        if (c === '(') {
+            let depth = 1;
+            i++;
+            while (i < dict.length && depth > 0) {
+                if (dict[i] === '\\') {
+                    i += 2;
+                    continue;
+                }
+                if (dict[i] === '(') depth++;
+                else if (dict[i] === ')') depth--;
+                i++;
+            }
+            continue;
+        }
+        if (c === '<') {
+            if (dict[i + 1] === '<') {
+                i += 2; // dictionary open, not a hex string
+            } else {
+                i++;
+                while (i < dict.length && dict[i] !== '>') i++;
+                if (i < dict.length) i++;
+            }
+            continue;
+        }
+        if (c === '>') {
+            i += dict[i + 1] === '>' ? 2 : 1; // dictionary close (or stray)
+            continue;
+        }
+        if (c === '/') {
+            let j = i + 1;
+            while (j < dict.length && !isSpace(dict[j]) && !isDelim(dict[j])) j++;
+            names.push(dict.slice(i, j));
+            i = j;
+            continue;
+        }
+        i++;
+    }
+    for (let k = 0; k + 1 < names.length; k++) {
+        if (names[k] === '/Type' && names[k + 1] === '/XRef') return true;
+    }
+    return false;
 }
 
 function verifyPdfBytes(pdfBytes: Uint8Array): void {
@@ -237,7 +316,9 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
         const endobjIdx = probe.indexOf('endobj', bodyStart);
         const bodyEnd = endobjIdx < 0 ? probe.length : endobjIdx;
         const dict = extractFirstDictionary(probe.slice(0, bodyEnd), bodyStart);
-        isXrefStream = dict !== null && /\/Type\s*\/XRef\b/.test(dict);
+        // Token-aware: a literal string or comment merely containing the
+        // characters "/Type /XRef" must not count as an xref stream.
+        isXrefStream = dict !== null && dictionaryHasXrefStreamType(dict);
     }
     if (!isClassicXref && !isXrefStream) {
         throw new Error(

@@ -457,3 +457,60 @@ test('available local fonts log the fallback chain at info', async () => {
     await compileStage(input, ctx);
     assert.ok(ctx.logs.some((l) => l.level === 'info' && /Noto Sans CJK SC/.test(l.message)));
 });
+
+/**
+ * Build a PDF whose startxref aims at `5 0 obj` carrying exactly
+ * `dictText` as its dictionary. Used to probe the token-aware
+ * /Type /XRef check.
+ */
+function xrefProbePdf(dictText: string): Uint8Array {
+    const body =
+        '%PDF-1.4\n' +
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
+        'trailer\n<< /Root 1 0 R >>\n';
+    const xrefObjOffset = body.length;
+    return pdfBytes(
+        body +
+        `5 0 obj\n${dictText}\nendobj\n` +
+        `startxref\n${xrefObjOffset}\n%%EOF\n`,
+    );
+}
+
+async function expectXrefRejected(dictText: string, why: string) {
+    const { compiler } = makeStub({ bytes: xrefProbePdf(dictText) });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/does not point at a cross-reference/.test(e.message), why);
+        return true;
+    });
+}
+
+test('startxref object with /Type /XRef only inside a literal string -> rejected', async () => {
+    // The old string regex fired on the characters inside the parens; the
+    // token-aware scanner must skip literal strings entirely.
+    await expectXrefRejected('<< /Note (/Type /XRef) >>', 'literal-string decoy rejected');
+});
+
+test('startxref object with /Type /XRef only inside an escaped literal string -> rejected', async () => {
+    // \\( and \\) are escaped parens, not string boundaries; the scanner
+    // must still treat the whole thing as one string.
+    await expectXrefRejected('<< /Note (a \\( /Type /XRef \\)) >>', 'escaped-paren string decoy rejected');
+});
+
+test('startxref object with /Type /XRef only inside a comment -> rejected', async () => {
+    await expectXrefRejected('<< /Size 5 % /Type /XRef\n>>', 'comment decoy rejected');
+});
+
+test('startxref object with /Type /XRef only inside a hex string -> rejected', async () => {
+    // <2F54797065202F58526566> is the hex encoding of "/Type /XRef".
+    await expectXrefRejected('<< /ID <2F54797065202F58526566> >>', 'hex-string decoy rejected');
+});
+
+test('startxref object with a real /Type /XRef split by a comment still passes', async () => {
+    // Comments between the two name tokens are legal whitespace; a real
+    // xref stream dictionary must keep passing.
+    const { compiler } = makeStub({ bytes: xrefProbePdf('<< /Type % a comment\n /XRef /Size 2 >>') });
+    const { output } = await compileStage(fakeInput({ compiler }), makeCtx());
+    assert.ok(output.pdfBytes.length > 0, 'comment-split /Type /XRef accepted');
+});
