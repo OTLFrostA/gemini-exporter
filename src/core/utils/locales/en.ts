@@ -231,6 +231,8 @@ const __enFactory = (): LocaleDictionary => {
             tourStep1BtnRefresh: "🔄 Refresh Gemini Tab",
             tourStep1Checking: "Checking connection...",
             tourStep1NoTabStatus: "Not connected to Gemini",
+            tourStep1ErrorStatus: "Connection error",
+            tourStep1ErrorDesc: "Could not connect to Gemini. Please verify the page or refresh to retry.",
             tourStep2Title: "Step 2/6: Sync Conversations",
             tourStep2Desc: "Click 'Sync Latest' to fetch recent chats, or 'Full Deep Sync' to back up all history.",
             tourStep3Title: "Step 3/6: Select Conversations",

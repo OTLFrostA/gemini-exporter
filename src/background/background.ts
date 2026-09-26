@@ -105,9 +105,11 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         const skipExported = msg.skipExported;
         const globalOffset = msg.globalOffset;
         const globalTotal = msg.globalTotal;
-        void setSlotAborted(slot, false);
         const prev = fetchBatchChains.get(slot) || Promise.resolve();
         const run = prev.then(async () => {
+            // Only clear abort flag after preceding tasks have finished, ensuring in-flight
+            // cancelled batches are not resurrected before they finish draining.
+            await setSlotAborted(slot, false);
             let responded = false;
             const guardedResponse = (response: any) => {
                 if (responded) return;
