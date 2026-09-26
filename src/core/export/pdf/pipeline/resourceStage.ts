@@ -9,7 +9,9 @@
  * through the shared asset resolver against the per-run byte store, and
  * emits:
  *   - pathMap : assetId -> virtual path (only clean resolves)
- *   - mounts  : virtual path -> bytes -> mimeType (sandbox mounts for compile)
+ *   - mounts  : virtual path -> bytes -> mimeType (sandbox mounts for compile;
+ *               only image-kind assets — file/audio/video attachments render
+ *               as metadata-only cards and never need sandbox bytes)
  *   - unresolved: referenced-but-not-resolved assets, each with a reason
  *
  * Stage rules honored:
@@ -132,6 +134,9 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     // branch below). They are already in `unresolved` with a dedicated
     // RESOURCE_BYTES_MISSING diagnostic; step 4 must not re-report them.
     const bytesMissing = new Set<string>();
+    // Non-image attachments resolve cleanly but never need sandbox bytes
+    // (they render as metadata-only file cards); counted for the summary log.
+    let nonImageSkipped = 0;
     for (const assetId of referencedIds) {
         const virtualPath = pathMap.get(assetId);
         if (virtualPath === undefined) continue;
@@ -150,6 +155,16 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
             unresolved.push({ assetId, reason });
             diagFor(diagnostics, assetId, 'error', 'RESOURCE_BYTES_MISSING',
                 `asset ${assetId}: ${reason} (path '${virtualPath}')`);
+            continue;
+        }
+        // Sandbox mounts only serve image(path): non-image attachments render
+        // as metadata-only file cards and never need their bytes in the
+        // sandbox. Skipping them saves memory and transfer; they resolved
+        // cleanly, so they stay in pathMap, are not "unresolved", and get no
+        // missing diagnostic.
+        const assetKind = entry?.asset.kind;
+        if (assetKind !== undefined && assetKind !== 'image') {
+            nonImageSkipped++;
             continue;
         }
         mountedPaths.add(virtualPath);
@@ -171,7 +186,8 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
 
     ctx.log(
         `[${STAGE_NAME}] resolved ${pathMap.size}, mounts ${mounts.length}, ` +
-        `unresolved ${unresolved.length}, diagnostics ${diagnostics.length}`,
+        `unresolved ${unresolved.length}, diagnostics ${diagnostics.length}, ` +
+        `non-image skipped from mounts ${nonImageSkipped}`,
     );
     ctx.reportProgress(STAGE_NAME, 1, 1);
     return { output: { pathMap, mounts, unresolved }, diagnostics };
