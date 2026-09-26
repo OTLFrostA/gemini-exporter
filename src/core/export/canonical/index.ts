@@ -22,3 +22,4 @@ export * from './unknownFallback.js';
 export * from './assetResolution.js';
 export * from './validate.js';
 export * from './normalizeGemini.js';
+export * from './renderCanonicalHtml.js';

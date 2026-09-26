@@ -557,43 +557,11 @@ function renderModelTurn(m: ChatMessage, turnIdx: number, isEn: boolean): string
 }
 
 /**
- * Main export function: generate a complete, 1:1 styled HTML string from a Conversation.
+ * Shared 1:1 visual layer (extracted verbatim from the historical template).
+ * Both the legacy toHtml() and the canonical-AST renderer use these so the
+ * visual output stays identical while the data pipeline changes.
  */
-export function toHtml(chat: Conversation | any, opts: HtmlTemplateOptions = {}): string {
-    if (!chat) return '';
-
-    const isEn = opts.lang === 'en';
-    const rawTitle = chat.title || 'Gemini Conversation';
-    const safeTitleClean = String(rawTitle).replace(/[\r\n]+/g, ' ').trim();
-    const safeTitle = escapeHtml(safeTitleClean);
-    const isLightTheme = opts.theme === 'light';
-
-    const messages: ChatMessage[] = chat.messages || [];
-    let turnsHtml = '';
-
-    for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i];
-        const role = msg.role === 'user' ? 'user' : 'model';
-        if (role === 'user') {
-            turnsHtml += renderUserTurn(msg, i, isEn);
-        } else {
-            turnsHtml += renderModelTurn(msg, i, isEn);
-        }
-    }
-
-    if (!messages.length) {
-        const emptyMsg = isEn ? 'Empty conversation or fetch failed.' : '暂无对话记录或拉取失败。';
-        turnsHtml = `<div class="gem-empty-notice">${emptyMsg}</div>`;
-    }
-
-    return `<!DOCTYPE html>
-<html lang="${isEn ? 'en' : 'zh-CN'}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="generator" content="Gemini Exporter">
-<title>${safeTitle}</title>
-<style>
+export const GEM_HTML_CSS = `
 :root {
   --bg-main: #131314;
   --bg-user-bubble: #282a2c;
@@ -1150,15 +1118,8 @@ h4.gem-heading { font-size: 1.05em; }
     text-decoration: underline !important;
   }
 }
-</style>
-</head>
-<body class="${isLightTheme ? 'light-theme' : ''}">
-
-<main class="gem-container">
-  ${turnsHtml}
-</main>
-
-<script>
+`;
+export const GEM_HTML_SCRIPT = `
 // Copy code button handler with offline file:/// fallback
 function copyCode(btn) {
   var block = btn.closest('.gem-code-block');
@@ -1259,7 +1220,54 @@ window.addEventListener('resize', function() {
     updateCarouselNav(track);
   });
 });
-</script>
+`;
+
+/**
+ * Main export function: generate a complete, 1:1 styled HTML string from a Conversation.
+ */
+export function toHtml(chat: Conversation | any, opts: HtmlTemplateOptions = {}): string {
+    if (!chat) return '';
+
+    const isEn = opts.lang === 'en';
+    const rawTitle = chat.title || 'Gemini Conversation';
+    const safeTitleClean = String(rawTitle).replace(/[\r\n]+/g, ' ').trim();
+    const safeTitle = escapeHtml(safeTitleClean);
+    const isLightTheme = opts.theme === 'light';
+
+    const messages: ChatMessage[] = chat.messages || [];
+    let turnsHtml = '';
+
+    for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        const role = msg.role === 'user' ? 'user' : 'model';
+        if (role === 'user') {
+            turnsHtml += renderUserTurn(msg, i, isEn);
+        } else {
+            turnsHtml += renderModelTurn(msg, i, isEn);
+        }
+    }
+
+    if (!messages.length) {
+        const emptyMsg = isEn ? 'Empty conversation or fetch failed.' : '暂无对话记录或拉取失败。';
+        turnsHtml = `<div class="gem-empty-notice">${emptyMsg}</div>`;
+    }
+
+    return `<!DOCTYPE html>
+<html lang="${isEn ? 'en' : 'zh-CN'}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Gemini Exporter">
+<title>${safeTitle}</title>
+<style>${GEM_HTML_CSS}</style>
+</head>
+<body class="${isLightTheme ? 'light-theme' : ''}">
+
+<main class="gem-container">
+  ${turnsHtml}
+</main>
+
+<script>${GEM_HTML_SCRIPT}</script>
 </body>
 </html>`;
 }
