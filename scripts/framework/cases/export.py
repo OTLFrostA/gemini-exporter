@@ -253,6 +253,14 @@ class FastSkipExportedCase(FeatureTestCase):
 
             select_res = cdp_opt.eval(f"""
             (() => {{
+                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
+                if (searchInput && searchInput.value) {{
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    searchInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                if (searchInput) searchInput.blur();
+
                 const selectNone = document.getElementById('btnSelectNone');
                 if (selectNone) selectNone.click();
                 document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {{

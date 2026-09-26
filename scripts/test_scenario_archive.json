@@ -1619,5 +1619,97 @@
     ],
     "consumed_at": "2026-09-25T13:09:48.378728",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "astrophysics_cmb_b_mode_primordial_gravitational_waves",
+    "domain": "astrophysics_cmb_b_mode_primordial_gravitational_waves",
+    "title": "宇宙微波背景辐射 CMB：原初引力波 B 模偏振与暴胀张标比推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试暴胀原初引力波张量标量比 r 谱指数推导、伪 Cl 估计器滤除前景尘埃与 Imagen 天体微波偏振生图",
+    "turns": [
+      "在早期宇宙慢滚暴胀 (Slow-roll Inflation) 模型下，推导时空度规张量微扰 h_{ij} 在复合时期 (Recombination, z ~ 1100) 汤姆逊散射激发的宇宙微波背景辐射 (CMB) 旋度型 B 模偏振功率谱 C_l^{BB} 与张量标量比 r 的解析依赖关系。",
+      "生成一张由全天区微波望远镜测绘的宇宙大爆炸余晖 CMB 温度微小各向异性涨落图，在局部深空天区高亮放大展现原初引力波引发的奇特微波光子无散度 B 模偏振漩涡矢量场与银河系星际尘埃发光流线的顶级科学艺术渲染图。",
+      "使用 Python 编写基于球谐展开 Y_{lm} 与 Legendre 多项式积分的数值算法，实现一个简化的伪 Cl (Pseudo-Cl) 功率谱重构函数，消除非全天覆盖巡天掩模 (Sky Mask) 引起的 E-B 模泄漏效应。",
+      "详细推导大尺度结构星系团引力透镜效应 (Gravitational Lensing) 将 CMB 原初 E 模偏振部分转换为次级 B 模偏振信号的卷积积分方程，并给出透镜重构偏振反解公式。",
+      "使用 Markdown 表格横向对比南极 BICEP/Keck 阵列、智利西蒙斯天文台 (Simons Observatory)、LiteBIRD 空间探测卫星与中国西藏阿里原初引力波望远镜 (AliCPT) 在观测频段、探测器焦平面规模、角分辨率与张量标量比探测极限 sigma(r)。"
+    ],
+    "consumed_at": "2026-09-25T17:34:22.005572",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "hypersonic_aerodynamics_aerothermodynamics",
+    "domain": "hypersonic_aerodynamics_aerothermodynamics",
+    "title": "高超声速高焓流动：化学非平衡离解激波层与气动热流预测",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试高焓激波 Rankine-Hugoniot 真实气体效应、Fay-Riddell 驻点热流推导与 Park 两温化学离解数值模拟",
+    "turns": [
+      "在高超声速飞行 (Mach > 5) 高焓激波层极端环境下，推导考虑氧气/氮气高温热离解与振动激发非平衡物理效应的一维正激波 Rankine-Hugoniot 跃变关系式，分析总温超过 3000K 时真实气体效应 (Real Gas Effects) 导致的激波脱体距离 (Shock Stand-off Distance) 压缩物理机理。",
+      "深入推导高超声速驻点气动热预测的经典 Fay-Riddell 封闭解公式，阐明完全催化壁 (Fully Catalytic Wall) 与完全非催化壁 (Non-catalytic Wall) 表面复合适化系数 \\gamma 对航天器防热大底 (TPS) 驻点传热率 q_s 的定量影响规律。",
+      "使用 Python 编写脚本，基于化学动力学反应速率常数 (Arrhenius 公式与 Park 两温模型)，数值求解正激波后滞止线上空气五组分 (O2, N2, O, N, NO) 离解复合反应随距离的非平衡化学弛豫演化过程。",
+      "剖析乘波体 (Waverider) 基于密切锥 (Osculating Cone) 理论的气动外形反设计几何构型流程，推导超声速气流在下表面激波贴体附着条件下的最大升阻比 (L/D) 极值设计准则。",
+      "使用 Markdown 表格横向对比碳/碳复合材料 (C/C)、碳化硅陶瓷基复合材料 (C/SiC)、超高温陶瓷 (ZrB2-SiC) 与烧蚀酚醛树脂基防热材料 (PICA) 在抗热震极限温度 (K)、抗氧化剥蚀速率、密度 (g/cm³) 及航天再入飞行器不同烧蚀驻点部位的应用优缺点。"
+    ],
+    "consumed_at": "2026-09-25T17:34:22.011966",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_hyperbolic_metamaterials_super_resolution",
+    "domain": "quantum_materials_metamaterial_nanophotonics",
+    "title": "纳米光子学与双曲超材料：亚衍射极限拓扑超分辨成像与反常切伦科夫辐射",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试双曲色散介电张量推导、亚波长传输 FDTD 仿真、超分辨成像示意图生成与微结构对比表格",
+    "turns": [
+      "从各向异性麦克斯韦方程组出发，推导由交替金属-介质纳米多层膜组成的 I 型与 II 型双曲超材料（Hyperbolic Metamaterials, HMMs）的有效介电张量 \\epsilon = \\mathrm{diag}(\\epsilon_{xx}, \\epsilon_{yy}, \\epsilon_{zz}) 与波矢色散空间二次曲面方程，解释双曲超材料如何支持波矢无限大的高 k 模式（High-k Modes）。",
+      "使用 Python 编写一个基于传输矩阵法 (TMM) 或一维有限差分时域法 (FDTD) 的多层 Au/Al2O3 纳米叠层膜透射率与群延迟色散计算脚本，并输出各向异性等效折射率曲线。",
+      "请帮我生成一张高科技感科学渲染图片：多层金与氧化铝交替堆叠的双曲纳米超透镜（Hyperbolic Metamaterial Superlens），在短波激光斜入射激发下，高 k 空间消逝波被高效耦合转化为极窄的极化激元光束，正在亚波长尺度下超分辨解析相距仅 20 纳米的两个微小发光纳米量子点的微观截面光路图。",
+      "使用 Markdown 表格横向对比双曲超材料、全介质高折射率米氏共振超构表面、石墨烯等离激元波导与声子极化激元晶体在工作波长、光学吸收损耗、高 k 模式局域态密度增强倍数（LDOS）与微纳加工难度。",
+      "推导出带电粒子穿过双曲色散各向异性介质时激发的反常切伦科夫辐射角谱分布，分析其无速度阈值辐射机制与传统均匀各向同性介质中切伦科夫辐射的本质区别。"
+    ],
+    "consumed_at": "2026-09-25T17:48:35.204217",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "synthetic_biology_crispr_base_editing",
+    "domain": "synthetic_biology_gene_editing_kinetics",
+    "title": "合成生物学与精准基因编辑：CRISPR-Cas12a反式切割动力学与碱基编辑突变频谱推演",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 Cas12a R-loop 形成自由能动力学推导、非特异反式切割 (Trans-cleavage) Michaelis-Menten 方程、胞嘧啶碱基编辑器 (CBE) 脱氨基动力学 Python 仿真与高通量基因编辑系统对比",
+    "turns": [
+      "在 CRISPR-Cas12a (Cpf1) 效应蛋白识别靶标双链 DNA (dsDNA) 的过程中，详细推导前间隔序列邻近基序 (PAM, 5'-TTTV-3') 结合、DNA 双链局部解旋以及 guide RNA (crRNA) 介导的 R-loop 气泡成核与延伸的热力学与动力学自由能景观。用一维随机游走与微观可逆马尔可夫链状态转移矩阵形式化描述 R-loop 构象锁死与靶标链切割 (Target Strand Cleavage) 的速率限制步骤。",
+      "深入推导 Cas12a 活化后诱发的非特异性单链 DNA (ssDNA) 反式切割 (Collateral / Trans-cleavage) 酶促动力学模型。结合米氏方程 (Michaelis-Menten Kinetics) 扩展推导荧光报告探针裂解速率 d[F]/dt = (k_{cat} [Cas12a*] [S]) / (K_m + [S])，推导其在 SHERLOCK / DETECTR 等超灵敏分子核酸即时检测 (POCT) 体系中检出限 (LOD) 与信号信噪比 (SNR) 的极限灵敏度时间微分方程。",
+      "使用 Python 编写一个基于常微分方程数值积分算法的脚本，模拟胞嘧啶碱基编辑器 (CBE, 例如结合 APOBEC1 脱氨酶与 nCas9) 在特定编辑窗口 (如 Protospacer 第 4-8 位碱基) 内对靶向胞嘧啶 (C) 转化为尿嘧啶 (U) 以及可能发生的非目标旁观者编辑 (Bystander Editing) 的瞬态反应速率与产物百分比分布，打印编辑效率与纯度指标。",
+      "针对先导编辑器 (Prime Editing, PE) 系统的逆转录酶介导编辑机制，形式化推导先导编辑 guide RNA (pegRNA) 的引物结合位点 (PBS) 长度与逆转录模板 (RTT) 长度对 R-loop 稳定性、3' 悬垂链退火杂交竞争以及目标序列整合成功率的数学关联模型，总结最优 pegRNA 序列热力学校验设计准则。",
+      "使用 Markdown 表格横向对比标准 SpCas9 双链断裂系统 (NHEJ/HDR)、胞嘧啶碱基编辑器 (CBE)、腺嘌呤碱基编辑器 (ABE)、先导编辑器 (Prime Editor 2/3) 以及新型 RNA 靶向 Cas13 系统在编辑产物纯度、双链断裂 (DSB) 依赖性、插入/缺失突变率 (Indel %)、全基因组脱靶 (Off-target) 风险、递送尺寸载荷 (AAV 包裹兼容性) 维度的关键参数指标。"
+    ],
+    "consumed_at": "2026-09-25T17:48:35.206476",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

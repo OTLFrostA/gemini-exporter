@@ -221,6 +221,7 @@ class ExtensionActions:
             input.value = {json.dumps(query)};
             input.dispatchEvent(new Event('input', {{ bubbles: true }}));
             input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            input.blur();
         }})()
         """)
         # 轮询等待列表过滤生效（optionsInit 包含 100ms 防抖及重绘周期）
@@ -255,6 +256,7 @@ class ExtensionActions:
             input.value = '';
             input.dispatchEvent(new Event('input', {{ bubbles: true }}));
             input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            input.blur();
         }})()
         """)
         # 轮询等待搜索防抖及全量列表恢复
