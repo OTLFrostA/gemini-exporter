@@ -50,6 +50,49 @@ function makeFakeWriter(opts?: { failOn?: (name: string) => boolean }) {
     return writer;
 }
 
+/**
+ * Build a structurally valid minimal PDF with a real xref table.
+ *
+ * #587's verifier requires: %PDF- magic, at least one `endobj`, a `trailer`
+ * (or /Root), and `startxref <offset> %%EOF` in the tail — and the startxref
+ * offset is being tightened into a real pointer check, so the offsets here
+ * are computed for real, never hardcoded. The size knob is the padding
+ * inside a legal stream object, so different `padBytes` values yield
+ * different-sized but equally valid PDFs.
+ */
+function makeValidPdf(padBytes: number): Uint8Array {
+    const enc = new TextEncoder();
+    const parts: string[] = [];
+    let pos = 0;
+    const push = (s: string): void => {
+        parts.push(s);
+        pos += enc.encode(s).length;
+    };
+    push('%PDF-1.4\n');
+    const streamData = 'x'.repeat(padBytes);
+    const objects: string[] = [
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+        '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+        '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n',
+        `4 0 obj\n<< /Length ${streamData.length} >>\nstream\n${streamData}\nendstream\nendobj\n`,
+    ];
+    const objOffsets: number[] = [];
+    for (const obj of objects) {
+        objOffsets.push(pos);
+        push(obj);
+    }
+    const xrefPos = pos;
+    push('xref\n');
+    push(`0 ${objects.length + 1}\n`);
+    push('0000000000 65535 f \n');
+    for (const off of objOffsets) {
+        push(`${String(off).padStart(10, '0')} 00000 n \n`);
+    }
+    push(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n`);
+    push(`startxref\n${xrefPos}\n%%EOF`);
+    return enc.encode(parts.join(''));
+}
+
 test('stub compiler returns a parseable minimal PDF', async () => {
     const compiler = new StubPdfCompiler();
     const { bundle } = await require('../src/core/export/canonical/index.js').normalizeGeminiConversation(sample);
@@ -522,8 +565,9 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
         async compile(payload: any, _context: any) {
             const convId = payload?.bundle?.conversation?.key?.conversationId ?? '';
             const pad = convId.includes('szBig') ? 5000 : 500;
-            const bytes = new TextEncoder().encode(`%PDF-1.4\n${'x'.repeat(pad)}\n%%EOF`);
-            return { pdfBytes: bytes, diagnostics: [] };
+            // A structurally valid PDF (real xref table + trailer + startxref
+            // pointer); the size difference lives inside a legal stream object.
+            return { pdfBytes: makeValidPdf(pad), diagnostics: [] };
         },
     };
     const convSmall = makeSample('szSmall', 'small chat');
