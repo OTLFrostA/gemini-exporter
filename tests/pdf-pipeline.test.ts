@@ -83,7 +83,9 @@ test('deliver stage returning finalized:false yields staged, never delivered', a
     const p = new PdfPipeline(stages);
     const res: any = await p.runOne(fakeInput(), makeCtx());
     assert.strictEqual(res.status, 'staged');
-    assert.ok(res.writeReport);
+    // A staged item has no delivery proof: writeReport must be absent so no
+    // consumer can mistake it for success (#556/#567).
+    assert.strictEqual(res.writeReport, undefined);
     assert.strictEqual(res.error, undefined);
 });
 test('diagnostics accumulate in stage order and are never dropped', async () => {
@@ -128,6 +130,28 @@ test('StageError passes through untouched', async () => {
     assert.strictEqual(res.error.stage, 'resources');
     assert.strictEqual(res.error.code, 'NO_BYTES');
     assert.strictEqual(res.error.retryable, false);
+});
+
+test('StageError diagnostics are preserved on failure, exactly once', async () => {
+    const seen: string[] = [];
+    const d = (code: string) => ({ severity: 'warning' as const, code, message: code });
+    const stages = fakeStages(seen, {
+        project: okStage('project', { bundle: {}, view: {} }, [d('P')], seen),
+        resources: async () => {
+            throw new StageError('resources', 'ASSET_CORRUPT', 'bad bytes', {
+                retryable: true,
+                diagnostics: [d('R1'), d('R2')],
+            });
+        },
+    });
+    const p = new PdfPipeline(stages);
+    const res: any = await p.runOne(fakeInput(), makeCtx());
+    assert.strictEqual(res.status, 'failed');
+    assert.strictEqual(res.error.stage, 'resources');
+    assert.strictEqual(res.error.code, 'ASSET_CORRUPT');
+    // Prior stage diagnostics first, then the throwing stage's own, each once.
+    assert.deepStrictEqual(res.diagnostics.map((x: any) => x.code), ['P', 'R1', 'R2']);
+    assert.strictEqual(res.writeReport, undefined);
 });
 
 test('abort yields aborted, never failed', async () => {

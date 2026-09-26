@@ -124,14 +124,18 @@ export class PdfPipeline {
             // A batch-ZIP stage only STAGES into the shared writer; the batch
             // driver runs the single generateBlob()+downloadHandler() finalize
             // and flips 'staged' items to delivered afterwards. Staged items
-            // are never reported as success.
-            return {
-                conversationId,
-                title,
-                status: delivered.output.finalized ? 'delivered' : 'staged',
-                writeReport: delivered.output.writeReport,
-                diagnostics,
-            };
+            // carry NO writeReport: they have no delivery proof yet, and the
+            // union type above makes attaching one a compile error.
+            if (delivered.output.finalized) {
+                return {
+                    conversationId,
+                    title,
+                    status: 'delivered',
+                    writeReport: delivered.output.writeReport,
+                    diagnostics,
+                };
+            }
+            return { conversationId, title, status: 'staged', diagnostics };
         } catch (e) {
             if (isAbortError(e)) {
                 // Abort is terminal for this item but NOT a failure: the item
@@ -143,6 +147,11 @@ export class PdfPipeline {
                     `[PDF] ${title || conversationId} pipeline failed at stage '${e.stage}': ${e.message}`,
                     'error',
                 );
+                // A stage may emit diagnostics and then throw: the frozen
+                // contract says diagnostics from every stage accumulate and
+                // are never dropped, so the error's diagnostics join the
+                // accumulated list before the item is marked failed.
+                diagnostics.push(...e.diagnostics);
                 return fail(e.stage, e.code, e.message, e.retryable);
             }
             const message = (e as Error)?.message ?? String(e);
