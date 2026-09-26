@@ -13,6 +13,7 @@
  * companion-resource plans must know about it.
  */
 
+import type { AssetKind } from './assets.js';
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
 
@@ -21,8 +22,7 @@ import type { InlineNode } from './inline.js';
  * both the block tree and every inline tree. Returns a set of asset ids;
  * resolution (bytes/URLs/omissions) is the caller's job.
  */
-export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<string> {
-    const ids = new Set<string>();
+export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<string> {    const ids = new Set<string>();
     const walkInline = (nodes: InlineNode[]): void => {
         for (const node of nodes) {
             switch (node.type) {
@@ -73,4 +73,30 @@ export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<
     };
     walkBlocks(blocks ?? []);
     return ids;
+}
+
+/**
+ * Collect the subset of referenced asset ids a renderer needs as binary
+ * bytes (Typst image(), sandbox mounts): image-kind assets.
+ *
+ * File/audio/video attachments render as metadata-only cards straight from
+ * the Asset entity (name/mimeType/sizeBytes) and must skip byte resolution
+ * entirely — no read, no hash, no byteStore traffic, no mount. A 40MB
+ * report.pdf that only shows "report.pdf · PDF · 40 MB" therefore costs
+ * nothing in the resource pipeline.
+ *
+ * kindOf resolves the asset's canonical kind. Ids with unknown kind are
+ * kept (fail-safe): an unclassifiable reference still goes through the
+ * resolver so it is diagnosed instead of going silent.
+ */
+export function collectBinaryRenderAssetIds(
+    blocks: BlockNode[] | undefined,
+    kindOf: (assetId: string) => AssetKind | undefined,
+): Set<string> {
+    const out = new Set<string>();
+    for (const id of collectReferencedAssetIds(blocks)) {
+        const kind = kindOf(id);
+        if (kind === undefined || kind === 'image') out.add(id);
+    }
+    return out;
 }
