@@ -8,17 +8,22 @@
  * payload stage can never see an asset this stage missed), resolves the
  * binary-render subset through the shared asset resolver against the
  * per-run byte store, and emits:
- *   - pathMap : assetId -> virtual path (only image-kind assets that
- *               resolved cleanly; metadata-only attachments never enter)
+ *   - pathMap : assetId -> virtual path (only assets referenced by image
+ *               placements — ImageBlock/ImageInline — that resolved
+ *               cleanly; metadata-only attachments never enter)
  *   - mounts  : virtual path -> bytes -> mimeType (sandbox mounts for
- *               compile; image-kind assets only)
+ *               compile; image placements only)
  *   - unresolved: binary-referenced-but-not-resolved assets, each with a reason
  *
- * Binary vs metadata-only split (collectBinaryRenderAssetIds): file/audio/
- * video attachments render as metadata-only cards straight from the Asset
- * entity (name/mimeType/sizeBytes) and skip byte resolution entirely — no
- * read, no hash, no byteStore traffic. A 40MB report.pdf that only shows
- * "report.pdf · PDF · 40 MB" therefore costs nothing here.
+ * Binary vs metadata-only split (collectBinaryRenderAssetIds): the decision
+ * is AST placement, not Asset.kind. Every ImageBlock.assetId and
+ * ImageInline.assetId needs bytes (Typst image()); FileBlock/audio/video
+ * attachments render as metadata-only cards straight from the Asset entity
+ * (name/mimeType/sizeBytes) and skip byte resolution entirely — no read, no
+ * hash, no byteStore traffic. A 40MB report.pdf that only shows
+ * "report.pdf · PDF · 40 MB" therefore costs nothing here. An image
+ * placement referencing a known non-image kind still resolves (placement
+ * wins) but gets an ASSET_KIND_MISMATCH warning.
  *
  * Stage rules honored:
  *   - bytes come from input.byteStore via asset.storageRef; ResolvedAssetEntry
@@ -104,20 +109,32 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     // ---- 1. collect asset ids referenced by the projected view ----
     // Shared recursive collector (typst/payload.ts): walks block trees and
     // every inline tree (paragraph/heading children, table cells, ...), so
-    // inline images count exactly like top-level image/file blocks.
+    // inline images count exactly like top-level image blocks.
     // Two sets: every referenced id (for the summary log), and the binary
-    // subset — image-kind assets the renderer needs as bytes. File/audio/
-    // video attachments are metadata-only (file cards render from the Asset
-    // entity) and never reach the resolver.
+    // subset — assets referenced by image placements (ImageBlock /
+    // ImageInline). The binary decision is placement, not Asset.kind: the
+    // canonical validator does not force ImageBlock -> kind 'image', so a
+    // kind:'file' asset under an ImageBlock genuinely needs its bytes.
+    // File/audio/video blocks are metadata-only (file cards render from the
+    // Asset entity) and never reach the resolver.
     const byId = new Map<string, Asset>();
     for (const asset of input.bundle.assets) byId.set(asset.id, asset);
-    const kindOf = (assetId: string): Asset['kind'] | undefined => byId.get(assetId)?.kind;
     const referencedIds = new Set<string>();
     const binaryIds = new Set<string>();
     for (const message of input.view.messages) {
         throwIfAborted(ctx.signal);
         for (const id of collectReferencedAssetIds(message.blocks)) referencedIds.add(id);
-        for (const id of collectBinaryRenderAssetIds(message.blocks, kindOf)) binaryIds.add(id);
+        for (const id of collectBinaryRenderAssetIds(message.blocks)) binaryIds.add(id);
+    }
+    // Kind/placement mismatch is diagnostic-only: placement wins for
+    // resolution, but a known non-image kind under an image placement
+    // usually means the normalizer misclassified the asset.
+    for (const id of binaryIds) {
+        const asset = byId.get(id);
+        if (asset && typeof asset.kind === 'string' && asset.kind !== 'image') {
+            diagFor(diagnostics, id, 'warning', 'ASSET_KIND_MISMATCH',
+                `asset ${id} is referenced by an image placement but its kind is '${asset.kind}'; resolving by placement`);
+        }
     }
     const metadataOnlySkipped = referencedIds.size - binaryIds.size;
     ctx.log(
@@ -125,7 +142,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
         `(${binaryIds.size} binary, ${metadataOnlySkipped} metadata-only skipped before resolution)`,
     );
 
-    // ---- 2. resolve only the binary (image-kind) assets ----
+    // ---- 2. resolve only the binary (image-placement) assets ----
     // Metadata-only attachments skip resolveAssets() entirely: no byte read,
     // no SHA-256, no byteStore traffic. They are not "unresolved" — their
     // file cards render from Asset metadata — so they get no diagnostic.
