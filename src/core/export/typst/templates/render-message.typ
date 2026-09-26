@@ -8,7 +8,7 @@
       attachment.asset,
       attachment.name,
       attachment.meta,
-      width: if "width" in attachment { attachment.width * 1% } else { 50% },
+      width: 50%,
     )
   } else {
     file-attachment(attachment.name, attachment.kind, attachment.size)

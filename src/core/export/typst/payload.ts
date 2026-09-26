@@ -11,6 +11,7 @@ import type {
     MessageNode,
 } from '../canonical/conversation.js';
 import { projectConversation } from '../canonical/projection.js';
+import { extractBlockText, extractInlineText } from '../canonical/unknownFallback.js';
 import type { InlineNode } from '../canonical/inline.js';
 
 export type TypstInlineNode =
@@ -36,7 +37,6 @@ export type TypstBlockNode =
         type: 'table';
         headers: TypstInlineNode[][][];
         rows: TypstInlineNode[][][];
-        columns?: number[];
         aligns?: ('left' | 'center' | 'right')[];
         caption?: string;
     }
@@ -49,7 +49,7 @@ export type TypstBlockNode =
 
 export type TypstRenderAttachment =
     | { type: 'file'; name: string; kind: string; size: string }
-    | { type: 'image'; asset: string; name: string; meta: string; width?: number };
+    | { type: 'image'; asset: string; name: string; meta: string };
 
 export interface TypstRenderMessage {
     id: string;
@@ -123,44 +123,6 @@ function safeJsonStringify(value: unknown): string | undefined {
     }
 }
 
-function plainInline(nodes: InlineNode[], citations: Map<string, string>): string {
-    return nodes.map(node => {
-        switch (node.type) {
-            case 'text': return node.text;
-            case 'strong':
-            case 'emphasis':
-            case 'strikethrough': return plainInline(node.children, citations);
-            case 'inlineCode': return node.code;
-            case 'link': return plainInline(node.children, citations) || node.href;
-            case 'inlineMath': return node.source;
-            case 'citationRef': return node.label ?? citations.get(node.citationId) ?? `[${node.citationId}]`;
-            case 'lineBreak': return '\n';
-            case 'unknownInline': return node.fallbackText ?? `[${node.sourceType}]`;
-        }
-    }).join('');
-}
-
-function plainBlock(block: BlockNode, citations: Map<string, string>): string {
-    switch (block.type) {
-        case 'paragraph':
-        case 'heading': return plainInline(block.children, citations);
-        case 'list': return block.items.map(item => item.blocks.map(b => plainBlock(b, citations)).join(' ')).join('\n');
-        case 'quote': return block.blocks.map(b => plainBlock(b, citations)).join('\n');
-        case 'code': return block.code;
-        case 'math': return block.source;
-        case 'table': return [...(block.headerRows ?? []), ...block.rows]
-            .map(row => row.cells.map(cell => plainInline(cell.children, citations)).join(' | ')).join('\n');
-        case 'image': return block.alt ?? (block.caption ? plainInline(block.caption, citations) : '');
-        case 'file': return block.label ?? (block.description ? plainInline(block.description, citations) : '');
-        case 'citationGroup': return block.citationIds.map(id => citations.get(id) ?? id).join(', ');
-        case 'thought': return block.blocks.map(b => plainBlock(b, citations)).join('\n');
-        case 'toolCall': return block.displayBlocks?.map(b => plainBlock(b, citations)).join('\n') ?? `${block.toolName} tool call`;
-        case 'toolResult': return block.displayBlocks?.map(b => plainBlock(b, citations)).join('\n') ?? `${block.toolName ?? block.callId} result`;
-        case 'thematicBreak': return '---';
-        case 'unknown': return block.fallbackBlocks?.map(b => plainBlock(b, citations)).join('\n') ?? `[${block.sourceType}]`;
-    }
-}
-
 function renderInline(
     node: InlineNode,
     assets: Map<string, Asset>,
@@ -210,15 +172,16 @@ function cellInline(cell: TableCell): InlineNode[] {
 function renderBlock(
     block: BlockNode,
     assets: Map<string, Asset>,
-    citationLabels: Map<string, string>,
     citations: Map<string, { label: string; url?: string }>,
     options: TypstPayloadOptions,
     diagnostics: TypstAdapterDiagnostic[],
     path: string,
 ): TypstBlockNode | null {
     const inline = (nodes: InlineNode[]) => nodes.map(n => renderInline(n, assets, citations, options, diagnostics, path));
+    const inlineText = (nodes: InlineNode[]): string =>
+        nodes.map(n => extractInlineText(n, { citationLabel: (id) => citations.get(id)?.label })).join('');
     const sub = (child: BlockNode, index: number, tag: string): TypstBlockNode | null =>
-        renderBlock(child, assets, citationLabels, citations, options, diagnostics, `${path}/${tag}:${index}`);
+        renderBlock(child, assets, citations, options, diagnostics, `${path}/${tag}:${index}`);
     switch (block.type) {
         case 'paragraph': return { type: 'paragraph', children: inline(block.children) };
         case 'heading': {
@@ -266,13 +229,12 @@ function renderBlock(
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_TABLE_SPAN_IGNORED', message: 'colSpan/rowSpan are not supported by the v8 transport.', path });
             }
             const aligns = block.columns?.map(c => c.align === 'default' || !c.align ? 'left' : c.align);
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
             return {
                 type: 'table',
                 headers,
                 rows: block.rows.map(row => row.cells.map(cell => inline(cell.children))),
                 ...(aligns && aligns.length ? { aligns } : {}),
-                ...(block.caption?.length ? { caption: plainInline(block.caption, plainCitations) } : {}),
+                ...(block.caption?.length ? { caption: inlineText(block.caption) } : {}),
             };
         }
         case 'image': {
@@ -282,26 +244,23 @@ function renderBlock(
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Image asset ${block.assetId} unavailable to Typst.`, path });
                 return { type: 'unknown', sourceType: 'missing-image', fallback: block.alt ?? asset?.name ?? `Missing image: ${block.assetId}` };
             }
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            const caption = block.caption ? plainInline(block.caption, plainCitations) : block.alt;
+            const caption = block.caption ? inlineText(block.caption) : block.alt;
             return { type: 'image', asset: assetPath, ...(caption ? { caption } : {}) };
         }
         case 'file': {
             const asset = assets.get(block.assetId);
             if (!asset) return { type: 'unknown', sourceType: 'missing-file', fallback: block.label ?? `Missing file: ${block.assetId}` };
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
             return {
                 type: 'file',
                 name: block.label ?? asset.name ?? block.assetId,
                 kind: mimeLabel(asset),
                 size: humanBytes(asset.sizeBytes),
-                ...(block.description?.length ? { description: plainInline(block.description, plainCitations) } : {}),
+                ...(block.description?.length ? { description: inlineText(block.description) } : {}),
             };
         }
         case 'citationGroup': {
             const text = block.citationIds.map(id => citations.get(id)?.label ?? id).join(' · ');
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            const title = block.title?.length ? plainInline(block.title, plainCitations) : undefined;
+            const title = block.title?.length ? inlineText(block.title) : undefined;
             return {
                 type: 'note',
                 ...(title ? { label: title } : {}),
@@ -366,7 +325,6 @@ function rolePrefix(message: MessageNode): string | undefined {
 function toRenderMessage(
     message: MessageNode,
     assets: Map<string, Asset>,
-    citationLabels: Map<string, string>,
     citations: Map<string, { label: string; url?: string }>,
     options: TypstPayloadOptions,
     diagnostics: TypstAdapterDiagnostic[],
@@ -375,7 +333,7 @@ function toRenderMessage(
     const prefix = rolePrefix(message);
     if (prefix) blocks.push({ type: 'note', children: [{ type: 'text', text: prefix }] });
     message.blocks.forEach((block, index) => {
-        const mapped = renderBlock(block, assets, citationLabels, citations, options, diagnostics, `message:${message.id}/block:${index}`);
+        const mapped = renderBlock(block, assets, citations, options, diagnostics, `message:${message.id}/block:${index}`);
         if (mapped) blocks.push(mapped);
     });
 
@@ -406,8 +364,9 @@ function toRenderMessage(
         }
     }
 
-    const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-    const plainText = message.blocks.map(b => plainBlock(b, plainCitations)).join('\n');
+    const plainText = message.blocks
+        .map(b => extractBlockText(b, { citationLabel: (id) => citations.get(id)?.label }))
+        .join('\n');
     return {
         id: message.id,
         role: message.role === 'user' ? 'user' : 'assistant',
@@ -428,10 +387,8 @@ export function toTypstPayload(
         label: `[${index + 1}]`,
         url: citation.url,
     }]));
-    const citationLabels = new Map([...citations.entries()].map(([id, c]) => [id, c.label]));
-
     const messages = (options.projectedMessages ?? projectConversation(bundle, { leafMessageId: options.leafMessageId }).messages)
-        .map(message => toRenderMessage(message, assets, citationLabels, citations, options, diagnostics));
+        .map(message => toRenderMessage(message, assets, citations, options, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';
     const date = observed ? observed.slice(0, 10) : 'date unknown';
