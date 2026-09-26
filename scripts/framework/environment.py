@@ -189,7 +189,6 @@ class TestEnvironment:
             raise RuntimeError(f"标签页 '{target}' 不存在且无法建立 CDP 连接")
         conn = CDPConnection(tab["webSocketDebuggerUrl"])
         try:
-            conn.call("Page.bringToFront", {})
             conn.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         except Exception:
             pass
