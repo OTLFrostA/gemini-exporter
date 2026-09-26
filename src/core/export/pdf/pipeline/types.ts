@@ -180,7 +180,8 @@ export interface CompileStageOutput {
      * contains `trailer` or `/Root`, and the tail carries
      * `startxref <byte-offset> %%EOF` where the offset is a real pointer:
      * numeric, inside the byte range, and landing on a classic `xref`
-     * table or an indirect object whose dictionary carries `/Type` `/XRef`.
+     * table or an indirect object whose own first dictionary (scoped to
+     * that object's `endobj`) carries `/Type` `/XRef`.
      * A failed verification is a stage failure, never a blank PDF marked ok.
      */
     pdfBytes: Uint8Array;

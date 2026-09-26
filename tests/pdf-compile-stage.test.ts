@@ -335,6 +335,42 @@ test('xref stream (/Type /XRef) at the startxref offset passes verification', as
     assert.ok(output.pdfBytes.length > 0, 'xref-stream PDF accepted');
 });
 
+test('startxref pointing at an ordinary object followed by a real /Type /XRef object -> rejected', async () => {
+    // 5 0 obj is an ordinary dictionary; the real xref stream lives in the
+    // next object, within the 2 KiB probe window. The old whole-probe
+    // includes() check would have let this through; the dictionary-scoped
+    // check must reject it because 5 0 obj itself is not /Type /XRef.
+    const body =
+        '%PDF-1.4\n' +
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
+        'trailer\n<< /Root 1 0 R >>\n';
+    const ordinaryOffset = body.length;
+    const xrefObjOffset = body.length +
+        '5 0 obj\n<< /Something /Else >>\nendobj\n'.length;
+    const text =
+        body +
+        '5 0 obj\n<< /Something /Else >>\nendobj\n' +
+        '6 0 obj\n<< /Type /XRef /Size 2 /Root 1 0 R >>\nstream\n00\nendstream\nendobj\n' +
+        `startxref\n${ordinaryOffset}\n%%EOF\n`;
+    const { compiler } = makeStub({ bytes: pdfBytes(text) });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/does not point at a cross-reference/.test(e.message));
+        return true;
+    });
+    // Sanity: the same bytes with startxref aimed at the real xref stream
+    // object must pass, so the rejection above is about the offset, not
+    // the surrounding bytes.
+    const aimedRight = text.replace(
+        `startxref\n${ordinaryOffset}\n%%EOF`,
+        `startxref\n${xrefObjOffset}\n%%EOF`,
+    );
+    const { compiler: compiler2 } = makeStub({ bytes: pdfBytes(aimedRight) });
+    const { output } = await compileStage(fakeInput({ compiler: compiler2 }), makeCtx());
+    assert.ok(output.pdfBytes.length > 0, 'xref stream aimed at directly passes');
+});
+
 test('structurally complete minimal PDF passes verification', async () => {
     const { compiler } = makeStub();
     const { output } = await compileStage(fakeInput({ compiler }), makeCtx());
