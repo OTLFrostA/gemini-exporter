@@ -97,7 +97,7 @@ flowchart LR
 | ExportArtifact | 文件名、MIME、string/Blob/Uint8Array 内容、关联资源和诊断 | 渲染失败时返回空文件并标记成功 |
 | ExportRecord | ConversationKey、格式、内容修订、完成时间、目标和写入状态 | 导出过 HTML 就自动认为 PDF 已导出 |
 
-Block AST 先覆盖 Gemini 与 ChatGPT 已知的高价值内容；未知块保留原始片段和来源标识，可在新版适配器补解析。旧会话正文迁移时保留原字符串，同时生成 AST；转换失败仍保留原文并记录诊断。不要在一次 PR 中强迫所有旧数据重写。
+Block AST 以用户提供的 `gemini-exporter-rendering-contract-v1.zip` 中 `canonical/` 为开发基座，具体采用和加固项见 [Rendering Contract v1 接入方案](./pdf_rendering_contract_integration.md)。它先覆盖 Gemini 与 ChatGPT 已知的高价值内容；未知块保留原始片段和来源标识，并保证渲染时可读回退。旧会话正文迁移时保留原字符串，同时生成 AST；转换失败仍保留原文并记录诊断。不要在一次 PR 中强迫所有旧数据重写。
 
 ### 3.3 可携带归档与完整性
 
@@ -119,7 +119,7 @@ Block AST 先覆盖 Gemini 与 ChatGPT 已知的高价值内容；未知块保�
 | --- | --- | --- |
 | F0 可信测试 | 锁定脱敏旧数据/导出夹具；Tier 2 必测能力改为 PASS/FAIL/BLOCKED/NOT_APPLICABLE；Tier 3 靶场与正式门禁分开；场景池领取和结果提交分离 | 故意令关键断言失败、缺少环境、Agent 立即 DONE，三种情况均不能退出 0；完整 Tier 1 通过 |
 | F1 复合身份 | 定义 ConversationKey；存储、明细、附件、导出状态、游标、UI 选择统一键；分步兼容旧 Gemini 数据 | Gemini/ChatGPT 相同原始 ID、两个账户相同原始 ID 均不串号；旧数据重复迁移幂等；失败时保留旧键 |
-| F2 最小 Block AST | 定义块、消息树、未知块和平台扩展；Gemini 规范化；旧字符串渐进转换；MD/HTML 先消费 AST | 固定夹具中的文本、代码、公式、表格、图片、思考内容和顺序与现有导出一致；未知块可往返 |
+| F2 最小 Block AST | 接入并加固包内 canonical 类型/Schema/示例；共享树校验与分支投影、标题权威、未知回退；Gemini 规范化；旧字符串渐进转换；MD/HTML 先消费 AST | 固定夹具中的文本、代码、公式、表格、图片、思考内容和顺序与现有导出一致；HTML/PDF 同一分支；未知块可往返 |
 | F3 归档 v1 | ZIP manifest、会话、来源观察、assets、哈希、版本和导入/合并流程 | 全新空库重导入后身份、消息树、资源及哈希一致；损坏包拒绝且不污染现有库 |
 | F4 扩展契约 | Provider、Repository、Renderer、Writer 类型边界；格式注册表；异步二进制产物；平台能力 UI | 假 Provider 不改编排器即可导出；假 Blob Renderer 不改 Writer 即可写 ZIP/文件夹；Gemini 旧行为全绿 |
 
@@ -158,13 +158,13 @@ ChatGPT 官方导出可作为 C1 输入，但不同账户/工作区的导出可�
 
 ## 6. PDF 路线：对照实验、里程碑、验收
 
-Block AST、HTML 共用层、v8 视觉迁入及逐批交付任务见 [PDF 导出专项执行方案](./pdf_export_implementation_plan.md)。
+Block AST、HTML 共用层、v8 视觉迁入及逐批交付任务见 [PDF 导出专项执行方案](./pdf_export_implementation_plan.md)；`gemini-exporter-rendering-contract-v1.zip` 的采用边界、缺口与节点映射见 [Rendering Contract v1 接入方案](./pdf_rendering_contract_integration.md)。
 
-PDF 的产品要求是本地、无打印对话框、可批量、文字可选择/搜索、资源可追踪。**不预选 Typst 或 pdfmake。** 选择发生在 P0 实验完成之后；Block AST 与归档格式不随引擎改变。
+PDF 的产品要求是本地、无打印对话框、可批量、文字可选择/搜索、资源可追踪。Typst v8 是视觉基准和首个实验实现；**产品运行引擎仍由 P0 选定**。Block AST 与归档格式不随引擎改变。
 
 ### P0：引擎与运行容器对照实验
 
-**候选**：A 为随包提供 JS/WASM/字体的 Typst Web 编译链；B 为随包提供代码和字体的文档式 JS PDF 引擎，例如 pdfmake。每个候选都从同一 Block AST 生成 PDF，并使用同一测试夹具和运行机器。Typst 浏览器示例能生成 PDF，但其默认示例可从 CDN 取代码/WASM/字体，因此不能直接证明离线 MV3 可用：[typst.ts 项目](https://github.com/Myriad-Dreamin/typst.ts)、[浏览器 PDF 示例](https://github.com/Myriad-Dreamin/typst.ts/blob/main/github-pages/preview.html)。pdfmake 的浏览器接口可取得 Blob，但复杂内容仍需实测：[pdfmake 方法文档](https://pdfmake.github.io/docs/0.3/getting-started/client-side/methods/)。
+**候选**：A 以包内 Typst v8 模板和 AST adapter 为起点，补随包提供的 JS/WASM/字体编译链；B 为随包提供代码和字体的文档式 JS PDF 引擎，例如 pdfmake。每个候选都从同一已验证、已投影的 Block AST 生成 PDF，并使用同一测试夹具和运行机器。Typst 浏览器示例能生成 PDF，但其默认示例可从 CDN 取代码/WASM/字体，因此不能直接证明离线 MV3 可用：[typst.ts 项目](https://github.com/Myriad-Dreamin/typst.ts)、[浏览器 PDF 示例](https://github.com/Myriad-Dreamin/typst.ts/blob/main/github-pages/preview.html)。pdfmake 的浏览器接口可取得 Blob，但复杂内容仍需实测：[pdfmake 方法文档](https://pdfmake.github.io/docs/0.3/getting-started/client-side/methods/)。
 
 **固定样本**：至少 12 份脱敏会话，覆盖中英混排、CJK 标点、emoji、行内/块级公式、代码换行和长代码、宽表与跨页表、引用和链接、图片及其归属、附件卡片、缺失资源、单份超长会话、未知块。另生成 100 会话/至少 2,000 消息/50 MiB 附件的批量压力集，并保留小样与压力集的输入清单和哈希。
 
@@ -182,7 +182,7 @@ PDF 的产品要求是本地、无打印对话框、可批量、文字可选择/
 
 | 里程碑 | 具体实现 | 提交物 | 验收标准 |
 | --- | --- | --- | --- |
-| P1 AST → PDF 文档 | 为选中引擎实现纯渲染适配器；统一转义与资源引用；未知块有可读回退；Typst 路线的 Typst 源仅是临时产物 | PDF Renderer、12 份黄金样本 | 全部消息块顺序及唯一文本标记存在；文字可提取；未知块和缺资源不会无声消失 |
+| P1 AST → PDF 文档 | 以包内 adapter/v8 模板为 Typst 实现起点；扩展嵌套列表、多表头/合并单元格等缺失节点；统一转义与资源引用、可读回退和降级诊断；Typst 源仅是临时产物 | PDF Renderer、节点覆盖矩阵、12 份黄金样本 | 同一分支的全部消息块顺序及唯一文本标记存在；文字可提取；未知块、结构降级和缺资源不会无声消失 |
 | P2 本地运行容器 | Options 页面启动受控 Worker/扩展文档；离线加载引擎/字体；构建与 --pack 纳入资源；记录许可证 | 商店格式扩展 ZIP、运行与权限记录 | 干净配置断网运行；无调试/打印对话框/本机程序；无远程代码和资源请求 |
 | P3 批量任务接入 | 采用已有 Writer 写 Blob；每会话有限并发、进度、取消、失败隔离、任务日志及重开页面后的重试；按格式与内容修订写 ExportRecord | ZIP/文件夹 PDF 输出、任务清单 | 100 会话压力集过 P0 预算；中途关闭页面后的未完成项不标成功且可续跑；单会话失败不损坏其他文件 |
 | P4 自动内容审计 | 解包后检查 PDF 可解析、文本标记/顺序、图片实体、页面异常和格式来源；加入真实扩展流程 | Tier 1 固定夹具、Tier 2 落盘断言、Tier 3 视觉报告 | 任意故意删除一轮消息或一张必需图片，测试必须失败；Agent DONE 无法绕过宿主 PDF 断言 |
@@ -232,8 +232,8 @@ flowchart LR
 3. F0c：场景池事务、增量测试回退及 CI 文档校准。
 4. F1a：ConversationKey 与旧数据兼容读取。
 5. F1b：存储/详情/导出记录迁移及跨账户回归。
-6. F2a：Block AST、UnknownBlock、旧正文兼容转换。
-7. F2b：Gemini 规范化和 MD/HTML AST 渲染的等价回归。
+6. F2a：从 rendering contract 包接入 canonical 类型/Schema/示例，补树校验、共享分支投影、标题权威、UnknownBlock 可见回退和旧正文兼容转换。
+7. F2b/F2c：Gemini 规范化；以包内 HTML renderer 为骨架完成 MD/HTML AST 渲染、离线资源和旧 HTML 内容/视觉/交互等价回归。
 8. F3a：归档 v1 写出、manifest/哈希和来源报告。
 9. F3b：归档验证、全新库导入与恢复。
 10. F4a：Provider/Repository 契约及 Gemini 专用逻辑回迁。
