@@ -4,7 +4,6 @@ import type { Asset } from '../canonical/assets.js';
 import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectUnplacedAssociatedImageIds } from '../canonical/assetReferences.js';
 import type {
     BlockNode,
-    ListBlock,
     TableCell,
     TableRow,
 } from '../canonical/blocks.js';
@@ -25,10 +24,12 @@ export type TypstInlineNode =
     | { type: 'image'; asset: string; alt?: string }
     | { type: 'inlineMath'; latex: string; typst?: string };
 
+export type TypstListItem = { blocks: TypstBlockNode[] };
+
 export type TypstBlockNode =
     | { type: 'paragraph'; children: TypstInlineNode[] }
     | { type: 'heading'; level: 1 | 2 | 3; children: TypstInlineNode[] }
-    | { type: 'list'; ordered: boolean; items: { children: TypstInlineNode[] }[] }
+    | { type: 'list'; ordered: boolean; start?: number; items: TypstListItem[] }
     | { type: 'code'; language: string; text: string }
     | { type: 'math'; latex: string; typst?: string }
     | {
@@ -43,7 +44,7 @@ export type TypstBlockNode =
     | { type: 'file'; name: string; kind: string; size: string }
     | { type: 'quote'; blocks: TypstBlockNode[] }
     | { type: 'note'; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
-    | { type: 'unknown'; sourceType?: string; fallback?: string };
+    | { type: 'unknown'; sourceType?: string; blocks?: TypstBlockNode[]; fallback?: string };
 
 export type TypstRenderAttachment =
     | { type: 'file'; name: string; kind: string; size: string }
@@ -204,11 +205,6 @@ function renderInline(
     }
 }
 
-function flattenListItem(item: ListBlock['items'][number], citations: Map<string, string>): InlineNode[] {
-    const text = item.blocks.map(b => plainBlock(b, citations)).join(' / ');
-    return [{ type: 'text', text }];
-}
-
 function firstHeaderRow(rows?: TableRow[]): TableRow | undefined {
     return rows && rows.length > 0 ? rows[0] : undefined;
 }
@@ -237,14 +233,20 @@ function renderBlock(
             return { type: 'heading', level, children: inline(block.children) };
         }
         case 'list': {
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            if (block.items.some(item => item.blocks.length !== 1 || item.blocks[0]?.type !== 'paragraph')) {
-                diagnostics.push({ severity: 'warning', code: 'TYPST_V8_LIST_FLATTENED', message: 'Nested or multi-block list item flattened for the v8 transport.', path });
-            }
+            const items: TypstListItem[] = [];
+            block.items.forEach((item, index) => {
+                const kids: TypstBlockNode[] = [];
+                item.blocks.forEach((child, childIndex) => {
+                    const rendered = sub(child, childIndex, `list:${index}`);
+                    if (rendered) kids.push(rendered);
+                });
+                items.push({ blocks: kids });
+            });
             return {
                 type: 'list',
                 ordered: block.ordered,
-                items: block.items.map(item => ({ children: inline(flattenListItem(item, plainCitations)) })),
+                ...(block.start !== undefined ? { start: block.start } : {}),
+                items,
             };
         }
         case 'quote': {
@@ -327,8 +329,15 @@ function renderBlock(
         }
         case 'thematicBreak': return { type: 'paragraph', children: [{ type: 'text', text: '—' }] };
         case 'unknown': {
-            const plainCitations = new Map([...citations.entries()].map(([k, v]) => [k, v.label]));
-            return { type: 'unknown', sourceType: block.sourceType, fallback: block.fallbackBlocks?.map(b => plainBlock(b, plainCitations)).join('\n') ?? 'Content preserved in archive but unavailable in this renderer.' };
+            if (block.fallbackBlocks) {
+                const kids: TypstBlockNode[] = [];
+                block.fallbackBlocks.forEach((child, index) => {
+                    const rendered = sub(child, index, 'unknown');
+                    if (rendered) kids.push(rendered);
+                });
+                return { type: 'unknown', sourceType: block.sourceType, blocks: kids };
+            }
+            return { type: 'unknown', sourceType: block.sourceType, fallback: 'Content preserved in archive but unavailable in this renderer.' };
         }
     }
 }

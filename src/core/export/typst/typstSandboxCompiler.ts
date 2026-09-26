@@ -155,7 +155,10 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
                 if (block.blocks) for (const child of block.blocks) stripBlock(child);
                 break;
             case 'list':
-                for (const item of block.items) stripInline(item.children);
+                for (const item of block.items) for (const child of item.blocks) stripBlock(child);
+                break;
+            case 'unknown':
+                if (block.blocks) for (const child of block.blocks) stripBlock(child);
                 break;
             case 'table':
                 for (const row of block.headers) {
@@ -207,7 +210,9 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
             if (block.children) visitInline(block.children);
             if (block.blocks) for (const child of block.blocks) visitBlock(child);
         } else if (block.type === 'list') {
-            for (const item of block.items) visitInline(item.children);
+            for (const item of block.items) for (const child of item.blocks) visitBlock(child);
+        } else if (block.type === 'unknown') {
+            if (block.blocks) for (const child of block.blocks) visitBlock(child);
         } else if (block.type === 'table') {
             for (const row of block.headers) visitInline(row);
             for (const row of block.rows) {

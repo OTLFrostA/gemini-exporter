@@ -396,7 +396,7 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 return;
             }
             case 'list':
-                for (const item of b.items ?? []) emit(isAsset, typstInlineText(item.children));
+                for (const item of b.items ?? []) for (const sub of item.blocks ?? []) emitBlock(sub, canonType);
                 return;
             case 'code':
                 // The template renders the language as a sticky label above the code.
@@ -418,7 +418,11 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 emit(isAsset, b.name);
                 return;
             case 'unknown':
-                if (b.fallback) emit(isAsset, b.fallback);
+                if (b.blocks) {
+                    for (const sub of b.blocks) emitBlock(sub, canonType);
+                } else if (b.fallback) {
+                    emit(isAsset, b.fallback);
+                }
                 return;
             default:
                 return;
