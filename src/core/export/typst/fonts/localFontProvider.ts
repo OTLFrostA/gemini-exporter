@@ -63,11 +63,6 @@ export const LATIN_FONT_STACK: readonly string[] = [
     'DejaVu Sans',
 ];
 
-export const MATH_FONT_STACK: readonly string[] = [
-    'NewCMMath',
-    'Noto Sans Math',
-];
-
 export interface LocalFontCandidate {
     readonly family: string;
     readonly postscriptName: string;
