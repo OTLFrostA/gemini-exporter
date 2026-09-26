@@ -1,9 +1,9 @@
 /**
  * src/core/export/pdf/index.ts
  *
- * P3 PDF export feature entry point.
- * The real Typst compiler (P1b) implements IPdfCompiler and injects it;
- * P3 ships with the deterministic StubPdfCompiler for tests/UI wiring.
+ * D7 PDF export feature entry point.
+ * The default compiler is the real Typst sandbox compiler (D7 M6);
+ * StubPdfCompiler is exported for tests only (behind the allowStub opt-in).
  */
 
 export type { IPdfCompiler, PdfCompileResult, StubPdfCompilerOptions } from './pdfCompiler.js';

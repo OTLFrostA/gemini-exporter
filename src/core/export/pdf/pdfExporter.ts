@@ -41,6 +41,13 @@
  *   (PdfExportResult.zipDelivery), never a per-item bytesWritten (#585).
  *   `if (result.writeReport)` misuse stays a compile error.
  *
+ * D7 M6: production wiring. The default compiler is the real Typst sandbox
+ * compiler (TypstSandboxCompiler, MV3 sandbox + WASM). StubPdfCompiler is
+ * test-only: constructing without a compiler outside an extension page
+ * throws, and a stub reaching run() without an explicit `allowStub` opt-in
+ * is a hard error (the M6 stub gate) — a placeholder PDF is never produced
+ * silently on the production path.
+ *
  * Engine shape mirrors ExportOrchestrator (run/abort) so
  * exportController can route `format === 'pdf'` here without changes
  * to the progress/cancel UI wiring.
@@ -55,7 +62,8 @@ import { normalizeGeminiConversation } from '../canonical/normalizeGemini.js';
 import { createWriter, type IExportWriter } from '../../engine/writers/writerInterface.js';
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
-import { IPdfCompiler, StubPdfCompiler } from './pdfCompiler.js';
+import { IPdfCompiler, STUB_PDF_COMPILER_NAME } from './pdfCompiler.js';
+import { TypstSandboxCompiler } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
 import { projectStage } from './pipeline/projectionStage.js';
 import { resourceStage } from './pipeline/resourceStage.js';
@@ -123,8 +131,14 @@ export interface PdfExporterOptions {
     useZip?: boolean;
     dirHandle?: any;
     folderName?: string;
-    /** Defaults to StubPdfCompiler. M6 injects the real Typst sandbox compiler here. */
+    /** Defaults to the real Typst sandbox compiler (D7 M6). Stub is test-only, see allowStub. */
     compiler?: IPdfCompiler;
+    /**
+     * Explicit opt-in to let a StubPdfCompiler through the production path.
+     * Tests/drills only. Without this, run() throws the M6 stub gate error
+     * instead of silently producing placeholder PDFs.
+     */
+    allowStub?: boolean;
     /** Injected for tests; otherwise created from useZip/dirHandle. */
     writer?: IExportWriter;
     /**
@@ -167,13 +181,59 @@ const D7_STAGES: PipelineStages = {
     deliver: deliverStage,
 };
 
+export interface PdfExporterConstructorOptions {
+    /**
+     * Explicit opt-in to let a StubPdfCompiler through the production path.
+     * Tests/drills only. Defaults to false: a stub reaching run() without
+     * this is a hard error, never a silent placeholder PDF.
+     */
+    allowStub?: boolean;
+}
+
+/**
+ * True only in a real extension page (options page, popup, background):
+ * the Typst sandbox compiler needs `document` for its hidden iframe and
+ * `chrome.runtime.getURL` for the sandbox page + WASM/font assets.
+ */
+function isExtensionPageContext(): boolean {
+    return (
+        typeof document !== 'undefined' &&
+        typeof chrome !== 'undefined' &&
+        typeof (chrome as any)?.runtime?.getURL === 'function'
+    );
+}
+
+/**
+ * D7 M6 production default: the real Typst sandbox compiler. Fail-fast
+ * outside an extension page context — the old behavior (silently falling
+ * back to the stub) is exactly the failure mode #558 removed: a test that
+ * forgets to inject its compiler must explode here, not ship a fake PDF.
+ */
+function createProductionCompiler(): IPdfCompiler {
+    if (!isExtensionPageContext()) {
+        throw new Error(
+            '[M6 stub gate] PdfExporter constructed without a compiler outside an ' +
+                'extension page context. Inject an IPdfCompiler explicitly ' +
+                '(tests: pass a stub compiler instance with allowStub: true).',
+        );
+    }
+    return new TypstSandboxCompiler();
+}
+
+/** Name-based (not instanceof): a stub must never cross bundle boundaries silently. */
+function isStubCompiler(compiler: IPdfCompiler): boolean {
+    return compiler?.name === STUB_PDF_COMPILER_NAME;
+}
+
 export class PdfExporter {
     aborted = false;
     private _abortController: AbortController | null = null;
     private _compiler: IPdfCompiler;
+    private _allowStub: boolean;
 
-    constructor(compiler?: IPdfCompiler) {
-        this._compiler = compiler ?? new StubPdfCompiler();
+    constructor(compiler?: IPdfCompiler, opts?: PdfExporterConstructorOptions) {
+        this._allowStub = opts?.allowStub ?? false;
+        this._compiler = compiler ?? createProductionCompiler();
     }
 
     abort(): void {
@@ -190,6 +250,20 @@ export class PdfExporter {
         const onLog = callbacks.onLog ?? (() => {});
         const onItemExported = callbacks.onItemExported ?? (() => {});
         const compiler = options.compiler ?? this._compiler;
+
+        // M6 stub gate (carries #558's mechanical defense into D7): the stub
+        // is test-only. A stub reaching this point without an explicit
+        // allowStub opt-in (constructor or per-run) is a configuration error
+        // and throws BEFORE any export work — a placeholder PDF is never
+        // produced, and nothing is ever marked successful.
+        const allowStub = options.allowStub ?? this._allowStub;
+        if (!allowStub && isStubCompiler(compiler)) {
+            throw new Error(
+                '[M6 stub gate] StubPdfCompiler reached the export path without an ' +
+                    'explicit allowStub opt-in. Refusing to produce placeholder PDFs; ' +
+                    'pass allowStub: true (tests/drills only) or inject the real compiler.',
+            );
+        }
 
         this.aborted = false;
         this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
