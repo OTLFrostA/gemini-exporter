@@ -268,13 +268,12 @@ export const compileStage: StageFn<CompileStageInput, CompileStageOutput> = asyn
         reportProgress: ctx.reportProgress,
     };
 
-    // Pass prebuilt payload and asset paths so the compiler skips re-converting the bundle.
     const compilerPayload: TypstRenderPayload = {
         rendererSchemaVersion: 1,
         sourceSchemaVersion: 1,
         bundle: input.bundle,
-        prebuiltDoc: input.payload,
-        prebuiltAssetPaths: input.pathMap,
+        document: input.payload,
+        assetPaths: input.pathMap,
     };
 
     let pdfBytes: Uint8Array;

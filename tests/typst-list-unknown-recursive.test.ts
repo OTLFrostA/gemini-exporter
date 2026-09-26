@@ -128,10 +128,9 @@ test('unknown without fallbackBlocks keeps the fallback string', async () => {
 
 async function compileOnce(bundle: any, assets: Record<string, Uint8Array>) {
     const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({
-        host,
-        payloadOptions: { convertMath, assetPath: (a: any) => `/assets/${a.id}.png` },
-    });
+    const compiler = new TypstSandboxCompiler({ host });
+    const assetPath = (a: any) => `/assets/${a.id}.png`;
+    const { payload: document } = toTypstPayload(bundle, { assetPath, convertMath });
     const context = {
         bundle,
         assets: {
@@ -146,7 +145,13 @@ async function compileOnce(bundle: any, assets: Record<string, Uint8Array>) {
     };
     try {
         const result = await compiler.compile(
-            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+            {
+                rendererSchemaVersion: 1,
+                sourceSchemaVersion: 1,
+                bundle,
+                document,
+                assetPaths: new Map((bundle.assets ?? []).map((a: any) => [a.id, assetPath(a)])),
+            } as never,
             context as never,
         );
         return result;

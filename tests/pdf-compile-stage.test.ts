@@ -132,8 +132,8 @@ test('happy path: verified pdfBytes returned; compiler got bundle/locale/signal 
     assert.strictEqual(captured.payload.rendererSchemaVersion, 1);
     assert.strictEqual(captured.payload.sourceSchemaVersion, 1);
     assert.strictEqual(captured.payload.bundle, input.bundle);
-    assert.strictEqual(captured.payload.prebuiltDoc, input.payload);
-    assert.strictEqual(captured.payload.prebuiltAssetPaths, input.pathMap);
+    assert.strictEqual(captured.payload.document, input.payload);
+    assert.strictEqual(captured.payload.assetPaths, input.pathMap);
     assert.strictEqual(captured.context.bundle, input.bundle);
     assert.strictEqual(captured.context.locale, 'zh');
     assert.strictEqual(captured.context.signal, ctx.signal);

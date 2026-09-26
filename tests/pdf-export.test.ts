@@ -104,7 +104,7 @@ test('stub compiler returns a parseable minimal PDF', async () => {
         reportProgress: () => {},
     };
     const { pdfBytes, diagnostics } = await compiler.compile(
-        { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle },
+        { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
         ctx
     );
     const text = new TextDecoder().decode(pdfBytes);
