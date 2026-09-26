@@ -144,6 +144,47 @@ test('resources stage: aborted signal throws AbortError', async () => {
     );
 });
 
+test('resources stage: non-image attachments resolve but are not mounted into the sandbox', async () => {
+    // A 40MB-style report.pdf: referenced by a FileBlock, resolves cleanly,
+    // but the Typst template only renders metadata (name/kind/size) — its
+    // bytes must never enter ImageMount.
+    const store = createInlineByteStore();
+    const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
+    store.put('inline/report-pdf', pdfBytes);
+    const bundle = {
+        assets: [
+            asset('doc-report', {
+                kind: 'file', storageRef: 'inline/report-pdf',
+                mimeType: 'application/pdf', name: 'report.pdf', sizeBytes: 4096,
+            }),
+        ],
+    };
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model',
+                blocks: [{ type: 'file', assetId: 'doc-report', label: 'report.pdf' }],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: store }, ctx);
+
+    // Resolved cleanly: stays in pathMap, not "unresolved", no diagnostic.
+    assert.ok(output.pathMap.has('doc-report'), 'cleanly resolved file stays in pathMap');
+    assert.deepStrictEqual(output.unresolved, []);
+    const warnPlus = diagnostics.filter(
+        (d: any) => d.path === 'asset:doc-report'
+            && (d.severity === 'warning' || d.severity === 'error'),
+    );
+    assert.strictEqual(warnPlus.length, 0, 'filtered file attachment gets no missing diagnostic');
+    // ...but its bytes never enter the sandbox mounts.
+    assert.strictEqual(output.mounts.length, 0, 'no ImageMount for non-image attachment');
+});
+
 test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and reports it exactly once', async () => {
     // Simulate bytes vanishing between resolveAssets and the mount re-read:
     // the resolver's single get() sees bytes, the stage's re-read misses.
