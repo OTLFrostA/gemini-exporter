@@ -375,3 +375,134 @@ test('zip: missing downloadHandler fails closed, never counts staged as delivere
     assert.strictEqual(writer.files.length, 0, 'fails fast: nothing staged, nothing wasted');
     assert.ok(logs.some((l) => l.level === 'error'), 'configuration error logged, not swallowed');
 });
+
+test('§11: export-record persistence failure keeps the artifact successful but warns loudly', async () => {
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const logs: any[] = [];
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: false,
+            writer,
+        },
+        {
+            onItemExported: () => {
+                throw new Error('boom: simulated record-store failure');
+            },
+            onLog: (msg: string, level?: string) => logs.push({ msg, level }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 1, 'artifact success is NOT flipped by a record-write failure');
+    assert.strictEqual(result.failed.length, 0);
+    assert.ok(
+        logs.some((l) => l.level === 'warn' && l.msg.includes('EXPORT_RECORD_WRITE_FAILED')),
+        'EXPORT_RECORD_WRITE_FAILED warning is visible, not swallowed'
+    );
+});
+
+test('§11 (zip): record failure during delivery commit keeps staged items delivered', async () => {
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const logs: any[] = [];
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: true,
+            writer,
+            downloadHandler: async () => {},
+        },
+        {
+            onItemExported: () => {
+                throw new Error('boom: simulated record-store failure');
+            },
+            onLog: (msg: string, level?: string) => logs.push({ msg, level }),
+        }
+    );
+    assert.strictEqual(result.succeeded, 1, 'delivered items stay successful');
+    assert.strictEqual(result.failed.length, 0);
+    assert.ok(
+        logs.some((l) => l.level === 'warn' && l.msg.includes('EXPORT_RECORD_WRITE_FAILED')),
+        'EXPORT_RECORD_WRITE_FAILED warning is visible on the zip path too'
+    );
+});
+
+test('warning diagnostics propagate to the visible log channel, not swallowed', async () => {
+    const writer = makeFakeWriter();
+    const warningCompiler = {
+        name: 'warning-test-compiler',
+        async compile(_payload: any, _context: any) {
+            return {
+                pdfBytes: new TextEncoder().encode('%PDF-1.4 test'),
+                diagnostics: [{ severity: 'warning', code: 'TEST_COMPILE_WARN', message: 'synthetic warning' }],
+            };
+        },
+    };
+    const exporter = new PdfExporter();
+    const logs: any[] = [];
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: false,
+            writer,
+            compiler: warningCompiler,
+        },
+        { onLog: (msg: string, level?: string) => logs.push({ msg, level }) }
+    );
+    assert.strictEqual(result.succeeded, 1);
+    assert.ok(
+        logs.some((l) => l.level === 'warn' && l.msg.includes('TEST_COMPILE_WARN')),
+        'compile warning surfaced through onLog (Error page channel)'
+    );
+});
+
+test('result carries UI-contract aliases so failures are visible to the summary/banner/retry flow', async () => {
+    const failing = new StubPdfCompiler({ failWith: 'boom: conv fail' });
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const result = await exporter.run(
+        {
+            selected: [{ id: sample.id, title: sample.title }],
+            conversations: [sample],
+            useZip: false,
+            writer,
+            compiler: failing,
+        },
+        {}
+    );
+    assert.strictEqual(result.failed.length, 1);
+    assert.strictEqual(result.failedChats!.length, 1, 'failedChats alias present');
+    assert.strictEqual(result.failedChats![0].id, sample.id, 'banner/retry can reselect by id');
+    assert.strictEqual(result.landedChats, 0);
+    assert.strictEqual(result.exportedCount, 0);
+});
+
+test('abort marks unfinished items as failed/retryable instead of silently dropping them', async () => {
+    const slowCompiler = new StubPdfCompiler({ delayMs: 300 });
+    const writer = makeFakeWriter();
+    const exporter = new PdfExporter();
+    const runPromise = exporter.run(
+        {
+            selected: [1, 2, 3].map((n) => ({ id: `abort-${n}`, title: `abort ${n}` })),
+            conversations: [1, 2, 3].map((n) => makeSample(`abort${n}`, `abort ${n}`)),
+            useZip: false,
+            writer,
+            compiler: slowCompiler,
+        },
+        {}
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    exporter.abort();
+    const result = await runPromise;
+    assert.strictEqual(result.aborted, true);
+    assert.strictEqual(result.succeeded, 0);
+    assert.strictEqual(result.failed.length, 3, 'every unfinished item reported, none silently dropped');
+    assert.ok(
+        result.failed.every((f: any) => f.error!.includes('aborted before completion')),
+        'abort reason is explicit and retryable'
+    );
+    assert.strictEqual(result.failedChats!.length, 3, 'UI aliases stay consistent on abort');
+});
