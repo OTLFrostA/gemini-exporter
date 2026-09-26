@@ -66,11 +66,30 @@ test('matcher: postscript heuristic matches when family field is generic', () =>
 });
 
 test('matcher: first requested family claims an ambiguous entry', () => {
-    const entries = [mockEntry('Noto Sans CJK SC', 'NotoSansCJKsc-Regular', 'Regular')];
+    const entries = [mockEntry('Noto Sans CJK', 'NotoSansCJKsc-Regular', 'Regular')];
     const cands = rankLocalFontCandidates(entries, ['Noto Sans CJK', 'Noto Sans CJK SC']);
-    // Entry matches both; claimed by the earlier-requested family only.
+    // Entry matches both (exact family for the first, PS stem for the second);
+    // claimed by the earlier-requested family only.
     assert.strictEqual(cands.length, 1);
     assert.strictEqual(cands[0].requestedFamily, 'Noto Sans CJK');
+});
+
+test('matcher: no arbitrary prefix match on the postscript stem', () => {
+    // "Noto Sans" must NOT claim "NotoSansCJKsc-Regular": the PS family stem
+    // is "notosanscjksc", which only equals "Noto Sans CJK SC".
+    const entries = [mockEntry('Noto Sans CJK SC', 'NotoSansCJKsc-Regular', 'Regular')];
+    assert.strictEqual(rankLocalFontCandidates(entries, ['Noto Sans']).length, 0);
+    assert.strictEqual(rankLocalFontCandidates(entries, ['Noto Sans CJK']).length, 0);
+    assert.strictEqual(rankLocalFontCandidates(entries, ['Noto Sans CJK SC']).length, 1);
+});
+
+test('matcher: postscript stem parsing handles hyphen-less names', () => {
+    const entries = [mockEntry('Sans', 'ArialBold', 'Bold')];
+    const cands = rankLocalFontCandidates(entries, ['Arial']);
+    assert.strictEqual(cands.length, 1);
+    assert.strictEqual(cands[0].postscriptName, 'ArialBold');
+    // ...but a bare prefix of the stem still does not match.
+    assert.strictEqual(rankLocalFontCandidates(entries, ['Ari']).length, 0);
 });
 
 test('matcher: case-insensitive, no match returns empty', () => {
@@ -167,17 +186,37 @@ test('resolve: CJK found -> ranked fonts, lazy getBytes, info diagnostic', async
     }
 });
 
-test('resolve: nothing found -> MISSING diagnostics, explicit fallback chain', async () => {
+test('resolve: nothing found -> MISSING diagnostics, bundled-only, localFontsAvailable=false', async () => {
     const restore = stubQueryLocalFonts(async () => []);
     try {
         const res: any = await resolveLocalFonts({ cjk: ['Noto Sans CJK SC'], latin: [] });
         assert.strictEqual(res.fonts.length, 0);
-        assert.strictEqual(res.localFontsAvailable, true);
+        // Query succeeded but nothing matched: the sandbox compiles with
+        // bundled fonts only, so localFontsAvailable must be false.
+        assert.strictEqual(res.localFontsAvailable, false);
         const codes = res.diagnostics.map((d: any) => d.code);
         assert.ok(codes.includes('TYPST_LOCAL_FONTS_MISSING'));
         const missing = res.diagnostics.find((d: any) => d.code === 'TYPST_LOCAL_FONTS_MISSING');
         assert.ok(missing.message.includes('Noto Sans CJK SC'));
         assert.ok(res.fallbackChain[0].includes('NewCMMath'));
+    } finally {
+        restore();
+    }
+});
+
+test('resolve: one font file is never mounted twice across CJK/Latin stacks', async () => {
+    const restore = stubQueryLocalFonts(async () => [
+        mockEntry('Noto Sans', 'NotoSans-Regular', 'Regular'),
+    ]);
+    try {
+        const res: any = await resolveLocalFonts({ cjk: ['Noto Sans'], latin: ['Noto Sans'] });
+        // The single installed file is claimed by CJK; Latin must not mount it again.
+        assert.strictEqual(res.fonts.length, 1);
+        assert.strictEqual(res.fonts[0].postscriptName, 'NotoSans-Regular');
+        const codes = res.diagnostics.map((d: any) => d.code);
+        assert.ok(codes.includes('TYPST_LOCAL_FONTS_ALREADY_MOUNTED'));
+        assert.ok(!codes.includes('TYPST_LOCAL_FONTS_MISSING'), 'already-mounted is not a miss');
+        assert.strictEqual(res.localFontsAvailable, true);
     } finally {
         restore();
     }
