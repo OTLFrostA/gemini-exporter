@@ -13,16 +13,23 @@
  * companion-resource plans must know about it.
  */
 
-import type { AssetKind } from './assets.js';
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
 
 /**
- * Recursively collect every asset id a message's blocks reference, walking
- * both the block tree and every inline tree. Returns a set of asset ids;
- * resolution (bytes/URLs/omissions) is the caller's job.
+ * Shared walker for both collectors below. When imagesOnly is true, only
+ * image placements (ImageBlock / ImageInline) are collected; otherwise every
+ * referenced asset id is collected. The traversal shape is identical in
+ * both modes so the two sets can never disagree about *where* assets are
+ * referenced — only about which placements count.
+ *
+ * Nested positions covered: paragraph/heading children, table cells +
+ * table caption, image captions, file descriptions, citationGroup titles,
+ * list items, quote/thought blocks, toolCall/toolResult displayBlocks,
+ * unknown fallbackBlocks.
  */
-export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<string> {    const ids = new Set<string>();
+function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<string> {
+    const ids = new Set<string>();
     const walkInline = (nodes: InlineNode[]): void => {
         for (const node of nodes) {
             switch (node.type) {
@@ -38,8 +45,12 @@ export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<
     const walkBlocks = (list: BlockNode[]): void => {
         for (const block of list) {
             switch (block.type) {
-                case 'image':
-                case 'file': ids.add(block.assetId); break;
+                // Image placements always count. File blocks only count in
+                // full-reference mode: in images-only mode they are
+                // metadata-only (their file card renders from the Asset
+                // entity), even if the asset's kind claims 'image'.
+                case 'image': ids.add(block.assetId); break;
+                case 'file': if (!imagesOnly) ids.add(block.assetId); break;
                 default: break;
             }
             switch (block.type) {
@@ -76,27 +87,32 @@ export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<
 }
 
 /**
- * Collect the subset of referenced asset ids a renderer needs as binary
- * bytes (Typst image(), sandbox mounts): image-kind assets.
- *
- * File/audio/video attachments render as metadata-only cards straight from
- * the Asset entity (name/mimeType/sizeBytes) and must skip byte resolution
- * entirely — no read, no hash, no byteStore traffic, no mount. A 40MB
- * report.pdf that only shows "report.pdf · PDF · 40 MB" therefore costs
- * nothing in the resource pipeline.
- *
- * kindOf resolves the asset's canonical kind. Ids with unknown kind are
- * kept (fail-safe): an unclassifiable reference still goes through the
- * resolver so it is diagnosed instead of going silent.
+ * Recursively collect every asset id a message's blocks reference, walking
+ * both the block tree and every inline tree. Returns a set of asset ids;
+ * resolution (bytes/URLs/omissions) is the caller's job.
  */
-export function collectBinaryRenderAssetIds(
-    blocks: BlockNode[] | undefined,
-    kindOf: (assetId: string) => AssetKind | undefined,
-): Set<string> {
-    const out = new Set<string>();
-    for (const id of collectReferencedAssetIds(blocks)) {
-        const kind = kindOf(id);
-        if (kind === undefined || kind === 'image') out.add(id);
-    }
-    return out;
+export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<string> {
+    return collectImpl(blocks, false);
+}
+
+/**
+ * Collect the subset of referenced asset ids a renderer needs as binary
+ * bytes (Typst image(), sandbox mounts), decided by AST placement — every
+ * ImageBlock.assetId and ImageInline.assetId, including nested positions —
+ * not by Asset.kind metadata.
+ *
+ * Placement is what makes Typst call image(path): the canonical validator
+ * does not force ImageBlock -> Asset.kind === 'image', so a block can
+ * reference a kind:'file' asset whose bytes are genuinely a PNG. Judging
+ * by kind would skip its bytes and silently degrade the image; judging by
+ * placement keeps it. Conversely a FileBlock referencing a kind:'image'
+ * asset is metadata-only (its file card renders from the Asset entity) and
+ * never needs bytes.
+ *
+ * A kind/placement mismatch (image placement -> known kind !== 'image')
+ * still resolves by placement, but resourceStage emits an
+ * ASSET_KIND_MISMATCH warning diagnostic for it.
+ */
+export function collectBinaryRenderAssetIds(blocks: BlockNode[] | undefined): Set<string> {
+    return collectImpl(blocks, true);
 }

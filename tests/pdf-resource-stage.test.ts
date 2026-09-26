@@ -14,8 +14,13 @@
  *   - missing asset -> unresolved + warning diagnostic (never silent)
  *   - remote-only asset -> unresolved + warning (resolver only emits info)
  *   - referenced id absent from bundle.assets -> unresolved + warning
- *     (unknown kind is fail-safe: still goes through the resolver)
+ *     (image placements are binary by placement, not by kind lookup)
  *   - aborted signal -> AbortError DOMException
+ *   - binary decision is AST placement, not Asset.kind:
+ *       - ImageBlock referencing a kind:'file' asset still resolves + mounts
+ *         (placement wins), with an ASSET_KIND_MISMATCH warning
+ *       - FileBlock referencing a kind:'image' asset is metadata-only:
+ *         never resolved, no pathMap entry, no diagnostic, bytes untouched
  */
 export {};
 const test = require('node:test');
@@ -260,4 +265,93 @@ test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and r
     const hits = diagnostics.filter((d: any) => d.code === 'RESOURCE_BYTES_MISSING');
     assert.strictEqual(hits.length, 1, 'exactly one RESOURCE_BYTES_MISSING diagnostic');
     assert.strictEqual(hits[0].severity, 'error');
+});
+
+test('resources stage: binary decision is AST placement, not Asset.kind (image placement wins)', async () => {
+    // Regression for the review round: an ImageBlock referencing a
+    // kind:'file' asset whose bytes are genuinely a PNG must still be
+    // resolved + mounted — the canonical validator does not force
+    // ImageBlock -> kind 'image', and judging by kind would silently
+    // degrade the image. Placement wins; the mismatch gets a warning.
+    const real = createInlineByteStore();
+    real.put('inline/misfiled', pngBytes(11));
+    const bundle = {
+        assets: [
+            asset('misfiled', {
+                kind: 'file', storageRef: 'inline/misfiled',
+                mimeType: 'image/png', name: 'photo.png',
+            }),
+        ],
+    };
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model',
+                blocks: [{ type: 'image', assetId: 'misfiled' }],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: real }, ctx);
+
+    assert.ok(output.pathMap.has('misfiled'),
+        'image placement resolves even when Asset.kind is file');
+    assert.strictEqual(output.mounts.length, 1, 'misfiled image is mounted');
+    assert.deepStrictEqual(output.unresolved, []);
+    const hits = diagnostics.filter((d: any) => d.code === 'ASSET_KIND_MISMATCH');
+    assert.strictEqual(hits.length, 1, 'exactly one kind-mismatch warning');
+    assert.strictEqual(hits[0].severity, 'warning');
+    assert.strictEqual(hits[0].path, 'asset:misfiled');
+});
+
+test('resources stage: FileBlock referencing a kind:image asset is metadata-only', async () => {
+    // Mirror case: a FileBlock is metadata-only by placement, even when the
+    // asset's kind claims 'image'. Its file card renders from the Asset
+    // entity; the stage must not resolve it and must not warn about it.
+    const readRefs: Array<[string, string]> = [];
+    const real = createInlineByteStore();
+    const spyStore: any = {
+        put: (r: string, b: Uint8Array) => real.put(r, b),
+        has: (r: string) => { readRefs.push(['has', r]); return real.has(r); },
+        get: (r: string) => { readRefs.push(['get', r]); return real.get(r); },
+        clear: () => real.clear(),
+        get entryCount() { return real.entryCount; },
+    };
+    spyStore.put('inline/not-really-image', pngBytes(12));
+    const bundle = {
+        assets: [
+            asset('filey', {
+                kind: 'image', storageRef: 'inline/not-really-image',
+                mimeType: 'image/png', name: 'attachment.bin', sizeBytes: 28,
+            }),
+        ],
+    };
+    const view = {
+        messages: [
+            {
+                id: 'm1', role: 'model',
+                blocks: [{ type: 'file', assetId: 'filey', label: 'attachment.bin' }],
+            },
+        ],
+        rootIds: ['m1'],
+        selectedPathIds: ['m1'],
+        omittedBranchMessageIds: [],
+    };
+    const { ctx } = stageCtx(new AbortController().signal);
+    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);
+
+    assert.strictEqual(output.pathMap.has('filey'), false,
+        'FileBlock asset never enters pathMap');
+    assert.strictEqual(output.mounts.length, 0, 'nothing mounted');
+    assert.deepStrictEqual(output.unresolved, []);
+    const warnPlus = diagnostics.filter(
+        (d: any) => d.path === 'asset:filey'
+            && (d.severity === 'warning' || d.severity === 'error'),
+    );
+    assert.strictEqual(warnPlus.length, 0, 'metadata-only FileBlock gets no diagnostic');
+    assert.deepStrictEqual(readRefs, [],
+        'resolver must never touch the FileBlock bytes');
 });
