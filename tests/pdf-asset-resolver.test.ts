@@ -364,3 +364,67 @@ test('every omission carries a diagnostic (no silent drops)', async () => {
         assert.ok(diags.length > 0, `${id} omission must produce a diagnostic`);
     }
 });
+
+test('svg sniff: non-svg markup starting with < is NOT image/svg+xml', async () => {
+    const cases: Array<[string, string]> = [
+        ['x1', '<html>hello</html>'],
+        ['x2', '<foo>bar</foo>'],
+        ['x3', '<script>alert(1)</script>'],
+        ['x4', '  \n <svgfoo></svgfoo>'],      // looks like svg but is a different tag
+        ['x5', '<SVG></SVG>'],                // XML is case-sensitive; <SVG> is not <svg>
+    ];
+    for (const [id, text] of cases) {
+        const a = asset(id, { mimeType: 'image/svg+xml', name: 'v.svg', storageRef: `inline:${id}` });
+        const result = await resolveAssets(
+            [a],
+            perRunStore({ [`inline:${id}`]: Buffer.from(text, 'utf8') }),
+        );
+        assert.strictEqual(result.pathMap.get(id), undefined, `${id} (${text}) must not resolve as SVG`);
+        const codes = codesFor(result, id);
+        assert.ok(
+            codes.includes('ASSET_CORRUPT') || codes.includes('ASSET_UNSUPPORTED_MIME'),
+            `${id} must be refused with a diagnostic, got: ${codes.join(',')}`,
+        );
+        assert.ok(!result.pathMap.get(id)?.endsWith('.svg'), `${id} must not get a .svg path`);
+    }
+});
+
+test('svg sniff: xml declaration, comments, doctype and BOM still resolve', async () => {
+    const cases: Array<[string, string]> = [
+        ['s1', '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'],
+        ['s2', '<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg"/>'],
+        ['s3', '<!-- a comment --><svg/>'],
+        ['s4', '<!-- one --><!-- two -->\n<svg width="10"/>'],
+        ['s5', '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg/>'],
+        ['s6', 'BOM-PLACEHOLDER'],
+        ['s7', '  \n\t <svg viewBox="0 0 1 1"/>'],
+    ];
+    const BOM = '\uFEFF';
+    for (const [id, text] of cases) {
+        const content = id === 's6' ? BOM + '<svg/>' : text;
+        const a = asset(id, { mimeType: 'image/svg+xml', name: 'v.svg', storageRef: `inline:${id}` });
+        const result = await resolveAssets(
+            [a],
+            perRunStore({ [`inline:${id}`]: Buffer.from(content, 'utf8') }),
+        );
+        assert.ok(result.pathMap.get(id)?.endsWith('.svg'), `${id} must resolve as SVG, got diagnostics: ${JSON.stringify(codesFor(result, id))}`);
+        assert.deepStrictEqual(codesFor(result, id), [], `${id} must resolve cleanly`);
+    }
+});
+
+test('svg sniff: unterminated prolog or duplicate xml declaration is refused', async () => {
+    const cases: Array<[string, string]> = [
+        ['u1', '<!-- never closed <svg/>'],
+        ['u2', '<?xml version="1.0"'],
+        ['u3', '<?xml version="1.0"?><?xml version="1.0"?><svg/>'],
+    ];
+    for (const [id, text] of cases) {
+        const a = asset(id, { mimeType: 'image/svg+xml', name: 'v.svg', storageRef: `inline:${id}` });
+        const result = await resolveAssets(
+            [a],
+            perRunStore({ [`inline:${id}`]: Buffer.from(text, 'utf8') }),
+        );
+        assert.strictEqual(result.pathMap.get(id), undefined, `${id} must be refused`);
+        assert.ok(codesFor(result, id).length > 0, `${id} refusal must carry a diagnostic`);
+    }
+});

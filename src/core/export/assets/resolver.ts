@@ -126,11 +126,7 @@ const SUPPORTED_IMAGE_TYPES: ImageTypeInfo[] = [
     },
     {
         mime: 'image/svg+xml', ext: 'svg',
-        magic: (b) => {
-            let i = 0;
-            while (i < b.length && (b[i] === 0x20 || b[i] === 0x09 || b[i] === 0x0a || b[i] === 0x0d)) i++;
-            return i < b.length && b[i] === 0x3c; // '<'
-        },
+        magic: (b) => isSvgDocument(b),
     },
     {
         mime: 'image/webp', ext: 'webp',
@@ -140,6 +136,118 @@ const SUPPORTED_IMAGE_TYPES: ImageTypeInfo[] = [
 
 function sniffImage(bytes: Uint8Array): ImageTypeInfo | undefined {
     return SUPPORTED_IMAGE_TYPES.find((t) => t.magic(bytes));
+}
+
+/** XML whitespace bytes. */
+function isXmlWs(c: number): boolean {
+    return c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
+}
+
+function skipXmlWs(b: Uint8Array, i: number): number {
+    while (i < b.length && isXmlWs(b[i])) i++;
+    return i;
+}
+
+function matchAscii(b: Uint8Array, i: number, s: string): boolean {
+    if (i + s.length > b.length) return false;
+    for (let k = 0; k < s.length; k++) {
+        if (b[i + k] !== s.charCodeAt(k)) return false;
+    }
+    return true;
+}
+
+/** Skip a <!-- ... --> comment starting at i. Returns the index after '-->', or -1 if unterminated. */
+function skipXmlComment(b: Uint8Array, i: number): number {
+    let j = i + 4; // past '<!--'
+    while (j + 2 < b.length) {
+        if (b[j] === 0x2d && b[j + 1] === 0x2d && b[j + 2] === 0x3e) return j + 3; // '-->'
+        j++;
+    }
+    return -1;
+}
+
+/** Skip a <?...?> processing instruction starting at i. Returns the index after '?>', or -1 if unterminated. */
+function skipProcessingInstruction(b: Uint8Array, i: number): number {
+    let j = i + 2; // past '<?'
+    while (j + 1 < b.length) {
+        if (b[j] === 0x3f && b[j + 1] === 0x3e) return j + 2; // '?>'
+        j++;
+    }
+    return -1;
+}
+
+/**
+ * Skip a <!DOCTYPE ...> declaration starting at i (including an internal
+ * subset in [...] and quoted '>' inside it). Returns the index after the
+ * closing '>', or -1 if unterminated.
+ */
+function skipDoctype(b: Uint8Array, i: number): number {
+    let j = i + 9; // past '<!DOCTYPE' (caller matches case-insensitively first)
+    let subsetDepth = 0;
+    let quote = 0;
+    while (j < b.length) {
+        const c = b[j];
+        if (quote !== 0) {
+            if (c === quote) quote = 0;
+        } else if (c === 0x22 || c === 0x27) { // '"' or "'"
+            quote = c;
+        } else if (c === 0x5b) { // '['
+            subsetDepth++;
+        } else if (c === 0x5d) { // ']'
+            if (subsetDepth > 0) subsetDepth--;
+        } else if (c === 0x3e && subsetDepth === 0) { // '>'
+            return j + 1;
+        }
+        j++;
+    }
+    return -1;
+}
+
+/**
+ * True when the bytes are an SVG document: after an optional UTF-8 BOM,
+ * whitespace, at most one XML declaration, comments and a DOCTYPE, the root
+ * element must be <svg followed by a name terminator (whitespace, '>', '/',
+ * or a namespace ':'). A bare '<' (e.g. <html>, <foo>, <script>) is NOT
+ * enough — the old check accepted any of those as SVG.
+ */
+function isSvgDocument(b: Uint8Array): boolean {
+    let i = 0;
+    if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) i = 3; // UTF-8 BOM
+    let sawXmlDecl = false;
+    for (let guard = 0; guard < 32; guard++) {
+        i = skipXmlWs(b, i);
+        if (matchAscii(b, i, '<?xml') || matchAscii(b, i, '<?XML')) {
+            if (sawXmlDecl) return false;
+            const after = i + 5;
+            if (after >= b.length || (!isXmlWs(b[after]) && b[after] !== 0x3f)) return false; // '<?xmlfoo' is not a declaration
+            const end = skipProcessingInstruction(b, i);
+            if (end < 0) return false;
+            sawXmlDecl = true;
+            i = end;
+            continue;
+        }
+        if (matchAscii(b, i, '<!--')) {
+            const end = skipXmlComment(b, i);
+            if (end < 0) return false;
+            i = end;
+            continue;
+        }
+        if (matchAscii(b, i, '<!DOCTYPE') || matchAscii(b, i, '<!doctype') || matchAscii(b, i, '<!Doctype')) {
+            const after = i + 9;
+            if (after >= b.length || (!isXmlWs(b[after]) && b[after] !== 0x3e)) return false;
+            const end = skipDoctype(b, i);
+            if (end < 0) return false;
+            i = end;
+            continue;
+        }
+        break;
+    }
+    i = skipXmlWs(b, i);
+    if (!matchAscii(b, i, '<svg')) return false;
+    const t = i + 4;
+    if (t >= b.length) return false;
+    const c = b[t];
+    return isXmlWs(c) || c === 0x3e || c === 0x2f || c === 0x3a; // ws | '>' | '/' | ':'
 }
 
 function normalizeMime(mimeType?: string): string | undefined {
