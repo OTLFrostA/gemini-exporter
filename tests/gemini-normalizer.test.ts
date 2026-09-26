@@ -445,3 +445,98 @@ test('block ids are deterministic and scoped per message', async () => {
         'fixture has multiple non-empty messages, so cross-message leakage would be visible',
     );
 });
+
+function deepInlineImagesOf(message: any) {
+    const out: any[] = [];
+    const walkInline = (nodes: any[]) => {
+        for (const n of nodes || []) {
+            if (n.type === 'image') out.push(n);
+            walkInline(n.children);
+        }
+    };
+    const walkBlocks = (blocks: any[]) => {
+        for (const b of blocks || []) {
+            walkInline(b.children);
+            walkBlocks(b.blocks);
+            for (const it of b.items || []) walkBlocks(it.blocks);
+        }
+    };
+    walkBlocks(message.blocks);
+    return out;
+}
+
+function blockImagesOf(message: any) {
+    return (message.blocks || []).filter((b: any) => b.type === 'image');
+}
+
+function attachmentConv(content: string, attachments: any[]) {
+    return {
+        id: 'conv-inline-dedup',
+        title: 'dedup',
+        source: 'gemini',
+        messages: [{
+            id: 'm1',
+            role: 'user',
+            content,
+            attachments,
+        }],
+    };
+}
+
+const pngAttachment = (localName: string, name: string) => ({
+    localName,
+    name,
+    type: 'image',
+    mimeType: 'image/png',
+});
+
+test('inline markdown image reusing an attachment asset keeps a single visual placement', async () => {
+    const input = attachmentConv('see ![pic](assets/shot.png)', [pngAttachment('assets/shot.png', 'shot.png')]);
+    const { bundle } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(bundle.assets.length, 1);
+    const inlines = deepInlineImagesOf(m1);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].assetId, 'm1-a0');
+    assert.strictEqual(blockImagesOf(m1).length, 0);
+    assert.deepStrictEqual(m1.associatedAssetIds, ['m1-a0']);
+});
+
+test('linked inline image reusing an attachment asset keeps a single visual placement', async () => {
+    const input = attachmentConv('[![pic](assets/shot.png)](https://example.com/full)', [pngAttachment('assets/shot.png', 'shot.png')]);
+    const { bundle } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(bundle.assets.length, 1);
+    const inlines = deepInlineImagesOf(m1);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].assetId, 'm1-a0');
+    assert.strictEqual(blockImagesOf(m1).length, 0);
+});
+
+test('attachment not referenced inline keeps its trailing image block', async () => {
+    const input = attachmentConv('no images here', [pngAttachment('assets/shot.png', 'shot.png')]);
+    const { bundle } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(bundle.assets.length, 1);
+    assert.strictEqual(deepInlineImagesOf(m1).length, 0);
+    const blocks = blockImagesOf(m1);
+    assert.strictEqual(blocks.length, 1);
+    assert.strictEqual(blocks[0].assetId, 'm1-a0');
+});
+
+test('two attachments with only one inlined keep one inline and one trailing block', async () => {
+    const input = attachmentConv('see ![a](assets/a.png)', [
+        pngAttachment('assets/a.png', 'a.png'),
+        pngAttachment('assets/b.png', 'b.png'),
+    ]);
+    const { bundle } = await normalizeGeminiConversation(input);
+    const m1 = bundle.conversation.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(bundle.assets.length, 2);
+    const inlines = deepInlineImagesOf(m1);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].assetId, 'm1-a0');
+    const blocks = blockImagesOf(m1);
+    assert.strictEqual(blocks.length, 1);
+    assert.strictEqual(blocks[0].assetId, 'm1-a1');
+    assert.deepStrictEqual(m1.associatedAssetIds, ['m1-a0', 'm1-a1']);
+});
