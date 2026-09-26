@@ -9,6 +9,7 @@ import type {
 import type { Asset, AssetKind, AssetStatus } from './assets.js';
 import { decodeDataUrlAsset, createInlineByteStore } from '../assets/index.js';
 import type { InlineByteStore } from '../assets/index.js';
+import { collectReferencedAssetIds } from './assetReferences.js';
 import { classifyAssetAvailability } from './assetResolution.js';
 import type { BlockNode } from './blocks.js';
 import type { Citation } from './citations.js';
@@ -1087,7 +1088,16 @@ function normalizeMessage(
         assets.push(ia);
         assetIds.push(ia.id);
     }
-    blocks.push(...attachmentBlocks);
+    const placedAssetIds = collectReferencedAssetIds(blocks);
+    for (const block of attachmentBlocks) {
+        if (block.type !== 'image' && block.type !== 'file') {
+            blocks.push(block);
+            continue;
+        }
+        if (!placedAssetIds.has(block.assetId)) {
+            blocks.push(block);
+        }
+    }
 
     const citations: Citation[] = [];
     const { list: rawCits, skipped } = extractRawCitations(m);
