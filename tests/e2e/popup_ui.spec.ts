@@ -111,7 +111,7 @@ test.describe('Popup UI & Action Center Localization', () => {
         last_seen_feature_version: '999.0.0'
       });
     });
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
 
     await popupPage.waitForLoadState('domcontentloaded');
     await optionsPage.waitForLoadState('domcontentloaded');

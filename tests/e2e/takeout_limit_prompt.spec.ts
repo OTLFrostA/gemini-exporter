@@ -3,7 +3,7 @@ import { test, expect } from './fixtures';
 test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
   test('should display takeout suggestion modal with accurate count and close on dismiss', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const modal = page.locator('#takeoutLimitModal');
@@ -43,7 +43,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
 
   test('should trigger takeout file input click when clicking import button', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const modal = page.locator('#takeoutLimitModal');
@@ -152,7 +152,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
 
   test('should verify Google Takeout button links to custom Gemini deep link', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const link = page.locator('#btnModalOpenTakeoutWeb');
@@ -161,7 +161,7 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
 
   test('should suppress takeout limit prompt if takeout conversations already exist', async ({ context, extensionId }) => {
     const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const modal = page.locator('#takeoutLimitModal');

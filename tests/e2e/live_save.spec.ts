@@ -3,7 +3,7 @@ import { test, expect } from './fixtures';
 test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
   test('should render unified directory card, auto-prompt picker on toggle, and sync dir label', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     await optionsPage.evaluate(async () => {
@@ -131,7 +131,7 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
 
   test('should write live save files to gemini_export folder with cid6 filename matching manual export', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
 
     // Test FsWriter initialization and directory structure consistency

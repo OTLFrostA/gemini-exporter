@@ -99,7 +99,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
   test('should launch tour on clicking header button and dismiss cleanly', async ({ context, extensionId }) => {
     const page = await context.newPage();
 
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
     await page.waitForFunction(() => typeof (window as any).__workbenchLoadStore === 'function');
 
@@ -176,7 +176,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     // Trigger takeout limit modal for visual inspection
@@ -227,7 +227,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#btnSelectAll')).toBeVisible();
     await expect(page.locator('#btnExport')).toBeVisible();
@@ -266,7 +266,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const now = Date.now();
@@ -338,7 +338,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const now = Date.now();
@@ -404,7 +404,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html`);
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForLoadState('domcontentloaded');
 
     const takeoutChat = {
