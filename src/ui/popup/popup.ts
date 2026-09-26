@@ -292,7 +292,13 @@ function initPopupEvents(): void {
                     if (!chat.id) chat.id = _activeConvId;
                     chat.title = cleanTitle(chat.title || _activeChatTitle);
 
-                    const formatted = ChatFormatter.formatContent(chat, format);
+                    // Item 1: production HTML export goes through the canonical
+                    // path (Conversation -> normalizeGeminiConversation ->
+                    // CanonicalHtmlRenderer); legacy toHtml() is no longer
+                    // the production route.
+                    const formatted = format === 'html'
+                        ? await ChatFormatter.formatHtmlCanonical(chat)
+                        : ChatFormatter.formatContent(chat, format);
                     const fileName = buildExportFileName(chat.title || chat.id, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
                     const url = URL.createObjectURL(blob);
