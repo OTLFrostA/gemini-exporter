@@ -4,8 +4,10 @@
 
 - **Source**: `NewCMMath-Regular.otf` from the `newcomputermodern` package on
   CTAN (`fonts/newcomputermodern/otf/`), downloaded 2026-09-26.
-- **License**: GUST Font License (see the package's `License.txt` on CTAN;
-  NewCMMath is not in the GPL+exception subset).
+- **License**: GUST Font License (shipped verbatim alongside the font as
+  `GUST-FONT-LICENSE.txt` in this directory; the work is distributed under
+  LPPL v1.3c or later, plus a rename request for derived works — honored by
+  the rename below). NewCMMath is not in the GPL+exception subset.
 - **Modification**: the upstream file's internal family name is
   `NewComputerModernMath`. It was renamed to `NewCMMath` (name IDs 1/4/16 +
   CFF TopDict FullName/FamilyName) with fontTools so Typst matches the
