@@ -71,11 +71,24 @@ export async function runExport(
     setRunning(true);
     try {
         // PDF goes through its own orchestrator (normalize -> IPdfCompiler ->
-        // Writer) while reusing the same progress/cancel UI wiring. The stub
-        // compiler ships in P3; P1b injects the real Typst compiler here.
+        // Writer) while reusing the same progress/cancel UI wiring.
+        // §15 release gate: the P3 stub compiler is NOT wired in here.
+        // PdfExporter throws without a real compiler (or explicit allowStub).
+        // Surface that visibly through the existing error channel — never
+        // silently "succeed" with a placeholder PDF. P2 injects the real
+        // Typst compiler here.
         activeEngine = new ExportEngine();
         if (options && options.format === 'pdf') {
-            activeEngine = new PdfExporter();
+            try {
+                activeEngine = new PdfExporter(undefined, { allowStub: false });
+            } catch (e: any) {
+                const msg = e?.message || String(e);
+                const userMsg = `PDF 导出失败: PDF 引擎尚未接入（${msg}）`;
+                if (callbacks && typeof callbacks.onLog === 'function') {
+                    callbacks.onLog(`[PDF] ${userMsg}`, 'error');
+                }
+                throw new Error(userMsg);
+            }
         }
         const result = await activeEngine.run(options, callbacks);
         return result;

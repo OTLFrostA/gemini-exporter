@@ -73,7 +73,7 @@ test('stub compiler returns a parseable minimal PDF', async () => {
 
 test('success is only marked after the Writer actually wrote the file', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter();
+    const exporter = new PdfExporter(undefined, { allowStub: true });
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
@@ -105,7 +105,7 @@ test('success is only marked after the Writer actually wrote the file', async ()
 
 test('writer failure marks the item failed, never successful, and stays retryable', async () => {
     const writer = makeFakeWriter({ failOn: () => true });
-    const exporter = new PdfExporter();
+    const exporter = new PdfExporter(undefined, { allowStub: true });
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
@@ -131,7 +131,7 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     );
     // Retry: same item, healthy writer -> succeeds. Nothing about the failure is sticky.
     const retryWriter = makeFakeWriter();
-    const retryExporter = new PdfExporter();
+    const retryExporter = new PdfExporter(undefined, { allowStub: true });
     const retry = await retryExporter.run(
         {
             selected: [{ id: result.failed[0].id, title: result.failed[0].title }],
@@ -150,7 +150,7 @@ test('one failed item does not block the rest of the batch', async () => {
     const good1 = makeSample('good1', 'good one');
     const good2 = makeSample('good2', 'good two');
     const writer = makeFakeWriter({ failOn: (name) => name.includes('bad-title-will-fail') });
-    const exporter = new PdfExporter();
+    const exporter = new PdfExporter(undefined, { allowStub: true });
     const result = await exporter.run(
         {
             selected: [bad, good1, good2].map((c) => ({ id: c.id, title: c.title })),
@@ -170,7 +170,7 @@ test('one failed item does not block the rest of the batch', async () => {
 test('cancel stops the batch: no further compiles, no writes, no finalize', async () => {
     const slowCompiler = new StubPdfCompiler({ delayMs: 300 });
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter();
+    const exporter = new PdfExporter(undefined, { allowStub: true });
     let downloads = 0;
     const progress: any[] = [];
     const runPromise = exporter.run(
@@ -180,6 +180,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
             useZip: true,
             writer,
             compiler: slowCompiler,
+            allowStub: true, // §15: explicit opt-in for the stub in tests
             downloadHandler: async () => {
                 downloads++;
             },
@@ -199,7 +200,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
 test('deterministic compile failure surfaces with diagnostics and stays retryable', async () => {
     const failing = new StubPdfCompiler({ failWith: 'typst error: unknown function `foo`' });
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter();
+    const exporter = new PdfExporter(undefined, { allowStub: true });
     const logs: any[] = [];
     const result = await exporter.run(
         {
@@ -208,6 +209,7 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
             useZip: false,
             writer,
             compiler: failing,
+            allowStub: true, // §15: explicit opt-in for the stub in tests
         },
         { onLog: (msg: string, level?: string) => logs.push({ msg, level }) }
     );
@@ -220,7 +222,7 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
 
 test('zip mode packages only after successful writes', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter();
+    const exporter = new PdfExporter(undefined, { allowStub: true });
     let downloaded: { name: string } | null = null;
     const result = await exporter.run(
         {
@@ -238,4 +240,31 @@ test('zip mode packages only after successful writes', async () => {
     assert.ok(downloaded, 'zip download handler invoked');
     assert.ok((downloaded as any).name.endsWith('.zip'));
     assert.strictEqual(writer.files.length, 1, 'the pdf itself was written to the zip writer');
+});
+
+test('§15 release gate: stub compiler without explicit opt-in refuses loudly', async () => {
+    const opts: any = {
+        selected: [{ id: sample.id, title: sample.title }],
+        conversations: [sample],
+        useZip: false,
+        writer: makeFakeWriter(),
+    };
+    // Bare constructor: the default stub fallback must NOT silently export.
+    const bare = new PdfExporter();
+    await assert.rejects(() => bare.run(opts, {}), /§15/, 'bare stub use must throw the release-gate error');
+    assert.strictEqual((opts.writer as any).files.length, 0, 'refused before anything was written');
+
+    // Explicit opt-in via constructor opts is honored.
+    const optIn = new PdfExporter(undefined, { allowStub: true });
+    const ok = await optIn.run({ ...opts, writer: makeFakeWriter() }, {});
+    assert.strictEqual(ok.succeeded, 1, 'explicit opt-in still exports in tests');
+
+    // Explicit opt-in via run() options is honored too.
+    const optIn2 = new PdfExporter();
+    const ok2 = await optIn2.run({ ...opts, writer: makeFakeWriter(), allowStub: true }, {});
+    assert.strictEqual(ok2.succeeded, 1, 'per-call opt-in still exports in tests');
+
+    // Explicit opt-out in production wiring also throws.
+    const denied = new PdfExporter(undefined, { allowStub: false });
+    await assert.rejects(() => denied.run({ ...opts, writer: makeFakeWriter() }, {}), /§15/);
 });

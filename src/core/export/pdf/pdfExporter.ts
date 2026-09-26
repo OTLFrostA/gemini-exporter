@@ -70,8 +70,14 @@ export interface PdfExporterOptions {
     useZip?: boolean;
     dirHandle?: any;
     folderName?: string;
-    /** Defaults to StubPdfCompiler. P1b injects the real compiler here. */
+    /** Defaults to StubPdfCompiler. P1b injects the real compiler here.
+     * §15 release gate: the stub is only usable with explicit
+     * `allowStub: true` (tests/drills). Production calls without a real
+     * compiler throw in run() — never silently produce a placeholder PDF. */
     compiler?: IPdfCompiler;
+    /** §15 release gate: explicit opt-in to run the P3 stub compiler.
+     * Defaults to false; run() refuses the stub unless this is true. */
+    allowStub?: boolean;
     /** Injected for tests; otherwise created from useZip/dirHandle. */
     writer?: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
@@ -104,9 +110,15 @@ export class PdfExporter {
     aborted = false;
     private _abortController: AbortController | null = null;
     private _compiler: IPdfCompiler;
+    /**
+     * §15 release gate: explicit opt-in for the P3 stub compiler.
+     * Defaults to false — production must never silently fall back to it.
+     */
+    private _allowStub: boolean;
 
-    constructor(compiler?: IPdfCompiler) {
+    constructor(compiler?: IPdfCompiler, opts?: { allowStub?: boolean }) {
         this._compiler = compiler ?? new StubPdfCompiler();
+        this._allowStub = opts?.allowStub ?? false;
     }
 
     abort(): void {
@@ -123,6 +135,17 @@ export class PdfExporter {
         const onLog = callbacks.onLog ?? (() => {});
         const onItemExported = callbacks.onItemExported ?? (() => {});
         const compiler = options.compiler ?? this._compiler;
+        const allowStub = options.allowStub ?? this._allowStub ?? false;
+        // §15 release gate: StubPdfCompiler produces a placeholder PDF that
+        // must never be reported as a successful export on the production
+        // path. Refuse loudly; P2 injects the real compiler here.
+        if (compiler.name === 'stub-pdf-compiler' && !allowStub) {
+            throw new Error(
+                '[§15 release gate] StubPdfCompiler 在生产路径被禁用：' +
+                '它只会生成占位 PDF，不能记为导出成功。P2 会在这里注入真编译器；' +
+                '仅测试/演练可显式传入 { allowStub: true }。'
+            );
+        }
 
         this.aborted = false;
         this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
