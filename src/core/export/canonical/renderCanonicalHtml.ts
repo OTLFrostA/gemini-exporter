@@ -2,6 +2,7 @@ import type { Asset } from './assets.js';
 import { collectReferencedAssetIds, collectCompanionPlacements } from './assetReferences.js';
 import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
 import type { Citation } from './citations.js';
+import { citationDisplayLabel } from './citations.js';
 import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
 import type { InlineNode } from './inline.js';
 import { getRendererStrings } from './rendererStrings.js';
@@ -40,6 +41,7 @@ export interface CanonicalHtmlResult {
 interface RenderCtx {
     assets: Map<string, Asset>;
     citations: Map<string, Citation>;
+    citationNumbers: Map<string, number>;
     isEn: boolean;
     assetUrl?: (asset: Asset) => string | undefined;
     thoughtCollapsed: boolean;
@@ -101,6 +103,17 @@ const CANONICAL_EXTRA_CSS = `
   padding: 2px 8px;
 }
 .gem-citation-group { margin: 1.2em 0; }
+.gem-tool-failed {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b3261e;
+  border: 1px solid #b3261e;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
 .gem-citation-group-title {
   font-size: 13px;
   color: var(--text-secondary);
@@ -162,7 +175,10 @@ function renderInline(node: InlineNode, ctx: RenderCtx): string {
             return `<span class="gem-math-inline">${escapeHtml(node.source)}</span>`;
         case 'citationRef': {
             const citation = ctx.citations.get(node.citationId);
-            const label = escapeHtml(node.label ?? citation?.title ?? node.citationId);
+            const n = ctx.citationNumbers.get(node.citationId);
+            const label = escapeHtml(n === undefined
+                ? (node.label ?? node.citationId)
+                : citationDisplayLabel(citation, n, node.label));
             const url = citation?.url ? sanitizeUrl(citation.url, false) : '#';
             return url !== '#'
                 ? `<a class="gem-link gem-citation-ref" data-citation-id="${escapeHtml(node.citationId)}" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
@@ -348,7 +364,8 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
             const title = block.title?.length ? `<div class="gem-citation-group-title">${renderInlines(block.title, ctx)}</div>` : '';
             const chips = block.citationIds.map((id) => {
                 const c = ctx.citations.get(id);
-                const label = escapeHtml(c?.title ?? c?.publisher ?? id);
+                const n = ctx.citationNumbers.get(id);
+                const label = escapeHtml(n === undefined ? id : citationDisplayLabel(c, n));
                 const url = c?.url ? sanitizeUrl(c.url, false) : '#';
                 return url !== '#'
                     ? `<a class="gem-citation-chip" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
@@ -378,13 +395,16 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
             const label = block.type === 'toolCall'
                 ? `${strings.toolCall} · ${block.toolName}`
                 : `${strings.toolResult} · ${block.toolName ?? block.callId}`;
+            const failedBadge = block.status === 'failed'
+                ? `<span class="gem-tool-failed">${escapeHtml(strings.toolFailed)}</span>`
+                : '';
             const display = (block.displayBlocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/tool:${i}`)).join('');
             const payload = block.type === 'toolCall' ? block.input : block.output;
             const payloadHtml = payload !== undefined ? `<pre><code>${escapeHtml(JSON.stringify(payload, null, 2))}</code></pre>` : '';
             return `
     <details class="gem-thoughts">
       <summary class="gem-thoughts-summary">
-        <div class="gem-thoughts-header"><span>${escapeHtml(label)}</span>${CHEVRON_SVG}</div>
+        <div class="gem-thoughts-header"><span>${escapeHtml(label)}</span>${failedBadge}${CHEVRON_SVG}</div>
       </summary>
       <div class="gem-thoughts-content">${display}${payloadHtml}</div>
     </details>`;
@@ -491,6 +511,7 @@ export function renderCanonicalHtml(
     const ctx: RenderCtx = {
         assets: new Map((bundle.assets ?? []).map((a) => [a.id, a])),
         citations: new Map((bundle.citations ?? []).map((c) => [c.id, c])),
+        citationNumbers: new Map((bundle.citations ?? []).map((c, i) => [c.id, i + 1])),
         isEn: options.lang === 'en',
         assetUrl: options.assetUrl,
         thoughtCollapsed: options.thoughtInitiallyCollapsed ?? false,

@@ -16,3 +16,11 @@ export interface Citation {
     sourceRef?: SourceRef;
     extensions?: ProviderExtensions;
 }
+
+export function citationDisplayLabel(
+    citation: { title?: string; publisher?: string } | undefined,
+    index: number,
+    explicitLabel?: string,
+): string {
+    return explicitLabel ?? citation?.title ?? citation?.publisher ?? `[${index}]`;
+}

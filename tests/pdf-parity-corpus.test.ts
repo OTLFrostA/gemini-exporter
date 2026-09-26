@@ -40,8 +40,9 @@
  *   thought content itself is compared), and the missing-asset placeholder
  *   framing ("附件缺失 · X MISSING" / "图片缺失 · X" keep the human-readable
  *   label X, which is what the PDF fallback shows).
- * - Known degradations are asserted explicitly, not skipped (see the
- *   math-cjk test below).
+ * - Known degradations are asserted explicitly, not skipped. (The former
+ *   math-cjk citation-title degradation was fixed by the unified citation
+ *   label rule: explicit label -> title -> publisher -> [n].)
  */
 export {};
 const test = require('node:test');
@@ -515,46 +516,33 @@ for (const name of fixtureNames) {
     });
 }
 
-test('parity corpus: math-cjk citation titles are an explicitly asserted degradation', () => {
+test('parity corpus: math-cjk citation titles keep fidelity on both sides', () => {
     const name = 'math-cjk.json';
     const { htmlParts, pdfParts } = parityInputs(name);
 
-    // Known degradation (D8 follow-up, not a parity failure): the PDF path
-    // carries citation *markers* ([1]) but drops citation titles -- the
-    // Typst templates have no bibliography section. The citation-group title
-    // is now kept (Phase B). Asserted explicitly here instead of skipping the
-    // fixture.
     const citeTitle = '微积分基本定理';
     assert.ok(htmlParts.body.some((l) => l.includes(citeTitle)), 'HTML shows the citation title');
     assert.ok(htmlParts.body.includes('参考来源'), 'HTML shows the citation group title');
     assert.ok(
-        pdfParts.body.some((l) => l.includes('[1]')),
-        'PDF keeps the citation marker so the reference stays visible',
-    );
-    assert.ok(
-        !pdfParts.body.some((l) => l.includes(citeTitle)),
-        'PDF drops the citation title (asserted degradation, see comment)',
+        pdfParts.body.some((l) => l.includes(citeTitle)),
+        'PDF shows the citation title (label fidelity, no longer degraded to [n])',
     );
     assert.ok(
         pdfParts.body.includes('参考来源'),
         'PDF keeps the citation group title',
     );
 
-    // The paragraph around the citation still carries its other content on both sides.
     const htmlPara = htmlParts.body.find((l) => l.includes('牛顿—莱布尼茨公式'));
     const pdfPara = pdfParts.body.find((l) => l.includes('牛顿—莱布尼茨公式'));
     assert.ok(htmlPara !== undefined && pdfPara !== undefined, 'citation paragraph must exist on both sides');
     assert.ok(
         pdfPara?.includes('它把定积分转化为求原函数的过程'),
-        'PDF keeps the paragraph text around the citation marker',
+        'PDF keeps the paragraph text around the citation',
     );
 
-    // Full bidirectional parity on everything except the degraded citation lines.
-    const degraded = (l: string): boolean =>
-        l === citeTitle || l === '[1]' || l.includes('牛顿—莱布尼茨公式');
     assertBidirectionalParity(
         name,
-        { body: htmlParts.body.filter((l) => !degraded(l)), asset: htmlParts.asset.filter((l) => !degraded(l)) },
-        { body: pdfParts.body.filter((l) => !degraded(l)), asset: pdfParts.asset.filter((l) => !degraded(l)) },
+        { body: htmlParts.body, asset: htmlParts.asset },
+        { body: pdfParts.body, asset: pdfParts.asset },
     );
 });
