@@ -83,6 +83,10 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: node build.js
 
+      - name: Release gates — no CJK fonts bundled (§16 P0)
+        if: steps.filter.outputs.only_scenarios != 'true'
+        run: npm run test:release-gates
+
       - name: Run Unit Tests & Syntax Verification
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm run test:unit
