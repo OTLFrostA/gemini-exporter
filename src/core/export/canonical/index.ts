@@ -17,6 +17,7 @@ export * from './normalizer.js';
 export * from './rendering.js';
 
 export * from './projection.js';
+export * from './assetReferences.js';
 export * from './titleAuthority.js';
 export * from './unknownFallback.js';
 export * from './assetResolution.js';

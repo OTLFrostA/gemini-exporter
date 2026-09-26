@@ -18,10 +18,12 @@
  */
 
 import type { Asset } from './assets.js';
+import { collectReferencedAssetIds } from './assetReferences.js';
 import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
 import type { Citation } from './citations.js';
 import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
 import type { InlineNode } from './inline.js';
+import { projectConversation } from './projection.js';
 import type {
     CompanionResourcePlan,
     ConversationRenderer,
@@ -58,6 +60,8 @@ export interface CanonicalHtmlOptions {
 export interface CanonicalHtmlResult {
     html: string;
     diagnostics: RenderDiagnostic[];
+    /** Ids of the projected (rendered) messages, in render order. */
+    projectedMessageIds: string[];
 }
 
 interface RenderCtx {
@@ -416,14 +420,6 @@ function isAssetBlock(b: BlockNode): b is ImageBlock | FileBlock {
     return b.type === 'image' || b.type === 'file';
 }
 
-function sortMessages(messages: MessageNode[]): MessageNode[] {
-    return [...messages].sort(
-        (a, b) => (a.siblingIndex ?? 0) - (b.siblingIndex ?? 0)
-            || (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
-            || a.id.localeCompare(b.id),
-    );
-}
-
 function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx): string {
     const path = `message:${msg.id}`;
     const assetBlocks = msg.blocks.filter(isAssetBlock);
@@ -488,7 +484,11 @@ export function renderCanonicalHtml(
         diagnostics,
     };
 
-    const messages = sortMessages(bundle.conversation.messages ?? []);
+    // Branch selection is the canonical projection's job: render only the
+    // projected view (selected root->leaf path, or all messages in source
+    // order when nothing is selected). Never re-implement branch choice here.
+    const view = projectConversation(bundle);
+    const messages = view.messages;
     let turnsHtml = '';
     for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
@@ -524,34 +524,7 @@ ${CANONICAL_EXTRA_CSS}</style>
 <script>${GEM_HTML_SCRIPT}</script>
 </body>
 </html>`;
-    return { html, diagnostics };
-}
-
-/** Recursively collect asset ids referenced by image/file blocks. */
-function collectAssetIds(blocks: BlockNode[] | undefined, out: Set<string>): void {
-    for (const b of blocks ?? []) {
-        if (b.type === 'image' || b.type === 'file') {
-            out.add(b.assetId);
-        }
-        switch (b.type) {
-            case 'list':
-                for (const item of b.items) collectAssetIds(item.blocks, out);
-                break;
-            case 'quote':
-            case 'thought':
-                collectAssetIds(b.blocks, out);
-                break;
-            case 'toolCall':
-            case 'toolResult':
-                collectAssetIds(b.displayBlocks, out);
-                break;
-            case 'unknown':
-                collectAssetIds(b.fallbackBlocks, out);
-                break;
-            default:
-                break;
-        }
-    }
+    return { html, diagnostics, projectedMessageIds: view.messages.map((m) => m.id) };
 }
 
 /**
@@ -568,9 +541,14 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
         context.signal.throwIfAborted();
         context.reportProgress('html:collect-assets', 0, 1);
 
+        // Asset collection uses the shared canonical collector (block tree +
+        // inline tree), over exactly the projected messages the HTML renders.
+        // The pure render call below performs the same single projection, so
+        // the companion plan can never miss an asset the document references.
+        const view = projectConversation(context.bundle);
         const referenced = new Set<string>();
-        for (const m of context.bundle.conversation.messages ?? []) {
-            collectAssetIds(m.blocks, referenced);
+        for (const m of view.messages) {
+            for (const id of collectReferencedAssetIds(m.blocks)) referenced.add(id);
         }
 
         const urlByAssetId = new Map<string, string>();
