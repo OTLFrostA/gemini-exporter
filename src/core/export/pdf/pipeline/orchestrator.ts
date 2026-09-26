@@ -125,7 +125,10 @@ export class PdfPipeline {
             // driver runs the single generateBlob()+downloadHandler() finalize
             // and flips 'staged' items to delivered afterwards. Staged items
             // carry NO writeReport: they have no delivery proof yet, and the
-            // union type above makes attaching one a compile error.
+            // union type above makes attaching one a compile error. They DO
+            // carry stagedArtifact — the item's own file name + PDF byte
+            // length — so the batch driver can write honest per-item records
+            // (never the whole-ZIP size; #585 HIGH fix).
             if (delivered.output.finalized) {
                 return {
                     conversationId,
@@ -135,7 +138,16 @@ export class PdfPipeline {
                     diagnostics,
                 };
             }
-            return { conversationId, title, status: 'staged', diagnostics };
+            return {
+                conversationId,
+                title,
+                status: 'staged',
+                stagedArtifact: {
+                    fileName: delivered.output.writeReport.fileName,
+                    bytesWritten: delivered.output.writeReport.bytesWritten,
+                },
+                diagnostics,
+            };
         } catch (e) {
             if (isAbortError(e)) {
                 // Abort is terminal for this item but NOT a failure: the item

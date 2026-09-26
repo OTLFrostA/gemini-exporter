@@ -35,9 +35,11 @@
  *   exportedCount) so the options-page summary, failure banner and retry
  *   flow see PDF failures instead of counting everything successful.
  * - The #584 discriminated union is honored: a 'staged' result carries NO
- *   writeReport (staged is not delivery proof). The batch driver builds the
- *   real writeReport for flipped items only after finalizeZipDelivery
- *   resolves; `if (result.writeReport)` misuse stays a compile error.
+ *   writeReport (staged is not delivery proof). It carries stagedArtifact —
+ *   the item's own file name + PDF byte length — so flipped per-item records
+ *   stay honest; the ZIP's own name/size is the batch-level delivery proof
+ *   (PdfExportResult.zipDelivery), never a per-item bytesWritten (#585).
+ *   `if (result.writeReport)` misuse stays a compile error.
  *
  * Engine shape mirrors ExportOrchestrator (run/abort) so
  * exportController can route `format === 'pdf'` here without changes
@@ -51,7 +53,7 @@ import type {
 import type { Diagnostic } from '../canonical/diagnostics.js';
 import { normalizeGeminiConversation } from '../canonical/normalizeGemini.js';
 import { createWriter, type IExportWriter } from '../../engine/writers/writerInterface.js';
-import { buildExportFileName, normId } from '../../utils/pathUtils.js';
+import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { IPdfCompiler, StubPdfCompiler } from './pdfCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
@@ -87,6 +89,14 @@ export interface PdfExportResult {
     succeeded: number;
     failed: PdfExportItemResult[];
     aborted: boolean;
+    /**
+     * Batch-level delivery proof for ZIP mode: the delivered ZIP artifact
+     * itself (its file name + byte size). Per-item records always carry each
+     * PDF's OWN fileName/bytesWritten — the ZIP proof lives here so the two
+     * never mix (#585 HIGH fix). Absent in folder mode, where each item's
+     * writeReport is already its own delivery proof.
+     */
+    zipDelivery?: { fileName: string; bytesWritten: number; deliveredAt: string };
     /**
      * UI-contract aliases (additive): the options-page summary, failure
      * banner and retry flow read failedChats/landedChats/exportedCount.
@@ -206,10 +216,21 @@ export class PdfExporter {
         // ZIP transaction boundary (report §1): entries staged into the ZIP
         // writer are NOT success yet. Final success is committed only after
         // finalizeZipDelivery() (single generateBlob + downloadHandler)
-        // resolves. A staged item carries no writeReport — the driver builds
-        // the real delivery proof at flip time.
-        const staged: Array<{ id: string; title: string; diagnostics: RenderDiagnostic[] }> = [];
+        // resolves. A staged item carries no writeReport — but it does carry
+        // stagedArtifact (its own PDF file name + byte length), which the
+        // driver uses for honest per-item records (#585).
+        const staged: Array<{
+            id: string;
+            title: string;
+            diagnostics: RenderDiagnostic[];
+            pdfFileName: string;
+            pdfBytesWritten: number;
+        }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
+        // Batch-level delivery proof (ZIP mode): set only after
+        // finalizeZipDelivery() resolves. Per-item records keep each PDF's
+        // own bytesWritten; the ZIP size lives here (#585 HIGH fix).
+        let zipDelivery: PdfExportResult['zipDelivery'];
 
         const report = (current: number, title: string) => {
             onProgress({
@@ -272,6 +293,7 @@ export class PdfExporter {
             succeeded,
             failed,
             aborted: wasAborted,
+            zipDelivery,
             // UI-contract aliases so the summary/banner/retry flow sees PDF failures.
             failedChats: failed,
             landedChats: succeeded,
@@ -416,8 +438,16 @@ export class PdfExporter {
                         // success — the driver runs finalizeZipDelivery()
                         // once at the end of the batch and flips these.
                         // (No writeReport here by construction: the #584
-                        // union makes carrying one a compile error.)
-                        staged.push({ id, title, diagnostics: itemDiagnostics });
+                        // union makes carrying one a compile error. The
+                        // item's own artifact identity rides along as
+                        // stagedArtifact so the flip writes honest records.)
+                        staged.push({
+                            id,
+                            title,
+                            diagnostics: itemDiagnostics,
+                            pdfFileName: result.stagedArtifact.fileName,
+                            pdfBytesWritten: result.stagedArtifact.bytesWritten,
+                        });
                         onLog(`[PDF] ${title} 已暂存，等待 ZIP 打包交付后确认`, 'info');
                         break;
                     }
@@ -474,18 +504,19 @@ export class PdfExporter {
                     finalizeCtx,
                 );
                 // Delivered. Now — and only now — commit final success.
-                // The writeReport is built here from the actual delivery
-                // (the delivered ZIP), not from the staged per-item report:
-                // staged items never carried delivery proof (#584).
+                // Per-item records describe each conversation's OWN PDF
+                // (file name + byte length captured at stage time), never the
+                // whole-ZIP size (#585 HIGH fix). The ZIP artifact itself is
+                // the batch-level delivery proof and lives on the result, not
+                // on any item record.
                 const writtenAt = new Date().toISOString();
                 for (const s of staged) {
-                    const fileName = buildExportFileName(s.title, s.id, 'pdf');
                     const record = {
                         title: s.title,
                         exportedAt: writtenAt,
                         format: 'pdf',
-                        fileName,
-                        bytesWritten,
+                        fileName: s.pdfFileName,
+                        bytesWritten: s.pdfBytesWritten,
                         status: 'ok',
                     };
                     succeeded++;
@@ -493,6 +524,11 @@ export class PdfExporter {
                     await commitRecord(s.id, record, s.diagnostics);
                     surfaceDiagnostics(s.id, s.title, s.diagnostics);
                 }
+                zipDelivery = {
+                    fileName: zipFileName,
+                    bytesWritten,
+                    deliveredAt: writtenAt,
+                };
                 onLog(`[PDF] ZIP 打包交付成功 (${zipFileName})，${staged.length} 个文件确认成功`, 'info');
             } catch (e: any) {
                 if (isAbortError(e)) {
