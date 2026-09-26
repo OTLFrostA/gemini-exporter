@@ -21,6 +21,7 @@ import type {
     MessageRole,
     TitleCandidate,
 } from './conversation.js';
+import { CANONICAL_TITLE_SOURCES } from './conversation.js';
 import type { Diagnostic } from './diagnostics.js';
 import type { ImageInline, InlineNode } from './inline.js';
 import type { JsonValue } from './json.js';
@@ -46,10 +47,20 @@ export interface GeminiNormalizationResult extends NormalizationResult {
     byteStore: InlineByteStore;
 }
 
-const KNOWN_TITLE_SOURCES: ReadonlySet<string> = new Set([
-    'rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy',
-    'provider', 'user', 'derived', 'default',
-]);
+function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): CanonicalTitleSource {
+    if (isStr(raw) && CANONICAL_TITLE_SOURCES.has(raw)) {
+        return raw as CanonicalTitleSource;
+    }
+    if (isStr(raw)) {
+        diagnostics.push({
+            id: 'title-source-coerced',
+            severity: 'info',
+            code: 'TITLE_SOURCE_COERCED',
+            message: `unrecognized titleSource '${raw}' coerced to 'default'; raw kept in observation`,
+        });
+    }
+    return 'default';
+}
 
 const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
@@ -1156,23 +1167,12 @@ function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[]): Conve
     if (titles && typeof titles === 'object') {
         for (const [src, val] of Object.entries(titles)) {
             if (isStr(val) && val.trim()) {
-                candidates.push({ value: val.trim(), source: src as CanonicalTitleSource });
+                candidates.push({ value: val.trim(), source: canonicalTitleSource(src, diagnostics) });
             }
         }
     }
     if (isStr(raw.title) && raw.title.trim()) {
-        const rawSource = raw.titleSource;
-        const source: CanonicalTitleSource = isStr(rawSource) && KNOWN_TITLE_SOURCES.has(rawSource)
-            ? (rawSource as CanonicalTitleSource)
-            : 'default';
-        if (isStr(rawSource) && !KNOWN_TITLE_SOURCES.has(rawSource)) {
-            diagnostics.push({
-                id: 'title-source-coerced',
-                severity: 'info',
-                code: 'TITLE_SOURCE_COERCED',
-                message: `unrecognized titleSource '${rawSource}' coerced to 'default'; raw kept in observation`,
-            });
-        }
+        const source = canonicalTitleSource(raw.titleSource, diagnostics);
         if (!candidates.some((c) => c.value === raw.title.trim() && c.source === source)) {
             candidates.push({ value: raw.title.trim(), source });
         }

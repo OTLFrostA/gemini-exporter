@@ -23,6 +23,11 @@ export type CanonicalTitleSource =
     | 'derived'
     | 'default';
 
+export const CANONICAL_TITLE_SOURCES: ReadonlySet<string> = new Set([
+    'rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy',
+    'provider', 'user', 'derived', 'default',
+]);
+
 export interface TitleCandidate {
     value: string;
     source: CanonicalTitleSource;

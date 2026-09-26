@@ -1,6 +1,7 @@
 import type { Asset } from './assets.js';
 import type { BlockNode } from './blocks.js';
 import type { CanonicalConversationBundle, Conversation } from './conversation.js';
+import { CANONICAL_TITLE_SOURCES } from './conversation.js';
 import type { Diagnostic, DiagnosticSeverity } from './diagnostics.js';
 import type { InlineNode } from './inline.js';
 import { CanonicalProjectionError, validateMessageTree } from './projection.js';
@@ -83,6 +84,12 @@ function checkTimestamp(value: unknown, c: Collector, path: string): void {
     if (value === undefined || value === null) return;
     if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
         c.add('warning', 'TIME_INVALID', `unparseable timestamp at ${path}; unknown times must stay absent`, path);
+    }
+}
+
+function checkTitleSource(value: unknown, c: Collector, path: string): void {
+    if (typeof value !== 'string' || !CANONICAL_TITLE_SOURCES.has(value)) {
+        c.add('error', 'TITLE_BAD_SOURCE', `unknown title source at ${path}; must be a canonical enum value`, path);
     }
 }
 
@@ -214,6 +221,18 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     checkTimestamp(conversation.createdAt, c, 'conversation.createdAt');
     checkTimestamp(conversation.updatedAt, c, 'conversation.updatedAt');
     checkTimestamp(conversation.observedAt, c, 'conversation.observedAt');
+
+    const title = (conversation as Record<string, unknown>).title;
+    if (isRecord(title)) {
+        checkTitleSource(title.source, c, 'conversation.title.source');
+        if (Array.isArray(title.candidates)) {
+            title.candidates.forEach((cand, i) => {
+                if (isRecord(cand)) {
+                    checkTitleSource(cand.source, c, `conversation.title.candidates[${i}].source`);
+                }
+            });
+        }
+    }
 
     const assetIds = new Set<string>();
     for (const a of assets) {
