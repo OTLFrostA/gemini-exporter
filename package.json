@@ -8,6 +8,7 @@
     "build": "node build.js",
     "package": "node build.js --pack",
     "test:unit": "python3 tests/run_tests.py",
+    "test:release-gates": "node scripts/release-gate-checks/check-no-cjk-fonts.js",
     "test:e2e": "node build.js && playwright test",
     "test": "npm run type-check && python3 tests/run_tests.py && node build.js && playwright test",
     "test:changed": "python3 scripts/run_changed_tests.py",
