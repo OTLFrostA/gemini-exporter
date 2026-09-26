@@ -251,14 +251,40 @@ export interface PipelineContext {
 
 export type PipelineItemStatus = 'delivered' | 'staged' | 'failed' | 'aborted';
 
-export interface PipelineItemResult {
+interface PipelineItemResultBase {
     conversationId: string;
     title: string;
-    status: PipelineItemStatus;
-    /** Present only when status === 'delivered'. */
-    writeReport?: ArtifactWriteReport;
-    /** Present only when status === 'failed'. */
-    error?: { stage: PipelineStageName | 'pipeline'; code: string; message: string; retryable: boolean };
     /** Every diagnostic from every stage, in stage order. Never dropped. */
     diagnostics: RenderDiagnostic[];
 }
+
+/**
+ * Discriminated union: `status` decides which fields exist. A 'staged' item
+ * MUST NOT carry `writeReport` — a batch-ZIP staged artifact has no delivery
+ * proof yet; the batch driver issues the real writeReport when it finalizes
+ * the ZIP. Making the misuse a type error (instead of a runtime `undefined`
+ * check) keeps `if (result.writeReport)` from reintroducing the false-success
+ * #556/#567 eliminated.
+ */
+export type PipelineItemResult =
+    | (PipelineItemResultBase & {
+          status: 'delivered';
+          /** Delivery proof. Present ONLY on delivered items. */
+          writeReport: ArtifactWriteReport;
+      })
+    | (PipelineItemResultBase & {
+          status: 'staged';
+      })
+    | (PipelineItemResultBase & {
+          status: 'failed';
+          /** Present ONLY on failed items. */
+          error: {
+              stage: PipelineStageName | 'pipeline';
+              code: string;
+              message: string;
+              retryable: boolean;
+          };
+      })
+    | (PipelineItemResultBase & {
+          status: 'aborted';
+      });
