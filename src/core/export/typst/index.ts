@@ -7,3 +7,4 @@
  */
 
 export * from './payload.js';
+export * from './fonts/localFontProvider.js';
