@@ -381,6 +381,7 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 return;
             case 'quote':
             case 'note': {
+                if (b.label && canonType === 'citationGroup') emit(isAsset, b.label);
                 if (b.blocks) {
                     for (const sub of b.blocks) emitBlock(sub, canonType);
                 } else {
@@ -392,7 +393,6 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 for (const item of b.items ?? []) for (const sub of item.blocks ?? []) emitBlock(sub, canonType);
                 return;
             case 'code':
-                // The template renders the language as a sticky label above the code.
                 emit(isAsset, b.language);
                 emit(isAsset, b.text);
                 return;
@@ -401,7 +401,7 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 return;
             case 'table':
                 if (b.caption) emit(isAsset, b.caption);
-                for (const cell of b.headers ?? []) emit(isAsset, typstInlineText(cell));
+                for (const row of b.headers ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell));
                 for (const row of b.rows ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell));
                 return;
             case 'image':
@@ -516,9 +516,10 @@ test('parity corpus: math-cjk citation titles are an explicitly asserted degrada
     const { htmlParts, pdfParts } = parityInputs(name);
 
     // Known degradation (D8 follow-up, not a parity failure): the PDF path
-    // carries citation *markers* ([1]) but drops citation titles and the
-    // citation-group title -- the Typst templates have no bibliography
-    // section. Asserted explicitly here instead of skipping the fixture.
+    // carries citation *markers* ([1]) but drops citation titles -- the
+    // Typst templates have no bibliography section. The citation-group title
+    // is now kept (Phase B). Asserted explicitly here instead of skipping the
+    // fixture.
     const citeTitle = '微积分基本定理';
     assert.ok(htmlParts.body.some((l) => l.includes(citeTitle)), 'HTML shows the citation title');
     assert.ok(htmlParts.body.includes('参考来源'), 'HTML shows the citation group title');
@@ -531,8 +532,8 @@ test('parity corpus: math-cjk citation titles are an explicitly asserted degrada
         'PDF drops the citation title (asserted degradation, see comment)',
     );
     assert.ok(
-        !pdfParts.body.includes('参考来源'),
-        'PDF drops the citation group title (asserted degradation, see comment)',
+        pdfParts.body.includes('参考来源'),
+        'PDF keeps the citation group title',
     );
 
     // The paragraph around the citation still carries its other content on both sides.
@@ -546,7 +547,7 @@ test('parity corpus: math-cjk citation titles are an explicitly asserted degrada
 
     // Full bidirectional parity on everything except the degraded citation lines.
     const degraded = (l: string): boolean =>
-        l === '参考来源' || l === citeTitle || l === '[1]' || l.includes('牛顿—莱布尼茨公式');
+        l === citeTitle || l === '[1]' || l.includes('牛顿—莱布尼茨公式');
     assertBidirectionalParity(
         name,
         { body: htmlParts.body.filter((l) => !degraded(l)), asset: htmlParts.asset.filter((l) => !degraded(l)) },

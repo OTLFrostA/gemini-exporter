@@ -145,7 +145,7 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
                 break;
             case 'table':
                 for (const row of block.headers) {
-                    stripInline(row);
+                    for (const cell of row) stripInline(cell);
                 }
                 for (const row of block.rows) {
                     for (const cell of row) stripInline(cell);
@@ -197,7 +197,7 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
         } else if (block.type === 'unknown') {
             if (block.blocks) for (const child of block.blocks) visitBlock(child);
         } else if (block.type === 'table') {
-            for (const row of block.headers) visitInline(row);
+            for (const row of block.headers) for (const cell of row) visitInline(cell);
             for (const row of block.rows) {
                 for (const cell of row) visitInline(cell);
             }

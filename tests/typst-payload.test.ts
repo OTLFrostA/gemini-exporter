@@ -225,13 +225,13 @@ test('unknown blocks are never dropped', async () => {
     assert.strictEqual(node.blocks[0].children[0].text, 'kept');
 });
 
-test('heading level clamps with diagnostic', async () => {
+test('heading level passes through without clamping', async () => {
     const b = bundle([msg('m1', 'user', [
         { type: 'heading', level: 6, children: [{ type: 'text', text: 'deep' }] },
     ])]);
     const { payload, diagnostics } = toTypstPayload(b, opts);
-    assert.strictEqual((payload.messages[0].blocks[0] as any).level, 3);
-    assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_HEADING_CLAMP'));
+    assert.strictEqual((payload.messages[0].blocks[0] as any).level, 6);
+    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_HEADING_CLAMP'));
 });
 
 test('branched conversation without selected leaf renders every message in source order', async () => {

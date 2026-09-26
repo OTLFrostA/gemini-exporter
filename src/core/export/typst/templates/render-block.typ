@@ -49,7 +49,12 @@
   in-flow(body, scope)
 }
 
-#let render-code(node, scope) = code-surface(node.language, node.text)
+#let render-code(node, scope) = code-surface(
+  node.language,
+  node.text,
+  filename: if "filename" in node { node.filename } else { none },
+  meta: if "meta" in node { node.meta } else { none },
+)
 
 #let render-math(node, scope) = {
   if "typst" in node {
@@ -63,7 +68,7 @@
 }
 
 #let render-table(node, scope) = {
-  let headers = node.headers.map(cell => [#render-inlines(cell)])
+  let headers = node.headers.map(row => row.map(cell => [#render-inlines(cell)]))
   let rows = node.rows.map(row => row.map(cell => [#render-inlines(cell)]))
   let cols = if "columns" in node { node.columns } else { none }
   let aligns = if "aligns" in node { node.aligns } else { none }
@@ -83,7 +88,13 @@
   node.asset,
   caption: if "caption" in node { node.caption } else { none },
 )
-#let render-file(node, scope) = file-attachment(node.name, node.kind, node.size)
+#let render-file(node, scope) = {
+  file-attachment(node.name, node.kind, node.size)
+  if "description" in node and node.description != "" {
+    v(3pt)
+    text(size: 7.35pt, fill: muted)[#node.description]
+  }
+}
 
 #let render-quote(node, scope, recurse) = {
   let body = {
@@ -100,6 +111,9 @@
 }
 
 #let render-note(node, scope, recurse) = {
+  let label = if "label" in node and node.label != "" {
+    [#text(size: 7.6pt, weight: 640, fill: ink-soft)[#node.label]#v(2.5pt)]
+  }
   if "blocks" in node {
     let body = {
       for (index, sub) in node.blocks.enumerate() {
@@ -107,9 +121,9 @@
         recurse(sub, scope: scope)
       }
     }
-    quiet-note(body)
+    quiet-note[#label#body]
   } else {
-    quiet-note(render-inlines(node.children))
+    quiet-note[#label#render-inlines(node.children)]
   }
 }
 
