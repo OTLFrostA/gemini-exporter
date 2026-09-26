@@ -22,19 +22,21 @@ const assert = require('node:assert');
 
 const { compileStage } = require('../src/core/export/pdf/pipeline/compileStage.js');
 const { StageError } = require('../src/core/export/pdf/pipeline/types.js');
+const { buildMinimalValidPdf } = require('../src/core/export/pdf/pdfCompiler.js');
 
-const MINIMAL_PDF_TEXT = [
-    '%PDF-1.4',
-    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
-    'trailer<</Root 1 0 R>>',
-    'startxref',
-    '0',
-    '%%EOF',
-    '',
-].join('\n');
+/**
+ * The only valid "minimal PDF" in this file. Its startxref offset is
+ * computed by the builder and genuinely points at the xref table — the
+ * hand-written `startxref 0` fixtures of the past are not valid PDFs and
+ * are rejected by the pointer check below.
+ */
+function pdfBytes(text?: string): Uint8Array {
+    return text === undefined ? buildMinimalValidPdf() : new TextEncoder().encode(text);
+}
 
-function pdfBytes(text: string = MINIMAL_PDF_TEXT): Uint8Array {
-    return new TextEncoder().encode(text);
+/** Decode a built PDF back to text so a test can surgically corrupt it. */
+function validPdfText(): string {
+    return new TextDecoder().decode(buildMinimalValidPdf());
 }
 
 function makeCtx() {
@@ -278,6 +280,59 @@ test('startxref without a numeric offset -> StageError PDF_VERIFY_FAILED', async
         assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
         return true;
     });
+});
+
+test('startxref offset outside the byte range -> StageError PDF_VERIFY_FAILED', async () => {
+    const bad = validPdfText().replace(/startxref\n\d+\n%%EOF/, 'startxref\n999999999\n%%EOF');
+    const { compiler } = makeStub({ bytes: pdfBytes(bad) });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/outside the byte range/.test(e.message), 'message names the failed pointer check');
+        return true;
+    });
+});
+
+test('startxref offset landing on non-xref content -> StageError PDF_VERIFY_FAILED', async () => {
+    const text = validPdfText();
+    const firstObjOffset = text.indexOf('1 0 obj');
+    assert.ok(firstObjOffset > 0, 'fixture has a first indirect object to aim at');
+    const bad = text.replace(/startxref\n\d+\n%%EOF/, `startxref\n${firstObjOffset}\n%%EOF`);
+    const { compiler } = makeStub({ bytes: pdfBytes(bad) });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/does not point at a cross-reference/.test(e.message), 'message names the failed pointer check');
+        return true;
+    });
+});
+
+test('hand-written startxref 0 (points at the %PDF- header) -> StageError PDF_VERIFY_FAILED', async () => {
+    // The old fixtures carried `startxref 0`; offset 0 lands on the header,
+    // never on a cross-reference table, so it is a decorative marker.
+    const bad = validPdfText().replace(/startxref\n\d+\n%%EOF/, 'startxref\n0\n%%EOF');
+    const { compiler } = makeStub({ bytes: pdfBytes(bad) });
+    await assert.rejects(() => compileStage(fakeInput({ compiler }), makeCtx()), (e: any) => {
+        assert.ok(e instanceof StageError);
+        assert.strictEqual(e.code, 'PDF_VERIFY_FAILED');
+        assert.ok(/does not point at a cross-reference/.test(e.message));
+        return true;
+    });
+});
+
+test('xref stream (/Type /XRef) at the startxref offset passes verification', async () => {
+    const body =
+        '%PDF-1.4\n' +
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n' +
+        'trailer\n<< /Root 1 0 R >>\n';
+    const xrefObjOffset = body.length;
+    const text =
+        body +
+        '5 0 obj\n<< /Type /XRef /Size 2 /Root 1 0 R >>\nstream\n00\nendstream\nendobj\n' +
+        `startxref\n${xrefObjOffset}\n%%EOF\n`;
+    const { compiler } = makeStub({ bytes: pdfBytes(text) });
+    const { output } = await compileStage(fakeInput({ compiler }), makeCtx());
+    assert.ok(output.pdfBytes.length > 0, 'xref-stream PDF accepted');
 });
 
 test('structurally complete minimal PDF passes verification', async () => {

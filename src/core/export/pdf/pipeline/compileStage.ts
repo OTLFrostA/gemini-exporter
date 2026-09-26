@@ -46,8 +46,6 @@ import {
 const PDF_MAGIC = '%PDF-';
 /** Trailer marker a structurally complete PDF carries near its end. */
 const PDF_EOF_MARKER = '%%EOF';
-/** Cross-reference table pointer; must precede %%EOF with a numeric offset. */
-const PDF_XREF_MARKER = 'startxref';
 /** At least one indirect object must be closed for the bytes to be parseable. */
 const PDF_ENDOBJ_MARKER = 'endobj';
 /** Catalog reference: a trailer dict or a /Root entry proves a document root. */
@@ -140,8 +138,12 @@ function makeMountAssetResolver(
  *   3. contains at least one `endobj` (a PDF with no indirect objects is
  *      not a document);
  *   4. contains `trailer` or `/Root` (proof a document catalog is referenced);
- *   5. the tail carries `startxref <byte-offset> %%EOF` — a real
- *      cross-reference table pointer, not a bare marker.
+ *   5. the tail carries `startxref <byte-offset> %%EOF` where the offset is
+ *      a real cross-reference pointer: it parses as a number, lies inside
+ *      the byte range, and the bytes there begin a classic `xref` table or
+ *      an indirect object whose dictionary carries `/Type` `/XRef`
+ *      (cross-reference stream). A bare numeric marker — e.g. the
+ *      `startxref 0` hand-written fixtures used to carry — is rejected.
  * Anything failing a check is rejected; the caller turns it into a
  * PDF_VERIFY_FAILED stage failure, never a blank PDF marked ok.
  */
@@ -179,8 +181,33 @@ function verifyPdfBytes(pdfBytes: Uint8Array): void {
     }
     const tailStart = Math.max(0, pdfBytes.length - EOF_SCAN_BYTES);
     const tail = new TextDecoder('ascii').decode(pdfBytes.subarray(tailStart));
-    if (!/startxref[\r\n \t]*[0-9]+[\r\n \t]*%%EOF/.test(tail)) {
+    const xrefMatch = /startxref[\r\n \t]*([0-9]+)[\r\n \t]*%%EOF/.exec(tail);
+    if (!xrefMatch) {
         throw new Error('compiler returned %PDF- bytes without a startxref <offset> %%EOF trailer; refusing to treat them as a complete PDF');
+    }
+    const xrefOffset = Number(xrefMatch[1]);
+    if (!Number.isSafeInteger(xrefOffset) || xrefOffset < 0 || xrefOffset >= pdfBytes.length) {
+        throw new Error(
+            `compiler returned %PDF- bytes whose startxref offset ${xrefMatch[1]} lies outside the byte range (length ${pdfBytes.length}); not a real cross-reference pointer`,
+        );
+    }
+    // Inspect the bytes at the claimed offset. A classic PDF points at its
+    // 'xref' table; an xref-stream PDF points at the indirect object whose
+    // dictionary carries /Type /XRef. Anything else (e.g. offset 0, which
+    // lands on the %PDF- header) is a decorative marker, not a pointer.
+    const probeEnd = Math.min(pdfBytes.length, xrefOffset + 2048);
+    const probe = new TextDecoder('ascii')
+        .decode(pdfBytes.subarray(xrefOffset, probeEnd))
+        .replace(/^[\r\n \t]+/, '');
+    const isClassicXref = probe.startsWith('xref');
+    const isXrefStream =
+        /^\d+[\r\n \t]+\d+[\r\n \t]+obj/.test(probe) &&
+        probe.includes('/Type') &&
+        probe.includes('/XRef');
+    if (!isClassicXref && !isXrefStream) {
+        throw new Error(
+            `compiler returned %PDF- bytes whose startxref offset ${xrefOffset} does not point at a cross-reference table or cross-reference stream; refusing to treat them as a complete PDF`,
+        );
     }
 }
 

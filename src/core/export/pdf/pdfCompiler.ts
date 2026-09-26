@@ -41,25 +41,41 @@ export interface IPdfCompiler {
  * deliberately content-free: it only proves the plumbing (normalize ->
  * compile -> writer) works end to end.
  */
-const MINIMAL_PDF_TEXT = [
-    '%PDF-1.4',
-    '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj',
-    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj',
-    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj',
-    '4 0 obj<</Length 44>>stream',
-    'BT /F1 24 Tf 72 720 Td (stub pdf) Tj ET',
-    'endstream',
-    'endobj',
-    '5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj',
-    'trailer<</Root 1 0 R>>',
-    'startxref',
-    '0',
-    '%%EOF',
-    '',
-].join('\n');
+/**
+ * Builds a minimal but genuinely valid one-page PDF: real indirect objects,
+ * a classic xref table whose byte offsets are computed (never hardcoded),
+ * and a startxref pointer aimed at the actual xref table.
+ *
+ * Test fixtures and the stub compiler MUST use this. Hand-written
+ * "startxref 0" fixtures are not valid PDFs (offset 0 points at the
+ * %PDF- header, not a cross-reference table) and are rejected by the S4
+ * verifier's pointer check.
+ */
+export function buildMinimalValidPdf(): Uint8Array {
+    const objects = [
+        '<< /Type /Catalog /Pages 2 0 R >>',
+        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+        '<< /Length 44 >>\nstream\nBT /F1 24 Tf 72 720 Td (stub pdf) Tj ET\nendstream',
+        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    ];
+    let body = '%PDF-1.4\n';
+    const offsets: number[] = [];
+    objects.forEach((dict, i) => {
+        offsets.push(body.length);
+        body += `${i + 1} 0 obj\n${dict}\nendobj\n`;
+    });
+    const xrefOffset = body.length;
+    let xref = 'xref\n0 6\n0000000000 65535 f \n';
+    for (const off of offsets) {
+        xref += `${String(off).padStart(10, '0')} 00000 n \n`;
+    }
+    const trailer = `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+    return new TextEncoder().encode(body + xref + trailer);
+}
 
 function minimalPdfBytes(): Uint8Array {
-    return new TextEncoder().encode(MINIMAL_PDF_TEXT);
+    return buildMinimalValidPdf();
 }
 
 function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
