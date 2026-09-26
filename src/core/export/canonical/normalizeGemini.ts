@@ -146,8 +146,8 @@ interface MdParser {
     diagnostics: Diagnostic[];
     /** sourceRef stamped on parser-created assets and diagnostics. */
     sourceRef: SourceRef;
-    /** Normalized attachment reference -> asset id, for inline image linking. */
-    assetIndex: Map<string, string>;
+    /** Attachment reference index for inline image linking (see AssetLinkIndex). */
+    assetIndex: AssetLinkIndex;
     /** Assets created for inline markdown images; merged into the bundle by the caller. */
     inlineAssets: Asset[];
     /** Message id prefix used for generated asset ids. */
@@ -160,16 +160,36 @@ interface MdParser {
     byteStore: InlineByteStore;
 }
 
+/**
+ * Attachment reference index for inline image linking.
+ *
+ * Two tiers, looked up in order:
+ * - byRef: full-reference keys (exact ref, `assets/`-stripped, URI-decoded).
+ *   A full ref identifies one asset; collisions are data anomalies.
+ * - byBasename: basename -> candidate asset ids. A basename may match several
+ *   attachments (e.g. `assets/foo/image.png` and `assets/bar/image.png` both
+ *   register `image.png`); binding by basename is only allowed when it is
+ *   unique, otherwise an AMBIGUOUS_INLINE_IMAGE_ASSET diagnostic is emitted
+ *   and no binding is made -- silently binding the wrong image is worse than
+ *   reporting the image missing.
+ */
+interface AssetLinkIndex {
+    byRef: Map<string, string>;
+    byBasename: Map<string, Set<string>>;
+}
+
+function newAssetLinkIndex(): AssetLinkIndex {
+    return { byRef: new Map(), byBasename: new Map() };
+}
+
 let blockSeq = 0;
 const nextBlockId = (prefix: string): string => `${prefix}-b${blockSeq++}`;
 
-/** Normalizable match keys for linking an inline image src to an attachment asset. */
-function assetMatchKeys(ref: string): string[] {
+/** Full-reference match keys for linking an inline image src to an attachment asset. */
+function assetRefKeys(ref: string): string[] {
     const keys = [ref];
     const noPrefix = ref.replace(/^assets\//, '');
     if (noPrefix !== ref) keys.push(noPrefix);
-    const base = noPrefix.split('/').pop() ?? '';
-    if (base && base !== noPrefix) keys.push(base);
     try {
         const decoded = decodeURIComponent(noPrefix);
         if (decoded !== noPrefix) keys.push(decoded);
@@ -177,6 +197,27 @@ function assetMatchKeys(ref: string): string[] {
         // Not percent-encoded; nothing to add.
     }
     return keys;
+}
+
+/** Basename key: last path segment. May be ambiguous across attachments. */
+function assetBasename(ref: string): string | undefined {
+    const noPrefix = ref.replace(/^assets\//, '');
+    const base = noPrefix.split('/').pop() ?? '';
+    return base && base !== noPrefix ? base : undefined;
+}
+
+/** Register one attachment reference (any of localName/url/sourceUrl/...) into the index. */
+function indexAssetRef(index: AssetLinkIndex, ref: string, assetId: string): void {
+    for (const key of assetRefKeys(ref)) index.byRef.set(key, assetId);
+    const base = assetBasename(ref);
+    if (base) {
+        let set = index.byBasename.get(base);
+        if (!set) {
+            set = new Set();
+            index.byBasename.set(base, set);
+        }
+        set.add(assetId);
+    }
 }
 
 /**
@@ -195,22 +236,39 @@ function dataUrlPreview(url: string): string {
 
 function linkInlineImage(src: string, alt: string, title: string | undefined, st: MdParser): ImageInline {
     const trimmedSrc = src.trim();
-    for (const key of assetMatchKeys(trimmedSrc)) {
-        const hit = st.assetIndex.get(key);
+    // Tier 1: exact / normalized full reference -- unambiguous.
+    for (const key of assetRefKeys(trimmedSrc)) {
+        const hit = st.assetIndex.byRef.get(key);
         if (hit) {
-            const cleanAlt = alt.trim();
-            return {
-                type: 'image',
-                assetId: hit,
-                ...(cleanAlt ? { alt: cleanAlt } : {}),
-                ...(title ? { title } : {}),
-            };
+            return makeImageInline(hit, alt, title);
+        }
+    }
+    // Tier 2: basename, only when it identifies exactly one asset.
+    // A bare src with no path segments IS a basename candidate.
+    let ambiguous = false;
+    const base = assetBasename(trimmedSrc) ?? trimmedSrc;
+    if (base) {
+        const candidates = st.assetIndex.byBasename.get(base);
+        if (candidates && candidates.size === 1) {
+            return makeImageInline([...candidates][0], alt, title);
+        }
+        if (candidates && candidates.size > 1) {
+            ambiguous = true;
+            const ids = [...candidates].sort();
+            st.diagnostics.push({
+                id: `inline-image-ambiguous:${ids.join(',')}`,
+                severity: 'warning',
+                code: 'AMBIGUOUS_INLINE_IMAGE_ASSET',
+                message: `inline image '${trimmedSrc.slice(0, 120)}' basename '${base}' matches ${ids.length} attachments; refusing to bind an arbitrary one`,
+                sourceRef: st.sourceRef,
+                details: { src: trimmedSrc.slice(0, 200), assetIds: ids } as JsonValue,
+            });
         }
     }
     const assetId = `${st.idPrefix}-img${st.inlineAssets.length}`;
-    const base = (trimmedSrc.split('/').pop() ?? '').split('?')[0];
+    const fileBase = (trimmedSrc.split('/').pop() ?? '').split('?')[0];
     const altName = alt.trim();
-    let name = altName || base || 'image';
+    let name = altName || fileBase || 'image';
     let status: AssetStatus;
     let sourceUrl: string | undefined;
     let storageRef: string | undefined;
@@ -267,8 +325,8 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
         ...(failureReason ? { failureReason } : {}),
         sourceRef: st.sourceRef,
     });
-    for (const key of assetMatchKeys(trimmedSrc)) st.assetIndex.set(key, assetId);
-    if (status === 'missing') {
+    indexAssetRef(st.assetIndex, trimmedSrc, assetId);
+    if (status === 'missing' && !ambiguous) {
         if (dataUrlDiag) {
             st.diagnostics.push({
                 id: `inline-image-dataurl:${assetId}`,
@@ -289,6 +347,11 @@ function linkInlineImage(src: string, alt: string, title: string | undefined, st
             });
         }
     }
+    return makeImageInline(assetId, alt, title);
+}
+
+/** Build the ImageInline node; alt/title are only set when non-empty. */
+function makeImageInline(assetId: string, alt: string, title: string | undefined): ImageInline {
     const cleanAlt = alt.trim();
     return {
         type: 'image',
@@ -1101,7 +1164,7 @@ function normalizeMessage(
     const attachmentBlocks: BlockNode[] = [];
     const assets: Asset[] = [];
     const assetIds: string[] = [];
-    const assetIndex = new Map<string, string>();
+    const assetIndex = newAssetLinkIndex();
     merged.forEach((a, ai) => {
         const assetId = `${msgId}-a${ai}`;
         const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` },
@@ -1110,7 +1173,7 @@ function normalizeMessage(
         assetIds.push(assetId);
         for (const ref of [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {
             if (typeof ref === 'string' && ref) {
-                for (const key of assetMatchKeys(ref)) assetIndex.set(key, assetId);
+                indexAssetRef(assetIndex, ref, assetId);
             }
         }
         diagnostics.push(...built.diagnostics);
