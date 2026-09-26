@@ -383,9 +383,18 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 emit(isAsset, text);
                 return;
             }
-            case 'heading': case 'quote': case 'note':
+            case 'heading':
                 emit(isAsset, typstInlineText(b.children));
                 return;
+            case 'quote':
+            case 'note': {
+                if (b.blocks) {
+                    for (const sub of b.blocks) emitBlock(sub, canonType);
+                } else {
+                    emit(isAsset, typstInlineText(b.children));
+                }
+                return;
+            }
             case 'list':
                 for (const item of b.items ?? []) emit(isAsset, typstInlineText(item.children));
                 return;
