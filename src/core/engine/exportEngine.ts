@@ -26,15 +26,4 @@ export {
     getExtensionVersion
 };
 
-export const ExportEngineModule = {
-    ExportOrchestrator,
-    AsyncQueue,
-    ensureSubDir,
-    sanitizeFileName,
-    sanitizeZipPath,
-    getExtensionVersion
-};
-
-export type ExportEngineModule = typeof ExportEngineModule;
-
 export default ExportOrchestrator;
