@@ -475,3 +475,18 @@ test('pdfTextExtract: known content round-trips through a real compiled PDF', as
     assert.ok(extracted.text.includes('x'), 'math symbol extracts as text');
     assert.ok(!extracted.text.includes('�'), 'no tofu without CJK content');
 });
+test("pdfTextExtract: marked content /ActualText replaces composite glyphs without tofu", () => {
+    // Composite glyph pieces (e.g. Typst matrix tall parentheses) have no individual ToUnicode entries,
+    // but Typst wraps them in /Span << /ActualText (\() >> BDC ... EMC per ISO 32000.
+    const contentSrc = "BT /Span << /ActualText (\\() >> BDC <0099> Tj EMC /Span << /ActualText (\\)) >> BDC <0099> Tj EMC ET";
+    const content = `1 0 obj\n<< /Length ${Buffer.byteLength(contentSrc)} >>\nstream\n${contentSrc}\nendstream\nendobj`;
+    const page = `2 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 1 0 R >>\nendobj`;
+    const pages = `3 0 obj\n<< /Type /Pages /Kids [2 0 R] /Count 1 >>\nendobj`;
+    const catalog = `4 0 obj\n<< /Type /Catalog /Pages 3 0 R >>\nendobj`;
+    let pdf = "%PDF-1.7\n";
+    for (const p of [content, page, pages, catalog]) pdf += p + "\n";
+    pdf += "trailer\n<< /Size 5 /Root 4 0 R >>\nstartxref\n0\n%%EOF";
+    const extracted = extractPdfText(Buffer.from(pdf, "latin1"));
+    assert.strictEqual(extracted.text, "()");
+    assert.ok(!extracted.text.includes(String.fromCharCode(0xfffd)), "no tofu");
+});

@@ -288,17 +288,36 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
                 const tokens = tokenizeContent(inflated.toString('latin1'));
                 let i = 0;
                 const stack: string[] = [];
+                const markedContentStack: Array<{ actualText: string | null }> = [];
                 while (i < tokens.length) {
                     const t = tokens[i];
-                    if (t === 'Tj' || t === "'") {
+                    if (t === 'BDC' || t === 'BMC') {
+                        let actualText: string | null = null;
+                        const actIdx = stack.lastIndexOf('/ActualText');
+                        if (actIdx !== -1 && actIdx + 1 < stack.length) {
+                            actualText = parseActualTextString(stack[actIdx + 1]);
+                        }
+                        markedContentStack.push({ actualText });
+                        stack.length = 0;
+                    } else if (t === 'EMC') {
+                        const entry = markedContentStack.pop();
+                        if (entry && entry.actualText != null) {
+                            pageText.push(entry.actualText);
+                        }
+                        stack.length = 0;
+                    } else if (t === 'Tj' || t === "'") {
                         const s = stack.pop() ?? '';
-                        pageText.push(renderStringToken(s, currentFont));
+                        if (!markedContentStack.some(m => m.actualText != null)) {
+                            pageText.push(renderStringToken(s, currentFont));
+                        }
                         stack.length = 0;
                     } else if (t === '"') {
                         // " : aw ac string " — discard word/char spacing, show string.
                         const s = stack.pop() ?? '';
                         stack.pop(); stack.pop();
-                        pageText.push(renderStringToken(s, currentFont));
+                        if (!markedContentStack.some(m => m.actualText != null)) {
+                            pageText.push(renderStringToken(s, currentFont));
+                        }
                         stack.length = 0;
                     } else if (t === 'TJ') {
                         // Stack holds: '[', elements..., ']'. Render in order.
@@ -308,11 +327,13 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
                             if (e === '[') break;
                             if (e !== ']') elems.unshift(e);
                         }
-                        let out = '';
-                        for (const e of elems) {
-                            if (e.startsWith('<') || e.startsWith('(')) out += renderStringToken(e, currentFont);
+                        if (!markedContentStack.some(m => m.actualText != null)) {
+                            let out = '';
+                            for (const e of elems) {
+                                if (e.startsWith('<') || e.startsWith('(')) out += renderStringToken(e, currentFont);
+                            }
+                            pageText.push(out);
                         }
-                        pageText.push(out);
                         stack.length = 0;
                     } else if (t === 'Tf') {
                         const size = stack.pop();
@@ -332,6 +353,31 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
     }
 
     return { text: pageText.join(''), pageCount, imageXObjectCount, fonts };
+}
+
+function parseActualTextString(raw: string): string {
+    if (raw.startsWith('(')) {
+        const bytes = parseLiteralPdfString(raw.slice(1, -1));
+        if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+            let out = '';
+            for (let i = 2; i + 1 < bytes.length; i += 2) {
+                out += String.fromCharCode((bytes[i] << 8) | bytes[i + 1]);
+            }
+            return out;
+        }
+        return bytes.map(b => String.fromCharCode(b)).join('');
+    } else if (raw.startsWith('<')) {
+        const bytes = parseHexPdfString(raw.slice(1, -1).replace(/\s+/g, ''));
+        if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+            let out = '';
+            for (let i = 2; i + 1 < bytes.length; i += 2) {
+                out += String.fromCharCode((bytes[i] << 8) | bytes[i + 1]);
+            }
+            return out;
+        }
+        return bytes.map(b => String.fromCharCode(b)).join('');
+    }
+    return '';
 }
 
 function renderStringToken(token: string, font: { toUnicode: Map<string, string> | null } | null): string {
