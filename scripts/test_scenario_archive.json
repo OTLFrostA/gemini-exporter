@@ -1803,5 +1803,52 @@
     ],
     "consumed_at": "2026-09-26T16:17:56.239376",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_materials_spin_liquid_kagome",
+    "domain": "quantum_materials_spin_liquid_kagome",
+    "title": "量子磁学与自旋液体：Kagome 晶格几何阻挫与分数化自旋子激发",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试 Kagome 反铁磁阻挫推导、精确对角化 Python 求解、自旋液体波函数渲染与自旋液体候选物表格对比",
+    "turns": [
+      "写出二维 Kagome 晶格反铁磁海森堡哈密顿量 \\hat{H} = J \\sum_{\\langle i, j \\rangle} \\vec{S}_i \\cdot \\vec{S}_j，从单个三角形单元的基态能量极小化出发，推导经典自旋 120^\\circ 共面排布下的庞大连续基态简并流形与无能隙涨落自由度。",
+      "使用 Python 编写一个针对小尺寸 Kagome 团簇 (如 12-site) 反铁磁海森堡模型的精确对角化 (Exact Diagonalization, ED) 求解脚本，利用 Lanczos 算法计算基态能量与自旋单态-三重态激发能隙 (Spin Gap)。",
+      "请帮我生成一张高科技感物理渲染图：三维微观晶格中，由铜离子构成的六角星形 Kagome 几何阻挫晶格网络，在极低温下自旋无法冻结，自旋单态共振价键 (RVB) 像液体般不断涨落并激发出两枚相互分离的分数化自旋子 (Spinon)，呈现出荧光量子波函数干涉条纹。",
+      "使用 Markdown 表格横向对比赫伯特史密斯石 (Herbertsmithite ZnCu3(OH)6Cl2)、Kitaev 蜂窝晶格 \\alpha-RuCl3、有机三角晶格盐 \\kappa-(ET)2Cu2(CN)3 以及烧绿石量子自旋冰 (Pyrochlore Spin Ice) 在阻挫参数 f = |\\Theta_{CW}|/T_N、自旋量子数 S、非弹性中子散射连续谱特征及热霍尔电导率表现。",
+      "基于部分子（Parton）投影费米子平均场理论，推导涌现 U(1) 与 \\mathbb{Z}_2 规范场下自旋子的费米面拓扑结构，论述手征自旋液体中半整数量子化热霍尔效应 \\kappa_{xy} / T = \\frac{\\pi c}{6} \\frac{k_B^2}{\\hbar} 的物理根源。"
+    ],
+    "consumed_at": "2026-09-26T23:32:08.414167",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "cryo_em_single_particle_reconstruction",
+    "domain": "cryo_em_single_particle_reconstruction",
+    "title": "结构生物物理学：低温冷冻电镜单颗粒三维重构与对比度传递函数校正",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "algorithms",
+      "physics",
+      "tables"
+    ],
+    "description": "测试透射电镜相衬成像弱相位物体近似推导、CTF 离焦与像差校正、中心切片定理证明、Wiener 滤波算法与大分子构象异质性分析",
+    "turns": [
+      "在透射电子显微镜（TEM）相衬成像理论中，严格推导基于弱相位物体近似（Weak Phase Object Approximation, WPOA）的大分子静电势投影与像平面波函数干涉模型，推导对比度传递函数（Contrast Transfer Function, CTF）解析表达式 CTF(k) = -A(k) \\sin(\\chi(k)) - w_c \\cos(\\chi(k))，其中波差函数 \\chi(k) = \\pi \\lambda \\Delta z k^2 + \\frac{1}{2}\\pi C_s \\lambda^3 k^4，并详述离焦量 \\Delta z、球面像差系数 C_s 以及包络函数（Envelope Function）对高频空间频率信息的衰减机制。",
+      "给出中心切片定理（Fourier Projection-Slice Theorem）在三维欧几里得空间向二维投影平面的严格傅里叶变换积分证明：证明三维实空间物体沿 z 轴方向的线性投影积分在二维傅里叶变换下的像，等于该物体三维傅里叶变换穿过原点且平行于投影平面的中心切片面，并解释其作为单颗粒重构填补 3D 倒易空间的基础。",
+      "请使用 Python 实现一个基于 NumPy/SciPy 的冷冻电镜单颗粒图像 2D CTF 相位翻转校正与 Wiener 滤波反卷积增强器，输入一段合成的高噪声二维大分子颗粒投影矩阵，根据给定的电子波长、离焦量和信噪比参数输出校正后的增强图像。",
+      "用 Markdown 表格对比冷冻单颗粒重构技术 (Single-Particle Analysis, SPA)、冷冻电子断层扫描 (Cryo-ET)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在生物样品结晶度要求、电子辐射损伤极限剂量 (e⁻/Å²)、三维空间极限分辨率 (Å) 以及大分子柔性构象异质性解析能力上的技术特征对比。",
+      "深入阐述在信噪比极低（SNR < 0.05）的冷冻电镜投影实验中，基于最大后验概率估计（MAP）与期望最大化（Expectation-Maximization, EM）算法的 3D 三维分类原理，并分析结合深层变分自编码器（Cryo-VAE）解析生物大分子连续构象流形（Continuous Conformational Manifolds）的流形学习物理方法。"
+    ],
+    "consumed_at": "2026-09-26T23:32:08.419727",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]
