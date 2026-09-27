@@ -96,6 +96,19 @@ async function build() {
         throw new Error('src/ directory not found');
     }
 
+    // The Ajv-generated canonical validator is checked in; fail the build if
+    // it drifted from canonical-conversation-v1.schema.json instead of
+    // packaging a stale validator. Regenerate with:
+    //   npm run generate:canonical-validator
+    {
+        const { execFileSync } = require('child_process');
+        execFileSync(
+            process.execPath,
+            [path.join(ROOT, 'scripts', 'generate-canonical-validator.js'), '--check'],
+            { stdio: 'inherit' },
+        );
+    }
+
     // Clean dist to ensure zero stale files
     fs.rmSync(DIST, { recursive: true, force: true });
 

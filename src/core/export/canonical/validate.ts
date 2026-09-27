@@ -1,10 +1,31 @@
 import type { Asset } from './assets.js';
 import type { BlockNode } from './blocks.js';
 import type { CanonicalConversationBundle, Conversation } from './conversation.js';
-import { CANONICAL_TITLE_SOURCES } from './conversation.js';
 import type { Diagnostic, DiagnosticSeverity } from './diagnostics.js';
 import type { InlineNode } from './inline.js';
 import { CanonicalProjectionError, validateMessageTree } from './projection.js';
+import generatedValidateModule from './resources/validateCanonicalStructure.generated.js';
+
+// Structural validation is owned by the Ajv-generated standalone validator,
+// compiled at build time from canonical-conversation-v1.schema.json
+// (scripts/generate-canonical-validator.js). It is a plain dependency-free
+// function: no eval, no new Function, no network, no runtime schema
+// compilation — safe for the MV3 extension bundles.
+interface GeneratedAjvError {
+    instancePath: string;
+    schemaPath: string;
+    keyword: string;
+    params: Record<string, unknown>;
+    message?: string;
+}
+
+interface StructuralValidator {
+    (data: unknown): boolean;
+    errors?: GeneratedAjvError[] | null;
+}
+
+const validateCanonicalStructure =
+    generatedValidateModule as unknown as StructuralValidator;
 
 export interface CanonicalValidationOptions {
     maxMessages?: number;
@@ -87,9 +108,80 @@ function checkTimestamp(value: unknown, c: Collector, path: string): void {
     }
 }
 
-function checkTitleSource(value: unknown, c: Collector, path: string): void {
-    if (typeof value !== 'string' || !CANONICAL_TITLE_SOURCES.has(value)) {
-        c.add('error', 'TITLE_BAD_SOURCE', `unknown title source at ${path}; must be a canonical enum value`, path);
+// --- structural validation (Ajv-owned) --------------------------------------
+// The generated validator reports Draft 2020-12 violations as Ajv errors.
+// This layer only translates them into project diagnostics; it must stay a
+// small mapping, never a second schema engine.
+
+const MAX_STRUCTURAL_DIAGNOSTICS = 50;
+
+const STRUCT_CODE_BY_KEYWORD: Record<string, string> = {
+    required: 'STRUCT_REQUIRED',
+    additionalProperties: 'STRUCT_ADDITIONAL_PROPERTY',
+    type: 'STRUCT_TYPE',
+    enum: 'STRUCT_ENUM',
+    const: 'STRUCT_CONST',
+    oneOf: 'STRUCT_ONEOF',
+    anyOf: 'STRUCT_ANYOF',
+    minimum: 'STRUCT_MINIMUM',
+    maximum: 'STRUCT_MAXIMUM',
+    exclusiveMinimum: 'STRUCT_EXCLUSIVE_MINIMUM',
+    exclusiveMaximum: 'STRUCT_EXCLUSIVE_MAXIMUM',
+};
+
+function jsonPointerToPath(pointer: string): string {
+    if (!pointer) return '';
+    const parts = pointer
+        .split('/')
+        .slice(1)
+        .map((seg) => seg.replace(/~1/g, '/').replace(/~0/g, '~'));
+    let out = '';
+    for (const part of parts) {
+        out += /^\d+$/.test(part) ? `[${part}]` : (out ? '.' : '') + part;
+    }
+    return out;
+}
+
+function structuralCodeFor(err: GeneratedAjvError): string {
+    const p = err.instancePath;
+    // Externally-meaningful structural codes stay stable; everything else gets
+    // a small generic STRUCT_* code derived from the Ajv keyword.
+    if (err.keyword === 'const' && p === '/schemaVersion') return 'SCHEMA_VERSION';
+    if (err.keyword === 'required' && p === '/conversation/key') {
+        const missing = err.params?.missingProperty;
+        if (missing === 'providerId' || missing === 'conversationId') return 'KEY_BAD';
+    }
+    if (err.keyword === 'enum' && /^\/conversation\/title\/(source|candidates\/\d+\/source)$/.test(p)) {
+        return 'TITLE_BAD_SOURCE';
+    }
+    return STRUCT_CODE_BY_KEYWORD[err.keyword] ?? 'STRUCT_INVALID';
+}
+
+function addStructuralDiagnostics(c: Collector, bundle: unknown): void {
+    let valid = false;
+    try {
+        valid = validateCanonicalStructure(bundle);
+    } catch (err) {
+        c.add('error', 'STRUCT_VALIDATOR_CRASH', `structural validator threw: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+    }
+    if (valid) return;
+    const errors = validateCanonicalStructure.errors ?? [];
+    const seen = new Set<string>();
+    for (const err of errors) {
+        if (c.diagnostics.length >= MAX_STRUCTURAL_DIAGNOSTICS) break;
+        const key = `${err.keyword}|${err.instancePath}|${err.message ?? ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const code = structuralCodeFor(err);
+        const path = jsonPointerToPath(err.instancePath);
+        // details must be plain JSON (Diagnostic.details is JsonValue).
+        const details = JSON.parse(JSON.stringify({
+            keyword: err.keyword,
+            schemaPath: err.schemaPath,
+            params: err.params,
+        })) as Diagnostic['details'];
+        c.add('error', code, `structural schema violation at ${path || '<root>'}: ${err.message ?? err.keyword}`, path || undefined, details);
     }
 }
 
@@ -178,9 +270,11 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         c.add('error', 'BUNDLE_SHAPE', 'bundle must be an object');
         return c.diagnostics;
     }
-    if ((bundle as Record<string, unknown>).schemaVersion !== 1) {
-        c.add('error', 'SCHEMA_VERSION', 'schemaVersion must be 1');
-    }
+    // Structural validation is owned by the Ajv-generated validator compiled
+    // from canonical-conversation-v1.schema.json. The checks below only cover
+    // project-owned semantic invariants (plus non-empty guards the schema does
+    // not express).
+    addStructuralDiagnostics(c, bundle);
     const conversation = (bundle as Record<string, unknown>).conversation as Conversation | undefined;
     if (!isRecord(conversation)) {
         c.add('error', 'BUNDLE_SHAPE', 'bundle.conversation must be an object');
@@ -192,11 +286,15 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         ? ((bundle as Record<string, unknown>).citations as Array<{ id: string; url?: string }>) : [];
 
     const key = conversation.key as unknown as Record<string, unknown> | undefined;
-    if (!isRecord(key) || typeof key.providerId !== 'string' || !key.providerId) {
-        c.add('error', 'KEY_BAD', 'conversation.key.providerId must be a non-empty string');
-    }
-    if (!isRecord(key) || typeof key.conversationId !== 'string' || !key.conversationId) {
-        c.add('error', 'KEY_BAD', 'conversation.key.conversationId must be a non-empty string');
+    // Key field presence/type is owned by the schema; only the non-empty
+    // project invariant stays here.
+    if (isRecord(key)) {
+        if (typeof key.providerId === 'string' && !key.providerId) {
+            c.add('error', 'KEY_BAD', 'conversation.key.providerId must be a non-empty string');
+        }
+        if (typeof key.conversationId === 'string' && !key.conversationId) {
+            c.add('error', 'KEY_BAD', 'conversation.key.conversationId must be a non-empty string');
+        }
     }
     if (!isRecord(key) || typeof key.accountId !== 'string' || !key.accountId) {
         c.add('warning', 'ACCOUNT_ID_PENDING_F1', 'conversation.key.accountId is missing; F1 composite-identity migration owns this value -- never synthesize one');
@@ -222,22 +320,14 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     checkTimestamp(conversation.updatedAt, c, 'conversation.updatedAt');
     checkTimestamp(conversation.observedAt, c, 'conversation.observedAt');
 
-    const title = (conversation as Record<string, unknown>).title;
-    if (isRecord(title)) {
-        checkTitleSource(title.source, c, 'conversation.title.source');
-        if (Array.isArray(title.candidates)) {
-            title.candidates.forEach((cand, i) => {
-                if (isRecord(cand)) {
-                    checkTitleSource(cand.source, c, `conversation.title.candidates[${i}].source`);
-                }
-            });
-        }
-    }
-
     const assetIds = new Set<string>();
     for (const a of assets) {
+        // Missing/non-string ids are reported by the structural validator;
+        // only the empty-string project invariant stays here.
         if (!a || typeof a.id !== 'string' || !a.id) {
-            c.add('error', 'ASSET_BAD_ID', 'asset has a missing or non-string id');
+            if (a && typeof a.id === 'string') {
+                c.add('error', 'ASSET_BAD_ID', 'asset has an empty id');
+            }
             continue;
         }
         if (assetIds.has(a.id)) c.add('error', 'ASSET_DUP_ID', `duplicate asset id: ${a.id}`);
@@ -254,7 +344,9 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     const citationIds = new Set<string>();
     for (const cit of citations) {
         if (!cit || typeof cit.id !== 'string' || !cit.id) {
-            c.add('error', 'CITATION_BAD_ID', 'citation has a missing or non-string id');
+            if (cit && typeof cit.id === 'string') {
+                c.add('error', 'CITATION_BAD_ID', 'citation has an empty id');
+            }
             continue;
         }
         if (citationIds.has(cit.id)) c.add('error', 'CITATION_DUP_ID', `duplicate citation id: ${cit.id}`);
@@ -270,7 +362,9 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         checkTimestamp(m.createdAt, c, `${base}.createdAt`);
         const count = walkInlineBlocks(m.blocks ?? [], (b, path) => {
             if (!b || typeof b.id !== 'string' || !b.id) {
-                c.add('error', 'BLOCK_BAD_ID', `block has a missing or non-string id at ${base}.${path}`, `${base}.${path}`);
+                if (b && typeof b.id === 'string') {
+                    c.add('error', 'BLOCK_BAD_ID', `block has an empty id at ${base}.${path}`, `${base}.${path}`);
+                }
                 return;
             }
             if (blockIds.has(b.id)) c.add('error', 'BLOCK_DUP_ID', `duplicate block id: ${b.id}`, `${base}.${path}`);
