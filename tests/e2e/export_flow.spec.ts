@@ -179,7 +179,8 @@ test.describe('Export Workflow & State Update', () => {
       await chrome.storage.local.set({
         gemini_conversations: mockConvs,
         exportedIds: {
-          'clear_chat_001': { exportedAt: 1700000005000, title: '已导出会话一' }
+          'clear_chat_001': { exportedAt: 1700000005000, title: '已导出会话一' },
+          'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }
         },
         gemini_exported_u0: {
           'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }

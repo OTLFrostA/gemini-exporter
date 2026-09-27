@@ -123,22 +123,8 @@ function getProtocol(): GeminiProtocolModule {
         const storage = getCredStorage();
         if (!storage) return {};
         try {
-            let s: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-            let map: GeminiCredentialsMap = s[STORAGE_KEYS.CREDENTIALS_MAP] || {};
-            normalizeLegacySingleCred(s, map);
-            if (Object.keys(map).length === 0 && typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                try {
-                    let localS: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                    let localMap: GeminiCredentialsMap = localS[STORAGE_KEYS.CREDENTIALS_MAP] || {};
-                    normalizeLegacySingleCred(localS, localMap);
-                    if (Object.keys(localMap).length > 0) {
-                        map = localMap;
-                        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                        await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                    }
-                } catch { /* intentional: migration fallback */ }
-            }
-            return map;
+            const s: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
+            return (s && s[STORAGE_KEYS.CREDENTIALS_MAP]) || {};
         } catch {
             return {};
         }
@@ -281,6 +267,9 @@ function getProtocol(): GeminiProtocolModule {
             }
             if (migrated) {
                 await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+            }
+            if (s?.[STORAGE_KEYS.CREDENTIALS] && typeof storage.remove === 'function') {
+                await storage.remove([STORAGE_KEYS.CREDENTIALS]);
             }
         } catch { /* migration best-effort */ }
         return migrated;

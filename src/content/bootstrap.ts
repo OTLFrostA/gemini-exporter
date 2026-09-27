@@ -152,20 +152,7 @@ export async function loadCredentialsMap(): Promise<Record<string, any>> {
             throw e;
         }
     }
-    let map = mapObj[SK_CRED_MAP] || {};
-    if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
-        try {
-            const localObj = await chrome.storage.local.get([SK_CRED_MAP]);
-            if (localObj && localObj[SK_CRED_MAP]) {
-                map = localObj[SK_CRED_MAP];
-                await storage.set({ [SK_CRED_MAP]: map });
-                await chrome.storage.local.remove([SK_CRED_MAP, SK_CRED]);
-            }
-        } catch {
-            /* intentional: storage migration fallback */
-        }
-    }
-    return map;
+    return mapObj[SK_CRED_MAP] || {};
 }
 
 export async function saveCredentials(map: Record<string, any>, cred?: any): Promise<void> {

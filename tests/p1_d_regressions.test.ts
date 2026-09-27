@@ -108,9 +108,11 @@ test('P1-046: non-u0 saves never pollute the global exportedIds key', async () =
             'non-u0 record leaked into the global exportedIds key'
         );
         assert.deepStrictEqual(Object.keys(store['gemini_exported_u1']).sort(), ['d46_a']);
-        // Read path stays backward compatible: u1 view merges the global key.
-        const view = await StorageService.getExportedIds('u1');
-        assert.ok(view['u0rec'] && view['d46_a'], 'read-compat view broken');
+        // Read path respects canonical slot isolation: u1 view reads only u1 key without leaking global u0 records.
+        const viewU1 = await StorageService.getExportedIds('u1');
+        assert.deepStrictEqual(Object.keys(viewU1).sort(), ['d46_a'], 'u1 view should isolate to u1 without leaking global u0rec');
+        const viewU0 = await StorageService.getExportedIds('u0');
+        assert.ok(viewU0['u0rec'], 'u0 view preserves u0rec');
     } finally { restore(); }
 });
 

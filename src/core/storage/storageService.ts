@@ -78,20 +78,11 @@ export interface ConversationTransaction {
         };
     }
 
+    // Note (retired in PR B): gemini_conversations_u0 is migrated via schemaMigration.ts, getConversations is now canonical-only.
     async function getConversations(slot?: string | null): Promise<Conversation[]> {
-        const { convKey, slot: s } = getStorageKeys(slot);
-        const keys = [convKey];
-        if (s === 'u0') {
-            keys.push('gemini_conversations_u0');
-        }
-        const data = await chrome.storage.local.get(keys);
-        const list = ((data[convKey] || (s === 'u0' ? data.gemini_conversations_u0 : null) || []) as Conversation[]);
-
-        if (s === 'u0' && data.gemini_conversations_u0 && data[convKey]) {
-            void chrome.storage.local.remove('gemini_conversations_u0').catch(() => {});
-        }
-
-        return list;
+        const { convKey } = getStorageKeys(slot);
+        const data = await chrome.storage.local.get([convKey]);
+        return ((data[convKey] || []) as Conversation[]);
     }
 
     let _convChain: Promise<any> = Promise.resolve();
@@ -352,23 +343,11 @@ export interface ConversationTransaction {
     }
 
     async function getExportedIds(slot?: string | null): Promise<Record<string, any>> {
-        const { expKey, slot: s } = getStorageKeys(slot);
-        const keys = Array.from(new Set([expKey, 'exportedIds', 'gemini_exported_u0', ...(s !== 'u0' ? [`gemini_exported_${s}`] : [])]));
-        const data = await chrome.storage.local.get(keys);
-        const merged: Record<string, any> = {};
-        for (const k of keys) {
-            if (data[k] && typeof data[k] === 'object') {
-                Object.assign(merged, data[k]);
-            }
-        }
-        // Triage #5 read-path fix: fold legacy alias keys ('c_<id>' / raw id)
-        // into their canonical normId key before returning, so every consumer
-        // of this map can probe a single canonical key. The write path already
-        // collapses on save; this covers maps persisted by older triple-alias
-        // writers. Delete-path multi-key clearing (removeExportRecords) is a
-        // separate concern and stays untouched.
-        collapseExportAliases(merged);
-        return merged;
+        const { expKey } = getStorageKeys(slot);
+        const data = await chrome.storage.local.get([expKey]);
+        const records = (data[expKey] && typeof data[expKey] === 'object') ? { ...data[expKey] } : {};
+        collapseExportAliases(records);
+        return records;
     }
 
     async function setExportedIds(slot: string | null | undefined, map: Record<string, any>): Promise<void> {
@@ -416,11 +395,16 @@ export interface ConversationTransaction {
             if (m && typeof m === 'object') Object.assign(merged, m);
         }
         const before = Object.keys(merged);
-        if (!before.length) return false;
+        const hasLegacyU0 = s === 'u0' && Boolean((data as any)['gemini_exported_u0']);
+        if (!before.length && !hasLegacyU0) return false;
         const canonical = normalizeExportRecordKeys(merged);
         const after = Object.keys(canonical);
-        if (after.length === before.length && before.every(k => after.includes(k))) return false;
+        const changed = after.length !== before.length || !before.every(k => after.includes(k)) || hasLegacyU0;
+        if (!changed) return false;
         await setExportedIds(slot, canonical);
+        if (hasLegacyU0 && typeof chrome.storage.local.remove === 'function') {
+            await chrome.storage.local.remove(['gemini_exported_u0']);
+        }
         return true;
     }
 
@@ -443,18 +427,13 @@ export interface ConversationTransaction {
     async function saveExportRecordsBatch(slot: string | null | undefined, records: Record<string, any>): Promise<Record<string, any>> {
         return enqueueSaveRecordChain(async () => {
             const { expKey, slot: s } = getStorageKeys(slot);
-            const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
-            const data = await chrome.storage.local.get(readKeys);
-            const cur: Record<string, any> = {};
-            for (const k of readKeys) {
-                const m = (data as any)[k];
-                if (m && typeof m === 'object') Object.assign(cur, m);
-            }
+            const data = await chrome.storage.local.get([expKey]);
+            const cur: Record<string, any> = (data[expKey] && typeof data[expKey] === 'object') ? { ...data[expKey] } : {};
             collapseExportAliases(cur);
             Object.assign(cur, normalizeExportRecordKeys(records));
             const updates: Record<string, any> = { [expKey]: cur };
-            if (s === 'u0' && (data as any)['gemini_exported_u0']) {
-                await chrome.storage.local.remove(['gemini_exported_u0']);
+            if (s === 'u0') {
+                updates['exportedIds'] = cur;
             }
             await chrome.storage.local.set(updates);
             return cur;
