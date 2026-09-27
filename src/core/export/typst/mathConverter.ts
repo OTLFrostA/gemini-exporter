@@ -10,7 +10,7 @@ export interface MathConversionResult {
 }
 
 const SYMBOLS: Record<string, string> = {
-    sum: 'sum', int: 'int', prod: 'prod',
+    sum: 'sum', int: 'integral', prod: 'prod',
     alpha: 'alpha', beta: 'beta', gamma: 'gamma', delta: 'delta', epsilon: 'epsilon',
     zeta: 'zeta', eta: 'eta', theta: 'theta', iota: 'iota', kappa: 'kappa',
     lambda: 'lambda', mu: 'mu', nu: 'nu', xi: 'xi', pi: 'pi', rho: 'rho',
