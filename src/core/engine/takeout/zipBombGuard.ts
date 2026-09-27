@@ -1,4 +1,3 @@
-// zipBombGuard.ts - ZipBomb protection guards and entry size estimators for Takeout ZIP extraction
 
 export interface ZipBombGuardModule {
     MAX_ZIP_SIZE: number;
@@ -67,7 +66,6 @@ export function validateZipEntries(zip?: any): void {
     let unknownSizeEntries = 0;
     for (const f of files) {
         if (f.dir) continue;
-        // Check uncompressed size
         const sz = f && f._data && typeof f._data.uncompressedSize === 'number'
             ? f._data.uncompressedSize
             : NaN;

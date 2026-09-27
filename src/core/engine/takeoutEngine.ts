@@ -1,5 +1,3 @@
-// src/core/engine/takeoutEngine.ts
-//
 // Stable public facade for Takeout operations.
 //
 // Design intent — kept deliberately, this is not an empty shell:

@@ -1,4 +1,3 @@
-// src/ui/views/listView.ts - List rendering, no storage
 import type { Conversation } from '../../types/conversation.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { I18n as I18nStatic } from '../../core/utils/i18n.js';
@@ -81,12 +80,10 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
             return;
         }
 
-        // If clicking directly on checkbox, let native toggle proceed and updateStat
         if (target.matches('input[type=checkbox]')) {
             return;
         }
 
-        // Clicking anywhere else in the item row toggles selection
         const item = target.closest('.item') as HTMLElement | null;
         if (item) {
             const cb = item.querySelector('input[type=checkbox]') as HTMLInputElement | null;
@@ -145,7 +142,6 @@ export function render(
     if (prevSelectedSet instanceof Set) {
         canonicalSelectedIds = new Set(prevSelectedSet);
     } else if (prevSelectedSet === null || canonicalSelectedIds === null) {
-        // Initial load default (or explicit reset via null): auto-check unexported and updated
         canonicalSelectedIds = new Set<string>();
         for (const c of currentConversationsRef) {
             const nid = normId(c.id);
@@ -199,8 +195,6 @@ export function render(
     filtered.forEach((c) => {
         const origIdx = idxMap.get(c as object) ?? -1;
         const nid = normId(c.id);
-        // Single canonical probe: expMap is normalized to canonical keys on the
-        // read path (triage #5), so legacy 'c_<id>' alias keys no longer exist here.
         const rec = expMap[nid] || null;
         const isFailedInSession = !!(
             failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
@@ -229,7 +223,7 @@ export function render(
                 if (!isNaN(d.getTime())) {
                     dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 }
-            } catch { /* intentional */ }
+            } catch {}
         }
 
         let badgeHtml = '';
@@ -241,7 +235,7 @@ export function render(
                     if (!isNaN(ed.getTime())) {
                         expDateStr = ed.toLocaleDateString();
                     }
-                } catch { /* intentional */ }
+                } catch {}
             }
             const b = st.badge;
             const badgeLabel = b.kind === 'updated'

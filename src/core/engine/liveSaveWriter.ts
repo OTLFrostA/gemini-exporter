@@ -25,11 +25,8 @@ export interface LiveSaveWriteInput {
 }
 
 export interface LiveSaveWriterDeps {
-    /** Injectable for tests / DI (content side). Defaults to FsWriter. */
     fsWriterClass?: new (dirHandle: any, rootDir: string) => FsWriter;
-    /** Injectable for tests / DI (content side). Defaults to ChatFormatter. */
     formatter?: { toMarkdown?: (chat: any) => string } | null;
-    /** Injectable for tests / DI. Defaults to buildExportFileName. */
     buildFileName?: (safeTitle: string, nid: string, ext: string) => string;
 }
 
@@ -40,9 +37,6 @@ export interface LiveSaveWriter {
 
 const LIVE_SAVE_ROOT_DIR = DEFAULT_EXPORT_FOLDER_NAME;
 
-/**
- * Create and init the FsWriter for the live-save root folder.
- */
 export async function createLiveSaveWriter(
     dirHandle: any,
     deps: LiveSaveWriterDeps = {}
@@ -53,9 +47,6 @@ export async function createLiveSaveWriter(
     return writer as unknown as LiveSaveWriter;
 }
 
-/**
- * Filename + markdown for one live-save write, shared by both pipelines.
- */
 export function formatLiveSaveMarkdown(
     input: LiveSaveWriteInput,
     deps: LiveSaveWriterDeps = {}
@@ -70,10 +61,6 @@ export function formatLiveSaveMarkdown(
     return { fileName, markdown };
 }
 
-/**
- * Format one conversation and write its markdown file.
- * Returns the file name that was written (honors opts.fileName override).
- */
 export async function writeLiveSaveMarkdown(
     writer: LiveSaveWriter,
     input: LiveSaveWriteInput,

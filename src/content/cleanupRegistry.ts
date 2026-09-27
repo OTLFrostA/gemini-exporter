@@ -1,6 +1,4 @@
-// src/content/cleanupRegistry.ts - Cross-bundle cleanup registry
 // Runs cleanups before re-injected bundles register new listeners.
-
 const KEY = '__gemExporterCleanups';
 
 /**
@@ -32,7 +30,6 @@ export function runCleanups(): void {
     }
 }
 
-/** For tests: how many cleanups are currently pending. */
 export function pendingCleanupCount(): number {
     if (typeof window === 'undefined') return 0;
     const w = window as any;

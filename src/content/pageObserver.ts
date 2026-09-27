@@ -1,4 +1,3 @@
-// src/content/pageObserver.ts - Page lifecycle, URL mutation watcher, and timer cleanup
 import { contentContext } from './contentContext.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
@@ -81,7 +80,6 @@ export function hookHistoryEvents(onUrlChanged: () => void): void {
 
     }
 
-    // Refresh listener for current bundle and register cleanup
     removeHistoryListeners();
     __historyUrlCallback = onUrlChanged;
     window.addEventListener('popstate', __handleLocationChange);

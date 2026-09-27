@@ -1,5 +1,3 @@
-// src/content/badgeView.ts - Draggable Badge UI & Position Management
-
 import type { OpenOptionsMessage } from '../types/messages.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { setBadgePosition, getBadgePosition } from '../core/storage/storageService.js';
@@ -32,7 +30,6 @@ export function applyStoredBadgePosition(el: HTMLElement | null): void {
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:badgeView]', e);
     }
 
-    // Async fallback to chrome.storage.local position
     void getBadgePosition().then((pos) => {
         if (applyPos(pos)) {
             try {

@@ -1,6 +1,3 @@
-// locales/en.ts - English dictionary.
-// Loaded as a classic script BEFORE i18n.ts (options.html / popup.html order);
-// attaches to self.GeminiLocales for the i18n engine, module.exports for Node tests.
 
 import type { LocaleDictionary } from '../../../types/utils.js';
 

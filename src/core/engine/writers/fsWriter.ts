@@ -1,4 +1,3 @@
-// src/core/engine/writers/fsWriter.ts - FileSystem Access API Writer
 
 import type { IExportWriter } from './writerInterface.js';
 import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';
@@ -87,12 +86,10 @@ class FsWriter implements IExportWriter {
         let options: any = {};
 
         if (arguments.length === 3 && optionsOrContent !== undefined && !isWriteOptions(optionsOrContent)) {
-            // Pattern 2: (subDirPath, fileName, content)
             actualSubDir = pathOrSubDir;
             actualFileName = contentOrFileName;
             actualContent = optionsOrContent;
         } else {
-            // Pattern 1: (relativePath, content, options?)
             const clean = sanitizeRelativePath(pathOrSubDir, 'file');
             const lastSlash = clean.lastIndexOf('/');
             if (lastSlash !== -1) {

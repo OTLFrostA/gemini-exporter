@@ -1,4 +1,3 @@
-// src/core/storage/userPreferences.ts - Isolated KV user preferences and UI state
 import { STORAGE_KEYS } from "../utils/constants.js";
 import { isVersionGreater as utilsIsVersionGreater } from "../utils/pathUtils.js";
 
@@ -38,10 +37,6 @@ export async function setTourCompleted(completed: boolean = true): Promise<void>
     return setPrefVal(STORAGE_KEYS.HAS_COMPLETED_TOUR, !!completed);
 }
 
-/**
- * Compare two semantic versions: returns true if v1 > v2.
- * E.g. isVersionGreater('1.5.0', '1.4.3') => true
- */
 export function isVersionGreater(v1: string, v2: string): boolean {
     return utilsIsVersionGreater(v1, v2);
 }

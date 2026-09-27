@@ -1,5 +1,3 @@
-// parseList.ts - MaZiqc conversation list RPC response parser
-
 export interface ConversationListItem {
     id: string;
     title: string;

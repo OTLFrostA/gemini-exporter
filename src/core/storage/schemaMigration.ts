@@ -1,5 +1,3 @@
-// src/core/storage/schemaMigration.ts - Centralized storage schema migration framework.
-//
 // Why this exists (P1-10 / P1-13): storage migrations used to be scattered
 // across read paths ("migrate on touch"): getConversations fire-and-forget a
 // legacy slim migration with a stale snapshot (lost-update hole across tabs),
@@ -49,7 +47,6 @@ export function isSchemaFrozen(): boolean {
     return _frozen;
 }
 
-/** Test-only reset for the frozen flag. */
 export function __setSchemaFrozenForTest(v: boolean): void {
     _frozen = v;
 }
@@ -63,9 +60,7 @@ function warnSchemaFrozen(): void {
                 action.setBadgeBackgroundColor({ color: "#C53929" });
             }
         }
-    } catch {
-        /* badge is best-effort */
-    }
+    } catch {}
 }
 
 /**
@@ -106,15 +101,11 @@ async function listConversationSlots(): Promise<string[]> {
                 if (s) slots.add(s);
             }
         }
-    } catch {
-        /* probe best-effort */
-    }
+    } catch {}
     try {
         const acc = await getAccountSlots();
         for (const k of Object.keys(acc || {})) slots.add(normSlot(k));
-    } catch {
-        /* probe best-effort */
-    }
+    } catch {}
     return [...slots];
 }
 
@@ -134,7 +125,6 @@ async function migrateSlimConversations(): Promise<void> {
         });
     }
 
-    // Clean up legacy u0 conversation key ('gemini_conversations_u0') if present
     try {
         const u0Data = (await chrome.storage.local.get(['gemini_conversations_u0', 'gemini_conversations'])) as Record<string, any>;
         if (u0Data && u0Data.gemini_conversations_u0) {
@@ -143,13 +133,9 @@ async function migrateSlimConversations(): Promise<void> {
             }
             await chrome.storage.local.remove('gemini_conversations_u0');
         }
-    } catch {
-        /* best-effort cleanup */
-    }
+    } catch {}
 }
 
-// Step 2: collapse legacy export-record alias keys ('c_<id>' / raw id) into
-// their canonical key, once per slot.
 async function migrateExportAliasesAll(): Promise<void> {
     const slots = await listConversationSlots();
     for (const slot of slots) {
@@ -157,17 +143,15 @@ async function migrateExportAliasesAll(): Promise<void> {
     }
 }
 
-// Step 3: legacy single credential -> map, local -> session move.
 async function migrateStepCredentials(): Promise<void> {
     await migrateCredentials();
 }
 
-// Step 4: ensure IndexedDB databases exist (open creates them; version stays 1).
 async function migrateIdb(): Promise<void> {
     if (typeof indexedDB === "undefined") return;
     for (const open of [openHandleDB, openDetailDB] as const) {
         const db = await open();
-        try { db.close(); } catch { /* ignore */ }
+        try { db.close(); } catch {}
     }
 }
 

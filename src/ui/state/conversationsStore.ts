@@ -1,4 +1,3 @@
-// src/ui/state/conversationsStore.ts - State layer, no DOM rendering, only data + storage
 import type { Conversation } from '../../types/conversation.js';
 import type { ExportRecord, IConversationsStore } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
@@ -29,10 +28,7 @@ export function getConversations(): Conversation[] { return conversations; }
 export function setConversations(list: Conversation[]): void { conversations = list || []; }
 export function getExportedIds(): Record<string, ExportRecord> { return exportedIds; }
 
-// Fold legacy alias keys ('c_<id>' / raw id) into the canonical normId key.
-// Same semantics as StorageService's collapseExportAliases, applied here so the
-// in-memory map behind Store.getExportedIds() / getExportedRecord() / listView
-// always carries canonical keys (triage #5 read-path fix).
+// Fold legacy alias keys ('c_<id>' / raw id) into canonical normId keys for consistent in-memory lookups
 function collapseExportAliases(map: Record<string, any>): void {
     for (const k of Object.keys(map)) {
         const ck = normId(k);
@@ -56,9 +52,6 @@ export function setAccountSlots(map: Record<string, any>): void { accountSlots =
 
 export function getExportedRecord(id?: string | null): ExportRecord | null {
     if (!id || !exportedIds) return null;
-    // Triage #5 read-path fix: exportedIds is normalized to canonical keys at
-    // load/set time (see setExportedIds above and StorageService.getExportedIds),
-    // so a single canonical probe covers both current and legacy-alias records.
     return exportedIds[normId(id)] || null;
 }
 

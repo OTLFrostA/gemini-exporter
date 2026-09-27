@@ -1,5 +1,3 @@
-// src/background/lifecycle.ts - Service Worker lifecycle, installation, and permissions management
-
 import { FEEDBACK_URL } from '../core/utils/constants.js';
 
 export { FEEDBACK_URL };
@@ -18,9 +16,6 @@ export function initSessionAccessLevel(): void {
     }
 }
 
-/**
- * Set uninstallation survey URL.
- */
 export function initUninstallUrl(): void {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
         try {
@@ -35,9 +30,6 @@ export function initUninstallUrl(): void {
     }
 }
 
-/**
- * Register onInstalled listener to open options workbench on initial install.
- */
 export function initLifecycleListeners(): void {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onInstalled) return;
 

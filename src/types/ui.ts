@@ -1,8 +1,3 @@
-/**
- * src/types/ui.ts
- * Type definitions for UI Workbench (Options & Popup), Views, Controllers, and State Store.
- */
-
 import type { Conversation } from './conversation.js';
 
 export interface ExportRecord {

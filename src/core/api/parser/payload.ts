@@ -1,4 +1,3 @@
-// src/core/api/parser/payload.ts - Canonical batchexecute envelope unwrapper and payload extractor
 // NOTE: Cannot import from extractors.ts (circular). Schema ref: GEMINI_JSPB_SCHEMA.ERROR_INFO.ERROR_SLOT = 5
 const ERROR_SLOT = 5;
 
@@ -15,9 +14,6 @@ export interface InnerPayloadDiscoveryResult {
     bardError: string | null;
 }
 
-/**
- * Converts a JSPB timestamp candidate (either [seconds, nanos] tuple or numeric seconds/millis) to milliseconds.
- */
 export function payloadToMs(val: unknown): number | null {
     if (!val) return null;
     if (Array.isArray(val) && typeof val[0] === "number" && val[0] > 1e9) {
@@ -32,11 +28,6 @@ export function payloadToMs(val: unknown): number | null {
     return null;
 }
 
-/**
- * Extracts and parses the inner JSON payload from a batchexecute top envelope array.
- * Supports standard [wrb, rpc, innerJsonStr] matching, heuristic fallback scanning,
- * and BardErrorInfo detection.
- */
 export function extractInnerPayload(
     top: unknown,
     options?: InnerPayloadDiscoveryOptions
@@ -51,7 +42,6 @@ export function extractInnerPayload(
     let isStandardWrb = false;
 
     if (Array.isArray(top)) {
-        // 1. Standard wrb + rpc pattern matching
         if (rpcList.length > 0) {
             for (const item of top) {
                 if (Array.isArray(item) && item[0] === wrb && rpcList.includes(item[1]) && typeof item[2] === "string") {
@@ -62,7 +52,6 @@ export function extractInnerPayload(
             }
         }
 
-        // 2. Heuristic fallback scanning
         if (!innerStr && options?.heuristicFilter) {
             for (const item of top) {
                 if (Array.isArray(item) && typeof item[2] === "string" && options.heuristicFilter(item[2])) {
@@ -81,7 +70,6 @@ export function extractInnerPayload(
         } catch { /* intentional: parse chunk candidate fallback */ }
     }
 
-    // 3. Fallback: scanning raw nested string chunks in top if inner is still null
     if (!inner && Array.isArray(top)) {
         for (const item of top) {
             if (typeof item === "string" && item.startsWith("[[")) {
@@ -93,7 +81,6 @@ export function extractInnerPayload(
         }
     }
 
-    // 4. BardErrorInfo extraction when no inner payload could be discovered
     let bardError: string | null = null;
     if (!innerStr && !inner && Array.isArray(top)) {
         for (const item of top) {
@@ -115,9 +102,6 @@ export function extractInnerPayload(
     };
 }
 
-/**
- * Extracts the first non-null value from an array using an ordered list of candidate indices.
- */
 export function extractCandidateValue<T>(
     arr: unknown,
     candidateIndices: number[],
@@ -133,9 +117,6 @@ export function extractCandidateValue<T>(
     return null;
 }
 
-/**
- * Extracts a value from candidate indices first, falling back to an optional full array scan.
- */
 export function extractWithScan<T>(
     arr: unknown,
     candidateIndices: number[],
@@ -154,10 +135,6 @@ export function extractWithScan<T>(
     return null;
 }
 
-/**
- * Extracts pagination token ("tC...") from inner payload array.
- * Scans candidate indices first, then falls back to linear scan across the entire array.
- */
 export function extractNextPageToken(
     inner: unknown,
     candidates: number[] = [1, 2, 3]

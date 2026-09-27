@@ -1,10 +1,3 @@
-// protocol/protocol.ts — protocol anti-corruption layer (Phase 1).
-//
-// Single source of truth for every piece of Google-side reverse-engineered
-// knowledge: RPC endpoint names, the batchexecute wrapper format, token
-// key names and extraction patterns, the fallback build number, sliding
-// window limits, and the request-id convention.
-
 export interface ProtocolRPCS {
     LIST: string;
     DETAIL: string;
@@ -88,7 +81,6 @@ export const TOKENS: ProtocolTokens = {
     BL: 'cfb2h'   // frontend build label key (the "bl" request param)
 };
 
-// Extraction patterns for tokens from page HTML/scripts.
 export const TOKEN_PATTERNS: ProtocolTokenPatterns = {
     atFromScript: /"SNlM0e"\s*:\s*"([^"]+)"/,
     atGenericFromScript: /"at"\s*:\s*"([^"]{20,})"/,
@@ -151,11 +143,6 @@ export function isConfirmedDeletedError(errOrText: unknown, status?: number): bo
     return /(?:\[\s*["']BardErrorInfo["']\s*,\s*1167\b|BardErrorInfo\b[^\d]*?\b1167\b|\b1167\b[^\d]*?BardErrorInfo)/i.test(text);
 }
 
-/**
- * Classifies detail fetch / parse errors into structured categories so callers
- * can distinguish confirmed server deletion from rate limits, transient Bard errors,
- * or general parse errors.
- */
 export function classifyDetailError(rawTextOrErr: unknown, status?: number): DetailErrorCategory {
     if (isConfirmedDeletedError(rawTextOrErr, status)) {
         return 'confirmed_deleted';

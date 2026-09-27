@@ -1,4 +1,3 @@
-// src/ui/options/modules/optionsTakeout.ts - Takeout archive import & Google limit detection
 import type { OptionsTakeoutOptions } from '../../../types/ui.js';
 import {
     getStore,

@@ -1,5 +1,3 @@
-// batchWorker.ts - Single-chat remote fetching, exponential rate-limit backoff, and title/media resolution
-
 import type { FetchBatchMessage } from '../../../types/messages.js';
 
 export interface FetchChatDetailOptions {
@@ -262,7 +260,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
         const slot = currentSlot || 'u0';
         let convsNeedSave = false;
 
-        // 1. Takeout offline chat fallback
         if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0)) {
             if (takeoutEngine) {
                 const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
@@ -279,7 +276,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                     onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
                 }
             }
-            // 1b. IndexedDB detail fallback
             if (chat.error || chat._empty || !chat.messages || chat.messages.length === 0) {
                 try {
                     const detail = await getConversationDetail(nid);
@@ -301,7 +297,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
         }
 
-        // 2. Supplement missing offline generated media from Takeout
         if (takeoutEngine && typeof takeoutEngine.getTakeoutMediaForChat === 'function' && Array.isArray(chat.messages) && chat.messages.length > 0) {
             const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
             if (takeoutMedia && takeoutMedia.length > 0) {
@@ -345,7 +340,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
         }
 
-        // 2b. Extract or synthesize Deep Research document entities
         if (Array.isArray(chat.messages) && chat.messages.length > 0) {
             const scope = shortScope(nid);
             for (let mi = 0; mi < chat.messages.length; mi++) {
@@ -404,7 +398,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
         }
 
-        // 3. Error or empty handling
         if (chat.error || chat._empty) {
             const isConfirmedDeleted = !!chat.isDeleted
                 || !!chat._debug?.isNotFound
@@ -481,7 +474,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
         }
 
-        // 4. Sniff title from first user query if needed
         if (!isRealTitle(chat.title, chat.id) && Array.isArray(chat.messages)) {
             const firstUser = chat.messages.find((m: any) => m.role === 'user' && m.content && m.content.trim());
             if (firstUser) {
@@ -502,7 +494,6 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
         }
 
-        // 5. Brand scrub and multi-source title resolution
         let finalTitle = chat.title || listConversation?.title || chat.id;
 
         if (listConversation) {

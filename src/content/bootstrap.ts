@@ -1,4 +1,3 @@
-// src/content/bootstrap.ts - Credential bootstrap for ISOLATED world
 import { CrossWorldEvents, GeminiProtocol, type GeminiProtocolModule } from '../core/protocol/protocol.js';
 import type { GeminiCredentialsPayload } from '../core/protocol/events.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
@@ -107,7 +106,6 @@ export function extractBlFromPage(): string {
                 const m2 = txt.match(Proto.TOKEN_PATTERNS.boqBuildFromScript);
                 if (m2) return m2[0];
             }
-            // document html fallback
             const html = document.documentElement?.innerHTML || '';
             const m3 = html.match(Proto.TOKEN_PATTERNS.blValueFromHtml);
             if (m3) return m3[1];
@@ -280,7 +278,6 @@ export function ensureCreds(): Promise<any> {
     return runSerializedCredOp(ensureCredsOnce);
 }
 
-// Expose on window for backwards compatibility
 if (typeof window !== 'undefined') {
     const w = window as any;
     w.__gemExporterExtractAt = extractAtFromPage;
@@ -319,8 +316,6 @@ if (typeof window !== 'undefined') {
                         email: profile?.email || (old as any).email,
                         name: profile?.name || (old as any).name,
                         lastUsed: Date.now(),
-                        // P2-4: hook payload 的 p.bl 优先（调用方已带的可信值），
-                        // 其次旧值，最后才从页面抓取。
                         bl: p.bl || old.bl || extractBlFromPage() || (Proto ? Proto.BL_FALLBACK : '')
                     };
                     await saveCredentials(map, {

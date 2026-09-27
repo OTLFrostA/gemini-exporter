@@ -98,7 +98,6 @@ export class GeminiProvider implements AIProvider {
     }
 }
 
-// Auto-register default Gemini provider instance
 export const defaultGeminiProvider = new GeminiProvider();
 ProviderRegistry.register(defaultGeminiProvider);
 ProviderRegistry.setDefaultProviderId('gemini');

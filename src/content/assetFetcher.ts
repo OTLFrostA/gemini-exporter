@@ -1,4 +1,3 @@
-// src/content/assetFetcher.ts - In-page authenticated blob and asset fetching handler
 import { contentContext } from './contentContext.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024;

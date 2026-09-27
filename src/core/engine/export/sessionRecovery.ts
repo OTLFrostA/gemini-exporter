@@ -1,5 +1,3 @@
-// sessionRecovery.ts - Export indexing, developer diagnostics, and export record finalization
-
 export interface SessionLogOptions {
     landedChats?: number;
     totalChats?: number;
@@ -184,7 +182,6 @@ export { EXT_VERSION, getExtensionVersion };
         onLog: (msg: string, level?: string) => void = (() => {})
     ): Promise<void> {
         try {
-            // Phase B (B1): 写出口统一收口到 writer，不再分 folder/writeFileDirect 分支。
             if (!writer || typeof writer.writeFile !== 'function') {
                 throw new Error('[sessionRecovery] writeDiagnostics: IExportWriter is required');
             }
@@ -230,7 +227,6 @@ export { EXT_VERSION, getExtensionVersion };
             rec.hasFailedAssets = true;
         }
 
-        // Persist export record before updating in-memory state.
         // Phase A (P1-4): 只保留 saveExportRecord 一条正式路径 —— mock adapter 必须实现它。
         // 缺失即抛错，不再静默降级到 storageAdapter.set/get 或 chrome.storage 直写。
         if (!storageAdapter || typeof storageAdapter.saveExportRecord !== 'function') {

@@ -1,4 +1,3 @@
-// src/content/syncEngine.ts - In-page active conversation detection & cloud batch sync
 import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
@@ -72,24 +71,20 @@ export async function refreshInitialBadge(): Promise<void> {
 
 export function extractActiveChatTitle(activeId: string): { title: string; source: string } | null {
     if (!activeId || typeof document === 'undefined') return null;
-    // 1. From DOM conversation title / header elements (Tier: 'dom')
     const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
     for (const el of Array.from(titleEls)) {
         const t = cleanTitle(el.textContent || '');
         if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
     }
-    // 2. From active sidebar element (Tier: 'dom')
     const activeLink = document.querySelector(`a[href*="${activeId}"]`);
     if (activeLink) {
         const t = cleanTitle(activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '');
         if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
     }
-    // 3. From document.title only if it is a real title (Tier: 'dom')
     if (document.title) {
         const t = cleanTitle(document.title);
         if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
     }
-    // 4. From first user query on the page (Tier: 'sniff' fallback)
     const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
     if (firstUserQuery) {
         const t = cleanTitle((firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' '));
@@ -141,7 +136,6 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
     }, 200);
 }
 
-// Bounded debounce map with size cap and TTL eviction
 const __lastTouchedMap = new Map<string, number>();
 const LAST_TOUCHED_MAX_ENTRIES = 2000;
 const LAST_TOUCHED_TTL_MS = 30 * 60 * 1000;
@@ -380,8 +374,7 @@ export async function ingestListBatch(
     // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice
     const participateInWatermark = options?.participateInWatermark === true;
 
-    // 1. Full scan completion notification: establish initial baseline or recalibrate baseline
-    // (仅扫描控制面参与)
+    // 控制面建立或校准水位基线
     if (participateInWatermark && options?.isFullScanComplete) {
         const slice = __sessionSlices.get(slot);
         let baselineTs: number | null = null;
@@ -407,11 +400,9 @@ export async function ingestListBatch(
         };
     }
 
-    // 2. Write conversations to storage via Fail-Closed upsert
     const count = await upsertConversations(incomingItems, source, true, slot);
 
-    // Phase A (P1-3): 嗅探（数据面）到此为止 —— 不进 slice、不碰 checkpoint。
-    // 下面的 3-5 步是扫描控制面的水位逻辑。
+    // 嗅探（数据面）不参与 slice/checkpoint 水位逻辑
     if (!participateInWatermark) {
         const currentCp = Storage && typeof Storage.getScanCheckpoint === 'function'
             ? await Storage.getScanCheckpoint(slot)
@@ -419,7 +410,6 @@ export async function ingestListBatch(
         return { count, reachedWatermark: false, establishedBaseline: false, newWatermark: currentCp };
     }
 
-    // 3. Extract timestamps of valid items in this batch
     const timestamps = (incomingItems || [])
         .map((c: any) => c.timestamp)
         .filter((t: any): t is number => typeof t === 'number' && t > 0);
@@ -435,7 +425,6 @@ export async function ingestListBatch(
     const batchMin = Math.min(...timestamps);
     const now = Date.now();
 
-    // 4. Track contiguous paging session
     let slice = __sessionSlices.get(slot);
     const isSliceActive = slice && (now - slice.updatedAt < 120000);
 
@@ -455,7 +444,6 @@ export async function ingestListBatch(
         }
     }
 
-    // 5. Watermark Checkpoint Evaluation
     const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
         ? await Storage.getScanCheckpoint(slot)
         : null;
@@ -470,7 +458,6 @@ export async function ingestListBatch(
         };
     }
 
-    // Forced full scan running: don't early exit on watermark
     if (options?.forceFull) {
         return {
             count,
@@ -508,7 +495,6 @@ export async function syncOnce(): Promise<number> {
     __syncOnceInFlight = true;
     try {
         const items: any[] = [];
-        // 1. Check current active page chat
         const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
         if (activeId) {
             const activeTitleObj = extractActiveChatTitle(activeId);
@@ -526,7 +512,6 @@ export async function syncOnce(): Promise<number> {
             }
         }
 
-        // 2. Collect from sidebar links
         const Scraper = getScraper();
         if (Scraper && typeof Scraper.getConversationLinks === 'function') {
             const links = Scraper.getConversationLinks() || [];
@@ -536,7 +521,6 @@ export async function syncOnce(): Promise<number> {
         if (!items.length) return 0;
         const resLen = await upsertConversations(items, 'page-sync');
 
-        // 3. Asynchronously fetch full details/timestamps for newly discovered active chat
         if (activeId) {
             scheduleActiveChatDetailFetch(activeId);
         }

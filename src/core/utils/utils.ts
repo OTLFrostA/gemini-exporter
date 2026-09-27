@@ -1,5 +1,3 @@
-// utils.ts - Shared utilities facade for Gemini Exporter
-
 import type { Conversation } from '../../types/index.js';
 import {
     sanitizeFileName,
@@ -62,7 +60,6 @@ import {
 } from './messaging.js';
 
 export {
-    // Path & Route
     sanitizeFileName,
     sanitizeRelativePath,
     normId,
@@ -78,8 +75,6 @@ export {
     buildExportFileNameLegacy,
     resolveExportFileName,
     isVersionGreater,
-    // Title
-
     isRealTitle,
     cleanTitle,
     cleanZeroWidth,
@@ -102,17 +97,14 @@ export {
     type ConversationExportStateKind,
     type ConversationBadgeDescriptor,
     type ResolveConversationExportStateOptions,
-    // Progress
     formatExportProgress,
     type ExportProgressFormatted,
     type ExportProgressInput,
-    // Merge
     mergeConversation,
     deduplicateConversations,
     type MergeConversationOptions,
     type MergeConversationResult,
     type DeduplicateResult,
-    // Messaging
     sendTypedMessage,
     isMessageAction,
     getErrorMessage
@@ -165,9 +157,6 @@ declare global {
     var __gemExporterLogAll: boolean | undefined;
 }
 
-/**
- * Single source for the synchronous dev/verbose flags
- */
 export function isDevMode(): boolean {
     if (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll)) return true;
     if (typeof window !== 'undefined' && ((window as any).__gemExporterDevMode || (window as any).__gemExporterVerboseLog || (window as any).__gemExporterLogAll)) return true;

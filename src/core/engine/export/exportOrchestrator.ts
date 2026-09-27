@@ -401,8 +401,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 }
             }
 
-            // Phase A (P0-1): writeFileDirect 不再返回 boolean，失败一律 throw。
-            // 调用方只剩 try/catch，禁止再判 boolean 返回值。
             const writeFileDirect = async (localName: string, data: any): Promise<void> => {
                 if (this.aborted) throw new DOMException('Export aborted', 'AbortError');
                 const cleanPath = sanitizeZipPath(localName);
@@ -573,7 +571,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                     try {
                         await task();
                     } catch (e) {
-                        // Decrement pending count and record failure if task throws
                         const meta = (task as any)?.__assetMeta || null;
                         if (meta) {
                             const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
@@ -765,7 +762,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                         const content = formatted.content;
                         const ext = formatted.ext;
                         const safeBase = sanitizeFileName(listTitle, chat.id);
-                        // In direct-write mode, probe for existing filename on disk to reuse
                         const resolveName = ((getUtils()?.resolveExportFileName) || utilsResolveExportFileName);
                         const fileName = useZip
                             ? buildExportFileName(listTitle, chat.id, ext)
@@ -779,8 +775,6 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                 }
                             });
 
-                        // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean。
-                        // 主 md 写失败 -> 该会话记 failed，不再标 success。
                         let mainWriteError: unknown = null;
                         try {
                             await writeFileDirect(fileName, content);

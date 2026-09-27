@@ -1,4 +1,3 @@
-// src/core/diagnostics/flightRecorder.ts - Cross-process in-memory flight recorder & event timeline
 export interface FlightEvent {
     id: number;
     ts: number;

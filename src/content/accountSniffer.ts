@@ -1,5 +1,3 @@
-// src/content/accountSniffer.ts - Google Account Identity & Profile Sniffer from DOM & Window context
-
 export interface UserProfileInfo {
     email?: string;
     name?: string;
@@ -9,18 +7,12 @@ export interface UserProfileInfo {
 
 const EMAIL_REGEX = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/;
 
-/**
- * Extract clean email from an arbitrary string.
- */
 export function extractEmailFromText(text?: string | null): string | null {
     if (!text || typeof text !== 'string') return null;
     const m = text.match(EMAIL_REGEX);
     return m ? m[0].toLowerCase() : null;
 }
 
-/**
- * Extract clean user display name from account label.
- */
 export function extractNameFromLabel(label: string, email: string): string {
     if (!label) return '';
     // Strip common localized prefixes like "Google Account:", "Google 帐号：", "Google 帳號："
@@ -43,9 +35,6 @@ export function extractNameFromLabel(label: string, email: string): string {
     return '';
 }
 
-/**
- * Sniff authentic Google account profile (email, name, gaiaId) from the page DOM and global data.
- */
 export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null {
     const documentObj = doc || (typeof document !== 'undefined' ? document : null);
     if (!documentObj) return null;
@@ -54,7 +43,6 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
     let name: string | undefined;
     let gaiaId: string | undefined;
 
-    // 1. Try DOM elements: check account/avatar anchors, buttons, and images
     const selector = 'a[aria-label], button[aria-label], a[href*="accounts.google.com"], [data-email], [data-identifier], img[alt]';
     try {
         const elements = documentObj.querySelectorAll(selector);
@@ -80,7 +68,7 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
         /* ignore DOM query errors */
     }
 
-    // 2. Try window._WIZ_global_data if available (e.g. in MAIN world or via document.defaultView)
+    // Gaia ID from Google Wiz global data (oTI7oc) if accessible
     try {
         const win = (documentObj.defaultView || (typeof window !== 'undefined' ? window : null)) as any;
         const wiz = win?._WIZ_global_data || win?.WIZ_global_data || win?.__WIZ_global_data;

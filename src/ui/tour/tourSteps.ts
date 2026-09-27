@@ -1,4 +1,3 @@
-// src/ui/tour/tourSteps.ts - Static tour step definitions (E.2)
 export const STEPS: any[] = [
     {
         id: 'connect',

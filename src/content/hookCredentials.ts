@@ -1,4 +1,3 @@
-// src/content/hookCredentials.ts - MAIN world, captures Gemini credentials safely (no inline)
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import type {
     GeminiCredentialsPayload,
@@ -34,7 +33,6 @@ import type {
             let atMatch = u.match(/[?&]at=([^&]+)/) || (body && typeof body === 'string' && body.match(/at=([^&]+)/));
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
-            // Also from body if URLSearchParams
             if (body && typeof body === 'string') {
                 try {
                     const params = new URLSearchParams(body);
@@ -199,7 +197,6 @@ import type {
         }
     }
 
-    // Bounded stream reader for hooked responses (cap at 3MB).
     const BATCHEXECUTE_SNIFF_CAP = 3 * 1024 * 1024;
 
     async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
@@ -248,7 +245,6 @@ import type {
         return txt.length > cap ? { text: txt.slice(0, cap), truncated: true } : { text: txt, truncated: false };
     }
 
-    // Hook Fetch
     if (origFetch) {
         window.fetch = async function(...args: any[]) {
             const url = args[0];
@@ -304,7 +300,6 @@ import type {
         };
     }
 
-    // Hook XHR
     if (origOpen && origSend) {
         XMLHttpRequest.prototype.open = function(...args: any[]) {
             try {

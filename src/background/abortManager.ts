@@ -1,5 +1,3 @@
-// src/background/abortManager.ts - Per-slot abort state management with chrome.storage.session persistence
-
 export const __bgAborts: Map<string, boolean> = new Map();
 let _restorePromise: Promise<void> | null = null;
 
@@ -24,9 +22,6 @@ function getOrCreateController(slot: string): AbortController {
     return c;
 }
 
-/**
- * 取某 slot 的 AbortSignal，供 abortableSleep / Promise.race 使用。
- */
 export function getSlotAbortSignal(slot: string = 'u0'): AbortSignal {
     return getOrCreateController(slot || 'u0').signal;
 }
@@ -44,7 +39,6 @@ export async function restoreAbortFlags(): Promise<void> {
                     const m = k.match(/^gemini_abort_(.+)$/);
                     if (m && data[k]) {
                         __bgAborts.set(m[1], true);
-                        // B2: 恢复的旗标同步 abort 对应 controller
                         try { getOrCreateController(m[1]).abort(); } catch { /* intentional */ }
                     }
                 }
@@ -58,9 +52,6 @@ export async function restoreAbortFlags(): Promise<void> {
     _restorePromise = null;
 }
 
-/**
- * Check if a specific account slot has an active abort flag.
- */
 export function isSlotAborted(slot: string = 'u0'): boolean {
     return !!__bgAborts.get(slot || 'u0');
 }
@@ -75,9 +66,6 @@ export function getSlotEpoch(slot: string = 'u0'): number {
     return __slotEpochs.get(slot || 'u0') || 0;
 }
 
-/**
- * Set or clear abort flag for a specific account slot, syncing with chrome.storage.session.
- */
 export async function setSlotAborted(slot: string = 'u0', val: boolean = true): Promise<void> {
     if (_restorePromise) {
         await _restorePromise;
@@ -86,7 +74,6 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
     __slotEpochs.set(s, getSlotEpoch(s) + 1);
     if (val) {
         __bgAborts.set(s, true);
-        // B2: abort 对应 controller，让在途的 abortableSleep / race 即时醒来
         try { getOrCreateController(s).abort(); } catch { /* intentional */ }
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
@@ -97,7 +84,7 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
         }
     } else {
         __bgAborts.delete(s);
-        // B2: 清除旗标即重建 controller —— 已 abort 的 controller 无法复用
+        // 已 abort 的 controller 无法复用，必须新建
         __bgControllers.set(s, new AbortController());
         try {
             if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
@@ -109,12 +96,8 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
     }
 }
 
-/**
- * Clear all abort flags in memory.
- */
 export function clearAllAborts(): void {
     __bgAborts.clear();
-    // B2: 连带清空 controllers；旗标已清，下次重建的 controller 为全新未 abort 状态
     __bgControllers.clear();
     __slotEpochs.clear();
 }

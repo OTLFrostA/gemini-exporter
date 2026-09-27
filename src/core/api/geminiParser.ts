@@ -1,4 +1,3 @@
-// geminiParser.ts - Facade for Gemini RPC response parsing engine
 import type { GeminiParserExtractorsModule, GeminiJspbSchema, TurnDriftReport } from "./parser/extractors.js";
 import type { GeminiParserAttachmentsModule, DeepResearchDocMeta } from "./parser/attachments.js";
 import type { GeminiParserParseListModule, ListParseResult } from "./parser/parseList.js";
@@ -95,10 +94,6 @@ const {
 const { extractListItemTimestamp, parseList } = listMod;
 const { parseDetail, findTurnsDeep } = detailMod;
 
-    /**
-     * Facade object exporting all canonical parsing methods and schemas.
-     * Preserves 100% backward compatibility with all test suites and browser modules.
-     */
     const GeminiResponseParserClass: GeminiResponseParserFacade = {
         GEMINI_JSPB_SCHEMA,
         detectTurnSchemaDrift,
@@ -126,7 +121,6 @@ const { parseDetail, findTurnsDeep } = detailMod;
         extractListItemTimestamp,
         parseList,
         parseDetail,
-        // Utility methods
         safeStructureClean,
         deepWalk,
         smartSummarizePrompt,

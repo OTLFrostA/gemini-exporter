@@ -1,4 +1,3 @@
-// src/ui/options/modules/optionsSettings.ts - Language, dev mode, diagnostics, and storage cleanup
 import type { OptionsSettingsOptions } from '../../../types/ui.js';
 import {
     getI18n,
@@ -308,13 +307,11 @@ export function checkWalkthroughOnOpen(): void {
                 ? await Storage.isTourCompleted()
                 : false;
 
-            // Track A: Explicit request (?tour=1) or new user onboarding (first time, tour not completed)
             if (isExplicitTour || !tourDone) {
                 if (Tour.startTour) void Tour.startTour(0);
                 return;
             }
 
-            // 4. Track B: Returning user major feature spotlight (on normal workbench open)
             const currentAppVersion = getExtensionVersion();
             const lastSeenVersion = (Storage && Storage.getLastSeenFeatureVersion)
                 ? await Storage.getLastSeenFeatureVersion()

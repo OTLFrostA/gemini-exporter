@@ -1,14 +1,10 @@
-// src/core/engine/assetPipeline.ts - Dedicated Asset Download & Persistence Pipeline
-
 import type { IExportWriter } from "./writers/writerInterface.js";
 
 export interface ProcessAssetOptions {
     isImage?: boolean;
     listTitle?: string;
     timeoutMs?: number;
-    /** Abort signal honored between attempts and during backoff. */
     signal?: AbortSignal | null;
-    /** Max retries after the first attempt (default 3). */
     maxRetries?: number;
 }
 
@@ -22,7 +18,6 @@ export interface ProcessAssetResult {
 export interface AssetPipelineOptions {
     currentSlot?: string;
     useZip?: boolean;
-    /** Phase B (B1): 统一写出口。构造不再收 folder，改收 writer。 */
     writer?: IExportWriter | null;
     writeFileDirect?: (path: string, content: any) => Promise<void>;
     takeoutEngine?: any;
@@ -43,7 +38,6 @@ export interface AssetPipelineInstance {
     useZip: boolean;
     /** @deprecated Phase B (B1) 已废弃：读取直接 throw。写出口请走 writer。 */
     readonly folder: any;
-    /** Phase B (B1): 统一写出口 */
     writer: IExportWriter | null;
     writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
     takeoutEngine: any;
@@ -159,9 +153,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             this.downloadTimeoutMs = options.downloadTimeoutMs || 15000;
         }
 
-        /**
-         * A single download attempt, abort-aware.
-         */
         private async downloadOnce(targetUrl: string, chat: any, item: any, timeoutMs: number, signal: AbortSignal | null): Promise<any> {
             let r: any = null;
             const extra = {
@@ -199,9 +190,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             return r;
         }
 
-        /**
-         * Validate the download payload and persist it (zip folder or direct file write).
-         */
         private async persistDownload(r: any, localName: string, isImage: boolean): Promise<{ saved: boolean; failReason: string; isWriteError?: boolean }> {
             let saved = false;
             let failReason = '';
@@ -218,8 +206,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                 const b64 = (r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null));
 
                 if (this.writer) {
-                    // Phase B (B1): 统一写出口 —— zip / 本地目录都走 writer，
-                    // 不再直接碰 folder.file(...)。
                     try {
                         if (bytes && bytes.length > 0) {
                             await this.writer.writeFile(sanitizeZipPath(localName), bytes);
@@ -249,7 +235,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                             saved = true;
                         }
                     } catch (e) {
-                        // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean
                         saved = false;
                         failReason = getErrorMessage(e);
                         isWriteError = true;
@@ -265,9 +250,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             return { saved, failReason, isWriteError };
         }
 
-        /**
-         * Download and persist an asset (image or attachment file) with retries and backoff.
-         */
         async processAsset(item: any, chat: any, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
             const isImage = !!opts.isImage;
             const rawCandidates = [item.url, item.sourceUrl, item.src].filter(Boolean);
@@ -306,13 +288,11 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                 failReason = e.message;
             }
 
-            // Fallback: Takeout Offline Media Pool
             if (!saved && this.takeoutEngine) {
                 try {
                     const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot);
                     if (offlineBin && offlineBin.length > 0) {
                         if (this.writer) {
-                            // Phase B (B1): 统一走 writer，不再直接碰 folder.file(...)
                             try {
                                 await this.writer.writeFile(sanitizeZipPath(localName), offlineBin);
                                 saved = true;
@@ -325,7 +305,6 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                                 await this.writeFileDirect(localName, offlineBin);
                                 saved = true;
                             } catch (e) {
-                                // Phase A (P0-1): writeFileDirect 失败抛错，不再返回 boolean
                                 saved = false;
                             }
                         }

@@ -1,4 +1,3 @@
-// src/ui/options/optionsContext.ts - Centralized workbench dependencies & context accessors
 import { ConversationsStore } from '../state/conversationsStore.js';
 import { ListView } from '../views/listView.js';
 import { DialogView } from '../views/dialogView.js';

@@ -1,4 +1,3 @@
-// retryPolicy.ts - Centralized HTTP 400 XSRF recovery, 401 cleanup, and 429 backoff policy
 import { GeminiClientCredentialManager, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
 import { calculateBackoff } from "../../engine/export/rateLimiter.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
@@ -24,7 +23,6 @@ export interface Http401Params {
     cred?: any;
     loadCredMap?: () => Promise<any>;
     getCredStorage?: () => any;
-    /** 可选：从页面 DOM 重新抓取最新 at（401 时先尝试刷新而非直接删凭证）。 */
     refreshAtFromPage?: () => string | null;
 }
 
@@ -33,9 +31,7 @@ export interface Http429Params {
     retryCount?: number;
     maxRetries?: number;
     label?: string;
-    /** When set, the backoff sleep is interruptible via this signal. */
     signal?: AbortSignal | null;
-    /** Explicit server Retry-After hint in ms. */
     retryAfterMs?: number;
 }
 
@@ -43,7 +39,6 @@ export interface Http429Result {
     shouldRetry: boolean;
     delayMs?: number;
     nextRetryCount?: number;
-    /** True when the backoff wait was cut short by abort. */
     aborted?: boolean;
 }
 
@@ -51,9 +46,7 @@ export interface GeminiClientRetryPolicyModule {
     handleHttp400: (params: Http400Params) => Promise<Http400Result>;
     handleHttp401: (params: Http401Params) => Promise<void>;
     handleHttp429: (params: Http429Params) => Promise<Http429Result>;
-    /** Interruptible sleep; resolves true when cut short by abort. */
     interruptibleSleep: (ms: number, signal?: AbortSignal | null, isAborted?: () => boolean) => Promise<boolean>;
-    /** Parse Retry-After (delta-seconds or HTTP-date), clamped to 30s. */
     parseRetryAfterMs: (value: string | null | undefined) => number | undefined;
 }
 
@@ -61,9 +54,6 @@ export interface GeminiClientRetryPolicyModule {
         return GeminiClientCredentialManager;
     }
 
-    /**
-     * Attempts automatic XSRF credential recovery on HTTP 400
-     */
     async function handleHttp400(params: Http400Params): Promise<Http400Result> {
         const { resp, snippet, cred, isRetried, getAtFromPage, getBlFromPage, loadCredMap, getCredStorage } = params;
         if (resp.status !== 400 || isRetried) return { shouldRetry: false };
@@ -106,12 +96,6 @@ export interface GeminiClientRetryPolicyModule {
         return { shouldRetry: false };
     }
 
-    /**
-     * Handles HTTP 401: first tries to refresh the `at` token from the page
-     * (the page may have rotated it while our stored copy went stale); only
-     * deletes the stored credential when no fresher `at` can be obtained.
-     * Never logs token values — only a desensitized sid prefix for diagnosis.
-     */
     async function handleHttp401(params: Http401Params): Promise<void> {
         const { cred, loadCredMap, getCredStorage, refreshAtFromPage } = params;
         const sidTag = cred?.sid ? String(cred.sid).slice(0, 6) + '…' : '(no-sid)';
@@ -157,10 +141,6 @@ export interface GeminiClientRetryPolicyModule {
 
     const MAX_RETRY_AFTER_MS = 30000;
 
-    /**
-     * Interruptible sleep for backoff waits.
-     * Resolves true when the wait was cut short by abort, false when the full delay elapsed.
-     */
     async function interruptibleSleep(ms: number, signal?: AbortSignal | null, isAborted?: () => boolean): Promise<boolean> {
         if (ms <= 0) return !!signal?.aborted || !!isAborted?.();
         if (signal?.aborted || isAborted?.()) return true;
@@ -189,9 +169,6 @@ export interface GeminiClientRetryPolicyModule {
         });
     }
 
-    /**
-     * Parse a Retry-After value as delta-seconds or HTTP-date, clamped to MAX_RETRY_AFTER_MS.
-     */
     function parseRetryAfterMs(value: string | null | undefined): number | undefined {
         if (!value) return undefined;
         const s = parseInt(value, 10);
@@ -204,9 +181,6 @@ export interface GeminiClientRetryPolicyModule {
         return undefined;
     }
 
-    /**
-     * Handles HTTP 429 rate limit backoff and wait.
-     */
     async function handleHttp429(params: Http429Params): Promise<Http429Result> {
         const { resp, retryCount = 0, maxRetries = 3, label = "request", signal = null, retryAfterMs: explicitRetryAfterMs } = params;
         if (resp.status !== 429 || retryCount >= maxRetries) return { shouldRetry: false };

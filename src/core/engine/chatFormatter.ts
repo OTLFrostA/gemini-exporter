@@ -1,9 +1,3 @@
-/**
- * chatFormatter.ts
- * Unified export formatter facade for Gemini conversations.
- * Delegates to specialized formatters: markdownFormatter, jsonFormatter, htmlConverter,
- * plus the canonical HTML renderer (formatHtmlCanonical).
- */
 import {
     normalizeGeminiConversation,
     CanonicalHtmlRenderer,
@@ -80,9 +74,6 @@ export async function formatHtmlCanonical(
     };
 }
 
-/**
- * Unified content formatter entry point.
- */
 export function formatContent(
     chat: any,
     formatType: string = 'markdown',

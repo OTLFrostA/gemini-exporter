@@ -1,5 +1,3 @@
-// src/background/batchFetcher.ts - Batch chat fetching, 429 rate limit backoff, and progress broadcast
-
 import { TabService } from '../core/utils/tabService.js';
 import { isRateLimited, calculateBackoff, abortableSleep } from '../core/engine/export/rateLimiter.js';
 import { interruptibleSleep } from '../core/api/client/retryPolicy.js';

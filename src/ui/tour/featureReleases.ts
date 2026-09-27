@@ -1,19 +1,13 @@
-// src/ui/tour/featureReleases.ts - Registry for major version feature announcements
 import { isVersionGreater } from '../../core/utils/pathUtils.js';
 
 export interface FeatureReleaseConfig {
-
     version: string;
     featureId: string;
     stepId: string;
     badgeKey?: string;
 }
 
-/**
- * Ordered list of feature releases eligible for one-time spotlight announcement.
- * When an existing user upgrades and their last_seen_feature_version is lower than the release version,
- * the spotlight for the highest eligible unvisited release is shown.
- */
+// Feature releases eligible for one-time spotlight announcement on extension upgrade
 export const FEATURE_RELEASES: FeatureReleaseConfig[] = [
     {
         version: '1.5.0',

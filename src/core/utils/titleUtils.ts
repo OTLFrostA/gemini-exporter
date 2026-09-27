@@ -1,8 +1,3 @@
-/**
- * src/core/utils/titleUtils.ts
- * Conversation title arbitration, sanitization, and priority ordering.
- */
-
 import type { Conversation, TitleSource } from '../../types/index.js';
 import { normId } from './pathUtils.js';
 
@@ -25,9 +20,6 @@ export const TITLE_TIER_RANK: Record<TitleSource, number> = {
     default: 0
 };
 
-/**
- * Check whether a conversation record is derived from Google Takeout.
- */
 export function isTakeoutConversation(c: any): boolean {
     if (!c) return false;
     return (
@@ -38,25 +30,15 @@ export function isTakeoutConversation(c: any): boolean {
     );
 }
 
-/**
- * Strips zero-width characters and standard whitespace.
- */
 export function cleanZeroWidth(t: any): string {
     return String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
 }
 
-/**
- * Checks if a title is an empty, generic brand placeholder or system account string.
- */
 export function isBrandPlaceholderTitle(t: any): boolean {
     if (!t) return true;
     return /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanZeroWidth(t));
 }
 
-/**
- * Determine if a title is a real, meaningful conversation title
- * (not a placeholder, ID, or auto-generated default).
- */
 export function isRealTitle(title?: string | null, id?: string | number): boolean {
     if (!title || typeof title !== 'string') return false;
     let t = title.trim();
@@ -78,9 +60,6 @@ export function isRealTitle(title?: string | null, id?: string | number): boolea
     return true;
 }
 
-/**
- * Decodes standard HTML entities into plain characters.
- */
 export function unescapeHtml(text?: string | null): string {
     if (!text || typeof text !== 'string') return '';
     return text
@@ -121,9 +100,6 @@ function removeElementBlocks(input: string, tagName: string): string {
     return current;
 }
 
-/**
- * Strips HTML tags recursively to ensure safe plain text output.
- */
 export function stripHtmlTags(html?: string | null): string {
     if (!html || typeof html !== 'string') return '';
     let res = html;
@@ -143,9 +119,6 @@ export function stripHtmlTags(html?: string | null): string {
     return res;
 }
 
-/**
- * Clean conversation title by removing brand suffixes and prefixes
- */
 export function cleanTitle(rawTitle?: string | null): string {
     if (!rawTitle || typeof rawTitle !== 'string') return '';
     let t = rawTitle.replace(/\u00a0/g, ' ').replace(/[\r\n\t]+/g, ' ').trim();
@@ -164,7 +137,6 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
     if (!chat) return { title: '未命名对话', source: 'default' };
     const id = chat.id || '';
 
-    // 1. Traverse tiered title slots in priority order
     if (chat.titles && typeof chat.titles === 'object') {
         for (const source of TITLE_SOURCE_PRIORITY) {
             if (source === 'legacy' || source === 'default') continue;
@@ -177,13 +149,11 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
         }
     }
 
-    // 2. Legacy fallback to chat.title
     const legacyClean = cleanTitle(chat.title);
     if (legacyClean && isRealTitle(legacyClean, id)) {
         return { title: legacyClean, source: chat.titleSource || 'legacy' };
     }
 
-    // 3. Fallback to Takeout Prompt if present in chat.titles
     if (chat.titles && chat.titles.takeout) {
         const rawTakeout = cleanTitle(chat.titles.takeout);
         if (rawTakeout && (isRealTitle(rawTakeout, id) || !isBrandPlaceholderTitle(rawTakeout))) {
@@ -194,9 +164,6 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
     return { title: '未命名对话', source: 'default' };
 }
 
-/**
- * Set a title into a specific source tier slot without destroying other tiers.
- */
 export function setTitleBySource(chat: any, source?: string, rawTitle?: string): TitleResolution {
     if (!chat) return { title: '未命名对话', source: 'default' };
     chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
@@ -212,9 +179,6 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
     return resolved;
 }
 
-/**
- * Normalize timestamp input into epoch milliseconds.
- */
 export function toTimestampMs(raw: any): number | null {
     if (raw === null || raw === undefined) return null;
     if (typeof raw === 'number') {
@@ -239,12 +203,8 @@ export function toTimestampMs(raw: any): number | null {
     return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/**
- * Get the authoritative effective timestamp (milliseconds) of a conversation.
- * Server-authoritative only: updatedAt > timestamp > chatTime > createdAt.
- * lastSeen is client-observed and intentionally excluded (PR-3, core-vocab audit D2):
- * when no server timestamp exists this returns 0 rather than a client-seeded guess.
- */
+// Server-authoritative only (updatedAt > timestamp > chatTime > createdAt).
+// lastSeen is client-observed and intentionally excluded so missing timestamps return 0 rather than a guess.
 export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): number {
     if (!chat || typeof chat !== 'object') return 0;
     const candidates = [chat.updatedAt, chat.timestamp, (chat as any).chatTime, chat.createdAt];
@@ -257,9 +217,6 @@ export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): numb
     return 0;
 }
 
-/**
- * Authoritative conversation comparator for consistent ordering across UI and background sync.
- */
 type SortableConversation = Partial<Conversation> & { sidebarIndex?: number };
 export function compareConversations(a?: SortableConversation | null, b?: SortableConversation | null): number {
     if (!a && !b) return 0;
@@ -406,22 +363,15 @@ function computeHasNewerActivity(c: any, rec: any): boolean {
             return true;
         }
 
-        // 3. Fallback: message count increase when timestamps are absent or contemporaneous
         const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
         const recMsgCount = (rec as any).messageCount || 0;
         if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
             return true;
         }
-    } catch {
-        /* intentional */
-    }
+    } catch {}
     return false;
 }
 
-/**
- * Single Source of Truth (SSoT) for conversation export state, filter predicates,
- * incremental export inclusion, and badge visual/i18n representation.
- */
 export function resolveConversationExportState(
     c: any,
     rec?: any,
@@ -479,15 +429,11 @@ export function resolveConversationExportState(
 
 export function checkIsUpdated(c: any, rec?: any): boolean {
     if (!c || !rec) return false;
-    // Phase A (P1-2): partial 记录永不视为"已同步"。否则 partial 的 exportedAt=now
-    // 会让下次增量直接跳过，失败附件永远得不到重试。
+    // Partial export records are never considered up-to-date so failed attachments can be retried on subsequent syncs
     const st = resolveConversationExportState(c, rec);
     return st.state === 'exported_partial' || st.hasNewerActivity;
 }
 
-/**
- * Sniffs conversation title from the first user message if current title is missing or generic.
- */
 export function resolveDetailTitle(
     messages: any[] | null | undefined,
     convId?: string | number

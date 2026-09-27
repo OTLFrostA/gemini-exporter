@@ -1,5 +1,3 @@
-// src/background/liveSaveHandler.ts - Live Save via File System Handle execution and disk state probing
-
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
@@ -119,8 +117,6 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                 { fileName }
             );
 
-            // Phase A (P1-2): 附件失败累积，不再 console.warn 了事。
-            // 坏 base64 / 无有效二进制 / 写文件抛错都算失败，决定 ok 与 partial 记录。
             const failures: Array<{ file: string; error: string }> = [];
             if (Array.isArray(assets) && assets.length > 0) {
                 for (const asset of assets) {

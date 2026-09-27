@@ -48,10 +48,6 @@ export interface GeminiClientPaginationModule {
     isPaginationExhaustive: (res: PaginationResult | null | undefined) => boolean;
 }
 
-/**
- * Canonical predicate for whether a list pagination result is provably complete
- * (exhausted all server pages naturally without early stop, token loop, limit wall, or abort).
- */
 export function isPaginationExhaustive(res: PaginationResult | null | undefined): boolean {
     if (!res) return false;
     if (res.stoppedEarly) return false;
@@ -61,9 +57,6 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
     return true;
 }
 
-    /**
-     * Traverses all conversation list pages with incremental detection and Google limit tracking
-     */
     async function getAllConversations(client: any, maxPages: number | PaginationOptions = 2000, onProgress?: ((info: PaginationProgressInfo) => void) | null, targetSid?: string | null, opts?: PaginationOptions): Promise<PaginationResult> {
         if (typeof maxPages === "object" && maxPages !== null) {
             opts = maxPages;
@@ -164,7 +157,6 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
                     }
                 }
 
-                // 1. Watermark Engine Hook: feed batch to ingestion state machine
                 if (typeof opts?.onPageBatch === 'function' && res.conversations.length > 0) {
                     const decision = await opts.onPageBatch(res.conversations, {
                         page: i + 1,
@@ -259,9 +251,6 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
         return finalResult;
     }
 
-    /**
-     * Traverses and aggregates all turns of a conversation detail with metadata-only retry
-     */
     async function getConversationDetail(client: any, conversationId: string, targetSid?: string | null): Promise<DetailParseResult> {
         let msgs: any[] = [];
         let token: string | null = null;

@@ -1,5 +1,3 @@
-// src/content/contentContext.ts - Centralized state manager for Gemini Exporter Content Script
-
 export interface GeminiCredentials {
     at?: string;
     bl?: string;
@@ -47,9 +45,6 @@ export class ContentContext {
         w.__gemExporterDevMode = this._devMode;
     }
 
-    // -------------------------------------------------------------
-    // Abort & Cancellation
-    // -------------------------------------------------------------
     public isAborted(): boolean {
         return this._aborted;
     }
@@ -76,9 +71,6 @@ export class ContentContext {
         this.emit('abort');
     }
 
-    // -------------------------------------------------------------
-    // Active Client & Deep Scan Promise
-    // -------------------------------------------------------------
     public getActiveClient(): ActiveClientContract | null {
         return this._activeClient;
     }
@@ -101,9 +93,6 @@ export class ContentContext {
         }
     }
 
-    // -------------------------------------------------------------
-    // Credentials
-    // -------------------------------------------------------------
     public setCredentials(creds: Partial<GeminiCredentials> | null): void {
         if (!creds) {
             this._credentials = null;
@@ -120,9 +109,6 @@ export class ContentContext {
         this.emit('credentials', this._credentials);
     }
 
-    // -------------------------------------------------------------
-    // Timers & Observers Lifecycle Management
-    // -------------------------------------------------------------
     public registerTimer(key: string, handle: TimerHandle): void {
         this.clearTimer(key);
         if (handle != null) {
@@ -131,7 +117,6 @@ export class ContentContext {
                 if (key === 'syncInterval') (window as any).__gemExporterSyncInterval = handle;
                 else if (key === 'titleObserver') (window as any).__gemExporterTitleObserver = handle;
                 else if (key === 'debounceTimer') (window as any).__gemExporterDebounceTimer = handle;
-                // urlWatcher removed in Phase D.3; no longer mirrored
             }
         }
     }
@@ -159,7 +144,6 @@ export class ContentContext {
             if (key === 'syncInterval') (window as any).__gemExporterSyncInterval = null;
             else if (key === 'titleObserver') (window as any).__gemExporterTitleObserver = null;
             else if (key === 'debounceTimer') (window as any).__gemExporterDebounceTimer = null;
-            // urlWatcher no longer mirrored
         }
     }
 
@@ -170,9 +154,6 @@ export class ContentContext {
         this._timers.clear();
     }
 
-    // -------------------------------------------------------------
-    // Configuration & Flags
-    // -------------------------------------------------------------
     public isDevMode(): boolean {
         return this._devMode;
     }
@@ -210,9 +191,6 @@ export class ContentContext {
         }
     }
 
-    // -------------------------------------------------------------
-    // Event Emitter
-    // -------------------------------------------------------------
     public on(event: string, listener: (...args: any[]) => void): () => void {
         let set = this._listeners.get(event);
         if (!set) {

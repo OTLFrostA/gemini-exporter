@@ -141,7 +141,6 @@ function skipDoctype(b: Uint8Array, i: number): number {
     return -1;
 }
 
-// Skips optional UTF-8 BOM, XML declaration, comments, and DOCTYPE before requiring a root <svg> tag.
 function isSvgDocument(b: Uint8Array): boolean {
     let i = 0;
     if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) i = 3;

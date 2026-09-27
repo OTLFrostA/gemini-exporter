@@ -1,4 +1,3 @@
-// src/content/liveSaveCoordinator.ts - Coordinator for live auto-saving (IndexedDB + Disk FsWriter)
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
@@ -87,9 +86,6 @@ export function init(deps: LiveSaveCoordinatorDeps = {}): void {
     if (isDev()) console.log('[LiveSaveCoordinator] Initialized');
 }
 
-/**
- * Fetch full conversation detail by ID using Client RPC first, then fallback to DOM.
- */
 export async function resolveConversationDetail(cid: string): Promise<any> {
     const nid = normId(cid);
     // DI seam kept: an explicitly injected client class still uses the legacy
@@ -110,7 +106,6 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
         }
     }
 
-    // Fallback to DOM scraper
     const Scraper = getScraper();
     if (Scraper && typeof Scraper.parseDoc === 'function') {
         const doc = typeof document !== 'undefined' ? document : null;
@@ -127,9 +122,6 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
     return null;
 }
 
-/**
- * Execute a live auto-save cycle for the specified conversation.
- */
 export async function executeLiveSave(cid: string, reason = 'turn_complete', options: { mockMode?: boolean } = {}): Promise<boolean> {
     if (!cid) return false;
     const nid = normId(cid);
@@ -174,7 +166,6 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             const dirHandle = await Storage.getLiveDirHandle();
 
             if (dirHandle) {
-                // 1. Direct Disk Write via local FileSystem Access API
                 try {
                     await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
                     writeSucceeded = true;
@@ -193,7 +184,6 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                     throw err;
                 }
             } else {
-                // 2. Delegate to extension options page holding the directory handle
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
                     try {
                         let collectedAssets: any[] = [];
@@ -278,7 +268,6 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 });
             }
 
-            // 4. Visual Feedback via Badge
             const Badge = getBadge();
             if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
                 (Badge as any).showLiveSaveFeedback(safeTitle);
@@ -406,7 +395,6 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
         const m = chat.messages[i];
         if (!m) continue;
 
-        // a) m.attachments
         if (Array.isArray(m.attachments)) {
             for (const att of m.attachments) {
                 if (att && (att.type === 'image' || att.isImage)) {
@@ -416,7 +404,6 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
             }
         }
 
-        // b) m.images
         if (Array.isArray(m.images)) {
             for (const img of m.images) {
                 if (img) {
@@ -426,7 +413,6 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
             }
         }
 
-        // c) Inline markdown images: ![alt](url)
         if (typeof m.content === 'string') {
             const matches = m.content.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s\)]+)\)/g);
             for (const match of matches) {
@@ -546,9 +532,6 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
     return collectedAssets;
 }
 
-/**
- * Write formatted conversation and optional assets to disk via FsWriter.
- */
 async function writeConversationToDisk(
     chat: any,
     safeTitle: string,
@@ -558,15 +541,12 @@ async function writeConversationToDisk(
 ): Promise<void> {
     const Utils = getUtils();
 
-    // Shared writer setup (see core/engine/liveSaveWriter.ts)
     const writer = await createLiveSaveWriter(dirHandle, { fsWriterClass: getFsWriterClass() });
 
-    // 1. Process and save multimodal image assets to assets/ if enabled
     if (config.includeAssets !== false) {
         await processAndSaveImages(chat, nid, writer);
     }
 
-    // 2-3. Shared: filename format + markdown formatting + write file
     await writeLiveSaveMarkdown(
         writer,
         { chat, safeTitle, nid },

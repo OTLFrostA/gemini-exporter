@@ -61,9 +61,6 @@ export class ProviderRegistryClass {
         return undefined;
     }
 
-    /**
-     * Helper to match wildcard host patterns (e.g. https://gemini.google.com/*)
-     */
     private matchPattern(pattern: string, url: string): boolean {
         if (pattern === url) return true;
         try {
@@ -75,9 +72,7 @@ export class ProviderRegistryClass {
                     return parsedUrl.pathname.startsWith(parsedPattern.pathname);
                 }
             }
-        } catch {
-            // Fallback for non-standard patterns
-        }
+        } catch {}
         if (pattern.endsWith('/*')) {
             const prefix = pattern.slice(0, -1);
             return url.startsWith(prefix);

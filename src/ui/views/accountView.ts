@@ -1,4 +1,3 @@
-// src/ui/views/accountView.ts - Account Slot Selector View
 import type { IAccountView } from '../../types/ui.js';
 import { $, t } from '../uiCommon.js';
 

@@ -47,7 +47,6 @@ export function flattenChatGPTMapping(raw: any, conversationId?: string): Provid
             curr = curr.parent && mapping[curr.parent] ? mapping[curr.parent] : null;
         }
     } else {
-        // Fallback: collect all nodes with messages and sort by create_time
         for (const key of Object.keys(mapping)) {
             const node = mapping[key];
             if (node && node.message) {
@@ -233,7 +232,6 @@ export class ChatGPTProvider implements AIProvider {
     }
 }
 
-// Auto-register ChatGPT provider
 export const defaultChatGPTProvider = new ChatGPTProvider();
 ProviderRegistry.register(defaultChatGPTProvider);
 

@@ -34,13 +34,9 @@ function isDev(): boolean {
     return contentContext.isDevMode();
 }
 
-/**
- * Heuristically inspect if Gemini UI is currently in generating/streaming state.
- */
 export function checkIsGeneratingDOM(): boolean {
     if (typeof document === 'undefined') return false;
 
-    // 1. Look for active stop buttons
     const stopSelectors = [
         'button[aria-label*="Stop"]',
         'button[aria-label*="停止"]',
@@ -59,7 +55,6 @@ export function checkIsGeneratingDOM(): boolean {
         }
     }
 
-    // 2. Look for active streaming/loading indicators on model responses
     const streamingSelectors = [
         'model-response.loading',
         'model-response.generating',
@@ -76,9 +71,6 @@ export function checkIsGeneratingDOM(): boolean {
     return false;
 }
 
-/**
- * Extract active conversation ID from current URL (e.g. /app/b382d56a -> b382d56a).
- */
 export function getActiveConversationId(): string | null {
     if (typeof location === 'undefined') return null;
     return extractConversationIdFromUrl(location.pathname);
@@ -214,9 +206,6 @@ export function flushCurrentTurnNow(): void {
     triggerSave('turn_complete');
 }
 
-/**
- * Explicitly notify that streaming generation has started via RPC / network event.
- */
 export function notifyStreamStart(cid?: string | null): void {
     const activeId = cid || (__options.getActiveId ? __options.getActiveId() : getActiveConversationId());
     __isGenerating = true;
@@ -233,10 +222,6 @@ export function notifyStreamStart(cid?: string | null): void {
     }
 }
 
-/**
- * Explicitly notify that streaming generation has completed via RPC / network event.
- * Triggers save immediately without heuristic debounce delays.
- */
 export function notifyStreamComplete(cid?: string | null): void {
     const activeId = cid || __pendingConversationId || (__options.getActiveId ? __options.getActiveId() : getActiveConversationId());
     if (activeId) {
