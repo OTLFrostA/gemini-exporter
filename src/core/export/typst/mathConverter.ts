@@ -35,6 +35,7 @@ const SYMBOLS: Record<string, string> = {
     sinh: 'sinh', cosh: 'cosh', tanh: 'tanh',
     ln: 'ln', log: 'log', exp: 'exp', det: 'det', dim: 'dim', deg: 'deg',
     min: 'min', max: 'max', sup: 'sup', inf: 'inf', lim: 'lim',
+    Tr: 'op("Tr")', Re: 'Re', Im: 'Im',
     iint: 'integral.double', iiint: 'integral.triple', oint: 'integral.cont',
     dagger: 'dagger', hbar: 'planck.reduce',
     ll: '<<', gg: '>>', perp: 'perp', parallel: 'parallel', propto: 'prop',
@@ -254,6 +255,31 @@ class Parser {
         }
         if (name === 'text') {
             return { text: this.parseTextArg(), atomic: true };
+        }
+        if (name === 'operatorname') {
+            if (this.peek() === '*') this.pos += 1;
+            this.skipSpace();
+            let op = '';
+            if (this.peek() === '{') {
+                this.pos += 1;
+                while (this.pos < this.input.length && this.peek() !== '}') {
+                    op += this.peek();
+                    this.pos += 1;
+                }
+                if (this.peek() === '}') this.pos += 1;
+            } else if (this.peek() === '\\') {
+                this.pos += 1;
+                while (/[A-Za-z]/.test(this.peek())) {
+                    op += this.peek();
+                    this.pos += 1;
+                }
+            } else {
+                while (/[A-Za-z]/.test(this.peek())) {
+                    op += this.peek();
+                    this.pos += 1;
+                }
+            }
+            return { text: `op("${escapeTypstString(op)}")`, atomic: true };
         }
         if (name === 'left' || name === 'right' || name === 'middle') {
             return { text: this.parseDelimiter(name), atomic: true };

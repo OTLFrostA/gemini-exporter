@@ -178,6 +178,14 @@ test('matrix and cases environments', async () => {
     eq('\\begin{cases} 1 & x > 0 \\\\ 0 & x \\le 0 \\end{cases}', 'cases(1, x > 0, 0, x <= 0)', true);
 });
 
+test('operatorname and custom operators', async () => {
+    eq('\\operatorname{Tr}(A)', 'op("Tr") ( A )');
+    eq('\\operatorname*{max}_{x} f(x)', 'op("max")_x f ( x )');
+    eq('-\\operatorname{Re}\\chi_{ij}', '- op("Re") chi_(i j)');
+    eq('\\Tr(A)', 'op("Tr") ( A )');
+    eq('\\Re(z) + \\Im(z)', 'Re ( z ) + Im ( z )');
+});
+
 test('plugs into the payload adapter convertMath hook', async () => {
     const { toTypstPayload } = require('../src/core/export/typst/payload.js');
     const bundle = {
