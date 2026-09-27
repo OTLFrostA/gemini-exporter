@@ -1,6 +1,7 @@
 import {
     ACCENTS,
     DELIMITERS,
+    FONT_SWITCHES,
     hasKey,
     LITERAL_CHARS,
     STYLES,
@@ -70,6 +71,11 @@ export class Parser implements EnvironmentParserContext {
             const c = this.peek();
             if (c === '' || c === '}') break;
             if (c === '^' || c === '_') {
+                if (atoms.length === 0) {
+                    const atom = this.attachScripts({ text: '("")', atomic: true });
+                    atoms.push(atom);
+                    continue;
+                }
                 this.fail(`script '${c}' without a base at offset ${this.pos}`);
             }
             if (c === '&') {
@@ -181,6 +187,7 @@ export class Parser implements EnvironmentParserContext {
             if (c === '|') return { text: 'parallel', atomic: true };
             if (c === '\\') return this.parseNewline();
             if (c === ',' || c === ' ' || c === ';' || c === '!') return { text: '', atomic: true };
+            if (c === '%') return { text: '"%"', atomic: true };
             this.fail(`unsupported escaped character '\\${c}' at offset ${this.pos - 1}`);
         }
         let name = '';
@@ -248,6 +255,16 @@ export class Parser implements EnvironmentParserContext {
         }
         if (name === 'end') {
             this.fail(`stray \\end without matching \\begin at offset ${this.pos}`);
+        }
+        if (hasKey(FONT_SWITCHES, name)) {
+            const style = FONT_SWITCHES[name]!;
+            this.skipSpace();
+            if (this.peek() === '{') {
+                const arg = this.parseArg(`\\${name}`);
+                return { text: `${style}(${arg.text})`, atomic: true };
+            }
+            const rest = this.parseSequence();
+            return this.formatStyleSequence(style, rest);
         }
         if (hasKey(STYLES, name)) {
             const arg = this.parseArg(`\\${name}`);
@@ -336,5 +353,29 @@ export class Parser implements EnvironmentParserContext {
             this.fail("'\\\\' line break is not supported in inline math");
         }
         return { text: '\\\n', atomic: true };
+    }
+
+    private formatStyleSequence(style: string, atoms: Atom[]): Atom {
+        if (atoms.length === 0) return { text: '', atomic: true };
+        const chunks: string[] = [];
+        let current: string[] = [];
+        for (const atom of atoms) {
+            if (atom.text === ',' || atom.text === ';') {
+                if (current.length > 0) {
+                    chunks.push(`${style}(${current.join(' ')})`);
+                    current = [];
+                }
+                chunks.push(atom.text);
+            } else {
+                current.push(atom.text);
+            }
+        }
+        if (current.length > 0) {
+            chunks.push(`${style}(${current.join(' ')})`);
+        }
+        if (chunks.length === 1) {
+            return { text: chunks[0]!, atomic: true };
+        }
+        return { text: chunks.join(' '), atomic: false };
     }
 }

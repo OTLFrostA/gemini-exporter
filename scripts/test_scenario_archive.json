@@ -1850,5 +1850,51 @@
     ],
     "consumed_at": "2026-09-26T23:32:08.419727",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "gravitational_wave_multi_messenger_kilonova_ejecta",
+    "domain": "astrophysics_gravitational_wave_kilonova",
+    "title": "引力波多信使天文学：双中子星并合千新星快中子捕获核合成与相对论喷流推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试双中子星并合引力波啁啾波形参数估计、r-过程重元素核合成光变曲线推导、相对论性喷流破茧辐射以及千新星多波段抛射物多模态图像生成",
+    "turns": [
+      "在爱因斯坦广义相对论后牛顿近似（Post-Newtonian Approximation）框架下，推导双中子星（BNS）旋进并合阶段引力波应变信号 h(t) 的啁啾质量（Chirp Mass）\\mathcal{M} = \\frac{(m_1 m_2)^{3/5}}{(m_1+m_2)^{1/5}} 与轨道频率演化 \\frac{df_{gw}}{dt} = \\frac{96}{5}\\pi^{8/3} \\left(\\frac{G\\mathcal{M}}{c^3}\\right)^{5/3} f_{gw}^{11/3} 的解析关系，并详细说明双星潮汐变形度 \\tilde{\\Lambda} 如何在引力波并合前夕通过物态方程（EOS）修正相位演化。",
+      "请生成一张科学级写实且极具视觉震撼力的多模态天文插图：展现双中子星碰撞后形成的千新星（Kilonova）抛射物全景。画面中两颗中子星刚刚并合碰撞，中心伴随超致密残骸与旋转吸积盘，两极喷射出接近光速的准直相对论性喷流（Relativistic Jet）并撕裂周围的动态抛射物茧层（Cocoon）；外部抛射物分层呈现：富含镧系重元素的红外成分（红色云霞）与轻重成分（蓝色快抛射物）相互交织，背景为深邃星空与发光的引力波涟漪光晕，高分辨率，具备深空射电望远镜与哈勃太空望远镜联合观测质感。",
+      "针对双中子星动态抛射物中的快中子捕获过程（r-process），推导放射性衰变加热率 \\dot{\\epsilon}(t) \\propto t^{-\\alpha}（\\alpha \\approx 1.3）与光子扩散时间尺度 \\tau_{diff} = \\sqrt{\\frac{\\kappa M_{ej}}{4\\pi v c}}，并推导千新星峰值光度 t_{peak} 与镧系元素不透明度 \\kappa \\approx 10\\,\\text{cm}^2/\\text{g}（比铁族元素高两个数量级）导致的显著红外红移机制。",
+      "使用 Python 编写脚本，基于 Arnett 瞬态光变曲线分析模型（Arnett's Analytical Toy Model），数值求解千新星在光学波段与近红外波段辐射热光度 L(t) 随并合后时间（0.1天至30天）的对数演化曲线，计算并打印蓝千新星与红千新星的峰值到达时间及对应的峰值绝对星等。",
+      "使用 Markdown 表格，对比双中子星并合（BNS, 如 GW170817）、中子星-黑洞并合（NSBH）、双黑洞并合（BBH）以及核心坍缩超新星（CC-SN）在引力波偏振信号特征、电磁对应体（短GRB/千新星/光学余辉）、中微子爆发通量、重元素产量（太阳质量当量）以及核物质物态方程约束力五个维度的本质物理差异。"
+    ],
+    "consumed_at": "2026-09-26T23:52:20.436396",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "fusion_stellarator_quasi_symmetry_optimization",
+    "domain": "fusion_stellarator_quasi_symmetry_optimization",
+    "title": "先进磁约束聚变：仿星器准螺旋与准轴对称磁场拓扑优化",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试 Boozer 坐标系准对称性推导、Mercier 局域互换稳定性判据、离散超导线圈 Biot-Savart 目标函数 Python 代码与四大仿星器横向对比",
+    "turns": [
+      "基于 Boozer 磁通坐标系推导准对称性（Quasi-Symmetry）的定义条件 |B|(s, \\theta, \\zeta) = |B|(s, M\\theta - N\\zeta)，详细证明为什么准等动力（Quasi-Isodynamic）或准螺旋对称能从根本上消除非轴对称磁阱中捕获粒子新经典输运（Neoclassical Transport）的 1/\\nu 扩散损失。",
+      "解释仿星器磁场线绕射角（Rotational Transform \\iota = 1/q）与剪切（Shear）在抑制新经典撕裂模（NTM）及避免低阶有理面磁岛形成中的关键物理机制，并写出 Mercier 理想局域互换不稳定度判据的数学表述。",
+      "请使用 Python 编写一段程序，利用离散超导磁体线圈空间三维电流元在等离子体边界上计算法向磁场分量 B_n，并构建最小化残差的目标函数残差梯度骨架。",
+      "设计一个结构化 Markdown 表格，对比德国 Wendelstein 7-X（W7-X）、美国国家紧凑仿星器实验（NCSX，准轴对称 QAS）、日本大型螺旋装置（LHD）以及中国华中科技大学仿星器（CFQS）在磁场结构准对称类型、超导线圈制造公差容限、极向磁通比及理论第一壁热负荷（MW/m^2）等核心工程参数。",
+      "分析高场高温超导（HTS, REBCO）带材与增材制造复杂拓扑骨架技术在将仿星器堆芯体积大幅缩小并提升工程线圈维护可拆卸性（Port Access）上所具备的革命性突破与当前低温电磁应力极限挑战。"
+    ],
+    "consumed_at": "2026-09-26T23:52:20.442027",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

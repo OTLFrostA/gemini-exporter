@@ -33,6 +33,9 @@ export const SYMBOLS: Record<string, string> = {
     ln: 'ln', log: 'log', exp: 'exp', det: 'det', dim: 'dim', deg: 'deg',
     min: 'min', max: 'max', sup: 'sup', inf: 'inf', lim: 'lim',
     Tr: 'op("Tr")', Re: 'Re', Im: 'Im',
+    varphi: 'phi.alt', varepsilon: 'epsilon.alt', vartheta: 'theta.alt', varrho: 'rho.alt', varpi: 'pi.alt',
+    ell: 'ell', odot: 'dot.circle', ast: 'ast', dots: 'dots', simeq: 'tilde.eq',
+    lesssim: '<~', gtrsim: '>~',
     iint: 'integral.double', iiint: 'integral.triple', oint: 'integral.cont',
     dagger: 'dagger', hbar: 'planck.reduce',
     ll: '<<', gg: '>>', perp: 'perp', parallel: 'parallel', propto: 'prop',
@@ -51,8 +54,17 @@ export const STYLES: Record<string, string> = {
     mathtt: 'mono',
 };
 
+export const FONT_SWITCHES: Record<string, string> = {
+    rm: 'upright',
+    bf: 'bold',
+    it: 'italic',
+    sf: 'sans',
+    tt: 'mono',
+    cal: 'cal',
+};
+
 export const ACCENTS: Record<string, string> = {
-    hat: 'hat', bar: 'bar', tilde: 'tilde', dot: 'dot', ddot: 'dot.double', vec: 'arrow',
+    hat: 'hat', bar: 'bar', tilde: 'tilde', dot: 'dot', ddot: 'dot.double', dddot: 'dot.triple', vec: 'arrow',
 };
 
 export const DELIMITERS: Record<string, string> = {
