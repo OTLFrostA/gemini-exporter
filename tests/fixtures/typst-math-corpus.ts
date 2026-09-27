@@ -297,5 +297,32 @@ export const TYPST_MATH_CORPUS: readonly MathCorpusItem[] = [
         expectedTypst: 'phi.alt <~ ell',
         wasmSmoke: true,
     },
+    // 23. Extensible arrows
+    {
+        name: 'extensible right arrow with text above',
+        category: 'arrows',
+        latex: '\\xrightarrow{\\Delta\\theta = 120^\\circ}',
+        display: false,
+        expectedTypst: 'scripts(-->)^(Delta theta = 120^compose)',
+        wasmSmoke: true,
+    },
+    // 24. Sizing commands
+    {
+        name: 'delimiter sizing commands ignored cleanly',
+        category: 'sizing',
+        latex: 'O\\big(\\sqrt{n}\\big)',
+        display: false,
+        expectedTypst: 'O ( sqrt(n) )',
+        wasmSmoke: true,
+    },
+    // 25. Equilibrium and relational operators
+    {
+        name: 'equilibrium arrow and direct sum',
+        category: 'operators',
+        latex: '\\text{ADP} \\rightleftharpoons \\text{ATP} \\oplus B',
+        display: false,
+        expectedTypst: '"ADP" harpoons.rtlb "ATP" plus.o B',
+        wasmSmoke: true,
+    },
 ];
 

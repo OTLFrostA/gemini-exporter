@@ -1896,5 +1896,51 @@
     ],
     "consumed_at": "2026-09-26T23:52:20.442027",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "structural_biology_atp_synthase_rotary_mechanism",
+    "domain": "structural_biology_molecular_motor_cryo_em",
+    "title": "结构生物物理学：FoF1-ATP合成酶旋转催化构象动力学与跨膜质子驱动力推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试 FoF1-ATP 合成酶化学渗透质子驱动力 (PMF) 热力学能量偶联推导、冷冻电镜三维构象态旋转步进角、质子半通道跳跃 Python 动力学仿真及高分辨率分子机器插图生成",
+    "turns": [
+      "根据彼得·米切尔化学渗透假说（Mitchell's Chemiosmotic Hypothesis），详细推导跨线粒体内膜的质子驱动力（Proton Motive Force, PMF）数学表达式 \\Delta p = \\Delta \\psi - \\frac{2.303 RT}{F} \\Delta \\text{pH}，并推导在生理稳态（\\Delta p \\approx 200\\,\\text{mV}）下，质子自膜间隙通过 \\text{F}_o 亚基 c 环（c-ring）向线粒体基质顺浓度梯度流动时，每个 ATP 分子合成释放的吉布斯自由能 \\Delta G_{\\text{ATP}} 与所需的质子化学计量比（H^+/ATP ratio）。",
+      "请生成一张科学级、原子分辨率质感的冷冻电镜（Cryo-EM）风格三维多模态结构插图：清晰展示嵌入双层磷脂分子膜中的 \\text{F}_o\\text{F}_1-ATP 合成酶复合体分子机器。画面中膜内 \\text{F}_o 区段（含 a 亚基质子进出半通道与由 8-10 个 c 亚基构成的转子环）由绿色质子流驱动高速旋转；通过中央 \\gamma-\\epsilon 偏心旋转轴连接到膜外水相基质中的球形 \\text{F}_1 催化头部（由 3 个 \\alpha 亚基与 3 个 \\beta 亚基交替构成的六聚体）；催化头部当前清晰呈现 Open、Loose、Tight 三种不对称变构构象，外侧有坚固的 \\text{b}_2\\delta 外部定子（Stator）锚定，背景为线粒体嵴的微观生化环境，高细节、兼具自然科学封面与结构生物学教科书审美。",
+      "详述保罗·博耶（Paul Boyer）提出的结合变化机制（Binding Change Mechanism），建立数学物理模型描述不对称 \\gamma 亚基的 \\frac{2\\pi}{3}（120度）机械旋转如何通过变构张力强制驱动 3 个 \\beta 催化位点在开放态（\\beta_E, \\text{Open}）、松弛结合态（\\beta_{ADP}, \\text{Loose}）与紧密催化态（\\beta_{ATP}, \\text{Tight}）之间发生不可逆的热力学状态循环转移，写出各态之间自由能台阶与活化能垒。",
+      "使用 Python 编写脚本，基于微观随机布朗棘轮模型（Brownian Ratchet Model）与朗之万动力学（Langevin Dynamics），模拟 \\text{c} 环上的保守天冬氨酸/谷氨酸残基（如 cAsp61 或 cGlu59）在定子 a 亚基两个亲水半通道之间的质子化、中性旋转以及去质子化释放过程，计算并绘制转子角位移 \\theta(t) 与质子转移通量的实时演化轨迹。",
+      "使用 Markdown 表格，对比线粒体 \\text{F}_o\\text{F}_1-ATP 合成酶、细菌鞭毛马达（Bacterial Flagellar Motor）、肌球蛋白-肌动蛋白系统（Myosin-Actin）以及驱动蛋白-微管系统（Kinesin-Microtubule）在驱动能源（质子/钠离子梯度 vs ATP 水解）、能量转换热力学效率（\\eta %）、最大输出扭矩/输出力（\\text{pN}\\cdot\\text{nm} / \\text{pN}）、旋转重频/步进速度以及分子结构对称性维度的核心指标。"
+    ],
+    "consumed_at": "2026-09-27T00:20:49.234802",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_cryptography_device_independent_qkd",
+    "domain": "quantum_cryptography_device_independent_qkd",
+    "title": "量子密码学：器件无关量子密钥分发 (DI-QKD) 与 CHSH 违背率安全证明",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试 CHSH 贝尔违背成码率推导、探测效率漏洞下限证明、NPA 层次 SDP Python 优化脚本与四代 QKD 协议横向对比表",
+    "turns": [
+      "从广义 CHSH 贝尔不等式违背量 S > 2 出发，结合熵不确定度关系，严格推导出渐近极限下单次探测能够提取的保密密钥率 r >= 1 - h(Q) - h(1/2 + 1/2\\sqrt{S^2/4 - 1}) 的数学形式。",
+      "分析在实际探测效率有限（Detection Efficiency Loophole）的弱光探测网络中，Alice 与 Bob 之间的探测效率门槛 \\eta > 82.8% 是如何通过局部实在论模型证明其不可伪造性的。",
+      "请使用 Python 编写一段紧凑程序，利用二阶锥规划或半正定规划数值求解给定量子态在 CHSH 测量基下的最大贝尔违背上限值并输出优化对偶间隙。",
+      "设计一个结构化 Markdown 表格，对比 BB84 协议、测量器件无关 QKD（MDI-QKD）、双场 QKD（TF-QKD）与器件无关 QKD（DI-QKD）在安全性信任假设、最大传输距离（km）、成码率定标及当前实验实现的复杂工程瓶颈。",
+      "深入探讨随机数扩展（Randomness Expansion）与自检验（Self-Testing）如何在无需对测量仪器内部物理状态作任何先验假设的前提下，实现端到端的物理层真随机数生成与量子态层析保真度界定。"
+    ],
+    "consumed_at": "2026-09-27T00:20:49.237586",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]

@@ -1,25 +1,5 @@
 [
   {
-    "id": "quantum_cryptography_device_independent_qkd",
-    "domain": "quantum_cryptography_device_independent_qkd",
-    "title": "量子密码学：器件无关量子密钥分发 (DI-QKD) 与 CHSH 违背率安全证明",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables"
-    ],
-    "description": "测试 CHSH 贝尔违背成码率推导、探测效率漏洞下限证明、NPA 层次 SDP Python 优化脚本与四代 QKD 协议横向对比表",
-    "turns": [
-      "从广义 CHSH 贝尔不等式违背量 S > 2 出发，结合熵不确定度关系，严格推导出渐近极限下单次探测能够提取的保密密钥率 r >= 1 - h(Q) - h(1/2 + 1/2\\sqrt{S^2/4 - 1}) 的数学形式。",
-      "分析在实际探测效率有限（Detection Efficiency Loophole）的弱光探测网络中，Alice 与 Bob 之间的探测效率门槛 \\eta > 82.8% 是如何通过局部实在论模型证明其不可伪造性的。",
-      "请使用 Python 编写一段紧凑程序，利用二阶锥规划或半正定规划数值求解给定量子态在 CHSH 测量基下的最大贝尔违背上限值并输出优化对偶间隙。",
-      "设计一个结构化 Markdown 表格，对比 BB84 协议、测量器件无关 QKD（MDI-QKD）、双场 QKD（TF-QKD）与器件无关 QKD（DI-QKD）在安全性信任假设、最大传输距离（km）、成码率定标及当前实验实现的复杂工程瓶颈。",
-      "深入探讨随机数扩展（Randomness Expansion）与自检验（Self-Testing）如何在无需对测量仪器内部物理状态作任何先验假设的前提下，实现端到端的物理层真随机数生成与量子态层析保真度界定。"
-    ]
-  },
-  {
     "id": "quantum_hall_fractional_chern_insulator",
     "domain": "quantum_hall_fractional_chern_insulator",
     "title": "关联拓扑物理：莫尔超晶格中分数量子反常霍尔效应 (FCAH) 与强关联相变",
@@ -197,28 +177,6 @@
       "推导色码中由泡利 X 与 Z 物理误差引发的伴随子（Syndrome）在红、绿、蓝三种面缺陷上的分支拓扑约束关系 \\partial(c_R) + \\partial(c_G) + \\partial(c_B) = 0，并推演如何通过将色码投影分解为两个解耦的表面码格子（Decoupled Surface Codes），利用最小权重完美匹配（MWPM）解码器或联合限制图（Restriction Graph）提升容错纠错阈值（Threshold）。",
       "使用 Python 编写一个色码纠错解码器核心逻辑脚本，输入一个距离 d=3 的三角形色码（含 7 个物理量子比特、3 个稳定子面）上随机产生的物理单比特泡利 X 翻转误差，计算 3 个面的 Z 稳定子伴随子测量结果，并通过查表匹配或加权图匹配返回纠错恢复算符 R，验证逻辑态保真度达到 100%。",
       "使用 Markdown 表格，横向对比二维色码（Color Code）、二维表面码（Surface Code / Rotated Planar Code）、三维量子低密度奇偶校验码（qLDPC Code）以及玻色猫态码（Cat Code）在物理比特到逻辑比特编码开销率 k/n、容错阈值（电路噪声模型下 %）、逻辑门执行开销（横截门集合 vs 格子手术 Lattice Surgery）以及超导/中性原子硬件布线连接性要求四个维度的关键工程指标。"
-    ]
-  },
-  {
-    "id": "structural_biology_atp_synthase_rotary_mechanism",
-    "domain": "structural_biology_molecular_motor_cryo_em",
-    "title": "结构生物物理学：FoF1-ATP合成酶旋转催化构象动力学与跨膜质子驱动力推演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试 FoF1-ATP 合成酶化学渗透质子驱动力 (PMF) 热力学能量偶联推导、冷冻电镜三维构象态旋转步进角、质子半通道跳跃 Python 动力学仿真及高分辨率分子机器插图生成",
-    "turns": [
-      "根据彼得·米切尔化学渗透假说（Mitchell's Chemiosmotic Hypothesis），详细推导跨线粒体内膜的质子驱动力（Proton Motive Force, PMF）数学表达式 \\Delta p = \\Delta \\psi - \\frac{2.303 RT}{F} \\Delta \\text{pH}，并推导在生理稳态（\\Delta p \\approx 200\\,\\text{mV}）下，质子自膜间隙通过 \\text{F}_o 亚基 c 环（c-ring）向线粒体基质顺浓度梯度流动时，每个 ATP 分子合成释放的吉布斯自由能 \\Delta G_{\\text{ATP}} 与所需的质子化学计量比（H^+/ATP ratio）。",
-      "请生成一张科学级、原子分辨率质感的冷冻电镜（Cryo-EM）风格三维多模态结构插图：清晰展示嵌入双层磷脂分子膜中的 \\text{F}_o\\text{F}_1-ATP 合成酶复合体分子机器。画面中膜内 \\text{F}_o 区段（含 a 亚基质子进出半通道与由 8-10 个 c 亚基构成的转子环）由绿色质子流驱动高速旋转；通过中央 \\gamma-\\epsilon 偏心旋转轴连接到膜外水相基质中的球形 \\text{F}_1 催化头部（由 3 个 \\alpha 亚基与 3 个 \\beta 亚基交替构成的六聚体）；催化头部当前清晰呈现 Open、Loose、Tight 三种不对称变构构象，外侧有坚固的 \\text{b}_2\\delta 外部定子（Stator）锚定，背景为线粒体嵴的微观生化环境，高细节、兼具自然科学封面与结构生物学教科书审美。",
-      "详述保罗·博耶（Paul Boyer）提出的结合变化机制（Binding Change Mechanism），建立数学物理模型描述不对称 \\gamma 亚基的 \\frac{2\\pi}{3}（120度）机械旋转如何通过变构张力强制驱动 3 个 \\beta 催化位点在开放态（\\beta_E, \\text{Open}）、松弛结合态（\\beta_{ADP}, \\text{Loose}）与紧密催化态（\\beta_{ATP}, \\text{Tight}）之间发生不可逆的热力学状态循环转移，写出各态之间自由能台阶与活化能垒。",
-      "使用 Python 编写脚本，基于微观随机布朗棘轮模型（Brownian Ratchet Model）与朗之万动力学（Langevin Dynamics），模拟 \\text{c} 环上的保守天冬氨酸/谷氨酸残基（如 cAsp61 或 cGlu59）在定子 a 亚基两个亲水半通道之间的质子化、中性旋转以及去质子化释放过程，计算并绘制转子角位移 \\theta(t) 与质子转移通量的实时演化轨迹。",
-      "使用 Markdown 表格，对比线粒体 \\text{F}_o\\text{F}_1-ATP 合成酶、细菌鞭毛马达（Bacterial Flagellar Motor）、肌球蛋白-肌动蛋白系统（Myosin-Actin）以及驱动蛋白-微管系统（Kinesin-Microtubule）在驱动能源（质子/钠离子梯度 vs ATP 水解）、能量转换热力学效率（\\eta %）、最大输出扭矩/输出力（\\text{pN}\\cdot\\text{nm} / \\text{pN}）、旋转重频/步进速度以及分子结构对称性维度的核心指标。"
     ]
   },
   {
@@ -409,6 +367,49 @@
       "使用 Python 编写一个紧凑高效的二维九速 (D2Q9) MRT-LBM 模拟程序，实现顶盖驱动方腔流 (Lid-Driven Cavity Flow, Re = 1000) 或周期性压力驱动槽道泊肃叶流动，包含矩空间正反投影变换、平衡态力项源注入以及壁面半步反弹格式 (Half-Way Bounce-Back) 无滑移边界条件实现。",
       "推导近壁湍流边界层中的大涡模拟 (LES) 亚格子尺度模型（如 Smagorinsky 模型与壁面自适应局域涡粘 WALE 模型）在格子玻尔兹曼局部非平衡应力张量 Q_{\\alpha\\beta} 下的直接闭合代数形式，证明为何 LBM 无需在物理空间对速度场求导即可局部确定应变率张量 S_{\\alpha\\beta}。",
       "使用 Markdown 表格，对比格子玻尔兹曼方法 (LBM)、有限体积法 (FVM, 如 OpenFOAM)、直接数值模拟谱方法 (Spectral DNS) 以及光滑粒子流体动力学 (SPH) 在非结构网格几何适应性、大规模 GPU 并行扩展效率、不可压缩压力泊松方程解耦优势、多相多组分界面捕捉精度以及超音速可压缩激波捕捉能力等维度的核心性能特征。"
+    ]
+  },
+  {
+    "id": "nuclear_astrophysics_core_collapse_supernova_neutrino_shock",
+    "domain": "nuclear_astrophysics_core_collapse_supernova",
+    "title": "核天体物理学：核心坍缩超新星中微子驱动激波复苏与核合成推演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试超新星延迟中微子加热机制 (Bethe-Wilson) 临界光度推导、驻立吸积激波不稳定性 (SASI) 模态分析、激波爆发多模态科学插图生成与爆发中微子探测对比",
+    "turns": [
+      "在贝特-威尔逊（Bethe-Wilson）延迟中微子加热机制框架下，针对大质量恒星（15-25 M_\\odot）铁核坍缩后形成的原始中子星（PNS），推导激波停滞半径 R_{sh} 处中微子净加热率 \\dot{q}_{net} = \\dot{q}_{gain} - \\dot{q}_{loss} 的解析模型，并导出驱动停滞激波重新复苏向外膨胀的临界电子中微子光度与物质吸积率定标关系 L_\\nu / \\dot{M} \\propto M_{PNS}^{1/2} R_{gain}^{-1/2}。",
+      "请生成一张科学级写实且极具视觉震撼力的多模态天文插图：展现超新星核心坍缩数秒后激波复苏突破恒星包层的壮烈全景。画面中央为刚诞生的致密暗蓝色发光原始中子星（直径约 30 km），周围环绕着剧烈湍流与非轴对称激波前沿（SASI 螺旋晃动漩涡），数以万亿计的超高能中微子流向外辐射并加热周围高密度铁-硅等离子体；外层恒星包层被爆发激波撕裂，展现出剧烈的流体动力学不稳定指状结构与放射性重核合成发光辉光，背景为深邃星际空间，高分辨率，具备深空射电望远镜与哈勃太空望远镜联合观测质感。",
+      "针对激波停滞阶段出现的驻立吸积激波不稳定性（Standing Accretion Shock Instability, SASI），推导声波-涡旋波反馈自激振荡机制（Acoustic-Vorticity Feedback Cycle）。写出激波面扰动产生的非绝热涡旋与熵扰动随吸积下落至原中子星表面产生声波反射的闭环耦合时标 \\tau_{SASI} = \\int_{R_{PNS}}^{R_{sh}} \\frac{dr}{|v_r|} + \\int_{R_{PNS}}^{R_{sh}} \\frac{dr}{c_s - |v_r|}，并分析偶极（\\ell=1）与四极（\\ell=2）模态的增长率。",
+      "使用 Python 编写脚本，基于简单准球对称一维流体动力学激波管与中微子光度参数化模型，数值求解不同原中子星中微子光度 L_\\nu 下激波半径 R_{sh}(t) 的动力学演化轨迹，并计算激波逃逸判据与临界爆炸能量 E_{exp}（量级 10^{51} erg / 1 Bethe）。",
+      "使用 Markdown 表格，对比热核爆炸超新星（Type Ia）、核心坍缩铁核超新星（Type II-P/II-L）、剥离包层超新星（Type Ib/Ic）以及电子俘获超新星（ECSN）在祖恒星质量范围、主导爆炸物理机制、中微子爆发能谱特征、放射性 56Ni 产量（太阳质量当量）以及晚期恒星致密遗迹类型维度的本质物理差异。"
+    ]
+  },
+  {
+    "id": "condensed_matter_superconducting_qubit_fluxonium_coherence",
+    "domain": "superconducting_circuits_fluxonium_qubit",
+    "title": "超导量子计算：超电感 Fluxonium 比特偏置能谱与相干保护推导",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试超电感 Josephson 结阵列 Fluxonium 比特哈密顿量推导、半磁通量子半周期偏置奇偶保护态能级跃迁、QuTiP 能谱色散数值求解器与超导比特平台横向对比",
+    "turns": [
+      "针对由超电感（Superinductor, L \\approx 100-500 nH）、小约瑟夫森结（Josephson Junction, E_J）与分流电容（Charging Energy, E_C）并联构成的 Fluxonium 量子比特电路，严格推导其无量纲正则量子哈密顿量 \\hat{H} = 4 E_C \\hat{n}^2 + \\frac{1}{2} E_L \\hat{\\varphi}^2 - E_J \\cos(\\hat{\\varphi} + 2\\pi \\Phi_{ext}/\\Phi_0)，并从阻抗比与特征相位涨落说明为什么超电感能抑制电荷噪声。",
+      "分析在外部磁通偏置于半整数磁通量子处（\\Phi_{ext} = 0.5 \\Phi_0 甜点 Sweet Spot）时，势能双阱关于 \\varphi = 0 呈现宇称反演对称性。推导基态 |0\\rangle 与第一激发态 |1\\rangle 局域于不同阱底所形成的波函数宇称杂化，并从对偶空间证明为什么跃迁偶极矩 \\langle 0 | \\hat{n} | 1 \\rangle 出现指数级抑制（从而极大延长弛豫时间 T_1 \\gg 1 ms）。",
+      "使用 Python 编写数值程序，在谐振子激发态基底（Harmonic Oscillator Basis, N=30）下截断并对角化 Fluxonium 比特哈密顿量矩阵，计算从 \\Phi_{ext} = 0 到 \\Phi_0 的前 4 个本征能级演化谱线 E_k(\\Phi_{ext})，并输出在半磁通点处的计算跃迁频率 \\omega_{01} 与 \\omega_{12}。",
+      "推导由准粒子遂穿（Quasiparticle Tunneling）与磁通噪声（1/f Flux Noise）主导的去相干速率 \\Gamma_2^* 和 Purcell 滤波效应微扰表达式，给出由 \\partial^2 \\omega_{01} / \\partial \\Phi_{ext}^2 决定的二阶磁通噪声纯退相干时标 T_\\phi 的标度律。",
+      "使用 Markdown 表格，对比 Transmon 比特、Fluxonium 比特、0-\\pi 拓扑保护超导比特以及超导谐振腔玻色猫态比特在非简谐性 (\\alpha / 2\\pi)、相干时间 T_1 与 T_2、单/双量子比特门保真度阈值以及微波读出与操控复杂度四个维度的技术优劣。"
     ]
   }
 ]
