@@ -78,7 +78,6 @@ export interface ConversationTransaction {
         };
     }
 
-    // Note (retired in PR B): gemini_conversations_u0 is migrated via schemaMigration.ts, getConversations is now canonical-only.
     async function getConversations(slot?: string | null): Promise<Conversation[]> {
         const { convKey } = getStorageKeys(slot);
         const data = await chrome.storage.local.get([convKey]);
