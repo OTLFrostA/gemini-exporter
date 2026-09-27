@@ -191,3 +191,36 @@ export async function migrate(): Promise<SchemaMigrateResult> {
     }
     return { ok: true, frozen: false };
 }
+
+let _storageReadyPromise: Promise<void> | null = null;
+
+async function initializeStorage(): Promise<void> {
+    const res = await migrate();
+    if (res.frozen) {
+        throw new SchemaFrozenError();
+    }
+    if (!res.ok) {
+        throw new Error(res.error || "Storage schema migration failed");
+    }
+}
+
+/**
+ * Storage readiness boundary contract.
+ *
+ * Ensures storage schema migration has completed before any consumer operates
+ * on canonical storage data.
+ * - Concurrency: Concurrent callers share the same in-flight initialization.
+ * - Idempotency: Later callers reuse the settled readiness state without remigrating.
+ * - Failure semantics: Fails closed on migration error or schema freeze (rejects).
+ */
+export function ensureStorageReady(): Promise<void> {
+    if (!_storageReadyPromise) {
+        _storageReadyPromise = initializeStorage();
+    }
+    return _storageReadyPromise;
+}
+
+export function __resetStorageReadyForTest(): void {
+    _storageReadyPromise = null;
+    __setSchemaFrozenForTest(false);
+}

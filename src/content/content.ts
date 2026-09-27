@@ -1,4 +1,5 @@
 import { StorageService } from '../core/storage/storageService.js';
+import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { contentContext } from './contentContext.js';
@@ -168,6 +169,12 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     async function autoInitSync(): Promise<void> {
         ensureBadge();
         if (Sync) {
+            try {
+                await ensureStorageReady();
+            } catch (e) {
+                if (contentContext.isDevMode()) console.debug('[GemExporter:content] storage not ready', e);
+                return;
+            }
             await Sync.refreshInitialBadge();
             await Sync.syncOnce();
         }

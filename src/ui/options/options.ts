@@ -9,6 +9,7 @@
 // controllers/exportController.ts -> exportEngine.js -> export/exportOrchestrator.js ->
 // assetPipeline.js.
 import { FsWriterModule as FsWriter } from '../../core/engine/writers/fsWriter.js';
+import { ensureStorageReady } from '../../core/storage/schemaMigration.js';
 import { OptionsInit } from './modules/optionsInit.js';
 import { OptionsExport } from './modules/optionsExport.js';
 import { OptionsSync } from './modules/optionsSync.js';
@@ -55,6 +56,7 @@ export async function isTakeoutPromptCompleted(): Promise<boolean> {
 }
 
 export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<any> {
+    await ensureStorageReady();
     if (OptionsInit && OptionsInit.loadStore) {
         return await OptionsInit.loadStore(force, customSelected);
     }
@@ -68,6 +70,8 @@ export async function initWorkbench(): Promise<void> {
     if (typeof window !== 'undefined') {
         (window as any).__workbenchLoadStore = loadStore;
     }
+
+    await ensureStorageReady();
 
     if (OptionsTakeout && OptionsTakeout.init) {
         OptionsTakeout.init({ loadStore, log });

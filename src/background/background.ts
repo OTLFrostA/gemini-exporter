@@ -18,7 +18,7 @@ import {
 } from './tabAction.js';
 import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
 import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
-import { migrate as migrateStorageSchema } from '../core/storage/schemaMigration.js';
+import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 
 const fetchBatchChains = new Map<string, Promise<void>>();
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
@@ -31,8 +31,10 @@ initUninstallUrl();
 restoreAbortFlags().catch(() => {});
 initTabActionListeners();
 
-// One-time schema migration; unknown future versions fail-closed to avoid corruption.
-migrateStorageSchema().catch(() => {});
+// Establish storage readiness boundary at background startup.
+void ensureStorageReady().catch((err) => {
+    console.error('[Background] Storage readiness initialization failed:', err);
+});
 
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
@@ -105,6 +107,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                 try { sendResponse(response); } catch (_) { /* port may be gone */ }
             };
             try {
+                await ensureStorageReady();
                 await fetchBatch(ids, format, skipExported, guardedResponse, globalOffset, globalTotal, slot);
                 if (!responded) {
                     // Fail closed: a batch that produced no response is a
@@ -184,7 +187,10 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'liveSaveViaHandle' && msg.payload) {
-        handleLiveSaveViaHandle(msg.payload, msg.accountSlot || 'u0')
+        (async () => {
+            await ensureStorageReady();
+            return handleLiveSaveViaHandle(msg.payload, msg.accountSlot || 'u0');
+        })()
             .then(res => sendResponse(res))
             .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
         return true;
