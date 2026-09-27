@@ -49,7 +49,7 @@
 * **运行模式与场景调度机制**：
   * **统一标准模式：动态 20 题多模态场景池机制（默认行为）**：
     1. 项目在 `scripts/test_scenario_pool.json` 维护了 20 个覆盖 10+ 领域的高价值测试场景（包含 AI 图像生成、LaTeX 公式、Markdown 表格、多语言混排、长代码等全模态特性）；
-    2. 运行 `npm run test:live`（或 `npm run test:live:pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），并自动归档至 `scripts/test_scenario_archive.json`；
+    2. 运行 `npm run test:live`（或 `npm run test:live:pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），消费记录与归档写入 `temp/scenario_pool/`（git-ignored），corpus 文件本身不被修改；
     3. **AI 补仓铁律（用 2 补 2，常驻 20 题）**：AI 助手在协同开发、跑测试或提交 PR 前，必须运行 `npm run pool:status` 检查水位。若水位低于 20 个，必须针对当前缺口领域构思全新多模态题材补充回 20 题，杜绝同一题材（如深空探测器）反复堆积。
   * **自定义外挂数据集模式 (`--dataset`)**：
     - 支持通过 `--dataset <path>` 传入自定义的 JSON 测试用例文件，执行器将直接加载并运行该数据集。

@@ -16,11 +16,12 @@ print("=" * 60)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_json_files():
-    for jf in ["manifest.json", "package.json", "_locales/zh_CN/messages.json", "_locales/en/messages.json", "scripts/test_scenario_pool.json", "scripts/test_scenario_archive.json"]:
+    for jf in ["manifest.json", "package.json", "_locales/zh_CN/messages.json", "_locales/en/messages.json", "scripts/test_scenario_pool.json"]:
         p = os.path.join(BASE_DIR, jf)
         with open(p, "r", encoding="utf-8") as f:
             data = json.load(f)
             print(f"  ✓ JSON valid: {jf}")
+    # 场景池运行时归档（temp/scenario_pool/archive.json）是 git-ignored 的，不在 tracked 校验之列
 
 def test_manifest_structure():
     with open(os.path.join(BASE_DIR, "manifest.json"), "r", encoding="utf-8") as f:
