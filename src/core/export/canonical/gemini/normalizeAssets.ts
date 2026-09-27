@@ -1,6 +1,6 @@
 import type { Attachment as RepoAttachment, ChatMessage as RepoMessage } from '../../../../types/conversation.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
-import { decodeDataUrlAsset } from '../../assets/index.js';
+import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import { classifyAssetAvailability } from '../assetResolution.js';
 import type { Diagnostic } from '../diagnostics.js';
@@ -51,6 +51,36 @@ export function indexAssetRef(index: AssetLinkIndex, ref: string, assetId: strin
 export function dataUrlPreview(url: string): string {
     const head = url.slice(0, 64);
     return url.length > 64 ? `${head}…(${url.length} chars total)` : head;
+}
+
+const PENDING_INLINE_REF_PREFIX = 'assets/pending-inline/';
+
+function pendingInlineRef(assetId: string): string {
+    return `${PENDING_INLINE_REF_PREFIX}${assetId}`;
+}
+
+/**
+ * Web Crypto digest step for inline data: URL assets. The synchronous
+ * inline-parsing path only decodes bytes; this async pass — owned by the
+ * async normalization entry point — computes the SHA-256 digests and swaps
+ * the provisional byte-store refs for content-addressed storageRefs.
+ */
+export async function finalizeInlineAssetDigests(
+    assets: readonly Asset[],
+    byteStore: InlineByteStore,
+): Promise<void> {
+    for (const asset of assets) {
+        const ref = asset.storageRef;
+        if (!ref || !ref.startsWith(PENDING_INLINE_REF_PREFIX)) continue;
+        const bytes = byteStore.get(ref);
+        if (!bytes) continue;
+        const digest = await sha256Hex(bytes);
+        const storageRef = buildDataUrlStorageRef(digest, asset.mimeType ?? 'application/octet-stream');
+        byteStore.put(storageRef, bytes);
+        byteStore.remove(ref);
+        asset.sha256 = digest;
+        asset.storageRef = storageRef;
+    }
 }
 
 export interface AssetParserContext {
@@ -109,18 +139,18 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
     let storageRef: string | undefined;
     let mimeType: string | undefined;
     let sizeBytes: number | undefined;
-    let sha256: string | undefined;
     let failureReason: string | undefined;
     let dataUrlDiag: { code: 'DATA_URL_TOO_LARGE' | 'DATA_URL_MALFORMED'; message: string } | undefined;
     if (/^data:/i.test(trimmedSrc)) {
         // Omit sourceUrl so the raw data: URI payload is not duplicated in the serialized bundle.
-        const decoded = decodeDataUrlAsset(trimmedSrc);
+        // Decoding stays synchronous here; the Web Crypto digest is computed by
+        // finalizeInlineAssetDigests() once parsing reaches the async normalization layer.
+        const decoded = decodeDataUrl(trimmedSrc);
         if (decoded.ok) {
             status = 'available';
-            storageRef = decoded.storageRef;
+            storageRef = pendingInlineRef(assetId);
             mimeType = decoded.mimeType;
             sizeBytes = decoded.sizeBytes;
-            sha256 = decoded.sha256;
             name = altName || decoded.suggestedName;
             st.byteStore.put(storageRef, decoded.bytes);
         } else {
@@ -146,7 +176,6 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
         name,
         ...(mimeType ? { mimeType } : {}),
         ...(sizeBytes !== undefined ? { sizeBytes } : {}),
-        ...(sha256 ? { sha256 } : {}),
         ...(sourceUrl ? { sourceUrl } : {}),
         ...(storageRef ? { storageRef } : {}),
         status,
