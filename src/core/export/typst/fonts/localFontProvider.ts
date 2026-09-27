@@ -184,6 +184,10 @@ function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detai
 }
 
 export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
+    const globalCache = (globalThis as any)?.__geminiLocalFontsCache;
+    if (Array.isArray(globalCache) && globalCache.length > 0) {
+        return { ok: true, fonts: globalCache };
+    }
     const fn = getQueryLocalFontsFn();
     if (!fn) {
         return {
@@ -194,7 +198,15 @@ export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
     }
     try {
         const fonts = await fn();
-        return { ok: true, fonts: Array.isArray(fonts) ? fonts : [] };
+        const arr = Array.isArray(fonts) ? fonts : [];
+        if (arr.length > 0 && typeof (globalThis as any)?.__geminiLocalFontsCache !== 'undefined') {
+            try {
+                (globalThis as any).__geminiLocalFontsCache = arr;
+            } catch {
+                // Ignore cross-context write restriction
+            }
+        }
+        return { ok: true, fonts: arr };
     } catch (err) {
         const { reason, detail } = classifyQueryError(err);
         return { ok: false, reason, detail };

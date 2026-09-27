@@ -474,7 +474,7 @@ class ExtensionActions:
                 }}
             }}, 300);
         }})()
-        """)
+        """, user_gesture=True)
         start_time = time.time()
         downloaded_zip = None
 
