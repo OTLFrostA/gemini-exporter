@@ -39,7 +39,7 @@ test('sub/superscripts incl. multi-char and big operators', async () => {
     eq('x^{a+b}', 'x^(a + b)');
     eq('x_i^2', 'x_i^2');
     eq('\\sum_{i=1}^{n}', 'sum_(i = 1)^n');
-    eq('\\int_0^\\infty', 'int_0^oo');
+    eq('\\int_0^\\infty', 'integral_0^oo');
     eq('\\prod_{k=1}^m', 'prod_(k = 1)^m');
     eq('{a+b}^2', '(a + b)^2');
 });
