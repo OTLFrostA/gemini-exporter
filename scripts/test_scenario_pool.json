@@ -1,25 +1,5 @@
 [
   {
-    "id": "quantum_hall_fractional_chern_insulator",
-    "domain": "quantum_hall_fractional_chern_insulator",
-    "title": "关联拓扑物理：莫尔超晶格中分数量子反常霍尔效应 (FCAH) 与强关联相变",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables"
-    ],
-    "description": "测试莫尔超晶格分数陈绝缘体理论推导、Fubini-Study 度规张量连续模型、Lanczos ED 对角化 Python 代码与四大约束平台横向对比",
-    "turns": [
-      "从双层转角过渡金属二硫化物（tTMD，如转角 MoTe2）平面拓扑平带出发，推导库仑相互作用能与拓扑平带带宽之比 U/W >> 1 时分数化拓扑态（Fractional Chern Insulators）自发破缺时间反演对称性产生的基态多重简并与准粒子电荷 e/3 分数化机制。",
-      "阐释量子几何张量（Quantum Geometric Tensor）与 Fubini-Study 度规平整度对稳定无朗道能级分数量子霍尔相的核心判定条件，写出 Chern 数 C = -1 平带投影库仑哈密顿量的连续介质模型方程。",
-      "请使用 Python 编写一段紧凑代码，利用 Lanczos 精确对角化算法求解一个小规模晶格系统在分数填充 \\nu = 2/3 下的总多体基态波函数与谱流拓扑陈数检验框架。",
-      "设计结构化 Markdown 表格，对比石墨烯转角莫尔体系、转角双层二碲化钼（tMoTe2）、GaAs/AlGaAs 高迁移率二维电子气及磁性拓扑绝缘体薄膜在量子霍尔电导平台精度、观测所需磁场、平台临界温度及分数准粒子态类型。",
-      "深入分析利用干涉式单电子晶体管与片上微波阻抗显微镜在纳尺度空间无损探测莫尔超晶格分数局域激发与任意子编织相位的实验设计原理与测量噪声下限。"
-    ]
-  },
-  {
     "id": "atomic_physics_optical_lattice_clock_geodesy",
     "domain": "atomic_physics_optical_lattice_clock_geodesy",
     "title": "超冷光晶格原子钟：魔术波长极化对消与相对论重力测量学精密推导",
@@ -197,28 +177,6 @@
       "从等离子体色散理论出发，推导快速射电暴（FRB）信号在星际介质（ISM）与星系际介质（IGM）传播时的群延迟公式 \\Delta t = \\frac{e^2}{2\\pi m_e c} \\frac{\\text{DM}}{\\nu^2}，并推导出法拉第旋转量（Rotation Measure, RM）与磁场沿视线积分的物理公式 \\text{RM} = \\frac{e^3}{2\\pi m_e^2 c^4} \\int n_e B_\\parallel ds，说明为何偏振角线性变化与超大 RM 值（如 FRB 121102）是断言致密高度磁化极端环境的核心指纹。",
       "使用 Python 编写一个天文数据处理算法脚本，模拟宽带射电望远镜（频率范围 1.0 GHz 至 1.8 GHz，含 1024 个频段通道）接收到的被色散污染的原始动态谱（Dynamic Spectrum），实现基于非相干消色散（Incoherent Dedispersion）的遍历试探步长算法，计算试验色散量 \\text{DM}_{trial} 对应的脉冲信噪比曲线，精确重构脉冲固有到达时间与半高全宽（FWHM）。",
       "使用 Markdown 表格，对比重复快速射电暴（Repeating FRBs, 如 FRB 121102 / FRB 20200120E）、非重复快速射电暴（Non-repeating FRBs）、旋转射电暂现源（RRATs）以及银河系内磁星 SGR 1935+2154 射电暴在脉冲爆发各向同性能量量级（\\text{erg}）、偏振度与电矢量位置角（EVPA）摆动行为、能量谱指数与微结构子脉冲下漂（Sad Trombone Effect）特征上的异同点。"
-    ]
-  },
-  {
-    "id": "nanophotonics_topological_polariton_condensate",
-    "domain": "nanophotonics_topological_polariton_condensate",
-    "title": "纳米光子学：激子极化激元玻色-爱因斯坦凝聚与非线性涡旋动力学",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试半导体微腔激子极化激元 Gross-Pitaevskii 方程推导、极化涡旋相位解缠 Python 仿真、微腔激子凝聚光场相干渲染图与极化平台性能横向对比",
-    "turns": [
-      "在半导体平面微腔强耦合物理框架下，推导描述腔光子与激子态混合的二维二能级薛定谔-玻色 Gross-Pitaevskii 方程组，分析有效激子质量、非线性激子-激子散射项以及能量阻尼耗散下的玻色-爱因斯坦凝聚（BEC）非平衡阈值相变判据。",
-      "严格论述微腔激子极化激元超流体中拓扑量子化涡旋（Quantized Vortices）的环流相位分布 \\oint \\nabla \\theta \\cdot d\\mathbf{r} = 2\\pi q，推导朗道超流临界速度 v_c = \\sqrt{g|\\psi|^2 / m_{pol}} 以及激发谱声子支色散关系。",
-      "请帮我生成一张高科技微纳光学示意图：超高真空低温半导体分布布拉格反射镜（DBR）微腔截面，量子阱层中散发着虹彩荧光的高密度激子极化激元玻色-爱因斯坦凝聚体，呈现宏观量子相干双环涡旋光场分布，带有精细的纳米干涉条纹。",
-      "设计一个结构化 Markdown 表格，对比 GaAs/AlGaAs 多量子阱、无机卤化物钙钛矿、单层过渡金属二硫属化物 (TMDC) 与有机微腔在极化激元工作温度 (K)、激子结合能 (meV)、非线性克尔系数及超快全光开关阈值能耗 (fJ) 上的技术指标。",
-      "使用 Python 编写基于分步傅里叶方法 (Split-Step Fourier Method) 的开耗散 Gross-Pitaevskii 方程求解器核心代码片段，模拟连续高斯激光泵浦下稳态凝聚体的空间二维波函数振幅与空间相位角分布。"
     ]
   },
   {
@@ -410,6 +368,49 @@
       "使用 Python 编写数值程序，在谐振子激发态基底（Harmonic Oscillator Basis, N=30）下截断并对角化 Fluxonium 比特哈密顿量矩阵，计算从 \\Phi_{ext} = 0 到 \\Phi_0 的前 4 个本征能级演化谱线 E_k(\\Phi_{ext})，并输出在半磁通点处的计算跃迁频率 \\omega_{01} 与 \\omega_{12}。",
       "推导由准粒子遂穿（Quasiparticle Tunneling）与磁通噪声（1/f Flux Noise）主导的去相干速率 \\Gamma_2^* 和 Purcell 滤波效应微扰表达式，给出由 \\partial^2 \\omega_{01} / \\partial \\Phi_{ext}^2 决定的二阶磁通噪声纯退相干时标 T_\\phi 的标度律。",
       "使用 Markdown 表格，对比 Transmon 比特、Fluxonium 比特、0-\\pi 拓扑保护超导比特以及超导谐振腔玻色猫态比特在非简谐性 (\\alpha / 2\\pi)、相干时间 T_1 与 T_2、单/双量子比特门保真度阈值以及微波读出与操控复杂度四个维度的技术优劣。"
+    ]
+  },
+  {
+    "id": "planetary_astrophysics_jwst_direct_imaging_coronagraphy",
+    "domain": "planetary_astrophysics_jwst_direct_imaging",
+    "title": "系外行星天文物理学：JWST日冕仪极端高对比度成像与热辐射光谱反演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试李奥 (Lyot) 日冕仪光瞳切趾衍射抑制推导、角微分成像 (ADI) PCA 散斑噪声扣除算法、系外巨行星日冕仪直视图像生成与空基红外探测器横向对比",
+    "turns": [
+      "基于傅里叶光学理论，针对詹姆斯·韦伯空间望远镜 (JWST) NIRCam 与 MIRI 日冕仪光学系统，详细推导经典李奥日冕仪（Lyot Coronagraph）经焦平面掩模（FPM）滤波后在李奥光瞳面（Lyot Stop）处的电场振幅分布 E_{LS}(u, v) = [E_0(x, y) * \\hat{M}(x, y)] \\cdot L(u, v)，严格论证为什么李奥光瞳光阑能阻截母星在主镜六边形边缘产生的强衍射闪烁光，从而在内工作角（IWA \\approx 0.3''-0.5''）外实现高达 10^{-5} 至 10^{-6} 的恒星光通量对比度抑制。",
+      "请生成一张具备深空天文摄影与科学可视化质感的多模态插图：展现韦伯太空望远镜（JWST）在日冕仪模式下对一颗年轻恒星系统进行极端高对比度直接成像的真实观测图景。画面中央为被暗色日冕仪掩模遮挡的刺眼母星残余微弱光晕与衍射十字星芒；掩模外侧在幽蓝色的星周残屑吸积盘（Debris Disk）缝隙中，清晰捕获到一颗处于红外发光状态的年轻巨行星（如直接成像系外行星 HIP 65426 b），行星呈现出温暖的橘黄色红外热辐射光球，背景为深邃星野与暗红色的遥远红移星系，高细节、兼具《天体物理学杂志》(ApJ) 封面与国家地理深空审美。",
+      "针对空间望远镜在轨波前漂移与微热畸变引发的准静态散斑噪声（Quasi-Static Speckles），推导角微分成像（Angular Differential Imaging, ADI）与参考星差分成像（RDI）的散斑自校准模型。基于 Karhunen-Loève 数据约简算法（KLIP/PCA），写出通过正交基投影重构最优母星 PSF 并从原始科学观测靶区中减去母星模型保留微弱行星光子通量的数学泛函形式。",
+      "使用 Python 编写脚本，模拟带有泊松散粒噪声与散斑噪声的 2D 日冕仪探测图像，构建角相关对比度曲线（Contrast Curve）计算程序，输出在径向角分离 0.5'' 至 3.0'' 范围内的 5\\sigma 探测极限光度比，并绘制对应的信噪比径向演化剖面。",
+      "使用 Markdown 表格，对比詹姆斯·韦伯空间望远镜 (JWST NIRCam/MIRI)、地面甚大望远镜 SPHERE、双子星 GPI 以及未来的罗曼空间望远镜 CGI (Roman Coronagraph) 在工作波段 (\\mu m)、极限对比度动态范围、极端自适应光学 (ExAO) 修正帧率、最小内工作角 (IWA) 以及目标系外行星物理属性（年轻自发光气态巨行星 vs 成熟反射光类地行星）维度的核心性能。"
+    ]
+  },
+  {
+    "id": "condensed_matter_majorana_zero_modes_topological_braiding",
+    "domain": "topological_superconductivity_majorana_zero_modes",
+    "title": "拓扑超导与量子计算：半导体-超导纳米线马约拉纳零能模与非阿贝尔编织推导",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 Kitaev 一维 p 波超导链连续极限与 Oreg-Lutchyn 模型推导、马约拉纳零模波函数空间局域指数衰减、四端 T 型结非阿贝尔编织酉矩阵演化 Python 脚本与拓扑量子比特横向对比",
+    "turns": [
+      "在 Oreg-Lutchyn 理论模型下，针对强 Rashba 自旋-轨道耦合（\\alpha_R）半导体纳米线（如 InAs 或 InSb）外延临近接触 s 波超导体（配对能隙 \\Delta）并在平行线轴施加塞曼磁场 V_Z 的一维复合系统，严格推导其 Bogoliubov-de Gennes (BdG) 哈密顿量 \\mathcal{H}_{BdG} = (\\frac{p_x^2}{2m^*} - \\mu)\\tau_z + \\alpha_R p_x \\sigma_y \\tau_z + V_Z \\sigma_x + \\Delta \\tau_x，证明出现拓扑非平庸超导相与端点马约拉纳零模（MZM）的拓扑相变临界充要条件 V_Z > \\sqrt{\\Delta^2 + \\mu^2}。",
+      "从连续介质极限出发，求解准一维有限长纳米线（长 L \\gg \\xi）两端马约拉纳实费米算符 \\gamma_1, \\gamma_2 的零能空间波函数 \\psi_0(x)，证明其局域态密度在端点呈指数衰减 \\psi(x) \\sim e^{-x/\\xi} \\cos(k_F x)，并推导由于两端波函数重叠引起的有限尺寸杂化能隙能级分裂 \\Delta E \\propto e^{-L/\\xi} \\cos(k_F L) 对拓扑简并保护度的物理限制。",
+      "使用 Python 编写脚本，基于紧束缚近似（Tight-Binding Model）离散化一维 N 节点超导纳米线晶格系统，构建 BdG 矩阵并使用 NumPy/SciPy 稀疏对角化求解随塞曼磁场 V_Z 连续调节下的本征能谱流演化曲线，精准再现体能隙闭合、重新打开以及零偏压电导峰（Zero-Bias Conductance Peak, ZBCP, 量子化高度 2e^2/h）对应的孤立零能平带出现。",
+      "推导在四端 T 型纳米线结（T-junction）网络中，通过绝热门电压调节各臂的拓扑/平庸相变边界，实现两个马约拉纳零能模 \\gamma_i 与 \\gamma_j 空间逆时针交换（Braiding）的过程。严格写出非阿贝尔几何贝里相位矩阵（Non-Abelian Berry Phase），证明交换操作对应的拓扑演化算符为单演群酉变换 U_{ij} = \\exp(\\frac{\\pi}{4} \\gamma_i \\gamma_j) = \\frac{1}{\\sqrt{2}}(1 + \\gamma_i \\gamma_j)，论述其为何能天然免疫局域退相干噪声构建拓扑量子编织门。",
+      "使用 Markdown 表格，对比基于马约拉纳零模的拓扑超导量子比特、超导 Transmon 量子比特、半导体量子点自旋量子比特（Loss-DiVincenzo 比特）以及离子阱量子比特在逻辑相干时间保护机制（非局域拓扑存储 vs 动力学解耦/主动纠错）、基本单/双比特量子门操作时标、硬件制造容差鲁棒性以及当前实验物理证据确定性维度的核心指标对比。"
     ]
   }
 ]
