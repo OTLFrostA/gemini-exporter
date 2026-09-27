@@ -7,6 +7,7 @@ const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxC
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const {
     resolveLocalFonts,
+    clearLocalFontCache,
     BUNDLED_MATH_FALLBACK,
     SYSTEM_FALLBACK,
 } = require('../src/core/export/typst/fonts/localFontProvider.js');
@@ -58,9 +59,11 @@ function fakeEntry(
 const KNOWN_BYTES = new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]);
 
 function mockQueryLocalFonts(entries: unknown[]) {
+    clearLocalFontCache();
     const prev = (globalThis as any).queryLocalFonts;
     (globalThis as any).queryLocalFonts = async () => entries;
     return () => {
+        clearLocalFontCache();
         if (prev === undefined) delete (globalThis as any).queryLocalFonts;
         else (globalThis as any).queryLocalFonts = prev;
     };

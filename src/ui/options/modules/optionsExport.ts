@@ -20,6 +20,7 @@ import { ProgressView } from '../../views/progressView.js';
 import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { STORAGE_KEYS } from '../../../core/utils/constants.js';
+import { warmLocalFontCache } from '../../../core/export/typst/fonts/localFontProvider.js';
 import { $ } from '../../uiCommon.js';
 
 export { normId, isRealTitle };
@@ -609,16 +610,8 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
     // Export Buttons
     $('btnExport')?.addEventListener('click', async () => {
         const fmtSelect = $('format') as HTMLSelectElement | null;
-        if (fmtSelect?.value === 'pdf' && typeof (window as any).queryLocalFonts === 'function') {
-            try {
-                // Request fonts within the user click gesture and cache them
-                const fonts = await (window as any).queryLocalFonts();
-                if (Array.isArray(fonts) && fonts.length > 0) {
-                    (window as any).__geminiLocalFontsCache = fonts;
-                }
-            } catch {
-                // Handled gracefully by localFontProvider fallback
-            }
+        if (fmtSelect?.value === 'pdf') {
+            await warmLocalFontCache();
         }
         exportSelected();
     });

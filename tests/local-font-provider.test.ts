@@ -19,6 +19,9 @@ const {
     bestCandidateForFamily,
     queryLocalFontsProvider,
     resolveLocalFonts,
+    warmLocalFontCache,
+    getCachedLocalFonts,
+    clearLocalFontCache,
     CJK_FONT_STACK,
 } = require('../src/core/export/typst/fonts/localFontProvider.js');
 
@@ -33,11 +36,13 @@ function mockEntry(family: string, postscriptName: string, style: string): any {
 }
 
 function stubQueryLocalFonts(fn: any): () => void {
+    clearLocalFontCache();
     const g: any = globalThis;
     const had = Object.prototype.hasOwnProperty.call(g, 'queryLocalFonts');
     const prev = g.queryLocalFonts;
     g.queryLocalFonts = fn;
     return () => {
+        clearLocalFontCache();
         if (had) g.queryLocalFonts = prev;
         else delete g.queryLocalFonts;
     };
@@ -275,4 +280,67 @@ test('resolve: limit truncates in priority order with info diagnostic', async ()
 test('stacks: CJK stack is non-empty and ordered', () => {
     assert.ok(Array.isArray(CJK_FONT_STACK) && CJK_FONT_STACK.length > 0);
     assert.strictEqual(CJK_FONT_STACK[0], 'Noto Sans CJK SC');
+});
+
+test('cache: warmLocalFontCache queries once and caches entries', async () => {
+    let callCount = 0;
+    const restore = stubQueryLocalFonts(async () => {
+        callCount++;
+        return [mockEntry('Noto Sans CJK SC', 'NotoSansCJKsc-Regular', 'Regular')];
+    });
+    try {
+        assert.strictEqual(getCachedLocalFonts(), null);
+        await warmLocalFontCache();
+        assert.strictEqual(callCount, 1);
+        const cached = getCachedLocalFonts();
+        assert.ok(cached && cached.length === 1);
+        assert.strictEqual(cached[0].family, 'Noto Sans CJK SC');
+
+        // Calling warm again does not re-query
+        await warmLocalFontCache();
+        assert.strictEqual(callCount, 1);
+
+        // queryLocalFontsProvider reuses the cache
+        const res = await queryLocalFontsProvider();
+        assert.strictEqual(res.ok, true);
+        assert.strictEqual(callCount, 1);
+    } finally {
+        restore();
+    }
+});
+
+test('cache: warmLocalFontCache handles rejection gracefully without throwing', async () => {
+    const restore = stubQueryLocalFonts(async () => {
+        throw new Error('Access denied');
+    });
+    try {
+        await assert.doesNotReject(async () => {
+            await warmLocalFontCache();
+        });
+        assert.strictEqual(getCachedLocalFonts(), null);
+    } finally {
+        restore();
+    }
+});
+
+test('cache: clearLocalFontCache resets cached entries and allows re-query', async () => {
+    let callCount = 0;
+    const restore = stubQueryLocalFonts(async () => {
+        callCount++;
+        return [mockEntry('Arial', 'ArialMT', 'Regular')];
+    });
+    try {
+        await warmLocalFontCache();
+        assert.strictEqual(callCount, 1);
+        assert.ok(getCachedLocalFonts() !== null);
+
+        clearLocalFontCache();
+        assert.strictEqual(getCachedLocalFonts(), null);
+
+        const res = await queryLocalFontsProvider();
+        assert.strictEqual(res.ok, true);
+        assert.strictEqual(callCount, 2);
+    } finally {
+        restore();
+    }
 });
