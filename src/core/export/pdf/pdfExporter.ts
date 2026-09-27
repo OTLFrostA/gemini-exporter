@@ -8,6 +8,7 @@ import { createWriter, type IExportWriter } from '../../engine/writers/writerInt
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { isAbortError } from './errors.js';
+import { BatchWorker, type FetchChatDetailResult } from '../../engine/export/batchWorker.js';
 import { IPdfCompiler, STUB_PDF_COMPILER_NAME } from './pdfCompiler.js';
 import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
@@ -70,6 +71,15 @@ export interface PdfExporterOptions {
     writer?: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
+    /** Account slot forwarded to the detail fetch (mirrors the normal export path). */
+    currentSlot?: string;
+    skip?: boolean;
+    /**
+     * Detail-fetch seam. Production defaults to BatchWorker.fetchChatDetail —
+     * the same path the normal export uses; tests inject a mock so no live
+     * Gemini tab is needed.
+     */
+    fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
 }
 
 export interface PdfExporterCallbacks {
@@ -121,6 +131,62 @@ function createProductionCompiler(): IPdfCompiler {
 // Match by name rather than instanceof so the check works across bundle boundaries.
 function isStubCompiler(compiler: IPdfCompiler): boolean {
     return compiler?.name === STUB_PDF_COMPILER_NAME;
+}
+
+/** Fail-closed error code: refusing to emit a "0 messages" PDF. */
+export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
+const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
+
+/** True when the conversation already carries real message content (messages or turns). */
+function hasUsableMessages(chat: any): boolean {
+    if (!chat || typeof chat !== 'object') return false;
+    if (Array.isArray(chat.messages) && chat.messages.length > 0) return true;
+    if (Array.isArray(chat.turns) && chat.turns.length > 0) return true;
+    return false;
+}
+
+/**
+ * Extract the chat from a fetchChatDetail result using the exact contract
+ * ExportOrchestrator uses: results[0] wins, then chat. Never invent fields.
+ */
+function extractChatFromDetailResult(res: FetchChatDetailResult, nid: string, fallback: any): any {
+    const chunkResults = res.results || (res.chat ? [res.chat] : []);
+    const chat = chunkResults[0] || fallback;
+    if (chat && typeof chat === 'object') chat.id = nid;
+    return chat;
+}
+
+/**
+ * Resolve a full conversation for a metadata-only list item via the same
+ * BatchWorker.fetchChatDetail path the normal export uses. The normalizer
+ * stays a pure data transform — no network fetch is ever put inside it.
+ */
+async function resolveFullChatDetail(args: {
+    id: string;
+    title: string;
+    index: number;
+    total: number;
+    currentSlot: string;
+    skip: boolean;
+    signal: AbortSignal;
+    fetchChatDetail: typeof BatchWorker.fetchChatDetail;
+    onLog: (msg: string, level?: string) => void;
+}): Promise<{ ok: true; chat: any } | { ok: false; error: string }> {
+    const { id, title, index, total, currentSlot, skip, signal, fetchChatDetail, onLog } = args;
+    const nid = normId(id);
+    let res: FetchChatDetailResult | null = null;
+    try {
+        res = await fetchChatDetail({ id: nid, title }, index, total, currentSlot, skip, 'pdf', signal);
+    } catch (e: any) {
+        return { ok: false, error: e?.message || String(e) };
+    }
+    if (!res || !res.success) {
+        return { ok: false, error: (res && res.error) || 'unknown error' };
+    }
+    const chat = extractChatFromDetailResult(res, nid, { id: nid, title });
+    const msgCount = Array.isArray(chat?.messages) ? chat.messages.length : 0;
+    onLog(`[PDF] ${title || nid}: resolved full conversation detail (${msgCount} messages)`, 'info');
+    return { ok: true, chat };
 }
 
 export interface MountedRuntimeFonts {
@@ -235,6 +301,11 @@ export class PdfExporter {
         const useZip = options.useZip !== false;
         const locale = options.locale === 'en' ? 'en' : 'zh';
         const folderName = options.folderName || DEFAULT_EXPORT_FOLDER_NAME;
+        // Detail-fetch seam: same BatchWorker.fetchChatDetail the normal export
+        // uses; tests inject a mock. currentSlot/skip mirror optionsExport.
+        const fetchChatDetailFn = options.fetchChatDetail ?? BatchWorker.fetchChatDetail;
+        const currentSlot = options.currentSlot ?? 'u0';
+        const skip = options.skip ?? false;
 
         const items = selected.map((s) => {
             const id = typeof s === 'string' ? s : s?.id;
@@ -377,15 +448,57 @@ export class PdfExporter {
             if (this.aborted || signal.aborted) break;
             report(i, title);
 
-            const chat =
-                (Array.isArray(options.conversations)
+            const listChat =
+                Array.isArray(options.conversations)
                     ? options.conversations.find((c: any) => normId(c?.id) === normId(id))
-                    : null) ?? (typeof selected[i] === 'object' ? selected[i] : { id, title });
+                    : null;
+            const selectedChat = typeof selected[i] === 'object' ? selected[i] : { id, title };
 
             const itemDiagnostics: RenderDiagnostic[] = [];
             try {
+                // P0: Options-workbench list items are shallow metadata. When the
+                // item resolves from options.conversations but carries no message
+                // content, resolve the full conversation via the same
+                // fetchChatDetail path the normal export uses — never normalize
+                // metadata straight into a "0 messages" PDF. The legacy
+                // selected-object fallback path (list lookup miss) is untouched.
+                let chat: any = listChat ?? selectedChat;
+                if (listChat && !hasUsableMessages(chat)) {
+                    const fetched = await resolveFullChatDetail({
+                        id,
+                        title,
+                        index: i,
+                        total,
+                        currentSlot,
+                        skip,
+                        signal,
+                        fetchChatDetail: fetchChatDetailFn,
+                        onLog,
+                    });
+                    if (this.aborted || signal.aborted) break;
+                    if (!fetched.ok) {
+                        failItem(id, title, `[${PDF_DETAIL_FETCH_FAILED}] ${fetched.error}`, itemDiagnostics);
+                        report(i + 1, title);
+                        continue;
+                    }
+                    chat = fetched.chat;
+                }
+
                 const { bundle, diagnostics, byteStore } = await normalizeGeminiConversation(chat as any);
                 for (const d of diagnostics) itemDiagnostics.push(toRenderDiagnostic(d));
+
+                // Fail closed on the list path: even a successfully resolved
+                // conversation must never become a "0 messages" PDF.
+                if (listChat && (bundle?.conversation?.messages?.length ?? 0) === 0) {
+                    failItem(
+                        id,
+                        title,
+                        `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`,
+                        itemDiagnostics,
+                    );
+                    report(i + 1, title);
+                    continue;
+                }
 
                 const itemInput: PipelineItemInput = {
                     conversationId: id,
