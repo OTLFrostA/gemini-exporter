@@ -25,7 +25,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { PdfExporter, StubPdfCompiler, buildMinimalValidPdf } = require('../src/core/export/pdf/index.js');
+const { PdfExporter } = require('../src/core/export/pdf/index.js');
+const { buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
@@ -141,7 +142,7 @@ test('dispose: production-owned compiler (constructor default) is disposed', () 
 test('dispose: an injected/shared compiler is never disposed', async () => {
     const fake = makeFakeCompiler();
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(fake as any, { allowStub: true });
+    const exporter = new PdfExporter(fake as any);
     const result = await runLikeController(exporter, baseOptions(writer, { compiler: fake }));
     assert.strictEqual(result.succeeded, 1);
     assert.strictEqual(fake.calls.dispose, 0, 'injected compilers belong to their caller');

@@ -7,7 +7,7 @@ import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { isAbortError } from './errors.js';
 import { BatchWorker, type FetchChatDetailResult } from '../../engine/export/batchWorker.js';
-import { IPdfCompiler, STUB_PDF_COMPILER_NAME } from './pdfCompiler.js';
+import { IPdfCompiler } from './pdfCompiler.js';
 import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
 import { projectStage } from './pipeline/projectionStage.js';
@@ -65,7 +65,6 @@ export interface PdfExporterOptions {
     dirHandle?: any;
     folderName?: string;
     compiler?: IPdfCompiler;
-    allowStub?: boolean;
     writer?: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
@@ -94,10 +93,6 @@ const DEFAULT_PIPELINE_STAGES: PipelineStages = {
     deliver: deliverStage,
 };
 
-export interface PdfExporterConstructorOptions {
-    allowStub?: boolean;
-}
-
 function isExtensionPageContext(): boolean {
     return (
         typeof document !== 'undefined' &&
@@ -109,17 +104,11 @@ function isExtensionPageContext(): boolean {
 function createProductionCompiler(): IPdfCompiler {
     if (!isExtensionPageContext()) {
         throw new Error(
-            '[M6 stub gate] PdfExporter constructed without a compiler outside an ' +
-                'extension page context. Inject an IPdfCompiler explicitly ' +
-                '(tests: pass a stub compiler instance with allowStub: true).',
+            '[PdfExporter] constructed without a compiler outside an ' +
+                'extension page context. Inject an IPdfCompiler explicitly.',
         );
     }
     return new TypstSandboxCompiler();
-}
-
-// Match by name rather than instanceof so the check works across bundle boundaries.
-function isStubCompiler(compiler: IPdfCompiler): boolean {
-    return compiler?.name === STUB_PDF_COMPILER_NAME;
 }
 
 export {
@@ -197,11 +186,9 @@ export class PdfExporter {
     aborted = false;
     private _abortController: AbortController | null = null;
     private _compiler: IPdfCompiler;
-    private _allowStub: boolean;
     private readonly ownsCompiler: boolean;
 
-    constructor(compiler?: IPdfCompiler, opts?: PdfExporterConstructorOptions) {
-        this._allowStub = opts?.allowStub ?? false;
+    constructor(compiler?: IPdfCompiler) {
         this.ownsCompiler = compiler === undefined;
         this._compiler = compiler ?? createProductionCompiler();
     }
@@ -230,15 +217,6 @@ export class PdfExporter {
         const onLog = callbacks.onLog ?? (() => {});
         const onItemExported = callbacks.onItemExported ?? (() => {});
         const compiler = options.compiler ?? this._compiler;
-
-        const allowStub = options.allowStub ?? this._allowStub;
-        if (!allowStub && isStubCompiler(compiler)) {
-            throw new Error(
-                '[M6 stub gate] StubPdfCompiler reached the export path without an ' +
-                    'explicit allowStub opt-in. Refusing to produce placeholder PDFs; ' +
-                    'pass allowStub: true (tests/drills only) or inject the real compiler.',
-            );
-        }
 
         this.aborted = false;
         this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
