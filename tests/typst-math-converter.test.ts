@@ -154,9 +154,28 @@ test('prototype-chain command names cannot smuggle JS builtins', async () => {
 });
 
 test('diagnostic message carries a source preview for debugging', async () => {
-    const r = convertMathWithDiagnostic('\\begin{matrix} a \\end{matrix}', 'latex', true);
+    const r = convertMathWithDiagnostic('\\begin{align} a = b \\end{align}', 'latex', true);
     assert.strictEqual(r.diagnostic?.code, 'TYPST_MATH_CONVERT_FAILED');
     assert.ok(r.diagnostic?.message.includes('\\begin'));
+});
+
+test('rich symbols, styles, functions, and multiple integrals', async () => {
+    eq('\\mathbf{r} + \\boldsymbol{\\phi}', 'bold(r) + bold(phi)');
+    eq('\\mathcal{F}\\{\\psi\\}', 'cal(F) brace.l psi brace.r');
+    eq('\\mathbb{R}^3', 'bb(R)^3');
+    eq('\\Psi^\\dagger', 'Psi^dagger');
+    eq('\\hbar \\omega', 'planck.reduce omega');
+    eq('A \\ne B', 'A != B');
+    eq('\\ln x + \\exp y + \\det M', 'ln x + exp y + det M');
+    eq('\\iint f \\, dx \\, dy + \\iiint g', 'integral.double f d x d y + integral.triple g');
+    eq('\\left\\{ x \\;\\middle|\\; x > 0 \\right\\}', 'brace.l x | x > 0 brace.r');
+});
+
+test('matrix and cases environments', async () => {
+    eq('\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}', 'mat(a, b; c, d)', true);
+    eq('\\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}', 'mat(delim: "[", 1, 0; 0, 1)', true);
+    eq('\\begin{matrix} x & y \\\\ z & w \\end{matrix}', 'mat(delim: none, x, y; z, w)', true);
+    eq('\\begin{cases} 1 & x > 0 \\\\ 0 & x \\le 0 \\end{cases}', 'cases(1, x > 0, 0, x <= 0)', true);
 });
 
 test('plugs into the payload adapter convertMath hook', async () => {
