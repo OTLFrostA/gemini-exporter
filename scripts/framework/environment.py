@@ -78,10 +78,51 @@ class TestEnvironment:
         self.output_dir = os.path.abspath(output_dir or os.path.join(self.repo_path, "tests", "output", "live_export"))
         self.viewport_size = viewport_size
         self.ext_id: Optional[str] = None
+        self.browser_cdp: Optional[CDPConnection] = None
         os.makedirs(self.output_dir, exist_ok=True)
+
+    def get_browser_cdp(self) -> Optional[CDPConnection]:
+        """获取或复用持久化 Browser 级 CDP 连接以保证 Browser.grantPermissions 生命周期有效"""
+        if self.browser_cdp is not None:
+            return self.browser_cdp
+        browser_ws = get_browser_ws_url(self.port)
+        if browser_ws:
+            try:
+                self.browser_cdp = CDPConnection(browser_ws)
+            except Exception:
+                self.browser_cdp = None
+        return self.browser_cdp
+
+    def setup_permissions(self):
+        """为当前扩展 Origin 授予 localFonts 权限，保证本地字体可被 Local Font Access 读取"""
+        b_cdp = self.get_browser_cdp()
+        if not b_cdp:
+            return
+        ext_id = self.get_extension_id()
+        if not ext_id:
+            return
+        ext_origin = f"chrome-extension://{ext_id}"
+        try:
+            b_cdp.call("Browser.grantPermissions", {
+                "permissions": ["localFonts"],
+                "origin": ext_origin
+            })
+            b_cdp.call("Browser.setPermission", {
+                "permission": {"name": "local-fonts"},
+                "setting": "granted",
+                "origin": ext_origin
+            })
+        except Exception:
+            pass
 
     def reinstall_extension(self) -> Optional[str]:
         """通过 CDP 域指令纯净重装扩展并更新缓存的 ext_id"""
+        if self.browser_cdp:
+            try:
+                self.browser_cdp.close()
+            except Exception:
+                pass
+            self.browser_cdp = None
         new_id = CDPActions.reinstall_extension(port=self.port, repo_path=self.repo_path)
         if new_id:
             self.ext_id = new_id
@@ -198,26 +239,25 @@ class TestEnvironment:
         return self.connect_tab("gemini")
 
     def connect_options(self) -> CDPConnection:
-        ext_id = self.get_extension_id()
-        if ext_id:
-            browser_ws = get_browser_ws_url(self.port)
-            if browser_ws:
-                try:
-                    b_cdp = CDPConnection(browser_ws)
-                    ext_origin = f"chrome-extension://{ext_id}"
-                    b_cdp.call("Browser.grantPermissions", {
-                        "permissions": ["localFonts"],
-                        "origin": ext_origin
-                    })
-                    b_cdp.call("Browser.setPermission", {
-                        "permission": {"name": "local-fonts"},
-                        "setting": "granted",
-                        "origin": ext_origin
-                    })
-                    b_cdp.close()
-                except Exception:
-                    pass
-        return self.connect_tab("options")
+        self.setup_permissions()
+        conn = self.connect_tab("options")
+        # 预热并缓存本地字体至 window.__geminiLocalFontsCache
+        try:
+            conn.eval("""
+            (async () => {
+                if (typeof window.queryLocalFonts === 'function' && (!window.__geminiLocalFontsCache || window.__geminiLocalFontsCache.length === 0)) {
+                    try {
+                        const fonts = await window.queryLocalFonts();
+                        if (Array.isArray(fonts) && fonts.length > 0) {
+                            window.__geminiLocalFontsCache = fonts;
+                        }
+                    } catch (e) {}
+                }
+            })()
+            """, await_promise=True, user_gesture=True)
+        except Exception:
+            pass
+        return conn
 
     def connect_popup(self) -> CDPConnection:
         return self.connect_tab("popup")
@@ -259,33 +299,17 @@ class TestEnvironment:
         target_dir = output_dir or self.output_dir
         os.makedirs(target_dir, exist_ok=True)
 
-        browser_ws = get_browser_ws_url(self.port)
-        if browser_ws:
+        b_cdp = self.get_browser_cdp()
+        if b_cdp:
             try:
-                b_cdp = CDPConnection(browser_ws)
                 b_cdp.call("Browser.setDownloadBehavior", {
                     "behavior": "allow",
                     "downloadPath": target_dir,
                     "eventsEnabled": True
                 })
-                ext_id = self.get_extension_id()
-                if ext_id:
-                    ext_origin = f"chrome-extension://{ext_id}"
-                    try:
-                        b_cdp.call("Browser.grantPermissions", {
-                            "permissions": ["localFonts"],
-                            "origin": ext_origin
-                        })
-                        b_cdp.call("Browser.setPermission", {
-                            "permission": {"name": "local-fonts"},
-                            "setting": "granted",
-                            "origin": ext_origin
-                        })
-                    except Exception:
-                        pass
-                b_cdp.close()
             except Exception:
                 pass
+        self.setup_permissions()
 
         if cdp:
             try:

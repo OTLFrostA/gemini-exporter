@@ -146,10 +146,12 @@ class CDPConnection:
             received += len(chunk)
         return b"".join(chunks)
 
-    def eval(self, expr, await_promise=False, timeout=30):
+    def eval(self, expr, await_promise=False, timeout=30, user_gesture=False):
         params = {"expression": expr, "returnByValue": True}
         if await_promise:
             params["awaitPromise"] = True
+        if user_gesture:
+            params["userGesture"] = True
         res = self.call("Runtime.evaluate", params, timeout=timeout)
         result = res.get("result", {})
         if "exceptionDetails" in result:

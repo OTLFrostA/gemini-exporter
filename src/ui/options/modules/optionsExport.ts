@@ -611,8 +611,11 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         const fmtSelect = $('format') as HTMLSelectElement | null;
         if (fmtSelect?.value === 'pdf' && typeof (window as any).queryLocalFonts === 'function') {
             try {
-                // Request fonts within the user click gesture so Chrome shows the native font permission prompt
-                await (window as any).queryLocalFonts();
+                // Request fonts within the user click gesture and cache them
+                const fonts = await (window as any).queryLocalFonts();
+                if (Array.isArray(fonts) && fonts.length > 0) {
+                    (window as any).__geminiLocalFontsCache = fonts;
+                }
             } catch {
                 // Handled gracefully by localFontProvider fallback
             }
