@@ -7,6 +7,9 @@
  * 否则 `npm run test:unit`（run_tests.py 要求每个 test 文件 returncode 为 0）会变红。
  *
  * 运行：node -r tests/ts_register.js --test tests/p0_regressions.test.ts
+ *
+ * @retire-when: P0-2/4/5/6/7 fixes land and this suite goes green — then fold
+ *   surviving cases into the permanent suites and delete the red-by-design husks
  */
 export {};
 const test = require('node:test');

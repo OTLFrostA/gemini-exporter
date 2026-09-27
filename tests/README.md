@@ -112,3 +112,22 @@ npm run test:visual:custom -- --endpoint <url> [--model <name>] [--goal "<测试
 # 或: python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
 ```
 
+---
+
+## 五、测试生命周期标记 (Test Lifetime: `@retire-when`)
+
+为某个版本、某个修复**临时**加的回归锁（regression lock），必须打可 grep 的生命周期 tag，
+否则未来没人知道它什么时候可以退役。约定：
+
+```ts
+// @retire-when: <condition>   — 例子：
+// @retire-when: schema v5 ships
+// @retire-when: Chrome 130+ only
+// @retire-when: unknown — needs owner   （拿不准条件时用这一行，不要空着）
+```
+
+- 新的临时锁：打在单个 `test(...)` 上方，条件写具体事件（版本发布 / 修复落地 / 平台条件）。
+- 已存在的锁文件：若整文件都是锁，在文件头打一个 file-level tag。
+- 永久 invariant 测试（打包不变量、架构文档存在性等）**不打**此 tag。
+- 删除锁是 PR11 的事；本标记只做分类。
+
