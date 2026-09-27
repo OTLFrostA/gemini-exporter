@@ -25,6 +25,7 @@ const {
     SANDBOX_OPAQUE_ORIGIN,
     SANDBOX_TO_HOST,
     HOST_TO_SANDBOX,
+    BUNDLED_FONT_PATHS,
 } = require('../src/core/export/typst/sandboxProtocol.js');
 
 const { createOfflineInitOptions } = require('../src/ui/sandbox/offlineInit.js');
@@ -388,7 +389,7 @@ test('compile: happy path returns PDF bytes and sandbox diagnostics', async () =
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
     assert.ok(compileMsg);
     // Fonts cross only on the first compile.
-    assert.strictEqual(compileMsg.message.fonts.length, 1);
+    assert.strictEqual(compileMsg.message.fonts.length, BUNDLED_FONT_PATHS.length);
     assert.ok(compileMsg.message.fonts[0] instanceof ArrayBuffer);
     assert.strictEqual(compileMsg.message.files[0].path, '/payload.json');
     const sentPayload = JSON.parse(compileMsg.message.files[0].text);
@@ -557,7 +558,7 @@ test('compile: fonts are not resent after a failed compile once installed', asyn
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
     assert.ok(compileMsg, 'expected a compile message after init');
-    assert.strictEqual(compileMsg.message.fonts.length, 1, 'first compile ships fonts');
+    assert.strictEqual(compileMsg.message.fonts.length, BUNDLED_FONT_PATHS.length, 'first compile ships fonts');
     // Sandbox installs fonts, ACKs, then the document compile fails.
     host.frame!.receive({ type: 'typst/fonts-installed', jobId: compileMsg.message.jobId });
     await tick();

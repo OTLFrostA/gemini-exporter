@@ -18,10 +18,15 @@ const SYMBOLS: Record<string, string> = {
     psi: 'psi', omega: 'omega',
     Gamma: 'Gamma', Delta: 'Delta', Theta: 'Theta', Lambda: 'Lambda',
     Xi: 'Xi', Pi: 'Pi', Sigma: 'Sigma', Phi: 'Phi', Psi: 'Psi', Omega: 'Omega',
-    times: 'times', div: 'div', pm: 'plus.minus', cdot: 'dot',
-    leq: '<=', geq: '>=', neq: '!=', approx: 'approx',
+    times: 'times', div: 'div', pm: 'plus.minus', mp: 'minus.plus', cdot: 'dot',
+    leq: '<=', geq: '>=', le: '<=', ge: '>=', neq: '!=', approx: 'approx', sim: 'tilde.op',
+    equiv: 'equiv', otimes: 'times.circle', implies: '==>',
     to: '->', rightarrow: '->', leftarrow: '<-', Rightarrow: '=>',
     Leftarrow: '<=', leftrightarrow: '<->', mapsto: '|->',
+    uparrow: 'arrow.t', downarrow: 'arrow.b',
+    circ: 'degree', triangle: 'triangle',
+    quad: 'quad', qquad: 'wide', prime: 'prime',
+    langle: 'angle.l', rangle: 'angle.r', mid: 'bar.v',
     infty: 'oo', partial: 'diff', nabla: 'nabla',
     in: 'in', notin: 'in.not', forall: 'forall', exists: 'exists',
     cup: 'union', cap: 'inter',
@@ -31,7 +36,7 @@ const SYMBOLS: Record<string, string> = {
 };
 
 const ACCENTS: Record<string, string> = {
-    hat: 'hat', bar: 'bar', tilde: 'tilde', dot: 'dot', ddot: 'dot.double',
+    hat: 'hat', bar: 'bar', tilde: 'tilde', dot: 'dot', ddot: 'dot.double', vec: 'arrow',
 };
 
 const DELIMITERS: Record<string, string> = {
@@ -206,6 +211,7 @@ class Parser {
             if (c === '}') return { text: 'brace.r', atomic: true };
             if (c === '|') return { text: 'parallel', atomic: true };
             if (c === '\\') return this.parseNewline();
+            if (c === ',' || c === ' ' || c === ';' || c === '!') return { text: '', atomic: true };
             this.fail(`unsupported escaped character '\\${c}' at offset ${this.pos - 1}`);
         }
         let name = '';

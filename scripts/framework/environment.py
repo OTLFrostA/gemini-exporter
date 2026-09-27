@@ -198,6 +198,25 @@ class TestEnvironment:
         return self.connect_tab("gemini")
 
     def connect_options(self) -> CDPConnection:
+        ext_id = self.get_extension_id()
+        if ext_id:
+            browser_ws = get_browser_ws_url(self.port)
+            if browser_ws:
+                try:
+                    b_cdp = CDPConnection(browser_ws)
+                    ext_origin = f"chrome-extension://{ext_id}"
+                    b_cdp.call("Browser.grantPermissions", {
+                        "permissions": ["localFonts"],
+                        "origin": ext_origin
+                    })
+                    b_cdp.call("Browser.setPermission", {
+                        "permission": {"name": "local-fonts"},
+                        "setting": "granted",
+                        "origin": ext_origin
+                    })
+                    b_cdp.close()
+                except Exception:
+                    pass
         return self.connect_tab("options")
 
     def connect_popup(self) -> CDPConnection:
@@ -249,6 +268,21 @@ class TestEnvironment:
                     "downloadPath": target_dir,
                     "eventsEnabled": True
                 })
+                ext_id = self.get_extension_id()
+                if ext_id:
+                    ext_origin = f"chrome-extension://{ext_id}"
+                    try:
+                        b_cdp.call("Browser.grantPermissions", {
+                            "permissions": ["localFonts"],
+                            "origin": ext_origin
+                        })
+                        b_cdp.call("Browser.setPermission", {
+                            "permission": {"name": "local-fonts"},
+                            "setting": "granted",
+                            "origin": ext_origin
+                        })
+                    except Exception:
+                        pass
                 b_cdp.close()
             except Exception:
                 pass

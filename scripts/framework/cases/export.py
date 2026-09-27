@@ -786,6 +786,39 @@ class PdfExportDownloadCase(FeatureTestCase):
                 if text_len < 100:
                     return False, f"PDF 导出文件 [{pf}] 提取文本长度异常过短 ({text_len} 字符): text={pdf_text!r}", pdf_info
 
+                # 1. 中文字符保留率断言（物理防止沙箱中文字体缺失导致汉字全部被静默丢弃）
+                if re.search(r"[\u4e00-\u9fa5]", pf):
+                    cjk_chars = len(re.findall(r"[\u4e00-\u9fa5]", pdf_text))
+                    if cjk_chars < 50:
+                        return False, f"PDF 导出文件 [{pf}] 中文字符提取数量过低 ({cjk_chars} 字符)，疑似中文字体未正确嵌入导致字符丢失: text={pdf_text[:300]!r}", pdf_info
+
+                # 2. 乱码与字符替换断言（杜绝缺少字形时的替换字符 \ufffd 豆腐块）
+                if "\ufffd" in pdf_text:
+                    return False, f"PDF 导出文件 [{pf}] 存在字符乱码/替换字符 (\\ufffd 豆腐块)", pdf_info
+
+                # 3. 内部元数据标签泄露断言（防 <Image ... image_agent_tag_...> 泄露）
+                if "image_agent_tag_" in pdf_text or re.search(r"<Image\s+[^>]*image_agent_tag", pdf_text):
+                    return False, f"PDF 导出文件 [{pf}] 泄漏内部未清洗的 <Image ... image_agent_tag> 标签: text={pdf_text[:300]!r}", pdf_info
+
+                # 4. 数学公式转换回退断言（防止 LaTeX 公式解析失败回退为灰色原始代码块并带有 'LaTeX' 标签）
+                latex_fallbacks = len(re.findall(r"\bLaTeX[\s\ufffd]+[\\a-zA-Z0-9_\^\|\-]", pdf_text))
+                if latex_fallbacks > 0 or ("贝尔不等式" in pf and "LaTeX" in pdf_text):
+                    return False, f"PDF 导出文件 [{pf}] 存在未编译的原始 LaTeX 公式回退标签: text={pdf_text[:300]!r}", pdf_info
+
+                # 5. 关键业务词物理存在性断言（确保标题与核心正文真实落地）
+                if "贝尔不等式" in pf:
+                    for kw in ["贝尔", "不等式"]:
+                        if kw not in pdf_text:
+                            return False, f"PDF 导出文件 [{pf}] 缺失核心关键词 [{kw}]: text={pdf_text[:300]!r}", pdf_info
+                elif "Python日志" in pf:
+                    for kw in ["Python", "日志"]:
+                        if kw not in pdf_text:
+                            return False, f"PDF 导出文件 [{pf}] 缺失核心关键词 [{kw}]: text={pdf_text[:300]!r}", pdf_info
+                elif "韦伯望远镜" in pf:
+                    for kw in ["韦伯"]:
+                        if kw not in pdf_text:
+                            return False, f"PDF 导出文件 [{pf}] 缺失核心关键词 [{kw}]: text={pdf_text[:300]!r}", pdf_info
+
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 PDF 文件", None
 

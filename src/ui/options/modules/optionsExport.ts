@@ -607,7 +607,18 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
     }
 
     // Export Buttons
-    $('btnExport')?.addEventListener('click', () => exportSelected());
+    $('btnExport')?.addEventListener('click', async () => {
+        const fmtSelect = $('format') as HTMLSelectElement | null;
+        if (fmtSelect?.value === 'pdf' && typeof (window as any).queryLocalFonts === 'function') {
+            try {
+                // Request fonts within the user click gesture so Chrome shows the native font permission prompt
+                await (window as any).queryLocalFonts();
+            } catch {
+                // Handled gracefully by localFontProvider fallback
+            }
+        }
+        exportSelected();
+    });
     $('btnExportJson')?.addEventListener('click', () => exportSelected('json'));
     $('btnCancel')?.addEventListener('click', () => {
         if (Controller) Controller.abort();
