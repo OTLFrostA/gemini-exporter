@@ -50,3 +50,19 @@ Verdict 定义：
 
 - `syncEngine.ts` 注释承认 "the provider-neutral declared type is still stabilizing"，有一处 `as any` 绕过——待 provider 层稳定后收敛，不在本 PR 处理。
 - `ProviderCapabilities.supportsRealtimeSniffing` 的术语源自 Gemini batchexecute 拦截机制；capability 概念本身通用，暂判 KEEP-contract，若未来平台语义分歧再议。
+
+## `scripts/framework/` 平台层级 audit（PR12，2026-09-27）
+
+问题："为四个平台到底需要几层？" 结论：**7 层各有独立职责，无重复层**；唯一可删的是执行器上的一个已废弃入口。
+
+| 层 | 位置 | 职责（一句话） | 谁在用 | Verdict |
+|---|---|---|---|---|
+| `ChatPlatformDriver`（ABC）+ `PlatformRegistry` | `scripts/framework/driver/platform_driver.py` | 平台自动化抽象契约（`build_turn_pipeline` 等）+ 驱动注册/发现 | `GeminiPlatformDriver` 实现；`cases/base.py` 经 registry 创建 | KEEP-contract（PR13） |
+| `GeminiPlatformDriver` / `GeminiChatSession` | `scripts/framework/driver/gemini_driver.py` | 唯一 production driver 实现；`build_turn_pipeline` 产出 5 个原子动作序列 | cases / runner / scripts | KEEP（production 实现） |
+| `SerialActionExecutor` | `scripts/framework/pipeline/executor.py` | 单飞串行执行器：状态机前置校验 + 失败即熔断 | `gemini_driver.execute_turn_pipeline`、`actions.py`、`cases/base.py` | KEEP；但 `execute_standard_turn`（硬编码 5 动作的旧入口，全仓 0 caller，已被 driver-driven 路径取代）**已删除** |
+| `AtomicAction` 原语 | `scripts/framework/pipeline/actions.py` | 原子动作（AssertIdle/StagePrompt/SingleClickSend/AwaitStreamSettled/HumanCooldown/ClickNewChat/NavigateChat） | driver 的 `build_turn_pipeline`、tests | KEEP（平台中性 pipeline 原语） |
+| `CDPActions` / `ExtensionActions` | `scripts/framework/actions.py` | 遗留命令式 CDP helper（静态方法）；**不是重复层**——`send_gemini_turn` 等已收敛为委托到 driver pipeline 的薄适配器 | `gemini_driver`、`cases/*`、`environment.py`、scripts、tests | KEEP（适配器层） |
+| `SafeInteractionGateway` | `scripts/framework/gateway.py` | 安全守门：URL 白名单 / 冷却 / 审计日志 / CAPTCHA 熔断 | `actions.py`、`gemini_driver`、`pipeline/actions.py`、tests | KEEP |
+| `FeatureRegistry` + `FeatureTestCase` + `DAGRunner` | `scripts/framework/features.py`、`scripts/framework/cases/base.py` | 特性声明注册表 + 用例基类 + 依赖 DAG 调度 | `runner.py`（FrameworkRunner）、tests | KEEP |
+
+"两套 Actions" 澄清：`framework/actions.py`（命令式 helper）与 `pipeline/actions.py`（原子动作原语）是**不同抽象层级**，前者已委托给后者所在的 pipeline，不存在"同一职责两套实现"。
