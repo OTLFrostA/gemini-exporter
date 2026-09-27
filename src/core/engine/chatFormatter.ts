@@ -49,47 +49,6 @@ export interface CanonicalHtmlExportOptions {
 }
 
 /**
- * The legacy toHtml() path tolerated duplicate message ids (e.g. the
- * detail pagination in pagination.ts re-fetches a page and its
- * seenMsgIds dedup explicitly bypasses messages whose id equals the
- * conversation id). The canonical projection requires unique ids and
- * throws CanonicalProjectionError otherwise, which would turn a
- * previously-working export into a failed one. The migration adapter
- * therefore restores the uniqueness invariant up front: keep the first
- * occurrence of each message id, preserve order, keep id-less messages.
- */
-function dedupeMessagesById(chat: any): any {
-    if (!chat || typeof chat !== 'object') return chat;
-    const dedupeList = (messages: any): any[] | null => {
-        if (!Array.isArray(messages)) return null;
-        const seen = new Set<string>();
-        let dropped = 0;
-        const kept = messages.filter((m: any) => {
-            const rawId = m?.id;
-            const id = typeof rawId === 'string' || typeof rawId === 'number' ? String(rawId) : null;
-            if (id === null || id === '') return true;
-            if (seen.has(id)) { dropped++; return false; }
-            seen.add(id);
-            return true;
-        });
-        return dropped > 0 ? kept : null;
-    };
-    let out = chat;
-    const top = dedupeList(chat.messages);
-    if (top) out = { ...out, messages: top };
-    if (Array.isArray(chat.turns)) {
-        let turnsChanged = false;
-        const turns = chat.turns.map((t: any) => {
-            const inner = dedupeList(t?.messages);
-            if (inner) { turnsChanged = true; return { ...t, messages: inner }; }
-            return t;
-        });
-        if (turnsChanged) out = { ...out, turns };
-    }
-    return out;
-}
-
-/**
  * Item 1 — production HTML export route:
  * Conversation -> normalizeGeminiConversation() -> CanonicalHtmlRenderer.
  *
@@ -106,7 +65,7 @@ export async function formatHtmlCanonical(
     chat: any,
     opts: CanonicalHtmlExportOptions = {}
 ): Promise<FormattedResult> {
-    const { bundle } = await normalizeGeminiConversation(dedupeMessagesById(chat));
+    const { bundle } = await normalizeGeminiConversation(chat);
     const renderer = new CanonicalHtmlRenderer({
         lang: opts.lang === 'en' ? 'en' : 'zh',
         theme: opts.theme === 'light' ? 'light' : 'dark',
