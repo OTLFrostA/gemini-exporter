@@ -24,7 +24,9 @@ const SYMBOLS: Record<string, string> = {
     to: '->', rightarrow: '->', leftarrow: '<-', Rightarrow: '=>',
     Leftarrow: '<=', leftrightarrow: '<->', mapsto: '|->',
     uparrow: 'arrow.t', downarrow: 'arrow.b',
-    circ: 'degree', triangle: 'triangle',
+    // \circ is U+2218 (function composition); the 120^\circ degree idiom would
+    // need context-sensitive handling and is intentionally not special-cased.
+    circ: 'compose', triangle: 'triangle',
     quad: 'quad', qquad: 'wide', prime: 'prime',
     langle: 'angle.l', rangle: 'angle.r', mid: 'bar.v',
     infty: 'oo', partial: 'diff', nabla: 'nabla',
@@ -257,7 +259,8 @@ class Parser {
             return { text: this.parseTextArg(), atomic: true };
         }
         if (name === 'operatorname') {
-            if (this.peek() === '*') this.pos += 1;
+            const starred = this.peek() === '*';
+            if (starred) this.pos += 1;
             this.skipSpace();
             let op = '';
             if (this.peek() === '{') {
@@ -266,7 +269,8 @@ class Parser {
                     op += this.peek();
                     this.pos += 1;
                 }
-                if (this.peek() === '}') this.pos += 1;
+                if (this.peek() !== '}') this.fail('unclosed brace in \\operatorname{...}');
+                this.pos += 1;
             } else if (this.peek() === '\\') {
                 this.pos += 1;
                 while (/[A-Za-z]/.test(this.peek())) {
@@ -279,7 +283,11 @@ class Parser {
                     this.pos += 1;
                 }
             }
-            return { text: `op("${escapeTypstString(op)}")`, atomic: true };
+            if (op === '') this.fail('\\operatorname requires a non-empty operator name');
+            // \operatorname* takes display limits (Typst op default); the
+            // unstarred form never does, so pin limits off explicitly.
+            const limits = starred ? '' : ', limits: #false';
+            return { text: `op("${escapeTypstString(op)}"${limits})`, atomic: true };
         }
         if (name === 'left' || name === 'right' || name === 'middle') {
             return { text: this.parseDelimiter(name), atomic: true };
@@ -374,7 +382,8 @@ class Parser {
         }
 
         if (env === 'cases') {
-            const items = rows.map(r => r.join(', ')).filter(s => s.length > 0);
+            // One cases() argument per LaTeX row; cells within a row align via &.
+            const items = rows.map(r => r.join(' & ')).filter(s => s.length > 0);
             return { text: `cases(${items.join(', ')})`, atomic: true };
         }
 

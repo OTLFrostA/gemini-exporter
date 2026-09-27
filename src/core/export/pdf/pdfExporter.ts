@@ -456,14 +456,13 @@ export class PdfExporter {
 
             const itemDiagnostics: RenderDiagnostic[] = [];
             try {
-                // P0: Options-workbench list items are shallow metadata. When the
-                // item resolves from options.conversations but carries no message
-                // content, resolve the full conversation via the same
-                // fetchChatDetail path the normal export uses — never normalize
-                // metadata straight into a "0 messages" PDF. The legacy
-                // selected-object fallback path (list lookup miss) is untouched.
+                // The conversation entering normalization must carry usable
+                // message detail no matter where it came from: options.conversations,
+                // selected, or a fetched detail response. A metadata-only object
+                // is resolved through the same fetchChatDetail path the normal
+                // export uses — never normalized straight into a "0 messages" PDF.
                 let chat: any = listChat ?? selectedChat;
-                if (listChat && !hasUsableMessages(chat)) {
+                if (!hasUsableMessages(chat)) {
                     const fetched = await resolveFullChatDetail({
                         id,
                         title,
@@ -487,9 +486,9 @@ export class PdfExporter {
                 const { bundle, diagnostics, byteStore } = await normalizeGeminiConversation(chat as any);
                 for (const d of diagnostics) itemDiagnostics.push(toRenderDiagnostic(d));
 
-                // Fail closed on the list path: even a successfully resolved
-                // conversation must never become a "0 messages" PDF.
-                if (listChat && (bundle?.conversation?.messages?.length ?? 0) === 0) {
+                // Fail closed: even a successfully resolved conversation must
+                // never become a "0 messages" PDF.
+                if ((bundle?.conversation?.messages?.length ?? 0) === 0) {
                     failItem(
                         id,
                         title,
