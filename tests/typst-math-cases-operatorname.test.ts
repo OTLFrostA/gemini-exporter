@@ -34,7 +34,7 @@ test('W3-1: cases rows, operatorname star distinction, circ mapping', () => {
     const starred = convertMath('\\operatorname*{max}_{x} f(x)', 'latex', true);
     const plain = convertMath('\\operatorname{max}_{x} f(x)', 'latex', true);
     assert.notStrictEqual(starred, plain, 'starred and unstarred operatorname must differ');
-    assert.strictEqual(starred, 'op("max")_x f ( x )');
+    assert.strictEqual(starred, 'op("max", limits: #true)_x f ( x )');
     assert.strictEqual(plain, 'op("max", limits: #false)_x f ( x )');
     assert.strictEqual(convertMath('f \\circ g', 'latex', true), 'f compose g');
 });
