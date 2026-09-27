@@ -453,7 +453,7 @@ function renderCompanionCards(msg: MessageNode, bundle: CanonicalConversationBun
     return cards.join('\n');
 }
 
-function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
+function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
     const path = `message:${msg.id}`;
     const assetBlocks = msg.blocks.filter(isAssetBlock);
     const contentBlocks = msg.blocks.filter((b) => !isAssetBlock(b));
@@ -464,12 +464,13 @@ function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bu
     const carouselHtml = cards.length ? renderCarousel(cards.join('\n')) : '';
     const bodyHtml = renderBlocks(contentBlocks, ctx, path);
 
-    const plain = contentBlocks.map((b) => extractBlockText(b)).join('\n');
-    const isLongPrompt = plain.length > 280 || plain.split('\n').length > 5;
-    const showMoreText = ctx.isEn ? 'Show more' : '展开';
-    const showLessText = ctx.isEn ? 'Show less' : '收起';
+    if (msg.role === 'user') {
+        const plain = contentBlocks.map((b) => extractBlockText(b)).join('\n');
+        const isLongPrompt = plain.length > 280 || plain.split('\n').length > 5;
+        const showMoreText = ctx.isEn ? 'Show more' : '展开';
+        const showLessText = ctx.isEn ? 'Show less' : '收起';
 
-    return `
+        return `
   <section class="gem-turn gem-turn-user" id="turn-user-${turnIdx}">
     ${carouselHtml}
     <div class="gem-user-bubble">
@@ -483,21 +484,12 @@ function renderUserMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bu
       </button>` : ''}
     </div>
   </section>`;
-}
+    }
 
-function renderModelMessage(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
-    const path = `message:${msg.id}`;
-    const assetBlocks = msg.blocks.filter(isAssetBlock);
-    const contentBlocks = msg.blocks.filter((b) => !isAssetBlock(b));
-    const cards: string[] = [];
-    if (assetBlocks.length) cards.push(assetBlocks.map((b, i) => renderBlock(b, ctx, `${path}/asset:${i}`)).join('\n'));
-    const companions = renderCompanionCards(msg, bundle, ctx, path);
-    if (companions) cards.push(companions);
-    const carouselHtml = cards.length ? renderCarousel(cards.join('\n')) : '';
     return `
   <section class="gem-turn gem-turn-model" id="turn-model-${turnIdx}">
     <div class="gem-model-content">
-      ${renderBlocks(contentBlocks, ctx, path)}
+      ${bodyHtml}
     </div>
     ${carouselHtml}
   </section>`;
@@ -522,10 +514,7 @@ export function renderCanonicalHtml(
     const messages = view.messages;
     let turnsHtml = '';
     for (let i = 0; i < messages.length; i++) {
-        const msg = messages[i];
-        turnsHtml += msg.role === 'user'
-            ? renderUserMessage(msg, i, ctx, bundle)
-            : renderModelMessage(msg, i, ctx, bundle);
+        turnsHtml += renderTurn(messages[i], i, ctx, bundle);
     }
     if (!messages.length) {
         const emptyMsg = ctx.isEn ? 'Empty conversation or fetch failed.' : '暂无对话记录或拉取失败。';

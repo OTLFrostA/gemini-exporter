@@ -292,7 +292,7 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
                 const mid = m ? m.id : null;
                 if (mid === null || mid === undefined || mid === '') return true;
                 const midStr = String(mid);
-                // W3: same id is accepted exactly once, no exceptions. The old
+                // Dedup: same id is accepted exactly once, no exceptions. The old
                 // bypass that permanently let messages whose id equals the
                 // conversation id skip dedupe caused duplicate turns whenever
                 // such a message reappeared on another page (detail/token-loop
