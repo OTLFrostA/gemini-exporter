@@ -559,6 +559,25 @@ class HtmlExportDownloadCase(FeatureTestCase):
                 if not has_turns:
                     return False, f"HTML 导出文件缺少对话轮次节点 (未渲染真实对话消息): {hf}", None
 
+                # 校验属性合法性：严禁属性值内嵌非法 HTML 标签（如 Markdown 错误转义导致的 target="<em>blank" 或 src="assets/...</em>..."）
+                corrupt_attrs = re.findall(r'(?:src|href|target|class)=\"[^\"]*<[a-z]+>[^\"]*\"', content, re.IGNORECASE)
+                if corrupt_attrs:
+                    return False, f"HTML 导出文件 [{hf}] 存在属性被内联标签破坏缺陷: {corrupt_attrs[:3]}", None
+
+                # 校验本地图片资源物理存在性：所有引用的本地 assets 资源必须在解压目录物理存在且非空
+                img_srcs = re.findall(r'<img[^>]+src=[\"\x27](assets/[^\s\"\x27>]+)', content, re.IGNORECASE)
+                html_dir = os.path.dirname(fpath)
+                for img_rel in img_srcs:
+                    img_clean = img_rel.split('?')[0].split('#')[0]
+                    asset_disk_path = os.path.normpath(os.path.join(html_dir, img_clean))
+                    if not os.path.isfile(asset_disk_path) or os.path.getsize(asset_disk_path) == 0:
+                        return False, f"HTML 导出文件 [{hf}] 引用的本地附件图片在磁盘上不存在或为空: {img_rel} (检查路径: {asset_disk_path})", None
+
+                # 校验 LaTeX 公式完整性：严禁 LaTeX 宏或下标被错误切碎插入 <em> 标签（如 \hat{H}<em>{JC}、\omega<em>a 等）
+                corrupted_math = re.findall(r'\\[a-zA-Z]+<em>[^<]+</em>', content)
+                if corrupted_math:
+                    return False, f"HTML 导出文件 [{hf}] LaTeX 公式中下划线被错误解析为斜体标签: {corrupted_math[:3]}", None
+
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 HTML 文件", None
 
