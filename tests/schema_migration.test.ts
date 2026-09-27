@@ -50,8 +50,9 @@ function installMock() {
     const origChrome = (global as any).chrome;
     (global as any).chrome = m.chrome;
     SchemaMigration.__setSchemaFrozenForTest(false);
+    SchemaMigration.__resetStorageReadyForTest();
     DetailStore.__clearMemoryStore();
-    return { ...m, restore() { (global as any).chrome = origChrome; SchemaMigration.__setSchemaFrozenForTest(false); } };
+    return { ...m, restore() { (global as any).chrome = origChrome; SchemaMigration.__setSchemaFrozenForTest(false); SchemaMigration.__resetStorageReadyForTest(); } };
 }
 
 // ---------------------------------------------------------------- P1-13: 版本戳

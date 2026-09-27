@@ -1,5 +1,6 @@
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
+import { ensureStorageReady } from '../../core/storage/schemaMigration.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { FormatStore } from '../../core/storage/formatStore.js';
 import { ChatFormatter } from '../../core/engine/chatFormatter.js';
@@ -323,11 +324,16 @@ function initPopupEvents(): void {
     });
 
     const i18n = getI18n();
-    i18n.initLanguage().then(() => {
+    i18n.initLanguage().then(async () => {
         i18n.applyI18n();
         i18n.applyLangToggleUI();
         i18n.onLanguageChange(() => i18n.applyLangToggleUI());
-        void updateCount();
+        try {
+            await ensureStorageReady();
+            void updateCount();
+        } catch (e) {
+            console.warn('[popup] storage not ready', e);
+        }
     });
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
