@@ -19,7 +19,7 @@ const SYMBOLS: Record<string, string> = {
     Gamma: 'Gamma', Delta: 'Delta', Theta: 'Theta', Lambda: 'Lambda',
     Xi: 'Xi', Pi: 'Pi', Sigma: 'Sigma', Phi: 'Phi', Psi: 'Psi', Omega: 'Omega',
     times: 'times', div: 'div', pm: 'plus.minus', mp: 'minus.plus', cdot: 'dot',
-    leq: '<=', geq: '>=', le: '<=', ge: '>=', neq: '!=', approx: 'approx', sim: 'tilde.op',
+    leq: '<=', geq: '>=', le: '<=', ge: '>=', neq: '!=', ne: '!=', approx: 'approx', sim: 'tilde.op',
     equiv: 'equiv', otimes: 'times.circle', implies: '==>',
     to: '->', rightarrow: '->', leftarrow: '<-', Rightarrow: '=>',
     Leftarrow: '<=', leftrightarrow: '<->', mapsto: '|->',
@@ -32,7 +32,25 @@ const SYMBOLS: Record<string, string> = {
     cup: 'union', cap: 'inter',
     subset: 'subset', subseteq: 'subset.eq', supset: 'supset', supseteq: 'supset.eq',
     sin: 'sin', cos: 'cos', tan: 'tan',
+    sinh: 'sinh', cosh: 'cosh', tanh: 'tanh',
+    ln: 'ln', log: 'log', exp: 'exp', det: 'det', dim: 'dim', deg: 'deg',
+    min: 'min', max: 'max', sup: 'sup', inf: 'inf', lim: 'lim',
+    iint: 'integral.double', iiint: 'integral.triple', oint: 'integral.cont',
+    dagger: 'dagger', hbar: 'planck.reduce',
+    ll: '<<', gg: '>>', perp: 'perp', parallel: 'parallel', propto: 'prop',
     ldots: 'dots', cdots: 'dots.c',
+};
+
+const STYLES: Record<string, string> = {
+    mathbf: 'bold',
+    boldsymbol: 'bold',
+    bm: 'bold',
+    mathcal: 'cal',
+    mathbb: 'bb',
+    mathit: 'italic',
+    mathrm: 'upright',
+    mathsf: 'sans',
+    mathtt: 'mono',
 };
 
 const ACCENTS: Record<string, string> = {
@@ -46,6 +64,7 @@ const DELIMITERS: Record<string, string> = {
     'langle': 'angle.l', 'rangle': 'angle.r',
     'lvert': '|', 'rvert': '|', 'lVert': 'parallel', 'rVert': 'parallel',
     'lbrace': 'brace.l', 'rbrace': 'brace.r',
+    'vert': '|', 'Vert': 'parallel',
 };
 
 const LITERAL_CHARS = new Set('+-=<>!,;:.\'?*/()[]|'.split(''));
@@ -236,8 +255,22 @@ class Parser {
         if (name === 'text') {
             return { text: this.parseTextArg(), atomic: true };
         }
-        if (name === 'left' || name === 'right') {
+        if (name === 'left' || name === 'right' || name === 'middle') {
             return { text: this.parseDelimiter(name), atomic: true };
+        }
+        if (name === 'begin') {
+            const env = this.parseEnvName();
+            if (env === 'pmatrix' || env === 'bmatrix' || env === 'vmatrix' || env === 'matrix' || env === 'cases') {
+                return this.parseEnvironment(env);
+            }
+            this.fail(`unsupported environment '\\begin{${env}}'`);
+        }
+        if (name === 'end') {
+            this.fail(`stray \\end without matching \\begin at offset ${this.pos}`);
+        }
+        if (hasKey(STYLES, name)) {
+            const arg = this.parseArg(`\\${name}`);
+            return { text: `${STYLES[name]}(${arg.text})`, atomic: true };
         }
         if (hasKey(ACCENTS, name)) {
             const arg = this.parseArg(`\\${name}`);
@@ -247,6 +280,91 @@ class Parser {
             return { text: SYMBOLS[name]!, atomic: true };
         }
         this.fail(`unsupported command '\\${name}'`);
+    }
+
+    private parseEnvName(): string {
+        this.skipSpace();
+        if (this.peek() !== '{') {
+            this.fail(`\\begin requires an environment name in {...} at offset ${this.pos}`);
+        }
+        this.pos += 1;
+        let env = '';
+        while (this.pos < this.input.length && this.peek() !== '}') {
+            env += this.peek();
+            this.pos += 1;
+        }
+        if (this.peek() !== '}') {
+            this.fail('unclosed brace in \\begin{...}');
+        }
+        this.pos += 1;
+        return env.trim();
+    }
+
+    private parseEnvironment(env: string): Atom {
+        const rows: string[][] = [[]];
+        let currentCellAtoms: Atom[] = [];
+
+        const flushCell = () => {
+            const cellText = currentCellAtoms.map(a => a.text).join(' ').trim();
+            rows[rows.length - 1]!.push(cellText);
+            currentCellAtoms = [];
+        };
+
+        for (;;) {
+            this.skipSpace();
+            const c = this.peek();
+            if (c === '') {
+                this.fail(`unclosed environment '\\begin{${env}}' at end of input`);
+            }
+            if (c === '&') {
+                this.pos += 1;
+                flushCell();
+                continue;
+            }
+            if (c === '\\') {
+                if (this.input[this.pos + 1] === '\\') {
+                    this.pos += 2;
+                    flushCell();
+                    rows.push([]);
+                    continue;
+                }
+                const match = this.input.slice(this.pos).match(/^\\end\s*\{([^}]+)\}/);
+                if (match) {
+                    const endEnv = match[1]!.trim();
+                    if (endEnv !== env) {
+                        this.fail(`mismatched environment: \\begin{${env}} closed by \\end{${endEnv}}`);
+                    }
+                    this.pos += match[0]!.length;
+                    flushCell();
+                    break;
+                }
+            }
+            const atom = this.attachScripts(this.parseAtom());
+            if (atom.text !== '') currentCellAtoms.push(atom);
+        }
+
+        while (rows.length > 1 && rows[rows.length - 1]!.length === 1 && rows[rows.length - 1]![0] === '') {
+            rows.pop();
+        }
+
+        if (env === 'cases') {
+            const items = rows.map(r => r.join(', ')).filter(s => s.length > 0);
+            return { text: `cases(${items.join(', ')})`, atomic: true };
+        }
+
+        const delimMap: Record<string, string | undefined> = {
+            pmatrix: undefined,
+            bmatrix: '"["',
+            vmatrix: '"|"',
+            matrix: 'none',
+        };
+        const delim = delimMap[env];
+        const rowStrings = rows.map(r => r.join(', '));
+        const body = rowStrings.join('; ');
+        if (delim !== undefined) {
+            return { text: `mat(delim: ${delim}, ${body})`, atomic: true };
+        }
+        return { text: `mat(${body})`, atomic: true };
     }
 
     private parseTextArg(): string {
