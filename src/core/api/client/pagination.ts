@@ -288,12 +288,17 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
             let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
             accPageDrift(page);
-            const cleanConvId = String(conversationId).replace(/^c_/, "");
             const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: any) => {
                 const mid = m ? m.id : null;
                 if (mid === null || mid === undefined || mid === '') return true;
                 const midStr = String(mid);
-                if (midStr.replace(/^c_/, "") === cleanConvId) return true;
+                // W3: same id is accepted exactly once, no exceptions. The old
+                // bypass that permanently let messages whose id equals the
+                // conversation id skip dedupe caused duplicate turns whenever
+                // such a message reappeared on another page (detail/token-loop
+                // repeats). Gemini detail envelopes can be keyed by the
+                // conversation id; if that structure ever needs distinct
+                // handling it belongs in the parser (parseDetail), not here.
                 if (seenMsgIds.has(midStr)) return false;
                 seenMsgIds.add(midStr);
                 return true;
