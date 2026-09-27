@@ -53,10 +53,19 @@ test('greek letters', async () => {
 test('operators and relations', async () => {
     eq('a \\times b \\div c', 'a times b div c');
     eq('x \\leq y \\geq z', 'x <= y >= z');
+    eq('x \\le y \\ge z', 'x <= y >= z');
     eq('a \\neq b', 'a != b');
     eq('p \\pm q \\cdot r', 'p plus.minus q dot r');
+    eq('p \\mp q', 'p minus.plus q');
+    eq('A \\equiv B', 'A equiv B');
+    eq('A \\otimes B', 'A times.circle B');
+    eq('A \\implies B', 'A ==> B');
     eq('x \\to \\infty', 'x -> oo');
     eq('f: x \\mapsto x^2', 'f : x |-> x^2');
+    eq('\\uparrow \\downarrow', 'arrow.t arrow.b');
+    eq('120^\\circ', '120^degree');
+    eq('a \\quad b \\qquad c', 'a quad b wide c');
+    eq('a\\,b\\ c\\;d', 'a b c d');
 });
 
 test('functions, calculus, sets', async () => {
@@ -69,6 +78,13 @@ test('functions, calculus, sets', async () => {
 test('accents', async () => {
     eq('\\hat{x} + \\bar{y}', 'hat(x) + bar(y)');
     eq('\\tilde{\\alpha}', 'tilde(alpha)');
+    eq('\\vec{a} + \\vec{S}_i', 'arrow(a) + arrow(S)_i');
+});
+
+test('bra-ket and standalone angle delimiters', async () => {
+    eq('\\langle \\psi |', 'angle.l psi |');
+    eq('| \\psi \\rangle', '| psi angle.r');
+    eq('\\sum_{\\langle i, j \\rangle}', 'sum_(angle.l i , j angle.r)');
 });
 
 test('text is escaped into a Typst string literal', async () => {

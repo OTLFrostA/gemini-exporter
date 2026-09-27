@@ -29,9 +29,12 @@ export function stripInternalChipMarkdown(text?: string | null): string {
         'gi'
     );
 
+    const imageAgentTagRe = /<Image\s+[^>]*src=["']image_agent_tag_[^"']*["'][^>]*\/?>/gi;
+
     let cleaned = text.replace(standaloneRe, '\n');
     cleaned = cleaned.replace(linkWithTitleRe, '$1');
     cleaned = cleaned.replace(rawUrlRe, '');
+    cleaned = cleaned.replace(imageAgentTagRe, '');
     return cleaned;
 }
 

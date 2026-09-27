@@ -21,6 +21,7 @@
   "PingFang SC",
   "Helvetica Neue",
   "Arial",
+  "Noto Sans SC",
   "Noto Sans CJK SC",
   "Noto Sans",
   "DejaVu Sans",
