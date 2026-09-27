@@ -12,7 +12,7 @@ export interface InlineByteSource {
 
 export interface AssetResolverOptions {
     readLocalFile?: (storageRef: string) => Promise<Uint8Array | undefined | null>;
-    hashBytes?: (bytes: Uint8Array) => string;
+    hashBytes?: (bytes: Uint8Array) => Promise<string>;
     maxBytes?: number;
 }
 
@@ -312,7 +312,7 @@ export async function resolveAssets(
 
         let hash: string;
         try {
-            hash = hashBytes(b);
+            hash = await hashBytes(b);
         } catch (err) {
             effectiveStatus.set(asset.id, 'failed');
             diag(asset.id, 'error', 'ASSET_HASH_FAILED',

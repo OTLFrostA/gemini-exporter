@@ -26,6 +26,7 @@ import type { SourceObservation } from '../provenance.js';
 import { resolveTitle } from '../titleAuthority.js';
 import { validateBundle } from '../validate.js';
 import { normalizeMessage, toIso } from './normalizeMessage.js';
+import { finalizeInlineAssetDigests } from './normalizeAssets.js';
 
 export interface GeminiNormalizationOptions {
     providerId?: string;
@@ -165,6 +166,11 @@ export async function normalizeGeminiConversation(
     }
 
     const title = normalizeTitle(raw, diagnostics);
+
+    // Compute Web Crypto digests for inline data: URL assets decoded during
+    // parsing, and swap their provisional byte-store refs for content-addressed
+    // storageRefs before validation and return.
+    await finalizeInlineAssetDigests(assets, byteStore);
 
     const unknownFields = Object.keys(raw ?? {}).filter((k) => !KNOWN_CONVERSATION_FIELDS.has(k));
     const observation: SourceObservation = {

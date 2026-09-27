@@ -34,15 +34,6 @@ async function ensureSubDir(root: any, subPath: string): Promise<any> {
     return cur;
 }
 
-function isWriteOptions(val: any): boolean {
-    if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
-    if (typeof Uint8Array !== 'undefined' && val instanceof Uint8Array) return false;
-    if (typeof ArrayBuffer !== 'undefined' && (val instanceof ArrayBuffer || ArrayBuffer.isView(val))) return false;
-    if (typeof Blob !== 'undefined' && val instanceof Blob) return false;
-    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) return false;
-    return 'base64' in val || 'compression' in val || 'compressionOptions' in val || 'binary' in val;
-}
-
 class FsWriter implements IExportWriter {
     rootDirHandle: any;
     folderName: string;
@@ -79,31 +70,19 @@ class FsWriter implements IExportWriter {
         return this.batchDirHandle;
     }
 
-    async writeFile(pathOrSubDir: string, contentOrFileName?: any, optionsOrContent?: any): Promise<string> {
-        let actualSubDir = '';
-        let actualFileName = '';
-        let actualContent: any;
-        let options: any = {};
+    async writeFile(relativePath: string, content?: any, options?: any): Promise<string> {
+        // Single supported form: (relativePath, content, options?).
+        // The legacy (subDirPath, fileName, content) overload was retired:
+        // it had zero production callers (live-save uses the separate
+        // LiveSaveWriter facade, not this interface).
+        const clean = sanitizeRelativePath(relativePath, 'file');
+        const lastSlash = clean.lastIndexOf('/');
+        const actualSubDir = lastSlash !== -1 ? clean.slice(0, lastSlash) : '';
+        const actualFileName = lastSlash !== -1 ? clean.slice(lastSlash + 1) : clean;
+        let actualContent: any = content;
+        const opts: any = options || {};
 
-        if (arguments.length === 3 && optionsOrContent !== undefined && !isWriteOptions(optionsOrContent)) {
-            actualSubDir = pathOrSubDir;
-            actualFileName = contentOrFileName;
-            actualContent = optionsOrContent;
-        } else {
-            const clean = sanitizeRelativePath(pathOrSubDir, 'file');
-            const lastSlash = clean.lastIndexOf('/');
-            if (lastSlash !== -1) {
-                actualSubDir = clean.slice(0, lastSlash);
-                actualFileName = clean.slice(lastSlash + 1);
-            } else {
-                actualSubDir = '';
-                actualFileName = clean;
-            }
-            actualContent = contentOrFileName;
-            options = optionsOrContent || {};
-        }
-
-        if (options && options.base64 && typeof actualContent === 'string') {
+        if (opts && opts.base64 && typeof actualContent === 'string') {
             const binStr = atob(actualContent);
             const len = binStr.length;
             const b = new Uint8Array(len);

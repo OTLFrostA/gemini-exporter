@@ -168,10 +168,10 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
       const cid = 'c_0123456789abcdef';
       const cid6 = cid.replace(/^c_/, '').slice(-6);
       const fileName = `Quantum Computing_${cid6}.md`;
-      await writer.writeFile('', fileName, '# Quantum Computing\n\nContent');
+      await writer.writeFile(fileName, '# Quantum Computing\n\nContent');
 
       // Write asset into assets/
-      await writer.writeFile('assets', `${cid6}_t1_img1.png`, new Uint8Array([1, 2, 3]));
+      await writer.writeFile(`assets/${cid6}_t1_img1.png`, new Uint8Array([1, 2, 3]));
 
       return {
         writtenFiles: Object.keys(written),

@@ -36,8 +36,7 @@ export interface AssetPipelineClass {
 export interface AssetPipelineInstance {
     currentSlot: string;
     useZip: boolean;
-    /** @deprecated Phase B (B1) 已废弃：读取直接 throw。写出口请走 writer。 */
-    readonly folder: any;
+
     writer: IExportWriter | null;
     writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
     takeoutEngine: any;
@@ -128,23 +127,10 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
 
         static sanitizeZipPath = sanitizeZipPath;
 
-        /**
-         * Phase B (B1): folder 已废弃，读取直接 throw，防回潮。
-         * 写出口统一走 writer (IExportWriter)。
-         */
-        get folder(): any {
-            throw new Error('[AssetPipeline] `folder` is deprecated and removed (Phase B/B1): pass an IExportWriter via options.writer instead.');
-        }
-
         constructor(options: AssetPipelineOptions = {}) {
             this.currentSlot = options.currentSlot || 'u0';
             this.useZip = options.useZip !== false;
             this.writer = options.writer || null;
-            // Phase B (B1): 构造不再收 folder。fail-fast 防静默丢附件：
-            // 还有老调用方传 folder 时直接抛错，而不是忽略后导致附件写不进去。
-            if ((options as any).folder) {
-                throw new Error('[AssetPipeline] options.folder is deprecated and removed (Phase B/B1): pass options.writer (IExportWriter) instead.');
-            }
             this.writeFileDirect = options.writeFileDirect || null;
             this.takeoutEngine = options.takeoutEngine || null;
             this.getGeminiTab = options.getGeminiTab || null;

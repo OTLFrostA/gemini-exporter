@@ -6,20 +6,11 @@ halting on anomalies via Fail-Fast Circuit Breaker.
 """
 
 import time
-import traceback
 from typing import List, Optional, Any
 from dataclasses import dataclass
 
 from .stages import PipelineStage, PipelineConcurrencyViolationError, CircuitBreakerError
-from .actions import (
-    AtomicAction,
-    ActionResult,
-    AssertIdleAction,
-    StagePromptAction,
-    SingleClickSendAction,
-    AwaitStreamSettledAction,
-    HumanCooldownAction
-)
+from .actions import AtomicAction, ActionResult
 
 
 @dataclass
@@ -108,33 +99,6 @@ class SerialActionExecutor:
 
         finally:
             self._in_flight = False
-
-    def execute_standard_turn(
-        self,
-        ctx: Any,
-        cdp: Any,
-        prompt_text: str,
-        timeout: int = 300,
-        require_image: bool = False,
-        cooldown_seconds: float = 6.0
-    ) -> PipelineResult:
-        """
-        标准原子问答发帖闭环：
-        1. AssertIdle (空闲断言)
-        2. StagePrompt (注入文本)
-        3. SingleClickSend (单次物理发射)
-        4. AwaitStreamSettled (权威网络+图片闭环)
-        5. HumanCooldown (人性化安全冷却)
-        """
-        turn_start_time = time.time()
-        pipeline: List[AtomicAction] = [
-            AssertIdleAction(max_wait=45),
-            StagePromptAction(prompt_text),
-            SingleClickSendAction(),
-            AwaitStreamSettledAction(timeout=timeout, require_image=require_image, turn_start_time=turn_start_time),
-            HumanCooldownAction(seconds=cooldown_seconds)
-        ]
-        return self.run_pipeline(ctx, cdp, pipeline)
 
     def execute_driver_turn(
         self,

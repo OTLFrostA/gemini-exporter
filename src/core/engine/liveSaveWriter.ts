@@ -44,7 +44,15 @@ export async function createLiveSaveWriter(
     const WriterCls = deps.fsWriterClass || FsWriter;
     const writer = new WriterCls(dirHandle, LIVE_SAVE_ROOT_DIR);
     await writer.init();
-    return writer as unknown as LiveSaveWriter;
+    // The LiveSaveWriter facade keeps its (subDir, fileName, data) API, but the
+    // underlying writer only supports (relativePath, content, options?) since the
+    // legacy 3-arg overload was retired. Translate explicitly here instead of
+    // relying on the removed overload dispatch (previously via an unsafe cast).
+    return {
+        init: () => writer.init(),
+        writeFile: (subDir: string, fileName: string, data: string | Uint8Array): Promise<void> =>
+            writer.writeFile(subDir ? `${subDir}/${fileName}` : fileName, data).then(() => undefined),
+    };
 }
 
 export function formatLiveSaveMarkdown(

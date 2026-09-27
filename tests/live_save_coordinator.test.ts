@@ -42,10 +42,9 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
             writerFolderUsed = folder;
         }
         async init() {}
-        async writeFile(subDir: string, name: string, content: string) {
-            const path = subDir ? `${subDir}/${name}` : name;
-            writtenFiles[path] = content;
-            return name;
+        async writeFile(relativePath: string, content: string) {
+            writtenFiles[relativePath] = content;
+            return relativePath;
         }
     }
 

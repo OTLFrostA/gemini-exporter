@@ -19,15 +19,6 @@ export function isPrecompressedAsset(path: string): boolean {
 
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 
-function isWriteOptions(val: any): boolean {
-    if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
-    if (typeof Uint8Array !== 'undefined' && val instanceof Uint8Array) return false;
-    if (typeof ArrayBuffer !== 'undefined' && (val instanceof ArrayBuffer || ArrayBuffer.isView(val))) return false;
-    if (typeof Blob !== 'undefined' && val instanceof Blob) return false;
-    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(val)) return false;
-    return 'base64' in val || 'compression' in val || 'compressionOptions' in val || 'binary' in val;
-}
-
 class ZipWriter implements IExportWriter {
     zip: any;
     folder: any;
@@ -54,24 +45,16 @@ class ZipWriter implements IExportWriter {
         return sanitizeRelativePath(p, 'file');
     }
 
-    writeFile(pathOrSubDir: string, contentOrFileName?: any, optionsOrContent?: any): string {
-        let cleanPath: string;
-        let content: any;
-        let options: any = {};
-
-        if (arguments.length === 3 && optionsOrContent !== undefined && !isWriteOptions(optionsOrContent)) {
-            const subDir = pathOrSubDir ? `${pathOrSubDir}/` : '';
-            cleanPath = this.sanitizePath(`${subDir}${contentOrFileName}`);
-            content = optionsOrContent;
-        } else {
-            cleanPath = this.sanitizePath(pathOrSubDir);
-            content = contentOrFileName;
-            options = optionsOrContent || {};
-        }
+    writeFile(relativePath: string, content?: any, options?: any): string {
+        // Single supported form: (relativePath, content, options?).
+        // The legacy (subDirPath, fileName, content) overload was retired:
+        // it had zero production callers.
+        const cleanPath = this.sanitizePath(relativePath);
+        const opts: any = options || {};
 
         if (content) {
             if (typeof content === 'string') {
-                this.totalBytes += content.length * (options && options.base64 ? 0.75 : 1);
+                this.totalBytes += content.length * (opts && opts.base64 ? 0.75 : 1);
             } else if (content.byteLength) {
                 this.totalBytes += content.byteLength;
             } else if (content.length) {
@@ -86,7 +69,7 @@ class ZipWriter implements IExportWriter {
         // to avoid duplicating memory in V8 during zip generation.
         // Phase B (B1): 压缩决策收敛在文件级 —— writeFile 时按文件决定 STORE/DEFLATE，
         // generateBlob 不再传全局 compression，文件级设置直接透传。
-        const fileOpts: any = { ...options };
+        const fileOpts: any = { ...opts };
         if (!fileOpts.compression) {
             fileOpts.compression = isPrecompressedAsset(cleanPath) ? 'STORE' : 'DEFLATE';
         }

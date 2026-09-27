@@ -20,8 +20,6 @@ export interface FormatStoreModule {
     loadFormat: (selectEl?: any) => Promise<FormatStoreLoadResult>;
     saveFormat: (val: string) => Promise<string>;
     getCurrentFormat: (isDev?: boolean, currentVal?: string) => string;
-    getFormatFromSelect: (selectEl: any, isDev?: boolean) => string;
-    bindFormatSelect: (selectEl: any) => void;
     handleDevToggle: (devOn: boolean, currentFormatOrSelect: any) => DevToggleResult;
 }
 
@@ -83,23 +81,6 @@ const DEFAULT = DEFAULT_FORMAT;
         return normalizeFormat(currentVal !== undefined ? currentVal : DEFAULT, isDev);
     }
 
-    function getFormatFromSelect(selectEl: any, isDev?: boolean): string {
-        const devMode = isDev !== undefined ? isDev : false;
-        return normalizeFormat(selectEl ? selectEl.value : DEFAULT, devMode);
-    }
-
-    /**
-     * @deprecated Legacy DOM binding helper. UI Controllers should attach event listeners directly.
-     */
-    function bindFormatSelect(selectEl: any): void {
-        if (!selectEl) return;
-        selectEl.addEventListener('change', (e: any) => {
-            saveFormat(e.target.value).catch((err: any) => {
-                console.warn('[FormatStore] Failed to save format:', err);
-            });
-        });
-    }
-
     function handleDevToggle(devOn: boolean, currentFormatOrSelect: any): DevToggleResult {
         if (currentFormatOrSelect && typeof currentFormatOrSelect === 'object' && 'value' in currentFormatOrSelect) {
             if (!devOn && currentFormatOrSelect.value === 'json_raw') {
@@ -124,8 +105,6 @@ export {
     loadFormat,
     saveFormat,
     getCurrentFormat,
-    getFormatFromSelect,
-    bindFormatSelect,
     handleDevToggle
 };
 
@@ -138,8 +117,6 @@ export const FormatStore: FormatStoreModule = {
     loadFormat,
     saveFormat,
     getCurrentFormat,
-    getFormatFromSelect,
-    bindFormatSelect,
     handleDevToggle
 };
 

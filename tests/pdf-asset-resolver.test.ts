@@ -341,7 +341,7 @@ test('determinism: same input -> same pathMap across runs', async () => {
 test('hash failure is diagnosed, never silent', async () => {
     const a = asset('h1', { mimeType: 'image/png', storageRef: 'inline:h1' });
     const result = await resolveAssets([a], perRunStore({ 'inline:h1': pngBytes() }), {
-        hashBytes: () => { throw new Error('no hasher'); },
+        hashBytes: async () => { throw new Error('no hasher'); },
     });
     assert.strictEqual(result.pathMap.get('h1'), undefined);
     assert.deepStrictEqual(codesFor(result, 'h1'), ['ASSET_HASH_FAILED']);

@@ -10,6 +10,10 @@ export {};
  *   - perf_p1_p2_regression.test.ts
  *   - regression_p0.test.ts
  *   - p0_regression_lock.test.ts
+ *
+ * @retire-when: unknown — needs owner
+ *   (per-test locks retire when the guarded behavior is covered by a permanent
+ *   contract test; see tests/README.md §五)
  */
 
 const test = require('node:test');

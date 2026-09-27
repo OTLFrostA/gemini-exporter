@@ -29,6 +29,8 @@ function ensureProviderLang(): Promise<string> {
 }
 
 export function flattenChatGPTMapping(raw: any, conversationId?: string): ProviderConversationDetail {
+    // @unverified-provider-scaffold: mapping/current_node traversal is unit-tested but
+    // unverified against real ChatGPT payloads (branch selection, thought encoding may differ).
     if (!raw || typeof raw !== 'object') {
         throw new Error('Invalid ChatGPT conversation payload');
     }
@@ -159,6 +161,9 @@ export function flattenChatGPTMapping(raw: any, conversationId?: string): Provid
 }
 
 export class ChatGPTProvider implements AIProvider {
+    // @unverified-provider-scaffold: registered but dormant by design (manifest has no
+    // chatgpt.com coverage; listConversations throws). Network paths below (auth session,
+    // backend-api) and capability claims are unverified against a real logged-in session.
     readonly id = 'chatgpt';
     readonly name = 'ChatGPT';
     readonly hostPatterns = [
@@ -170,6 +175,8 @@ export class ChatGPTProvider implements AIProvider {
         // Dormant: no manifest host permission or content-script match for
         // chatgpt.com, so realtime sniffing can never trigger — never claim it.
         supportsRealtimeSniffing: false,
+        // @unverified-provider-scaffold: the `true` claims below are aspirational;
+        // none has been exercised against a real ChatGPT session.
         supportsTakeoutImport: true,
         supportsThoughtBlocks: true,
         supportsIncrementalSync: true,
@@ -192,6 +199,7 @@ export class ChatGPTProvider implements AIProvider {
             if (typeof fetch === 'undefined') {
                 return { ready: false, error: t('chatgptNetworkUnavailable') };
             }
+            // @unverified-provider-scaffold: endpoint + session shape unverified (no real login test).
             const res = await fetch('https://chatgpt.com/api/auth/session', { credentials: 'include' });
             if (res.ok) {
                 const session = await res.json();
@@ -222,6 +230,7 @@ export class ChatGPTProvider implements AIProvider {
 
     async fetchConversationDetail(conversationId: string, _options?: any): Promise<ProviderConversationDetail> {
         await ensureProviderLang();
+        // @unverified-provider-scaffold: backend-api path + auth (cf_clearance etc.) unverified.
         const url = `https://chatgpt.com/backend-api/conversation/${conversationId}`;
         const res = await fetch(url, { credentials: 'include' });
         if (!res.ok) {
@@ -232,6 +241,8 @@ export class ChatGPTProvider implements AIProvider {
     }
 }
 
+// @unverified-provider-scaffold: registers a dormant provider to keep the registry
+// multi-provider shaped; safe to keep, do not mistake for production readiness.
 export const defaultChatGPTProvider = new ChatGPTProvider();
 ProviderRegistry.register(defaultChatGPTProvider);
 

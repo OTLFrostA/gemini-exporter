@@ -1,5 +1,4 @@
-export type { IPdfCompiler, PdfCompileResult, StubPdfCompilerOptions } from './pdfCompiler.js';
-export { StubPdfCompiler, buildMinimalValidPdf } from './pdfCompiler.js';
+export type { IPdfCompiler, PdfCompileResult } from './pdfCompiler.js';
 export type {
     PdfExportItemResult,
     PdfExportResult,
