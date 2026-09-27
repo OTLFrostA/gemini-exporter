@@ -183,10 +183,64 @@ function classifyQueryError(err: unknown): { reason: LocalFontQueryReason; detai
     return { reason: 'query-failed', detail: `queryLocalFonts() failed (${name || 'unknown'}): ${message}` };
 }
 
-export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
-    const globalCache = (globalThis as any)?.__geminiLocalFontsCache;
+let localFontsCache: LocalFontEntry[] | null = null;
+const CACHE_KEY = '__geminiLocalFontsCache';
+
+export function getCachedLocalFonts(): LocalFontEntry[] | null {
+    if (localFontsCache && localFontsCache.length > 0) return localFontsCache;
+    const globalCache = (globalThis as any)?.[CACHE_KEY];
     if (Array.isArray(globalCache) && globalCache.length > 0) {
-        return { ok: true, fonts: globalCache };
+        localFontsCache = globalCache;
+        return globalCache;
+    }
+    return null;
+}
+
+export function clearLocalFontCache(): void {
+    localFontsCache = null;
+    try {
+        delete (globalThis as any)?.[CACHE_KEY];
+    } catch {
+        try {
+            (globalThis as any)[CACHE_KEY] = undefined;
+        } catch {
+            // Ignore
+        }
+    }
+}
+
+function setCachedLocalFonts(fonts: LocalFontEntry[]): void {
+    localFontsCache = fonts;
+    try {
+        (globalThis as any)[CACHE_KEY] = fonts;
+    } catch {
+        // Ignore cross-context write restriction
+    }
+}
+
+/**
+ * Warm the local font cache within a user gesture (e.g. click in Options UI),
+ * so subsequent export pipeline operations can reuse the cached fonts.
+ */
+export async function warmLocalFontCache(): Promise<void> {
+    if (getCachedLocalFonts()) return;
+    const fn = getQueryLocalFontsFn();
+    if (!fn) return;
+    try {
+        const fonts = await fn();
+        const arr = Array.isArray(fonts) ? fonts : [];
+        if (arr.length > 0) {
+            setCachedLocalFonts(arr);
+        }
+    } catch {
+        // Handled gracefully: silent fallback
+    }
+}
+
+export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
+    const cached = getCachedLocalFonts();
+    if (cached && cached.length > 0) {
+        return { ok: true, fonts: cached };
     }
     const fn = getQueryLocalFontsFn();
     if (!fn) {
@@ -199,12 +253,8 @@ export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {
     try {
         const fonts = await fn();
         const arr = Array.isArray(fonts) ? fonts : [];
-        if (arr.length > 0 && typeof (globalThis as any)?.__geminiLocalFontsCache !== 'undefined') {
-            try {
-                (globalThis as any).__geminiLocalFontsCache = arr;
-            } catch {
-                // Ignore cross-context write restriction
-            }
+        if (arr.length > 0) {
+            setCachedLocalFonts(arr);
         }
         return { ok: true, fonts: arr };
     } catch (err) {
