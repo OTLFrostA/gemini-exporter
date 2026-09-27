@@ -174,3 +174,59 @@ test('real WASM: header span and oversized span compile without data loss', asyn
         assert.ok(extracted.text.includes(needle), `missing from PDF text: ${needle}`);
     }
 });
+
+test('real WASM: multi-cell staggered rowspan occupancy compiles and retains all text', async () => {
+    // 3-column table with staggered rowspans:
+    // Row 0: R0C0 (span 2 rows), R0C1 (span 3 rows), R0C2 (1 row)
+    // Row 1: R1C2 (cols 0, 1 occupied by R0C0, R0C1)
+    // Row 2: R2C0 (1 row), R2C2 (col 1 occupied by R0C1)
+    // Row 3: R3C0, R3C1, R3C2 (all 1 row)
+    const blocks = [{
+        type: 'table', id: 't_staggered',
+        rows: [
+            row(cell('R0C0-span2', { rowSpan: 2 }), cell('R0C1-span3', { rowSpan: 3 }), cell('R0C2')),
+            row(cell('R1C2')),
+            row(cell('R2C0'), cell('R2C2')),
+            row(cell('R3C0'), cell('R3C1'), cell('R3C2')),
+        ],
+    }];
+
+    const html = htmlOf(blocks);
+    assert.ok(html.includes('rowspan="2"'));
+    assert.ok(html.includes('rowspan="3"'));
+
+    const result = await compileOnce(blocks);
+    assert.ok(result.pdfBytes && result.pdfBytes.length > 0, 'compile must produce PDF bytes');
+    const extracted = extractPdfText(result.pdfBytes);
+    const needles = ['R0C0-span2', 'R0C1-span3', 'R0C2', 'R1C2', 'R2C0', 'R2C2', 'R3C0', 'R3C1', 'R3C2'];
+    for (const needle of needles) {
+        assert.ok(extracted.text.includes(needle), `missing from PDF text: ${needle}`);
+    }
+});
+
+test('real WASM: 2x2 multi-cell block span occupancy compiles cleanly', async () => {
+    // 3-column table with a 2x2 merged block:
+    // Row 0: 2x2-block (rowspan: 2, colspan: 2), R0C2
+    // Row 1: R1C2 (cols 0, 1 occupied by 2x2-block)
+    // Row 2: R2C0, R2C1, R2C2
+    const blocks = [{
+        type: 'table', id: 't_block2x2',
+        rows: [
+            row(cell('block-2x2', { rowSpan: 2, colSpan: 2 }), cell('R0C2-side')),
+            row(cell('R1C2-side')),
+            row(cell('R2C0-base'), cell('R2C1-base'), cell('R2C2-base')),
+        ],
+    }];
+
+    const html = htmlOf(blocks);
+    assert.ok(html.includes('rowspan="2"'));
+    assert.ok(html.includes('colspan="2"'));
+
+    const result = await compileOnce(blocks);
+    assert.ok(result.pdfBytes && result.pdfBytes.length > 0, 'compile must produce PDF bytes');
+    const extracted = extractPdfText(result.pdfBytes);
+    const needles = ['block-2x2', 'R0C2-side', 'R1C2-side', 'R2C0-base', 'R2C1-base', 'R2C2-base'];
+    for (const needle of needles) {
+        assert.ok(extracted.text.includes(needle), `missing from PDF text: ${needle}`);
+    }
+});
