@@ -4,7 +4,6 @@ export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
 export interface IExportWriter {
     writeFile(relativePath: string, content: WriteFileContent, options?: any): Promise<string> | string;
-    writeFile(subDirPath: string, fileName: string, content: WriteFileContent): Promise<string> | string;
     generateBlob?(onUpdate?: (pct: number) => void): Promise<Blob>;
     close?(): Promise<void>;
     getTotalBytes?(): number;

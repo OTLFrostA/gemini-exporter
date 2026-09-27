@@ -129,7 +129,7 @@ test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', a
         })
     };
     const w = new FsWriter(dirHandle2, 'batch');
-    await Promise.all([w.writeFile('', 'same.txt', 'aaa'), w.writeFile('', 'same.txt', 'bbb')]);
+    await Promise.all([w.writeFile('same.txt', 'aaa'), w.writeFile('same.txt', 'bbb')]);
     const i0s = events.indexOf('w1:start'), i0e = events.indexOf('w1:end');
     const i1s = events.indexOf('w2:start'), i1e = events.indexOf('w2:end');
     assert.ok(i0s !== -1 && i1s !== -1, `both writes ran: ${events.join(',')}`);
@@ -153,9 +153,9 @@ test('p1_h2 - review fix (c): writeChains map does not grow without bound', asyn
     const w = new FsWriter(fakeDir, 'gemini_export');
     // concurrent writes to the same path must serialize and leave no chain residue
     await Promise.all([
-        w.writeFile('', 'same.md', 'one'),
-        w.writeFile('', 'same.md', 'two'),
-        w.writeFile('', 'other.md', 'three')
+        w.writeFile('same.md', 'one'),
+        w.writeFile('same.md', 'two'),
+        w.writeFile('other.md', 'three')
     ]);
     assert.strictEqual(w.__writeChains.size, 0, `chain map must be empty after writes, got ${w.__writeChains.size}`);
     assert.deepStrictEqual(written.slice().sort(), ['one', 'three', 'two']);

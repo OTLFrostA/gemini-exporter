@@ -77,10 +77,9 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
             this.folderName = folder;
         }
         async init() {}
-        async writeFile(subDir: string, name: string, content: any) {
-            const path = subDir ? `${subDir}/${name}` : name;
-            writtenFiles[path] = content;
-            return name;
+        async writeFile(relativePath: string, content: any) {
+            writtenFiles[relativePath] = content;
+            return relativePath;
         }
     }
 
@@ -174,10 +173,9 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
             this.folderName = folder;
         }
         async init() {}
-        async writeFile(subDir: string, name: string, content: any) {
-            const path = subDir ? `${subDir}/${name}` : name;
-            writtenFiles[path] = content;
-            return name;
+        async writeFile(relativePath: string, content: any) {
+            writtenFiles[relativePath] = content;
+            return relativePath;
         }
     }
 

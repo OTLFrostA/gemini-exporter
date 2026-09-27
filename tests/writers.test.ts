@@ -152,38 +152,20 @@ test('fsWriter - rejects invalid or empty plain object content before touching f
 
     // Plain empty object from broken JSON serialization must throw and not create file handle
     await assert.rejects(async () => {
-        await writer.writeFile('', 'broken_image.jpg', {});
+        await writer.writeFile('broken_image.jpg', {});
     }, /Invalid content object passed to writeFile/);
     assert.strictEqual(fileHandleCreated, false, 'Must not create file handle on disk for invalid object');
 
     // Null or undefined content must throw
     await assert.rejects(async () => {
-        await writer.writeFile('', 'null_file.md', null);
+        await writer.writeFile('null_file.md', null);
     }, /Cannot write null or undefined content/);
     assert.strictEqual(fileHandleCreated, false, 'Must not create file handle on disk for null');
 
     // Valid string or Uint8Array must succeed and call getFileHandle
-    const okName = await writer.writeFile('', 'valid.txt', 'Hello world');
+    const okName = await writer.writeFile('valid.txt', 'Hello world');
     assert.strictEqual(okName, 'valid.txt');
     assert.strictEqual(fileHandleCreated, true);
-});
-
-test('zipWriter - supports 3-argument (subDir, fileName, content) signature matching IExportWriter', () => {
-    __setModuleOverride('JSZip', class MockJSZip {
-        files: Record<string, any> = {};
-        constructor() { this.files = {}; }
-        folder(_name: string) {
-            return {
-                file: (path: string, content: any) => { this.files[path] = content; }
-            };
-        }
-        async generateAsync() { return new Blob(['']); }
-    });
-
-    const writer = new ZipWriter('my_export');
-    const path = writer.writeFile('assets', 'img.png', 'fake_data');
-    assert.strictEqual(path, 'assets/img.png');
-    assert.strictEqual(writer.getTotalBytes(), 9);
 });
 
 test('zipWriter - isPrecompressedAsset identifies media vs text correctly', () => {
@@ -219,8 +201,8 @@ test('zipWriter - selective compression uses STORE for media and DEFLATE for tex
     });
 
     const writer = new ZipWriter('export_selective');
-    writer.writeFile('assets', 'picture.png', 'png_bytes');
-    writer.writeFile('', 'conversation.md', '# Chat content');
+    writer.writeFile('assets/picture.png', 'png_bytes');
+    writer.writeFile('conversation.md', '# Chat content');
 
     assert.strictEqual(recordedOpts['assets/picture.png']?.compression, 'STORE');
     assert.strictEqual(recordedOpts['conversation.md']?.compression, 'DEFLATE');
@@ -260,7 +242,7 @@ test('zipWriter - generateBlob uses generateInternalStream when available', asyn
     assert.ok(blob);
 });
 
-test('zipWriter - disambiguates (path, content, options) from (subDir, fileName, content)', () => {
+test('zipWriter - passes (path, content, options) through to JSZip file()', () => {
     let capturedPath = '';
     let capturedContent: any = null;
     let capturedOpts: any = null;
@@ -288,18 +270,18 @@ test('zipWriter - disambiguates (path, content, options) from (subDir, fileName,
     assert.strictEqual(capturedContent, 'eyJuYW1lIjoidGVzdCJ9');
     assert.strictEqual(capturedOpts.base64, true);
 
-    // Case 2: (subDir, fileName, content) where content is string
-    writer.writeFile('assets', 'data.txt', 'hello-world');
+    // (path, content) 2-arg with nested subdir
+    writer.writeFile('assets/data.txt', 'hello-world');
     assert.strictEqual(capturedPath, 'assets/data.txt');
     assert.strictEqual(capturedContent, 'hello-world');
 
-    // Case 3: (relativePath, content) 2-arg
+    // (relativePath, content) 2-arg, no subdir
     writer.writeFile('00_INDEX.md', '# Index');
     assert.strictEqual(capturedPath, '00_INDEX.md');
     assert.strictEqual(capturedContent, '# Index');
 });
 
-test('fsWriter - disambiguates (path, content, options) and decodes base64 correctly', async () => {
+test('fsWriter - writes via relativePath and decodes base64 correctly', async () => {
     let writtenData: any = null;
     let targetFileName = '';
 
@@ -327,8 +309,8 @@ test('fsWriter - disambiguates (path, content, options) and decodes base64 corre
     assert.ok(writtenData instanceof Uint8Array);
     assert.strictEqual(Buffer.from(writtenData).toString('utf-8'), 'hello');
 
-    // SubDir pattern
-    await writer.writeFile('assets', 'plain.txt', 'plain text');
+    // Subdir via relative path
+    await writer.writeFile('assets/plain.txt', 'plain text');
     assert.strictEqual(targetFileName, 'plain.txt');
     assert.strictEqual(writtenData, 'plain text');
 });
