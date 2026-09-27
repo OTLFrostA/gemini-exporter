@@ -22,7 +22,7 @@ const assert = require('node:assert');
 
 const { compileStage } = require('../src/core/export/pdf/pipeline/compileStage.js');
 const { StageError } = require('../src/core/export/pdf/pipeline/types.js');
-const { buildMinimalValidPdf } = require('../src/core/export/pdf/pdfCompiler.js');
+const { buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
 
 /**
  * The only valid "minimal PDF" in this file. Its startxref offset is

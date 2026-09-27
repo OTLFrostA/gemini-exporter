@@ -17,7 +17,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { PdfExporter, StubPdfCompiler, buildMinimalValidPdf } = require('../src/core/export/pdf/index.js');
+const { PdfExporter } = require('../src/core/export/pdf/index.js');
+const { StubPdfCompiler, buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
 
 const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
 const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
@@ -116,7 +117,7 @@ test('stub compiler returns a parseable minimal PDF', async () => {
 
 test('success is only marked after the Writer actually wrote the file', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
@@ -148,7 +149,7 @@ test('success is only marked after the Writer actually wrote the file', async ()
 
 test('writer failure marks the item failed, never successful, and stays retryable', async () => {
     const writer = makeFakeWriter({ failOn: () => true });
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
@@ -174,7 +175,7 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     );
     // Retry: same item, healthy writer -> succeeds. Nothing about the failure is sticky.
     const retryWriter = makeFakeWriter();
-    const retryExporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const retryExporter = new PdfExporter(new StubPdfCompiler());
     const retry = await retryExporter.run(
         {
             selected: [{ id: result.failed[0].id, title: result.failed[0].title }],
@@ -193,7 +194,7 @@ test('one failed item does not block the rest of the batch', async () => {
     const good1 = makeSample('good1', 'good one');
     const good2 = makeSample('good2', 'good two');
     const writer = makeFakeWriter({ failOn: (name) => name.includes('bad-title-will-fail') });
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const result = await exporter.run(
         {
             selected: [bad, good1, good2].map((c) => ({ id: c.id, title: c.title })),
@@ -213,7 +214,7 @@ test('one failed item does not block the rest of the batch', async () => {
 test('cancel stops the batch: no further compiles, no writes, no finalize', async () => {
     const slowCompiler = new StubPdfCompiler({ delayMs: 300 });
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     let downloads = 0;
     const progress: any[] = [];
     const convs = [1, 2, 3].map((n) => makeSample(`cancel-${n}`, `cancel ${n}`));
@@ -243,7 +244,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
 test('deterministic compile failure surfaces with diagnostics and stays retryable', async () => {
     const failing = new StubPdfCompiler({ failWith: 'typst error: unknown function `foo`' });
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
         {
@@ -264,7 +265,7 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
 
 test('zip mode packages only after successful writes', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     let downloaded: { name: string } | null = null;
     const result = await exporter.run(
         {
@@ -289,7 +290,7 @@ test('zip: generateBlob failure never reports success and commits no records (§
     (writer as any).generateBlob = async () => {
         throw new Error('boom: simulated blob failure');
     };
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const logs: any[] = [];
     let downloads = 0;
@@ -322,7 +323,7 @@ test('zip: generateBlob failure never reports success and commits no records (§
 
 test('zip: downloadHandler failure never reports success and commits no records (§1)', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const result = await exporter.run(
         {
@@ -346,7 +347,7 @@ test('zip: downloadHandler failure never reports success and commits no records 
 
 test('zip: success records are committed only after delivery, in item order (§1)', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const events: string[] = [];
     const convs = [1, 2].map((n) => makeSample(`ord-${n}`, `ord ${n}`));
     const result = await exporter.run(
@@ -375,7 +376,7 @@ test('zip: success records are committed only after delivery, in item order (§1
 test('zip: missing generateBlob on the writer fails closed, never reports success (§1)', async () => {
     const writer = makeFakeWriter();
     delete (writer as any).generateBlob;
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const result = await exporter.run(
         {
@@ -397,7 +398,7 @@ test('zip: missing generateBlob on the writer fails closed, never reports succes
 
 test('zip: missing downloadHandler fails closed, never counts staged as delivered', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
@@ -423,7 +424,7 @@ test('zip: missing downloadHandler fails closed, never counts staged as delivere
 
 test('§11: export-record persistence failure keeps the artifact successful but warns loudly', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
         {
@@ -449,7 +450,7 @@ test('§11: export-record persistence failure keeps the artifact successful but 
 
 test('§11 (zip): record failure during delivery commit keeps staged items delivered', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
         {
@@ -487,7 +488,7 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
             };
         },
     };
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
         {
@@ -509,7 +510,7 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
 test('result carries UI-contract aliases so failures are visible to the summary/banner/retry flow', async () => {
     const failing = new StubPdfCompiler({ failWith: 'boom: conv fail' });
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
@@ -530,7 +531,7 @@ test('result carries UI-contract aliases so failures are visible to the summary/
 test('abort marks unfinished items as failed/retryable instead of silently dropping them', async () => {
     const slowCompiler = new StubPdfCompiler({ delayMs: 300 });
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const convs = [1, 2, 3].map((n) => makeSample(`abort-${n}`, `abort ${n}`));
     const runPromise = exporter.run(
         {
@@ -557,7 +558,7 @@ test('abort marks unfinished items as failed/retryable instead of silently dropp
 
 test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585)', async () => {
     const writer = makeFakeWriter();
-    const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     let delivered: { blob: Blob; filename: string } | null = null;
     // Compiler returns a different-sized PDF per conversation id.

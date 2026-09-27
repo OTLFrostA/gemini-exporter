@@ -430,7 +430,7 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
 
     const exported: Array<{ id: string; record: any }> = [];
     const errorLogs: string[] = [];
-    const exporter = new PdfExporter(compiler); // 真编译器，非 stub：stub 门禁不触发
+    const exporter = new PdfExporter(compiler); // 真编译器（非 stub）
 
     const heapStart = process.memoryUsage().heapUsed;
     let heapPeak = heapStart;
