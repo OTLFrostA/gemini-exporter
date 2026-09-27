@@ -4,6 +4,7 @@ import {
     FONT_SWITCHES,
     hasKey,
     LITERAL_CHARS,
+    SIZING_COMMANDS,
     STYLES,
     SYMBOLS,
 } from './mappings.js';
@@ -119,7 +120,7 @@ export class Parser implements EnvironmentParserContext {
         return { text: atoms.map(a => a.text).join(' '), atomic: false };
     }
 
-    private parseOptionalArg(): string | undefined {
+    private parseOptionalArg(): Atom | undefined {
         this.skipSpace();
         if (this.peek() !== '[') return undefined;
         this.pos += 1;
@@ -135,7 +136,8 @@ export class Parser implements EnvironmentParserContext {
             const atom = this.parseAtom();
             if (atom.text !== '') atoms.push(atom);
         }
-        return atoms.map(a => a.text).join(' ');
+        if (atoms.length === 1 && atoms[0]!.atomic) return atoms[0]!;
+        return { text: atoms.map(a => a.text).join(' '), atomic: false };
     }
 
     private parseArg(what: string): Atom {
@@ -207,7 +209,7 @@ export class Parser implements EnvironmentParserContext {
             const body = this.parseArg('\\sqrt');
             return index === undefined
                 ? { text: `sqrt(${body.text})`, atomic: true }
-                : { text: `root(${index}, ${body.text})`, atomic: true };
+                : { text: `root(${index.text}, ${body.text})`, atomic: true };
         }
         if (name === 'text') {
             return { text: this.parseTextArg(), atomic: true };
@@ -245,6 +247,17 @@ export class Parser implements EnvironmentParserContext {
         }
         if (name === 'left' || name === 'right' || name === 'middle') {
             return { text: this.parseDelimiter(name), atomic: true };
+        }
+        if (SIZING_COMMANDS.has(name)) {
+            return { text: '', atomic: true };
+        }
+        if (name === 'xrightarrow' || name === 'xleftarrow') {
+            const arrow = name === 'xrightarrow' ? '-->' : '<--';
+            const opt = this.parseOptionalArg();
+            const req = this.parseArg(`\\${name}`);
+            const sub = opt !== undefined ? (opt.atomic ? `_${opt.text}` : `_(${opt.text})`) : '';
+            const sup = req.atomic ? `^${req.text}` : `^(${req.text})`;
+            return { text: `scripts(${arrow})${sub}${sup}`, atomic: true };
         }
         if (name === 'begin') {
             const env = this.parseEnvName();

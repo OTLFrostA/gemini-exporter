@@ -58,7 +58,8 @@ test('operators and relations', async () => {
     eq('p \\pm q \\cdot r', 'p plus.minus q dot r');
     eq('p \\mp q', 'p minus.plus q');
     eq('A \\equiv B', 'A equiv B');
-    eq('A \\otimes B', 'A times.circle B');
+    eq('A \\otimes B', 'A times.o B');
+    eq('A \\oplus B', 'A plus.o B');
     eq('A \\implies B', 'A ==> B');
     eq('A \\impliedby B', 'A <== B');
     eq('A \\iff B', 'A <==> B');
@@ -233,6 +234,25 @@ test('escaped percent and greek / relation variants', async () => {
     eq('\\ell \\lesssim \\lambda \\gtrsim \\mu', 'ell <~ lambda >~ mu');
     eq('\\odot \\ast \\dots \\simeq', 'dot.circle ast dots tilde.eq');
     eq('\\dddot{x}', 'dot.triple(x)');
+});
+
+test('extensible arrows (\\xrightarrow, \\xleftarrow)', async () => {
+    eq('\\xrightarrow{\\Delta\\theta = 120^\\circ}', 'scripts(-->)^(Delta theta = 120^compose)');
+    eq('\\xrightarrow[k]{n}', 'scripts(-->)_k^n');
+    eq('\\xrightarrow[below]{above}', 'scripts(-->)_(b e l o w)^(a b o v e)');
+    eq('A \\xleftarrow{n} B', 'A scripts(<--)^n B');
+});
+
+test('delimiter sizing commands (\\big, \\Big, etc.)', async () => {
+    eq('O\\big(\\sqrt{n}\\big)', 'O ( sqrt(n) )');
+    eq('\\Big\\| A \\Big\\|_1', 'parallel A parallel_1');
+    eq('\\left\\langle \\psi \\big|', 'angle.l psi |');
+});
+
+test('equilibrium arrow, relations, and dagger symbols', async () => {
+    eq('\\text{ADP} \\rightleftharpoons \\text{ATP}', '"ADP" harpoons.rtlb "ATP"');
+    eq('A \\cong B \\preceq C \\succeq D', 'A tilde.equiv B prec.eq C succ.eq D');
+    eq('\\Delta G^\\ddagger + \\bot + \\top + A \\setminus B', 'Delta G^dagger.double + bot + top + A without B');
 });
 
 test('plugs into the payload adapter convertMath hook', async () => {
