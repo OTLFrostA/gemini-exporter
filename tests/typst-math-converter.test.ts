@@ -189,8 +189,8 @@ test('matrix and cases environments', async () => {
 test('operatorname and custom operators', async () => {
     eq('\\operatorname{Tr}(A)', 'op("Tr", limits: #false) ( A )');
     // Starred and unstarred must stay semantically distinct: \operatorname*
-    // keeps display limits, the plain form pins limits off.
-    eq('\\operatorname*{max}_{x} f(x)', 'op("max")_x f ( x )');
+    // enables display limits, the plain form pins limits off.
+    eq('\\operatorname*{max}_{x} f(x)', 'op("max", limits: #true)_x f ( x )');
     eq('\\operatorname{max}_{x} f(x)', 'op("max", limits: #false)_x f ( x )');
     eq('-\\operatorname{Re}\\chi_{ij}', '- op("Re", limits: #false) chi_(i j)');
     eq('\\Tr(A)', 'op("Tr") ( A )');

@@ -284,9 +284,9 @@ class Parser {
                 }
             }
             if (op === '') this.fail('\\operatorname requires a non-empty operator name');
-            // \operatorname* takes display limits (Typst op default); the
-            // unstarred form never does, so pin limits off explicitly.
-            const limits = starred ? '' : ', limits: #false';
+            // Typst op(content, limits: bool) defaults to limits: false.
+            // \operatorname* enables display limits (#true), while unstarred explicitly pins limits: #false.
+            const limits = starred ? ', limits: #true' : ', limits: #false';
             return { text: `op("${escapeTypstString(op)}"${limits})`, atomic: true };
         }
         if (name === 'left' || name === 'right' || name === 'middle') {
