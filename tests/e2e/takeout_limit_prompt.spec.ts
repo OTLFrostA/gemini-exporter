@@ -170,6 +170,9 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     // Inject a takeout conversation into storage & ConversationsStore and await the prompt check
     await page.evaluate(async () => {
       await chrome.storage.local.set({
+        gemini_conversations: [
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout', timestamp: 1700000000000 }
+        ],
         gemini_conversations_u0: [
           { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout', timestamp: 1700000000000 }
         ]
