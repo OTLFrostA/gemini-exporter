@@ -4,13 +4,11 @@ export const INLINE_DATA_URL_MAX_BYTES = 10 * 1024 * 1024;
 
 export type DataUrlDecodeErrorCode = 'DATA_URL_TOO_LARGE' | 'DATA_URL_MALFORMED';
 
-export interface DecodedDataUrlAsset {
+export interface DecodedDataUrlBytes {
     ok: true;
     mimeType: string;
     bytes: Uint8Array;
     sizeBytes: number;
-    sha256: string;
-    storageRef: string;
     suggestedName: string;
 }
 
@@ -21,7 +19,20 @@ export interface DataUrlDecodeError {
     message: string;
 }
 
+export interface DecodedDataUrlAsset {
+    ok: true;
+    mimeType: string;
+    bytes: Uint8Array;
+    sizeBytes: number;
+    sha256: string;
+    storageRef: string;
+    suggestedName: string;
+}
+
 export type DataUrlDecodeResult = DecodedDataUrlAsset | DataUrlDecodeError;
+
+/** Synchronous decode result: bytes + mime only, no digest. */
+export type DataUrlBytesResult = DecodedDataUrlBytes | DataUrlDecodeError;
 
 const MIME_EXTENSIONS: Record<string, string> = {
     'image/png': '.png',
@@ -82,7 +93,8 @@ function tooLarge(estimatedBytes: number): DataUrlDecodeError {
     return { ok: false, code: 'DATA_URL_TOO_LARGE', reason, message: `inline data: image exceeds the ${limitMiB} MiB inline decode limit; marked missing` };
 }
 
-export function decodeDataUrlAsset(url: string): DataUrlDecodeResult {
+/** Synchronous data: URL decode: bytes + mime only, no hashing. */
+export function decodeDataUrl(url: string): DataUrlBytesResult {
     const comma = url.indexOf(',');
     if (comma < 0) return malformed('no comma separating the header from the payload');
     const header = url.slice(url.indexOf(':') + 1, comma);
@@ -113,16 +125,37 @@ export function decodeDataUrlAsset(url: string): DataUrlDecodeResult {
         }
     }
 
-    const digest = sha256Hex(bytes);
     const ext = extensionForMimeType(mimeType);
-    const storageRef = `assets/sha256/${digest.slice(0, 2)}/${digest.slice(2, 4)}/${digest}${ext}`;
     return {
         ok: true,
         mimeType,
         bytes,
         sizeBytes: bytes.length,
+        suggestedName: `image${ext}`,
+    };
+}
+
+export function buildDataUrlStorageRef(digest: string, mimeType: string): string {
+    const ext = extensionForMimeType(mimeType);
+    return `assets/sha256/${digest.slice(0, 2)}/${digest.slice(2, 4)}/${digest}${ext}`;
+}
+
+/**
+ * Full data: URL decode: synchronous decode plus an async Web Crypto SHA-256,
+ * producing the content-addressed storageRef.
+ */
+export async function decodeDataUrlAsset(url: string): Promise<DataUrlDecodeResult> {
+    const decoded = decodeDataUrl(url);
+    if (!decoded.ok) return decoded;
+    const digest = await sha256Hex(decoded.bytes);
+    const storageRef = buildDataUrlStorageRef(digest, decoded.mimeType);
+    return {
+        ok: true,
+        mimeType: decoded.mimeType,
+        bytes: decoded.bytes,
+        sizeBytes: decoded.sizeBytes,
         sha256: digest,
         storageRef,
-        suggestedName: `image${ext}`,
+        suggestedName: decoded.suggestedName,
     };
 }

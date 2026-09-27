@@ -17,7 +17,7 @@ const assert = require('node:assert');
 const canonical = require('../src/core/export/canonical/index.js');
 const { normalizeGeminiConversation, validateBundle } = canonical;
 const assetsApi = require('../src/core/export/assets/index.js');
-const { createInlineByteStore, decodeDataUrlAsset } = assetsApi;
+const { createInlineByteStore, decodeDataUrl, decodeDataUrlAsset } = assetsApi;
 
 // 1x1 transparent PNG, 70 bytes.
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -123,27 +123,39 @@ test('http(s) inline images keep the old remote behavior', async () => {
     assert.ok(!diagnostics.some((d: any) => d.code === 'DATA_URL_TOO_LARGE' || d.code === 'DATA_URL_MALFORMED'));
 });
 
-test('decodeDataUrlAsset unit checks: header parsing and strictness', () => {
-    const ok = decodeDataUrlAsset(`data:image/png;base64,${PNG_B64}`);
+test('decodeDataUrlAsset unit checks: header parsing and strictness', async () => {
+    const ok = await decodeDataUrlAsset(`data:image/png;base64,${PNG_B64}`);
     assert.ok(ok.ok);
     if (ok.ok) {
         assert.strictEqual(ok.mimeType, 'image/png');
         assert.strictEqual(ok.storageRef, PNG_REF);
+        assert.strictEqual(ok.sha256, PNG_SHA256);
         assert.strictEqual(ok.suggestedName, 'image.png');
     }
     // Whitespace inside base64 is insignificant.
-    const spaced = decodeDataUrlAsset(`data:image/png;base64,${PNG_B64.slice(0, 20)} ${PNG_B64.slice(20)}`);
+    const spaced = await decodeDataUrlAsset(`data:image/png;base64,${PNG_B64.slice(0, 20)} ${PNG_B64.slice(20)}`);
     assert.ok(spaced.ok && spaced.storageRef === PNG_REF);
 
-    const noComma = decodeDataUrlAsset('data:image/png;base64');
+    const noComma = await decodeDataUrlAsset('data:image/png;base64');
     assert.ok(!noComma.ok && noComma.code === 'DATA_URL_MALFORMED');
 
-    const badPad = decodeDataUrlAsset('data:image/png;base64,AB=C');
+    const badPad = await decodeDataUrlAsset('data:image/png;base64,AB=C');
     assert.ok(!badPad.ok && badPad.code === 'DATA_URL_MALFORMED');
 
-    const emptyType = decodeDataUrlAsset('data:,hello');
+    const emptyType = await decodeDataUrlAsset('data:,hello');
     assert.ok(emptyType.ok && emptyType.mimeType === 'application/octet-stream');
     if (emptyType.ok) assert.deepStrictEqual(Buffer.from(emptyType.bytes), Buffer.from('hello'));
+});
+
+test('decodeDataUrl stays synchronous and returns bytes without a digest', () => {
+    const decoded: any = decodeDataUrl(`data:image/png;base64,${PNG_B64}`);
+    assert.ok(decoded.ok);
+    assert.strictEqual(decoded.mimeType, 'image/png');
+    assert.ok(!('sha256' in decoded), 'sync decode must not compute a digest');
+    assert.ok(!('storageRef' in decoded), 'sync decode must not build a storageRef');
+    assert.deepStrictEqual(Buffer.from(decoded.bytes), Buffer.from(PNG_B64, 'base64'));
+    const bad: any = decodeDataUrl('data:image/png;base64');
+    assert.ok(!bad.ok && bad.code === 'DATA_URL_MALFORMED');
 });
 
 test('createInlineByteStore: put/get/has/clear/entryCount round-trip', () => {
