@@ -21,7 +21,7 @@ Gemini Exporter is an open-source, client-side browser extension designed for a 
 - **No Remote Servers**: Gemini Exporter does not operate, communicate with, or transmit data to any external backend server, database, cloud storage, or tracking service.
 - **No Personal Data Collected**: We do not collect, harvest, store, sell, or analyze your personal information, Google account credentials, passwords, session tokens, search history, or the contents of your conversations.
 - **Local Sandbox Execution**: All parsing, rendering, PDF compilation, and ZIP packaging occur entirely inside your browser's local sandbox memory. The PDF engine (Typst) runs as WebAssembly inside a local sandboxed extension page; your conversation text is passed to it as structured data and is never sent anywhere.
-- **No External Network Requests**: During the entire export flow, the extension initiates no network requests to any party other than Google — the Gemini site and attachment hosts you are exporting from. No telemetry, analytics, remote compilation, or remote font services are used.
+- **PDF Rendering Is Local**: PDF rendering and compilation run locally in the browser and do not contact external PDF, font, telemetry, or rendering services. Network access used to retrieve the user's Gemini conversations or referenced attachments remains limited to the source services required for the requested export.
 
 ---
 
@@ -89,7 +89,7 @@ Gemini Exporter 是一款纯本地运行的开源浏览器扩展，仅用于实�
 - **绝无外部服务器**：本扩展不设立、不连接任何外部后端服务器、中转节点或数据收集 API。
 - **不收集任何个人隐私**：我们绝不收集、上传、存储、出售或分析您的 Google 账号信息、密码、Cookie、Token、网络浏览历史或任何对话文本内容。
 - **纯本地运算**：所有的网页内容解析、Markdown 生成、PDF 编译、图片附件下载与 ZIP 打包压缩操作，100% 均在您本机的浏览器内存沙箱中完成。PDF 引擎（Typst）以 WebAssembly 形式运行在本地沙箱扩展页面中；对话文本以结构化数据传入，不发送到任何地方。
-- **零外部请求**：在整个导出流程中，本扩展不会向 Google 之外的任何一方发起网络请求（读取的站点与附件宿主为 Gemini 及 Google 附件域名）。不使用任何遥测、统计、云端编译或远程字体服务。
+- **PDF 渲染为本地行为**：PDF 的排版与编译完全在浏览器本地完成，不会连接外部 PDF、字体、遥测或渲染服务。用户主动导出时，为读取 Gemini 对话及其关联附件，扩展仍可能访问完成该导出所需的 Google/Gemini 来源服务。
 
 ### 3. 权限申请合理性说明
 本扩展仅申请实现上述导出功能所必需的最小权限：
