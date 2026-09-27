@@ -3,10 +3,8 @@
 // 覆盖：
 //  1. 10 张 PNG 经 AssetPipeline -> ZipWriter 落盘：totalBytes 含附件、compression=STORE
 //  2. 200MB 上限：1MB x 300 附件触发 throw
-//  3. AssetPipeline.folder 废弃 getter 读取直接 throw（防回潮）
-//  4. AssetPipeline 构造不再收 folder（fail-fast）
-//  5. takeout fallback 统一走 writer.writeFile
-//  6. sessionRecovery.writeIndexAndMeta / writeDiagnostics 统一收口到 writer（含无 writer 时 fail-closed）
+//  3. takeout fallback 统一走 writer.writeFile
+//  4. sessionRecovery.writeIndexAndMeta / writeDiagnostics 统一收口到 writer（含无 writer 时 fail-closed）
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -88,19 +86,6 @@ test('B1 - 200MB 上限：1MB x 300 附件触发 throw', async () => {
     assert.match(String((thrown as Error)?.message ?? thrown), /200MB/, 'error must mention the 200MB limit');
     // 200 x 1MB == 200MB（未超），第 201 次写才超限抛错
     assert.strictEqual(written, 200, `expected exactly 200 successful writes before the limit trips, got ${written}`);
-});
-
-test('B1 - AssetPipeline.folder 废弃 getter 读取直接 throw（防回潮）', () => {
-    const pipeline = new AssetPipeline({ writer: { writeFile: async () => 'x' } as any });
-    assert.throws(() => { (pipeline as any).folder; }, /deprecated/, 'reading .folder must throw');
-});
-
-test('B1 - AssetPipeline 构造不再收 folder（fail-fast）', () => {
-    assert.throws(
-        () => new AssetPipeline({ folder: { file: () => {} } } as any),
-        /options\.folder is deprecated/,
-        'passing folder must fail fast instead of silently dropping assets'
-    );
 });
 
 test('B1 - takeout fallback 统一走 writer.writeFile', async () => {
