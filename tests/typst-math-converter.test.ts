@@ -60,6 +60,14 @@ test('operators and relations', async () => {
     eq('A \\equiv B', 'A equiv B');
     eq('A \\otimes B', 'A times.circle B');
     eq('A \\implies B', 'A ==> B');
+    eq('A \\impliedby B', 'A <== B');
+    eq('A \\iff B', 'A <==> B');
+    eq('A \\Leftrightarrow B', 'A <=> B');
+    eq('A \\Longleftrightarrow B', 'A <==> B');
+    eq('A \\Longrightarrow B', 'A ==> B');
+    eq('A \\Longleftarrow B', 'A <== B');
+    eq('x \\longrightarrow y', 'x --> y');
+    eq('x \\longleftarrow y', 'x <-- y');
     eq('x \\to \\infty', 'x -> oo');
     eq('f: x \\mapsto x^2', 'f : x |-> x^2');
     eq('\\uparrow \\downarrow', 'arrow.t arrow.b');

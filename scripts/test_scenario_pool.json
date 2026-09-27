@@ -1,26 +1,5 @@
 [
   {
-    "id": "cryo_em_single_particle_reconstruction",
-    "domain": "cryo_em_single_particle_reconstruction",
-    "title": "结构生物物理学：低温冷冻电镜单颗粒三维重构与对比度传递函数校正",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "algorithms",
-      "physics",
-      "tables"
-    ],
-    "description": "测试透射电镜相衬成像弱相位物体近似推导、CTF 离焦与像差校正、中心切片定理证明、Wiener 滤波算法与大分子构象异质性分析",
-    "turns": [
-      "在透射电子显微镜（TEM）相衬成像理论中，严格推导基于弱相位物体近似（Weak Phase Object Approximation, WPOA）的大分子静电势投影与像平面波函数干涉模型，推导对比度传递函数（Contrast Transfer Function, CTF）解析表达式 CTF(k) = -A(k) \\sin(\\chi(k)) - w_c \\cos(\\chi(k))，其中波差函数 \\chi(k) = \\pi \\lambda \\Delta z k^2 + \\frac{1}{2}\\pi C_s \\lambda^3 k^4，并详述离焦量 \\Delta z、球面像差系数 C_s 以及包络函数（Envelope Function）对高频空间频率信息的衰减机制。",
-      "给出中心切片定理（Fourier Projection-Slice Theorem）在三维欧几里得空间向二维投影平面的严格傅里叶变换积分证明：证明三维实空间物体沿 z 轴方向的线性投影积分在二维傅里叶变换下的像，等于该物体三维傅里叶变换穿过原点且平行于投影平面的中心切片面，并解释其作为单颗粒重构填补 3D 倒易空间的基础。",
-      "请使用 Python 实现一个基于 NumPy/SciPy 的冷冻电镜单颗粒图像 2D CTF 相位翻转校正与 Wiener 滤波反卷积增强器，输入一段合成的高噪声二维大分子颗粒投影矩阵，根据给定的电子波长、离焦量和信噪比参数输出校正后的增强图像。",
-      "用 Markdown 表格对比冷冻单颗粒重构技术 (Single-Particle Analysis, SPA)、冷冻电子断层扫描 (Cryo-ET)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在生物样品结晶度要求、电子辐射损伤极限剂量 (e⁻/Å²)、三维空间极限分辨率 (Å) 以及大分子柔性构象异质性解析能力上的技术特征对比。",
-      "深入阐述在信噪比极低（SNR < 0.05）的冷冻电镜投影实验中，基于最大后验概率估计（MAP）与期望最大化（Expectation-Maximization, EM）算法的 3D 三维分类原理，并分析结合深层变分自编码器（Cryo-VAE）解析生物大分子连续构象流形（Continuous Conformational Manifolds）的流形学习物理方法。"
-    ]
-  },
-  {
     "id": "fusion_stellarator_quasi_symmetry_optimization",
     "domain": "fusion_stellarator_quasi_symmetry_optimization",
     "title": "先进磁约束聚变：仿星器准螺旋与准轴对称磁场拓扑优化",
@@ -198,28 +177,6 @@
       "使用 Python 编写脚本，基于稳态热传导与底部相变潜热平衡边界条件，求解导热-对流混合冰壳的径向一维温度剖面 T(z) 与底部冰-洋相变界面的热通量平衡演化曲线。",
       "使用 Markdown 表格横向对比木卫二 (Europa)、土卫二 (Enceladus)、木卫三 (Ganymede) 与海卫一 (Triton) 四颗典型冰卫星在冰壳平均厚度、地下海洋深度与盐度、潮汐加热功率、地表裂隙喷流观测证据及天体生物学潜在宜居性。",
       "推导出木卫二地表虎皮条纹双脊（Double Ridges）在潮汐拉张应力与液态海水毛细裂缝挤压回冻过程中的冰火山羽流超声速喷发喷口动力学热力学拉伐尔喷管方程。"
-    ]
-  },
-  {
-    "id": "quantum_materials_spin_liquid_kagome",
-    "domain": "quantum_materials_spin_liquid_kagome",
-    "title": "量子磁学与自旋液体：Kagome 晶格几何阻挫与分数化自旋子激发",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试 Kagome 反铁磁阻挫推导、精确对角化 Python 求解、自旋液体波函数渲染与自旋液体候选物表格对比",
-    "turns": [
-      "写出二维 Kagome 晶格反铁磁海森堡哈密顿量 \\hat{H} = J \\sum_{\\langle i, j \\rangle} \\vec{S}_i \\cdot \\vec{S}_j，从单个三角形单元的基态能量极小化出发，推导经典自旋 120^\\circ 共面排布下的庞大连续基态简并流形与无能隙涨落自由度。",
-      "使用 Python 编写一个针对小尺寸 Kagome 团簇 (如 12-site) 反铁磁海森堡模型的精确对角化 (Exact Diagonalization, ED) 求解脚本，利用 Lanczos 算法计算基态能量与自旋单态-三重态激发能隙 (Spin Gap)。",
-      "请帮我生成一张高科技感物理渲染图：三维微观晶格中，由铜离子构成的六角星形 Kagome 几何阻挫晶格网络，在极低温下自旋无法冻结，自旋单态共振价键 (RVB) 像液体般不断涨落并激发出两枚相互分离的分数化自旋子 (Spinon)，呈现出荧光量子波函数干涉条纹。",
-      "使用 Markdown 表格横向对比赫伯特史密斯石 (Herbertsmithite ZnCu3(OH)6Cl2)、Kitaev 蜂窝晶格 \\alpha-RuCl3、有机三角晶格盐 \\kappa-(ET)2Cu2(CN)3 以及烧绿石量子自旋冰 (Pyrochlore Spin Ice) 在阻挫参数 f = |\\Theta_{CW}|/T_N、自旋量子数 S、非弹性中子散射连续谱特征及热霍尔电导率表现。",
-      "基于部分子（Parton）投影费米子平均场理论，推导涌现 U(1) 与 \\mathbb{Z}_2 规范场下自旋子的费米面拓扑结构，论述手征自旋液体中半整数量子化热霍尔效应 \\kappa_{xy} / T = \\frac{\\pi c}{6} \\frac{k_B^2}{\\hbar} 的物理根源。"
     ]
   },
   {
@@ -408,6 +365,49 @@
       "请使用 Python 编写基于二维正方晶格双子晶格交替磁性紧束缚模型的哈密顿量本征值求解程序，计算沿布里渊区高对称路径 \\Gamma - X - M - \\Gamma 上的自旋向上与自旋向下能带色散曲线并打印自旋劈裂极大值点。",
       "设计一个结构化 Markdown 表格，系统对比铁磁体 (FM)、常规共线反铁磁体 (Collinear AFM)、非共线反铁磁体 (Non-collinear AFM) 与交替磁体 (Altermagnet) 在宏观剩磁、反常霍尔电导率、自旋流极化率、磁共振频段 (GHz vs THz)、抗外磁场杂散干扰能力及自旋电子学读写能耗上的核心性能指标。",
       "推导交替磁体中由自旋转移矩 (STT) 与自旋轨道矩 (SOT) 驱动的反铁磁畴壁动力学方程，分析由于相对论洛伦兹洛仑兹不变性导致畴壁运动速度突破自旋波群速极限（超音速运动）且无 Walker 击穿现象的力学物理机制。"
+    ]
+  },
+  {
+    "id": "quantum_optics_rydberg_atom_quantum_simulator",
+    "domain": "quantum_optics_rydberg_atom_quantum_simulator",
+    "title": "量子光学与中性原子计算：里德堡原子阵列长程偶极阻断与多体量子模拟",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试里德堡阻塞半径推导、QuTiP 反铁磁相变量子演化脚本、光镊超冷原子高精度视觉渲染与多量子物理平台横向对比",
+    "turns": [
+      "严格推导里德堡原子（Rydberg Atoms）在主量子数 n >> 1 下的范德华相互作用势 V_vdW(R) = C_6 / R^6，定义里德堡阻断半径（Rydberg Blockade Radius）R_b = (C_6 / \\hbar \\Omega)^{1/6}，并从两原子缀饰态动力学出发推导阻断能级移动抑制双激发共振的跃迁振幅方程。",
+      "使用 Python 编写基于 NumPy/SciPy 的一维 5-原子链里德堡原子体系哈密顿量构建与态演化脚本，计算在有效失谐 \\Delta(t) 与驱动拉比频率 \\Omega(t) 绝热退火下，系统从全基态 |g...g> 向反铁磁序 Z_2 态 |rgrgr> 的量子相变基态保真度与交替自旋结构因子。",
+      "请帮我生成一张高科技量子物理视觉概念图：二维光镊阵列（Optical Tweezer Array）悬浮着数十个发光的超冷中性铷原子，在极低温度真空中排布成蜂窝晶格，处于里德堡高激发态的原子外层呈现出半透明发光的庞大电子轨道云（Blockade Sphere），阻断球体相互接触产生微弱的量子相干发光与干涉条纹。",
+      "使用 Markdown 表格系统横向对比超导量子比特 (Superconducting Transmon)、离子阱 (Trapped Ion, 如 Yb+)、中性原子光镊阵列 (Neutral Atoms, 如 Rb/Sr) 与光量子线路 (Photonic Cluster State) 在单/双量子比特门保真度、物理相干时间 T_2^*、全连通性几何自由度、常温/低温致冷需求及当前物理比特可扩展规模维度的技术特征对比。",
+      "深入推导里德堡原子体系模拟二维非平庸拓扑相（如 Z_2 拓扑量子自旋液体相）的横场 Ising 模型极限，论证环面（Torus）紧致拓扑流形边界条件下的四重拓扑基态简并度（Topological Ground State Degeneracy）与任意子激发物理特征。"
+    ]
+  },
+  {
+    "id": "gravitational_physics_black_hole_ringdown_qnm",
+    "domain": "gravitational_physics_black_hole_ringdown_qnm",
+    "title": "广义相对论与黑洞摄动理论：克尔黑洞准正规模与极端引力波铃落推导",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 Teukolsky 主方程变量分离推导、QNM 复共轭本征频率谱边界条件、Leaver 连分数数值求解器与引力波并合源横向对比",
+    "turns": [
+      "在 Kerr 黑洞时空几何背景下，基于 Newman-Penrose 零四标架投影推导 Teukolsky 主方程（Teukolsky Master Equation），并严格展示辐射规范下拉普拉斯-贝尔特拉米算子沿角向与径向变量分离为自旋权重球谐函数 S_{s\\ell m}(\\theta; a\\omega) 与径向 Teukolsky 方程的过程。",
+      "详细阐述黑洞准正规模（Quasi-Normal Modes, QNM）的物理边界条件：在视界 r -> r_+ 处为纯内向吸积透射波，在空间无穷远 r -> \\infty 处为纯向外辐射耗散波，推导由此构成的复共轭本征频率谱 \\omega_{n\\ell m} = \\omega_R - i \\omega_I，并解释虚部 \\omega_I > 0 决定的特征阻尼时标 \\tau = 1/\\omega_I。",
+      "编写 Python 程序使用连分数法（Leaver's Continued Fraction Method）数值求解无自旋 Schwarzschild 黑洞基本四极引力辐射模（\\ell=2, m=2, n=0）的复特征频率初值，并计算其品质因数 Q = \\omega_R / (2\\omega_I)。",
+      "使用 Markdown 表格对比极端质量比旋近 (EMRI)、双中子星并合千新星 (BNS Kilonova)、中等质量黑洞双星 (IMBHB) 以及超大质量黑洞双星并合 (SMBHB) 在特征引力波辐射频段 (Hz)、有效自旋进动效应、视界无毛定理（No-Hair Theorem）铃落多极模检验能力以及对应观测探测器（LIGO-Virgo-KAGRA, LISA, 太极/天琴, PTA 脉冲星测时阵列）的科学技术特征。",
+      "深入推导双黑洞并合后期超辐射（Superradiance）与克尔黑洞测地极光圈（Light Ring / Photon Sphere）李雅普诺夫指数 \\lambda 之间的对应关系：证明大 \\ell 极限下准正规模频率与衰减率满足 \\omega_R \\to m \\Omega_c 和 \\omega_I \\to (n + 1/2) \\lambda，阐明其微观几何光学（Geometric Optics）测地线不稳定性的几何本质。"
     ]
   }
 ]

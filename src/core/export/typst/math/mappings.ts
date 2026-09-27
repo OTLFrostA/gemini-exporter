@@ -9,9 +9,15 @@ export const SYMBOLS: Record<string, string> = {
     Xi: 'Xi', Pi: 'Pi', Sigma: 'Sigma', Phi: 'Phi', Psi: 'Psi', Omega: 'Omega',
     times: 'times', div: 'div', pm: 'plus.minus', mp: 'minus.plus', cdot: 'dot',
     leq: '<=', geq: '>=', le: '<=', ge: '>=', neq: '!=', ne: '!=', approx: 'approx', sim: 'tilde.op',
-    equiv: 'equiv', otimes: 'times.circle', implies: '==>',
-    to: '->', rightarrow: '->', leftarrow: '<-', Rightarrow: '=>',
-    Leftarrow: '<=', leftrightarrow: '<->', mapsto: '|->',
+    equiv: 'equiv', otimes: 'times.circle',
+    implies: '==>', impliedby: '<==',
+    iff: '<==>',
+    to: '->', rightarrow: '->', leftarrow: '<-',
+    longrightarrow: '-->', longleftarrow: '<--',
+    Rightarrow: '=>', Leftarrow: '<=',
+    Longrightarrow: '==>', Longleftarrow: '<==',
+    Leftrightarrow: '<=>', Longleftrightarrow: '<==>',
+    leftrightarrow: '<->', mapsto: '|->',
     uparrow: 'arrow.t', downarrow: 'arrow.b',
     // \circ is U+2218 (function composition); the 120^\circ degree idiom would
     // need context-sensitive handling and is intentionally not special-cased.

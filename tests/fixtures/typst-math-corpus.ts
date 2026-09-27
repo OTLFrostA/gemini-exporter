@@ -208,7 +208,16 @@ export const TYPST_MATH_CORPUS: readonly MathCorpusItem[] = [
         expectedTypst: 'f compose g',
         wasmSmoke: true,
     },
-    // 17. Text
+    // 17. Relations and arrows
+    {
+        name: 'logical equivalence and implication arrows',
+        category: 'arrows',
+        latex: 'A \\iff B \\implies C',
+        display: false,
+        expectedTypst: 'A <==> B ==> C',
+        wasmSmoke: true,
+    },
+    // 18. Text
     {
         name: 'text block inside math',
         category: 'text',
