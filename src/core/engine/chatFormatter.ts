@@ -49,17 +49,12 @@ export interface CanonicalHtmlExportOptions {
 }
 
 /**
- * Item 1 — production HTML export route:
+ * Production HTML export route:
  * Conversation -> normalizeGeminiConversation() -> CanonicalHtmlRenderer.
  *
  * Asset URLs fall back to each asset's storageRef (the `assets/...` relative
  * layout the export pipeline already writes), so the renderer needs no
  * external AssetResolver plumbing here.
- *
- * Item 2 (P0): the legacy sync toHtml() was removed entirely
- * (htmlTemplate.ts now only provides shared GEM_HTML_CSS /
- * GEM_HTML_SCRIPT / sanitizeUrl for the canonical renderer).
- * HTML export is solely the canonical path below.
  */
 export async function formatHtmlCanonical(
     chat: any,
@@ -121,10 +116,10 @@ export function formatContent(
             mime: 'text/markdown'
         };
     }
-    // NOTE (Item 2): 'html' is intentionally not handled here. HTML export
+    // NOTE: 'html' is intentionally not handled here. HTML export
     // must go through the async formatHtmlCanonical() (Canonical AST path);
     // the legacy sync toHtml() was removed.
-    // P2 fail-closed: unsupported format must throw explicitly
+    // Fail-closed: unsupported format must throw explicitly
     throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
 }
 

@@ -86,7 +86,7 @@ export interface PdfExporterCallbacks {
     onItemExported?: (id: string, record: any) => void;
 }
 
-const D7_STAGES: PipelineStages = {
+const DEFAULT_PIPELINE_STAGES: PipelineStages = {
     project: projectStage,
     resources: resourceStage,
     payload: payloadStage,
@@ -380,7 +380,7 @@ export class PdfExporter {
             };
         }
 
-        const pipeline = new PdfPipeline(D7_STAGES);
+        const pipeline = new PdfPipeline(DEFAULT_PIPELINE_STAGES);
 
         const mountedFonts = await mountRuntimeFonts(fonts, compiler);
         if (mountedFonts.mountedCount > 0) {

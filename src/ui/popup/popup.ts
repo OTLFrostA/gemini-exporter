@@ -292,7 +292,7 @@ function initPopupEvents(): void {
                     if (!chat.id) chat.id = _activeConvId;
                     chat.title = cleanTitle(chat.title || _activeChatTitle);
 
-                    // Item 1: production HTML export goes through the canonical
+                    // Production HTML export goes through the canonical
                     // path (Conversation -> normalizeGeminiConversation ->
                     // CanonicalHtmlRenderer); legacy toHtml() is no longer
                     // the production route.

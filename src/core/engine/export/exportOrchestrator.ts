@@ -754,7 +754,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             }
                         }
 
-                        // Item 1: production HTML export goes through the canonical
+                        // Production HTML export goes through the canonical
                         // path (Conversation -> normalizeGeminiConversation ->
                         // CanonicalHtmlRenderer); legacy toHtml() is no longer
                         // the production route.

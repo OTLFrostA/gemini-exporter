@@ -5,11 +5,6 @@
  * Gemini-faithful CSS (dark/light themes, @media print), client-side UI
  * script (code copy button, prompt expand/collapse, attachment carousel),
  * and basic sanitization helpers (escapeHtml/escapeAttr/sanitizeUrl).
- *
- * Item 2 (P0): the legacy Markdown semantic parser (block/inline/table/
- * image-syntax parsers, attachment semantic guessing) and the legacy
- * toHtml() turn pipeline were removed. HTML export is now solely
- * Canonical AST -> CanonicalHtmlRenderer.
  */
 
 /**
