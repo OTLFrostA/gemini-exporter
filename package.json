@@ -7,6 +7,7 @@
     "type-check": "tsc --noEmit",
     "build": "node build.js",
     "package": "node build.js --pack",
+    "release:prepare": "node scripts/release-prepare.js",
     "test:unit": "python3 tests/run_tests.py",
     "test:release-gates": "node scripts/release-gate-checks/check-no-cjk-fonts.js",
     "test:e2e": "node build.js && playwright test",
