@@ -29,7 +29,6 @@ export const TYPST_WASM_PATH = 'src/ui/sandbox/vendor/typst_ts_web_compiler_bg.w
 
 export const BUNDLED_FONT_PATHS: readonly string[] = [
     'src/ui/sandbox/fonts/NewCMMath-Regular.otf',
-    'src/ui/sandbox/fonts/NotoSansSC-Regular.ttf',
 ];
 
 export interface ParsedProtocolMessage {
