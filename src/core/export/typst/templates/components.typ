@@ -348,7 +348,12 @@
       ]
     ]
     #block(inset: (left: 12pt, right: 12pt, top: 2.5pt, bottom: 9.5pt))[
-      #raw(code, block: true, lang: lang, theme: "quiet-light.tmTheme")
+      // REGRESSION (typst.ts 0.7.0 vendored WASM): passing `lang:` to `raw`
+      // dropped every space in code blocks (`def foo(a, b):` -> `deffoo(a,b):`).
+      // Code fidelity wins over syntax highlighting, so `lang:` is dropped here.
+      // The header above still shows the language tag; that is separate.
+      // Do not restore `raw(..., lang:)` until the vendored Typst runtime is upgraded and this regression test passes.
+      #raw(code, block: true, theme: "quiet-light.tmTheme")
     ]
   ]
 )

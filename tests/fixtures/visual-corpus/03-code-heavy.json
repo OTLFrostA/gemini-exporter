@@ -204,6 +204,40 @@
               ]
             }
           ]
+        },
+        {
+          "id": "m3",
+          "role": "assistant",
+          "blocks": [
+            {
+              "id": "p03-b70",
+              "type": "paragraph",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "回归用例：空格在代码块中必须原样保留。"
+                }
+              ]
+            },
+            {
+              "id": "p03-b71",
+              "type": "code",
+              "code": "def foo(a, b):\n    indented\n    return a + b",
+              "language": "python"
+            },
+            {
+              "id": "p03-b72",
+              "type": "code",
+              "code": "const x = a + b;",
+              "language": "javascript"
+            },
+            {
+              "id": "p03-b73",
+              "type": "code",
+              "code": "hello world",
+              "language": "text"
+            }
+          ]
         }
       ]
     },
@@ -226,6 +260,10 @@
       "func TopFiles"
     ],
     "codeSpaceNeedles": [
+      "def foo(a, b):",
+      "const x = a + b;",
+      "hello world",
+      "    indented",
       "def compute_attention_scores",
       "scores = scores / math.sqrt"
     ]

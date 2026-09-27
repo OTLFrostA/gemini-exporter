@@ -103,47 +103,43 @@ interface FixtureResult {
     title: string;
     pages: number;
     images: number;
-    status: 'PASS' | 'WARNING';
+    status: 'PASS';
     notes: string[];
     pdfBytes: Uint8Array;
 }
 
 /**
- * KNOWN BUG (typst.ts 0.7.0 vendored WASM): `#raw(..., lang: <any>)` drops every
- * space character from code blocks — e.g. `def foo(a, b):` becomes
- * `deffoo(a,b):`. Reproduced with a hand-written main.typ through typst.ts
- * directly, so it is independent of the product's payload/templates. Inline
- * code is unaffected (it renders via plain text, not raw+lang).
+ * REGRESSION GUARD (typst.ts 0.7.0 vendored WASM): `#raw(..., lang: <any>)`
+ * dropped every space character from code blocks — e.g. `def foo(a, b):`
+ * became `deffoo(a,b):`. Reproduced with a hand-written main.typ through
+ * typst.ts directly, so it is independent of the product's payload/templates.
+ * Inline code is unaffected (it renders via plain text, not raw+lang).
  *
- * The check below DETECTS the bug and reports it loudly in the review package
- * (fixture status WARNING). It intentionally does not fail the suite so the
- * corpus stays green while the upstream bug is open; flip it to a hard
- * assertion once the bug is fixed. Do NOT "fix" this by changing the renderer
- * or the fixtures to dodge the check.
+ * The template (`components.typ`) now drops the `lang:` argument entirely:
+ * code fidelity wins over syntax highlighting. This check is a HARD assertion
+ * — if the vendored Typst runtime is ever upgraded or `lang:` is restored,
+ * this fails loudly. Do NOT "fix" this by changing the renderer or the
+ * fixtures to dodge the check.
  */
-function checkCodeSpaces(pdfText: string, item: any, notes: string[]): boolean {
+function assertCodeSpaces(pdfText: string, item: any, fixtureId: string): void {
     // Space-SENSITIVE comparison: collapse all whitespace runs to one space,
     // but keep single spaces (normalizeText strips them, which would hide the bug).
     const keepSpaces = (s: string) => s.replace(/\s+/g, ' ');
     const hay = keepSpaces(pdfText);
     const needles: string[] = item.expect.codeSpaceNeedles ?? [];
-    let ok = true;
     for (const needle of needles) {
         // space-sensitive: the exact phrase with its spaces must survive.
-        if (!hay.includes(keepSpaces(needle))) {
-            ok = false;
-            notes.push(
-                `KNOWN-BUG typst.ts#raw+lang drops spaces: phrase with spaces not found: ${JSON.stringify(needle)}`,
-            );
-        }
+        assert.ok(
+            hay.includes(keepSpaces(needle)),
+            `${fixtureId}: code space regression — phrase with spaces not found in compiled PDF text: ${JSON.stringify(needle)}`,
+        );
     }
-    return ok;
 }
 
 async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<FixtureResult> {
     const { item } = entry;
     const notes: string[] = [];
-    let status: 'PASS' | 'WARNING' = 'PASS';
+    const status: 'PASS' = 'PASS';
 
     const store: Record<string, Uint8Array> = {};
     for (const [aid, b64] of Object.entries(item.binaries ?? {})) {
@@ -262,10 +258,8 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
     }
 
     // 9. Code blocks: characters must not be lost (whitespace-insensitive),
-    //    spaces are checked separately as a known-bug WARNING (see above).
-    if (!checkCodeSpaces(extracted.text, item, notes)) {
-        status = 'WARNING';
-    }
+    //    spaces are hard-asserted as a regression guard (see above).
+    assertCodeSpaces(extracted.text, item, item.id);
 
     return {
         id: item.id,
@@ -308,14 +302,7 @@ function writeReviewReport(dir: string, results: FixtureResult[]): void {
     }
     lines.push(`## 已知问题（非本 PR 范围，需后续跟进）`);
     lines.push(``);
-    const warned = results.filter((r) => r.status === 'WARNING');
-    if (warned.length) {
-        for (const r of warned) {
-            lines.push(`- ${r.id}: ${r.notes.join('；')}`);
-        }
-    } else {
-        lines.push(`- 无。`);
-    }
+    lines.push(`- 无。`);
     lines.push(``);
     lines.push(
         `> 说明：自动探针不是 pixel-level 审美判定。12 份 PDF 保留在本目录，供真人按真实阅读尺寸做最终视觉验收。`,
@@ -356,11 +343,4 @@ test('visual corpus: real Typst WASM compile + programmatic checks (all 12)', as
         compiler.dispose();
     }
     if (reviewDir) writeReviewReport(reviewDir, results);
-
-    const warnings = results.filter((r) => r.status === 'WARNING');
-    if (warnings.length) {
-        console.log(
-            `[visual-corpus] WARNING fixtures (known issues, see REVIEW.md): ${warnings.map((w) => w.id).join(', ')}`,
-        );
-    }
 });
