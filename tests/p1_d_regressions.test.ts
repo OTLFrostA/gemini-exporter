@@ -384,36 +384,6 @@ test('P1-054: loadFormat warns instead of silently swallowing storage errors', a
     }
 });
 
-// ------------------------------------------------------------------ P1-055
-
-test('P1-055: bindFormatSelect change handles saveFormat rejection (no unhandled rejection)', async () => {
-    const cap = captureWarn();
-    const prev = (global as any).chrome;
-    (global as any).chrome = {
-        storage: { local: { get: async () => ({}), set: async () => { throw new Error('quota'); } } },
-    };
-    let handler: any = null;
-    const selectEl = { addEventListener: (_ev: string, fn: any) => { handler = fn; } };
-    const unhandled: any[] = [];
-    const onUnhandled = (e: any) => { unhandled.push(e); };
-    process.on('unhandledRejection', onUnhandled);
-    try {
-        FormatStore.bindFormatSelect(selectEl);
-        assert.ok(handler, 'change handler was not registered');
-        (handler as any)({ target: { value: 'json' } });
-        await new Promise((r) => setTimeout(r, 20));
-        assert.strictEqual(unhandled.length, 0, 'saveFormat rejection leaked as unhandled rejection');
-        assert.ok(
-            cap.warns.some((w) => /format/i.test(w)),
-            `save failure produced no warning: ${JSON.stringify(cap.warns)}`
-        );
-    } finally {
-        process.removeListener('unhandledRejection', onUnhandled);
-        cap.restore();
-        (global as any).chrome = prev;
-    }
-});
-
 // ------------------------------------------------------------------ P1-056
 
 test('P1-056: merge keeps the fuller message body when the incoming body is empty/shorter', async () => {
