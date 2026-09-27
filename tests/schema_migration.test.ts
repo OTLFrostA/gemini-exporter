@@ -1,6 +1,7 @@
 /**
  * Phase D 规格测试 —— 存储迁移框架 (P1-10 / P1-13)
- * red-by-design: 修复前失败（schemaMigration 模块不存在）、修复后通过。
+ * Contract Classification: Permanent Contract
+ * Invariants: schema migration framework, schema versioning (v1), IDB offloading, and fail-closed safety.
  *
  * 运行：node -r ./tests/ts_register.js --test tests/schema_migration.test.ts
  */

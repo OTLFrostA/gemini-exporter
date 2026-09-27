@@ -490,9 +490,13 @@ def test_exported_history_and_slot_fallback():
     storage_js = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
     with open(storage_js, "r", encoding="utf-8") as f:
         code = f.read()
-    assert "gemini_exported_u0" in code and "exportedIds" in code, "storageService should merge legacy and global exportedIds"
-    assert re.search(r"updates(\['exportedIds'\]|\.exportedIds)\s*=", code), "saveExportRecord should maintain global exportedIds"
-    assert "gemini_conversations_u0" in code, "storageService should check gemini_conversations_u0"
+    assert re.search(r"updates(\['exportedIds'\]|\.exportedIds)\s*=", code), "saveExportRecordsBatch should maintain global exportedIds"
+
+    migration_ts = os.path.join(BASE_DIR, "src/core/storage/schemaMigration.ts")
+    with open(migration_ts, "r", encoding="utf-8") as f:
+        mig_code = f.read()
+    assert "gemini_conversations_u0" in mig_code, "schemaMigration should handle legacy gemini_conversations_u0"
+    assert "migrateExportAliases" in mig_code, "schemaMigration should run migrateExportAliases"
 
     store_ts = os.path.join(BASE_DIR, "src/ui/state/conversationsStore.ts")
     store_js = store_ts if os.path.isfile(store_ts) else os.path.join(BASE_DIR, "src/ui/state/conversationsStore.js")

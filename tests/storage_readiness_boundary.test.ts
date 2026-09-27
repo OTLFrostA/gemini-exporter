@@ -1,5 +1,7 @@
 /**
  * Storage Readiness Boundary Tests (PR A — Establish Storage Readiness Boundary)
+ * Contract Classification: Permanent Contract
+ * Invariants: Single-flight startup readiness, idempotent re-use, fail-closed context boundary.
  *
  * Verifies:
  * - Test 1: First initialization runs migration on legacy fixture and stamps version.

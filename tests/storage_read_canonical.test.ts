@@ -1,5 +1,7 @@
 /**
  * Canonical Storage Read Invariant Tests (PR B — Retire Migration-on-Read)
+ * Contract Classification: Permanent Contract
+ * Invariants: Canonical-only querying, non-mutating reads (0 sets, 0 removes), slot isolation, migration recovery.
  *
  * Verifies:
  * - Current-schema read: Canonical state is read accurately for all slots.
