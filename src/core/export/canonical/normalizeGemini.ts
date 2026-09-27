@@ -411,6 +411,19 @@ function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[]
     return out;
 }
 
+/**
+ * CommonMark-style delimiter boundary helpers for underscore emphasis.
+ * `undefined` (string start/end) counts as whitespace and not punctuation,
+ * matching CommonMark's "beginning/end of line" boundary treatment.
+ */
+function isWhitespace(ch: string | undefined): boolean {
+    return ch === undefined || /\s/.test(ch);
+}
+
+function isPunctuation(ch: string | undefined): boolean {
+    return ch !== undefined && /[\p{P}\p{S}]/u.test(ch);
+}
+
 function parseEmphasis(seg: string): InlineNode[] {
     if (!seg) return [];
     const markers = ['***', '___', '**', '__', '~~', '*', '_'] as const;
@@ -436,6 +449,30 @@ function parseEmphasis(seg: string): InlineNode[] {
         }
         return undefined;
     };
+    // Underscore delimiters (`_`, `__`, `___`) may only open/close emphasis
+    // when CommonMark left/right-flanking rules allow it. This keeps
+    // intra-word underscores (foo_bar, T_N, \sum_{...}, file names) as plain
+    // text without any LaTeX-specific special-casing.
+    // Regression: do not restore the old "any next same marker pairs" scan.
+    const flanking = (pos: number, len: number): { left: boolean; right: boolean } => {
+        const prev = pos > 0 ? seg[pos - 1] : undefined;
+        const next = pos + len < seg.length ? seg[pos + len] : undefined;
+        const leftFlanking =
+            !isWhitespace(next) && (!isPunctuation(next) || isWhitespace(prev) || isPunctuation(prev));
+        const rightFlanking =
+            !isWhitespace(prev) && (!isPunctuation(prev) || isWhitespace(next) || isPunctuation(next));
+        return { left: leftFlanking, right: rightFlanking };
+    };
+    const canOpenUnderscore = (pos: number, len: number): boolean => {
+        const { left, right } = flanking(pos, len);
+        const prev = pos > 0 ? seg[pos - 1] : undefined;
+        return left && (!right || isPunctuation(prev));
+    };
+    const canCloseUnderscore = (pos: number, len: number): boolean => {
+        const { left, right } = flanking(pos, len);
+        const next = pos + len < seg.length ? seg[pos + len] : undefined;
+        return right && (!left || isPunctuation(next));
+    };
     let i = 0;
     while (i < seg.length) {
         const m = markerAt(i);
@@ -445,11 +482,22 @@ function parseEmphasis(seg: string): InlineNode[] {
             continue;
         }
         const ch = m[0];
+        const isUnderscore = ch === '_';
+        if (isUnderscore && !canOpenUnderscore(i, m.length)) {
+            buf += m;
+            i += m.length;
+            continue;
+        }
         let j = seg.indexOf(m, i + m.length);
         let closer = -1;
         // Reject closers adjacent to the same marker char so '*a **b** c*' does not close at '**'.
+        // Underscore candidates must additionally satisfy the closer boundary rule.
         while (j >= 0) {
-            if (seg[j - 1] !== ch && seg[j + m.length] !== ch) {
+            if (
+                seg[j - 1] !== ch &&
+                seg[j + m.length] !== ch &&
+                (!isUnderscore || canCloseUnderscore(j, m.length))
+            ) {
                 closer = j;
                 break;
             }
