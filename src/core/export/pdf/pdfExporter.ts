@@ -2,8 +2,6 @@ import type {
     ArtifactWriteReport,
     RenderDiagnostic,
 } from '../canonical/rendering.js';
-import type { Diagnostic } from '../canonical/diagnostics.js';
-import { normalizeGeminiConversation } from '../canonical/normalizeGemini.js';
 import { createWriter, type IExportWriter } from '../../engine/writers/writerInterface.js';
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
@@ -88,15 +86,6 @@ export interface PdfExporterCallbacks {
     onItemExported?: (id: string, record: any) => void;
 }
 
-function toRenderDiagnostic(d: Diagnostic): RenderDiagnostic {
-    return {
-        severity: d.severity,
-        code: d.code,
-        message: d.message,
-        path: d.path,
-    };
-}
-
 const D7_STAGES: PipelineStages = {
     project: projectStage,
     resources: resourceStage,
@@ -133,61 +122,20 @@ function isStubCompiler(compiler: IPdfCompiler): boolean {
     return compiler?.name === STUB_PDF_COMPILER_NAME;
 }
 
-/** Fail-closed error code: refusing to emit a "0 messages" PDF. */
-export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
-const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
-
-/** True when the conversation already carries real message content (messages or turns). */
-function hasUsableMessages(chat: any): boolean {
-    if (!chat || typeof chat !== 'object') return false;
-    if (Array.isArray(chat.messages) && chat.messages.length > 0) return true;
-    if (Array.isArray(chat.turns) && chat.turns.length > 0) return true;
-    return false;
-}
-
-/**
- * Extract the chat from a fetchChatDetail result using the exact contract
- * ExportOrchestrator uses: results[0] wins, then chat. Never invent fields.
- */
-function extractChatFromDetailResult(res: FetchChatDetailResult, nid: string, fallback: any): any {
-    const chunkResults = res.results || (res.chat ? [res.chat] : []);
-    const chat = chunkResults[0] || fallback;
-    if (chat && typeof chat === 'object') chat.id = nid;
-    return chat;
-}
-
-/**
- * Resolve a full conversation for a metadata-only list item via the same
- * BatchWorker.fetchChatDetail path the normal export uses. The normalizer
- * stays a pure data transform — no network fetch is ever put inside it.
- */
-async function resolveFullChatDetail(args: {
-    id: string;
-    title: string;
-    index: number;
-    total: number;
-    currentSlot: string;
-    skip: boolean;
-    signal: AbortSignal;
-    fetchChatDetail: typeof BatchWorker.fetchChatDetail;
-    onLog: (msg: string, level?: string) => void;
-}): Promise<{ ok: true; chat: any } | { ok: false; error: string }> {
-    const { id, title, index, total, currentSlot, skip, signal, fetchChatDetail, onLog } = args;
-    const nid = normId(id);
-    let res: FetchChatDetailResult | null = null;
-    try {
-        res = await fetchChatDetail({ id: nid, title }, index, total, currentSlot, skip, 'pdf', signal);
-    } catch (e: any) {
-        return { ok: false, error: e?.message || String(e) };
-    }
-    if (!res || !res.success) {
-        return { ok: false, error: (res && res.error) || 'unknown error' };
-    }
-    const chat = extractChatFromDetailResult(res, nid, { id: nid, title });
-    const msgCount = Array.isArray(chat?.messages) ? chat.messages.length : 0;
-    onLog(`[PDF] ${title || nid}: resolved full conversation detail (${msgCount} messages)`, 'info');
-    return { ok: true, chat };
-}
+export {
+    PDF_NO_MESSAGES,
+    PDF_DETAIL_FETCH_FAILED,
+    hasUsableMessages,
+    extractChatFromDetailResult,
+    resolveFullChatDetail,
+    preparePdfItem,
+    toRenderDiagnostic,
+    type PreparedPdfItemResult,
+    type PreparedPdfItemSuccess,
+    type PreparedPdfItemFailure,
+    type PreparePdfItemContext,
+} from './prepareItem.js';
+import { preparePdfItem } from './prepareItem.js';
 
 export interface MountedRuntimeFonts {
     readonly mountedCount: number;
@@ -448,62 +396,30 @@ export class PdfExporter {
             if (this.aborted || signal.aborted) break;
             report(i, title);
 
-            const listChat =
-                Array.isArray(options.conversations)
-                    ? options.conversations.find((c: any) => normId(c?.id) === normId(id))
-                    : null;
-            const selectedChat = typeof selected[i] === 'object' ? selected[i] : { id, title };
+            const prep = await preparePdfItem(selected[i] ?? items[i], {
+                conversations: options.conversations,
+                fetchChatDetail: fetchChatDetailFn,
+                index: i,
+                total,
+                currentSlot,
+                skip,
+                signal,
+                onLog,
+            });
+            if (this.aborted || signal.aborted) break;
+            if (!prep.ok) {
+                failItem(prep.id, prep.title, prep.error, prep.diagnostics);
+                report(i + 1, prep.title);
+                continue;
+            }
 
-            const itemDiagnostics: RenderDiagnostic[] = [];
+            const itemDiagnostics: RenderDiagnostic[] = [...prep.diagnostics];
             try {
-                // The conversation entering normalization must carry usable
-                // message detail no matter where it came from: options.conversations,
-                // selected, or a fetched detail response. A metadata-only object
-                // is resolved through the same fetchChatDetail path the normal
-                // export uses — never normalized straight into a "0 messages" PDF.
-                let chat: any = listChat ?? selectedChat;
-                if (!hasUsableMessages(chat)) {
-                    const fetched = await resolveFullChatDetail({
-                        id,
-                        title,
-                        index: i,
-                        total,
-                        currentSlot,
-                        skip,
-                        signal,
-                        fetchChatDetail: fetchChatDetailFn,
-                        onLog,
-                    });
-                    if (this.aborted || signal.aborted) break;
-                    if (!fetched.ok) {
-                        failItem(id, title, `[${PDF_DETAIL_FETCH_FAILED}] ${fetched.error}`, itemDiagnostics);
-                        report(i + 1, title);
-                        continue;
-                    }
-                    chat = fetched.chat;
-                }
-
-                const { bundle, diagnostics, byteStore } = await normalizeGeminiConversation(chat as any);
-                for (const d of diagnostics) itemDiagnostics.push(toRenderDiagnostic(d));
-
-                // Fail closed: even a successfully resolved conversation must
-                // never become a "0 messages" PDF.
-                if ((bundle?.conversation?.messages?.length ?? 0) === 0) {
-                    failItem(
-                        id,
-                        title,
-                        `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`,
-                        itemDiagnostics,
-                    );
-                    report(i + 1, title);
-                    continue;
-                }
-
                 const itemInput: PipelineItemInput = {
-                    conversationId: id,
-                    title,
-                    bundle,
-                    byteStore,
+                    conversationId: prep.id,
+                    title: prep.title,
+                    bundle: prep.bundle,
+                    byteStore: prep.byteStore,
                     locale,
                     compiler,
                     fonts,
