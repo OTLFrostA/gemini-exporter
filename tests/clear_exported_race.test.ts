@@ -105,6 +105,7 @@ test('StorageService.removeExportRecords: u0 清除时同步清理 legacy gemini
         }
     };
     try {
+        await StorageService.migrateExportAliases('u0');
         const before = await StorageService.getExportedIds('u0');
         assert.deepStrictEqual(Object.keys(before).sort(), ['chat_legacy', 'chat_new']);
         await StorageService.removeExportRecords('u0', Object.keys(before));
