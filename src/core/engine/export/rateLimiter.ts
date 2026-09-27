@@ -1,5 +1,3 @@
-// rateLimiter.ts - Rate limiting state management and exponential backoff for Gemini export pipeline
-
 export interface RateLimiterOptions {
     maxRetries?: number;
     initialDelayMs?: number;
@@ -52,9 +50,6 @@ export function isRateLimited(res: any): boolean {
     return err.includes('BardErrorInfo') || err.includes('1096') || err.includes('服务端上限');
 }
 
-/**
- * Calculate exponential backoff delay with jitter.
- */
 export function calculateBackoff(retryCount: number, options?: RateLimiterOptions): number {
     const initial = options?.initialDelayMs ?? 2000;
     const max = options?.maxDelayMs ?? 30000;
@@ -68,9 +63,6 @@ export function calculateBackoff(retryCount: number, options?: RateLimiterOption
     return capped;
 }
 
-/**
- * Execute an asynchronous operation with automatic rate limit retries and exponential backoff.
- */
 export async function withRateLimitRetry<T>(
     operation: () => Promise<T>,
     options?: RetryOptions
@@ -119,9 +111,6 @@ export async function withRateLimitRetry<T>(
     }
 }
 
-/**
- * RateLimitManager - Manages circuit cooldown, retry counts, and backoff for batch export workers.
- */
 /**
  * Sleep that can be cut short by an AbortSignal.
  * Resolves true when the wait was cut short by abort, false when the full

@@ -1,5 +1,3 @@
-// mergeUtils.ts - Conversation merging and deduplication utilities
-
 import { normId, isReservedRoute } from './pathUtils.js';
 import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle } from './titleUtils.js';
 
@@ -37,11 +35,6 @@ function hasAuthoritativeTitleSlot(titles: Record<string, string | undefined>): 
     );
 }
 
-
-/**
- * SSoT: Merge an incoming conversation into an existing conversation.
- * Accurately arbitrates multi-tier titles, dates/timestamps, message counts, and dirty title status.
- */
 export function mergeConversation(
     old: any,
     incoming: any,
@@ -50,7 +43,6 @@ export function mergeConversation(
     const id = normId(incoming?.id || old?.id || '');
     const mergedTitles: Record<string, string> = { ...(old?.titles || {}) };
 
-    // 0. Seed old title and source into mergedTitles if present
     if (old && old.titleSource && old.title && !mergedTitles[old.titleSource]) {
         const cleanOldT = cleanTitle(old.title);
         if (cleanOldT && (isRealTitle(cleanOldT, id) || old.titleSource === 'takeout')) {
@@ -63,7 +55,6 @@ export function mergeConversation(
         }
     }
 
-    // 1. Merge incoming.titles if provided
     if (incoming?.titles && typeof incoming.titles === 'object') {
         for (const [k, v] of Object.entries(incoming.titles)) {
             if (typeof v === 'string') {
@@ -102,7 +93,6 @@ export function mergeConversation(
         }
     }
 
-    // 4. Resolve authoritative title
     const tempChat = {
         id,
         titles: mergedTitles,
@@ -113,7 +103,6 @@ export function mergeConversation(
     const resolvedTitle = resolved.title;
     const resolvedSource = resolved.source;
 
-    // 5. Detect dirty title
     let hasDirtyTitles = false;
     if (!old) {
         if (isBadTitle(incoming?.title) || incoming?.title !== resolvedTitle) {
@@ -125,7 +114,6 @@ export function mergeConversation(
         }
     }
 
-    // 6. Timestamps arbitration
     let cUpdated: any = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
     if (cUpdated !== null && cUpdated <= 0) cUpdated = null;
 
@@ -139,15 +127,13 @@ export function mergeConversation(
         bestUpdatedAt = cUpdated || oldUpdated || null;
     }
 
-
-
     let cCreated: any = toTimestampMs(incoming?.createdAt);
     if (cCreated !== null && cCreated <= 0) cCreated = null;
 
     let oldCreated: any = toTimestampMs(old?.createdAt);
     if (oldCreated !== null && oldCreated <= 0) oldCreated = null;
 
-    // 2. createdAt must never advance into the future. If both exist, take the earliest timestamp.
+    // createdAt must never advance into the future; take the earliest timestamp.
     let bestCreatedAt: number | null = null;
     if (cCreated && oldCreated) {
         bestCreatedAt = Math.min(oldCreated, cCreated);
@@ -155,13 +141,9 @@ export function mergeConversation(
         bestCreatedAt = cCreated || oldCreated || null;
     }
 
-    // 3. bestTimestamp mirrors bestUpdatedAt (the latest activity time).
-    // P1-hygiene: route the raw .timestamp fallbacks through toTimestampMs
-    // like cUpdated/oldUpdated above, so a legacy garbage string can never
-    // be kept verbatim in the authoritative timestamp field.
+    // Route raw .timestamp fallbacks through toTimestampMs to prevent legacy invalid strings from persisting
     const bestTimestamp = bestUpdatedAt || toTimestampMs(old?.timestamp) || toTimestampMs(incoming?.timestamp) || null;
 
-    // 3b. Preserve fuller message payloads and count monotonicity
     const effectiveMessageCount = (c: any): number => {
         if (!c || typeof c !== 'object') return 0;
         const n = Number(c.messageCount);
@@ -174,7 +156,6 @@ export function mergeConversation(
     const bestMsgLen = Math.max(oldMsgLen, inMsgLen);
     const incomingShrinksMessages = !!old && oldMsgLen > inMsgLen;
 
-    // 3c. lastSeen monotonicity
     const toMs = (v: any): number | null => {
         if (v === null || v === undefined || v === '') return null;
         const ms = typeof v === 'string' ? new Date(v).getTime() : Number(v);
@@ -189,12 +170,10 @@ export function mergeConversation(
         bestLastSeen = oldSeenMs !== null ? old.lastSeen : (inSeenMs !== null ? incoming.lastSeen : null);
     }
 
-    // 3d. lastActiveAt monotonicity
     const oldActiveMs = toMs(old?.lastActiveAt);
     const inActiveMs = toMs(incoming?.lastActiveAt);
     const bestActiveMs = Math.max(oldActiveMs ?? 0, inActiveMs ?? 0);
 
-    // 7. Check if meaningful change occurred
     const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
     const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
     const oldBodyLen = Array.isArray(old?.messages) ? old.messages.length : null;
@@ -217,7 +196,6 @@ export function mergeConversation(
         isChanged = true;
     }
 
-    // 8. Assemble merged conversation
     const merged: any = {
         ...(old || {}),
         ...(incoming || {}),
@@ -233,7 +211,6 @@ export function mergeConversation(
             : old?.sidebarIndex
     };
 
-    // Fuller existing message body wins over shorter incoming
     const oldBodyLen2 = Array.isArray(old?.messages) ? old.messages.length : 0;
     const inBodyLen2 = Array.isArray(incoming?.messages) ? incoming.messages.length : 0;
     if (oldBodyLen2 > 0 && inBodyLen2 < oldBodyLen2) {
@@ -248,8 +225,6 @@ export function mergeConversation(
         merged.messageCount = Math.max(oldMsgCount, inMsgCount);
     }
 
-    // P1-hygiene: the caller-injected `options.now` lastSeen override had zero
-    // callers and was removed; lastSeen is always the max-monotonic merge.
     if (bestLastSeen !== null) {
         merged.lastSeen = bestLastSeen;
     }
@@ -285,10 +260,6 @@ export function mergeConversation(
     return { merged, isChanged, hasDirtyTitles };
 }
 
-/**
- * SSoT: Deduplicate an array of conversations, merging items with identical normId
- * and sorting by authoritative compareConversations.
- */
 export function deduplicateConversations(
     list: any[],
     options?: MergeConversationOptions
@@ -330,11 +301,6 @@ export interface TakeoutMergePlan {
     changed: number;
 }
 
-/**
- * Pure merge planner for Takeout imports: given the freshest stored list and incoming Takeout items,
- * decides whether any records actually changed or need writing.
- * Returns null when the write can be safely skipped.
- */
 export function planTakeoutMerge(
     existing: any[],
     incoming: any[],

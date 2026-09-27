@@ -1,4 +1,3 @@
-// src/core/diagnostics/diagnosticSnapshot.ts - Pure sanitized state mirror & diagnostic aggregator
 import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
 import { normId } from '../utils/pathUtils.js';
 import { isTakeoutConversation, resolveConversationExportState } from '../utils/titleUtils.js';
@@ -112,7 +111,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         try {
             rawStorage = await chrome.storage.local.get(null);
-        } catch { /* intentional */ }
+        } catch {}
     }
 
     const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;

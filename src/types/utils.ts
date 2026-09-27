@@ -1,8 +1,3 @@
-/**
- * src/types/utils.ts
- * Type definitions for tab discovery, messaging, internationalization, and utility services.
- */
-
 export type TabStatus = 'NO_TABS_API' | 'NO_TAB' | 'NEED_REFRESH' | 'CONNECTED' | 'ERROR';
 
 export interface TabStatusResult {

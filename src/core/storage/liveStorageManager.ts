@@ -1,4 +1,3 @@
-// src/core/storage/liveStorageManager.ts - Live Auto-Save configuration and Directory Handle persistence
 import type { LiveSaveConfig } from '../../types/liveSave.js';
 import {
     getStoredDirHandle,

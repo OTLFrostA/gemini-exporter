@@ -1,4 +1,3 @@
-// src/ui/controllers/takeoutController.ts - Takeout Import Controller
 import type { TakeoutControllerContract } from '../../types/ui.js';
 import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';

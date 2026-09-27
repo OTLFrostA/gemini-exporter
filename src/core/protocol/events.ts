@@ -1,4 +1,3 @@
-// src/core/protocol/events.ts - Cross-World and Inter-process event constants and payload contracts
 import { CrossWorldEvents, type CrossWorldEventType } from './protocol.js';
 
 export { CrossWorldEvents, type CrossWorldEventType };
@@ -37,7 +36,6 @@ export interface GeminiStreamCompletePayload {
 export interface GeminiLiveSaveTriggerPayload {
     cid: string;
     reason?: string;
-    /** Forwarded verbatim to LiveSaveCoordinator.executeLiveSave as its options bag. */
     mockMode?: boolean;
 }
 

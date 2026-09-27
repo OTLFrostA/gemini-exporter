@@ -68,7 +68,6 @@ export interface PdfExporterOptions {
     writer?: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
-    /** Account slot forwarded to the detail fetch (mirrors the normal export path). */
     currentSlot?: string;
     skip?: boolean;
     /**
@@ -227,8 +226,6 @@ export class PdfExporter {
         const useZip = options.useZip !== false;
         const locale = options.locale === 'en' ? 'en' : 'zh';
         const folderName = options.folderName || DEFAULT_EXPORT_FOLDER_NAME;
-        // Detail-fetch seam: same BatchWorker.fetchChatDetail the normal export
-        // uses; tests inject a mock. currentSlot/skip mirror optionsExport.
         const fetchChatDetailFn = options.fetchChatDetail ?? BatchWorker.fetchChatDetail;
         const currentSlot = options.currentSlot ?? 'u0';
         const skip = options.skip ?? false;

@@ -1,4 +1,3 @@
-// src/ui/controllers/dirHandleController.ts - Directory Handle Persistence & Permission Controller
 import type { DirHandleControllerContract } from '../../types/ui.js';
 import { t } from '../uiCommon.js';
 
@@ -35,9 +34,8 @@ async function verifyDirPermissionDetailed(handle: any, options?: { allowRequest
                 return { ok: false, notFound: false };
             }
         }
-        // Physical existence check:
-        // Even if permission was granted, if the directory was deleted from the disk,
-        // querying keys() will immediately throw a NotFoundError!
+        // Physical existence check: even if permission is granted, if directory was deleted from disk,
+        // querying keys() throws NotFoundError immediately.
         for await (const _ of handle.keys()) {
             break;
         }
@@ -55,20 +53,17 @@ export async function restoreSavedDirHandle(): Promise<any> {
     try {
         const handle = await getStoredDirHandle();
         if (handle) {
-            // Restore path: requestPermission is only attempted when the
-            // browser reports transient user activation (see above).
             const r = await verifyDirPermissionDetailed(handle);
             if (!r.ok) {
                 currentDirHandle = null;
                 setMemoryDirHandle(null);
                 if (r.notFound) {
-                    // Delete stale handle from IndexedDB so we don't keep referencing a deleted directory!
+                    // Delete stale handle from storage when directory no longer exists on disk
                     await saveStoredDirHandle(null);
                     pendingPermissionHandle = null;
                     console.warn('[DirHandle] Restored handle invalid or deleted on disk, cleared from storage');
                 } else {
-                    // Not found is false -> Directory exists on disk, but permission is 'prompt' (degraded by browser)!
-                    // Preserve the handle in pendingPermissionHandle and DO NOT delete from IndexedDB!
+                    // Browser degraded permission to 'prompt'; preserve handle for 1-click reauthorization
                     pendingPermissionHandle = handle;
                     console.info('[DirHandle] Stored handle permission is prompt. Preserving handle for 1-click reauthorization.');
                 }

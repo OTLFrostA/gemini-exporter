@@ -1,4 +1,3 @@
-// src/content/domScraper.ts - DOM fallback parser and conversation list scroller
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';

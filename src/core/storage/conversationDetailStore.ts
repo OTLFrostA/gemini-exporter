@@ -1,4 +1,3 @@
-// src/core/storage/conversationDetailStore.ts - IndexedDB persistence for full conversation details (messages & turns)
 import type { ChatMessage, Turn } from '../../types/conversation.js';
 import { normId } from '../utils/pathUtils.js';
 import { IDB_DATABASES } from '../utils/constants.js';
@@ -8,7 +7,7 @@ export const DETAIL_DB_VERSION = 1;
 export const DETAIL_STORE = 'conversation_details';
 
 export interface ConversationDetailRecord {
-    id: string; // canonical normId
+    id: string;
     messages?: ChatMessage[];
     turns?: Turn[];
     updatedAt?: number | string;
@@ -80,9 +79,7 @@ async function withDetailDB<T>(mode: IDBTransactionMode, fn: (store: IDBObjectSt
     } finally {
         try {
             db.close();
-        } catch {
-            /* ignore close errors */
-        }
+        } catch {}
     }
 }
 

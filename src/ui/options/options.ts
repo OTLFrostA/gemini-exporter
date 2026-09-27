@@ -1,4 +1,3 @@
-// src/ui/options/options.ts - Gemini Exporter workbench single entrypoint & coordinator
 // NOTE (re-audit 2026-09-17, main=d601f83): all 33 former bare side-effect imports
 // were verified removable. A static-import-graph BFS from this entrypoint reaches all
 // 33 modules (82 files total), and no reader uses a `(globalThis as any).ModuleName`
@@ -27,7 +26,6 @@ import { ExportController } from '../controllers/exportController.js';
 import { TourGuide } from '../tour/tourGuide.js';
 import { t } from '../uiCommon.js';
 
-// Logging helpers
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (OptionsInit && OptionsInit.log) OptionsInit.log(msg, level);
     else console.log(`[LOG ${level}]`, msg);
@@ -52,32 +50,25 @@ export async function checkPendingTakeoutPrompt(): Promise<void> {
     }
 }
 
-// 4. isTakeoutPromptCompleted check (verified by tests/run_tests.py)
 export async function isTakeoutPromptCompleted(): Promise<boolean> {
     return OptionsTakeout ? await OptionsTakeout.isTakeoutPromptCompleted() : false;
 }
 
-// 5. loadStore facade & window binding
 export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<any> {
     if (OptionsInit && OptionsInit.loadStore) {
         return await OptionsInit.loadStore(force, customSelected);
     }
 }
 
-// Expose early for external callers and tests
 if (typeof window !== 'undefined') {
     (window as any).__workbenchLoadStore = loadStore;
 }
 
-/**
- * Single assembly coordinator function for UI workbench
- */
 export async function initWorkbench(): Promise<void> {
     if (typeof window !== 'undefined') {
         (window as any).__workbenchLoadStore = loadStore;
     }
 
-    // Initialize sub-modules in lifecycle order
     if (OptionsTakeout && OptionsTakeout.init) {
         OptionsTakeout.init({ loadStore, log });
     }
@@ -158,7 +149,6 @@ if (typeof document !== 'undefined') {
     }
 }
 
-// Expose global exports for backward compatibility and test scripts
 const OptionsModule = {
     initWorkbench,
     initOptionsApp,

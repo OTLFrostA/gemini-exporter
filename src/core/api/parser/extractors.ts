@@ -1,5 +1,3 @@
-// extractors.ts - JSPB Schema, unified tree walker, candidate, title, and timestamp extractors
-
 export interface JspbTurnSchema {
     ID_META: number;
     TIMESTAMP: number;
@@ -336,9 +334,6 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
         };
     }
 
-    /**
-     * Safely extracts candidates array from turn according to schema
-     */
     function extractModelCandidates(turn: unknown): unknown[] {
         if (!turn || !Array.isArray(turn)) return [];
         const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
@@ -362,10 +357,8 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
     type CandidateBodyTextExtractor = (body: unknown) => string | null;
 
     const CANDIDATE_BODY_EXTRACTORS: CandidateBodyTextExtractor[] = [
-        // Strategy 1: Direct string body
         (body) => (typeof body === "string" ? body : null),
 
-        // Strategy 2: Body parts array or string
         (body) => {
             if (!Array.isArray(body)) return null;
             const parts = body[GEMINI_JSPB_SCHEMA.CANDIDATE_BODY.PARTS];
@@ -384,7 +377,6 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
             return null;
         },
 
-        // Strategy 3: Leading text chunk in body array
         (body) => {
             if (Array.isArray(body) && typeof body[0] === "string" && body[0].length > 3) {
                 return body[0];
@@ -440,7 +432,6 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
     function robustFirstPayload(text?: string | null): unknown[] | null {
         if (!text || typeof text !== "string") return null;
 
-        // Fast path 1: standard batchexecute response with optional prefix
         let trimmed = text.trim();
         if (trimmed.startsWith(")]}'")) {
             trimmed = trimmed.slice(4).trim();
@@ -620,18 +611,15 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
                 return null;
             };
 
-            // Schema-driven title candidate scan
             const candidateTitle = extractCandidateValue(inner, GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES, sanitizeIfTitle);
             if (candidateTitle) return { title: candidateTitle, source: "rpc" };
 
-            // Nested header check: inner[TURNS_OR_LIST_PRIMARY][1]
             const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
             if (Array.isArray(primary) && typeof primary[1] === "string") {
                 const clean = cleanTitle(primary[1]);
                 if (isRealTitle(clean)) return { title: clean, source: "rpc" };
             }
 
-            // Broad scan of first 6 elements for any viable string title
             const first6Indices = Array.from({ length: Math.min(inner.length, 6) }, (_, i) => i);
             const broadTitle = extractCandidateValue(
                 inner,

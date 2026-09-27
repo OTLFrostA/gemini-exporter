@@ -1,4 +1,3 @@
-// src/core/engine/writers/fsWriter.ts - FileSystem Access API Writer
 
 import type { IExportWriter } from './writerInterface.js';
 import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';

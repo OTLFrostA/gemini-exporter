@@ -1,4 +1,3 @@
-// parseDetail.ts - hNvQHb conversation detail RPC response parser
 import type { Message, TitleSources } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { sanitizeFileName } from "../../utils/pathUtils.js";
@@ -87,7 +86,6 @@ function getSchema(): any {
     return GEMINI_JSPB_SCHEMA;
 }
 
-// Cache isTurn results per turn array instance
 const isTurnCache = new WeakMap<object, boolean>();
 
 function extractUserTextFromPayload(userPayload: unknown): string {
@@ -147,9 +145,6 @@ interface TurnsExtractionResult {
     turnsRejected: number;
 }
 
-/**
- * Extracts turns array from inner payload with multi-level fallbacks and drift warnings.
- */
 function extractTurnsFromInner(
     inner: any,
     top: unknown[] | null,
@@ -168,13 +163,10 @@ function extractTurnsFromInner(
     let turns: any[] | null = null;
     const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
 
-    // 1. Primary path: inner[TURNS_OR_LIST_PRIMARY]
     if (isTurnsArray(activeInner?.[innerSchema.TURNS_OR_LIST_PRIMARY])) {
         turns = activeInner[innerSchema.TURNS_OR_LIST_PRIMARY];
     }
-    // 2. Full deep search within inner
     if (!turns) turns = findTurnsDeep(activeInner);
-    // 3. Fallback: search other envelope items
     if (!turns && Array.isArray(top)) {
         for (const item of top) {
             if (!Array.isArray(item) || typeof item[2] !== "string") continue;
@@ -228,9 +220,6 @@ function extractTurnsFromInner(
     return { turns, inner: activeInner, schemaDriftWarnings, turnsRejected };
 }
 
-/**
- * Builds user Message directly with normalized attachments, avoiding secondary mapping.
- */
 function buildUserMessage(
     turn: any,
     ts: number | null,
@@ -326,9 +315,6 @@ function buildUserMessage(
     };
 }
 
-/**
- * Parses model candidate and returns formatted model Message.
- */
 function parseCandidateResponse(
     cand: any,
     turn: any,
@@ -554,13 +540,11 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
             }
             const ts = extractTurnTimestamp(turn) ?? null;
 
-            // 1. User message
             const userMsg = buildUserMessage(turn, ts, shortScope, getUniqueLocalName, dedupSet, docDedupSet, imageSeq);
             if (userMsg) {
                 allMsgs.push(userMsg);
             }
 
-            // 2. Model candidates
             const candList = extractModelCandidates(turn);
             if (Array.isArray(candList)) {
                 for (const cand of candList) {

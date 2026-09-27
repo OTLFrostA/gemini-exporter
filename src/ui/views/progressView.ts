@@ -1,4 +1,3 @@
-// src/ui/views/progressView.ts - Single Source of Truth for Progress Bar UI Rendering
 import type { IProgressView } from '../../types/ui.js';
 
 let _hideTimer: any = null;

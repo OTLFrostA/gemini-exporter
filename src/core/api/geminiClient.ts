@@ -105,7 +105,6 @@ const pagination = GeminiClientPagination;
                     snippet = (await resp.text()).slice(0, 320);
                 } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:geminiClient.ts]", e); }
 
-                // 400 Bad Request XSRF token retry
                 const retry400 = retryPolicy.handleHttp400 ? await retryPolicy.handleHttp400({
                     resp,
                     snippet,
@@ -126,7 +125,6 @@ const pagination = GeminiClientPagination;
                     });
                 }
 
-                // 401 Unauthorized cleanup
                 if (resp.status === 401 && retryPolicy.handleHttp401) {
                     await retryPolicy.handleHttp401({
                         cred,
@@ -136,7 +134,6 @@ const pagination = GeminiClientPagination;
                     });
                 }
 
-                // 429 Rate limiting backoff
                 const retryCount = (opts && opts._retryCount) || 0;
                 const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
                 const retry429 = retryPolicy.handleHttp429 ? await retryPolicy.handleHttp429({
@@ -209,7 +206,6 @@ const pagination = GeminiClientPagination;
                     snippet = (await resp.text()).slice(0, 320);
                 } catch { /* intentional: best-effort cleanup */ }
 
-                // 400 Bad Request XSRF token retry
                 const retry400 = retryPolicy.handleHttp400 ? await retryPolicy.handleHttp400({
                     resp,
                     snippet,
@@ -230,7 +226,6 @@ const pagination = GeminiClientPagination;
                     });
                 }
 
-                // 401 Unauthorized cleanup
                 if (resp.status === 401 && retryPolicy.handleHttp401) {
                     await retryPolicy.handleHttp401({
                         cred,
@@ -240,7 +235,6 @@ const pagination = GeminiClientPagination;
                     });
                 }
 
-                // 429 Rate limiting backoff
                 const retryCount = (opts && opts._retryCount) || 0;
                 const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
                 const retry429 = retryPolicy.handleHttp429 ? await retryPolicy.handleHttp429({

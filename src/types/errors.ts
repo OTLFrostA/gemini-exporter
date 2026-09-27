@@ -1,8 +1,3 @@
-/**
- * src/types/errors.ts
- * Structured error class hierarchy for Gemini Exporter runtime and pipelines.
- */
-
 export class GeminiError extends Error {
     constructor(message: string) {
         super(message);

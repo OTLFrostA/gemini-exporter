@@ -1,4 +1,3 @@
-// src/ui/views/logView.ts - Log rendering, no business logic
 import type { ILogView } from '../../types/ui.js';
 
 interface LogEntry {

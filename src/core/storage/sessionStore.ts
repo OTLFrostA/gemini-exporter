@@ -1,4 +1,3 @@
-// src/core/storage/sessionStore.ts - Single Source of Truth for export session state persistence
 export interface ExportSessionData {
     status?: 'running' | 'completed' | 'interrupted' | 'error' | string;
     slot?: string;
@@ -42,9 +41,6 @@ function withSessionLock<T>(fn: () => Promise<T>): Promise<T> {
     return p;
 }
 
-/**
- * Retrieves the current active or last recorded export session from Chrome local storage.
- */
 export async function getSession(): Promise<ExportSessionData | null> {
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -57,9 +53,6 @@ export async function getSession(): Promise<ExportSessionData | null> {
     return null;
 }
 
-/**
- * Replaces the export session state with a fresh session snapshot.
- */
 export async function setSession(session: Partial<ExportSessionData>): Promise<void> {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         const payload = {
@@ -75,11 +68,6 @@ export async function setSession(session: Partial<ExportSessionData>): Promise<v
     }
 }
 
-/**
- * Atomically merges a partial update into the current export session.
- * Serialized via withSessionLock: concurrent updateSession calls (same tab
- * or cross tab) can no longer interleave read-modify-write cycles.
- */
 export async function updateSession(patch: Partial<ExportSessionData>): Promise<void> {
     return withSessionLock(async () => {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
@@ -99,9 +87,6 @@ export async function updateSession(patch: Partial<ExportSessionData>): Promise<
     });
 }
 
-/**
- * Clears the export session from Chrome local storage.
- */
 export async function clearSession(): Promise<void> {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         try {

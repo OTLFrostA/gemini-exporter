@@ -1,4 +1,3 @@
-// src/core/engine/formatters/markdownFormatter.ts - Markdown conversation formatter
 import type { ChatMessage, Attachment } from "../../../types/conversation.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { normId } from "../../utils/pathUtils.js";
@@ -11,10 +10,6 @@ export interface MarkdownFormatterOptions {
     [key: string]: any;
 }
 
-/**
- * Intelligently shift Markdown heading levels (e.g. # -> ###, ## -> ####)
- * while protecting code fences (``` or ~~~) from being modified.
- */
 export function adjustHeadingHierarchy(text: string, shift: number = 2): string {
     if (!text || typeof text !== 'string') return text || '';
     const lines = text.split('\n');
@@ -43,7 +38,6 @@ export function adjustHeadingHierarchy(text: string, shift: number = 2): string 
             continue;
         }
 
-        // Outside code block: check if line starts with markdown heading (# )
         if (line.startsWith('#')) {
             const match = line.match(/^(#{1,6})(\s+.*)$/);
             if (match) {
@@ -60,9 +54,6 @@ export function adjustHeadingHierarchy(text: string, shift: number = 2): string 
     return out.join('\n');
 }
 
-/**
- * Render message attachments in Markdown format.
- */
 export function renderAttachments(atts?: any[] | null, isEn: boolean = false): string {
     if (!atts || !Array.isArray(atts) || !atts.length) return '';
     let block = '';
@@ -93,18 +84,12 @@ export function renderAttachments(atts?: any[] | null, isEn: boolean = false): s
     return block;
 }
 
-/**
- * Sanitize message body content from Google internal placeholder URLs and tool anchors
- */
 export function cleanMessageBody(text?: string | null): string {
     if (!text || typeof text !== 'string') return '';
     let converted = convertHtmlToMarkdown(text);
     return stripInternalChipMarkdown(converted);
 }
 
-/**
- * Wrap raw userscript blocks in a javascript fence. Natural-language prompts are left untouched.
- */
 export function sanitizeUserPrompt(text?: string | null): string {
     if (!text || typeof text !== 'string') return '';
     let cleaned = cleanMessageBody(text);
@@ -130,10 +115,6 @@ export function sanitizeUserPrompt(text?: string | null): string {
     return cleaned;
 }
 
-/**
- * Convert conversation object to standardized Markdown.
- * Compatible with Obsidian, Notion, Logseq, Typora, and GitHub Markdown.
- */
 export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): string {
     if (!chat) return '';
     const i18n = __resolveModule('I18n', I18nStatic);
@@ -155,7 +136,6 @@ export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): stri
     const updatedIso = toSafeIso(chat.updatedAt || chat.timestamp || chat.createdAt, createdIso);
     const convUrl = chat.url || (chat.id ? `https://gemini.google.com/app/${normId(chat.id)}` : '');
 
-    // 1. YAML Frontmatter (Obsidian Properties / Notion Database / Logseq)
     let md = `---\n`;
     md += `title: "${safeYamlTitle}"\n`;
     md += `id: "${chat.id || ''}"\n`;
@@ -166,7 +146,6 @@ export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): stri
     md += `tags:\n  - gemini-export\n`;
     md += `---\n\n`;
 
-    // 2. Document Title & Metadata Badges
     md += `# ${safeTitleClean}\n\n`;
     const metaBadges: string[] = [];
     const linkText = isEn ? '🔗 Chat Link' : '🔗 对话链接';
@@ -187,7 +166,6 @@ export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): stri
         return md;
     }
 
-    // 3. Conversation Messages
     for (const m of messages) {
         const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
         const role = m.role === 'user' ? 'user' : 'model';
@@ -241,7 +219,6 @@ export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): stri
                 md += `<details>\n<summary>${thoughtSummary}</summary>\n\n${thoughts}\n\n</details>\n\n`;
             }
 
-            // AI Answer Content with Heading Hierarchy Protection and Chip Sanitization
             let modelBody = cleanMessageBody(m.content);
             let modelAtts = [...(m.attachments || [])];
             if ((m as any).images && (m as any).images.length) {
@@ -271,7 +248,6 @@ export function toMarkdown(chat: any, opts: MarkdownFormatterOptions = {}): stri
                 md += renderAttachments(modelAtts, isEn);
             }
 
-            // Citations / Sources
             if ((m as any).citations && (m as any).citations.length) {
                 const sourceHeader = isEn ? `> 🌐 **Sources:**\n` : `> 🌐 **参考来源：**\n`;
                 md += sourceHeader;

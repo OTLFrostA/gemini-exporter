@@ -1,9 +1,3 @@
-/**
- * src/core/engine/takeout/takeoutParser.ts
- * Google Takeout ZIP archive unpacker and orchestration coordinator.
- * Delegates HTML parsing and image correlation to takeoutHtmlParser.ts,
- * integrates ZipBombGuard and MediaIndex, and enforces memory guardrails (S-4).
- */
 
 import { normId as utilsNormId } from "../../utils/utils.js";
 import { ZipBombGuard } from "./zipBombGuard.js";
@@ -38,15 +32,8 @@ declare global {
 
 const normId = utilsNormId;
 
-/**
- * Strips HTML tags from input string (re-exported for 100% backward compatibility).
- */
 export const stripHtmlTags = htmlStripTags;
 
-/**
- * Main coordinator: unpacks Google Takeout archive, scans structure,
- * enforces memory guardrails, parses conversations, and populates media indexes.
- */
 export async function parseTakeoutZip(
     file: any,
     onProgress?: ((pct: number, msg: string) => void) | null,
@@ -179,7 +166,6 @@ export async function parseTakeoutZip(
         onProgress
     });
 
-    // Correlate watermarked generated images with conversations
     const correlateFn = parser?.correlateGeneratedImages || correlateGeneratedImages;
     correlateFn(watermarkedImages, genBlocks, localMediaMap, localConvCache, extractedMap);
 

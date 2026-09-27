@@ -1,6 +1,3 @@
-// formatStore.ts - Pure format validation + storage sync, zero DOM requirement
-// Depends on GeminiConstants (ALLOWED_FORMATS) if available, otherwise fallback
-
 export type ExportFormat = 'markdown' | 'html' | 'json_openai' | 'json' | 'json_raw' | string;
 
 export interface FormatStoreLoadResult {
@@ -45,7 +42,6 @@ const DEFAULT = DEFAULT_FORMAT;
         return val;
     }
 
-    // Validate against option list (duck-typed options array, zero DOM required)
     function validateAgainstSelect(val: string, selectEl: any): boolean {
         if (!selectEl || !selectEl.options) return isAllowed(val);
         return Array.from<any>(selectEl.options).some((o: any) => o.value === val);

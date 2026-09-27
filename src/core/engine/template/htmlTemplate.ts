@@ -1,15 +1,3 @@
-/**
- * htmlTemplate.ts
- * Shared HTML shell assets for the canonical HTML renderer
- * (src/core/export/canonical/renderCanonicalHtml.ts):
- * Gemini-faithful CSS (dark/light themes, @media print), client-side UI
- * script (code copy button, prompt expand/collapse, attachment carousel),
- * and basic sanitization helpers (escapeHtml/escapeAttr/sanitizeUrl).
- */
-
-/**
- * Escape HTML special characters for safe markup insertion.
- */
 function escapeHtml(text?: string | null): string {
     if (!text || typeof text !== 'string') return '';
     return text
@@ -20,26 +8,17 @@ function escapeHtml(text?: string | null): string {
         .replace(/'/g, '&#39;');
 }
 
-/**
- * Escape attribute values for HTML attributes.
- */
 function escapeAttr(text?: string | null): string {
     return escapeHtml(text);
 }
 
-/**
- * Validate and sanitize URLs for use in href or src attributes.
- * Disarms dangerous schemes like javascript:, vbscript:, and non-image data: schemes.
- */
 export function sanitizeUrl(rawUrl?: string | null, allowImageData: boolean = false): string {
     if (!rawUrl || typeof rawUrl !== 'string') return '#';
     const trimmed = rawUrl.trim();
     if (!trimmed) return '#';
 
-    // Disarm any control characters
     if (/[\u0000-\u001F\u007F-\u009F]/.test(trimmed)) return '#';
 
-    // Check scheme if present
     const schemeMatch = trimmed.match(/^([a-zA-Z0-9+.-]+):/);
     if (schemeMatch) {
         const scheme = schemeMatch[1].toLowerCase();

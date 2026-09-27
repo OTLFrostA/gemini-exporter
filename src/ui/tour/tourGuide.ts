@@ -1,4 +1,3 @@
-// src/ui/tour/tourGuide.ts - Interactive Spotlight Onboarding Guide for Gemini Exporter
 import type { TourGuideContract } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import StorageService from '../../core/storage/storageService.js';

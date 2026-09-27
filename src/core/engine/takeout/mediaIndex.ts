@@ -63,7 +63,6 @@ export const normId = utilsNormId;
         const hour = parseInt(m[4], 10);
         const min = parseInt(m[5], 10);
         const sec = parseInt(m[6], 10);
-        // Validate calendar bounds
         if (month < 1 || month > 12 || day < 1 || day > 31 ||
             hour > 23 || min > 59 || sec > 60) return null;
         const t = Date.UTC(year, month - 1, day, hour, min, sec);
@@ -110,7 +109,6 @@ export const normId = utilsNormId;
 
         const convMedia = mediaMap[nid];
         if (convMedia && convMedia.length) {
-            // Pass 1: Exact match pass across all items in conversation media
             for (const item of convMedia) {
                 const itemFilename = item.filename;
                 const itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();

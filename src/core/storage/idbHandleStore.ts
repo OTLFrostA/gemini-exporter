@@ -58,9 +58,7 @@ async function withHandleDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> 
     } finally {
         try {
             db.close();
-        } catch {
-            /* ignore close errors */
-        }
+        } catch {}
     }
 }
 

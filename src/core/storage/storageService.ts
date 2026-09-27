@@ -1,4 +1,3 @@
-// storageService.ts - Unified multi-account Chrome storage access and key management
 import type { Conversation } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
 import { isTakeoutConversation } from "../utils/titleUtils.js";
@@ -11,8 +10,6 @@ import {
     clearAllDetails,
     type ConversationDetailRecord
 } from './conversationDetailStore.js';
-// User preferences & UI state tracked via userPreferences.ts:
-// - STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT: isTakeoutPromptCompleted, setTakeoutPromptCompleted
 import {
     getDevMode,
     setDevMode,
@@ -388,7 +385,6 @@ export interface ConversationTransaction {
         return normId(id);
     }
 
-    // Collapse an incoming record map's keys to canonical form.
     function normalizeExportRecordKeys(records: Record<string, any>): Record<string, any> {
         const out: Record<string, any> = {};
         for (const [k, v] of Object.entries(records || {})) {
@@ -399,8 +395,6 @@ export interface ConversationTransaction {
         return out;
     }
 
-    // One-time-per-map cleanup: fold historical alias keys into their canonical key
-    // so maps written by older versions shrink back instead of growing forever.
     function collapseExportAliases(map: Record<string, any>): void {
         for (const k of Object.keys(map)) {
             const ck = canonicalExportKey(k);
@@ -412,8 +406,6 @@ export interface ConversationTransaction {
         }
     }
 
-    // Startup migration (P1-13): collapse legacy alias keys in the persisted
-    // export-record map once per slot. Returns true when a write happened.
     async function migrateExportAliases(slot: string | null | undefined): Promise<boolean> {
         const { expKey, slot: s } = getStorageKeys(slot);
         const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
@@ -608,9 +600,6 @@ export interface ConversationTransaction {
             return map;
         });
     }
-
-    // getCredStorage is the shared resolver from ../api/client/credStorage.js
-    // (session preferred, local fallback after a "not allowed" session failure).
 
     async function getCredentialsMap(): Promise<Record<string, any>> {
         const storage = getCredStorage();

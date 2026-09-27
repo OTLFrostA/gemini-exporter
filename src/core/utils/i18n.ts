@@ -1,4 +1,3 @@
-// src/core/utils/i18n.ts - Pure internationalization engine for Gemini Exporter (Zero DOM)
 
 import type { I18nModule, LocaleDictionary } from '../../types/utils.js';
 import { STORAGE_KEYS } from './constants.js';

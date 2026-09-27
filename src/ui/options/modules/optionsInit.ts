@@ -1,4 +1,3 @@
-// src/ui/options/modules/optionsInit.ts - Workbench initialization & state loader
 import type { OptionsInitOptions } from '../../../types/ui.js';
 import {
     t,
@@ -141,7 +140,6 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
             return;
         }
 
-        // Deduplicate and sanitize titles via ConversationsStore (scrubs isBad titles and sorts with compareConversations)
         const { processed, hasDirtyTitles } = Store.normalizeAndDeduplicate
             ? Store.normalizeAndDeduplicate(incoming)
             : { processed: (incoming || []).slice().sort(compareConversations), hasDirtyTitles: false };
@@ -244,7 +242,6 @@ function bindSearchAndSelection(): void {
         }
     });
 
-    // List Selection Filter Buttons
     $('btnSelectAll')?.addEventListener('click', () => {
         const Store = getStore();
         const List = getList();
@@ -258,7 +255,6 @@ function bindSearchAndSelection(): void {
         if (List) List.deselectAll(convs);
     });
 
-    // Account Slot Switch Handler
     $('accountSlotSelect')?.addEventListener('change', async (e: Event) => {
         const newSlot = (e.target as HTMLSelectElement).value;
         console.log('[workbench] Account slot changed to:', newSlot);
@@ -269,7 +265,6 @@ function bindSearchAndSelection(): void {
         }
     });
 
-    // Tour guide trigger
     $('btnTourGuide')?.addEventListener('click', () => {
         const Tour = getTour();
         if (Tour && Tour.startTour) {

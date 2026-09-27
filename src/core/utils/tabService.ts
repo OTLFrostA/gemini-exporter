@@ -1,4 +1,3 @@
-// src/core/utils/tabService.ts - Unified Gemini Tab Discovery & Communication Service
 
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 import type { PingMessage, OpenGeminiPageMessage, ReloadGeminiTabMessage } from '../../types/messages.js';

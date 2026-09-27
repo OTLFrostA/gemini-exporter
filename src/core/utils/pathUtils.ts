@@ -1,8 +1,3 @@
-/**
- * src/core/utils/pathUtils.ts
- * Path sanitization, file name normalization, and ID routing utilities.
- */
-
 export const RESERVED_ROUTES = new Set([
     'download', 'settings', 'prompts', 'archive', 'trash', 'share',
     'activity', 'help', 'feedback', 'gems', 'explore', 'privacy', 'terms', 'updates', 'faq'
@@ -19,13 +14,9 @@ export function isReservedRoute(id?: string | number | null): boolean {
     return RESERVED_ROUTES.has(clean);
 }
 
-/**
- * Unified sanitizeFileName - 单一源，70字符上限，防路径穿越与 Windows 保留名
- */
 export function sanitizeFileName(name?: string | null, fallback: string = 'untitled'): string {
     if (!name) return fallback;
     let s = String(name).replace(/[\r\n\t\f\v]+/g, ' ').replace(/[\u0000-\u001F\u007F-\u009F]/g, '_');
-    // 防路径穿越 ../  ..\  ...
     s = s.replace(/\.\.\//g, '_').replace(/\.\.\\/g, '_');
     s = s.replace(/[<>:"/\\|?*]+/g, '_');
     s = s.replace(/\.{2,}/g, '_');
@@ -38,6 +29,7 @@ export function sanitizeFileName(name?: string | null, fallback: string = 'untit
         ext = s.slice(lastDot);
         s = s.slice(0, lastDot);
     }
+    // Windows file systems prohibit DOS device reserved names
     if (/^(con|prn|aux|nul|com\d{1,2}|lpt\d{1,2})$/i.test(s)) s = s + '_chat';
     if ([...s].length > 70) s = [...s].slice(0, 70).join('').trim();
     s = s.replace(/[\.\s_]+$/g, '').trim();
@@ -45,9 +37,6 @@ export function sanitizeFileName(name?: string | null, fallback: string = 'untit
     return s + ext;
 }
 
-/**
- * Unified sanitizeRelativePath - 单一源，拆分各级相对路径分段清洗，阻断 .. 路径穿越并统一正斜杠
- */
 export function sanitizeRelativePath(p?: string | null, defaultName: string = 'file'): string {
     if (!p || typeof p !== 'string') return '';
     const segments = p.split(/[/\\]/).map(seg => {
@@ -59,9 +48,6 @@ export function sanitizeRelativePath(p?: string | null, defaultName: string = 'f
     return segments.join('/');
 }
 
-/**
- * Determine if a given URL belongs to the Gemini web domain.
- */
 export function isGeminiUrl(urlStr?: string | null): boolean {
     if (!urlStr || typeof urlStr !== 'string') return false;
     try {
@@ -82,9 +68,6 @@ export interface AccountProfile {
     count?: number;
 }
 
-/**
- * Extract multi-account slot from URL or pathname (e.g. /u/1/app -> u1). Defaults to 'u0'.
- */
 export function detectSlotFromUrl(urlOrPath?: string | null): string {
     if (!urlOrPath || typeof urlOrPath !== 'string') return 'u0';
     try {
@@ -97,10 +80,6 @@ export function detectSlotFromUrl(urlOrPath?: string | null): string {
     }
 }
 
-/**
- * Extract normalized conversation ID from URL or pathname (e.g. /app/c_12345678 -> 12345678).
- * Automatically filters out system reserved routes (settings, prompt, activity, etc.).
- */
 export function extractConversationIdFromUrl(urlOrPath?: string | null): string | null {
     if (!urlOrPath || typeof urlOrPath !== 'string') return null;
     const m = urlOrPath.match(/\/app\/(?:c_)?([A-Za-z0-9_-]{8,})/i);
@@ -109,28 +88,16 @@ export function extractConversationIdFromUrl(urlOrPath?: string | null): string 
     return isReservedRoute(cleanId) ? null : cleanId;
 }
 
-/**
- * Generates canonical 6-character short identifier for conversations/documents.
- * Falls back gracefully for shorter IDs or missing inputs.
- */
 export function shortId(id?: string | number | null): string {
     const nid = normId(id);
     return nid.length >= 6 ? nid.slice(-6) : (nid || 'chat');
 }
 
-/**
- * Generates canonical asset/sub-resource short scope prefix (e.g. "123456_").
- * Returns empty string if no valid ID provided.
- */
 export function shortScope(id?: string | number | null): string {
     const nid = normId(id);
     return nid ? `${shortId(nid)}_` : '';
 }
 
-/**
- * Unified target export filename generator (e.g. Title_123456.md).
- * Guarantees 100% naming consistency across manual export, batch export, live save, and popup quick export.
- */
 export function buildExportFileName(title?: string | null, id?: string | null, ext: string = 'md'): string {
     const safeTitle = sanitizeFileName(title || 'untitled');
     const cid6 = shortId(id);
@@ -199,10 +166,10 @@ export async function resolveExportFileName(
     if (!exists || legacyName === fileName) return fileName;
     try {
         if (await exists(fileName)) return fileName;
-    } catch { /* probe failure -> fall through to legacy check */ }
+    } catch {}
     try {
         if (await exists(legacyName)) return legacyName;
-    } catch { /* ignore */ }
+    } catch {}
     return fileName;
 }
 

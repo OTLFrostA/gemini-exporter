@@ -98,7 +98,6 @@ type PendingResult =
     | { kind: 'inited'; initMs?: number }
     | { kind: 'compiled'; pdf: ArrayBuffer | null; diagnostics: Array<{ severity: string; message: string }> };
 
-// OpenType sfnt table directory scan for 'MATH' (0x4D415448).
 export function fontHasMathTable(bytes: Uint8Array): boolean {
     if (bytes.length < 12) return false;
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);

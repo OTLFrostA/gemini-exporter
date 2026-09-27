@@ -1,5 +1,3 @@
-// progressUtils.ts - Export progress formatting utilities
-
 export interface ExportProgressFormatted {
     text: string;
     pct: number;
@@ -15,9 +13,6 @@ export interface ExportProgressInput {
     [key: string]: any;
 }
 
-/**
- * Formats export progress details into human-readable text and percentage.
- */
 export function formatExportProgress(
     progress?: ExportProgressInput | number | null,
     txt?: string,

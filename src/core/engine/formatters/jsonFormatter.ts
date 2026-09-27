@@ -1,9 +1,5 @@
-// src/core/engine/formatters/jsonFormatter.ts - JSON formatters (OpenAI, Standard, Raw)
 import { normId } from "../../utils/pathUtils.js";
 
-/**
- * Convert conversation to OpenAI API Compatible JSON format.
- */
 export function toOpenAIJson(chat: any): string {
     const messages = (chat.messages || []).map((m: any) => {
         const role = m.role === 'model' ? 'assistant' : 'user';
@@ -48,16 +44,10 @@ export function toOpenAIJson(chat: any): string {
     }, null, 2);
 }
 
-/**
- * Convert conversation to standard extension JSON format.
- */
 export function toJsonStandard(chat: any): string {
     return JSON.stringify(chat, null, 2);
 }
 
-/**
- * Convert conversation to raw Gemini JSON format.
- */
 export function toJsonRaw(chat: any): string {
     return JSON.stringify(chat._raw || chat, null, 2);
 }

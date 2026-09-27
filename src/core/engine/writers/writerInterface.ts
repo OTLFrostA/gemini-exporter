@@ -1,4 +1,3 @@
-// src/core/engine/writers/writerInterface.ts - Unified export writer contract and factory (Phase 2c)
 
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
@@ -27,16 +26,10 @@ import { FsWriter } from './fsWriter.js';
 
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 
-/**
- * Check whether an object conforms to the Writer interface.
- */
 export function isWriter(obj: any): boolean {
     return Boolean(obj && typeof obj.writeFile === 'function');
 }
 
-/**
- * Factory function to create a writer instance.
- */
 export function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
     if (type === 'zip') {
         const Cls = (ZipWriter as any)?.ZipWriter || ZipWriter;

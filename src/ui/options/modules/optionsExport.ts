@@ -1,4 +1,3 @@
-// src/ui/options/modules/optionsExport.ts - Export interaction & pipeline runner
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
     t,
@@ -167,7 +166,6 @@ export async function startExportPipeline(
 
     const convs = Store ? Store.getConversations() : [];
 
-    // S-1 Memory Guardrail: Pre-flight memory estimation for large ZIP exports
     if (includeZip) {
         const estimatedMb = (Controller && typeof Controller.estimateMemoryUsage === 'function')
             ? Controller.estimateMemoryUsage(selected, convs)
@@ -547,8 +545,6 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
     const Dialogs = getDialogs();
     const Store = getStore();
     const List = getList();
-
-    // Export Settings Init (ZIP & Formats)
     const zipCheck = $('includeZip') as HTMLInputElement | null;
     if (Formats && Formats.loadFormat) {
         const { format } = await Formats.loadFormat();
@@ -574,7 +570,6 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         });
     }
 
-    // Directory selection
     $('btnSetDir')?.addEventListener('click', async () => {
         try {
             if (DirHandle) {
@@ -593,7 +588,6 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         }
     });
 
-    // Directory restore on load
     if (DirHandle) {
         try {
             const savedHandle = await DirHandle.restoreSavedDirHandle();
@@ -607,7 +601,6 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         }
     }
 
-    // Export Buttons
     $('btnExport')?.addEventListener('click', async () => {
         const fmtSelect = $('format') as HTMLSelectElement | null;
         if (fmtSelect?.value === 'pdf') {

@@ -1,8 +1,3 @@
-/**
- * src/types/entrypoints.ts
- * Type definitions for extension entry points (Background Service Worker & Popup Controller).
- */
-
 import type { MessageAction } from './messages.js';
 
 export interface BackgroundMessage {

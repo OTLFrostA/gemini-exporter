@@ -35,7 +35,6 @@ function getProtocol(): GeminiProtocolModule {
     let _atCache: { v: string; ts: number; len: number } | null = null;
     const CRED_CACHE_TTL = 30000;
 
-    // Page DOM credential extractor - accepts optional doc for decoupling and testing
     function getBlFromPage(doc?: any): string | null {
         try {
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
@@ -55,7 +54,6 @@ function getProtocol(): GeminiProtocolModule {
         return null;
     }
 
-    // Page DOM credential extractor - accepts optional doc for decoupling and testing
     function getAtFromPage(doc?: any): string {
         try {
             const glob = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : {}) as any;
@@ -107,9 +105,6 @@ function getProtocol(): GeminiProtocolModule {
         return "default";
     }
 
-    // getCredStorage is the shared resolver from ./credStorage.js (session
-    // preferred, local fallback after a "not allowed" session failure).
-    // It is re-exported below as part of the module surface.
 
     function normalizeLegacySingleCred(s: any, map: GeminiCredentialsMap): void {
         const legacy = s?.[STORAGE_KEYS.CREDENTIALS];
@@ -174,7 +169,6 @@ function getProtocol(): GeminiProtocolModule {
 
         const normSlot = (s?: string | null) => (s === "u0" || !s ? "default" : s);
 
-        // Detect if targetSidOrSlot is actually a slot or an email/accountId
         const isSlotParam = targetSidOrSlot && (
             /^u\d+$/i.test(targetSidOrSlot) ||
             targetSidOrSlot.includes('@') ||
@@ -211,7 +205,6 @@ function getProtocol(): GeminiProtocolModule {
                 }
             } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:credentialManager.ts]", e); }
         } else if (pageBl) {
-            // Heal only the entry belonging to the requested slot or current tab's slot
             const curSlot = normSlot(requestedSlot || detectSlot());
             const target = vals.find(v => !v.bl && normSlot(v.accountSlot) === curSlot);
             if (target) {
@@ -261,9 +254,6 @@ function getProtocol(): GeminiProtocolModule {
         return result;
     }
 
-    // Startup one-time migration (P1-13): fold the legacy single credential
-    // into the map and move local-stored credentials into the session area.
-    // Idempotent; returns true when it persisted anything.
     async function migrateCredentials(): Promise<boolean> {
         const storage = getCredStorage();
         if (!storage) return false;

@@ -328,7 +328,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     }
                 }
             }
-            // 3. Fallback: check any query parameter value ending with a filename
             if (qIdx !== -1) {
                 const query = url.slice(qIdx);
                 const segments = query.split(/[&;]/);
@@ -360,7 +359,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         deepWalk(turnUserArr, (node) => {
             if (!Array.isArray(node)) return;
 
-            // Collect URLs and possible filenames within this node
             const googleUrls: string[] = [];
             const filenames: string[] = [];
             let fallbackId = "";
@@ -385,7 +383,6 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
             if (!googleUrls.length) return;
 
-            // Separate real download URLs from viewer thumbnails
             const downloadUrls = googleUrls.filter(u =>
                 u.includes("/download") ||
                 u.includes("c=bard_storage") ||
@@ -397,18 +394,14 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 u.includes("drive.google.com/viewer")
             );
 
-            // Primary source URL prefers explicit download URL over thumbnail
             let sourceUrl = downloadUrls[0] || googleUrls.find(u => !thumbUrls.includes(u)) || googleUrls[0];
             let thumbnailUrl = thumbUrls[0] || (sourceUrl !== googleUrls[0] ? googleUrls[0] : undefined);
 
-            // Avoid duplicate registrations
             if (seenUrls.has(sourceUrl)) return;
             seenUrls.add(sourceUrl);
 
-            // Determine file name: clean filename from node, or extracted from download URL query param, or fallback
             let fileName = filenames[0] || extractFileNameFromUrl(sourceUrl) || (thumbnailUrl ? extractFileNameFromUrl(thumbnailUrl) : null);
             if (!fileName) {
-                // Check if any URL in googleUrls has a filename param
                 for (const u of googleUrls) {
                     const fn = extractFileNameFromUrl(u);
                     if (fn) { fileName = fn; break; }

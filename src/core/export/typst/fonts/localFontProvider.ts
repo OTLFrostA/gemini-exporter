@@ -203,9 +203,7 @@ export function clearLocalFontCache(): void {
     } catch {
         try {
             (globalThis as any)[CACHE_KEY] = undefined;
-        } catch {
-            // Ignore
-        }
+        } catch {}
     }
 }
 
@@ -232,9 +230,7 @@ export async function warmLocalFontCache(): Promise<void> {
         if (arr.length > 0) {
             setCachedLocalFonts(arr);
         }
-    } catch {
-        // Handled gracefully: silent fallback
-    }
+    } catch {}
 }
 
 export async function queryLocalFontsProvider(): Promise<LocalFontQueryResult> {

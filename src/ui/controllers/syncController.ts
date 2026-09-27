@@ -32,9 +32,7 @@ export function formatSyncErrorMessage(err: string): string {
     return hasI18n() ? t('syncFailed', errStr) : `同步失败: ${errStr}`;
 }
 
-/**
- * Detects HTTP 429 rate limits, quota exhaustion, and Google server limits via unified rateLimiter.
- */
+// Detects HTTP 429 rate limits, quota exhaustion, and Google server limits via unified rateLimiter.
 export function isServerRateOrQuotaLimit(text?: string | null): boolean {
     return isRateLimited(text);
 }
@@ -50,10 +48,8 @@ function _runScan(
     setScanRunning(true);
     if (onStart) onStart();
 
-    // S3: the UI->background hop needs its own timeout, slightly above the
-    // tab RPC timeout the background applies (300s for full/auto, 90s for
-    // incremental). Previously a lost response left scanRunning stuck true
-    // forever because setScanRunning(false) lived only inside the callback.
+    // UI-to-background timeout is buffered higher than the background tab RPC timeout
+    // (300s full, 90s incremental) to prevent scanRunning from getting permanently stuck.
     const uiTimeoutMs = mode === 'full' ? 330000 : 120000;
     const msg: DeepScanMessage = { action: 'deepScan', mode, accountSlot: slot || 'u0' };
     sendTypedMessage(msg, uiTimeoutMs).then((res: any) => {
@@ -87,7 +83,6 @@ function _runScan(
             if (onError) onError(new Error(err), errMsg, { hitGoogleLimit, res });
         }
     }).catch((err: any) => {
-        // Timeout / port error: never leave the UI stuck in "scanning".
         setScanRunning(false);
         const errMsg = formatSyncErrorMessage(err?.message || String(err));
         if (onLog) onLog(errMsg, 'error');

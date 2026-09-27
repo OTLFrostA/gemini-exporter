@@ -1,4 +1,3 @@
-// src/ui/uiCommon.ts - Shared UI helpers & SSoT utilities
 import { normId, cleanTitle, isRealTitle } from '../core/utils/utils.js';
 import { I18n as I18nStatic } from '../core/utils/i18n.js';
 import { __resolveModule } from '../core/utils/moduleOverrides.js';

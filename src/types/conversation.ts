@@ -1,8 +1,3 @@
-/**
- * src/types/conversation.ts
- * Single source of truth for Conversation, Turn, Attachment, and Title data models.
- */
-
 export type TitleSource =
     | 'rpc'
     | 'dom'

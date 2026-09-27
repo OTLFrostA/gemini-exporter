@@ -1,4 +1,3 @@
-// src/ui/utils/domI18n.ts - DOM-based i18n renderer & language switch UI
 import { t, getLang } from '../../core/utils/i18n.js';
 
 export function setSafeFormattedContent(el: Element, val: string): void {

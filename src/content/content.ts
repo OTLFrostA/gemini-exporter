@@ -1,4 +1,3 @@
-// src/content/content.ts - Gemini Exporter content script coordinator (Layered Architecture)
 import { StorageService } from '../core/storage/storageService.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
@@ -80,7 +79,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         return document.getElementById('geminiExportBadge');
     }
 
-    // Language & Dev mode synchronization
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.get([STORAGE_KEYS.LANG, STORAGE_KEYS.DEV_MODE], d => {
@@ -111,7 +109,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:content.ts]', e);
     }
 
-    // Initialize Live Auto-Save system
     if (LiveSaveCoordinator && LiveSaveObserver) {
         LiveSaveCoordinator.init({
             storageManager: LiveStorageManager,
@@ -133,7 +130,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         });
     }
 
-    // Initialize Inter-World Message Bridge
     if (Bridge && Bridge.init && Sync) {
         Bridge.init({
             upsertConversations: Sync.upsertConversations,
@@ -159,7 +155,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         });
     }
 
-    // Initialize Message Router
     if (Router && Router.init) {
         Router.init({
             syncEngine: Sync,
@@ -186,7 +181,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         if (Sync) void Sync.syncOnce();
     });
 
-    // Initialize Page Observer (handles pushState, popstate, MutationObserver and clean intervals)
     if (Observer && Observer.init) {
         Observer.init({
             onSync: () => {
@@ -195,7 +189,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         });
     }
 
-    // Run credential bootstrap
     void ensureCreds();
 
     if (document.readyState !== 'loading') {

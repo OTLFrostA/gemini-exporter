@@ -1,4 +1,3 @@
-// rpcClient.ts - Low-level HTTP POST and batchexecute RPC communication
 import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 
 const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
@@ -22,7 +21,6 @@ export interface GeminiClientRpcClientModule {
     nextReqid: () => string;
     generateFallbackSid: () => string;
     postBatchexecute: (options: RpcRequestOptions) => Promise<Response>;
-    /** Merge caller signal with internal timeout signal. */
     mergeAbortSignals: (signals: Array<AbortSignal | null | undefined>) => AbortSignal | undefined;
 }
 
@@ -53,9 +51,6 @@ function getParser(): any {
         return GEMINI_API_URL;
     }
 
-    /**
-     * Merge multiple AbortSignals so either timeout or user cancellation can abort.
-     */
     function mergeAbortSignals(signals: Array<AbortSignal | null | undefined>): AbortSignal | undefined {
         const active = signals.filter((s): s is AbortSignal => !!s);
         if (active.length === 0) return undefined;
@@ -63,9 +58,6 @@ function getParser(): any {
         return AbortSignal.any(active);
     }
 
-    /**
-     * Executes raw batchexecute POST request with automatic timeout and signal handling
-     */
     async function postBatchexecute(options: RpcRequestOptions): Promise<Response> {
         const {
             api,

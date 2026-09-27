@@ -1,4 +1,3 @@
-// src/content/messageRouter.ts - Content script runtime message dispatcher & RPC handlers
 import { SyncEngine } from './syncEngine.js';
 import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';

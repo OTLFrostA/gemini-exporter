@@ -194,9 +194,7 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
         jobs.delete(jobId);
         try {
             for (const path of mappedPaths) activeCompiler.unmapShadow(path);
-        } catch {
-            // Best-effort cleanup.
-        }
+        } catch {}
     }
 }
 

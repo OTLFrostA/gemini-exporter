@@ -58,7 +58,7 @@ export function getExtensionVersion(customVersion?: string): string {
             const manifest = chrome.runtime.getManifest();
             if (manifest && manifest.version) return manifest.version;
         }
-    } catch { /* intentional */ }
+    } catch {}
     return EXT_VERSION;
 }
 
@@ -75,10 +75,7 @@ export const GeminiConstants: GeminiConstantsModule = {
     exportedIdsKey
 };
 
-/**
- * Canonical chrome.storage key for a slot's exported-ids record.
- * Normalizes empty/null/undefined slots to the default 'u0' -> legacy 'exportedIds' key.
- */
+// Legacy compatibility: slot u0 uses historical 'exportedIds' key
 export function exportedIdsKey(slot?: string | null): string {
     const s = slot || 'u0';
     return s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`;

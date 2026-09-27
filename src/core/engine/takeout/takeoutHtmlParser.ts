@@ -1,10 +1,3 @@
-/**
- * src/core/engine/takeout/takeoutHtmlParser.ts
- * Dedicated HTML parser for Google Takeout (MyActivity.html / 我的活动.html).
- * Handles turn extraction, markdown conversion, timestamp normalization,
- * document detection, and generated image correlation.
- */
-
 import {
     normId as utilsNormId,
     shortScope as utilsShortScope,
@@ -49,9 +42,6 @@ export interface TakeoutHtmlParserModule {
     ) => void;
 }
 
-/**
- * Strips HTML tags recursively to ensure safe plain text output.
- */
 export const stripHtmlTags = utilsStripHtmlTags;
 
 /**
@@ -71,9 +61,6 @@ export function unescapeHtmlEntities(str: string): string {
     });
 }
 
-/**
- * Extracts prompt text and whether an explicit Prompted prefix was found in the HTML block.
- */
 export function parseTakeoutPrompt(block: string): { promptText: string; hasExplicitPrompt: boolean } {
     let promptText = '';
     let hasExplicitPrompt = false;
@@ -90,9 +77,6 @@ export function parseTakeoutPrompt(block: string): { promptText: string; hasExpl
     return { promptText, hasExplicitPrompt };
 }
 
-/**
- * Normalizes multi-locale datetime strings into Unix timestamps (milliseconds).
- */
 export function parseTakeoutTimestamp(block: string): number | null {
     let ts: number | null = null;
     const timeMatchEn = block.match(/([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},\s+\d{1,2}:\d{2}(?::\d{2})?\s*[\u202f\s]*(?:AM|PM)(?:\s+[A-Za-z0-9_+-]+)?)/);
@@ -163,9 +147,6 @@ export function parseTakeoutTimestamp(block: string): number | null {
     return ts;
 }
 
-/**
- * Parses all outer-cell conversation blocks from Takeout HTML.
- */
 export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): Promise<ParseTakeoutHtmlOutput> {
     const { htmlText, zipFiles, onProgress } = options;
     const normIdFn = options.normIdFn || ((id?: string | null) => {
@@ -331,7 +312,6 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             turnMsgs.push(modelTurn);
         }
 
-        // Build flat index over ZIP entries for fast lookup
         const __zipEntries: { filename: string; stem: string; fObj: any }[] = [];
         const __zipExact = new Map<string, { filename: string; stem: string; fObj: any }[]>();
         for (const [path, fObj] of Object.entries<any>(zipFiles)) {
@@ -364,7 +344,6 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                         }
                     }
                 };
-                // Exact-name / exact-stem hits via the index first.
                 const seenExact = new Set<string>();
                 for (const key of [refLower, refStem]) {
                     const arr = __zipExact.get(key);
@@ -372,7 +351,6 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                         if (!seenExact.has(e.filename)) { seenExact.add(e.filename); consider(e); }
                     }
                 }
-                // Substring fallback: single scan over the flat index.
                 for (const e of __zipEntries) {
                     if (seenExact.has(e.filename)) continue;
                     consider(e);
@@ -458,9 +436,6 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
     };
 }
 
-/**
- * Correlates watermarked AI-generated images with conversation turns based on timestamp proximity.
- */
 export function correlateGeneratedImages(
     watermarkedImages: any[],
     genBlocks: any[],

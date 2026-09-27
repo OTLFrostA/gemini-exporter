@@ -18,7 +18,6 @@ export function toRenderDiagnostic(d: Diagnostic): RenderDiagnostic {
     };
 }
 
-/** True when the conversation already carries real message content (messages or turns). */
 export function hasUsableMessages(chat: any): boolean {
     if (!chat || typeof chat !== 'object') return false;
     if (Array.isArray(chat.messages) && chat.messages.length > 0) return true;
@@ -100,11 +99,6 @@ export interface PreparePdfItemContext {
     onLog: (msg: string, level?: string) => void;
 }
 
-/**
- * Canonical entry point for PDF item preparation before entering the render pipeline:
- * metadata-only inputs (from selected or options.conversations) are resolved with usable detail,
- * normalized to canonical bundle, and validated against zero-message shells.
- */
 export async function preparePdfItem(
     selectedItem: any,
     context: PreparePdfItemContext,

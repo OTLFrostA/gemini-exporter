@@ -1,4 +1,3 @@
-// src/ui/views/dialogView.ts - Dialog and Banner Views
 import type { IDialogView } from '../../types/ui.js';
 import StorageService from '../../core/storage/storageService.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';

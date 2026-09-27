@@ -1,5 +1,3 @@
-// src/background/background.ts - Manifest V3 Background Service Worker for Gemini Exporter
-
 import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
 import type { AbortSyncMessage, DeepScanMessage, StopDeepScanMessage } from '../types/messages.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
@@ -27,25 +25,15 @@ import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
 
-// 1. Initialize session storage access level for content script credentials
 initSessionAccessLevel();
-
-// 2. Initialize lifecycle listeners (install options workbench, uninstall feedback URL)
 initLifecycleListeners();
 initUninstallUrl();
-
-// 3. Restore persisted slot abort flags from session storage
 restoreAbortFlags().catch(() => {});
-
-// 4. Initialize tab action dynamic icon status listeners
 initTabActionListeners();
 
-// 5. Phase D (P1-13): one-time storage schema migration (slim / alias /
-//    credentials / IDB), then stamp gemini_schema_version. Unknown future
-//    versions freeze writes (fail-closed) instead of corrupting data.
+// One-time schema migration; unknown future versions fail-closed to avoid corruption.
 migrateStorageSchema().catch(() => {});
 
-// 6. Central Message Router
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
     if (msg.action === 'openOptions') {
         void chrome.runtime.openOptionsPage();

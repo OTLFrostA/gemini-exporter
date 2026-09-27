@@ -1,4 +1,3 @@
-// src/core/utils/chipUtils.ts - Canonical predicates and cleaning utilities for Google internal chip links
 
 export const INTERNAL_CHIP_TOKEN_PATTERN =
     '(?:immersive_entry_chip|deep_research(?:_confirmation_content)?|map_(?:content|location(?:_reference)?)|grounding_content|web_search(?:_content)?|youtube_content|flights_content|hotels_content|workspace_content|image_?generation_?content|generated_image)';

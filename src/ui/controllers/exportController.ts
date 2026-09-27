@@ -48,7 +48,7 @@ export function abort(): void {
     if (activeEngine) {
         try {
             activeEngine.abort();
-        } catch { /* intentional */ }
+        } catch {}
     }
     try {
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {

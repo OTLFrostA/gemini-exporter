@@ -1,5 +1,3 @@
-// src/ui/popup/popup.ts - Enhanced Action Center Popup for Gemini Exporter
-
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
@@ -60,7 +58,7 @@ const log = (msg: string): void => {
             el.appendChild(line);
             el.scrollTop = el.scrollHeight;
         }
-    } catch { /* logging must never break the popup itself */ }
+    } catch {}
 };
 
 function updateUiForTabState(isGemini: boolean): void {
@@ -90,13 +88,11 @@ function updateUiForTabState(isGemini: boolean): void {
     }
 }
 
-// Update synced count badge and tab UI state
 async function updateCount(): Promise<void> {
     try {
         let slot = 'u0';
         let isGemini = false;
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
 
         if (tab?.url && isGeminiUrl(tab.url)) {
             isGemini = true;
@@ -108,7 +104,6 @@ async function updateCount(): Promise<void> {
         }
         updateUiForTabState(isGemini);
 
-        // Update active chat info card
         const currentChatTitleEl = $('currentChatTitle');
         const chatTurnBadgeEl = $('chatTurnBadge');
         const i18n = getI18n();
@@ -144,7 +139,6 @@ async function updateCount(): Promise<void> {
             }
         }
 
-        // Global count badge
         let count = 0;
         const convs = await getStorage().getConversations(slot);
         count = convs.length;
@@ -177,7 +171,6 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
     }
 };
 
-// ==================== Initialization ====================
 function initPopupEvents(): void {
     const langToggle = $('langToggle') as HTMLInputElement | null;
     langToggle?.addEventListener('change', (e: Event) => {
@@ -210,7 +203,6 @@ function initPopupEvents(): void {
         void handleLangChange(nextLang);
     });
 
-    // Formats & Segmented Tabs
     const formatStore = __resolveModule('FormatStore', FormatStore);
     const formatSelect = $('format') as HTMLSelectElement | null;
     if (formatStore && formatStore.loadFormat) {
@@ -245,10 +237,8 @@ function initPopupEvents(): void {
         updateFormatTabsUI(val, isDev);
     });
 
-    // Workbench links
     $('btnOptions')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
 
-    // "只导当前页" (File Download)
     let __exportingCurrentPage = false;
     $('btnCurrent')?.addEventListener('click', async () => {
         const btnCurrentEl = $('btnCurrent') as HTMLButtonElement | null;
@@ -292,10 +282,6 @@ function initPopupEvents(): void {
                     if (!chat.id) chat.id = _activeConvId;
                     chat.title = cleanTitle(chat.title || _activeChatTitle);
 
-                    // Production HTML export goes through the canonical
-                    // path (Conversation -> normalizeGeminiConversation ->
-                    // CanonicalHtmlRenderer); legacy toHtml() is no longer
-                    // the production route.
                     const formatted = format === 'html'
                         ? await ChatFormatter.formatHtmlCanonical(chat)
                         : ChatFormatter.formatContent(chat, format);
@@ -323,7 +309,6 @@ function initPopupEvents(): void {
         }
     });
 
-    // Listen for sync updates
     chrome.runtime.onMessage.addListener((msg: any) => {
         const i18n = getI18n();
         if (msg.action === 'syncUpdate') {
@@ -337,7 +322,6 @@ function initPopupEvents(): void {
         }
     });
 
-    // Init i18n
     const i18n = getI18n();
     i18n.initLanguage().then(() => {
         i18n.applyI18n();
