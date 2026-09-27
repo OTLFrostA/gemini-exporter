@@ -185,7 +185,99 @@ test('regression: metadata-only options.conversations item resolves full detail 
 });
 
 // ---------------------------------------------------------------------------
-// 2. Fail closed: fetchChatDetail failure
+// 2. Regression: metadata-only item comes from selected, not
+//    options.conversations — the fetch + fail-closed guards must not depend
+//    on where the shallow object came from.
+// ---------------------------------------------------------------------------
+
+test('regression: metadata-only selected (empty conversations) resolves full detail before normalize', async () => {
+    const id = 'jkl';
+    const title = 'Selected Metadata Chat';
+    const fullChat = makeFullChat(id, title);
+    // Shallow object carried in selected, with no list entry to find.
+    const metadataOnly = { id, title, updatedAt: '2026-09-26T00:00:00.000Z' };
+    assert.ok(!('messages' in metadataOnly), 'test input must be metadata-only');
+
+    const fetchCalls: any[] = [];
+    const fetchChatDetail = async (requestedItem: any, index: number, total: number, slot: string, skip: boolean, format: string) => {
+        fetchCalls.push({ requestedItem, index, total, slot, skip, format });
+        return { success: true, results: [JSON.parse(JSON.stringify(fullChat))] };
+    };
+
+    const compilerState = { calls: 0, bundle: null as any };
+    const writer = makeMemoryWriter();
+    const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
+    const exported: any[] = [];
+
+    const result = await exporter.run(
+        {
+            selected: [metadataOnly],
+            conversations: [],
+            useZip: false,
+            writer,
+            fetchChatDetail,
+        },
+        { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
+    );
+
+    assert.strictEqual(fetchCalls.length, 1, 'fetchChatDetail must be called exactly once');
+    const bundleMsgCount = compilerState.bundle?.conversation?.messages?.length ?? 0;
+    assert.ok(bundleMsgCount > 0, `bundle message count must be > 0, got ${bundleMsgCount}`);
+
+    assert.strictEqual(result.total, 1);
+    assert.strictEqual(result.succeeded, 1, 'export must succeed');
+    assert.strictEqual(result.failed.length, 0);
+    assert.strictEqual(compilerState.calls, 1, 'compiler must run exactly once');
+
+    assert.strictEqual(writer.files.size, 1, 'exactly one PDF written');
+    const pdfBytes = [...writer.files.values()][0];
+    const extracted = extractPdfText(pdfBytes);
+    assert.ok(extracted.text.includes(MARKER), 'PDF must contain the expected body text');
+
+    assert.strictEqual(exported.length, 1, 'success record must be emitted');
+    assert.strictEqual(exported[0].record.status, 'ok');
+});
+
+test('fail-closed: metadata-only selected resolving to zero messages fails with PDF_NO_MESSAGES', async () => {
+    const id = 'mno';
+    const title = 'Selected Empty Chat';
+    const metadataOnly = { id, title, updatedAt: '2026-09-26T00:00:00.000Z' };
+
+    const fetchChatDetail = async () => ({
+        success: true,
+        results: [{ id, title, messages: [] }],
+    });
+
+    const compilerState = { calls: 0, bundle: null as any };
+    const writer = makeMemoryWriter();
+    const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
+    const exported: any[] = [];
+
+    const result = await exporter.run(
+        {
+            selected: [metadataOnly],
+            conversations: [],
+            useZip: false,
+            writer,
+            fetchChatDetail,
+        },
+        { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
+    );
+
+    assert.strictEqual(result.total, 1);
+    assert.strictEqual(result.succeeded, 0, 'succeeded must not increase');
+    assert.strictEqual(result.failed.length, 1);
+    assert.ok(
+        result.failed[0].error.includes(PDF_NO_MESSAGES),
+        `error must carry PDF_NO_MESSAGES, got: ${result.failed[0].error}`
+    );
+    assert.strictEqual(compilerState.calls, 0, 'compiler must not run');
+    assert.strictEqual(writer.files.size, 0, 'no PDF must be written');
+    assert.strictEqual(exported.length, 0, 'no success record must be emitted');
+});
+
+// ---------------------------------------------------------------------------
+// 3. Fail closed: detail fetch failure
 // ---------------------------------------------------------------------------
 
 test('fail-closed: detail fetch failure fails the item without compiling or writing', async () => {
@@ -224,7 +316,7 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
 });
 
 // ---------------------------------------------------------------------------
-// 3. Fail closed: resolved conversation still has no usable messages
+// 4. Fail closed: resolved conversation still has no usable messages
 // ---------------------------------------------------------------------------
 
 test('fail-closed: resolved conversation without messages fails with PDF_NO_MESSAGES', async () => {

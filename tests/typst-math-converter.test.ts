@@ -63,7 +63,8 @@ test('operators and relations', async () => {
     eq('x \\to \\infty', 'x -> oo');
     eq('f: x \\mapsto x^2', 'f : x |-> x^2');
     eq('\\uparrow \\downarrow', 'arrow.t arrow.b');
-    eq('120^\\circ', '120^degree');
+    eq('120^\\circ', '120^compose');
+    eq('f \\circ g', 'f compose g');
     eq('a \\quad b \\qquad c', 'a quad b wide c');
     eq('a\\,b\\ c\\;d', 'a b c d');
 });
@@ -175,15 +176,34 @@ test('matrix and cases environments', async () => {
     eq('\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}', 'mat(a, b; c, d)', true);
     eq('\\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}', 'mat(delim: "[", 1, 0; 0, 1)', true);
     eq('\\begin{matrix} x & y \\\\ z & w \\end{matrix}', 'mat(delim: none, x, y; z, w)', true);
-    eq('\\begin{cases} 1 & x > 0 \\\\ 0 & x \\le 0 \\end{cases}', 'cases(1, x > 0, 0, x <= 0)', true);
+    // Each LaTeX row is one cases() argument; & aligns cells within the row.
+    eq('\\begin{cases} 1 & x > 0 \\\\ 0 & x \\le 0 \\end{cases}', 'cases(1 & x > 0, 0 & x <= 0)', true);
+    eq(
+        '\\begin{cases} x^2 & x > 0 \\\\ 0 & x = 0 \\\\ -x & x < 0 \\end{cases}',
+        'cases(x^2 & x > 0, 0 & x = 0, - x & x < 0)',
+        true,
+    );
+    eq('\\begin{cases} a \\\\ b \\end{cases}', 'cases(a, b)', true);
 });
 
 test('operatorname and custom operators', async () => {
-    eq('\\operatorname{Tr}(A)', 'op("Tr") ( A )');
+    eq('\\operatorname{Tr}(A)', 'op("Tr", limits: #false) ( A )');
+    // Starred and unstarred must stay semantically distinct: \operatorname*
+    // keeps display limits, the plain form pins limits off.
     eq('\\operatorname*{max}_{x} f(x)', 'op("max")_x f ( x )');
-    eq('-\\operatorname{Re}\\chi_{ij}', '- op("Re") chi_(i j)');
+    eq('\\operatorname{max}_{x} f(x)', 'op("max", limits: #false)_x f ( x )');
+    eq('-\\operatorname{Re}\\chi_{ij}', '- op("Re", limits: #false) chi_(i j)');
     eq('\\Tr(A)', 'op("Tr") ( A )');
     eq('\\Re(z) + \\Im(z)', 'Re ( z ) + Im ( z )');
+});
+
+test('malformed \\operatorname fails the whole conversion with a diagnostic', async () => {
+    for (const bad of ['\\operatorname{Tr', '\\operatorname', '\\operatorname{}', '\\operatorname*{max']) {
+        assert.strictEqual(convertMath(bad, 'latex', false), undefined, `should fail: ${bad}`);
+        const r = convertMathWithDiagnostic(bad, 'latex', false);
+        assert.ok(!('typst' in r) || r.typst === undefined, `no partial output for: ${bad}`);
+        assert.strictEqual(r.diagnostic?.code, 'TYPST_MATH_CONVERT_FAILED', `diagnostic for: ${bad}`);
+    }
 });
 
 test('plugs into the payload adapter convertMath hook', async () => {

@@ -216,10 +216,11 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
     const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
     let downloads = 0;
     const progress: any[] = [];
+    const convs = [1, 2, 3].map((n) => makeSample(`cancel-${n}`, `cancel ${n}`));
     const runPromise = exporter.run(
         {
-            selected: [1, 2, 3].map((n) => ({ id: `cancel-${n}`, title: `cancel ${n}` })),
-            conversations: [1, 2, 3].map((n) => makeSample(`cancel${n}`, `cancel ${n}`)),
+            selected: convs.map((c) => ({ id: c.id, title: c.title })),
+            conversations: convs,
             useZip: true,
             writer,
             compiler: slowCompiler,
@@ -347,10 +348,11 @@ test('zip: success records are committed only after delivery, in item order (§1
     const writer = makeFakeWriter();
     const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
     const events: string[] = [];
+    const convs = [1, 2].map((n) => makeSample(`ord-${n}`, `ord ${n}`));
     const result = await exporter.run(
         {
-            selected: [1, 2].map((n) => ({ id: `ord-${n}`, title: `ord ${n}` })),
-            conversations: [1, 2].map((n) => makeSample(`ord${n}`, `ord ${n}`)),
+            selected: convs.map((c) => ({ id: c.id, title: c.title })),
+            conversations: convs,
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -365,7 +367,7 @@ test('zip: success records are committed only after delivery, in item order (§1
     assert.strictEqual(result.failed.length, 0);
     assert.deepStrictEqual(
         events,
-        ['delivered', 'record:ord-1', 'record:ord-2'],
+        ['delivered', 'record:pdf-test-ord-1', 'record:pdf-test-ord-2'],
         'records committed after delivery, in item order'
     );
 });
@@ -529,10 +531,11 @@ test('abort marks unfinished items as failed/retryable instead of silently dropp
     const slowCompiler = new StubPdfCompiler({ delayMs: 300 });
     const writer = makeFakeWriter();
     const exporter = new PdfExporter(new StubPdfCompiler(), { allowStub: true });
+    const convs = [1, 2, 3].map((n) => makeSample(`abort-${n}`, `abort ${n}`));
     const runPromise = exporter.run(
         {
-            selected: [1, 2, 3].map((n) => ({ id: `abort-${n}`, title: `abort ${n}` })),
-            conversations: [1, 2, 3].map((n) => makeSample(`abort${n}`, `abort ${n}`)),
+            selected: convs.map((c) => ({ id: c.id, title: c.title })),
+            conversations: convs,
             useZip: false,
             writer,
             compiler: slowCompiler,
