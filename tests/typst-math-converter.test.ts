@@ -214,6 +214,27 @@ test('malformed \\operatorname fails the whole conversion with a diagnostic', as
     }
 });
 
+test('font switches and styling (\\rm, \\bf, \\it, \\cal, etc.)', async () => {
+    eq('\\tau_{\\rm diff}', 'tau_upright(d i f f)');
+    eq('f_{\\rm th, \\gamma}', 'f_(upright(t h) , upright(gamma))');
+    eq('{\\rm orb}^2', 'upright(o r b)^2');
+    eq('\\bf{x} + {\\rm y}', 'bold(x) + upright(y)');
+    eq('{\\rm a ; b}', 'upright(a) ; upright(b)');
+});
+
+test('prescripts and isotope notation without explicit base', async () => {
+    eq('^{56}\\text{Ni}', '("")^56 "Ni"');
+    eq('_{a}^{b}X', '("")_a^b X');
+});
+
+test('escaped percent and greek / relation variants', async () => {
+    eq('100\\%', '100 "%"');
+    eq('\\varphi + \\varepsilon + \\vartheta + \\varrho + \\varpi', 'phi.alt + epsilon.alt + theta.alt + rho.alt + pi.alt');
+    eq('\\ell \\lesssim \\lambda \\gtrsim \\mu', 'ell <~ lambda >~ mu');
+    eq('\\odot \\ast \\dots \\simeq', 'dot.circle ast dots tilde.eq');
+    eq('\\dddot{x}', 'dot.triple(x)');
+});
+
 test('plugs into the payload adapter convertMath hook', async () => {
     const { toTypstPayload } = require('../src/core/export/typst/payload.js');
     const bundle = {

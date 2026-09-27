@@ -262,4 +262,40 @@ export const TYPST_MATH_CORPUS: readonly MathCorpusItem[] = [
         display: true,
         shouldFallback: true,
     },
+    // 20. Font switches
+    {
+        name: 'font switch rm with subscript',
+        category: 'font switches',
+        latex: '\\tau_{\\rm diff}',
+        display: false,
+        expectedTypst: 'tau_upright(d i f f)',
+        wasmSmoke: true,
+    },
+    {
+        name: 'font switch rm with comma-separated sequence',
+        category: 'font switches',
+        latex: 'f_{\\rm th, \\gamma}',
+        display: false,
+        expectedTypst: 'f_(upright(t h) , upright(gamma))',
+        wasmSmoke: true,
+    },
+    // 21. Prescripts
+    {
+        name: 'leading isotope superscript without base',
+        category: 'prescripts',
+        latex: '^{56}\\text{Ni}',
+        display: false,
+        expectedTypst: '("")^56 "Ni"',
+        wasmSmoke: true,
+    },
+    // 22. Greek variants and symbols
+    {
+        name: 'greek and relation variants',
+        category: 'symbols',
+        latex: '\\varphi \\lesssim \\ell',
+        display: false,
+        expectedTypst: 'phi.alt <~ ell',
+        wasmSmoke: true,
+    },
 ];
+
