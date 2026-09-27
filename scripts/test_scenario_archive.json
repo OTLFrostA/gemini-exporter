@@ -1942,5 +1942,51 @@
     ],
     "consumed_at": "2026-09-27T00:20:49.237586",
     "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "nanophotonics_topological_polariton_condensate",
+    "domain": "nanophotonics_topological_polariton_condensate",
+    "title": "纳米光子学：激子极化激元玻色-爱因斯坦凝聚与非线性涡旋动力学",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试半导体微腔激子极化激元 Gross-Pitaevskii 方程推导、极化涡旋相位解缠 Python 仿真、微腔激子凝聚光场相干渲染图与极化平台性能横向对比",
+    "turns": [
+      "在半导体平面微腔强耦合物理框架下，推导描述腔光子与激子态混合的二维二能级薛定谔-玻色 Gross-Pitaevskii 方程组，分析有效激子质量、非线性激子-激子散射项以及能量阻尼耗散下的玻色-爱因斯坦凝聚（BEC）非平衡阈值相变判据。",
+      "严格论述微腔激子极化激元超流体中拓扑量子化涡旋（Quantized Vortices）的环流相位分布 \\oint \\nabla \\theta \\cdot d\\mathbf{r} = 2\\pi q，推导朗道超流临界速度 v_c = \\sqrt{g|\\psi|^2 / m_{pol}} 以及激发谱声子支色散关系。",
+      "请帮我生成一张高科技微纳光学示意图：超高真空低温半导体分布布拉格反射镜（DBR）微腔截面，量子阱层中散发着虹彩荧光的高密度激子极化激元玻色-爱因斯坦凝聚体，呈现宏观量子相干双环涡旋光场分布，带有精细的纳米干涉条纹。",
+      "设计一个结构化 Markdown 表格，对比 GaAs/AlGaAs 多量子阱、无机卤化物钙钛矿、单层过渡金属二硫属化物 (TMDC) 与有机微腔在极化激元工作温度 (K)、激子结合能 (meV)、非线性克尔系数及超快全光开关阈值能耗 (fJ) 上的技术指标。",
+      "使用 Python 编写基于分步傅里叶方法 (Split-Step Fourier Method) 的开耗散 Gross-Pitaevskii 方程求解器核心代码片段，模拟连续高斯激光泵浦下稳态凝聚体的空间二维波函数振幅与空间相位角分布。"
+    ],
+    "consumed_at": "2026-09-27T00:43:44.136723",
+    "consumed_by": "test_live_chat_and_export.py"
+  },
+  {
+    "id": "quantum_hall_fractional_chern_insulator",
+    "domain": "quantum_hall_fractional_chern_insulator",
+    "title": "关联拓扑物理：莫尔超晶格中分数量子反常霍尔效应 (FCAH) 与强关联相变",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables"
+    ],
+    "description": "测试莫尔超晶格分数陈绝缘体理论推导、Fubini-Study 度规张量连续模型、Lanczos ED 对角化 Python 代码与四大约束平台横向对比",
+    "turns": [
+      "从双层转角过渡金属二硫化物（tTMD，如转角 MoTe2）平面拓扑平带出发，推导库仑相互作用能与拓扑平带带宽之比 U/W >> 1 时分数化拓扑态（Fractional Chern Insulators）自发破缺时间反演对称性产生的基态多重简并与准粒子电荷 e/3 分数化机制。",
+      "阐释量子几何张量（Quantum Geometric Tensor）与 Fubini-Study 度规平整度对稳定无朗道能级分数量子霍尔相的核心判定条件，写出 Chern 数 C = -1 平带投影库仑哈密顿量的连续介质模型方程。",
+      "请使用 Python 编写一段紧凑代码，利用 Lanczos 精确对角化算法求解一个小规模晶格系统在分数填充 \\nu = 2/3 下的总多体基态波函数与谱流拓扑陈数检验框架。",
+      "设计结构化 Markdown 表格，对比石墨烯转角莫尔体系、转角双层二碲化钼（tMoTe2）、GaAs/AlGaAs 高迁移率二维电子气及磁性拓扑绝缘体薄膜在量子霍尔电导平台精度、观测所需磁场、平台临界温度及分数准粒子态类型。",
+      "深入分析利用干涉式单电子晶体管与片上微波阻抗显微镜在纳尺度空间无损探测莫尔超晶格分数局域激发与任意子编织相位的实验设计原理与测量噪声下限。"
+    ],
+    "consumed_at": "2026-09-27T00:43:44.141957",
+    "consumed_by": "test_live_chat_and_export.py"
   }
 ]
