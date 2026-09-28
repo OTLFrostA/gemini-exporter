@@ -1,6 +1,12 @@
 # PDF 导出专项执行方案：Block AST → Typst v8 视觉 → PDF
 
-> 状态（2026-09-26）：**D0 PASS · D1 PASS · D2 PASS · D3 PARTIAL**（production HTML migration in flight，W1 的分支在并行做）**· D4 PASS · D5 PASS · D6 PASS · D7 PASS · D8 PARTIAL**（final release validation pending）
+> Status: SUPERSEDED
+>
+> This maintenance/implementation plan has been completed/re-audited.
+> Do not treat unchecked historical items as active backlog.
+> See CURRENT_ARCHITECTURE.md and the Post-Maintenance Closeout decision.
+
+> 历史状态（2026-09-26）：**D0 PASS · D1 PASS · D2 PASS · D3 PASS · D4 PASS · D5 PASS · D6 PASS · D7 PASS · D8 PASS**（本专项全链路已合流完成）
 >
 > 生产 PDF 引擎（Production PDF engine）：**Typst WASM**（`@myriaddreamin/typst.ts` 生态），扩展内本地编译。
 >
