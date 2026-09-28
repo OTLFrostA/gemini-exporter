@@ -1,25 +1,5 @@
 [
   {
-    "id": "synthetic_biology_metabolic_flux_fermentation",
-    "domain": "synthetic_biology_metabolic_flux_fermentation",
-    "title": "计算系统生物学：重组大肠杆菌代谢通量平衡分析 (FBA) 与发酵稳态优化",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试全基因组尺度化学计量矩阵约束、通量变异度分析、线性规划 Python 求解与代谢建模方法对比",
-    "turns": [
-      "在拟稳态假设 (Pseudo-steady-state assumption) 下，构建全基因组尺度代谢网络（GEMs）的化学计量矩阵 S \\in \\mathbb{R}^{m \\times n} 与不可逆反应热力学方向约束，写出以细胞比生长速率 \\mu 为目标函数的代谢通量平衡分析（Flux Balance Analysis, FBA）原始与对偶线性规划数学模型。",
-      "当葡萄糖吸收速率 v_{glc} 超过临界比消耗通量时，分析大肠杆菌由于电子传递链呼吸通量瓶颈引发的乙酸溢流代谢（Acetate Overflow Metabolism, 类似 Warburg 效应）的通量变异度分析（Flux Variability Analysis, FVA）多解性特征。",
-      "使用 Python 编写脚本，基于 scipy.optimize.linprog 或 pulp，对一个包含糖酵解 (EMP)、戊糖磷酸途径 (PPP) 与三羧酸循环 (TCA) 的核心碳代谢反应网络进行 FBA 求解，计算 ATP 与 NADPH 产率，并检验碳元素摩尔守恒闭合度。",
-      "使用 Markdown 表格横向对比通量平衡分析 (FBA)、13C 同位素非稳态代谢通量分析 (13C-MFA)、动态代谢通量分析 (dFBA) 以及非线性动力学米氏常微分方程模型在计算复杂度、先验参数依赖度与工业发酵放大预测准确度。",
-      "推导由膜结合型转氢酶 PntAB 与可溶性转氢酶 UdhA 介导的细胞内还原当量 NADH/NADPH 动态热力学吉布斯自由能可行性判据，分析辅因子工程对目标高附加值化合物生物合成理论得率上限的调控机制。"
-    ]
-  },
-  {
     "id": "planetary_geology_europa_ice_shell_convection",
     "domain": "planetary_geology_europa_ice_shell_convection",
     "title": "行星地球物理学：木卫二 (Europa) 冰壳热对流动力学与地下海洋裂隙喷流",
@@ -200,28 +180,6 @@
       "使用 Python 编写数值程序，在谐振子激发态基底（Harmonic Oscillator Basis, N=30）下截断并对角化 Fluxonium 比特哈密顿量矩阵，计算从 \\Phi_{ext} = 0 到 \\Phi_0 的前 4 个本征能级演化谱线 E_k(\\Phi_{ext})，并输出在半磁通点处的计算跃迁频率 \\omega_{01} 与 \\omega_{12}。",
       "推导由准粒子遂穿（Quasiparticle Tunneling）与磁通噪声（1/f Flux Noise）主导的去相干速率 \\Gamma_2^* 和 Purcell 滤波效应微扰表达式，给出由 \\partial^2 \\omega_{01} / \\partial \\Phi_{ext}^2 决定的二阶磁通噪声纯退相干时标 T_\\phi 的标度律。",
       "使用 Markdown 表格，对比 Transmon 比特、Fluxonium 比特、0-\\pi 拓扑保护超导比特以及超导谐振腔玻色猫态比特在非简谐性 (\\alpha / 2\\pi)、相干时间 T_1 与 T_2、单/双量子比特门保真度阈值以及微波读出与操控复杂度四个维度的技术优劣。"
-    ]
-  },
-  {
-    "id": "planetary_astrophysics_jwst_direct_imaging_coronagraphy",
-    "domain": "planetary_astrophysics_jwst_direct_imaging",
-    "title": "系外行星天文物理学：JWST日冕仪极端高对比度成像与热辐射光谱反演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试李奥 (Lyot) 日冕仪光瞳切趾衍射抑制推导、角微分成像 (ADI) PCA 散斑噪声扣除算法、系外巨行星日冕仪直视图像生成与空基红外探测器横向对比",
-    "turns": [
-      "基于傅里叶光学理论，针对詹姆斯·韦伯空间望远镜 (JWST) NIRCam 与 MIRI 日冕仪光学系统，详细推导经典李奥日冕仪（Lyot Coronagraph）经焦平面掩模（FPM）滤波后在李奥光瞳面（Lyot Stop）处的电场振幅分布 E_{LS}(u, v) = [E_0(x, y) * \\hat{M}(x, y)] \\cdot L(u, v)，严格论证为什么李奥光瞳光阑能阻截母星在主镜六边形边缘产生的强衍射闪烁光，从而在内工作角（IWA \\approx 0.3''-0.5''）外实现高达 10^{-5} 至 10^{-6} 的恒星光通量对比度抑制。",
-      "请生成一张具备深空天文摄影与科学可视化质感的多模态插图：展现韦伯太空望远镜（JWST）在日冕仪模式下对一颗年轻恒星系统进行极端高对比度直接成像的真实观测图景。画面中央为被暗色日冕仪掩模遮挡的刺眼母星残余微弱光晕与衍射十字星芒；掩模外侧在幽蓝色的星周残屑吸积盘（Debris Disk）缝隙中，清晰捕获到一颗处于红外发光状态的年轻巨行星（如直接成像系外行星 HIP 65426 b），行星呈现出温暖的橘黄色红外热辐射光球，背景为深邃星野与暗红色的遥远红移星系，高细节、兼具《天体物理学杂志》(ApJ) 封面与国家地理深空审美。",
-      "针对空间望远镜在轨波前漂移与微热畸变引发的准静态散斑噪声（Quasi-Static Speckles），推导角微分成像（Angular Differential Imaging, ADI）与参考星差分成像（RDI）的散斑自校准模型。基于 Karhunen-Loève 数据约简算法（KLIP/PCA），写出通过正交基投影重构最优母星 PSF 并从原始科学观测靶区中减去母星模型保留微弱行星光子通量的数学泛函形式。",
-      "使用 Python 编写脚本，模拟带有泊松散粒噪声与散斑噪声的 2D 日冕仪探测图像，构建角相关对比度曲线（Contrast Curve）计算程序，输出在径向角分离 0.5'' 至 3.0'' 范围内的 5\\sigma 探测极限光度比，并绘制对应的信噪比径向演化剖面。",
-      "使用 Markdown 表格，对比詹姆斯·韦伯空间望远镜 (JWST NIRCam/MIRI)、地面甚大望远镜 SPHERE、双子星 GPI 以及未来的罗曼空间望远镜 CGI (Roman Coronagraph) 在工作波段 (\\mu m)、极限对比度动态范围、极端自适应光学 (ExAO) 修正帧率、最小内工作角 (IWA) 以及目标系外行星物理属性（年轻自发光气态巨行星 vs 成熟反射光类地行星）维度的核心性能。"
     ]
   },
   {
@@ -417,6 +375,50 @@
       "推导周期性边界条件 (PBC) 下复能谱在复平面上形成环绕非零区域的谱拓扑缠绕数 (Spectral Winding Number) W = \\frac{1}{2\\pi i} \\oint_{0}^{2\\pi} \\frac{d}{dk} \\ln \\det[H(k) - E_B] dk，并证明非零能谱环绕数 W \\neq 0 与开边界条件下 NHSE 指数局域化衰减长度 \\kappa = -\\ln |\\beta| 之间的体-边对应关系 (Bulk-Boundary Correspondence) 对偶定理。",
       "使用 Python 编写脚本，分别构建一维非互易 Hatano-Nelson 紧束缚模型在周期边界 (PBC) 与开边界 (OBC) 下的稀疏三对角非对称哈密顿矩阵，对角化求解并绘制复本征能量谱图（展示闭合椭圆 vs 实线段坍缩），并数值计算所有波函数概率密度分布 \\sum_n |\\psi_n(x)|^2，清晰展示趋肤效应指数富集曲线。",
       "使用 Markdown 表格，对比拓扑声学超材料 (Topological Acoustics)、拓扑光子晶体与波导阵列 (Topological Photonics)、LC 电路拓扑电网络 (Topoelectrical Circuits) 以及超冷原子光晶格 (Ultracold Atoms in Optical Lattices) 在非厄米增益/损耗调控手段、非互易跃迁物理实现方案、趋肤效应观察信噪比以及高维高阶拓扑角态扩展能力维度的系统级优缺点。"
+    ]
+  },
+  {
+    "id": "spintronics_magnetic_skyrmion_racetrack_memory",
+    "domain": "spintronics_magnetic_skyrmions",
+    "title": "自旋电子学：拓扑磁斯格明子 Thiele 动力学方程与赛道内存推导",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 Dzyaloshinskii-Moriya 相互作用 (DMI) 手性自旋纹理推导、Thiele 稳态漂移方程拓扑 Magnus 力分析、斯格明子霍尔效应 (THE) 偏转 Python 模拟与超高密度存储技术对比",
+    "turns": [
+      "在空间反演对称性破缺的铁磁/重金属超薄多层膜异质结（如 Pt/Co/AlOx）中，推导海森堡交换作用常数 J 与界面 Dzyaloshinskii-Moriya 相互作用 (iDMI) 矢量 \\mathbf{D}_{ij} 协同竞争下的自旋哈密顿量连续统极限，导出奈尔型 (Néel-type) 磁斯格明子能量泛函并推导形成稳定二维孤子解的临界 DMI 阈值 D_c = \\frac{4\\sqrt{A K_{eff}}}{\\pi}。",
+      "当施加面内自旋极化电流驱动自旋轨道转矩 (SOT) 时，将微磁学 Landau-Lifshitz-Gilbert (LLG) 方程对刚体斯格明子自旋轮廓积分，严格推导稳态漂移运动的 Thiele 方程 \\mathbf{G} \\times \\mathbf{v} - \\alpha \\mathcal{D} \\cdot \\mathbf{v} + 4\\pi \\mathcal{B} \\cdot \\mathbf{j} = 0。证明拓扑荷 Q = \\frac{1}{4\\pi} \\int \\mathbf{m} \\cdot \\left( \\frac{\\partial \\mathbf{m}}{\\partial x} \\times \\frac{\\partial \\mathbf{m}}{\\partial y} \\right) dx dy = \\pm 1 产生的回转张量 \\mathbf{G} = -4\\pi Q \\hat{z} 为拓扑 Magnus 力的物理本质，并导出导致斯格明子撞壁湮灭的斯格明子霍尔角 \\theta_{SkHE} = \\arctan\\left(\\frac{4\\pi Q}{\\alpha \\mathcal{D}_{xx}}\\right)。",
+      "使用 Python 编写脚本，基于 Runge-Kutta (RK4) 数值求解包含边缘排斥势垒、随机钉扎杂质点 (Pinning Sites) 以及脉冲驱动电流的二维 Thiele 动力学微分方程，模拟斯格明子在限制赛道 (Confined Racetrack) 内部的纵向行进轨迹，展示随电流密度增加从蠕变 (Creep) 到退钉扎解卡 (Depinning) 的非线性速度响应曲线。",
+      "推导反铁磁斯格明子 (Antiferromagnetic Skyrmion) 或合成反铁磁 (SAF) 双层耦合系统抵消拓扑 Magnus 力的微观配对机制，证明由两个具有相反拓扑荷 Q_1 = -Q_2 的亚点阵耦合构成的复合斯格明子如何实现严格为零的斯格明子霍尔角 \\theta_{SkHE} = 0，从而根除赛道侧壁碰撞湮灭瓶颈。",
+      "使用 Markdown 表格，对比拓扑磁斯格明子赛道内存 (Skyrmion Racetrack)、传统磁畴壁内存 (Domain Wall Memory)、自旋转移力矩磁阻随机存取存储器 (STT-MRAM) 以及相变存储器 (PCRAM) 在位单元尺寸 (nm)、写入/擦除能耗 (fJ/bit)、读写速度 (ns)、抗外磁场干扰能力以及室温热稳定性因子 \\Delta = E_b / (k_B T) 维度的核心技术指标。"
+    ]
+  },
+  {
+    "id": "quantum_acoustics_saw_resonator_circuit_qed",
+    "domain": "quantum_acoustics_saw_resonator",
+    "title": "量子声学：声表面波 (SAW) 谐振器与超导比特量子相干调控推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试压电衬底声表面波瑞利波色散关系推导、叉指换能器 (IDT) P 矩阵声电耦合参数化、声子 Fock 态量子层析与高分辨率微纳芯片科学插图生成",
+    "turns": [
+      "在强压电各向异性晶体衬底（如黑磷或钽酸锂 LiNbO3）上，联立弹性力学应力平衡微分方程与准静电麦克斯韦方程，推导无耗散表面瑞利波（Rayleigh SAW）在自由表面边界条件下的三维声场应变张量 S_{ij}(x,y,z) 与电势波 \\phi(x,y,z) 空间剖面，分析声速比体电磁波慢 10^5 倍（v_{saw} \\approx 3000 m/s）形成的极短声子波长 \\lambda_{saw} \\approx 1 \\mu\\text{m} 的量子受限效应。",
+      "请生成一张具备顶级物理科研期刊封底质感的科学级 3D 多模态量子声学芯片渲染概念插图：展现深低温（10 mK）微波屏蔽封装内部的超导量子声学芯片（Quantum Surface Acoustic Wave Chip）。高纯钽酸锂压电晶圆表面精细微加工着铝基超导叉指换能器 (IDT) 与布拉格声学反射栅阵列，中央耦合着一个超导 Transmon 量子比特（呈现淡金色约瑟夫森结超导环）；量子比特向左侧微声学谐振腔发射出波长亚微米级的相干单声子表面波纹（呈现亮青色透明起伏的声学微晶格涟漪），背景呈现稀释制冷机镀金辐射屏蔽罩与冷凝量子光学微波电缆，具备极致纳米金属光泽与电磁-声学多物理场耦合渲染美感。",
+      "在电路量子电动力学 (cQED) 拓展框架下，推导超导 Transmon 量子比特电容焊盘与叉指换能器 (IDT) 压电电极之间的电声耦合 Jaynes-Cummings 哈密顿量 \\hat{H}_{int} = \\hbar g (\\hat{a} \\hat{\\sigma}_+ + \\hat{a}^\\dagger \\hat{\\sigma}_-)，并给出电声耦合强度 g / 2\\pi \\propto \\sqrt{K^2 f_{saw} / C_{\\Sigma}} 的电容分压与压电机电耦合系数 K^2 定标律，分析强耦合条件 g \\gg (\\kappa, \\gamma) 的实验可达性。",
+      "使用 Python 编写脚本，基于开放量子系统 QuTiP 库构建超导比特与单模声学谐振腔的复合希尔伯特空间，数值模拟真空拉比振荡 (Vacuum Rabi Oscillation) 过程，演示单个微波光子在约瑟夫森比特与机械表面声子之间的确定性量子态相干互换，并计算声子态保真度 F(\\rho, |1\\rangle\\langle 1|)。",
+      "使用 Markdown 表格，对比声表面波量子体系 (SAW cQED)、体声波超导谐振器 (HBAR)、光机械悬臂梁 (Optomechanical Beams) 以及三维微波腔 (3D Superconducting Cavities) 在特征共振频率、机械/电磁品质因数 Q、相干退相干时间 T_1 与 T_2、单激发封装体积以及量子非破坏 (QND) 单声子探测能力维度的综合物理特性。"
     ]
   }
 ]
