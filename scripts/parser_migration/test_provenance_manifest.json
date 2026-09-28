@@ -1,0 +1,567 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-09-28",
+  "classificationDefinitions": {
+    "P0": "Real Gemini: Directly observed in live Gemini, Takeout, or production traces. Blocker for migration.",
+    "P1": "Standard Syntax: CommonMark / GFM or standard LaTeX syntax. Verifies integration with standard behavior.",
+    "P2": "Project Semantics: Exporter contracts (Canonical AST, diagnostics, asset mapping, payload serialization). Must pass unchanged.",
+    "P3": "Synthetic Robustness: Artificial edge cases constructed for testing. Non-blocking for parser migration.",
+    "P4": "Legacy Implementation-Specific: Tied to bespoke quirks/regex of old handwritten parser. To be retired/archived."
+  },
+  "suites": [
+    {
+      "file": "tests/canonical-contract.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Project Canonical AST specification & validation invariants",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Defines canonical block schemas, validateBundle(), and diagnostics rules.",
+      "testCount": 38,
+      "tests": [
+        "all three canonical fixtures validate with zero errors",
+        "versioned JSON schema resource is present and parses",
+        "representation independence: no thought block carries view state",
+        "branching fixture projects the selected leaf path only",
+        "explicit selection overrides the bundle leaf",
+        "null selection projects all messages in source order (legacy linear policy)",
+        "legacy linear messages (no parentId) project in array order",
+        "projection rejects duplicate message ids",
+        "projection rejects orphan parentId",
+        "projection rejects parent cycles",
+        "projection rejects unknown selected leaf",
+        "validateBundle reports the same tree defects as diagnostics",
+        "low-authority observation cannot downgrade a high-authority title",
+        "higher-authority observation upgrades the title (no regression)",
+        "same-tier newer observation overwrites (repo setTitleBySource semantics)",
+        "same-tier older observation can never overwrite a newer title",
+        "same-tier: candidate with a timestamp beats one without",
+        "same-tier: later insertion wins when both timestamps are missing",
+        "same-tier: later insertion wins on equal timestamps",
+        "authority tier beats recency: newer sniff cannot beat older rpc",
+        "unusable candidates keep the previous title (winner-not-in-candidates defense)",
+        "resolveTitle returns undefined when no candidate is usable",
+        "title tiers mirror the repo TITLE_TIER_RANK ladder",
+        "unknown source titles resolve to nothing (unknown stays unknown)",
+        "unknown block always yields readable fallback, never blank",
+        "bare unknown block (rawRef only) still produces visible fallback",
+        "unknown round-trips through JSON with evidence intact",
+        "message tree survives archive round-trip identically",
+        "pseudo-available asset is flagged, never trusted from metadata",
+        "classifyAssetAvailability downgrades pseudo-available to missing",
+        "resolveAssetBytes returns real bytes or an explicit missing state",
+        "missing asset without failureReason is diagnosed",
+        "malicious link protocols are rejected",
+        "unsafe storageRef paths are rejected",
+        "schema version and key violations are errors",
+        "oversized strings are rejected by the size guard",
+        "renderer-only keys leaking into canonical data are flagged",
+        "missing accountId warns (F1 owns the value, F2a must not invent it)"
+      ]
+    },
+    {
+      "file": "tests/canonical-feature-matrix.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Canonical AST multi-block feature matrix specification",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Ensures all canonical block variants serialize and validate without schema divergence.",
+      "testCount": 19,
+      "tests": [
+        "matrix: H1-H6 headings keep level in HTML and Typst",
+        "matrix: strikethrough is native in HTML and Typst",
+        "matrix: nested list keeps structure in HTML and Typst",
+        "matrix: ordered list start is preserved in HTML and Typst",
+        "matrix: quote keeps nested blocks in HTML and Typst",
+        "matrix: thought keeps nested blocks and kind label in Typst",
+        "matrix: table caption survives in Typst",
+        "matrix: headerless table keeps body rows in Typst",
+        "matrix: multi header rows are all preserved in Typst",
+        "matrix: colSpan/rowSpan are native in Typst with no degradation diagnostic",
+        "matrix: unknown fallbackBlocks render recursively in HTML and Typst",
+        "matrix: file description reaches Typst transport",
+        "matrix: citation group title reaches Typst transport",
+        "matrix: thematic break is a native divider in HTML and Typst",
+        "matrix: failed tool call shows failed badge in HTML and Typst",
+        "matrix: completed and pending tool status stay unemphasized",
+        "matrix: citation label priority is identical in HTML and Typst",
+        "matrix: citation group chips follow the unified label rule",
+        "matrix: citation snippet and assetId are metadata-only"
+      ]
+    },
+    {
+      "file": "tests/canonical-gemini-markup-sanitization.test.ts",
+      "domain": "markdown",
+      "classification": "P0",
+      "provenanceSource": "Real Gemini web response markup quirks (raw HTML, citation tags, prompt artifacts)",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Tests real HTML/Gemini citation strip behaviors without corrupting legitimate markdown.",
+      "testCount": 1,
+      "tests": [
+        "Gemini structured markup is sanitized at normalization boundary and never reaches Canonical AST or HTML"
+      ]
+    },
+    {
+      "file": "tests/canonical-generated-image-consistency.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P0",
+      "provenanceSource": "Real Gemini Imagen turns with companion asset metadata",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Ensures generated Imagen images preserve asset IDs, metadata, and canonical node mapping.",
+      "testCount": 5,
+      "tests": [
+        "PR 4 - 1: Single generated image on model turn renders 1 inline figure and 1 companion card",
+        "PR 4 - 2: Multiple generated images on model turn render N inline figures and N companion cards",
+        "PR 4 - 3: User uploaded image attachment renders 0 inline figures and 1 attachment card",
+        "PR 4 - 4: Generated image with explicit markdown embed does not produce duplicate cards",
+        "PR 4 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)"
+      ]
+    },
+    {
+      "file": "tests/canonical-html-gaps.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "HTML export renderer contracts & HTML entity escaping",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Tests HTML rendering completeness for all canonical node types.",
+      "testCount": 5,
+      "tests": [
+        "image card shows caption",
+        "file card shows description",
+        "code header prefers filename, shows meta",
+        "table honors column alignment",
+        "table without columns renders no alignment styles"
+      ]
+    },
+    {
+      "file": "tests/canonical-html-math-policy.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Project KaTeX HTML math rendering policy",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Tests inline math and display math KaTeX rendering and fallback spans.",
+      "testCount": 5,
+      "tests": [
+        "PR 3: Supported LaTeX math compiles to valid MathML",
+        "PR 3: TikZ diagrams fail gracefully with HTML_MATH_UNSUPPORTED_TIKZ diagnostic",
+        "PR 3: Unknown LaTeX commands fail gracefully with HTML_MATH_RENDER_FAILED diagnostic",
+        "PR 3: Empty math source handles gracefully",
+        "PR 3: End-to-end integration via normalizeGeminiConversation and renderCanonicalHtml"
+      ]
+    },
+    {
+      "file": "tests/canonical-html-parity.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "CanonicalHtmlRenderer cross-version equivalence checks",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Ensures canonical HTML export output preserves message counts, roles, and structural tags.",
+      "testCount": 12,
+      "tests": [
+        "parity setup: canonical renderer produces output",
+        "parity: same turn count and structure",
+        "parity: user turn text is complete (content not lost)",
+        "parity: model turn text is complete (content not lost)",
+        "parity: long prompt collapses",
+        "parity: thoughts accordion, code copy, carousel kept",
+        "improvement: citations are visible",
+        "improvement: unknown content stays visible, never blank",
+        "missing asset: visible placeholder + diagnostic, no silent gap",
+        "offline: no remote asset URLs leak into output",
+        "inline image (#555 contract): renders inline <img>, never dropped",
+        "inline image with missing asset: visible placeholder + diagnostic"
+      ]
+    },
+    {
+      "file": "tests/canonical-html-projection.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Canonical branching conversation projection specification",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Tests branching timeline resolution and active path projection.",
+      "testCount": 4,
+      "tests": [
+        "branched conversation renders only the selected branch",
+        "no selection renders all messages in source order",
+        "shared collectReferencedAssetIds sees inline images everywhere",
+        "inline image assets enter the HTML companion resource plan"
+      ]
+    },
+    {
+      "file": "tests/canonical-html-renderer-adapter.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Canonical HTML adapter packaging contracts",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Validates artifact bundle packaging, companion file assets, and abort signals.",
+      "testCount": 3,
+      "tests": [
+        "adapter: artifact shape, companion ids, offline urls",
+        "adapter: unresolvable asset lands in omitted, still renders",
+        "adapter: aborted signal stops the render"
+      ]
+    },
+    {
+      "file": "tests/canonical-nested-inline-fidelity.test.ts",
+      "domain": "markdown",
+      "classification": "P1",
+      "provenanceSource": "Standard CommonMark nested inline semantics (bold inside tables, code, line breaks)",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Validates nested inline Markdown formatting without leaking raw asterisks or delimiters.",
+      "testCount": 7,
+      "tests": [
+        "Fidelity 1: Table cell bold renders as <strong> and does not leak **",
+        "Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not leak literal &lt;br&gt;",
+        "Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) render completely and accurately",
+        "Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting without delimiter leakage",
+        "Fidelity 5: Emphasis wrapping links and links wrapping emphasis",
+        "Fidelity 6: Table rows with pipes inside math expressions do not split columns",
+        "Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in both paragraph and tables"
+      ]
+    },
+    {
+      "file": "tests/canonical-parser-hardening.test.ts",
+      "domain": "markdown",
+      "classification": "P3",
+      "provenanceSource": "Handwritten parser hardening cases (borderless tables, pipe protection in code spans, balanced parens)",
+      "policy": "ROBUSTNESS_NON_BLOCKING",
+      "notes": "Synthetic edge cases developed for old parser. In new parser, standard GFM behavior takes precedence.",
+      "testCount": 17,
+      "tests": [
+        "F1: display formula with trailing text keeps both, never an empty MathBlock",
+        "standalone display formula is a MathBlock",
+        "multiple formulas on one line all survive as inline math",
+        "unclosed display-math fence keeps the lines and raises a diagnostic",
+        "borderless table parses without leading/trailing pipes",
+        "escaped pipes and code-span pipes do not split columns",
+        "link target with balanced parentheses is preserved",
+        "bare remote image becomes a first-class ImageInline with a remote asset",
+        "linked image parses as link wrapping an ImageInline",
+        "inline image reuses the matching attachment asset",
+        "image with no resolvable source is missing and raises a diagnostic",
+        "multiple images in one paragraph each get their own asset",
+        "nested emphasis: strong containing emphasis",
+        "nested emphasis: emphasis containing strong",
+        "triple-star and strikethrough keep their node shapes",
+        "unclosed emphasis markers stay literal text",
+        "dollar prices are not treated as math"
+      ]
+    },
+    {
+      "file": "tests/canonical-renderer-contract.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Dual-renderer cross contract (CanonicalHtmlRenderer x Typst payload)",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Ensures both HTML and Typst renderers faithfully convey identical canonical node semantics.",
+      "testCount": 15,
+      "tests": [
+        "contract: paragraph text survives in HTML and Typst",
+        "contract: heading text and level survive in HTML and Typst",
+        "contract: strong and emphasis survive in HTML and Typst",
+        "contract: code block content survives in HTML and Typst",
+        "contract: list items survive in HTML and Typst",
+        "contract: table cells survive in HTML and Typst",
+        "contract: image companion placement exists on both renderers",
+        "contract: file companion placement exists on both renderers",
+        "contract: citation label and group survive in HTML and Typst",
+        "contract: thought inner text survives in HTML and Typst",
+        "contract: unknown block fallback is visible on both renderers",
+        "contract: tool result attachment is placed on both renderers",
+        "arch: HTML renderer routes companion placement through collectCompanionPlacements()",
+        "arch: Typst payload routes companion placement through collectCompanionPlacements()",
+        "arch: collectCompanionPlacements has exactly one implementation"
+      ]
+    },
+    {
+      "file": "tests/canonical-schema-conformance.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Canonical JSON schema v1 validation contract",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Validates bundle against formal JSON schema.",
+      "testCount": 5,
+      "tests": [
+        "every canonical fixture satisfies both validateBundle and the JSON Schema",
+        "GeminiNormalizer output satisfies both contracts (incl. first-class inline images)",
+        "rpc title with candidates and history satisfies both contracts",
+        "title without candidates is rejected by the JSON Schema",
+        "thought block with initiallyCollapsed is rejected by the JSON Schema"
+      ]
+    },
+    {
+      "file": "tests/canonical-title-source-allowlist.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Canonical title authority specification",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Checks titleSource enum allowlist and fallback diagnostic coercion.",
+      "testCount": 4,
+      "tests": [
+        "unknown raw.titles key is coerced to default with a diagnostic",
+        "coerced bundle passes JSON Schema title source enums and validateBundle",
+        "validateBundle rejects unknown title sources",
+        "unknown raw.titleSource still coerces with a diagnostic"
+      ]
+    },
+    {
+      "file": "tests/canonical-underscore-delimiter.test.ts",
+      "domain": "markdown",
+      "classification": "P4",
+      "provenanceSource": "Handwritten regex rules in old markdownToBlocks.ts for parseEmphasis() underscore delimiters",
+      "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+      "notes": "Tightly coupled to old regex delimiter stack. New CommonMark parser uses standard intraword underscore rules.",
+      "testCount": 5,
+      "tests": [
+        "legit italic: _this is italic_",
+        "legit italic inside sentence: word _italic_ word",
+        "legit strong: __strong__",
+        "legit strong inside sentence: word __strong__ word",
+        "star emphasis unchanged: *italic* and **bold**"
+      ]
+    },
+    {
+      "file": "tests/canonical-underscore-html-regression.test.ts",
+      "domain": "markdown",
+      "classification": "P0",
+      "provenanceSource": "Real Tier 2 production conversation containing LaTeX-like identifiers and snake_case file names",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Verifies snake_case identifiers (e.g. var_name_here) are not corrupted into broken italic tags.",
+      "testCount": 2,
+      "tests": [
+        "full pipeline keeps LaTeX-like underscores and file names intact",
+        "legit underscore emphasis still renders in HTML"
+      ]
+    },
+    {
+      "file": "tests/html-canonical-migration.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P0",
+      "provenanceSource": "Real multi-turn Gemini conversation export through canonical pipeline",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Verifies end-to-end HTML export output integrity on full conversations.",
+      "testCount": 9,
+      "tests": [
+        "migration setup: production entry returns a valid HTML FormattedResult",
+        "migration: message count and order are correct",
+        "migration: body text not dropped",
+        "migration: attachments and images not dropped",
+        "migration: thought not dropped",
+        "migration: code block not dropped",
+        "migration: table not dropped",
+        "migration: citation not dropped",
+        "migration: duplicate message ids fail closed, not silently dropped"
+      ]
+    },
+    {
+      "file": "tests/typst-headerless-table.test.ts",
+      "domain": "markdown",
+      "classification": "P1",
+      "provenanceSource": "Markdown tables without header row (GFM standard and Typst table representation)",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Ensures table without headers renders natively as Typst table rather than broken plain text.",
+      "testCount": 3,
+      "tests": [
+        "headerless table keeps empty headers and full body rows",
+        "thematicBreak becomes a native divider node, not an em-dash paragraph",
+        "real WASM: headerless table, thematicBreak and strikethrough compile with all text selectable"
+      ]
+    },
+    {
+      "file": "tests/typst-list-unknown-recursive.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Typst payload nested list and recursive unknown node mapping contract",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Guarantees arbitrary nested list items with embedded images/math map cleanly to Typst payload.",
+      "testCount": 6,
+      "tests": [
+        "list item keeps inline image as a node, not flattened text",
+        "list item keeps block image, nested list, code, math and multi-paragraph",
+        "ordered list keeps start; absent start stays absent",
+        "unknown with fallbackBlocks renders recursive blocks including image",
+        "unknown without fallbackBlocks keeps the fallback string",
+        "real WASM: recursive list and unknown templates compile with all content selectable"
+      ]
+    },
+    {
+      "file": "tests/typst-math-cases-operatorname.test.ts",
+      "domain": "latex",
+      "classification": "P0",
+      "provenanceSource": "Real astrophysics / microlensing Gemini responses with \begin{cases}, \u0007rg, and \\pmod",
+      "policy": "MUST_PASS_REAL_REGRESSION",
+      "notes": "Production cases derived directly from live Tier 2 microlensing and math prompts.",
+      "testCount": 3,
+      "tests": [
+        "W3-1: cases rows, operatorname star distinction, circ mapping",
+        "W3-2: real WASM compile of cases + operatorname* + compose, zero errors",
+        "microlensing PDF formulas with arg and pmod compile without fallback"
+      ]
+    },
+    {
+      "file": "tests/typst-math-converter.test.ts",
+      "domain": "latex",
+      "classification": "P1",
+      "provenanceSource": "LaTeX math converter unit suite (standard LaTeX commands: frac, sqrt, scripts, matrices, Greek)",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Unit tests covering standard TeX math syntax; to be serviced by MiTeX in PR 4.",
+      "testCount": 28,
+      "tests": [
+        "inline and display basics",
+        "frac / sqrt / nested",
+        "sub/superscripts incl. multi-char and big operators",
+        "greek letters",
+        "operators and relations",
+        "functions, calculus, sets",
+        "accents",
+        "bra-ket and standalone angle delimiters",
+        "text is escaped into a Typst string literal",
+        "left/right delimiters",
+        "line break \\\\\\\\ only in display mode",
+        "multiple formulas in one source",
+        "illegal input fails whole with diagnostic",
+        "empty input returns undefined with empty diagnostic",
+        "non-latex notations are unsupported with diagnostic",
+        "prototype-chain command names cannot smuggle JS builtins",
+        "diagnostic message carries a source preview for debugging",
+        "rich symbols, styles, functions, and multiple integrals",
+        "matrix and cases environments",
+        "operatorname and custom operators",
+        "malformed \\\\operatorname fails the whole conversion with a diagnostic",
+        "font switches and styling (\\\\rm, \\\\bf, \\\\it, \\\\cal, etc.)",
+        "prescripts and isotope notation without explicit base",
+        "escaped percent and greek / relation variants",
+        "extensible arrows (\\\\xrightarrow, \\\\xleftarrow, \\\\xrightleftharpoons, etc.)",
+        "delimiter sizing commands (\\\\big, \\\\Big, etc.)",
+        "equilibrium arrow, relations, and dagger symbols",
+        "plugs into the payload adapter convertMath hook"
+      ]
+    },
+    {
+      "file": "tests/typst-math-corpus.test.ts",
+      "domain": "latex",
+      "classification": "P1",
+      "provenanceSource": "Standard multi-domain LaTeX math corpus (calculus, linear algebra, logic, physics)",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Validates LaTeX expressions compile to PDF via Typst compiler with zero diagnostics.",
+      "testCount": 2,
+      "tests": [
+        "typst math corpus: parser correctness across semantic categories",
+        "typst math corpus: representative cases real WASM compilation smoke test"
+      ]
+    },
+    {
+      "file": "tests/typst-math-int-integral.test.ts",
+      "domain": "latex",
+      "classification": "P1",
+      "provenanceSource": "Typst math semantic collision bug (\\int -> integral vs Typst type keyword int)",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Ensures standard LaTeX \\int produces math integral symbol in Typst.",
+      "testCount": 3,
+      "tests": [
+        "W2-1: \\\\int maps to Typst `integral` (not `int`)",
+        "W2-2: sum/prod mappings are untouched",
+        "W2-3: real WASM compile: zero errors, PDF carries ∫ (U+222B)"
+      ]
+    },
+    {
+      "file": "tests/typst-nested-semantics.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Typst payload adapter structured quote and thought block mapping",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Checks blockquote and model thought recursion preserves node types in Typst payload.",
+      "testCount": 9,
+      "tests": [
+        "quote keeps nested image as a real image node",
+        "thought keeps nested image as a real image node",
+        "quote keeps code and math as structured nodes instead of flat text",
+        "thought keeps code as a structured node instead of flat text",
+        "toolCall with input only exposes the structured payload as text",
+        "toolResult with output only exposes the structured payload as text",
+        "tool displayBlocks are rendered recursively alongside the json payload",
+        "strikethrough is transported natively without a warning",
+        "unserializable tool input emits a diagnostic instead of silent loss"
+      ]
+    },
+    {
+      "file": "tests/typst-payload.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Typst v8 payload specification and adapter contract",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Canonical AST to Typst payload adapter contract test.",
+      "testCount": 18,
+      "tests": [
+        "maps paragraph, heading, code and table blocks",
+        "math without converter keeps latex only; with converter adds typst",
+        "missing image asset becomes visible unknown node with diagnostic",
+        "present image asset maps to virtual path",
+        "inline image maps to a formal transport node",
+        "inline image without alt omits the alt key",
+        "missing inline image asset falls back to visible text with missing-asset diagnostic",
+        "missing inline image asset without alt shows [image: id] placeholder",
+        "collectReferencedAssetIds walks block and inline trees recursively",
+        "inline image asset is not duplicated as a trailing attachment",
+        "unknown blocks are never dropped",
+        "heading level passes through without clamping",
+        "branched conversation without selected leaf renders every message in source order",
+        "hostile text stays inert JSON data (injection red line)",
+        "system role becomes a visible note prefix",
+        "associated image companion with no path emits TYPST_V8_ASSOCIATED_IMAGE_MISSING (no silent drop)",
+        "associated image companion with a path renders trailing attachment without diagnostic",
+        "collectCompanionPlacements: explicit placement wins, images/files split, unknown ignored with diagnostic"
+      ]
+    },
+    {
+      "file": "tests/typst-phase-b.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Complex table spans and citation group specifications",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Ensures table rowSpan/colSpan and citation labels map to Typst payload.",
+      "testCount": 9,
+      "tests": [
+        "multi header rows all reach the transport with no collapse diagnostic",
+        "colSpan/rowSpan map to native Typst table.cell spans with no warning",
+        "citationGroup title becomes the note label",
+        "citationGroup without title has no label",
+        "file description reaches the transport",
+        "thought kinds map to note labels",
+        "code filename and meta reach the transport",
+        "code without filename has no filename field",
+        "real WASM: phase B features compile with all text selectable"
+      ]
+    },
+    {
+      "file": "tests/typst-table-span.test.ts",
+      "domain": "canonical_ast",
+      "classification": "P2",
+      "provenanceSource": "Table cell span contract for Typst layout engine",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Ensures table cell span attributes are preserved.",
+      "testCount": 9,
+      "tests": [
+        "colSpan maps to transport colspan and rowspan stays absent",
+        "rowSpan and combined spans map to transport",
+        "header cells carry spans",
+        "span parity: HTML colspan/rowspan matches Typst transport",
+        "real WASM: colspan table compiles with all text selectable",
+        "real WASM: rowspan and combined spans compile with all text selectable",
+        "real WASM: header span and oversized span compile without data loss",
+        "real WASM: multi-cell staggered rowspan occupancy compiles and retains all text",
+        "real WASM: 2x2 multi-cell block span occupancy compiles cleanly"
+      ]
+    }
+  ],
+  "summary": {
+    "totalSuites": 27,
+    "totalTests": 246,
+    "byClassification": {
+      "P2": 161,
+      "P0": 20,
+      "P1": 43,
+      "P3": 17,
+      "P4": 5
+    }
+  }
+}
