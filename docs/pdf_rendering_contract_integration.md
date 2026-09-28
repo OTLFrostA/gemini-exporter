@@ -1,6 +1,12 @@
 # Rendering Contract v1 接入 PDF 路线
 
-> 状态：实施基线与差异清单，2026-09-25。用户提供的 `gemini-exporter-rendering-contract-v1.zip` 是开发输入，不代表代码已进入仓库、PDF 已可导出，或 PDF 引擎已通过 MV3 验收。
+> Status: SUPERSEDED
+>
+> This maintenance/implementation plan has been completed/re-audited.
+> Do not treat unchecked historical items as active backlog.
+> See CURRENT_ARCHITECTURE.md and the Post-Maintenance Closeout decision.
+
+> 历史状态：实施基线与差异清单，2026-09-25（本路线已全面合流并经由 Canonical AST 统一）。
 
 ## 1. 采用决定与边界
 

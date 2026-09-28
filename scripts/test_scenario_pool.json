@@ -1,25 +1,5 @@
 [
   {
-    "id": "atomic_physics_optical_lattice_clock_geodesy",
-    "domain": "atomic_physics_optical_lattice_clock_geodesy",
-    "title": "超冷光晶格原子钟：魔术波长极化对消与相对论重力测量学精密推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试 87Sr 光晶格钟钟跃迁魔术波长 Stark 频移对消、相对论引力红移高程反演与量子投影噪声 Allan 方差仿真",
-    "turns": [
-      "对于锶原子 (87Sr) 的钟跃迁 5s2 1S0 -> 5s5p 3P0 (约 698 nm)，推导驻波激光光晶格引起的一阶电偶极动态极化率 alpha(omega)，并严格写出使得基态与激发态交流 Stark 频移严格相等的魔术波长 (Magic Wavelength, ~813.4 nm) 极化对消微扰论方程。",
-      "根据广义相对论等效原理，推导两台相距 L 且存在高差 Delta h 的光晶格钟之间的相对重力红移频移 Delta f / f_0 = g * Delta h / c^2，并计算当钟的系统不确定度达到 1 x 10^-18 时所对应的绝对大地高程测量极限精度。",
-      "使用 Python 编写模拟脚本，构建 Ramsey 光谱分离振荡场干涉模型，计算在包含 N 个独立囚禁冷原子系统中的原子跃迁概率分布，并推导受限于量子投影噪声 (Quantum Projection Noise, QPN) 的 Allan 方差 sigma_y(tau) 散粒噪声统计下界。",
-      "推导由室温真空腔体黑体辐射 (Blackbody Radiation, BBR) 诱发的原子时频频移修正模型，给出其与环境绝对温度 T 的 T^4 标度律及动态多极极化率修正系数 eta_BBR 的代数形式。",
-      "使用 Markdown 表格横向对比锶 (87Sr) 光晶格钟、镱 (171Yb) 光晶格钟、铝离子 (27Al+) 单离子光钟以及氢脉泽 (Hydrogen Maser) 在工作跃迁频率、系统不确定度 (Fractional Systematic Uncertainty)、魔术波长与便携车载/星载化适应性。"
-    ]
-  },
-  {
     "id": "condensed_matter_topological_acoustics_non_hermitian",
     "domain": "condensed_matter_topological_acoustics_non_hermitian",
     "title": "拓扑声学与非厄米趋肤效应：广义布里渊区与高阶角态物理推导",
@@ -197,28 +177,6 @@
       "请使用 Python 编写一段紧凑高效的 OASIS 钙信号解卷积反演函数，输入一段含随机光漂移与高斯-泊松混合白噪声的一维荧光信号序列，输出估计的基线荧光、去噪后钙离子瞬变过程及重建的离散动作电位脉冲时刻列表。",
       "设计一个结构化 Markdown 表格，横向对比全光学生理学闭环系统、高密度刚性穿透硅微电极阵列 (Neuropixels 2.0)、微创柔性高分子电极刺入阵列与硬膜下皮层脑电 (ECoG) 在记录通道规模、单细胞空间分辨率 (μm)、时间精度 (ms)、长期在体生物相容性及双向闭环反馈延迟。",
       "阐述皮层浅层微回路中兴奋性锥体神经元与抑制性中间神经元 (PV/SST) 构成的平衡态网络 (Balanced State Network) 在光遗传全息扰动下的非线性增益控制动力学，分析预防异常同步化与癫痫样放电的闭环反馈阻尼控制器数学模型。"
-    ]
-  },
-  {
-    "id": "astrobiology_exoplanet_atmospheric_biosignatures",
-    "domain": "astrobiology_exoplanet_atmospheric_biosignatures",
-    "title": "天体生物学与系外行星：透射光谱分子特征反演与生物标志物假阳性解耦",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试系外行星大气透射光谱辐射传输方程推导、贝叶斯反演 Python 仿真、类地系外行星凌星透射光谱高保真科学渲染图与生物标志物对比",
-    "turns": [
-      "推导系外行星在母恒星视圆面过境 (Transit) 期间星光穿透大气环层时的波长依赖性等效视半径变化 \\Delta R_p(\\lambda) 与辐射传输积分，建立由标高 H = \\frac{k_B T}{\\mu g}、分子不透明度 \\kappa_i(\\lambda) 及参考压力 P_0 共同决定的透射光谱吸收深度解析表达式。",
-      "深入分析将氧气 O_2 与臭氧 O_3 作为潜在生命活动生物标志物 (Biosignatures) 时，红矮星高能极紫外耀斑 (EUV) 导致二氧化碳与水分子非生物光解引发的严重假阳性 (False Positive) 物理机制，推导利用四聚体 O_4 碰撞诱导吸收和一氧化碳 CO 耗尽特征消除假阳性的判据。",
-      "请帮我生成一张高精度天体物理科学可视化渲染图：一颗位于红矮星宜居带的潮汐锁定超级地球正在发生凌星公转，红矮星橘红色恒星光辉透射过该行星致密的富水与富氮氧大气层，形成薄薄的蓝紫色彩晕圈，前景呈现詹姆斯·韦伯太空望远镜 (JWST) 展开的金色六边形主镜阵列与光谱干涉衍射数据光带。",
-      "使用 Markdown 表格，对比红外透射光谱 (Transmission Spectroscopy)、反射光偏振测量 (Polarimetry)、热辐射相位曲线 (Phase Curves) 与高对比度直接成像星冕仪在探测类地行星水汽 H_2O、甲烷 CH_4、二氧化碳 CO_2、磷化氢 PH_3 及二甲基硫醚 (DMS) 时的信噪比阈值、仪器系统误差极限与适用行星类型。",
-      "使用 Python 编写一段系外行星大气透射深度数值积分脚本，根据给定的大气平均分子量、重力加速度、温度以及包含主干分子吸收峰的离散不透明度截面数据，计算并输出连续波长范围内的等效行星遮挡深度 \\delta(\\lambda) = (R_p(\\lambda)/R_*)^2。"
     ]
   },
   {
@@ -411,6 +369,49 @@
       "使用 Python 编写脚本，基于紧束缚近似（Tight-Binding Model）离散化一维 N 节点超导纳米线晶格系统，构建 BdG 矩阵并使用 NumPy/SciPy 稀疏对角化求解随塞曼磁场 V_Z 连续调节下的本征能谱流演化曲线，精准再现体能隙闭合、重新打开以及零偏压电导峰（Zero-Bias Conductance Peak, ZBCP, 量子化高度 2e^2/h）对应的孤立零能平带出现。",
       "推导在四端 T 型纳米线结（T-junction）网络中，通过绝热门电压调节各臂的拓扑/平庸相变边界，实现两个马约拉纳零能模 \\gamma_i 与 \\gamma_j 空间逆时针交换（Braiding）的过程。严格写出非阿贝尔几何贝里相位矩阵（Non-Abelian Berry Phase），证明交换操作对应的拓扑演化算符为单演群酉变换 U_{ij} = \\exp(\\frac{\\pi}{4} \\gamma_i \\gamma_j) = \\frac{1}{\\sqrt{2}}(1 + \\gamma_i \\gamma_j)，论述其为何能天然免疫局域退相干噪声构建拓扑量子编织门。",
       "使用 Markdown 表格，对比基于马约拉纳零模的拓扑超导量子比特、超导 Transmon 量子比特、半导体量子点自旋量子比特（Loss-DiVincenzo 比特）以及离子阱量子比特在逻辑相干时间保护机制（非局域拓扑存储 vs 动力学解耦/主动纠错）、基本单/双比特量子门操作时标、硬件制造容差鲁棒性以及当前实验物理证据确定性维度的核心指标对比。"
+    ]
+  },
+  {
+    "id": "nanotechnology_dna_origami_cryo_em_molecular_machine",
+    "domain": "molecular_nanotechnology_dna_origami_cryo_em",
+    "title": "DNA折纸术与分子机器：冷冻电镜单颗粒三维重构与自由能景观推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试 DNA 折纸术碱基堆积自由能计算、冷冻电镜反投影切片定理与分子步进机械臂三维渲染",
+    "turns": [
+      "基于最近邻热力学模型 (Nearest-Neighbor Model)，写出用于计算 DNA 纳米折纸结构中骨架单链与订书钉链 (Staple Strands) 杂交解链自由能 Delta G_total = Delta H - T * Delta S 的配分函数，并推导在包含高浓度镁离子 (Mg2+) 屏蔽条件下的静电斥力修正项。",
+      "针对利用冷冻电镜 (Cryo-EM) 测定自组装 DNA 纳米笼三维结构的物理过程，详细推导傅里叶中心切片定理 (Projection-Slice Theorem)，并写出由二维冷冻投影图反演三维重构电子势密度图 rho(r) 的加权反投影积分数学形式。",
+      "生成一张高分辨率科学可视化渲染图：展示一个在纳米尺度精确组装的 DNA 六足分子行走机器人在单层碳纳米管轨道上跨步前进的透视特写，背景具有冷冻电镜样品的微弱玻璃态冰层冷光质感与分子结构线框。",
+      "使用 Python 编写模拟脚本，构建布朗棘轮 (Brownian Ratchet) 动力学方程，计算化学燃料 (ATP 或 DNA 燃料链) 驱动下 DNA 纳米步进器克服粘滞阻力在周期性不对称自由能势阱中的平均漂移漂移速度与能量转换效率。",
+      "使用 Markdown 表格横向对比 DNA 折纸术 (DNA Origami)、蛋白质从头设计 (De Novo Protein Design)、金属有机框架 (MOF) 与合成共价有机框架 (COF) 在空间装配精度、热力学稳定性、化学修饰灵活性与生物靶向药物递送载荷容量。"
+    ]
+  },
+  {
+    "id": "quantum_thermodynamics_information_engine_jarzynski",
+    "domain": "quantum_thermodynamics_information_engine_jarzynski",
+    "title": "量子热力学与信息引擎：麦克斯韦妖极限、Jarzynski 恒等式与非平衡态推导",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试量子开放系统非平衡功分布、Jarzynski 恒等式与 Crooks 涨落定理、Landauer 原理耗散界限及 Python 随机热力学仿真",
+    "turns": [
+      "考虑受任意时间依赖外场驱动且处于有限温度 T 热库中的微观系统，从两时间测量方案 (Two-Point Measurement Scheme) 出发，推导微观做功概率分布 P(W) 严格满足的 Jarzynski 非平衡等式 <exp(-beta * W)> = exp(-beta * Delta F) 并证明热力学第二定律不等式 <W> >= Delta F。",
+      "针对麦克斯韦妖 (Maxwell's Demon) 进行测量反馈的信息发动机，推导引入香农互信息 I(X; Y) 修正后的广义热力学第二定律界限 W_ext <= -Delta F + k_B * T * I，并证明兰道尔擦除原理 (Landauer's Principle) 在信息重置过程中产生的最小热耗散 Q_erase = k_B * T * ln(2)。",
+      "推导由微观可逆性与时间反演对称性决定的 Crooks 涨落定理 P_F(W) / P_R(-W) = exp(beta * (W - Delta F))，并分析在远离热力学平衡的极端非准静态拉伸过程中自由能变化 Delta F 的极大似然估计解析形式。",
+      "使用 Python 编写 Langevin 随机动力学模拟脚本，数值求解布朗粒子在一维谐振子双势阱驱动移动过程中的随机轨迹，统计提取 5000 次独立非平衡实验路径上的做功做功积分，并绘制功分布直方图与 Jarzynski 平均收敛曲线。",
+      "使用 Markdown 表格横向对比经典信息引擎 (Szilard Engine)、量子相干性驱动热机、超导腔量子电动力学热机与单自旋非平衡热机在工作工质尺度、量子相干能增益、最大功输出功率与卡诺效率比值 (Efficiency at Maximum Power)。"
     ]
   }
 ]

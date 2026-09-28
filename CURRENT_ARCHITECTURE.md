@@ -66,3 +66,32 @@ Verdict 定义：
 | `FeatureRegistry` + `FeatureTestCase` + `DAGRunner` | `scripts/framework/features.py`、`scripts/framework/cases/base.py` | 特性声明注册表 + 用例基类 + 依赖 DAG 调度 | `runner.py`（FrameworkRunner）、tests | KEEP |
 
 "两套 Actions" 澄清：`framework/actions.py`（命令式 helper）与 `pipeline/actions.py`（原子动作原语）是**不同抽象层级**，前者已委托给后者所在的 pipeline，不存在"同一职责两套实现"。
+
+## Maintenance Convergence Status
+
+Status: COMPLETE
+
+### Storage
+
+Historical storage compatibility is owned by the startup migration boundary.
+Normal runtime storage readers operate on canonical storage only.
+
+### Math Conversion
+
+Decision: HARDEN.
+
+The custom converter remains the production implementation.
+New real-world LaTeX patterns must enter the semantic regression corpus.
+Unsupported syntax must fail closed with diagnostics.
+
+### Markdown Parsing
+
+Decision: KEEP.
+
+The current Canonical Markdown parser is not considered a maintenance hotspot.
+No parser replacement or third-party parser migration is planned.
+
+### Architecture Work Policy
+
+Future architecture work must be triggered by demonstrated development friction,
+not by file size, abstraction count, or speculative cleanup.
