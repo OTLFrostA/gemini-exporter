@@ -430,13 +430,13 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
 test('bootstrap - runSerializedCredOp serializes concurrent read-modify-write cycles', async () => {
     // runSerializedCredOp is module-private in bootstrap.ts, so this test
     // exercises the identical chain idiom below AND locks the source shape:
-    // if the source stops chaining through _credOpChain.then(op, op), this
+    // if the source stops chaining through _credOpChain and the shared map lock, this
     // fails instead of silently testing a diverged copy. (readSrc returns the
     // bundled output for bootstrap.js, hence (let|var).)
     const src = readSrc('../src/content/bootstrap.js');
     assert.ok(
-        /(?:let|var) _credOpChain[\s\S]*_credOpChain\.then\(op, op\)/.test(src),
-        'bootstrap.ts must keep the _credOpChain.then(op, op) serialization shape'
+        /(?:let|var) _credOpChain[\s\S]*_credOpChain\.then\([\s\S]{0,160}withCredMapLock/.test(src),
+        'bootstrap.ts must serialize credential operations under the shared map lock'
     );
 
     let credOpChain: Promise<any> = Promise.resolve();
@@ -946,4 +946,3 @@ test('src/README.md - all referenced files in source tree must exist on disk', (
         `The following files referenced in src/README.md do not exist on disk:\n${missingFiles.join('\n')}`
     );
 });
-

@@ -55,6 +55,30 @@ test('exportedIds alias - finalizeChatExport writes a single canonical key (c_ p
     assert.deepStrictEqual(Object.keys(curIds), ['abc123']);
 });
 
+test('finalizeChatExport admits one concurrent finalization per conversation', async () => {
+    let release!: () => void;
+    let entered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const finalizedChatsSet = new Set<string>();
+    let saves = 0;
+    let callbacks = 0;
+    const context = {
+        finalizedChatsSet,
+        chatRecordsMap: new Map([['abc123', { status: 'ok' }]]),
+        storageAdapter: { saveExportRecord: async () => { saves++; entered(); await gate; } },
+        onItemExported: () => { callbacks++; }
+    };
+    const first = finalizeChatExport('abc123', context);
+    await started;
+    const second = finalizeChatExport('abc123', context);
+    release();
+    const outcomes = await Promise.all([first, second]);
+    assert.deepStrictEqual(outcomes, [true, false]);
+    assert.strictEqual(saves, 1);
+    assert.strictEqual(callbacks, 1);
+});
+
 test('exportedIds alias - canonical write stays readable via every historical alias', async () => {
     const { exportedIds, rec } = await runFinalize('c_abc123');
     for (const alias of ['c_abc123', 'abc123', 'c_abc123']) {
@@ -152,4 +176,3 @@ test('locale - badgeExportedPartial exists in zh and en locales', () => {
     assert.strictEqual(zhDict.badgeExportedPartial, '已导出 (部分附件缺失)');
     assert.strictEqual(enDict.badgeExportedPartial, 'Exported (Partial Assets)');
 });
-

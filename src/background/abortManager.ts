@@ -57,6 +57,11 @@ export function isSlotAborted(slot: string = 'u0'): boolean {
 }
 
 export const __slotEpochs: Map<string, number> = new Map();
+const __slotCancelEpochs: Map<string, number> = new Map();
+
+export function getSlotCancelEpoch(slot: string = 'u0'): number {
+    return __slotCancelEpochs.get(slot || 'u0') || 0;
+}
 
 /**
  * Returns the current monotonically increasing generation/epoch for the given slot.
@@ -67,10 +72,15 @@ export function getSlotEpoch(slot: string = 'u0'): number {
 }
 
 export async function setSlotAborted(slot: string = 'u0', val: boolean = true): Promise<void> {
+    const s = slot || 'u0';
+    // Invalidate queued work as soon as cancellation is requested, even if
+    // restoring a previous worker's abort flags is still in flight.
+    if (val) __slotCancelEpochs.set(s, getSlotCancelEpoch(s) + 1);
+    const requestedCancelEpoch = getSlotCancelEpoch(s);
     if (_restorePromise) {
         await _restorePromise;
     }
-    const s = slot || 'u0';
+    if (!val && getSlotCancelEpoch(s) !== requestedCancelEpoch) return;
     __slotEpochs.set(s, getSlotEpoch(s) + 1);
     if (val) {
         __bgAborts.set(s, true);
@@ -100,4 +110,5 @@ export function clearAllAborts(): void {
     __bgAborts.clear();
     __bgControllers.clear();
     __slotEpochs.clear();
+    __slotCancelEpochs.clear();
 }

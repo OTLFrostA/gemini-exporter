@@ -141,3 +141,42 @@ test('sessionStore - clearSession deletes session key', async () => {
     assert.strictEqual(memoryStorage[EXPORT_SESSION_KEY], undefined);
     assert.strictEqual(await SessionStore.getSession(), null);
 });
+
+test('sessionStore serializes set, update, and clear against each other', async () => {
+    const memoryStorage: Record<string, any> = {};
+    let releaseFirstSet!: () => void;
+    let enteredFirstSet!: () => void;
+    const firstSetEntered = new Promise<void>(resolve => { enteredFirstSet = resolve; });
+    const firstSetGate = new Promise<void>(resolve => { releaseFirstSet = resolve; });
+    let sets = 0;
+    (globalThis as any).chrome = { storage: { local: {
+        get: async (keys: string[]) => Object.fromEntries(keys.filter(k => k in memoryStorage).map(k => [k, memoryStorage[k]])),
+        set: async (obj: Record<string, any>) => {
+            if (++sets === 1) { enteredFirstSet(); await firstSetGate; }
+            Object.assign(memoryStorage, obj);
+        },
+        remove: async (keys: string[]) => { for (const k of keys) delete memoryStorage[k]; }
+    } } };
+    const set = SessionStore.setSession({ status: 'running', current: 1 });
+    await firstSetEntered;
+    const update = SessionStore.updateSession({ current: 2 });
+    releaseFirstSet();
+    await Promise.all([set, update]);
+    assert.strictEqual(memoryStorage[EXPORT_SESSION_KEY].current, 2);
+    assert.strictEqual(memoryStorage[EXPORT_SESSION_KEY].status, 'running');
+
+    let releaseRemove!: () => void;
+    let enteredRemove!: () => void;
+    const removeEntered = new Promise<void>(resolve => { enteredRemove = resolve; });
+    const removeGate = new Promise<void>(resolve => { releaseRemove = resolve; });
+    (globalThis as any).chrome.storage.local.remove = async (keys: string[]) => {
+        enteredRemove(); await removeGate;
+        for (const k of keys) delete memoryStorage[k];
+    };
+    const clear = SessionStore.clearSession();
+    await removeEntered;
+    const afterClear = SessionStore.setSession({ status: 'running', current: 3 });
+    releaseRemove();
+    await Promise.all([clear, afterClear]);
+    assert.strictEqual(memoryStorage[EXPORT_SESSION_KEY].current, 3);
+});

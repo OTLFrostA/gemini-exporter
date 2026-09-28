@@ -66,6 +66,12 @@ test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () 
     assert.strictEqual(fenceCount % 2, 0, 'Code fence backticks must be properly paired');
 });
 
+test('htmlConverter preserves emphasis on strong and em tags with attributes', () => {
+    const { convertHtmlToMarkdown } = require('../src/core/engine/formatters/htmlConverter.js');
+    assert.strictEqual(convertHtmlToMarkdown('<strong class="x">bold</strong>'), '**bold**');
+    assert.strictEqual(convertHtmlToMarkdown('<em data-x="1">italics</em>'), '*italics*');
+});
+
 test('chat_formatter - convertHtmlToMarkdown converts html tables to GFM tables', () => {
     const tableHtml = '<table><thead><tr><th align="left">维度</th><th align="left">经典</th><th align="left">量子</th></tr></thead><tbody><tr><td>状态</td><td>0 或 1</td><td>叠加态<br>|psi></td></tr></tbody></table>';
     const md = ChatFormatter.convertHtmlToMarkdown(tableHtml);
@@ -254,6 +260,5 @@ test('chat_formatter - decoupled formatters export valid focused functions', () 
     assert.ok(toJsonStandard(testChat).includes('"id": "c1"'));
     assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));
 });
-
 
 

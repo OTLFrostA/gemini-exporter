@@ -378,26 +378,28 @@ export interface ConversationTransaction {
     }
 
     async function migrateExportAliases(slot: string | null | undefined): Promise<boolean> {
-        const { expKey, slot: s } = getStorageKeys(slot);
-        const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
-        const data = await chrome.storage.local.get(readKeys);
-        const merged: Record<string, any> = {};
-        for (const k of readKeys) {
-            const m = (data as any)[k];
-            if (m && typeof m === 'object') Object.assign(merged, m);
-        }
-        const before = Object.keys(merged);
-        const hasLegacyU0 = s === 'u0' && Boolean((data as any)['gemini_exported_u0']);
-        if (!before.length && !hasLegacyU0) return false;
-        const canonical = normalizeExportRecordKeys(merged);
-        const after = Object.keys(canonical);
-        const changed = after.length !== before.length || !before.every(k => after.includes(k)) || hasLegacyU0;
-        if (!changed) return false;
-        await setExportedIds(slot, canonical);
-        if (hasLegacyU0 && typeof chrome.storage.local.remove === 'function') {
-            await chrome.storage.local.remove(['gemini_exported_u0']);
-        }
-        return true;
+        return enqueueSaveRecordChain(async () => {
+            const { expKey, slot: s } = getStorageKeys(slot);
+            const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
+            const data = await chrome.storage.local.get(readKeys);
+            const merged: Record<string, any> = {};
+            for (const k of readKeys) {
+                const m = (data as any)[k];
+                if (m && typeof m === 'object') Object.assign(merged, m);
+            }
+            const before = Object.keys(merged);
+            const hasLegacyU0 = s === 'u0' && Boolean((data as any)['gemini_exported_u0']);
+            if (!before.length && !hasLegacyU0) return false;
+            const canonical = normalizeExportRecordKeys(merged);
+            const after = Object.keys(canonical);
+            const changed = after.length !== before.length || !before.every(k => after.includes(k)) || hasLegacyU0;
+            if (!changed) return false;
+            await setExportedIds(slot, canonical);
+            if (hasLegacyU0 && typeof chrome.storage.local.remove === 'function') {
+                await chrome.storage.local.remove(['gemini_exported_u0']);
+            }
+            return true;
+        });
     }
 
     let _saveRecordChain: Promise<any> = Promise.resolve();

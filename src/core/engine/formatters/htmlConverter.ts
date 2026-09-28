@@ -32,8 +32,8 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m, i) => __codeSpans[Number(i)]);
     res = res.replace(/```[\s\S]*?```/g, __stashCode).replace(/`[^`\n]+`/g, __stashCode);
     res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
-    res = res.replace(/<(strong|b)(?=[\\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
-    res = res.replace(/<(em|i)(?=[\\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
+    res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
+    res = res.replace(/<(em|i)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
     res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match, tableContent) => {
         const rows: string[] = [];
         const trMatches = tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);

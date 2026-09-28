@@ -120,11 +120,13 @@ export function updateZipUi(): void {
  * No loop risk: a storage write never re-enters the export pipeline, and
  * exportOrchestrator's own write (when convsNeedSave) carries identical values.
  */
-export async function persistTitleUpdate(chatId: string, newTitle: string, source: string): Promise<void> {
+export async function persistTitleUpdate(chatId: string, newTitle: string, source: string, exportSlot?: string): Promise<void> {
     const Store = getStore();
-    const currentConvs = Store ? Store.getConversations() : [];
+    const visibleSlot = Store?.getCurrentSlot?.() || 'u0';
+    const slot = exportSlot || visibleSlot;
+    const currentConvs = Store && visibleSlot === slot ? Store.getConversations() : [];
     const item = currentConvs.find((c: any) => normId(c.id) === normId(chatId));
-    if (!item || !isRealTitle(newTitle, chatId)) return;
+    if ((!item && !exportSlot) || !isRealTitle(newTitle, chatId)) return;
     const utils = getUtils();
     const applyTitle = (chat: any) => {
         if (utils && typeof utils.setTitleBySource === 'function') {
@@ -135,11 +137,10 @@ export async function persistTitleUpdate(chatId: string, newTitle: string, sourc
         }
     };
     // 1) in-memory (existing behavior; keeps the list UI fresh during export)
-    applyTitle(item);
+    if (item) applyTitle(item);
     // 2) persist so the title survives reload
     try {
         const storage = getStorage();
-        const slot = Store && typeof Store.getCurrentSlot === 'function' ? Store.getCurrentSlot() : 'u0';
         if (storage && typeof storage.updateConversation === 'function') {
             await storage.updateConversation(slot, chatId, (existing: any) => {
                 applyTitle(existing);
@@ -163,6 +164,7 @@ export async function startExportPipeline(
     const Controller = getController();
     const DirHandle = getDirHandle();
     const List = getList();
+    const currentSlot = Store?.getCurrentSlot?.() || 'u0';
 
     const convs = Store ? Store.getConversations() : [];
 
@@ -210,7 +212,6 @@ export async function startExportPipeline(
 
     let remainingSelected: Set<string> | null = null;
     try {
-        const currentSlot = Store ? Store.getCurrentSlot() : 'u0';
         const exportedIds = Store ? Store.getExportedIds() : {};
         const takeoutEngine = getTakeoutEngine();
 
@@ -245,22 +246,26 @@ export async function startExportPipeline(
                     : { text: txt || '', pct: typeof progress === 'number' ? progress : (progress?.pct || 0) };
 
                 const pct = typeof formatted.pct !== 'undefined' ? Math.max(formatted.pct, 2) : 2;
-                ProgressView.update(pct, formatted.text);
+                if (Store?.getCurrentSlot?.() === currentSlot) ProgressView.update(pct, formatted.text);
             },
 
-            onLog: (msg: string, lvl: 'info' | 'warn' | 'error') => log(msg, lvl),
+            onLog: (msg: string, lvl: 'info' | 'warn' | 'error') => {
+                if (Store?.getCurrentSlot?.() === currentSlot) log(msg, lvl);
+            },
             onTitleUpdated: (chatId: string, newTitle: string, source: string) => {
                 // Fire-and-forget: persistTitleUpdate updates the in-memory item
                 // synchronously first, then persists to storage; failures are
                 // logged inside and never reject here.
-                void persistTitleUpdate(chatId, newTitle, source);
+                void persistTitleUpdate(chatId, newTitle, source, currentSlot);
             },
             onItemPendingAssets: (chatId: string) => {
+                if (Store?.getCurrentSlot?.() !== currentSlot) return;
                 if (List && typeof List.updateItemExportStatus === 'function') {
                     List.updateItemExportStatus(chatId, { status: 'pending_assets' } as any);
                 }
             },
             onItemExported: async (chatId: string, titleOrRecord: any, maybeRecord: any) => {
+                if (Store?.getCurrentSlot?.() !== currentSlot) return;
                 const exportRecord = (maybeRecord && typeof maybeRecord === 'object')
                     ? maybeRecord
                     : ((titleOrRecord && typeof titleOrRecord === 'object') ? titleOrRecord : null);
@@ -283,6 +288,7 @@ export async function startExportPipeline(
             }
         });
 
+        if (Store?.getCurrentSlot?.() !== currentSlot) return;
         if (result && result.aborted) {
             log(typeof t === 'function' ? t('exportAborted') : '导出任务已被用户中止', 'warn');
             ProgressView.complete(typeof t === 'function' ? t('exportAborted') : '导出已终止');
@@ -374,11 +380,15 @@ export async function startExportPipeline(
         }
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
-        log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
-        ProgressView.complete(typeof t === 'function' ? t('exportFailedWithMessage', errMsg) : `Error: ${errMsg}`);
+        if (Store?.getCurrentSlot?.() === currentSlot) {
+            log(typeof t === 'function' ? t('exportFailed', errMsg) : `Export failed: ${errMsg}`, 'error');
+            ProgressView.complete(typeof t === 'function' ? t('exportFailedWithMessage', errMsg) : `Error: ${errMsg}`);
+        }
     } finally {
-        ProgressView.hide(3000);
-        if (__loadStore) await __loadStore(true, remainingSelected || undefined);
+        if (Store?.getCurrentSlot?.() === currentSlot) {
+            ProgressView.hide(3000);
+            if (__loadStore) await __loadStore(true, remainingSelected || undefined);
+        }
     }
 }
 

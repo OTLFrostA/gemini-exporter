@@ -1,25 +1,5 @@
 [
   {
-    "id": "planetary_geology_europa_ice_shell_convection",
-    "domain": "planetary_geology_europa_ice_shell_convection",
-    "title": "行星地球物理学：木卫二 (Europa) 冰壳热对流动力学与地下海洋裂隙喷流",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables"
-    ],
-    "description": "测试冰壳非牛顿流体热对流临界判据推导、潮汐粘弹性耗散 Python 积分、宜居冰下洋对比表格与羽流喷发动力学",
-    "turns": [
-      "将木卫二外层冰壳视为具有温度依赖性粘度的非牛顿流体（Goldsby-Kohlstedt 复合蠕变流变律），推导停滞盖层热对流模式（Stagnant Lid Convection）下的有效瑞利数 Ra_{eff} 与维持对流启动的最小冰壳临界厚度判据。",
-      "根据潮汐引力势与偏心率轨道周期性微小形变，推导木卫二粘弹性麦克斯韦体（Maxwell Viscoelastic Body）在周日潮汐力激励下的潮汐耗散发热功率密度 q_{tide} 的空间积分布局方程。",
-      "使用 Python 编写脚本，基于稳态热传导与底部相变潜热平衡边界条件，求解导热-对流混合冰壳的径向一维温度剖面 T(z) 与底部冰-洋相变界面的热通量平衡演化曲线。",
-      "使用 Markdown 表格横向对比木卫二 (Europa)、土卫二 (Enceladus)、木卫三 (Ganymede) 与海卫一 (Triton) 四颗典型冰卫星在冰壳平均厚度、地下海洋深度与盐度、潮汐加热功率、地表裂隙喷流观测证据及天体生物学潜在宜居性。",
-      "推导出木卫二地表虎皮条纹双脊（Double Ridges）在潮汐拉张应力与液态海水毛细裂缝挤压回冻过程中的冰火山羽流超声速喷发喷口动力学热力学拉伐尔喷管方程。"
-    ]
-  },
-  {
     "id": "plasma_physics_laser_wakefield_acceleration",
     "domain": "plasma_physics_laser_wakefield_acceleration",
     "title": "超强超短激光等离子体物理：尾波场相对论空泡加速与阿秒电子束推演",
@@ -201,28 +181,6 @@
       "使用 Python 编写脚本，基于紧束缚近似（Tight-Binding Model）离散化一维 N 节点超导纳米线晶格系统，构建 BdG 矩阵并使用 NumPy/SciPy 稀疏对角化求解随塞曼磁场 V_Z 连续调节下的本征能谱流演化曲线，精准再现体能隙闭合、重新打开以及零偏压电导峰（Zero-Bias Conductance Peak, ZBCP, 量子化高度 2e^2/h）对应的孤立零能平带出现。",
       "推导在四端 T 型纳米线结（T-junction）网络中，通过绝热门电压调节各臂的拓扑/平庸相变边界，实现两个马约拉纳零能模 \\gamma_i 与 \\gamma_j 空间逆时针交换（Braiding）的过程。严格写出非阿贝尔几何贝里相位矩阵（Non-Abelian Berry Phase），证明交换操作对应的拓扑演化算符为单演群酉变换 U_{ij} = \\exp(\\frac{\\pi}{4} \\gamma_i \\gamma_j) = \\frac{1}{\\sqrt{2}}(1 + \\gamma_i \\gamma_j)，论述其为何能天然免疫局域退相干噪声构建拓扑量子编织门。",
       "使用 Markdown 表格，对比基于马约拉纳零模的拓扑超导量子比特、超导 Transmon 量子比特、半导体量子点自旋量子比特（Loss-DiVincenzo 比特）以及离子阱量子比特在逻辑相干时间保护机制（非局域拓扑存储 vs 动力学解耦/主动纠错）、基本单/双比特量子门操作时标、硬件制造容差鲁棒性以及当前实验物理证据确定性维度的核心指标对比。"
-    ]
-  },
-  {
-    "id": "nanotechnology_dna_origami_cryo_em_molecular_machine",
-    "domain": "molecular_nanotechnology_dna_origami_cryo_em",
-    "title": "DNA折纸术与分子机器：冷冻电镜单颗粒三维重构与自由能景观推导",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试 DNA 折纸术碱基堆积自由能计算、冷冻电镜反投影切片定理与分子步进机械臂三维渲染",
-    "turns": [
-      "基于最近邻热力学模型 (Nearest-Neighbor Model)，写出用于计算 DNA 纳米折纸结构中骨架单链与订书钉链 (Staple Strands) 杂交解链自由能 Delta G_total = Delta H - T * Delta S 的配分函数，并推导在包含高浓度镁离子 (Mg2+) 屏蔽条件下的静电斥力修正项。",
-      "针对利用冷冻电镜 (Cryo-EM) 测定自组装 DNA 纳米笼三维结构的物理过程，详细推导傅里叶中心切片定理 (Projection-Slice Theorem)，并写出由二维冷冻投影图反演三维重构电子势密度图 rho(r) 的加权反投影积分数学形式。",
-      "生成一张高分辨率科学可视化渲染图：展示一个在纳米尺度精确组装的 DNA 六足分子行走机器人在单层碳纳米管轨道上跨步前进的透视特写，背景具有冷冻电镜样品的微弱玻璃态冰层冷光质感与分子结构线框。",
-      "使用 Python 编写模拟脚本，构建布朗棘轮 (Brownian Ratchet) 动力学方程，计算化学燃料 (ATP 或 DNA 燃料链) 驱动下 DNA 纳米步进器克服粘滞阻力在周期性不对称自由能势阱中的平均漂移漂移速度与能量转换效率。",
-      "使用 Markdown 表格横向对比 DNA 折纸术 (DNA Origami)、蛋白质从头设计 (De Novo Protein Design)、金属有机框架 (MOF) 与合成共价有机框架 (COF) 在空间装配精度、热力学稳定性、化学修饰灵活性与生物靶向药物递送载荷容量。"
     ]
   },
   {
@@ -419,6 +377,48 @@
       "在电路量子电动力学 (cQED) 拓展框架下，推导超导 Transmon 量子比特电容焊盘与叉指换能器 (IDT) 压电电极之间的电声耦合 Jaynes-Cummings 哈密顿量 \\hat{H}_{int} = \\hbar g (\\hat{a} \\hat{\\sigma}_+ + \\hat{a}^\\dagger \\hat{\\sigma}_-)，并给出电声耦合强度 g / 2\\pi \\propto \\sqrt{K^2 f_{saw} / C_{\\Sigma}} 的电容分压与压电机电耦合系数 K^2 定标律，分析强耦合条件 g \\gg (\\kappa, \\gamma) 的实验可达性。",
       "使用 Python 编写脚本，基于开放量子系统 QuTiP 库构建超导比特与单模声学谐振腔的复合希尔伯特空间，数值模拟真空拉比振荡 (Vacuum Rabi Oscillation) 过程，演示单个微波光子在约瑟夫森比特与机械表面声子之间的确定性量子态相干互换，并计算声子态保真度 F(\\rho, |1\\rangle\\langle 1|)。",
       "使用 Markdown 表格，对比声表面波量子体系 (SAW cQED)、体声波超导谐振器 (HBAR)、光机械悬臂梁 (Optomechanical Beams) 以及三维微波腔 (3D Superconducting Cavities) 在特征共振频率、机械/电磁品质因数 Q、相干退相干时间 T_1 与 T_2、单激发封装体积以及量子非破坏 (QND) 单声子探测能力维度的综合物理特性。"
+    ]
+  },
+  {
+    "id": "marine_biology_bioluminescent_reef_imaging",
+    "domain": "marine_biology_bioluminescent_reef_imaging",
+    "title": "海洋生物光学：珊瑚礁荧光成像与水下光谱反演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "覆盖水下光传播公式、科学示意生图、光谱反演代码和跨物种对比表格",
+    "turns": [
+      "推导海水中波长相关的 Beer–Lambert 衰减和后向散射模型，解释珊瑚荧光蛋白激发光与发射光在不同水深下的信噪比变化，并用 LaTeX 写出反演目标函数。",
+      "生成一张科学信息图：展示夜间珊瑚礁、蓝光激发源、绿色荧光珊瑚及水下相机的几何关系；图中要有清晰的光路箭头和水深标尺。",
+      "使用 Python 写一个可复现的小型模拟，给定三种波长的吸收和散射系数，估计 5、15、30 米深度的相机接收辐亮度并绘图。",
+      "用 Markdown 表格比较珊瑚荧光、浮游生物生物发光与人工荧光示踪剂的发光机制、典型波段、成像限制和生态干扰风险。",
+      "设计一套野外校准流程，说明如何用白板、暗场帧和参考光谱纠正水下相机的颜色偏差，并列出可量化的验收指标。"
+    ]
+  },
+  {
+    "id": "archaeometry_ancient_glass_isotope_provenance",
+    "domain": "archaeometry_ancient_glass_isotope_provenance",
+    "title": "考古材料科学：古玻璃同位素溯源与贝叶斯产地归属",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖同位素混合模型、贝叶斯推断、Python 实现和证据对比表格",
+    "turns": [
+      "设想有三处古玻璃原料产地，推导锶、钕同位素比值的双端元混合模型，明确测量误差和污染项如何进入似然函数。",
+      "建立层级贝叶斯模型来判断一块出土玻璃的产地，写出先验、似然、后验及后验预测检验的 LaTeX 表达式。",
+      "用 Python 编写可运行示例，为三个假想产地生成测量数据，并计算一件未知样品的产地后验概率与可信区间。",
+      "用 Markdown 表格比较同位素比值、微量元素指纹、考古地层和器型风格四类证据的辨识能力、常见偏差与交叉验证方法。",
+      "讨论当两处产地的化学分布高度重叠时，如何做灵敏度分析和报告不确定性，避免给出过度确定的单一产地结论。"
     ]
   }
 ]

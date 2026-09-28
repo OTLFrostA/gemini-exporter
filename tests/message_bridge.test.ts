@@ -24,7 +24,10 @@ test('messageBridge - ignores falsy or non-object events', async () => {
 
 test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
     let removedId: any = null;
-    let badgeUpdated = false;
+    let verification: any = null;
+    const oldChrome = (global as any).chrome;
+    (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { verification = msg; } } };
+    try {
     const api = MessageBridge.init({
         Storage: {
             removeConversation: async (_slot: any, id: any) => {
@@ -33,7 +36,6 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
             },
             getConversations: async () => [{ id: 'c_remaining' }]
         },
-        updateBadge: () => { badgeUpdated = true; },
         getAccountSlot: () => 'u0'
     });
 
@@ -45,16 +47,20 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
         }
     });
 
-    assert.strictEqual(removedId, 'c_test_del', 'should remove conversation from storage');
-    assert.strictEqual(badgeUpdated, true, 'should update badge after deletion');
+    assert.strictEqual(removedId, null, 'untrusted page event must not remove storage directly');
+    assert.deepStrictEqual(verification, { action: 'fetchChat', conversationId: 'c_test_del', accountSlot: 'u0' });
+    } finally { (global as any).chrome = oldChrome; }
 });
 
 test('messageBridge - rejects forged postMessage from foreign source', async () => {
     let forgedRemovedId: any = null;
     const fakeWindow = { name: 'top-window' };
     const oldWindow = (global as any).window;
+    const oldChrome = (global as any).chrome;
+    const requests: any[] = [];
     try {
         (global as any).window = fakeWindow;
+        (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { requests.push(msg); } } };
         const api = MessageBridge.init({
             Storage: {
                 removeConversation: async (_slot: any, id: any) => {
@@ -74,6 +80,7 @@ test('messageBridge - rejects forged postMessage from foreign source', async () 
             }
         });
         assert.strictEqual(forgedRemovedId, null, 'should reject postMessage from foreign source');
+        assert.strictEqual(requests.length, 0);
 
         // Window source accepted
         await api.handleWindowMessage({
@@ -83,9 +90,28 @@ test('messageBridge - rejects forged postMessage from foreign source', async () 
                 payload: { id: 'c_valid_del', slot: 'u0' }
             }
         });
-        assert.strictEqual(forgedRemovedId, 'c_valid_del', 'should accept postMessage when source is window');
+        assert.strictEqual(forgedRemovedId, null, 'same-window page message must not delete directly');
+        assert.strictEqual(requests[0].conversationId, 'c_valid_del');
     } finally {
         (global as any).window = oldWindow;
+        (global as any).chrome = oldChrome;
+    }
+});
+
+test('page postMessage cannot request a live save in mock mode', async () => {
+    const coordinator = require('../src/content/liveSaveCoordinator.js');
+    const original = coordinator.LiveSaveCoordinator.executeLiveSave;
+    let calls = 0;
+    coordinator.LiveSaveCoordinator.executeLiveSave = async () => { calls++; return true; };
+    try {
+        const api = MessageBridge.init({ getAccountSlot: () => 'u0' });
+        await api.handleWindowMessage({
+            origin: typeof location !== 'undefined' ? location.origin : undefined,
+            data: { type: 'GEMINI_LIVE_SAVE_TRIGGER', payload: { cid: 'c_abc', mockMode: true } }
+        });
+        assert.strictEqual(calls, 0);
+    } finally {
+        coordinator.LiveSaveCoordinator.executeLiveSave = original;
     }
 });
 
@@ -230,4 +256,3 @@ test('messageBridge - fallback to upsertConversations without client timestamp w
     assert.strictEqual(upsertedForceWrite, true, 'forceWrite must be true to ensure persistence');
     assert.strictEqual(upsertedSlot, 'u0');
 });
-

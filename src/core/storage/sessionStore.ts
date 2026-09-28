@@ -54,18 +54,20 @@ export async function getSession(): Promise<ExportSessionData | null> {
 }
 
 export async function setSession(session: Partial<ExportSessionData>): Promise<void> {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        const payload = {
-            ...session,
-            updatedAt: session.updatedAt || Date.now()
-        };
-        try {
-            await chrome.storage.local.set({ [EXPORT_SESSION_KEY]: payload });
-        } catch (e) {
-            console.error('[GemExporter:sessionStore] setSession error', e);
-            throw e;
+    return withSessionLock(async () => {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            const payload = {
+                ...session,
+                updatedAt: session.updatedAt || Date.now()
+            };
+            try {
+                await chrome.storage.local.set({ [EXPORT_SESSION_KEY]: payload });
+            } catch (e) {
+                console.error('[GemExporter:sessionStore] setSession error', e);
+                throw e;
+            }
         }
-    }
+    });
 }
 
 export async function updateSession(patch: Partial<ExportSessionData>): Promise<void> {
@@ -88,14 +90,16 @@ export async function updateSession(patch: Partial<ExportSessionData>): Promise<
 }
 
 export async function clearSession(): Promise<void> {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        try {
-            await chrome.storage.local.remove([EXPORT_SESSION_KEY]);
-        } catch (e) {
-            console.error('[GemExporter:sessionStore] clearSession error', e);
-            throw e;
+    return withSessionLock(async () => {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            try {
+                await chrome.storage.local.remove([EXPORT_SESSION_KEY]);
+            } catch (e) {
+                console.error('[GemExporter:sessionStore] clearSession error', e);
+                throw e;
+            }
         }
-    }
+    });
 }
 
 export const SessionStore = {
@@ -107,4 +111,3 @@ export const SessionStore = {
 };
 
 export default SessionStore;
-
