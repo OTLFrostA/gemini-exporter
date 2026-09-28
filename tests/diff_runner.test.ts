@@ -78,21 +78,23 @@ test('Differential Runner: Structural diffs default to D_CANNOT_DETERMINE (No au
     assert.strictEqual(overridden.category, 'B_OLD_PARSER_GEMINI_DIALECT');
 });
 
-test('Differential Runner: Math comparison identifies improvements vs unverified diffs', () => {
+test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERMINE with conversion gain flag', () => {
     // Both identical
     const same = compareMathConversion('x^2', { typst: 'x^2' }, { typst: 'x^2' });
     assert.strictEqual(same.hasDiff, false);
 
-    // Candidate converts where baseline failed -> Category A (improvement)
-    const improve = compareMathConversion(
+    // Candidate converts where baseline failed -> defaults to D_CANNOT_DETERMINE, records candidateConversionGain=true
+    const gain = compareMathConversion(
         '\\arg(z)',
         { diagnostic: { code: 'FAILED' } },
         { typst: 'op("arg", limits: #false)(z)' }
     );
-    assert.strictEqual(improve.hasDiff, true);
-    assert.strictEqual(improve.category, 'A_NEW_PARSER_CORRECT');
+    assert.strictEqual(gain.hasDiff, true);
+    assert.strictEqual(gain.category, 'D_CANNOT_DETERMINE');
+    assert.strictEqual(gain.candidateConversionGain, true);
+    assert.ok(gain.rationale?.includes('Candidate converted LaTeX expression'));
 
-    // Candidate failed where baseline succeeded -> Defaults to D_CANNOT_DETERMINE (investigation required, not assumed B)
+    // Candidate failed where baseline succeeded -> Defaults to D_CANNOT_DETERMINE
     const diverge = compareMathConversion(
         '\\frac{1}{2}',
         { typst: 'frac(1, 2)' },
@@ -100,4 +102,17 @@ test('Differential Runner: Math comparison identifies improvements vs unverified
     );
     assert.strictEqual(diverge.hasDiff, true);
     assert.strictEqual(diverge.category, 'D_CANNOT_DETERMINE');
+    assert.strictEqual(diverge.candidateConversionGain, false);
+
+    // Explicit override permitted with verified standard rationale
+    const overrideA = compareMathConversion(
+        '\\arg(z)',
+        { diagnostic: { code: 'FAILED' } },
+        { typst: 'op("arg", limits: #false)(z)' },
+        {
+            category: 'A_NEW_PARSER_CORRECT',
+            rationale: 'Verified against MiTeX standard math operator specifications',
+        }
+    );
+    assert.strictEqual(overrideA.category, 'A_NEW_PARSER_CORRECT');
 });

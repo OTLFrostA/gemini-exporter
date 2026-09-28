@@ -52,20 +52,39 @@ def print_summary(manifest):
     print("=" * 65)
 
 def list_suites(manifest, filter_tier=None, filter_domain=None):
-    suites = manifest["suites"]
-    if filter_tier:
-        suites = [s for s in suites if s.get("classification") == filter_tier.upper()]
-    if filter_domain:
-        suites = [s for s in suites if s.get("domain") == filter_domain.lower()]
+    tier_upper = filter_tier.upper() if filter_tier else None
+    domain_lower = filter_domain.lower() if filter_domain else None
 
-    title = f"Suites matching (tier={filter_tier or 'ANY'}, domain={filter_domain or 'ANY'}): {len(suites)} suites"
+    matched_suites = []
+    for s in manifest["suites"]:
+        if domain_lower and s.get("domain") != domain_lower:
+            continue
+
+        suite_tests = s.get("tests", [])
+        if tier_upper:
+            matching_tests = [
+                t for t in suite_tests
+                if (isinstance(t, dict) and t.get("classification") == tier_upper)
+                or (isinstance(t, str) and s.get("classification") == tier_upper)
+            ]
+            if matching_tests or s.get("classification") == tier_upper:
+                matched_suites.append((s, matching_tests))
+        else:
+            matched_suites.append((s, suite_tests))
+
+    title = f"Suites matching (tier={filter_tier or 'ANY'}, domain={filter_domain or 'ANY'}): {len(matched_suites)} suites"
     print("\n" + title)
     print("-" * len(title))
-    for s in suites:
-        print(f"[{s['classification']}] {s['file']} ({s['testCount']} tests)")
-        print(f"    Policy: {s['policy']}")
-        print(f"    Source: {s['provenanceSource']}")
-        print(f"    Notes:  {s['notes']}\n")
+    for s, matching_tests in matched_suites:
+        match_info = f"{len(matching_tests)}/{s['testCount']} tests" if tier_upper else f"{s['testCount']} tests"
+        print(f"[{s['classification']}] {s['file']} ({match_info})")
+        print(f"    Policy: {s.get('policy', 'N/A')}")
+        print(f"    Source: {s.get('provenanceSource', 'N/A')}")
+        if tier_upper:
+            for t in matching_tests:
+                t_name = t.get("name") if isinstance(t, dict) else t
+                print(f"      • [{tier_upper}] {t_name}")
+        print(f"    Notes:  {s.get('notes', 'N/A')}\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Test Provenance Classification Inspector")

@@ -1,12 +1,12 @@
 /**
- * tests/real_corpus.test.ts
+ * tests/parser_corpus.test.ts
  *
- * Tier 1 unit test for Real Gemini Corpus extraction & execution (Section 6, 23 & Remediation Plan 1.1).
+ * Tier 1 unit test for Parser Migration Corpus extraction & execution (Section 6, 23 & Remediation Plan 1.2).
  * Verifies:
  * 1. Corpus is strictly segmented into real_gemini_output, scenario_inputs, and synthetic_fixtures.
  * 2. ONLY real_gemini_output may justify compatibility rules.
- * 3. Injectable parser architecture allows candidate injection and differential comparison.
- * 4. Genuine Typst WASM compilation gate calculates compileFailures without error.
+ * 3. Injectable parser & converter architecture allows candidate injection and differential comparison.
+ * 4. Genuine Typst WASM compilation gate evaluates 100% of expressions for baseline and candidate.
  */
 export {};
 const test = require('node:test');
@@ -16,11 +16,11 @@ const path = require('path');
 
 const { runCorpus } = require('../scripts/parser_migration/run_corpus.ts');
 
-const CORPUS_PATH = path.join(__dirname, 'fixtures/real_gemini_corpus.json');
+const CORPUS_PATH = path.join(__dirname, 'fixtures/parser_migration_corpus.json');
 const REPORT_PATH = path.join(__dirname, 'output/corpus_report.json');
 
-test('Real Gemini Corpus: Segmentation & admission policy assertions', () => {
-    assert.ok(fs.existsSync(CORPUS_PATH), 'real_gemini_corpus.json must exist');
+test('Parser Migration Corpus: Segmentation & admission policy assertions', () => {
+    assert.ok(fs.existsSync(CORPUS_PATH), 'parser_migration_corpus.json must exist');
     const data = JSON.parse(fs.readFileSync(CORPUS_PATH, 'utf-8'));
 
     assert.ok(data.corpusSets, 'Corpus must declare corpusSets');
@@ -36,7 +36,7 @@ test('Real Gemini Corpus: Segmentation & admission policy assertions', () => {
     assert.ok(data.corpusSets.scenario_inputs.mathExpressions.length >= 50, 'Expected >= 50 scenario input math');
 });
 
-test('Real Gemini Corpus: Injectable runner executes with real Typst compilation gate', async () => {
+test('Parser Migration Corpus: Injectable runner executes with real Typst compilation gate', async () => {
     // 1. Run with genuine Typst WASM compilation gate enabled
     const report = await runCorpus({
         corpusPath: CORPUS_PATH,
@@ -47,27 +47,38 @@ test('Real Gemini Corpus: Injectable runner executes with real Typst compilation
     assert.strictEqual(report.markdown.documents >= 100, true);
     assert.strictEqual(report.markdown.parseFailures, 0, 'Markdown parsing must produce zero crashes');
     assert.strictEqual(report.math.expressions >= 50, true);
-    assert.strictEqual(report.math.compileFailures, 0, 'Converted expressions must compile cleanly in Typst WASM');
+    assert.strictEqual(report.math.baseline.compileFailures, 0, 'Baseline converted expressions must compile cleanly in Typst WASM');
+    assert.strictEqual(report.math.compileFailures, 0);
 
     assert.ok(fs.existsSync(REPORT_PATH), 'Corpus report must be saved on disk');
     const diskReport = JSON.parse(fs.readFileSync(REPORT_PATH, 'utf-8'));
     assert.strictEqual(diskReport.markdown.documents, report.markdown.documents);
     assert.strictEqual(diskReport.markdown.parseFailures, 0);
+    assert.strictEqual(diskReport.math.baseline.converted, report.math.baseline.converted);
 
     // 2. Test candidate parser injection capability
-    let candidateCalled = false;
+    let candidateParserCalled = false;
+    let candidateConverterCalled = false;
     const diffReport = await runCorpus({
         corpusPath: CORPUS_PATH,
         corpusCategory: 'synthetic_fixtures',
+        compileTypst: true,
         candidateParser: async (content: string, id: string) => {
-            candidateCalled = true;
+            candidateParserCalled = true;
             return {
                 bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: content }] }] }] } },
                 diagnostics: [],
             };
         },
+        candidateConverter: (latex: string, display: boolean) => {
+            candidateConverterCalled = true;
+            return { typst: latex.includes('^') ? 'x^2' : '1 + 1' };
+        },
     });
 
-    assert.strictEqual(candidateCalled, true, 'Candidate parser must be invoked when provided');
+    assert.strictEqual(candidateParserCalled, true, 'Candidate parser must be invoked when provided');
+    assert.strictEqual(candidateConverterCalled, true, 'Candidate converter must be invoked when provided');
     assert.ok(diffReport.markdown.documents > 0);
+    assert.ok(diffReport.math.candidate, 'Candidate math report must be populated when candidate converter provided');
+    assert.strictEqual(diffReport.math.candidate.compileFailures, 0, 'Candidate compiled expressions in WASM');
 });

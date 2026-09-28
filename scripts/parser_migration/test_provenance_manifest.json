@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "generatedAt": "2026-09-28",
   "classificationDefinitions": {
     "P0": "Real Gemini: Strictly requires verified raw payload evidence file and originalHash. ONLY tier that can justify compatibility rules. (Currently 0 pending real session captures).",
@@ -18,44 +18,196 @@
       "notes": "Defines canonical block schemas, validateBundle(), and diagnostics rules.",
       "testCount": 38,
       "tests": [
-        "all three canonical fixtures validate with zero errors",
-        "versioned JSON schema resource is present and parses",
-        "representation independence: no thought block carries view state",
-        "branching fixture projects the selected leaf path only",
-        "explicit selection overrides the bundle leaf",
-        "null selection projects all messages in source order (legacy linear policy)",
-        "legacy linear messages (no parentId) project in array order",
-        "projection rejects duplicate message ids",
-        "projection rejects orphan parentId",
-        "projection rejects parent cycles",
-        "projection rejects unknown selected leaf",
-        "validateBundle reports the same tree defects as diagnostics",
-        "low-authority observation cannot downgrade a high-authority title",
-        "higher-authority observation upgrades the title (no regression)",
-        "same-tier newer observation overwrites (repo setTitleBySource semantics)",
-        "same-tier older observation can never overwrite a newer title",
-        "same-tier: candidate with a timestamp beats one without",
-        "same-tier: later insertion wins when both timestamps are missing",
-        "same-tier: later insertion wins on equal timestamps",
-        "authority tier beats recency: newer sniff cannot beat older rpc",
-        "unusable candidates keep the previous title (winner-not-in-candidates defense)",
-        "resolveTitle returns undefined when no candidate is usable",
-        "title tiers mirror the repo TITLE_TIER_RANK ladder",
-        "unknown source titles resolve to nothing (unknown stays unknown)",
-        "unknown block always yields readable fallback, never blank",
-        "bare unknown block (rawRef only) still produces visible fallback",
-        "unknown round-trips through JSON with evidence intact",
-        "message tree survives archive round-trip identically",
-        "pseudo-available asset is flagged, never trusted from metadata",
-        "classifyAssetAvailability downgrades pseudo-available to missing",
-        "resolveAssetBytes returns real bytes or an explicit missing state",
-        "missing asset without failureReason is diagnosed",
-        "malicious link protocols are rejected",
-        "unsafe storageRef paths are rejected",
-        "schema version and key violations are errors",
-        "oversized strings are rejected by the size guard",
-        "renderer-only keys leaking into canonical data are flagged",
-        "missing accountId warns (F1 owns the value, F2a must not invent it)"
+        {
+          "name": "all three canonical fixtures validate with zero errors",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "versioned JSON schema resource is present and parses",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "representation independence: no thought block carries view state",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "branching fixture projects the selected leaf path only",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "explicit selection overrides the bundle leaf",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "null selection projects all messages in source order (legacy linear policy)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "legacy linear messages (no parentId) project in array order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "projection rejects duplicate message ids",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "projection rejects orphan parentId",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "projection rejects parent cycles",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "projection rejects unknown selected leaf",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "validateBundle reports the same tree defects as diagnostics",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "low-authority observation cannot downgrade a high-authority title",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "higher-authority observation upgrades the title (no regression)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "same-tier newer observation overwrites (repo setTitleBySource semantics)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "same-tier older observation can never overwrite a newer title",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "same-tier: candidate with a timestamp beats one without",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "same-tier: later insertion wins when both timestamps are missing",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "same-tier: later insertion wins on equal timestamps",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "authority tier beats recency: newer sniff cannot beat older rpc",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unusable candidates keep the previous title (winner-not-in-candidates defense)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "resolveTitle returns undefined when no candidate is usable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "title tiers mirror the repo TITLE_TIER_RANK ladder",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown source titles resolve to nothing (unknown stays unknown)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown block always yields readable fallback, never blank",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "bare unknown block (rawRef only) still produces visible fallback",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown round-trips through JSON with evidence intact",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "message tree survives archive round-trip identically",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "pseudo-available asset is flagged, never trusted from metadata",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "classifyAssetAvailability downgrades pseudo-available to missing",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "resolveAssetBytes returns real bytes or an explicit missing state",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing asset without failureReason is diagnosed",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "malicious link protocols are rejected",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unsafe storageRef paths are rejected",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "schema version and key violations are errors",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "oversized strings are rejected by the size guard",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "renderer-only keys leaking into canonical data are flagged",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing accountId warns (F1 owns the value, F2a must not invent it)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -67,25 +219,101 @@
       "notes": "Ensures all canonical block variants serialize and validate without schema divergence.",
       "testCount": 19,
       "tests": [
-        "matrix: H1-H6 headings keep level in HTML and Typst",
-        "matrix: strikethrough is native in HTML and Typst",
-        "matrix: nested list keeps structure in HTML and Typst",
-        "matrix: ordered list start is preserved in HTML and Typst",
-        "matrix: quote keeps nested blocks in HTML and Typst",
-        "matrix: thought keeps nested blocks and kind label in Typst",
-        "matrix: table caption survives in Typst",
-        "matrix: headerless table keeps body rows in Typst",
-        "matrix: multi header rows are all preserved in Typst",
-        "matrix: colSpan/rowSpan are native in Typst with no degradation diagnostic",
-        "matrix: unknown fallbackBlocks render recursively in HTML and Typst",
-        "matrix: file description reaches Typst transport",
-        "matrix: citation group title reaches Typst transport",
-        "matrix: thematic break is a native divider in HTML and Typst",
-        "matrix: failed tool call shows failed badge in HTML and Typst",
-        "matrix: completed and pending tool status stay unemphasized",
-        "matrix: citation label priority is identical in HTML and Typst",
-        "matrix: citation group chips follow the unified label rule",
-        "matrix: citation snippet and assetId are metadata-only"
+        {
+          "name": "matrix: H1-H6 headings keep level in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: strikethrough is native in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: nested list keeps structure in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: ordered list start is preserved in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: quote keeps nested blocks in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: thought keeps nested blocks and kind label in Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: table caption survives in Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: headerless table keeps body rows in Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: multi header rows are all preserved in Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: colSpan/rowSpan are native in Typst with no degradation diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: unknown fallbackBlocks render recursively in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: file description reaches Typst transport",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: citation group title reaches Typst transport",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: thematic break is a native divider in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: failed tool call shows failed badge in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: completed and pending tool status stay unemphasized",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: citation label priority is identical in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: citation group chips follow the unified label rule",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "matrix: citation snippet and assetId are metadata-only",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -97,7 +325,11 @@
       "notes": "Sanitization contract; synthetic inputs with injected HTML tags, no raw Gemini evidence.",
       "testCount": 1,
       "tests": [
-        "Gemini structured markup is sanitized at normalization boundary and never reaches Canonical AST or HTML"
+        {
+          "name": "Gemini structured markup is sanitized at normalization boundary and never reaches Canonical AST or HTML",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -109,11 +341,31 @@
       "notes": "Asset ID and companion consistency contract; mock asset objects, no raw Gemini evidence.",
       "testCount": 5,
       "tests": [
-        "PR 4 - 1: Single generated image on model turn renders 1 inline figure and 1 companion card",
-        "PR 4 - 2: Multiple generated images on model turn render N inline figures and N companion cards",
-        "PR 4 - 3: User uploaded image attachment renders 0 inline figures and 1 attachment card",
-        "PR 4 - 4: Generated image with explicit markdown embed does not produce duplicate cards",
-        "PR 4 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)"
+        {
+          "name": "PR 4 - 1: Single generated image on model turn renders 1 inline figure and 1 companion card",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 4 - 2: Multiple generated images on model turn render N inline figures and N companion cards",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 4 - 3: User uploaded image attachment renders 0 inline figures and 1 attachment card",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 4 - 4: Generated image with explicit markdown embed does not produce duplicate cards",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 4 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -125,11 +377,31 @@
       "notes": "Tests HTML rendering completeness for all canonical node types.",
       "testCount": 5,
       "tests": [
-        "image card shows caption",
-        "file card shows description",
-        "code header prefers filename, shows meta",
-        "table honors column alignment",
-        "table without columns renders no alignment styles"
+        {
+          "name": "image card shows caption",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "file card shows description",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "code header prefers filename, shows meta",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "table honors column alignment",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "table without columns renders no alignment styles",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -141,11 +413,31 @@
       "notes": "Tests inline math and display math KaTeX rendering and fallback spans.",
       "testCount": 5,
       "tests": [
-        "PR 3: Supported LaTeX math compiles to valid MathML",
-        "PR 3: TikZ diagrams fail gracefully with HTML_MATH_UNSUPPORTED_TIKZ diagnostic",
-        "PR 3: Unknown LaTeX commands fail gracefully with HTML_MATH_RENDER_FAILED diagnostic",
-        "PR 3: Empty math source handles gracefully",
-        "PR 3: End-to-end integration via normalizeGeminiConversation and renderCanonicalHtml"
+        {
+          "name": "PR 3: Supported LaTeX math compiles to valid MathML",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 3: TikZ diagrams fail gracefully with HTML_MATH_UNSUPPORTED_TIKZ diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 3: Unknown LaTeX commands fail gracefully with HTML_MATH_RENDER_FAILED diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 3: Empty math source handles gracefully",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PR 3: End-to-end integration via normalizeGeminiConversation and renderCanonicalHtml",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -157,18 +449,66 @@
       "notes": "Ensures canonical HTML export output preserves message counts, roles, and structural tags.",
       "testCount": 12,
       "tests": [
-        "parity setup: canonical renderer produces output",
-        "parity: same turn count and structure",
-        "parity: user turn text is complete (content not lost)",
-        "parity: model turn text is complete (content not lost)",
-        "parity: long prompt collapses",
-        "parity: thoughts accordion, code copy, carousel kept",
-        "improvement: citations are visible",
-        "improvement: unknown content stays visible, never blank",
-        "missing asset: visible placeholder + diagnostic, no silent gap",
-        "offline: no remote asset URLs leak into output",
-        "inline image (#555 contract): renders inline <img>, never dropped",
-        "inline image with missing asset: visible placeholder + diagnostic"
+        {
+          "name": "parity setup: canonical renderer produces output",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "parity: same turn count and structure",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "parity: user turn text is complete (content not lost)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "parity: model turn text is complete (content not lost)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "parity: long prompt collapses",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "parity: thoughts accordion, code copy, carousel kept",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "improvement: citations are visible",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "improvement: unknown content stays visible, never blank",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing asset: visible placeholder + diagnostic, no silent gap",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "offline: no remote asset URLs leak into output",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image (#555 contract): renders inline <img>, never dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image with missing asset: visible placeholder + diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -180,10 +520,26 @@
       "notes": "Tests branching timeline resolution and active path projection.",
       "testCount": 4,
       "tests": [
-        "branched conversation renders only the selected branch",
-        "no selection renders all messages in source order",
-        "shared collectReferencedAssetIds sees inline images everywhere",
-        "inline image assets enter the HTML companion resource plan"
+        {
+          "name": "branched conversation renders only the selected branch",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "no selection renders all messages in source order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "shared collectReferencedAssetIds sees inline images everywhere",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image assets enter the HTML companion resource plan",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -195,27 +551,68 @@
       "notes": "Validates artifact bundle packaging, companion file assets, and abort signals.",
       "testCount": 3,
       "tests": [
-        "adapter: artifact shape, companion ids, offline urls",
-        "adapter: unresolvable asset lands in omitted, still renders",
-        "adapter: aborted signal stops the render"
+        {
+          "name": "adapter: artifact shape, companion ids, offline urls",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "adapter: unresolvable asset lands in omitted, still renders",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "adapter: aborted signal stops the render",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
       "file": "tests/canonical-nested-inline-fidelity.test.ts",
       "domain": "markdown",
       "classification": "P1",
-      "provenanceSource": "Standard CommonMark nested inline semantics (bold inside tables, code, line breaks)",
+      "provenanceSource": "CommonMark/GFM nested inline formatting and project break normalization",
       "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Validates nested inline Markdown formatting without leaking raw asterisks or delimiters.",
+      "notes": "Validates nested inline Markdown formatting and HTML break normalization. Test 6 is non-standard GFM table pipe handling.",
       "testCount": 7,
       "tests": [
-        "Fidelity 1: Table cell bold renders as <strong> and does not leak **",
-        "Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not leak literal &lt;br&gt;",
-        "Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) render completely and accurately",
-        "Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting without delimiter leakage",
-        "Fidelity 5: Emphasis wrapping links and links wrapping emphasis",
-        "Fidelity 6: Table rows with pipes inside math expressions do not split columns",
-        "Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in both paragraph and tables"
+        {
+          "name": "Fidelity 1: Table cell bold renders as <strong> and does not leak **",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not leak literal <br>",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) render completely and accurately",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting without delimiter leakage",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "Fidelity 5: Emphasis wrapping links and links wrapping emphasis",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "Fidelity 6: Table rows with pipes inside math expressions do not split columns",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Non-standard GFM behavior: raw unescaped pipe inside $...$ in table cells."
+        },
+        {
+          "name": "Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in both paragraph and tables",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -227,23 +624,91 @@
       "notes": "Synthetic edge cases developed for old parser. In new parser, standard GFM behavior takes precedence.",
       "testCount": 17,
       "tests": [
-        "F1: display formula with trailing text keeps both, never an empty MathBlock",
-        "standalone display formula is a MathBlock",
-        "multiple formulas on one line all survive as inline math",
-        "unclosed display-math fence keeps the lines and raises a diagnostic",
-        "borderless table parses without leading/trailing pipes",
-        "escaped pipes and code-span pipes do not split columns",
-        "link target with balanced parentheses is preserved",
-        "bare remote image becomes a first-class ImageInline with a remote asset",
-        "linked image parses as link wrapping an ImageInline",
-        "inline image reuses the matching attachment asset",
-        "image with no resolvable source is missing and raises a diagnostic",
-        "multiple images in one paragraph each get their own asset",
-        "nested emphasis: strong containing emphasis",
-        "nested emphasis: emphasis containing strong",
-        "triple-star and strikethrough keep their node shapes",
-        "unclosed emphasis markers stay literal text",
-        "dollar prices are not treated as math"
+        {
+          "name": "F1: display formula with trailing text keeps both, never an empty MathBlock",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "standalone display formula is a MathBlock",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "multiple formulas on one line all survive as inline math",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "unclosed display-math fence keeps the lines and raises a diagnostic",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "borderless table parses without leading/trailing pipes",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "escaped pipes and code-span pipes do not split columns",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "link target with balanced parentheses is preserved",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "bare remote image becomes a first-class ImageInline with a remote asset",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "linked image parses as link wrapping an ImageInline",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "inline image reuses the matching attachment asset",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "image with no resolvable source is missing and raises a diagnostic",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "multiple images in one paragraph each get their own asset",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "nested emphasis: strong containing emphasis",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "nested emphasis: emphasis containing strong",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "triple-star and strikethrough keep their node shapes",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "unclosed emphasis markers stay literal text",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "dollar prices are not treated as math",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        }
       ]
     },
     {
@@ -255,21 +720,81 @@
       "notes": "Ensures both HTML and Typst renderers faithfully convey identical canonical node semantics.",
       "testCount": 15,
       "tests": [
-        "contract: paragraph text survives in HTML and Typst",
-        "contract: heading text and level survive in HTML and Typst",
-        "contract: strong and emphasis survive in HTML and Typst",
-        "contract: code block content survives in HTML and Typst",
-        "contract: list items survive in HTML and Typst",
-        "contract: table cells survive in HTML and Typst",
-        "contract: image companion placement exists on both renderers",
-        "contract: file companion placement exists on both renderers",
-        "contract: citation label and group survive in HTML and Typst",
-        "contract: thought inner text survives in HTML and Typst",
-        "contract: unknown block fallback is visible on both renderers",
-        "contract: tool result attachment is placed on both renderers",
-        "arch: HTML renderer routes companion placement through collectCompanionPlacements()",
-        "arch: Typst payload routes companion placement through collectCompanionPlacements()",
-        "arch: collectCompanionPlacements has exactly one implementation"
+        {
+          "name": "contract: paragraph text survives in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: heading text and level survive in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: strong and emphasis survive in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: code block content survives in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: list items survive in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: table cells survive in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: image companion placement exists on both renderers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: file companion placement exists on both renderers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: citation label and group survive in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: thought inner text survives in HTML and Typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: unknown block fallback is visible on both renderers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract: tool result attachment is placed on both renderers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "arch: HTML renderer routes companion placement through collectCompanionPlacements()",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "arch: Typst payload routes companion placement through collectCompanionPlacements()",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "arch: collectCompanionPlacements has exactly one implementation",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -281,11 +806,31 @@
       "notes": "Validates bundle against formal JSON schema.",
       "testCount": 5,
       "tests": [
-        "every canonical fixture satisfies both validateBundle and the JSON Schema",
-        "GeminiNormalizer output satisfies both contracts (incl. first-class inline images)",
-        "rpc title with candidates and history satisfies both contracts",
-        "title without candidates is rejected by the JSON Schema",
-        "thought block with initiallyCollapsed is rejected by the JSON Schema"
+        {
+          "name": "every canonical fixture satisfies both validateBundle and the JSON Schema",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "GeminiNormalizer output satisfies both contracts (incl. first-class inline images)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "rpc title with candidates and history satisfies both contracts",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "title without candidates is rejected by the JSON Schema",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "thought block with initiallyCollapsed is rejected by the JSON Schema",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -297,10 +842,26 @@
       "notes": "Checks titleSource enum allowlist and fallback diagnostic coercion.",
       "testCount": 4,
       "tests": [
-        "unknown raw.titles key is coerced to default with a diagnostic",
-        "coerced bundle passes JSON Schema title source enums and validateBundle",
-        "validateBundle rejects unknown title sources",
-        "unknown raw.titleSource still coerces with a diagnostic"
+        {
+          "name": "unknown raw.titles key is coerced to default with a diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "coerced bundle passes JSON Schema title source enums and validateBundle",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "validateBundle rejects unknown title sources",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown raw.titleSource still coerces with a diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -312,11 +873,31 @@
       "notes": "Tightly coupled to old regex delimiter stack. New CommonMark parser uses standard intraword underscore rules.",
       "testCount": 5,
       "tests": [
-        "legit italic: _this is italic_",
-        "legit italic inside sentence: word _italic_ word",
-        "legit strong: __strong__",
-        "legit strong inside sentence: word __strong__ word",
-        "star emphasis unchanged: *italic* and **bold**"
+        {
+          "name": "legit italic: _this is italic_",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+        },
+        {
+          "name": "legit italic inside sentence: word _italic_ word",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+        },
+        {
+          "name": "legit strong: __strong__",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+        },
+        {
+          "name": "legit strong inside sentence: word __strong__ word",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+        },
+        {
+          "name": "star emphasis unchanged: *italic* and **bold**",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+        }
       ]
     },
     {
@@ -328,8 +909,16 @@
       "notes": "Synthetic underscore cases mirroring Tier 2 checks without raw payload evidence.",
       "testCount": 2,
       "tests": [
-        "full pipeline keeps LaTeX-like underscores and file names intact",
-        "legit underscore emphasis still renders in HTML"
+        {
+          "name": "full pipeline keeps LaTeX-like underscores and file names intact",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        },
+        {
+          "name": "legit underscore emphasis still renders in HTML",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING"
+        }
       ]
     },
     {
@@ -341,29 +930,77 @@
       "notes": "Canonical HTML export pipeline contract; hardcoded 4-turn chat, no raw Gemini evidence.",
       "testCount": 9,
       "tests": [
-        "migration setup: production entry returns a valid HTML FormattedResult",
-        "migration: message count and order are correct",
-        "migration: body text not dropped",
-        "migration: attachments and images not dropped",
-        "migration: thought not dropped",
-        "migration: code block not dropped",
-        "migration: table not dropped",
-        "migration: citation not dropped",
-        "migration: duplicate message ids fail closed, not silently dropped"
+        {
+          "name": "migration setup: production entry returns a valid HTML FormattedResult",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: message count and order are correct",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: body text not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: attachments and images not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: thought not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: code block not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: table not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: citation not dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration: duplicate message ids fail closed, not silently dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
       "file": "tests/typst-headerless-table.test.ts",
-      "domain": "markdown",
-      "classification": "P1",
-      "provenanceSource": "Markdown tables without header row (GFM standard and Typst table representation)",
-      "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Ensures table without headers renders natively as Typst table rather than broken plain text.",
+      "domain": "typst_payload",
+      "classification": "P2",
+      "provenanceSource": "Direct Canonical AST table-to-Typst payload mapping and WASM compile",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Headerless tables are non-GFM standard; test builds Canonical AST table directly to verify Typst renderer and thematic break.",
       "testCount": 3,
       "tests": [
-        "headerless table keeps empty headers and full body rows",
-        "thematicBreak becomes a native divider node, not an em-dash paragraph",
-        "real WASM: headerless table, thematicBreak and strikethrough compile with all text selectable"
+        {
+          "name": "headerless table keeps empty headers and full body rows",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "thematicBreak becomes a native divider node, not an em-dash paragraph",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: headerless table, thematicBreak and strikethrough compile with all text selectable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -375,92 +1012,274 @@
       "notes": "Guarantees arbitrary nested list items with embedded images/math map cleanly to Typst payload.",
       "testCount": 6,
       "tests": [
-        "list item keeps inline image as a node, not flattened text",
-        "list item keeps block image, nested list, code, math and multi-paragraph",
-        "ordered list keeps start; absent start stays absent",
-        "unknown with fallbackBlocks renders recursive blocks including image",
-        "unknown without fallbackBlocks keeps the fallback string",
-        "real WASM: recursive list and unknown templates compile with all content selectable"
+        {
+          "name": "list item keeps inline image as a node, not flattened text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "list item keeps block image, nested list, code, math and multi-paragraph",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ordered list keeps start; absent start stays absent",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown with fallbackBlocks renders recursive blocks including image",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown without fallbackBlocks keeps the fallback string",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: recursive list and unknown templates compile with all content selectable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
       "file": "tests/typst-math-cases-operatorname.test.ts",
       "domain": "latex",
       "classification": "P1",
-      "provenanceSource": "Real astrophysics / microlensing Gemini responses with \begin{cases}, \u0007rg, and \\pmod",
+      "provenanceSource": "LaTeX math cases and operatorname semantic mapping and real Typst WASM compilation",
       "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Standard LaTeX syntax tests for cases, operatorname, arg, and pmod; no raw Gemini evidence.",
+      "notes": "W3-1 tests string outputs of legacy converter (P4). W3-2 and microlensing test real WASM compile of standard LaTeX (P1).",
       "testCount": 3,
       "tests": [
-        "W3-1: cases rows, operatorname star distinction, circ mapping",
-        "W3-2: real WASM compile of cases + operatorname* + compose, zero errors",
-        "microlensing PDF formulas with arg and pmod compile without fallback"
+        {
+          "name": "W3-1: cases rows, operatorname star distinction, circ mapping",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Exact string equality assertion on legacy hand-rolled converter output."
+        },
+        {
+          "name": "W3-2: real WASM compile of cases + operatorname* + compose, zero errors",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "microlensing PDF formulas with arg and pmod compile without fallback",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        }
       ]
     },
     {
       "file": "tests/typst-math-converter.test.ts",
       "domain": "latex",
       "classification": "P1",
-      "provenanceSource": "LaTeX math converter unit suite (standard LaTeX commands: frac, sqrt, scripts, matrices, Greek)",
+      "provenanceSource": "LaTeX math converter unit suite: standard LaTeX syntax, diagnostics, and legacy string asserts",
       "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Unit tests covering standard TeX math syntax; to be serviced by MiTeX in PR 4.",
+      "notes": "Audited at test level: standard LaTeX is P1; diagnostics/security are P2; non-standard operators/prescripts are P3; exact string spacing is P4.",
       "testCount": 28,
       "tests": [
-        "inline and display basics",
-        "frac / sqrt / nested",
-        "sub/superscripts incl. multi-char and big operators",
-        "greek letters",
-        "operators and relations",
-        "functions, calculus, sets",
-        "accents",
-        "bra-ket and standalone angle delimiters",
-        "text is escaped into a Typst string literal",
-        "left/right delimiters",
-        "line break \\\\\\\\ only in display mode",
-        "multiple formulas in one source",
-        "illegal input fails whole with diagnostic",
-        "empty input returns undefined with empty diagnostic",
-        "non-latex notations are unsupported with diagnostic",
-        "prototype-chain command names cannot smuggle JS builtins",
-        "diagnostic message carries a source preview for debugging",
-        "rich symbols, styles, functions, and multiple integrals",
-        "matrix and cases environments",
-        "operatorname and custom operators",
-        "malformed \\\\operatorname fails the whole conversion with a diagnostic",
-        "font switches and styling (\\\\rm, \\\\bf, \\\\it, \\\\cal, etc.)",
-        "prescripts and isotope notation without explicit base",
-        "escaped percent and greek / relation variants",
-        "extensible arrows (\\\\xrightarrow, \\\\xleftarrow, \\\\xrightleftharpoons, etc.)",
-        "delimiter sizing commands (\\\\big, \\\\Big, etc.)",
-        "equilibrium arrow, relations, and dagger symbols",
-        "plugs into the payload adapter convertMath hook"
+        {
+          "name": "inline and display basics",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string spacing such as E = m c^2."
+        },
+        {
+          "name": "frac / sqrt / nested",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "sub/superscripts incl. multi-char and big operators",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "greek letters",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "operators and relations",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "functions, calculus, sets",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "accents",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "bra-ket and standalone angle delimiters",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Physics Dirac bra-ket non-standard TeX notation."
+        },
+        {
+          "name": "text is escaped into a Typst string literal",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Typst string injection security defense contract."
+        },
+        {
+          "name": "left/right delimiters",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "line break \\\\ only in display mode",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Project policy: rejects line breaks in inline math mode."
+        },
+        {
+          "name": "multiple formulas in one source",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "illegal input fails whole with diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Project policy: whole-input failure on syntax error."
+        },
+        {
+          "name": "empty input returns undefined with empty diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "non-latex notations are unsupported with diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "prototype-chain command names cannot smuggle JS builtins",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Prototype pollution security guard."
+        },
+        {
+          "name": "diagnostic message carries a source preview for debugging",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "rich symbols, styles, functions, and multiple integrals",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "matrix and cases environments",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "operatorname and custom operators",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Contains non-standard operator \\Tr alongside \\operatorname."
+        },
+        {
+          "name": "malformed \\operatorname fails the whole conversion with a diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "font switches and styling (\\rm, \\bf, \\it, \\cal, etc.)",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Legacy TeX font switch syntax."
+        },
+        {
+          "name": "prescripts and isotope notation without explicit base",
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Non-standard prescript notation."
+        },
+        {
+          "name": "escaped percent and greek / relation variants",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "extensible arrows (\\xrightarrow, \\xleftarrow, \\xrightleftharpoons, etc.)",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "delimiter sizing commands (\\big, \\Big, etc.)",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "equilibrium arrow, relations, and dagger symbols",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "plugs into the payload adapter convertMath hook",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Payload adapter conversion hook contract."
+        }
       ]
     },
     {
       "file": "tests/typst-math-corpus.test.ts",
       "domain": "latex",
       "classification": "P1",
-      "provenanceSource": "Standard multi-domain LaTeX math corpus (calculus, linear algebra, logic, physics)",
+      "provenanceSource": "Typst math corpus test suite (fixture expected strings and WASM compilation)",
       "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Validates LaTeX expressions compile to PDF via Typst compiler with zero diagnostics.",
+      "notes": "Test 1 checks exact expectedTypst from legacy converter (P4); Test 2 checks real WASM compile (P1).",
       "testCount": 2,
       "tests": [
-        "typst math corpus: parser correctness across semantic categories",
-        "typst math corpus: representative cases real WASM compilation smoke test"
+        {
+          "name": "typst math corpus: parser correctness across semantic categories",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Checks exact expectedTypst strings from hand-rolled converter."
+        },
+        {
+          "name": "typst math corpus: representative cases real WASM compilation smoke test",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        }
       ]
     },
     {
       "file": "tests/typst-math-int-integral.test.ts",
       "domain": "latex",
       "classification": "P1",
-      "provenanceSource": "Typst math semantic collision bug (\\int -> integral vs Typst type keyword int)",
+      "provenanceSource": "Typst math integral regression suite (string mapping and real WASM compile)",
       "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Ensures standard LaTeX \\int produces math integral symbol in Typst.",
+      "notes": "W2-1 and W2-2 check legacy exact strings (P4); W2-3 checks real WASM compile of standard integrals (P1).",
       "testCount": 3,
       "tests": [
-        "W2-1: \\\\int maps to Typst `integral` (not `int`)",
-        "W2-2: sum/prod mappings are untouched",
-        "W2-3: real WASM compile: zero errors, PDF carries ∫ (U+222B)"
+        {
+          "name": "W2-1: \\\\int maps to Typst `integral` (not `int`)",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string integral_0^1 x^2 d x."
+        },
+        {
+          "name": "W2-2: sum/prod mappings are untouched",
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string sum_(i = 1)^n."
+        },
+        {
+          "name": "W2-3: real WASM compile: zero errors, PDF carries ∫ (U+222B)",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        }
       ]
     },
     {
@@ -472,15 +1291,51 @@
       "notes": "Checks blockquote and model thought recursion preserves node types in Typst payload.",
       "testCount": 9,
       "tests": [
-        "quote keeps nested image as a real image node",
-        "thought keeps nested image as a real image node",
-        "quote keeps code and math as structured nodes instead of flat text",
-        "thought keeps code as a structured node instead of flat text",
-        "toolCall with input only exposes the structured payload as text",
-        "toolResult with output only exposes the structured payload as text",
-        "tool displayBlocks are rendered recursively alongside the json payload",
-        "strikethrough is transported natively without a warning",
-        "unserializable tool input emits a diagnostic instead of silent loss"
+        {
+          "name": "quote keeps nested image as a real image node",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "thought keeps nested image as a real image node",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "quote keeps code and math as structured nodes instead of flat text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "thought keeps code as a structured node instead of flat text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "toolCall with input only exposes the structured payload as text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "toolResult with output only exposes the structured payload as text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "tool displayBlocks are rendered recursively alongside the json payload",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "strikethrough is transported natively without a warning",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unserializable tool input emits a diagnostic instead of silent loss",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -492,24 +1347,96 @@
       "notes": "Canonical AST to Typst payload adapter contract test.",
       "testCount": 18,
       "tests": [
-        "maps paragraph, heading, code and table blocks",
-        "math without converter keeps latex only; with converter adds typst",
-        "missing image asset becomes visible unknown node with diagnostic",
-        "present image asset maps to virtual path",
-        "inline image maps to a formal transport node",
-        "inline image without alt omits the alt key",
-        "missing inline image asset falls back to visible text with missing-asset diagnostic",
-        "missing inline image asset without alt shows [image: id] placeholder",
-        "collectReferencedAssetIds walks block and inline trees recursively",
-        "inline image asset is not duplicated as a trailing attachment",
-        "unknown blocks are never dropped",
-        "heading level passes through without clamping",
-        "branched conversation without selected leaf renders every message in source order",
-        "hostile text stays inert JSON data (injection red line)",
-        "system role becomes a visible note prefix",
-        "associated image companion with no path emits TYPST_V8_ASSOCIATED_IMAGE_MISSING (no silent drop)",
-        "associated image companion with a path renders trailing attachment without diagnostic",
-        "collectCompanionPlacements: explicit placement wins, images/files split, unknown ignored with diagnostic"
+        {
+          "name": "maps paragraph, heading, code and table blocks",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "math without converter keeps latex only; with converter adds typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing image asset becomes visible unknown node with diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "present image asset maps to virtual path",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image maps to a formal transport node",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image without alt omits the alt key",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing inline image asset falls back to visible text with missing-asset diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing inline image asset without alt shows [image: id] placeholder",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "collectReferencedAssetIds walks block and inline trees recursively",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image asset is not duplicated as a trailing attachment",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "unknown blocks are never dropped",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "heading level passes through without clamping",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "branched conversation without selected leaf renders every message in source order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "hostile text stays inert JSON data (injection red line)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "system role becomes a visible note prefix",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "associated image companion with no path emits TYPST_V8_ASSOCIATED_IMAGE_MISSING (no silent drop)",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "associated image companion with a path renders trailing attachment without diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "collectCompanionPlacements: explicit placement wins, images/files split, unknown ignored with diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -521,15 +1448,51 @@
       "notes": "Ensures table rowSpan/colSpan and citation labels map to Typst payload.",
       "testCount": 9,
       "tests": [
-        "multi header rows all reach the transport with no collapse diagnostic",
-        "colSpan/rowSpan map to native Typst table.cell spans with no warning",
-        "citationGroup title becomes the note label",
-        "citationGroup without title has no label",
-        "file description reaches the transport",
-        "thought kinds map to note labels",
-        "code filename and meta reach the transport",
-        "code without filename has no filename field",
-        "real WASM: phase B features compile with all text selectable"
+        {
+          "name": "multi header rows all reach the transport with no collapse diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "colSpan/rowSpan map to native Typst table.cell spans with no warning",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "citationGroup title becomes the note label",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "citationGroup without title has no label",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "file description reaches the transport",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "thought kinds map to note labels",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "code filename and meta reach the transport",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "code without filename has no filename field",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: phase B features compile with all text selectable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     },
     {
@@ -541,15 +1504,51 @@
       "notes": "Ensures table cell span attributes are preserved.",
       "testCount": 9,
       "tests": [
-        "colSpan maps to transport colspan and rowspan stays absent",
-        "rowSpan and combined spans map to transport",
-        "header cells carry spans",
-        "span parity: HTML colspan/rowspan matches Typst transport",
-        "real WASM: colspan table compiles with all text selectable",
-        "real WASM: rowspan and combined spans compile with all text selectable",
-        "real WASM: header span and oversized span compile without data loss",
-        "real WASM: multi-cell staggered rowspan occupancy compiles and retains all text",
-        "real WASM: 2x2 multi-cell block span occupancy compiles cleanly"
+        {
+          "name": "colSpan maps to transport colspan and rowspan stays absent",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "rowSpan and combined spans map to transport",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "header cells carry spans",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "span parity: HTML colspan/rowspan matches Typst transport",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: colspan table compiles with all text selectable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: rowspan and combined spans compile with all text selectable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: header span and oversized span compile without data loss",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: multi-cell staggered rowspan occupancy compiles and retains all text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real WASM: 2x2 multi-cell block span occupancy compiles cleanly",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
       ]
     }
   ],
@@ -557,10 +1556,12 @@
     "totalSuites": 27,
     "totalTests": 246,
     "byClassification": {
-      "P2": 176,
-      "P1": 46,
-      "P3": 19,
-      "P4": 5
+      "P0": 0,
+      "P1": 22,
+      "P2": 190,
+      "P3": 24,
+      "P4": 10
     }
-  }
+  },
+  "lastAudited": "2026-09-28"
 }
