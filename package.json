@@ -24,6 +24,8 @@
     "pool:validate": "python3 scripts/manage_scenario_pool.py validate",
     "test:visual": "python3 scripts/test_visual_agent.py --playground",
     "test:visual:custom": "python3 scripts/test_visual_agent.py --api",
+    "test:corpus": "node -r ./tests/ts_register.js ./scripts/parser_migration/run_corpus.ts",
+    "provenance:summary": "python3 ./scripts/parser_migration/test_provenance.py --summary",
     "release": "gh workflow run release.yml --ref main",
     "lint": "oxlint -A all -D typescript/no-floating-promises --type-aware src/"
   },
