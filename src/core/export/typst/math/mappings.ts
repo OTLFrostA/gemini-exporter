@@ -41,7 +41,7 @@ export const SYMBOLS: Record<string, string> = {
     lesssim: '<~', gtrsim: '>~', preceq: 'prec.eq', succeq: 'succ.eq',
     iint: 'integral.double', iiint: 'integral.triple', oint: 'integral.cont',
     dagger: 'dagger', ddagger: 'dagger.double', hbar: 'planck.reduce',
-    bot: 'bot', top: 'top',
+    bot: 'bot', top: 'top', Box: 'square.stroked',
     ll: '<<', gg: '>>', perp: 'perp', parallel: 'parallel', propto: 'prop',
     ldots: 'dots', cdots: 'dots.c',
 };

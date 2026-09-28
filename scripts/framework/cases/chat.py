@@ -120,6 +120,7 @@ description: "Dynamically created test attachment to verify multi-format user up
                         ctx.tracker.track(turn_res.chat_id)
                     if turn_res.has_images:
                         imagen_found = True
+                        ctx.shared_data["imagen_chat_id"] = turn_res.chat_id
                         print("         🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
 
                     time.sleep(ctx.delay)
@@ -194,6 +195,8 @@ class ImagenMultimodalCase(FeatureTestCase):
             """)
             if has_img:
                 ctx.shared_data["imagen_found"] = True
+                if ctx.chat_records:
+                    ctx.shared_data["imagen_chat_id"] = ctx.chat_records[-1]["chat_id"]
                 return True, "在当前活动会话中成功确认检测到 AI Imagen 图片渲染实体", None
             return False, "预期生图场景未在页面捕获到 AI Imagen 图片渲染实体", None
         finally:

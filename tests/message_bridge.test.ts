@@ -26,7 +26,7 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
     let removedId: any = null;
     let verification: any = null;
     const oldChrome = (global as any).chrome;
-    (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { verification = msg; } } };
+    (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { verification = msg; return { data: { isDeleted: true } }; } } };
     try {
     const api = MessageBridge.init({
         Storage: {
@@ -52,6 +52,28 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
     } finally { (global as any).chrome = oldChrome; }
 });
 
+test('messageBridge retries a deletion verification until the server confirms it', async () => {
+    const oldChrome = (global as any).chrome;
+    const requests: any[] = [];
+    let removed = false;
+    (global as any).chrome = { runtime: { sendMessage: async (msg: any) => {
+        requests.push(msg);
+        return { success: true, data: { isDeleted: requests.length >= 2 } };
+    } } };
+    try {
+        const api = MessageBridge.init({
+            Storage: { removeConversation: async () => { removed = true; } },
+            getAccountSlot: () => 'u0',
+        });
+        await api.handleWindowMessage({
+            data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id: 'c_retry', slot: 'u9' } },
+        });
+        assert.strictEqual(requests.length, 2, 'a transient still-visible response needs another server check');
+        assert.ok(requests.every((msg: any) => msg.action === 'fetchChat' && msg.accountSlot === 'u0'));
+        assert.strictEqual(removed, false, 'the page message must never prune storage itself');
+    } finally { (global as any).chrome = oldChrome; }
+});
+
 test('messageBridge - rejects forged postMessage from foreign source', async () => {
     let forgedRemovedId: any = null;
     const fakeWindow = { name: 'top-window' };
@@ -60,7 +82,7 @@ test('messageBridge - rejects forged postMessage from foreign source', async () 
     const requests: any[] = [];
     try {
         (global as any).window = fakeWindow;
-        (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { requests.push(msg); } } };
+        (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { requests.push(msg); return { data: { isDeleted: true } }; } } };
         const api = MessageBridge.init({
             Storage: {
                 removeConversation: async (_slot: any, id: any) => {

@@ -429,9 +429,11 @@ class ExtensionActions:
         format_type: Optional[str] = None
     ) -> Optional[str]:
         """确保设置 format_type、启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
-        # 记录导出触发前已存在的全部 ZIP 文件集合与修改时间戳，杜绝连续导出时的旧文件误命中
+        # TestEnvironment routes downloads to output_dir. Avoid scanning the user's
+        # Downloads folder, where cloud-backed entries can block directory reads.
+        # 记录导出触发前已存在的 ZIP 文件与修改时间戳，杜绝旧文件误命中。
         baseline_files = {}
-        for check_d in [output_dir, os.path.expanduser("~/Downloads")]:
+        for check_d in [output_dir]:
             if os.path.isdir(check_d):
                 for f in os.listdir(check_d):
                     if re.match(r"(?i)gemini_export_.*\.zip$", f):
@@ -504,30 +506,6 @@ class ExtensionActions:
                     candidates.sort(key=lambda x: x[0], reverse=True)
                     downloaded_zip = candidates[0][1]
                     break
-
-            sys_dl = os.path.expanduser("~/Downloads")
-            if os.path.isdir(sys_dl):
-                candidates = []
-                for f in os.listdir(sys_dl):
-                    if re.match(r"(?i)gemini_export_.*\.zip$", f):
-                        fp = os.path.abspath(os.path.join(sys_dl, f))
-                        try:
-                            mtime = os.path.getmtime(fp)
-                            if (fp not in baseline_files or mtime > baseline_files[fp]) and os.path.getsize(fp) > 0:
-                                candidates.append((mtime, fp))
-                        except OSError:
-                            pass
-                if candidates:
-                    candidates.sort(key=lambda x: x[0], reverse=True)
-                    downloaded_zip = candidates[0][1]
-                    break
-
-        if downloaded_zip and os.path.expanduser("~/Downloads") in downloaded_zip:
-            dest_zip = os.path.join(output_dir, os.path.basename(downloaded_zip))
-            if os.path.abspath(downloaded_zip) != os.path.abspath(dest_zip):
-                import shutil
-                shutil.copy2(downloaded_zip, dest_zip)
-                downloaded_zip = dest_zip
 
         return downloaded_zip
 
@@ -772,4 +750,3 @@ class CDPActions(ExtensionActions):
         """)
         time.sleep(2.0)
         return bool(confirm_click)
-

@@ -230,6 +230,121 @@ class MultimodalSpecCase(FeatureTestCase):
         return False, spec_msg, spec_data
 
 
+class StaleTabImageExportCase(FeatureTestCase):
+    """Exercise the real image export route with an active, receiver-less Gemini tab."""
+
+    def __init__(self):
+        super().__init__(
+            feature_id="feat_stale_tab_image_export",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="失效 Gemini 标签页下的图片导出",
+            description="扩展重装后保留未刷新的同账号标签页，验证图片导出可转用已注入的标签页",
+            critical=True,
+            prerequisites=["feat_pdf_export_download"],
+        )
+
+    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        image_chat_id = ctx.shared_data.get("imagen_chat_id")
+        if not image_chat_id:
+            return False, "缺少本轮已验证的 Imagen 会话", None
+        image_record = next((r for r in ctx.chat_records if r["chat_id"] == image_chat_id), None)
+        if not image_record:
+            return False, "Imagen 会话未记录在本轮测试结果中", None
+        image_chat = {
+            "id": image_chat_id,
+            "name": image_record["title"],
+            "expected_generated_images": 1,
+            "syntax_checks": ["image"],
+        }
+        cdp_opt = ctx.connect_options()
+        stale_id = None
+        try:
+            stale_id = cdp_opt.eval("""(async () => {
+                const tab = await chrome.tabs.create({url: 'https://gemini.google.com/app', active: true});
+                for (let i = 0; i < 40; i++) {
+                    const current = await chrome.tabs.get(tab.id);
+                    if (current.status === 'complete') return tab.id;
+                    await new Promise(resolve => setTimeout(resolve, 250));
+                }
+                throw new Error('stale Gemini tab did not load');
+            })()""", await_promise=True, timeout=20)
+        finally:
+            cdp_opt.close()
+        if not stale_id:
+            return False, "无法创建待验证的旧 Gemini 标签页", None
+
+        try:
+            new_id = ctx.env.reinstall_extension()
+            if not new_id:
+                return False, "无法重装扩展以构造无接收端的旧标签页", None
+            ctx.ext_id = new_id
+            ctx.env.ensure_options_tab()
+            ctx.env.setup_download_behavior(ctx.output_dir)
+            cdp_opt = ctx.connect_options()
+            try:
+                setup = cdp_opt.eval(f"""(async () => {{
+                    const staleId = {stale_id};
+                    const tabs = await chrome.tabs.query({{url: 'https://gemini.google.com/*'}});
+                    const fresh = tabs.filter(tab => tab.id !== staleId && !tab.url?.includes('/glic'));
+                    if (!fresh.length) return {{error: 'no second Gemini tab'}};
+                    for (const tab of fresh) await chrome.tabs.reload(tab.id);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    const probe = id => new Promise(resolve => chrome.tabs.sendMessage(id, {{action: 'ping'}}, reply =>
+                        resolve({{reply, error: chrome.runtime.lastError?.message || ''}})));
+                    const stale = await probe(staleId);
+                    const good = await probe(fresh[0].id);
+                    await chrome.tabs.update(staleId, {{active: true}});
+                    return {{stale, good, staleId, freshId: fresh[0].id}};
+                }})()""", await_promise=True, timeout=30) or {}
+                if "Receiving end does not exist" not in setup.get("stale", {}).get("error", ""):
+                    return False, f"旧标签页未保持无接收端状态: {setup}", setup
+                if not setup.get("good", {}).get("reply", {}).get("ok"):
+                    return False, f"已刷新标签页尚未注入内容脚本: {setup}", setup
+
+                # A clean install can show onboarding; dismiss it before choosing one known Imagen chat.
+                selected = cdp_opt.eval(f"""(() => {{
+                    document.getElementById('tourSkipBtn')?.click();
+                    document.getElementById('btnSelectNone')?.click();
+                    const item = Array.from(document.querySelectorAll('#list .item'))
+                        .find(el => el.dataset.chatId === '{image_chat['id']}');
+                    const cb = item?.querySelector('input[type=checkbox]');
+                    if (!cb) return false;
+                    cb.checked = true;
+                    cb.dispatchEvent(new Event('change', {{bubbles: true}}));
+                    return true;
+                }})()""")
+                if not selected:
+                    return False, "旧标签页测试未找到指定 Imagen 会话", setup
+
+                archive = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=90,
+                                                       skip_exported=False, format_type="markdown")
+                if not archive:
+                    return False, "旧标签页在前时图片 ZIP 未能落盘", setup
+                ok, message, details = CDPAssertions.assert_exported_zip_spec(
+                    zip_path=archive,
+                    extract_dir=os.path.join(ctx.output_dir, "extracted_stale_tab_image"),
+                    min_conversations=1,
+                    expected_golden_chats=[image_chat],
+                    chat_id=image_chat["id"],
+                )
+                if not ok:
+                    return False, message, {"tabs": setup, "export": details}
+                with zipfile.ZipFile(archive) as zf:
+                    entries = zf.namelist()
+                if any(os.path.basename(name) == "_export_errors.json" for name in entries):
+                    return False, "图片导出含错误清单", {"tabs": setup, "entries": entries}
+                return True, "无接收端旧标签页优先时，图片及 Markdown 引用均成功落盘", {"tabs": setup, "export": details}
+            finally:
+                cdp_opt.close()
+        finally:
+            try:
+                cdp_opt = ctx.connect_options()
+                cdp_opt.eval(f"chrome.tabs.remove({stale_id})")
+                cdp_opt.close()
+            except Exception:
+                pass
+
+
 class FastSkipExportedCase(FeatureTestCase):
     def __init__(self):
         super().__init__(

@@ -42,13 +42,13 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.dag = FrameworkRunner._assemble_dag()
 
     def test_dag_registration_and_count(self):
-        """验证 22 大特性全部成功注册进 DAG"""
-        self.assertEqual(len(self.dag.cases), 22)
+        """验证 23 项特性全部成功注册进 DAG"""
+        self.assertEqual(len(self.dag.cases), 23)
 
     def test_topological_sort_order(self):
         """验证拓扑排序：所有前置依赖必须在其依赖者之前执行"""
         order = self.dag.get_execution_order()
-        self.assertEqual(len(order), 22)
+        self.assertEqual(len(order), 23)
 
         position = {case.feature_id: idx for idx, case in enumerate(order)}
 
