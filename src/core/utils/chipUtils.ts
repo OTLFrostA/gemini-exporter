@@ -29,11 +29,26 @@ export function stripInternalChipMarkdown(text?: string | null): string {
     );
 
     const imageAgentTagRe = /<Image\s+[^>]*src=["']image_agent_tag_[^"']*["'][^>]*\/?>/gi;
+    const elicitationsGroupRe = /<ElicitationsGroup\b[\s\S]*?<\/ElicitationsGroup>/gi;
+    const elicitationPairedRe = /<Elicitation\b[\s\S]*?<\/Elicitation>/gi;
+    const elicitationSelfClosingRe = /<Elicitation\b[^>]*\/?>/gi;
+    const followUpPairedRe = /<FollowUp\b[\s\S]*?<\/FollowUp>/gi;
+    const followUpSelfClosingRe = /<FollowUp\b[^>]*\/?>/gi;
+    const generateWidgetPairedRe = /<GenerateWidget\b[\s\S]*?<\/GenerateWidget>/gi;
+    const generateWidgetSelfClosingRe = /<GenerateWidget\b[^>]*\/?>/gi;
 
     let cleaned = text.replace(standaloneRe, '\n');
     cleaned = cleaned.replace(linkWithTitleRe, '$1');
     cleaned = cleaned.replace(rawUrlRe, '');
     cleaned = cleaned.replace(imageAgentTagRe, '');
+    cleaned = cleaned.replace(elicitationsGroupRe, '');
+    cleaned = cleaned.replace(elicitationPairedRe, '');
+    cleaned = cleaned.replace(elicitationSelfClosingRe, '');
+    cleaned = cleaned.replace(followUpPairedRe, '');
+    cleaned = cleaned.replace(followUpSelfClosingRe, '');
+    cleaned = cleaned.replace(generateWidgetPairedRe, '');
+    cleaned = cleaned.replace(generateWidgetSelfClosingRe, '');
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
     return cleaned;
 }
 
