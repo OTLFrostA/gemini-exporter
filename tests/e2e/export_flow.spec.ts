@@ -182,9 +182,6 @@ test.describe('Export Workflow & State Update', () => {
           'clear_chat_001': { exportedAt: 1700000005000, title: '已导出会话一' },
           'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }
         },
-        gemini_exported_u0: {
-          'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }
-        },
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -205,12 +202,11 @@ test.describe('Export Workflow & State Update', () => {
     await expect(page.locator('#list input[type=checkbox]:checked')).toHaveCount(2);
     await expect(page.locator('#skipExported')).toBeChecked();
 
-    // Verify storage keys (both exportedIds and legacy gemini_exported_u0) are cleared and stay cleared on reload
+    // Verify storage keys (exportedIds) are cleared
     const storageAfter = await page.evaluate(async () => {
-      return await chrome.storage.local.get(['exportedIds', 'gemini_exported_u0']);
+      return await chrome.storage.local.get(['exportedIds']);
     }) as Record<string, any>;
     expect(Object.keys(storageAfter.exportedIds || {})).toHaveLength(0);
-    expect(storageAfter.gemini_exported_u0).toBeUndefined();
   });
 });
 

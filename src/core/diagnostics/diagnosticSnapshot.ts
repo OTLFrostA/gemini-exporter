@@ -117,6 +117,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
     const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
 
+    // Diagnostic recovery visibility: diagnostics may inspect unmigrated / corrupted raw storage to aid recovery from migration failures.
     const convs: any[] = options.conversations || rawStorage[convKey] || (slot === 'u0' ? rawStorage.gemini_conversations_u0 : []) || [];
     const expMap: Record<string, any> = options.exportedIds || rawStorage[expKey] || {};
 
