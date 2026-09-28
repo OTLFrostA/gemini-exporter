@@ -1,25 +1,5 @@
 [
   {
-    "id": "plasma_physics_laser_wakefield_acceleration",
-    "domain": "plasma_physics_laser_wakefield_acceleration",
-    "title": "超强超短激光等离子体物理：尾波场相对论空泡加速与阿秒电子束推演",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables"
-    ],
-    "description": "测试一维尾波静电势推导、相对论非线性空泡模式解、相移与 Betatron 振荡 Python 仿真及新型加速器对比",
-    "turns": [
-      "从冷相对论流体动力学方程组与麦克斯韦方程组出发，在光速坐标系 \\xi = z - c t 下推导由线偏振超短激光脉冲有质动力驱动的一维等离子体尾波静电势 \\phi(\\xi) 的非线性微分方程，推导出非相对论波破场强冷等离子体 Tajima-Dawson 极限 E_0 = m_e c \\omega_p / e。",
-      "当激光归一化矢量势 a_0 > 2 进入强相对论非线性“空泡模式”（Bubble / Blowout Regime）时，推导离子通道空泡半径 r_b \\sim 2 \\sqrt{a_0} c / \\omega_p 与空泡内纵向线性加速电场 E_z(z) 与径向线性聚焦场 E_r - c B_\\theta 的三维空间解析解。",
-      "使用 Python 编写数值脚本，基于四阶 Runge-Kutta 算法，追踪注入电子在空泡内部复合电磁场中的相对论运动方程，模拟电子的去相位长度（Dephasing Length）、能量增益饱和点以及横向电子感应加速器振荡（Betatron Oscillation）运动轨迹。",
-      "使用 Markdown 表格横向对比激光等离子体尾场加速器 (LWFA)、束流驱动等离子体尾场加速器 (PWFA)、介质微通道激光加速器 (DLA) 与传统超导射频直线加速器 (SRF Linac) 在加速梯度 (GV/m)、束流归一化发射度 (mm-mrad)、重复频率、能散度及大科学装置占地面积。",
-      "推导相对论高能电子束在尾波场横向聚焦静电场中发生 Betatron 振荡辐射出阿秒同步辐射 X 射线的临界能量 \\hbar \\omega_c = \\frac{3}{2} \\gamma^3 \\hbar c K r_b 与光束角发散度 \\theta \\sim K/\\gamma 的几何比例定标律。"
-    ]
-  },
-  {
     "id": "quantum_error_correction_color_code_transversal_clifford",
     "domain": "quantum_computing_topological_color_codes",
     "title": "拓扑量子纠错与容错量子计算：二维色码六边形晶格上的横截Clifford门与联合伴随子解码",
@@ -202,28 +182,6 @@
       "推导由微观可逆性与时间反演对称性决定的 Crooks 涨落定理 P_F(W) / P_R(-W) = exp(beta * (W - Delta F))，并分析在远离热力学平衡的极端非准静态拉伸过程中自由能变化 Delta F 的极大似然估计解析形式。",
       "使用 Python 编写 Langevin 随机动力学模拟脚本，数值求解布朗粒子在一维谐振子双势阱驱动移动过程中的随机轨迹，统计提取 5000 次独立非平衡实验路径上的做功做功积分，并绘制功分布直方图与 Jarzynski 平均收敛曲线。",
       "使用 Markdown 表格横向对比经典信息引擎 (Szilard Engine)、量子相干性驱动热机、超导腔量子电动力学热机与单自旋非平衡热机在工作工质尺度、量子相干能增益、最大功输出功率与卡诺效率比值 (Efficiency at Maximum Power)。"
-    ]
-  },
-  {
-    "id": "astrophysics_gravitational_microlensing_exoplanet",
-    "domain": "astrophysics_gravitational_microlensing_exoplanet",
-    "title": "引力微透镜与系外行星探测：爱因斯坦环、焦散线穿越与高保真光学渲染",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试双透镜引力微透镜方程代数求根、爱因斯坦半径计算、焦散线穿越光变曲线仿真与黑洞/恒星透镜科学可视化图生成",
-    "turns": [
-      "在点质量引力透镜几何光学中，推导母恒星作为透镜时对应的爱因斯坦角半径 theta_E = sqrt(4 * G * M / (c^2) * (D_s - D_l) / (D_l * D_s)) 的解析推导，并计算当透镜源距离 D_l = 4 kpc、背景背景源距离 D_s = 8 kpc 且透镜质量为 1 个太阳质量时的特征透镜微角秒尺度。",
-      "针对行星-主恒星双体透镜系统，写出复数坐标 z 下的二维无量纲双引力透镜多项式方程，推导雅可比矩阵行列式 det(J) = 0 所确定的临界曲线 (Critical Curves) 及其映射到源平面的焦散线 (Caustics) 尖点 (Cusp) 与折叠 (Fold) 奇点几何方程。",
-      "生成一张高分辨率天体物理科学可视化渲染图：展示深空背景银河系中心稠密星场中，一颗隐匿于黑暗中的孤立系外流浪行星 (Rogue Planet) 引发的引力微透镜效应，背景遥远恒星光线被弯曲拉伸为一个发光的完整金色闭合爱因斯坦环，旁边呈现高对比度焦散线穿越产生的双子像干涉光芒与冷色调太空尘埃。",
-      "使用 Python 编写微透镜光变曲线数值模拟脚本，采用射线追踪 (Ray-Shooting) 或根查找算法计算点源穿越行星焦散线时的放大率变化 A(t)，并绘制在无噪条件与信噪比 SNR=50 包含高斯光子散粒噪声下的时间依赖放大率光变曲线图。",
-      "使用 Markdown 表格横向对比径向速度法 (Radial Velocity)、凌星巡天法 (Transit Photometry)、天体测量法 (Astrometry) 与引力微透镜法 (Gravitational Microlensing) 在雪线 (Snow Line) 以外低质量类地行星灵敏度、对宿主恒星光度依赖性、距离适用范围及测量单次性不可重复约束。"
     ]
   },
   {
@@ -419,6 +377,48 @@
       "用 Python 编写可运行示例，为三个假想产地生成测量数据，并计算一件未知样品的产地后验概率与可信区间。",
       "用 Markdown 表格比较同位素比值、微量元素指纹、考古地层和器型风格四类证据的辨识能力、常见偏差与交叉验证方法。",
       "讨论当两处产地的化学分布高度重叠时，如何做灵敏度分析和报告不确定性，避免给出过度确定的单一产地结论。"
+    ]
+  },
+  {
+    "id": "materials_science_photonic_crystal_defect_cavity",
+    "domain": "materials_science_photonic_crystal_defect_cavity",
+    "title": "光子晶体缺陷腔：带隙设计与近场模式成像",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "覆盖光学模式推导、科学示意生图、数值模拟和器件对比",
+    "turns": [
+      "从一维周期介质的 Maxwell 本征方程出发，用 LaTeX 推导 Bloch 模与光子带隙形成条件，并说明折射率对比度的作用。",
+      "生成一张科研示意图：二维光子晶体薄膜中的点缺陷腔、局域电场强度分布、入射波导及出射方向，要求结构边界和颜色图例清晰。",
+      "使用 Python 编写简化的传输矩阵数值脚本，计算介质层数和缺陷层厚度改变时的透射谱与共振峰位置。",
+      "用 Markdown 表格比较光子晶体缺陷腔、微环谐振器、法布里珀罗腔与等离激元纳米腔的品质因数、模式体积、制造误差敏感度和适用场景。",
+      "设计一个近场光学表征实验，解释如何从空间扫描图像估计缺陷腔模式体积，并列出误差来源与校准步骤。"
+    ]
+  },
+  {
+    "id": "ecology_forest_carbon_flux_data_assimilation",
+    "domain": "ecology_forest_carbon_flux_data_assimilation",
+    "title": "森林生态系统碳通量：涡度协方差与数据同化",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖碳收支方程、通量数据清洗、贝叶斯同化和模型比较",
+    "turns": [
+      "推导森林生态系统净碳交换 NEE 与总初级生产力、生态系统呼吸之间的碳收支关系，并用 LaTeX 说明涡度协方差通量估计量。",
+      "解释夜间低湍流条件为何造成通量低估，给出基于摩擦速度阈值的质量控制步骤和不确定性传播公式。",
+      "使用 Python 写一个小型可复现示例，生成半小时通量数据，完成异常值过滤、缺测填补和年度累积碳收支计算。",
+      "用 Markdown 表格比较涡度协方差、树木样地调查、遥感反演和过程模型在空间尺度、时间分辨率、主要偏差及验证方式上的差异。",
+      "设计一套用贝叶斯数据同化估计森林呼吸参数的方案，明确先验、似然、观测误差协方差和交叉验证策略。"
     ]
   }
 ]
