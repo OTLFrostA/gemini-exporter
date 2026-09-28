@@ -22,6 +22,7 @@ export interface AssetPipelineOptions {
     writeFileDirect?: (path: string, content: any) => Promise<void>;
     takeoutEngine?: any;
     getGeminiTab?: (slot?: string) => Promise<any>;
+    sendToGeminiTab?: (message: any, slot?: string, timeoutMs?: number) => Promise<any>;
     fetchAssetDelegate?: (params: any) => Promise<any>;
     fetchAsset?: (params: any) => Promise<any>;
     onLog?: (msg: string, level?: string) => void;
@@ -41,6 +42,7 @@ export interface AssetPipelineInstance {
     writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
     takeoutEngine: any;
     getGeminiTab: ((slot?: string) => Promise<any>) | null;
+    sendToGeminiTab: ((message: any, slot?: string, timeoutMs?: number) => Promise<any>) | null;
     fetchAssetDelegate: ((params: any) => Promise<any>) | null;
     onLog: (msg: string, level?: string) => void;
     downloadTimeoutMs: number;
@@ -121,6 +123,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
         writeFileDirect: ((path: string, content: any) => Promise<void>) | null;
         takeoutEngine: any;
         getGeminiTab: ((slot?: string) => Promise<any>) | null;
+        sendToGeminiTab: ((message: any, slot?: string, timeoutMs?: number) => Promise<any>) | null;
         fetchAssetDelegate: ((params: any) => Promise<any>) | null;
         onLog: (msg: string, level?: string) => void;
         downloadTimeoutMs: number;
@@ -134,6 +137,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             this.writeFileDirect = options.writeFileDirect || null;
             this.takeoutEngine = options.takeoutEngine || null;
             this.getGeminiTab = options.getGeminiTab || null;
+            this.sendToGeminiTab = options.sendToGeminiTab || null;
             this.fetchAssetDelegate = options.fetchAssetDelegate || options.fetchAsset || null;
             this.onLog = options.onLog || (() => {});
             this.downloadTimeoutMs = options.downloadTimeoutMs || 15000;
@@ -144,6 +148,28 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             const extra = {
                 fileName: item?.fileName || item?.title,
                 candidates: Array.isArray(item?.candidates) ? item.candidates : undefined
+            };
+            const requestFromTab = async (preferBuffer: boolean): Promise<any> => {
+                const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
+                let response = tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs
+                    ? await sendTabAssetRequest(tab.id, targetUrl, chat.id, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
+                    : null;
+                const noReceiver = response && !response.success &&
+                    /Receiving end does not exist|Could not establish connection/i.test(String(response.error || ''));
+                if (targetUrl && (!tab || noReceiver) && this.sendToGeminiTab && !signal?.aborted) {
+                    try {
+                        response = await this.sendToGeminiTab({
+                            action: 'downloadAssetDirect',
+                            url: targetUrl,
+                            referer: `https://gemini.google.com/app/${chat.id}`,
+                            preferBuffer,
+                            ...extra
+                        }, this.currentSlot, timeoutMs);
+                    } catch (e) {
+                        response = { success: false, error: getErrorMessage(e) };
+                    }
+                }
+                return signal?.aborted ? { success: false, error: 'aborted' } : response;
             };
 
             if (this.fetchAssetDelegate && targetUrl) {
@@ -159,19 +185,13 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                     ...extra
                 });
             } else {
-                const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-                if (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs) {
-                    r = await sendTabAssetRequest(tab.id, targetUrl, chat.id, true, timeoutMs, 'tabs.sendMessage timed out', signal, extra);
-                }
+                r = await requestFromTab(true);
             }
 
             // In Chrome extension IPC, ArrayBuffers passed via chrome.tabs.sendMessage get collapsed to {}
             // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
             if (r && r.success && !hasValidBuffer(r) && !hasValidB64(r) && typeof chrome !== 'undefined' && chrome.tabs) {
-                const fallbackTab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-                if (fallbackTab && fallbackTab.id) {
-                    r = await sendTabAssetRequest(fallbackTab.id, targetUrl, chat.id, false, timeoutMs, 'tabs.sendMessage fallback timed out', signal, extra);
-                }
+                r = await requestFromTab(false);
             }
             return r;
         }

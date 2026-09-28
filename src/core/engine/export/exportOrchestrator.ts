@@ -213,6 +213,8 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
 
     const getGeminiTab = async (slot?: string): Promise<any> =>
         (__resolveModule('TabService', TabService))?.getGeminiTab?.(slot) ?? null;
+    const sendToGeminiTab = (message: any, slot?: string, timeoutMs?: number): Promise<any> =>
+        (__resolveModule('TabService', TabService)).sendToGeminiTab(message, slot, timeoutMs);
 
     const getAssetPipelineClass = (): any => __resolveModule('AssetPipeline', AssetPipelineStatic);
 
@@ -518,6 +520,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                 writeFileDirect,
                 takeoutEngine,
                 getGeminiTab,
+                sendToGeminiTab,
                 onLog
             }) : null;
 
