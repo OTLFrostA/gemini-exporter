@@ -303,7 +303,8 @@ function stripHtmlChrome(line: string): string | null {
 function textLinesFromHtml(html: string): string[] {
     let t = html
         .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '');
+        .replace(/<style[\s\S]*?<\/style>/gi, '')
+        .replace(/<math[\s\S]*?<annotation\b[^>]*>([\s\S]*?)<\/annotation>[\s\S]*?<\/math>/gi, '$1');
     // Block-level closings and <br>/<hr> are line breaks; every other tag is
     // removed WITHOUT inserting a space so inline markup (strong/em/a/code)
     // never introduces phantom spacing around CJK text.

@@ -106,7 +106,7 @@ test('Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting 
         'HTML renders strong wrapping inline code');
     assert.ok(html.includes('<em>italic <code class="gem-inline-code">code</code> italic</em>'),
         'HTML renders emphasis wrapping inline code');
-    assert.ok(html.includes('<strong>bold <span class="gem-math-inline">x</span> bold</strong>'),
+    assert.ok(html.includes('<strong>bold <span class="gem-math-inline">') && html.includes('<math') && html.includes('</span> bold</strong>'),
         'HTML renders strong wrapping inline math');
     assert.ok(!html.includes('**bold'), 'HTML does not leak **bold');
 });

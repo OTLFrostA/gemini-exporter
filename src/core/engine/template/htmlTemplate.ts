@@ -491,18 +491,15 @@ h4.gem-heading { font-size: 1.05em; }
 }
 
 .gem-math-inline {
-  font-family: "KaTeX_Math", "Cambria Math", "Times New Roman", serif;
-  font-style: italic;
-  padding: 0 3px;
-  color: var(--math-color);
+  display: inline-block;
+  vertical-align: middle;
+  padding: 0 2px;
 }
 .gem-math-block {
-  font-family: "KaTeX_Math", "Cambria Math", "Times New Roman", serif;
   margin: 1.2em 0;
   text-align: center;
   overflow-x: auto;
   padding: 10px;
-  color: var(--math-color);
 }
 
 .gem-msg-img {
