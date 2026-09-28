@@ -41,6 +41,17 @@ export interface CorpusReport {
     corpusSet: string;
     markdown: {
         documents: number;
+        baseline: {
+            parseFailures: number;
+            fallbacks: number;
+            blockDistribution: Record<string, number>;
+        };
+        candidate?: {
+            parseFailures: number;
+            fallbacks: number;
+            blockDistribution: Record<string, number>;
+        };
+        // Backwards-compatible aliases reflecting baseline:
         parseFailures: number;
         fallbacks: number;
         blockDistribution: Record<string, number>;
@@ -61,6 +72,7 @@ export interface CorpusReport {
             conversionFailures: number;
             compileFailures: number;
         };
+        // Backwards-compatible aliases reflecting baseline:
         converted: number;
         conversionFailures: number;
         compileFailures: number;
@@ -117,6 +129,20 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         corpusSet: category,
         markdown: {
             documents: documents.length,
+            baseline: {
+                parseFailures: 0,
+                fallbacks: 0,
+                blockDistribution: {},
+            },
+            ...(options.candidateParser
+                ? {
+                      candidate: {
+                          parseFailures: 0,
+                          fallbacks: 0,
+                          blockDistribution: {},
+                      },
+                  }
+                : {}),
             parseFailures: 0,
             fallbacks: 0,
             blockDistribution: {},
@@ -166,29 +192,76 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     // 1. Process Markdown documents
     const mdStart = Date.now();
     for (const doc of documents) {
+        let baseRes: any = null;
+        let baseErr: any = null;
+        let candRes: any = null;
+        let candErr: any = null;
+
+        // 1a. Run Baseline parser in isolated try/catch
         try {
-            const baseRes = await activeBaselineParser(doc.text, doc.id);
-            for (const d of baseRes.diagnostics || []) {
+            baseRes = await activeBaselineParser(doc.text, doc.id);
+            for (const d of baseRes?.diagnostics || []) {
                 report.diagnostics.push({
-                    domain: 'markdown',
+                    domain: 'markdown_baseline',
                     id: doc.id,
                     code: d.code,
                     message: d.message,
                 });
             }
 
-            const msg = baseRes.bundle?.conversation?.messages?.[0];
+            const msg = baseRes?.bundle?.conversation?.messages?.[0];
             for (const block of msg?.blocks || []) {
-                report.markdown.blockDistribution[block.type] =
-                    (report.markdown.blockDistribution[block.type] || 0) + 1;
+                report.markdown.baseline.blockDistribution[block.type] =
+                    (report.markdown.baseline.blockDistribution[block.type] || 0) + 1;
                 if (block.type === 'unknown') {
-                    report.markdown.fallbacks += 1;
+                    report.markdown.baseline.fallbacks += 1;
                 }
             }
+        } catch (err: any) {
+            baseErr = err;
+            report.markdown.baseline.parseFailures += 1;
+            report.diagnostics.push({
+                domain: 'markdown_baseline',
+                id: doc.id,
+                message: `Baseline fatal parse exception: ${err.message || String(err)}`,
+            });
+        }
 
-            // Differential comparison if candidate parser injected
-            if (options.candidateParser) {
-                const candRes = await options.candidateParser(doc.text, doc.id);
+        // 1b. Run Candidate parser in isolated try/catch (runs REGARDLESS of baseline)
+        if (options.candidateParser) {
+            try {
+                candRes = await options.candidateParser(doc.text, doc.id);
+                for (const d of candRes?.diagnostics || []) {
+                    report.diagnostics.push({
+                        domain: 'markdown_candidate',
+                        id: doc.id,
+                        code: d.code,
+                        message: d.message,
+                    });
+                }
+
+                const msg = candRes?.bundle?.conversation?.messages?.[0];
+                for (const block of msg?.blocks || []) {
+                    report.markdown.candidate!.blockDistribution[block.type] =
+                        (report.markdown.candidate!.blockDistribution[block.type] || 0) + 1;
+                    if (block.type === 'unknown') {
+                        report.markdown.candidate!.fallbacks += 1;
+                    }
+                }
+            } catch (err: any) {
+                candErr = err;
+                report.markdown.candidate!.parseFailures += 1;
+                report.diagnostics.push({
+                    domain: 'markdown_candidate',
+                    id: doc.id,
+                    message: `Candidate fatal parse exception: ${err.message || String(err)}`,
+                });
+            }
+        }
+
+        // 1c. Differential comparison if candidate parser was injected
+        if (options.candidateParser) {
+            if (baseRes && candRes) {
                 const diff = compareMarkdownAst(doc.text, baseRes.bundle, candRes.bundle);
                 if (diff.hasDiff) {
                     report.markdown.diffCount += 1;
@@ -203,19 +276,46 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         rationale: diff.rationale,
                     });
                 }
+            } else if (!baseErr && candErr) {
+                // Baseline succeeded, candidate threw
+                report.markdown.diffCount += 1;
+                report.markdown.diffsByCategory.D_CANNOT_DETERMINE += 1;
+                report.diffs.push({
+                    id: doc.id,
+                    domain: 'markdown',
+                    category: 'D_CANNOT_DETERMINE',
+                    rationale: `Candidate threw fatal exception while baseline succeeded: ${candErr.message || String(candErr)}`,
+                });
+            } else if (baseErr && !candErr) {
+                // Baseline threw, candidate succeeded
+                report.markdown.diffCount += 1;
+                report.markdown.diffsByCategory.D_CANNOT_DETERMINE += 1;
+                report.diffs.push({
+                    id: doc.id,
+                    domain: 'markdown',
+                    category: 'D_CANNOT_DETERMINE',
+                    rationale: `Baseline threw fatal exception while candidate succeeded. Candidate recovery observed.`,
+                });
+            } else if (baseErr && candErr) {
+                // Both threw
+                report.markdown.diffCount += 1;
+                report.markdown.diffsByCategory.D_CANNOT_DETERMINE += 1;
+                report.diffs.push({
+                    id: doc.id,
+                    domain: 'markdown',
+                    category: 'D_CANNOT_DETERMINE',
+                    rationale: `Both baseline and candidate threw fatal exceptions.`,
+                });
             }
-        } catch (err: any) {
-            report.markdown.parseFailures += 1;
-            report.diagnostics.push({
-                domain: 'markdown',
-                id: doc.id,
-                message: `Fatal parse exception: ${err.message || String(err)}`,
-            });
         }
     }
     const mdEnd = Date.now();
     report.markdown.totalDurationMs = mdEnd - mdStart;
     report.markdown.avgDurationMs = documents.length > 0 ? (mdEnd - mdStart) / documents.length : 0;
+    // Keep top-level aliases synchronized with baseline
+    report.markdown.parseFailures = report.markdown.baseline.parseFailures;
+    report.markdown.fallbacks = report.markdown.baseline.fallbacks;
+    report.markdown.blockDistribution = report.markdown.baseline.blockDistribution;
 
     // 2. Process Math expressions
     const mathStart = Date.now();
@@ -223,16 +323,20 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     const candidateSuccessful: Array<{ id: string; latex: string; display: boolean }> = [];
 
     for (const expr of mathExpressions) {
+        let baseRes: any = null;
+        let baseErr: any = null;
+        let candRes: any = null;
+        let candErr: any = null;
+
+        // 2a. Run Baseline converter in isolated try/catch
         try {
-            const baseRes = activeBaselineConverter(expr.latex, !!expr.display);
-            if (baseRes.typst) {
+            baseRes = activeBaselineConverter(expr.latex, !!expr.display);
+            if (baseRes?.typst) {
                 report.math.baseline.converted += 1;
-                report.math.converted += 1;
                 baselineSuccessful.push(expr);
             } else {
                 report.math.baseline.conversionFailures += 1;
-                report.math.conversionFailures += 1;
-                if (baseRes.diagnostic) {
+                if (baseRes?.diagnostic) {
                     report.diagnostics.push({
                         domain: 'math_baseline',
                         id: expr.id,
@@ -241,16 +345,26 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     });
                 }
             }
+        } catch (err: any) {
+            baseErr = err;
+            report.math.baseline.conversionFailures += 1;
+            report.diagnostics.push({
+                domain: 'math_baseline',
+                id: expr.id,
+                message: `Baseline fatal math conversion exception: ${err.message || String(err)}`,
+            });
+        }
 
-            // Differential comparison if candidate converter injected
-            if (options.candidateConverter) {
-                const candRes = options.candidateConverter(expr.latex, !!expr.display);
-                if (candRes.typst) {
+        // 2b. Run Candidate converter in isolated try/catch (runs REGARDLESS of baseline)
+        if (options.candidateConverter) {
+            try {
+                candRes = options.candidateConverter(expr.latex, !!expr.display);
+                if (candRes?.typst) {
                     report.math.candidate!.converted += 1;
                     candidateSuccessful.push(expr);
                 } else {
                     report.math.candidate!.conversionFailures += 1;
-                    if (candRes.diagnostic) {
+                    if (candRes?.diagnostic) {
                         report.diagnostics.push({
                             domain: 'math_candidate',
                             id: expr.id,
@@ -259,7 +373,20 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         });
                     }
                 }
+            } catch (err: any) {
+                candErr = err;
+                report.math.candidate!.conversionFailures += 1;
+                report.diagnostics.push({
+                    domain: 'math_candidate',
+                    id: expr.id,
+                    message: `Candidate fatal math conversion exception: ${err.message || String(err)}`,
+                });
+            }
+        }
 
+        // 2c. Differential comparison if candidate converter was injected
+        if (options.candidateConverter) {
+            if (baseRes && candRes) {
                 const diff = compareMathConversion(expr.latex, baseRes, candRes);
                 if (diff.hasDiff) {
                     report.math.diffCount += 1;
@@ -274,20 +401,42 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         rationale: diff.rationale,
                     });
                 }
+            } else if (!baseErr && candErr) {
+                report.math.diffCount += 1;
+                report.math.diffsByCategory.D_CANNOT_DETERMINE += 1;
+                report.diffs.push({
+                    id: expr.id,
+                    domain: 'latex',
+                    category: 'D_CANNOT_DETERMINE',
+                    rationale: `Candidate threw fatal math exception while baseline completed.`,
+                });
+            } else if (baseErr && !candErr) {
+                report.math.diffCount += 1;
+                report.math.diffsByCategory.D_CANNOT_DETERMINE += 1;
+                report.diffs.push({
+                    id: expr.id,
+                    domain: 'latex',
+                    category: 'D_CANNOT_DETERMINE',
+                    rationale: `Baseline threw fatal math exception while candidate completed.`,
+                });
+            } else if (baseErr && candErr) {
+                report.math.diffCount += 1;
+                report.math.diffsByCategory.D_CANNOT_DETERMINE += 1;
+                report.diffs.push({
+                    id: expr.id,
+                    domain: 'latex',
+                    category: 'D_CANNOT_DETERMINE',
+                    rationale: `Both baseline and candidate threw fatal math conversion exceptions.`,
+                });
             }
-        } catch (err: any) {
-            report.math.baseline.conversionFailures += 1;
-            report.math.conversionFailures += 1;
-            report.diagnostics.push({
-                domain: 'math',
-                id: expr.id,
-                message: `Fatal math conversion exception: ${err.message || String(err)}`,
-            });
         }
     }
     const mathEnd = Date.now();
     report.math.totalDurationMs = mathEnd - mathStart;
     report.math.avgDurationMs = mathExpressions.length > 0 ? (mathEnd - mathStart) / mathExpressions.length : 0;
+    // Keep top-level aliases synchronized with baseline
+    report.math.converted = report.math.baseline.converted;
+    report.math.conversionFailures = report.math.baseline.conversionFailures;
 
     // 3. Genuine Typst WASM compilation gate (100% of expressions evaluated, no truncation)
     if (options.compileTypst) {

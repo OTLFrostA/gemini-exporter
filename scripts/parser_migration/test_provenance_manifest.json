@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "generatedAt": "2026-09-28",
   "classificationDefinitions": {
     "P0": "Real Gemini: Strictly requires verified raw payload evidence file and originalHash. ONLY tier that can justify compatibility rules. (Currently 0 pending real session captures).",
@@ -572,35 +572,40 @@
       "file": "tests/canonical-nested-inline-fidelity.test.ts",
       "domain": "markdown",
       "classification": "P1",
-      "provenanceSource": "CommonMark/GFM nested inline formatting and project break normalization",
+      "provenanceSource": "CommonMark 0.30 / GFM nested inline formatting and project break normalization",
       "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Validates nested inline Markdown formatting and HTML break normalization. Test 6 is non-standard GFM table pipe handling.",
+      "notes": "Fidelity 1, 3, 4, 5 are P1 (CommonMark/GFM spec); Fidelity 2, 7 are P2 (project HTML break normalization); Fidelity 6 is P3 (non-standard GFM table pipe handling).",
       "testCount": 7,
       "tests": [
         {
           "name": "Fidelity 1: Table cell bold renders as <strong> and does not leak **",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "GFM Specification Section 4.7 & 6.2 (Inlines in table cells)."
         },
         {
           "name": "Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not leak literal <br>",
           "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Project HTML break normalization."
         },
         {
           "name": "Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) render completely and accurately",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 / 6.4."
         },
         {
           "name": "Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting without delimiter leakage",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 / 6.5."
         },
         {
           "name": "Fidelity 5: Emphasis wrapping links and links wrapping emphasis",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 / 6.3."
         },
         {
           "name": "Fidelity 6: Table rows with pipes inside math expressions do not split columns",
@@ -611,103 +616,121 @@
         {
           "name": "Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in both paragraph and tables",
           "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Project HTML break normalization."
         }
       ]
     },
     {
       "file": "tests/canonical-parser-hardening.test.ts",
       "domain": "markdown",
-      "classification": "P3",
-      "provenanceSource": "Handwritten parser hardening cases (borderless tables, pipe protection in code spans, balanced parens)",
-      "policy": "ROBUSTNESS_NON_BLOCKING",
-      "notes": "Synthetic edge cases developed for old parser. In new parser, standard GFM behavior takes precedence.",
+      "classification": "P1",
+      "provenanceSource": "CommonMark 0.30 & GFM specification compliance, with project asset/math mapping",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Audited at test level: CommonMark nested emphasis, GFM borderless tables, escaped pipes, and balanced parens are P1; asset/math mapping is P2; parser quirks are P3.",
       "testCount": 17,
       "tests": [
         {
           "name": "F1: display formula with trailing text keeps both, never an empty MathBlock",
           "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Hand-rolled parser math block recovery heuristic."
         },
         {
           "name": "standalone display formula is a MathBlock",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Canonical AST MathBlock mapping contract."
         },
         {
           "name": "multiple formulas on one line all survive as inline math",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Inline math mapping contract."
         },
         {
           "name": "unclosed display-math fence keeps the lines and raises a diagnostic",
           "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Hand-rolled parser math fence diagnostic heuristic."
         },
         {
           "name": "borderless table parses without leading/trailing pipes",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "GFM Specification Section 4.7 (Tables extension without outer pipes)."
         },
         {
           "name": "escaped pipes and code-span pipes do not split columns",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "GFM Specification Section 4.7 (escaped pipes and code spans)."
         },
         {
           "name": "link target with balanced parentheses is preserved",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Specification Section 6.3 (Links)."
         },
         {
           "name": "bare remote image becomes a first-class ImageInline with a remote asset",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Canonical AST asset registration contract."
         },
         {
           "name": "linked image parses as link wrapping an ImageInline",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Canonical AST linked image contract."
         },
         {
           "name": "inline image reuses the matching attachment asset",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Companion asset association contract."
         },
         {
           "name": "image with no resolvable source is missing and raises a diagnostic",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Diagnostic pipeline contract."
         },
         {
           "name": "multiple images in one paragraph each get their own asset",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Canonical AST multiple asset registration contract."
         },
         {
           "name": "nested emphasis: strong containing emphasis",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Specification Section 6.2 (Emphasis and strong emphasis)."
         },
         {
           "name": "nested emphasis: emphasis containing strong",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Specification Section 6.2."
         },
         {
           "name": "triple-star and strikethrough keep their node shapes",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 (strong+em) & GFM (strikethrough)."
         },
         {
           "name": "unclosed emphasis markers stay literal text",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 (unclosed delimiters remain literal)."
         },
         {
           "name": "dollar prices are not treated as math",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "Text preservation: currency amounts are not math."
         }
       ]
     },
@@ -867,57 +890,136 @@
     {
       "file": "tests/canonical-underscore-delimiter.test.ts",
       "domain": "markdown",
-      "classification": "P4",
-      "provenanceSource": "Handwritten regex rules in old markdownToBlocks.ts for parseEmphasis() underscore delimiters",
-      "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
-      "notes": "Tightly coupled to old regex delimiter stack. New CommonMark parser uses standard intraword underscore rules.",
-      "testCount": 5,
+      "classification": "P1",
+      "provenanceSource": "CommonMark 0.30 Specification Section 6.2 (Left- and right-flanking delimiter run rules)",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Verifies CommonMark 0.30 rules: intra-word underscores (foo_bar) stay plain text; valid _italic_ and __strong__ parse to emphasis.",
+      "testCount": 17,
       "tests": [
         {
+          "name": "underscore stays text: foo_bar",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385: intra-word underscore cannot open or close emphasis."
+        },
+        {
+          "name": "underscore stays text: foo_bar_baz",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: T_N",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: S_i",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: V_{eff}",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: \\omega_c",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: \\sum_{\\langle i, j \\rangle} \\vec{S}_i",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: |\\Theta_{CW}|/T_N",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: gemini_test_1790464921_a7b4a079.custom",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: file_name.txt",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: snake_case_variable",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
+          "name": "underscore stays text: gemini_test_123",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Example 385."
+        },
+        {
           "name": "legit italic: _this is italic_",
-          "classification": "P4",
-          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 emphasis."
         },
         {
           "name": "legit italic inside sentence: word _italic_ word",
-          "classification": "P4",
-          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 emphasis."
         },
         {
           "name": "legit strong: __strong__",
-          "classification": "P4",
-          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 strong."
         },
         {
           "name": "legit strong inside sentence: word __strong__ word",
-          "classification": "P4",
-          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2 strong."
         },
         {
           "name": "star emphasis unchanged: *italic* and **bold**",
-          "classification": "P4",
-          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark 0.30 Section 6.2."
         }
       ]
     },
     {
       "file": "tests/canonical-underscore-html-regression.test.ts",
       "domain": "markdown",
-      "classification": "P3",
-      "provenanceSource": "Real Tier 2 production conversation containing LaTeX-like identifiers and snake_case file names",
-      "policy": "ROBUSTNESS_NON_BLOCKING",
-      "notes": "Synthetic underscore cases mirroring Tier 2 checks without raw payload evidence.",
+      "classification": "P1",
+      "provenanceSource": "CommonMark 0.30 delimiter flanking rules through Canonical HTML Renderer pipeline",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Verifies CommonMark underscore rules in HTML rendering: LaTeX macros and intra-word underscores do not receive <em>; legit _italic_ renders <em>.",
       "testCount": 2,
       "tests": [
         {
           "name": "full pipeline keeps LaTeX-like underscores and file names intact",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark Section 6.2: intra-word underscores must not inject <em>."
         },
         {
           "name": "legit underscore emphasis still renders in HTML",
-          "classification": "P3",
-          "policy": "ROBUSTNESS_NON_BLOCKING"
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "CommonMark Section 6.2: legit _italic_ and __strong__ render <em> and <strong>."
         }
       ]
     },
@@ -1062,22 +1164,24 @@
         {
           "name": "W3-2: real WASM compile of cases + operatorname* + compose, zero errors",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "Compiles standard LaTeX through real Typst WASM compiler."
         },
         {
           "name": "microlensing PDF formulas with arg and pmod compile without fallback",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "Compiles standard formulas through real Typst WASM compiler."
         }
       ]
     },
     {
       "file": "tests/typst-math-converter.test.ts",
       "domain": "latex",
-      "classification": "P1",
-      "provenanceSource": "LaTeX math converter unit suite: standard LaTeX syntax, diagnostics, and legacy string asserts",
-      "policy": "VERIFY_AGAINST_STANDARD",
-      "notes": "Audited at test level: standard LaTeX is P1; diagnostics/security are P2; non-standard operators/prescripts are P3; exact string spacing is P4.",
+      "classification": "P4",
+      "provenanceSource": "Legacy LaTeX-to-Typst string converter unit suite and project security/diagnostic contracts",
+      "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+      "notes": "Audited at test level: 15 tests asserting exact string whitespace/symbols from old converter are P4; security/diagnostics are P2; non-standard operators/prescripts/fail-whole policies are P3.",
       "testCount": 28,
       "tests": [
         {
@@ -1088,33 +1192,39 @@
         },
         {
           "name": "frac / sqrt / nested",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string spacing such as frac(1, 2)."
         },
         {
           "name": "sub/superscripts incl. multi-char and big operators",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output such as sum_(i = 1)^n."
         },
         {
           "name": "greek letters",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output Omega + Gamma."
         },
         {
           "name": "operators and relations",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy symbol choices such as 120^compose and plus.minus."
         },
         {
           "name": "functions, calculus, sets",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output."
         },
         {
           "name": "accents",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output arrow(a) + arrow(S)_i."
         },
         {
           "name": "bra-ket and standalone angle delimiters",
@@ -1130,35 +1240,39 @@
         },
         {
           "name": "left/right delimiters",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string spacing with parentheses."
         },
         {
           "name": "line break \\\\ only in display mode",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT",
-          "notes": "Project policy: rejects line breaks in inline math mode."
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Old converter display-only line break heuristic."
         },
         {
           "name": "multiple formulas in one source",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output."
         },
         {
           "name": "illegal input fails whole with diagnostic",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT",
-          "notes": "Project policy: whole-input failure on syntax error."
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Old parser fail-whole heuristic on malformed LaTeX; not a product contract."
         },
         {
           "name": "empty input returns undefined with empty diagnostic",
           "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Diagnostic contract for empty input."
         },
         {
           "name": "non-latex notations are unsupported with diagnostic",
           "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Diagnostic contract for unsupported math notations."
         },
         {
           "name": "prototype-chain command names cannot smuggle JS builtins",
@@ -1169,17 +1283,20 @@
         {
           "name": "diagnostic message carries a source preview for debugging",
           "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
+          "policy": "PRESERVE_PROJECT_CONTRACT",
+          "notes": "Developer UX diagnostic contract."
         },
         {
           "name": "rich symbols, styles, functions, and multiple integrals",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy symbol choices such as planck.reduce."
         },
         {
           "name": "matrix and cases environments",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy matrix/cases string output."
         },
         {
           "name": "operatorname and custom operators",
@@ -1189,8 +1306,9 @@
         },
         {
           "name": "malformed \\operatorname fails the whole conversion with a diagnostic",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
+          "classification": "P3",
+          "policy": "ROBUSTNESS_NON_BLOCKING",
+          "notes": "Old converter fail-whole heuristic."
         },
         {
           "name": "font switches and styling (\\rm, \\bf, \\it, \\cal, etc.)",
@@ -1206,23 +1324,27 @@
         },
         {
           "name": "escaped percent and greek / relation variants",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output."
         },
         {
           "name": "extensible arrows (\\xrightarrow, \\xleftarrow, \\xrightleftharpoons, etc.)",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output scripts(-->)."
         },
         {
           "name": "delimiter sizing commands (\\big, \\Big, etc.)",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string spacing."
         },
         {
           "name": "equilibrium arrow, relations, and dagger symbols",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "classification": "P4",
+          "policy": "LEGACY_IMPLEMENTATION_SPECIFIC",
+          "notes": "Asserts exact legacy string output harpoons.rtlb."
         },
         {
           "name": "plugs into the payload adapter convertMath hook",
@@ -1250,7 +1372,8 @@
         {
           "name": "typst math corpus: representative cases real WASM compilation smoke test",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "Real WASM compilation of representative math items."
         }
       ]
     },
@@ -1278,7 +1401,8 @@
         {
           "name": "W2-3: real WASM compile: zero errors, PDF carries ∫ (U+222B)",
           "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD"
+          "policy": "VERIFY_AGAINST_STANDARD",
+          "notes": "Real WASM compile producing PDF with U+222B."
         }
       ]
     },
@@ -1554,13 +1678,13 @@
   ],
   "summary": {
     "totalSuites": 27,
-    "totalTests": 246,
+    "totalTests": 258,
     "byClassification": {
       "P0": 0,
-      "P1": 22,
-      "P2": 190,
-      "P3": 24,
-      "P4": 10
+      "P1": 35,
+      "P2": 194,
+      "P3": 10,
+      "P4": 19
     }
   },
   "lastAudited": "2026-09-28"

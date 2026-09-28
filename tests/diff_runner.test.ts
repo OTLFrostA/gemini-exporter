@@ -116,3 +116,170 @@ test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERM
     );
     assert.strictEqual(overrideA.category, 'A_NEW_PARSER_CORRECT');
 });
+
+test('Differential Runner: Ignores ephemeral metadata (id, sourceRef, extensions) when content is identical', () => {
+    const bundleA = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    id: 'b-random-uuid-1',
+                    type: 'paragraph',
+                    sourceRef: { start: 0, end: 10, line: 1 },
+                    extensions: { provider: 'testA' },
+                    children: [{
+                        type: 'strong',
+                        children: [{ type: 'text', text: 'Important' }],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const bundleB = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    id: 'b-completely-different-uuid-2',
+                    type: 'paragraph',
+                    sourceRef: { start: 20, end: 30, line: 2 },
+                    extensions: { provider: 'testB' },
+                    children: [{
+                        type: 'strong',
+                        children: [{ type: 'text', text: 'Important' }],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const result = compareMarkdownAst('**Important**', bundleA, bundleB);
+    assert.strictEqual(result.hasDiff, false, 'Ephemeral metadata differences must not trigger a semantic diff');
+});
+
+test('Differential Runner: Recursively catches lost formatting (strong -> text)', () => {
+    const bundleWithBold = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [{
+                        type: 'strong',
+                        children: [{ type: 'text', text: 'Important' }],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const bundleWithPlainText = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [{
+                        type: 'text',
+                        text: 'Important',
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const result = compareMarkdownAst('**Important**', bundleWithBold, bundleWithPlainText);
+    assert.strictEqual(result.hasDiff, true, 'Dropping strong to plain text must be detected as a diff');
+    assert.strictEqual(result.category, 'D_CANNOT_DETERMINE');
+    assert.strictEqual(result.rationaleKind, 'FORMATTING_LOST');
+    assert.ok(result.rationale?.includes('baseline formatting \'strong\' was lost in candidate to plain text'));
+});
+
+test('Differential Runner: Recursively catches link href corruption', () => {
+    const bundleLinkA = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [{
+                        type: 'link',
+                        href: 'https://correct.org',
+                        children: [{ type: 'text', text: 'Link' }],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const bundleLinkB = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [{
+                        type: 'link',
+                        href: 'https://corrupted.org',
+                        children: [{ type: 'text', text: 'Link' }],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const result = compareMarkdownAst('[Link](https://correct.org)', bundleLinkA, bundleLinkB);
+    assert.strictEqual(result.hasDiff, true);
+    assert.strictEqual(result.category, 'D_CANNOT_DETERMINE');
+    assert.strictEqual(result.rationaleKind, 'LINK_CORRUPTED');
+    assert.ok(result.rationale?.includes('https://correct.org'));
+});
+
+test('Differential Runner: Recursively catches table structure and cell alterations', () => {
+    const bundleTableA = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'table',
+                    columns: [{ align: 'left' }, { align: 'right' }],
+                    headerRows: [{
+                        cells: [
+                            { children: [{ type: 'text', text: 'H1' }] },
+                            { children: [{ type: 'text', text: 'H2' }] },
+                        ],
+                    }],
+                    rows: [{
+                        cells: [
+                            { children: [{ type: 'text', text: 'Cell1' }] },
+                            { children: [{ type: 'text', text: 'Cell2' }] },
+                        ],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const bundleTableB = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'table',
+                    columns: [{ align: 'left' }, { align: 'center' }], // alignment differs
+                    headerRows: [{
+                        cells: [
+                            { children: [{ type: 'text', text: 'H1' }] },
+                            { children: [{ type: 'text', text: 'H2' }] },
+                        ],
+                    }],
+                    rows: [{
+                        cells: [
+                            { children: [{ type: 'text', text: 'Cell1' }] },
+                            { children: [{ type: 'text', text: 'Cell2' }] },
+                        ],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const result = compareMarkdownAst('| H1 | H2 |', bundleTableA, bundleTableB);
+    assert.strictEqual(result.hasDiff, true);
+    assert.strictEqual(result.category, 'D_CANNOT_DETERMINE');
+    assert.strictEqual(result.rationaleKind, 'TABLE_DIVERGENCE');
+});
+
