@@ -62,7 +62,7 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     await optionsPage.close();
   });
 
-  test('should trigger live save execution and display visual badge feedback on completion', async ({ context, extensionId }) => {
+  test('page postMessage cannot trigger a live save write or mock feedback', async ({ context, extensionId }) => {
     const geminiPage = await context.newPage();
 
     // Route HTML for Gemini page
@@ -109,7 +109,7 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     const badge = geminiPage.locator('#geminiExportBadge');
     await expect(badge).toBeVisible();
 
-    // Trigger live save via window.postMessage with mockMode to test in-page visual badge feedback
+    // A page script must not invoke the extension's disk writer or mock mode.
     await geminiPage.evaluate(() => {
       window.postMessage({
         type: 'GEMINI_LIVE_SAVE_TRIGGER',
@@ -121,10 +121,8 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
       }, location.origin);
     });
 
-    // Verify badge received feedback state
-    await expect(badge).toHaveClass(/live-saved/, { timeout: 4000 });
-    const badgeText = geminiPage.locator('#geminiExportBadgeText');
-    await expect(badgeText).toContainText('✓', { timeout: 4000 });
+    await geminiPage.waitForTimeout(500);
+    await expect(badge).not.toHaveClass(/live-saved/);
 
     await geminiPage.close();
   });

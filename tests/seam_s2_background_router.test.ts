@@ -8,6 +8,7 @@ const sessionData: Record<string, any> = {};
 
 // Controls what chrome.tabs.sendMessage delivers to the background.
 let tabReply: any = { success: true, data: { id: 'c_1', messages: [] } };
+let tabResponder: ((_msg: any, cb: any) => void) | null = null;
 
 (global as any).chrome = {
     runtime: {
@@ -16,9 +17,15 @@ let tabReply: any = { success: true, data: { id: 'c_1', messages: [] } };
         setUninstallURL: (_u: string, cb?: any) => { if (cb) cb(); },
         getURL: (p: string) => `chrome-extension://test/${p}`,
         getPlatformInfo: (cb: any) => { if (cb) cb({}); },
+        sendMessage: async () => {},
         lastError: null,
     },
     storage: {
+        local: {
+            get: async (_keys: any) => ({ gemini_schema_version: 1 }),
+            set: async (_obj: any) => {},
+            remove: async (_keys: any) => {},
+        },
         session: {
             get: async (keys: any) => {
                 if (keys === null) return { ...sessionData };
@@ -37,7 +44,7 @@ let tabReply: any = { success: true, data: { id: 'c_1', messages: [] } };
         onActivated: { addListener: () => {} },
         onUpdated: { addListener: () => {} },
         query: async () => [{ id: 42, url: 'https://gemini.google.com/app', active: true }],
-        sendMessage: (_tabId: number, _msg: any, cb: any) => { cb(tabReply); },
+        sendMessage: (_tabId: number, msg: any, cb: any) => { if (tabResponder) tabResponder(msg, cb); else cb(tabReply); },
     },
     action: {
         setIcon: async () => {},
@@ -95,6 +102,96 @@ test('S2 - fetchChat passes a real tab response through untouched', async () => 
     assert.strictEqual(responses.length, 1);
     assert.strictEqual(responses[0].success, true);
     assert.strictEqual(responses[0].data.id, 'c_1');
+});
+
+test('queued fetchBatch submitted before cancel must not restart after the in-flight batch drains', async () => {
+    const { clearAllAborts, setSlotAborted } = require('../src/background/abortManager.js');
+    clearAllAborts();
+    let detailCalls = 0;
+    let releaseFirstDetail: any = null;
+    tabResponder = (msg: any, cb: any) => {
+        if (msg.action === 'getConversationDetail') {
+            detailCalls++;
+            if (detailCalls === 1) releaseFirstDetail = () => cb({ success: false, error: 'cancelled' });
+            else cb({ success: true, data: { id: msg.conversationId, messages: [] } });
+        } else cb(tabReply);
+    };
+    const listener = lastListener();
+    const responses: any[] = [];
+    try {
+        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['first'] }, {}, (r: any) => responses.push(r));
+        while (detailCalls === 0) await new Promise(r => setTimeout(r, 5));
+        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['queued'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'cancelExport', accountSlot: 'u0' }, {}, () => {});
+        const deadline = Date.now() + 1000;
+        while (responses.length < 2 && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
+        assert.strictEqual(detailCalls, 1, 'queued pre-cancel batch must never contact the tab');
+        assert.strictEqual(responses.length, 2);
+        assert.ok(responses.every(r => r.aborted), 'both responses should report cancellation');
+    } finally {
+        if (releaseFirstDetail) releaseFirstDetail();
+        tabResponder = null;
+        await setSlotAborted('u0', false);
+        clearAllAborts();
+    }
+});
+
+test('same-slot batches do not overlap the shared abort controller in production routing', async () => {
+    const { clearAllAborts } = require('../src/background/abortManager.js');
+    clearAllAborts();
+    let detailCalls = 0;
+    let releaseFirst: any = null;
+    tabResponder = (msg: any, cb: any) => {
+        if (msg.action === 'getConversationDetail') {
+            detailCalls++;
+            if (detailCalls === 1) releaseFirst = () => cb({ success: true, data: { id: 'first', messages: [] } });
+            else cb({ success: true, data: { id: 'second', messages: [] } });
+        } else cb(tabReply);
+    };
+    const listener = lastListener();
+    const responses: any[] = [];
+    try {
+        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['first'] }, {}, (r: any) => responses.push(r));
+        while (detailCalls === 0) await new Promise(r => setTimeout(r, 5));
+        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['second'] }, {}, (r: any) => responses.push(r));
+        await new Promise(resolve => setImmediate(resolve));
+        assert.strictEqual(detailCalls, 1);
+        releaseFirst();
+        const deadline = Date.now() + 1000;
+        while (responses.length < 2 && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
+        assert.strictEqual(detailCalls, 2);
+        assert.strictEqual(responses.length, 2);
+        assert.ok(responses.every(r => r.success));
+    } finally {
+        if (releaseFirst) releaseFirst();
+        tabResponder = null;
+        clearAllAborts();
+    }
+});
+
+test('back-to-back batches submitted before the first starts both run without cancellation', async () => {
+    const { clearAllAborts } = require('../src/background/abortManager.js');
+    clearAllAborts();
+    const sent: string[] = [];
+    tabResponder = (msg: any, cb: any) => {
+        if (msg.action === 'getConversationDetail') {
+            sent.push(msg.conversationId);
+            cb({ success: true, data: { id: msg.conversationId, messages: [] } });
+        } else cb(tabReply);
+    };
+    const listener = lastListener();
+    const responses: any[] = [];
+    try {
+        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['first'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['second'] }, {}, (r: any) => responses.push(r));
+        const deadline = Date.now() + 1000;
+        while (responses.length < 2 && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
+        assert.deepStrictEqual(sent, ['first', 'second']);
+        assert.ok(responses.every(r => r.success));
+    } finally {
+        tabResponder = null;
+        clearAllAborts();
+    }
 });
 
 test('S2 - scanProgress broadcast stays fire-and-forget (no response)', async () => {

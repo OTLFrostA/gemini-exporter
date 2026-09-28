@@ -94,6 +94,14 @@ test('zipWriter - writeFile and generateBlob', async () => {
     assert.strictEqual(progressReported, 100);
 });
 
+test('zipWriter counts Blob bytes toward the safety limit', () => {
+    const writer = new ZipWriter('blob_limit');
+    writer.MAX_SAFE_ZIP_BYTES = 10;
+    writer.writeFile('small.bin', new Blob([new Uint8Array(8)]));
+    assert.strictEqual(writer.getTotalBytes(), 8);
+    assert.throws(() => writer.writeFile('large.bin', new Blob([new Uint8Array(3)])), /上限/);
+});
+
 // ---------------------------------------------------------------------------
 // WriterInterface
 // ---------------------------------------------------------------------------
@@ -314,5 +322,4 @@ test('fsWriter - writes via relativePath and decodes base64 correctly', async ()
     assert.strictEqual(targetFileName, 'plain.txt');
     assert.strictEqual(writtenData, 'plain text');
 });
-
 

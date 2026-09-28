@@ -217,5 +217,5 @@ test('MessageBridge: ignores malformed conversation IDs in CONVERSATION_DELETED 
         }
     });
 
-    assert.strictEqual(removedCalled, true, 'Valid conversation ID should call removeConversation');
+    assert.strictEqual(removedCalled, false, 'Valid page event must still be verified before deletion');
 });

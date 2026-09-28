@@ -2,7 +2,7 @@ import GeminiProtocol, { GeminiProtocolModule } from "../../protocol/protocol.js
 import { detectSlotFromUrl } from "../../utils/pathUtils.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
-import { getCredStorage } from "./credStorage.js";
+import { getCredStorage, withCredMapLock } from "./credStorage.js";
 
 export interface GeminiCredentials {
     sid: string;
@@ -141,7 +141,7 @@ function getProtocol(): GeminiProtocolModule {
         targetSidOrSlot?: string | null,
         overrides?: { at?: string; bl?: string; accountSlot?: string } | null
     ): Promise<GeminiCredentials> {
-        return runSerializedResolve(() => resolveCredInner(targetSidOrSlot, overrides));
+        return runSerializedResolve(() => withCredMapLock(() => resolveCredInner(targetSidOrSlot, overrides)));
     }
 
     async function resolveCredInner(
@@ -241,38 +241,40 @@ function getProtocol(): GeminiProtocolModule {
     }
 
     async function migrateCredentials(): Promise<boolean> {
-        const storage = getCredStorage();
-        if (!storage) return false;
-        let migrated = false;
-        try {
-            const s: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-            const map: GeminiCredentialsMap = s[STORAGE_KEYS.CREDENTIALS_MAP] || {};
-            const before = Object.keys(map).length;
-            normalizeLegacySingleCred(s, map);
-            if (Object.keys(map).length !== before) migrated = true;
-            if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                try {
-                    const localS: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                    const localMap: GeminiCredentialsMap = localS[STORAGE_KEYS.CREDENTIALS_MAP] || {};
-                    normalizeLegacySingleCred(localS, localMap);
-                    let merged = false;
-                    for (const [k, v] of Object.entries(localMap)) {
-                        if (!map[k]) { map[k] = v; merged = true; }
-                    }
-                    if (merged) {
-                        migrated = true;
-                        await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                    }
-                } catch { /* intentional: migration fallback */ }
-            }
-            if (migrated) {
-                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-            }
-            if (s?.[STORAGE_KEYS.CREDENTIALS] && typeof storage.remove === 'function') {
-                await storage.remove([STORAGE_KEYS.CREDENTIALS]);
-            }
-        } catch { /* migration best-effort */ }
-        return migrated;
+        return withCredMapLock(async () => {
+            const storage = getCredStorage();
+            if (!storage) return false;
+            let migrated = false;
+            try {
+                const s: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                const map: GeminiCredentialsMap = s[STORAGE_KEYS.CREDENTIALS_MAP] || {};
+                const before = Object.keys(map).length;
+                normalizeLegacySingleCred(s, map);
+                if (Object.keys(map).length !== before) migrated = true;
+                if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
+                    try {
+                        const localS: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                        const localMap: GeminiCredentialsMap = localS[STORAGE_KEYS.CREDENTIALS_MAP] || {};
+                        normalizeLegacySingleCred(localS, localMap);
+                        let merged = false;
+                        for (const [k, v] of Object.entries(localMap)) {
+                            if (!map[k]) { map[k] = v; merged = true; }
+                        }
+                        if (merged) {
+                            migrated = true;
+                            await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                        }
+                    } catch { /* intentional: migration fallback */ }
+                }
+                if (migrated) {
+                    await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+                }
+                if (s?.[STORAGE_KEYS.CREDENTIALS] && typeof storage.remove === 'function') {
+                    await storage.remove([STORAGE_KEYS.CREDENTIALS]);
+                }
+            } catch { /* migration best-effort */ }
+            return migrated;
+        });
     }
 
 export {

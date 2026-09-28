@@ -127,14 +127,20 @@ async function migrateSlimConversations(): Promise<void> {
 
     try {
         const u0Data = (await chrome.storage.local.get(['gemini_conversations_u0', 'gemini_conversations'])) as Record<string, any>;
-        if (u0Data && u0Data.gemini_conversations_u0) {
-            if (!u0Data.gemini_conversations) {
-                await chrome.storage.local.set({ gemini_conversations: u0Data.gemini_conversations_u0 });
-                await transactConversations('u0', (list) => ({ list: list || [], changed: 0 }));
+        if (u0Data && Array.isArray(u0Data.gemini_conversations_u0)) {
+            const legacy = u0Data.gemini_conversations_u0;
+            if (legacy.length > 0) {
+                // Decide under the conversation lock: an empty canonical array
+                // is not evidence that the legacy records were already copied.
+                await transactConversations('u0', (list) =>
+                    list.length > 0 ? null : { list: legacy, changed: legacy.length });
             }
             await chrome.storage.local.remove('gemini_conversations_u0');
         }
-    } catch {}
+    } catch (e) {
+        // Keep the legacy key and withhold the schema version so startup can retry.
+        throw e;
+    }
 }
 
 async function migrateExportAliasesAll(): Promise<void> {

@@ -5,6 +5,7 @@ import {
     __bgAborts,
     restoreAbortFlags,
     isSlotAborted,
+    getSlotCancelEpoch,
     setSlotAborted,
     clearAllAborts
 } from './abortManager.js';
@@ -96,16 +97,25 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         const globalOffset = msg.globalOffset;
         const globalTotal = msg.globalTotal;
         const prev = fetchBatchChains.get(slot) || Promise.resolve();
+        const queuedCancelEpoch = getSlotCancelEpoch(slot);
         const run = prev.then(async () => {
-            // Only clear abort flag after preceding tasks have finished, ensuring in-flight
-            // cancelled batches are not resurrected before they finish draining.
-            await setSlotAborted(slot, false);
             let responded = false;
             const guardedResponse = (response: any) => {
                 if (responded) return;
                 responded = true;
                 try { sendResponse(response); } catch (_) { /* port may be gone */ }
             };
+            // A batch queued before cancellation belongs to the cancelled
+            // generation. Only a fresh request submitted afterward may reset it.
+            if (getSlotCancelEpoch(slot) !== queuedCancelEpoch) {
+                guardedResponse({ success: false, aborted: true, error: 'aborted' });
+                return;
+            }
+            await setSlotAborted(slot, false);
+            if (getSlotCancelEpoch(slot) !== queuedCancelEpoch) {
+                guardedResponse({ success: false, aborted: true, error: 'aborted' });
+                return;
+            }
             try {
                 await ensureStorageReady();
                 await fetchBatch(ids, format, skipExported, guardedResponse, globalOffset, globalTotal, slot);

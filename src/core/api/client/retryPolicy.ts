@@ -1,6 +1,7 @@
 import { GeminiClientCredentialManager, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
 import { calculateBackoff } from "../../engine/export/rateLimiter.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
+import { withCredMapLock } from './credStorage.js';
 
 export interface Http400Params {
     resp: { status: number; [key: string]: any };
@@ -67,23 +68,25 @@ export interface GeminiClientRetryPolicyModule {
 
         if ((freshAt && freshAt !== cred?.at) || (freshBl && freshBl !== cred?.bl)) {
             try {
-                const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
-                const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
+                await withCredMapLock(async () => {
+                    const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
+                    const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
 
-                if (loadMapFn && getStorageFn) {
-                    let map = await loadMapFn();
-                    if (cred?.sid && map[cred.sid]) {
-                        if (freshAt) map[cred.sid].at = freshAt;
-                        if (freshBl) map[cred.sid].bl = freshBl;
-                        const storage = getStorageFn();
-                        if (storage) {
-                            await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                            if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                    if (loadMapFn && getStorageFn) {
+                        let map = await loadMapFn();
+                        if (cred?.sid && map[cred.sid]) {
+                            if (freshAt) map[cred.sid].at = freshAt;
+                            if (freshBl) map[cred.sid].bl = freshBl;
+                            const storage = getStorageFn();
+                            if (storage) {
+                                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+                                if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
+                                    await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                                }
                             }
                         }
                     }
-                }
+                });
             } catch (e) {
                 console.warn("[GemExporter:storage] Storage operation failed:", e);
             }
@@ -100,42 +103,44 @@ export interface GeminiClientRetryPolicyModule {
         const { cred, loadCredMap, getCredStorage, refreshAtFromPage } = params;
         const sidTag = cred?.sid ? String(cred.sid).slice(0, 6) + '…' : '(no-sid)';
         try {
-            const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
-            const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
+            await withCredMapLock(async () => {
+                const loadMapFn = loadCredMap || getCredentialManager()?.loadCredMap;
+                const getStorageFn = getCredStorage || getCredentialManager()?.getCredStorage;
 
-            if (loadMapFn && getStorageFn && cred?.sid) {
-                // P2-3: 401 不等于凭证已死——页面可能已轮换出新的 at。
-                // 先尝试从页面刷新，刷新成功则更新 at 并保留凭证。
-                const atFn = refreshAtFromPage || getCredentialManager()?.getAtFromPage;
-                let freshAt: string | null = null;
-                try {
-                    freshAt = atFn ? atFn() : null;
-                } catch (_) { /* intentional: page extraction is best-effort */ }
-                if (freshAt && freshAt !== cred.at) {
-                    console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
-                    const map = await loadMapFn();
+                if (loadMapFn && getStorageFn && cred?.sid) {
+                    // P2-3: 401 不等于凭证已死——页面可能已轮换出新的 at。
+                    // 先尝试从页面刷新，刷新成功则更新 at 并保留凭证。
+                    const atFn = refreshAtFromPage || getCredentialManager()?.getAtFromPage;
+                    let freshAt: string | null = null;
+                    try {
+                        freshAt = atFn ? atFn() : null;
+                    } catch (_) { /* intentional: page extraction is best-effort */ }
+                    if (freshAt && freshAt !== cred.at) {
+                        console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面 at 已轮换，刷新凭证后保留（不删除）`);
+                        const map = await loadMapFn();
+                        if (map[cred.sid]) {
+                            map[cred.sid].at = freshAt;
+                            const storage = getStorageFn();
+                            if (storage) {
+                                await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
+                            }
+                        }
+                        return;
+                    }
+                    console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面无更新的 at，删除过期凭证`);
+                    let map = await loadMapFn();
                     if (map[cred.sid]) {
-                        map[cred.sid].at = freshAt;
+                        delete map[cred.sid];
                         const storage = getStorageFn();
                         if (storage) {
                             await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                        }
-                    }
-                    return;
-                }
-                console.warn(`[Gemini Exporter] 401 for ${sidTag}: 页面无更新的 at，删除过期凭证`);
-                let map = await loadMapFn();
-                if (map[cred.sid]) {
-                    delete map[cred.sid];
-                    const storage = getStorageFn();
-                    if (storage) {
-                        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                        if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
-                            await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                            if (typeof chrome !== "undefined" && storage !== chrome.storage.local && chrome.storage.local) {
+                                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
+                            }
                         }
                     }
                 }
-            }
+            });
         } catch (_) { /* intentional: best-effort 401 cleanup */ }
     }
 
@@ -227,4 +232,3 @@ export const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
 if (typeof module === 'object' && module.exports) module.exports = GeminiClientRetryPolicy;
 
 export default GeminiClientRetryPolicy;
-

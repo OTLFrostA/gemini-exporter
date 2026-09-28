@@ -1,9 +1,7 @@
 import { contentContext } from './contentContext.js';
 import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
-import { LiveSaveCoordinator } from './liveSaveCoordinator.js';
 import { LiveSaveObserver } from './liveSaveObserver.js';
-import { StorageService } from '../core/storage/storageService.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
 import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
 import type { TitleSource } from '../types/index.js';
@@ -11,7 +9,6 @@ import { registerCleanup } from './cleanupRegistry.js';
 import type {
     GeminiNetworkBatchexecutePayload,
     GeminiConversationDeletedPayload,
-    GeminiLiveSaveTriggerPayload,
     GeminiStreamStartPayload,
     GeminiStreamCompletePayload
 } from '../core/protocol/events.js';
@@ -62,9 +59,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         upsertConversations,
         getAccountSlot,
         isRealTitle = () => true,
-        cleanTitle = (t: string) => (t || '').trim(),
-        updateBadge,
-        Storage = StorageService
+        cleanTitle = (t: string) => (t || '').trim()
     } = _deps;
 
     if (d.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
@@ -136,54 +131,21 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     if (d.type === CrossWorldEvents.CONVERSATION_DELETED) {
-        const { id, slot } = (d.payload || {}) as Partial<GeminiConversationDeletedPayload>;
+        const { id } = (d.payload || {}) as Partial<GeminiConversationDeletedPayload>;
         const isValidConvId = typeof id === 'string' && id.trim().length > 0 && id.trim().length <= 128 && /^[a-zA-Z0-9_\-]+$/.test(id.trim());
         if (id && isValidConvId) {
             const cleanId = id.trim();
             try {
-                const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
-                if (Storage && typeof Storage.removeConversation === 'function') {
-                    const removed = await Storage.removeConversation(targetSlot, cleanId);
-                    if (removed) {
-                        const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
-                            ? await Storage.getLastSync(targetSlot)
-                            : { count: (await Storage.getConversations(targetSlot)).length };
-                        const count = syncMeta.count;
-                        if (updateBadge) updateBadge(count, 0);
-                        try {
-                            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-                                void chrome.runtime.sendMessage({
-                                    action: 'syncUpdate',
-                                    slot: targetSlot,
-                                    count,
-                                    from: 'delete-event'
-                                });
-                            }
-                        } catch (e) {
-                            if (contentContext.isDevMode()) console.debug('[MessageBridge]', e);
-                        }
-                        if (contentContext.isDevMode()) {
-                            console.log(`[MessageBridge] Realtime pruned deleted conversation ${id} from slot ${targetSlot}`);
-                        }
-                    }
+                // Route verification through the account of this content tab,
+                // never through a slot supplied by page-world JavaScript.
+                const targetSlot = (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
+                // Page-world postMessage is untrusted. The detail route only
+                // prunes after an authoritative server "confirmed_deleted" RPC.
+                if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+                    await chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: cleanId, accountSlot: targetSlot });
                 }
             } catch (err) {
-                if (contentContext.isDevMode()) console.debug('[MessageBridge] remove deleted conversation err', err);
-            }
-        }
-        return;
-    }
-
-    if (d.type === CrossWorldEvents.LIVE_SAVE_TRIGGER) {
-        const { cid, reason, ...options } = (d.payload || {}) as Partial<GeminiLiveSaveTriggerPayload>;
-        if (cid) {
-            try {
-                const coordinator = LiveSaveCoordinator;
-                if (coordinator && typeof coordinator.executeLiveSave === 'function') {
-                    await coordinator.executeLiveSave(cid, reason || 'turn_complete', options);
-                }
-            } catch (err) {
-                if (contentContext.isDevMode()) console.debug('[MessageBridge] live save trigger err', err);
+                if (contentContext.isDevMode()) console.debug('[MessageBridge] verify deleted conversation err', err);
             }
         }
         return;

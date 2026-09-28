@@ -55,6 +55,8 @@ class ZipWriter implements IExportWriter {
         if (content) {
             if (typeof content === 'string') {
                 this.totalBytes += content.length * (opts && opts.base64 ? 0.75 : 1);
+            } else if (typeof Blob !== 'undefined' && content instanceof Blob) {
+                this.totalBytes += content.size;
             } else if (content.byteLength) {
                 this.totalBytes += content.byteLength;
             } else if (content.length) {

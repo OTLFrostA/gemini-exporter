@@ -130,6 +130,18 @@ test('P1-10c: 读路径不再触发迁移写（getConversations 纯读）', asyn
     } finally { m.restore(); }
 });
 
+test('migration preserves legacy conversations when canonical u0 is empty', async () => {
+    const m = installMock();
+    try {
+        m.localStore.gemini_conversations = [];
+        m.localStore.gemini_conversations_u0 = [{ id: 'legacy1', title: 'Keep me', timestamp: 1 }];
+        const res = await SchemaMigration.migrate();
+        assert.strictEqual(res.ok, true);
+        assert.deepStrictEqual(m.localStore.gemini_conversations.map((c: any) => c.id), ['legacy1']);
+        assert.strictEqual(m.localStore.gemini_conversations_u0, undefined);
+    } finally { m.restore(); }
+});
+
 // ---------------------------------------------------------------- P1-13: 别名 / 凭证迁移
 test('P1-13c: 导出记录别名在迁移中收敛', async () => {
     const m = installMock();
@@ -285,4 +297,3 @@ test('D-P0-1: migrate() cleans up legacy gemini_conversations_u0 once canonical 
         m.restore();
     }
 });
-

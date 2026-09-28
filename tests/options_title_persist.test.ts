@@ -44,7 +44,7 @@ function installMocks() {
     });
 }
 
-function loadPersistTitleUpdate(): (chatId: string, newTitle: string, source: string) => Promise<void> {
+function loadPersistTitleUpdate(): (chatId: string, newTitle: string, source: string, exportSlot?: string) => Promise<void> {
     const mod = require('../src/ui/options/modules/optionsExport.js');
     // NOTE: requiring the module transitively loads conversationsStore.ts and
     // storageService.ts, but their self-registration only touches the legacy
@@ -108,4 +108,17 @@ test('persistTitleUpdate still updates memory when storage write is unavailable'
 
     assert.strictEqual(memConvs[0].title, '从RPC解析到的新标题');
     assert.strictEqual(storedConvs[0].title, '旧标题');
+});
+
+test('late export title callback persists to its original slot without touching the selected slot', async () => {
+    installMocks();
+    const visible = { id: 'c_aaa111', title: 'Other account title' };
+    __setModuleOverride('ConversationsStore', {
+        getConversations: () => [visible],
+        getCurrentSlot: () => 'u1',
+    });
+    const persistTitleUpdate = loadPersistTitleUpdate();
+    await persistTitleUpdate('c_aaa111', 'Original account title', 'rpc', 'u0');
+    assert.strictEqual(visible.title, 'Other account title');
+    assert.deepStrictEqual(updateCalls, [{ slot: 'u0', id: 'c_aaa111' }]);
 });

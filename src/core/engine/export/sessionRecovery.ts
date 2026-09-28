@@ -234,16 +234,19 @@ export { EXT_VERSION, getExtensionVersion };
                 `[GemExporter:sessionRecovery.ts] storageAdapter.saveExportRecord is required to finalize export for ${targetId} (slot ${slot})`
             );
         }
+        // Claim before the first await so concurrent asset completions cannot
+        // persist and notify the same chat twice. Release on write failure.
+        if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
         try {
             await storageAdapter.saveExportRecord(slot, targetId, rec);
         } catch (e) {
+            if (finalizedChatsSet) finalizedChatsSet.delete(targetNid);
             if (typeof console !== 'undefined' && console.error) {
                 console.error('[GemExporter:sessionRecovery.ts] saveExportRecord failed for', targetId, e);
             }
             throw e;
         }
 
-        if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
         if (curIds && targetNid) curIds[targetNid] = rec;
         if (exportedIds && targetNid) exportedIds[targetNid] = rec;
 

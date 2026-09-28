@@ -48,10 +48,13 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
     });
 
     await geminiPage.route('**/batchexecute*', async (route) => {
+      const detailCheck = route.request().url().includes('rpcids=hNvQHb');
       await route.fulfill({
-        status: 200,
+        status: detailCheck ? 404 : 200,
         contentType: 'application/json',
-        body: `)]}'\n\n[["wrb.fr","GzXR5e","[null, \\"c_8888abcd1234ef01\\"]"]]`
+        body: detailCheck
+          ? '["BardErrorInfo", 1167]'
+          : `)]}'\n\n[["wrb.fr","GzXR5e","[null, \\"c_8888abcd1234ef01\\"]"]]`
       });
     });
 

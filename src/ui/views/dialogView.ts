@@ -75,12 +75,14 @@ export function renderExportBanner(session: any, currentSlot: string, isRunning:
     }
 }
 
-export function dismissExportBanner(): void {
-    const banner = $('exportSessionBanner');
-    if (banner) banner.style.display = 'none';
-    SessionStore.clearSession().catch(e => {
+export async function dismissExportBanner(): Promise<void> {
+    try {
+        await SessionStore.clearSession();
+        const banner = $('exportSessionBanner');
+        if (banner) banner.style.display = 'none';
+    } catch (e) {
         console.warn("[GemExporter:storage] Storage operation failed:", e);
-    });
+    }
 }
 
 export function showDirectWritePrompt(count: number, onConfirmFolder: () => void, onContinueZip: () => void): void {
@@ -362,4 +364,3 @@ export const DialogView: IDialogView = {
 
 
 export default DialogView;
-

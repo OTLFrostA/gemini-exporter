@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from '../core/utils/constants.js';
 import {
     getCredStorage as sharedGetCredStorage,
     markCredSessionAccessFailed as sharedMarkFailed,
+    withCredMapLock,
 } from '../core/api/client/credStorage.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import { StorageService } from '../core/storage/storageService.js';
@@ -188,7 +189,7 @@ export async function saveCredentials(map: Record<string, any>, cred?: any): Pro
 // unsynchronized load→save cycles would overwrite each other's map entries.
 let _credOpChain: Promise<any> = Promise.resolve();
 function runSerializedCredOp<T>(op: () => Promise<T>): Promise<T> {
-    const run = _credOpChain.then(op, op);
+    const run = _credOpChain.then(() => withCredMapLock(op), () => withCredMapLock(op));
     _credOpChain = run.then(() => undefined, () => undefined);
     return run;
 }
