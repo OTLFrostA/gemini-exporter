@@ -233,6 +233,14 @@ export const TYPST_MATH_CORPUS: readonly MathCorpusItem[] = [
         expectedTypst: 'A <==> B ==> C',
         wasmSmoke: true,
     },
+    {
+        name: 'long bidirectional and mapping arrows',
+        category: 'arrows',
+        latex: 'A \\longleftrightarrow B \\longmapsto C',
+        display: false,
+        expectedTypst: 'A <--> B |--> C',
+        wasmSmoke: true,
+    },
     // 18. Text
     {
         name: 'text block inside math',

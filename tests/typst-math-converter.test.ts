@@ -69,8 +69,10 @@ test('operators and relations', async () => {
     eq('A \\Longleftarrow B', 'A <== B');
     eq('x \\longrightarrow y', 'x --> y');
     eq('x \\longleftarrow y', 'x <-- y');
+    eq('x \\longleftrightarrow y', 'x <--> y');
     eq('x \\to \\infty', 'x -> oo');
     eq('f: x \\mapsto x^2', 'f : x |-> x^2');
+    eq('f: x \\longmapsto x^2', 'f : x |--> x^2');
     eq('\\uparrow \\downarrow', 'arrow.t arrow.b');
     eq('120^\\circ', '120^compose');
     eq('f \\circ g', 'f compose g');

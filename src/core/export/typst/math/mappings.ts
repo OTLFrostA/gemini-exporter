@@ -18,7 +18,8 @@ export const SYMBOLS: Record<string, string> = {
     Rightarrow: '=>', Leftarrow: '<=',
     Longrightarrow: '==>', Longleftarrow: '<==',
     Leftrightarrow: '<=>', Longleftrightarrow: '<==>',
-    leftrightarrow: '<->', mapsto: '|->',
+    leftrightarrow: '<->', longleftrightarrow: '<-->',
+    mapsto: '|->', longmapsto: '|-->',
     rightleftharpoons: 'harpoons.rtlb',
     uparrow: 'arrow.t', downarrow: 'arrow.b',
     // \circ is U+2218 (function composition); the 120^\circ degree idiom would
