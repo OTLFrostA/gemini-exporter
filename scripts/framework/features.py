@@ -238,6 +238,14 @@ class FeatureRegistry:
             critical=True,
             prerequisites=["feat_html_export_download"]
         ))
+        self.register(Feature(
+            id="feat_stale_tab_image_export",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="失效 Gemini 标签页下的图片导出",
+            description="旧标签页无消息接收端时仍成功导出 Imagen 图片与引用",
+            critical=True,
+            prerequisites=["feat_pdf_export_download"]
+        ))
 
     def register(self, feature: Feature):
         self._features[feature.id] = feature

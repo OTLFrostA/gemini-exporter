@@ -223,6 +223,13 @@ export class Parser implements EnvironmentParserContext {
         if (name === 'text') {
             return { text: this.parseTextArg(), atomic: true };
         }
+        if (name === 'arg') {
+            return { text: 'op("arg", limits: #false)', atomic: true };
+        }
+        if (name === 'pmod') {
+            const modulus = this.parseArg('\\pmod');
+            return { text: `quad (op("mod", limits: #false) ${modulus.text})`, atomic: true };
+        }
         if (name === 'operatorname') {
             const starred = this.peek() === '*';
             if (starred) this.pos += 1;

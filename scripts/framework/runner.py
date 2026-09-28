@@ -38,6 +38,7 @@ from scripts.framework.cases import (
     LiveDiskAutoSaveCase,
     ZipExportDownloadCase,
     MultimodalSpecCase,
+    StaleTabImageExportCase,
     FastSkipExportedCase,
     HtmlExportDownloadCase,
     PdfExportDownloadCase,
@@ -167,6 +168,7 @@ class FrameworkRunner:
         dag.register(FastSkipExportedCase())
         dag.register(HtmlExportDownloadCase())
         dag.register(PdfExportDownloadCase())
+        dag.register(StaleTabImageExportCase())
         dag.register(UninstallLifecycleCase())
         return dag
 

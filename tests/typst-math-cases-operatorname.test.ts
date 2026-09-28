@@ -46,6 +46,9 @@ test('W3-2: real WASM compile of cases + operatorname* + compose, zero errors', 
         '\\operatorname*{max}_{x} f(x)',
         '\\operatorname{Tr}(A)',
         'f \\circ g',
+        String.raw`\arg\left(\gamma'(z_c)\right) = \frac{3\phi + 2k\pi}{2} \quad (k \in \mathbb{Z})`,
+        String.raw`\operatorname{Re}\left( \frac{e^{i\frac{3}{2}\phi}}{\gamma'(z_c)} \right) = 0 \iff \arg[\gamma'(z_c)] \equiv \frac{3}{2}\phi + \frac{\pi}{2} \pmod \pi`,
+        String.raw`\Box \psi = \left(\nabla_\perp^2 + \frac{\partial^2}{\partial z^2} - \frac{1}{c^2}\frac{\partial^2}{\partial t^2}\right) \psi = \nabla_\perp^2 \psi`,
     ];
     for (const source of sources) {
         const r = convertMathWithDiagnostic(source, 'latex', true);
@@ -104,5 +107,16 @@ test('W3-2: real WASM compile of cases + operatorname* + compose, zero errors', 
         );
     } finally {
         compiler.dispose();
+    }
+});
+
+test('microlensing PDF formulas with arg and pmod compile without fallback', async () => {
+    const sources = [
+        String.raw`\arg\left(\gamma'(z_c)\right) = \frac{3\phi + 2k\pi}{2} \quad (k \in \mathbb{Z})`,
+        String.raw`\operatorname{Re}\left( \frac{e^{i\frac{3}{2}\phi}}{\gamma'(z_c)} \right) = 0 \iff \arg[\gamma'(z_c)] \equiv \frac{3}{2}\phi + \frac{\pi}{2} \pmod \pi`,
+    ];
+    for (const source of sources) {
+        const result = convertMathWithDiagnostic(source, 'latex', true);
+        assert.ok(result.typst, result.diagnostic?.message || source);
     }
 });

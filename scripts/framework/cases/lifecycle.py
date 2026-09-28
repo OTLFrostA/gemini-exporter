@@ -115,6 +115,13 @@ class EphemeralChatPruningCase(FeatureTestCase):
                 return False, "未能获取瞬态会话 ID", None
 
             ctx.tracker.track(eph_chat_id)
+            cdp_gem_live.eval("""(() => {
+                window.__tier2DeleteEvents = [];
+                window.addEventListener('message', event => {
+                    if (event.data?.type === 'GEMINI_CONVERSATION_DELETED')
+                        window.__tier2DeleteEvents.push(event.data.payload);
+                });
+            })()""")
             print(f"   🗑️ 成功生成瞬态会话 ({eph_chat_id})，在侧边栏触发网页原生删除...")
             del_ok = session.delete_via_web()
             if not del_ok:
@@ -122,10 +129,10 @@ class EphemeralChatPruningCase(FeatureTestCase):
             ctx.tracker.mark_deleted(eph_chat_id)
 
             pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id, timeout=10.0)
+            events = cdp_gem_live.eval("window.__tier2DeleteEvents || []")
             if pruned_ok:
-                return True, "瞬态会话已实时剥离 DOM 与本地 Storage", None
-            return False, f"DOM剥离校验失败: {pruned_msg}", None
+                return True, "瞬态会话已实时剥离 DOM 与本地 Storage", {"delete_events": events}
+            return False, f"DOM剥离校验失败: {pruned_msg}; 删除事件={events}", {"delete_events": events}
         finally:
             cdp_gem_live.close()
             cdp_opt.close()
-

@@ -142,7 +142,15 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 // Page-world postMessage is untrusted. The detail route only
                 // prunes after an authoritative server "confirmed_deleted" RPC.
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-                    await chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: cleanId, accountSlot: targetSlot });
+                    for (const delayMs of [0, 500, 1500]) {
+                        if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
+                        try {
+                            const result = await chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: cleanId, accountSlot: targetSlot });
+                            if (result?.data?.isDeleted === true) break;
+                        } catch (err) {
+                            if (contentContext.isDevMode()) console.debug('[MessageBridge] delete verification attempt failed', err);
+                        }
+                    }
                 }
             } catch (err) {
                 if (contentContext.isDevMode()) console.debug('[MessageBridge] verify deleted conversation err', err);
