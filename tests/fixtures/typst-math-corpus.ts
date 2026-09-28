@@ -241,6 +241,14 @@ export const TYPST_MATH_CORPUS: readonly MathCorpusItem[] = [
         expectedTypst: 'A <--> B |--> C',
         wasmSmoke: true,
     },
+    {
+        name: 'extensible equilibrium harpoon and double arrows',
+        category: 'arrows',
+        latex: 'A \\xrightleftharpoons[k_{-1}]{k_1} B \\xRightarrow{f} C',
+        display: false,
+        expectedTypst: 'A scripts(harpoons.rtlb)_k_(- 1)^k_1 B scripts(==>)^f C',
+        wasmSmoke: true,
+    },
     // 18. Text
     {
         name: 'text block inside math',
