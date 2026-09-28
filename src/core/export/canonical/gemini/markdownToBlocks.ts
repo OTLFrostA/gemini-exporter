@@ -87,47 +87,95 @@ function tryParseLink(s: string, i: number): { node: InlineNode; end: number } |
     };
 }
 
+function expandPlaceholders(nodes: InlineNode[], placeholders: InlineNode[]): InlineNode[] {
+    const result: InlineNode[] = [];
+    for (const node of nodes) {
+        if (node.type === 'text') {
+            const parts = node.text.split(/(\u0000X\d+\u0000)/);
+            for (const part of parts) {
+                if (!part) continue;
+                const m = /^\u0000X(\d+)\u0000$/.exec(part);
+                if (m) {
+                    const idx = Number(m[1]);
+                    const ph = placeholders[idx];
+                    if (ph) {
+                        if ('children' in ph && Array.isArray((ph as any).children)) {
+                            result.push({
+                                ...(ph as any),
+                                children: expandPlaceholders((ph as any).children, placeholders),
+                            });
+                        } else {
+                            result.push(ph);
+                        }
+                    }
+                } else {
+                    result.push({ type: 'text', text: part });
+                }
+            }
+        } else if ('children' in node && Array.isArray((node as any).children)) {
+            const expandedChildren = expandPlaceholders((node as any).children, placeholders);
+            result.push({ ...(node as any), children: expandedChildren });
+        } else {
+            result.push(node);
+        }
+    }
+    return result;
+}
+
+function mergeAdjacentText(nodes: InlineNode[]): InlineNode[] {
+    const out: InlineNode[] = [];
+    for (const n of nodes) {
+        if ('children' in n && Array.isArray((n as any).children)) {
+            out.push({ ...(n as any), children: mergeAdjacentText((n as any).children) });
+        } else if (n.type === 'text') {
+            const prev = out[out.length - 1];
+            if (prev && prev.type === 'text') {
+                prev.text += n.text;
+            } else {
+                out.push({ ...n });
+            }
+        } else {
+            out.push(n);
+        }
+    }
+    return out;
+}
+
 export function parseInline(text: string, idPrefix: string, st: MdParser): InlineNode[] {
-    // Mask code and math spans with NUL placeholders so their delimiters are ignored by link/emphasis scanners.
-    const codeSpans: string[] = [];
-    const mathSpans: string[] = [];
+    const placeholders: InlineNode[] = [];
+    const addPlaceholder = (node: InlineNode): string => {
+        placeholders.push(node);
+        return `\u0000X${placeholders.length - 1}\u0000`;
+    };
+
+    // 1. Mask code spans with atomic placeholders
     let s = text.replace(/`([^`\n]+)`/g, (_m, code) => {
-        codeSpans.push(code);
-        return `\u0000C${codeSpans.length - 1}\u0000`;
-    });
-    s = s.replace(/\$\$([^$\n]+?)\$\$/g, (_m, formula) => {
-        mathSpans.push(formula);
-        return `\u0000M${mathSpans.length - 1}\u0000`;
-    });
-    s = s.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (_m, formula) => {
-        mathSpans.push(formula);
-        return `\u0000M${mathSpans.length - 1}\u0000`;
+        return addPlaceholder({ type: 'inlineCode', code });
     });
 
-    const out: InlineNode[] = [];
-    let buf = '';
-    const flush = (): void => {
-        if (buf) {
-            for (const n of parseEmphasis(buf)) out.push(n);
-            buf = '';
-        }
-    };
+    // 2. Mask display math spans ($$...$$)
+    s = s.replace(/\$\$([^$\n]+?)\$\$/g, (_m, formula) => {
+        return addPlaceholder({ type: 'inlineMath', source: formula, notation: 'latex' });
+    });
+
+    // 3. Mask inline math spans ($...$)
+    s = s.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (_m, formula) => {
+        return addPlaceholder({ type: 'inlineMath', source: formula, notation: 'latex' });
+    });
+
+    // 4. Mask HTML line breaks (<br>, <br/>, <br />)
+    s = s.replace(/<br\s*\/?>/gi, () => {
+        return addPlaceholder({ type: 'lineBreak', kind: 'hard' });
+    });
+
+    // 5. Scan for bare images, linked images, and links
     let i = 0;
+    let intermediate = '';
     while (i < s.length) {
-        const ph = /^\u0000([CM])(\d+)\u0000/.exec(s.slice(i));
-        if (ph) {
-            flush();
-            const idx = Number(ph[2]);
-            if (ph[1] === 'C') out.push({ type: 'inlineCode', code: codeSpans[idx] ?? '' });
-            else out.push({ type: 'inlineMath', source: mathSpans[idx] ?? '', notation: 'latex' });
-            i += ph[0].length;
-            continue;
-        }
         if (s[i] === '!' && s[i + 1] === '[') {
             const bare = tryParseBareImage(s, i, st);
             if (bare) {
-                flush();
-                out.push(bare.node);
+                intermediate += addPlaceholder(bare.node);
                 i = bare.end;
                 continue;
             }
@@ -135,24 +183,27 @@ export function parseInline(text: string, idPrefix: string, st: MdParser): Inlin
         if (s[i] === '[') {
             const linked = tryParseLinkedImage(s, i, st);
             if (linked) {
-                flush();
-                out.push(linked.node);
+                intermediate += addPlaceholder(linked.node);
                 i = linked.end;
                 continue;
             }
             const link = tryParseLink(s, i);
             if (link) {
-                flush();
-                out.push(link.node);
+                intermediate += addPlaceholder(link.node);
                 i = link.end;
                 continue;
             }
         }
-        buf += s[i];
+        intermediate += s[i];
         i++;
     }
-    flush();
-    return out;
+
+    // 6. Parse emphasis over intermediate string (where delimiters are accurate and non-text atomic units are protected)
+    const emphasisTree = parseEmphasis(intermediate);
+
+    // 7. Expand placeholders in the tree and merge adjacent text
+    const expanded = expandPlaceholders(emphasisTree, placeholders);
+    return mergeAdjacentText(expanded);
 }
 
 /**
@@ -279,6 +330,14 @@ function parseTableRow(line: string): string[] {
     });
     c = c.replace(/`([^`\n]*)`/g, (_m, code) => {
         spans.push(`\`${code}\``);
+        return `\u0000P${spans.length - 1}\u0000`;
+    });
+    c = c.replace(/\$\$([^$\n]+?)\$\$/g, (_m, math) => {
+        spans.push(`$$${math}$$`);
+        return `\u0000P${spans.length - 1}\u0000`;
+    });
+    c = c.replace(/(?<!\$)\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\$)/g, (_m, math) => {
+        spans.push(`$${math}$`);
         return `\u0000P${spans.length - 1}\u0000`;
     });
     if (c.startsWith('|')) c = c.slice(1);
