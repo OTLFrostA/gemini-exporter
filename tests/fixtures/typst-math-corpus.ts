@@ -141,6 +141,22 @@ export const TYPST_MATH_CORPUS: readonly MathCorpusItem[] = [
         display: false,
         expectedTypst: 'hat(x) + arrow(v) + dot(y)',
     },
+    {
+        name: 'overline and underline',
+        category: 'accents',
+        latex: '\\overline{A \\cup B} = \\underline{C}',
+        display: false,
+        expectedTypst: 'overline(A union B) = underline(C)',
+        wasmSmoke: true,
+    },
+    {
+        name: 'overbrace and underbrace with scripts',
+        category: 'accents',
+        latex: '\\overbrace{x + y}^{n} + \\underbrace{a \\cdot b}_{= 0}',
+        display: false,
+        expectedTypst: 'overbrace(x + y)^n + underbrace(a dot b)_(= 0)',
+        wasmSmoke: true,
+    },
     // 11. Styles
     {
         name: 'bold, blackboard, and cal font styles',

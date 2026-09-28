@@ -89,6 +89,10 @@ test('accents', async () => {
     eq('\\hat{x} + \\bar{y}', 'hat(x) + bar(y)');
     eq('\\tilde{\\alpha}', 'tilde(alpha)');
     eq('\\vec{a} + \\vec{S}_i', 'arrow(a) + arrow(S)_i');
+    eq('\\overline{x + y}', 'overline(x + y)');
+    eq('\\underline{z}', 'underline(z)');
+    eq('\\overbrace{a + b}^{k}', 'overbrace(a + b)^k');
+    eq('\\underbrace{c + d}_{= 0}', 'underbrace(c + d)_(= 0)');
 });
 
 test('bra-ket and standalone angle delimiters', async () => {
