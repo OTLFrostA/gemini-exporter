@@ -24,6 +24,7 @@ import {
     GEM_HTML_SCRIPT,
     sanitizeUrl,
 } from '../../engine/template/htmlTemplate.js';
+import { renderMathHtml } from './htmlMath.js';
 
 export interface CanonicalHtmlOptions {
     lang?: 'zh' | 'en';
@@ -130,6 +131,36 @@ const CANONICAL_EXTRA_CSS = `
   text-decoration: none;
 }
 a.gem-citation-chip { color: var(--accent-blue); }
+.gem-math-inline math { font-size: 1.05em; }
+.gem-math-block math { font-size: 1.15em; }
+.gem-math-block annotation, .gem-math-inline annotation { display: none; }
+.gem-math-unsupported {
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 1em 0;
+  background: rgba(168, 199, 250, 0.04);
+  text-align: left;
+}
+.gem-math-fallback-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.gem-math-fallback-source {
+  font-size: 12.5px;
+  margin: 0;
+  background: transparent;
+  padding: 0;
+  border: none;
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.gem-math-inline-fallback {
+  font-size: 0.9em;
+  padding: 1px 4px;
+}
 `;
 
 function escapeHtml(text?: string | null): string {
@@ -171,8 +202,11 @@ function renderInline(node: InlineNode, ctx: RenderCtx): string {
             const title = node.title ? ` title="${escapeHtml(node.title)}"` : '';
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="gem-link"${title}>${renderInlines(node.children, ctx)}</a>`;
         }
-        case 'inlineMath':
-            return `<span class="gem-math-inline">${escapeHtml(node.source)}</span>`;
+        case 'inlineMath': {
+            const mathResult = renderMathHtml(node.source, false, ctx.isEn);
+            if (mathResult.diagnostic) ctx.diagnostics.push(mathResult.diagnostic);
+            return mathResult.html;
+        }
         case 'citationRef': {
             const citation = ctx.citations.get(node.citationId);
             const n = ctx.citationNumbers.get(node.citationId);
@@ -352,8 +386,11 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
   <pre><code class="language-${safeLang}">${escapeHtml(block.code)}</code></pre>
 </div>`;
         }
-        case 'math':
-            return `<div class="gem-math-block">${escapeHtml(block.source)}</div>`;
+        case 'math': {
+            const mathResult = renderMathHtml(block.source, true, ctx.isEn);
+            if (mathResult.diagnostic) ctx.diagnostics.push(mathResult.diagnostic);
+            return mathResult.html;
+        }
         case 'table':
             return renderTable(block as TableBlock, ctx);
         case 'image':
