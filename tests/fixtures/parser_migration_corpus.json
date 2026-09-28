@@ -1,6 +1,6 @@
 {
   "version": "1.1.0",
-  "generatedAt": "2026-09-28T17:22:37.650911Z",
+  "generatedAt": "2026-09-28T17:39:23.205320Z",
   "description": "Corpus strictly segmented into real_gemini_output, scenario_inputs, and synthetic_fixtures. ONLY real_gemini_output may justify compatibility rules.",
   "admissionPolicy": {
     "real_gemini_output": "ONLY entries here can justify compatibility rules (GM-MD-* / GM-TEX-*). Must possess evidence file and originalHash.",

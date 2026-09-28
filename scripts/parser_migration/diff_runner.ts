@@ -41,6 +41,7 @@ export interface SemanticDiffResult {
     hasDiff: boolean;
     category?: DiffCategory;
     rationale?: string;
+    candidateConversionGain?: boolean;
     baseline: any;
     candidate: any;
 }
@@ -175,27 +176,19 @@ export function compareMathConversion(
         };
     }
 
-    // If candidate successfully converts where baseline failed/fell back, it is an upstream capability improvement
-    if (!baselineResult.typst && candidateResult.typst) {
-        return {
-            domain: 'latex',
-            inputPreview: latex.slice(0, 80),
-            hasDiff: true,
-            category: 'A_NEW_PARSER_CORRECT',
-            rationale: 'Candidate successfully converted LaTeX expression where baseline fell back.',
-            baseline: baselineResult,
-            candidate: candidateResult,
-        };
-    }
+    const candidateConversionGain = !baselineResult.typst && !!candidateResult.typst;
 
-    // In all other divergence cases (candidate failed or notation differs), default to D
+    // All parser/converter differentials default to D_CANNOT_DETERMINE: Old parser is NOT an oracle.
+    // Observation (candidateConversionGain) is separated from judgment (category).
     return {
         domain: 'latex',
         inputPreview: latex.slice(0, 80),
         hasDiff: true,
         category: 'D_CANNOT_DETERMINE',
-        rationale:
-            'Math conversion divergence detected. Old converter is not an oracle; requires MiTeX standard verification or raw Gemini evidence.',
+        candidateConversionGain,
+        rationale: candidateConversionGain
+            ? 'Candidate converted LaTeX expression where baseline fell back. Diff defaults to D_CANNOT_DETERMINE until verified against LaTeX/MiTeX standards or project policy.'
+            : 'Math conversion divergence detected. Old converter is not an oracle; requires MiTeX standard verification or raw Gemini evidence.',
         baseline: baselineResult,
         candidate: candidateResult,
     };

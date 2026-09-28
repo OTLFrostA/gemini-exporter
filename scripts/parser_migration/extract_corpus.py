@@ -19,7 +19,7 @@ three distinct corpus sets (Section 6.3 & Remediation Plan):
    Hand-crafted test fixtures and edge-case samples constructed for parser tests.
    Non-authoritative for Gemini dialect.
 
-Outputs to: tests/fixtures/real_gemini_corpus.json
+Outputs to: tests/fixtures/parser_migration_corpus.json
 """
 
 import os
@@ -30,7 +30,7 @@ import re
 from datetime import datetime
 
 REPO_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUTPUT_PATH = os.path.join(REPO_DIR, "tests", "fixtures", "real_gemini_corpus.json")
+OUTPUT_PATH = os.path.join(REPO_DIR, "tests", "fixtures", "parser_migration_corpus.json")
 
 def extract_corpus():
     pool_path = os.path.join(REPO_DIR, "scripts", "test_scenario_pool.json")

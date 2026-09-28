@@ -51,6 +51,16 @@ export interface CorpusReport {
     };
     math: {
         expressions: number;
+        baseline: {
+            converted: number;
+            conversionFailures: number;
+            compileFailures: number;
+        };
+        candidate?: {
+            converted: number;
+            conversionFailures: number;
+            compileFailures: number;
+        };
         converted: number;
         conversionFailures: number;
         compileFailures: number;
@@ -64,7 +74,7 @@ export interface CorpusReport {
 }
 
 export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<CorpusReport> {
-    const defaultCorpusPath = path.join(__dirname, '../../tests/fixtures/real_gemini_corpus.json');
+    const defaultCorpusPath = path.join(__dirname, '../../tests/fixtures/parser_migration_corpus.json');
     const finalCorpusPath = options.corpusPath || defaultCorpusPath;
     const defaultOutputPath = path.join(__dirname, '../../tests/output/corpus_report.json');
     const finalOutputPath = options.outputPath || defaultOutputPath;
@@ -122,6 +132,20 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         },
         math: {
             expressions: mathExpressions.length,
+            baseline: {
+                converted: 0,
+                conversionFailures: 0,
+                compileFailures: 0,
+            },
+            ...(options.candidateConverter
+                ? {
+                      candidate: {
+                          converted: 0,
+                          conversionFailures: 0,
+                          compileFailures: 0,
+                      },
+                  }
+                : {}),
             converted: 0,
             conversionFailures: 0,
             compileFailures: 0,
@@ -195,19 +219,22 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     // 2. Process Math expressions
     const mathStart = Date.now();
-    const successfulExpressions: Array<{ id: string; latex: string; display: boolean }> = [];
+    const baselineSuccessful: Array<{ id: string; latex: string; display: boolean }> = [];
+    const candidateSuccessful: Array<{ id: string; latex: string; display: boolean }> = [];
 
     for (const expr of mathExpressions) {
         try {
             const baseRes = activeBaselineConverter(expr.latex, !!expr.display);
             if (baseRes.typst) {
+                report.math.baseline.converted += 1;
                 report.math.converted += 1;
-                successfulExpressions.push(expr);
+                baselineSuccessful.push(expr);
             } else {
+                report.math.baseline.conversionFailures += 1;
                 report.math.conversionFailures += 1;
                 if (baseRes.diagnostic) {
                     report.diagnostics.push({
-                        domain: 'math',
+                        domain: 'math_baseline',
                         id: expr.id,
                         code: baseRes.diagnostic.code,
                         message: baseRes.diagnostic.message,
@@ -218,6 +245,21 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             // Differential comparison if candidate converter injected
             if (options.candidateConverter) {
                 const candRes = options.candidateConverter(expr.latex, !!expr.display);
+                if (candRes.typst) {
+                    report.math.candidate!.converted += 1;
+                    candidateSuccessful.push(expr);
+                } else {
+                    report.math.candidate!.conversionFailures += 1;
+                    if (candRes.diagnostic) {
+                        report.diagnostics.push({
+                            domain: 'math_candidate',
+                            id: expr.id,
+                            code: candRes.diagnostic.code,
+                            message: candRes.diagnostic.message,
+                        });
+                    }
+                }
+
                 const diff = compareMathConversion(expr.latex, baseRes, candRes);
                 if (diff.hasDiff) {
                     report.math.diffCount += 1;
@@ -234,6 +276,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 }
             }
         } catch (err: any) {
+            report.math.baseline.conversionFailures += 1;
             report.math.conversionFailures += 1;
             report.diagnostics.push({
                 domain: 'math',
@@ -246,59 +289,120 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     report.math.totalDurationMs = mathEnd - mathStart;
     report.math.avgDurationMs = mathExpressions.length > 0 ? (mathEnd - mathStart) / mathExpressions.length : 0;
 
-    // 3. Genuine Typst WASM compilation gate
-    if (options.compileTypst && successfulExpressions.length > 0) {
-        try {
-            const host = new RealWasmSandboxHost(repoRoot());
-            const compiler = new TypstSandboxCompiler({ host });
+    // 3. Genuine Typst WASM compilation gate (100% of expressions evaluated, no truncation)
+    if (options.compileTypst) {
+        // 3a. Baseline Typst compile gate
+        if (baselineSuccessful.length > 0) {
             try {
-                const bundle = {
-                    schemaVersion: 1,
-                    conversation: {
-                        key: { providerId: 'gemini', conversationId: 'corpus-math-compile-gate' },
-                        title: { value: 'Corpus Math Real Compile Gate' },
-                        createdAt: '2026-09-28T00:00:00Z',
-                        messages: [{
-                            id: 'm1',
-                            role: 'assistant',
-                            blocks: successfulExpressions.slice(0, 50).map((e, idx) => ({
-                                id: `b${idx + 1}`,
-                                type: 'math',
-                                source: e.latex,
-                                notation: 'latex',
-                            })),
-                        }],
-                    },
-                    assets: [],
-                    citations: [],
-                };
-                const convertMathFn = (s: string, not: string, disp: boolean) => activeBaselineConverter(s, disp).typst;
-                const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
-                const compileRes = await compiler.compile({
-                    rendererSchemaVersion: 1,
-                    sourceSchemaVersion: 1,
-                    bundle,
-                    document,
-                    assetPaths: new Map(),
-                }, {
-                    bundle: null,
-                    assets: { resolve: async () => null },
-                    locale: 'zh',
-                    signal: new AbortController().signal,
-                    reportProgress: () => {},
+                const host = new RealWasmSandboxHost(repoRoot());
+                const compiler = new TypstSandboxCompiler({ host });
+                try {
+                    const bundle = {
+                        schemaVersion: 1,
+                        conversation: {
+                            key: { providerId: 'gemini', conversationId: 'corpus-math-baseline-compile-gate' },
+                            title: { value: 'Corpus Math Baseline Compile Gate' },
+                            createdAt: '2026-09-28T00:00:00Z',
+                            messages: [{
+                                id: 'm1',
+                                role: 'assistant',
+                                blocks: baselineSuccessful.map((e, idx) => ({
+                                    id: `b${idx + 1}`,
+                                    type: 'math',
+                                    source: e.latex,
+                                    notation: 'latex',
+                                })),
+                            }],
+                        },
+                        assets: [],
+                        citations: [],
+                    };
+                    const convertMathFn = (s: string, not: string, disp: boolean) => activeBaselineConverter(s, disp).typst;
+                    const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
+                    const compileRes = await compiler.compile({
+                        rendererSchemaVersion: 1,
+                        sourceSchemaVersion: 1,
+                        bundle,
+                        document,
+                        assetPaths: new Map(),
+                    }, {
+                        bundle: null,
+                        assets: { resolve: async () => null },
+                        locale: 'zh',
+                        signal: new AbortController().signal,
+                        reportProgress: () => {},
+                    });
+                    const errs = (compileRes.diagnostics ?? []).filter((d: any) => d.severity === 'error');
+                    report.math.baseline.compileFailures = errs.length;
+                    report.math.compileFailures = errs.length;
+                } finally {
+                    compiler.dispose();
+                }
+            } catch (compileErr: any) {
+                report.math.baseline.compileFailures += 1;
+                report.math.compileFailures += 1;
+                report.diagnostics.push({
+                    domain: 'typst_compile_baseline',
+                    id: 'all_converted',
+                    message: `Baseline Typst compilation exception: ${compileErr.message || String(compileErr)}`,
                 });
-                const errs = (compileRes.diagnostics ?? []).filter((d: any) => d.severity === 'error');
-                report.math.compileFailures = errs.length;
-            } finally {
-                compiler.dispose();
             }
-        } catch (compileErr: any) {
-            report.math.compileFailures += 1;
-            report.diagnostics.push({
-                domain: 'typst_compile',
-                id: 'all_converted',
-                message: `Typst compilation exception: ${compileErr.message || String(compileErr)}`,
-            });
+        }
+
+        // 3b. Candidate Typst compile gate (compiles candidate's genuine typst output)
+        if (options.candidateConverter && candidateSuccessful.length > 0) {
+            try {
+                const host = new RealWasmSandboxHost(repoRoot());
+                const compiler = new TypstSandboxCompiler({ host });
+                try {
+                    const bundle = {
+                        schemaVersion: 1,
+                        conversation: {
+                            key: { providerId: 'gemini', conversationId: 'corpus-math-candidate-compile-gate' },
+                            title: { value: 'Corpus Math Candidate Compile Gate' },
+                            createdAt: '2026-09-28T00:00:00Z',
+                            messages: [{
+                                id: 'm1',
+                                role: 'assistant',
+                                blocks: candidateSuccessful.map((e, idx) => ({
+                                    id: `b${idx + 1}`,
+                                    type: 'math',
+                                    source: e.latex,
+                                    notation: 'latex',
+                                })),
+                            }],
+                        },
+                        assets: [],
+                        citations: [],
+                    };
+                    const convertMathFn = (s: string, not: string, disp: boolean) => options.candidateConverter!(s, disp).typst;
+                    const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
+                    const compileRes = await compiler.compile({
+                        rendererSchemaVersion: 1,
+                        sourceSchemaVersion: 1,
+                        bundle,
+                        document,
+                        assetPaths: new Map(),
+                    }, {
+                        bundle: null,
+                        assets: { resolve: async () => null },
+                        locale: 'zh',
+                        signal: new AbortController().signal,
+                        reportProgress: () => {},
+                    });
+                    const errs = (compileRes.diagnostics ?? []).filter((d: any) => d.severity === 'error');
+                    report.math.candidate!.compileFailures = errs.length;
+                } finally {
+                    compiler.dispose();
+                }
+            } catch (compileErr: any) {
+                report.math.candidate!.compileFailures += 1;
+                report.diagnostics.push({
+                    domain: 'typst_compile_candidate',
+                    id: 'all_converted',
+                    message: `Candidate Typst compilation exception: ${compileErr.message || String(compileErr)}`,
+                });
+            }
         }
     }
 
@@ -314,7 +418,7 @@ if (require.main === module) {
     (async () => {
         try {
             console.log('='.repeat(65));
-            console.log('🚀 Running Real Gemini Corpus Evaluation (with Typst WASM Gate)...');
+            console.log('🚀 Running Parser Migration Corpus Evaluation (with Typst WASM Gate)...');
             console.log('='.repeat(65));
             const report = await runCorpus({ compileTypst: true });
             console.log(`\n📂 Corpus Set: ${report.corpusSet}`);
@@ -324,11 +428,17 @@ if (require.main === module) {
             console.log(`  • Fallbacks:           ${report.markdown.fallbacks}`);
             console.log(`  • Duration:            ${report.markdown.totalDurationMs} ms (avg ${report.markdown.avgDurationMs.toFixed(2)} ms/doc)`);
 
-            console.log(`\n📐 Math Results:`);
+            console.log(`\n📐 Math Results (Baseline):`);
             console.log(`  • Expressions Tested:  ${report.math.expressions}`);
-            console.log(`  • Converted Typst:     ${report.math.converted}`);
-            console.log(`  • Conversion Fallback: ${report.math.conversionFailures}`);
-            console.log(`  • Typst WASM Failures: ${report.math.compileFailures} (Genuine WASM compiler check)`);
+            console.log(`  • Converted Typst:     ${report.math.baseline.converted}`);
+            console.log(`  • Conversion Fallback: ${report.math.baseline.conversionFailures}`);
+            console.log(`  • Typst WASM Failures: ${report.math.baseline.compileFailures} (Genuine WASM compiler check, 100% evaluated)`);
+            if (report.math.candidate) {
+                console.log(`\n📐 Math Results (Candidate):`);
+                console.log(`  • Converted Typst:     ${report.math.candidate.converted}`);
+                console.log(`  • Conversion Fallback: ${report.math.candidate.conversionFailures}`);
+                console.log(`  • Typst WASM Failures: ${report.math.candidate.compileFailures} (Genuine WASM compiler check, 100% evaluated)`);
+            }
             console.log(`  • Duration:            ${report.math.totalDurationMs} ms (avg ${report.math.avgDurationMs.toFixed(2)} ms/expr)`);
 
             console.log(`\n📋 Diagnostics Recorded: ${report.diagnostics.length}`);
