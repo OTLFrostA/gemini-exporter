@@ -1,25 +1,5 @@
 [
   {
-    "id": "condensed_matter_topological_acoustics_non_hermitian",
-    "domain": "condensed_matter_topological_acoustics_non_hermitian",
-    "title": "拓扑声学与非厄米趋肤效应：广义布里渊区与高阶角态物理推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试非互易声学超晶格非厄米趋肤效应 (NHSE)、广义布里渊区 Laurent 多项式求根与高阶角态局域化求解",
-    "turns": [
-      "在含主动流体泵浦或压电声反馈的非互易声学一维链中，写出 Hatano-Nelson 模型的有效紧束缚哈密顿量，并通过非布洛赫能带理论 (Non-Bloch Band Theory) 推导确定广义布里渊区 (Generalized Brillouin Zone, GBZ) 拓扑闭合轨迹 |beta| = r 的代数极值方程。",
-      "详细推导非厄米趋肤效应 (Non-Hermitian Skin Effect, NHSE) 引起的开边界与周期边界复能谱拓扑谱缠绕数 (Spectral Winding Number) W，并证明当谱流包围复能量基准点 E_0 时开边界本征态指数聚集在边界的数学机制。",
-      "使用 Python 编写具有不对称声跃迁振幅的二维二聚化声学超材料晶格本征求解脚本，计算开边界条件下的声压场复本征模，并绘制能量本征谱及声波能量在四个拓扑角点的指数局域化概率密度分布。",
-      "针对具有偶极与四极拓扑不变量的多极拓扑绝缘体 (Higher-Order Topological Insulator, HOTI) 声学晶格，推导体边界对应 (Bulk-Boundary Correspondence) 在出现非厄米非保守微扰下的修正瓦尼尔中心 (Wannier Center) 位移积分。",
-      "使用 Markdown 表格横向对比拓扑光子学 (Topological Photonics)、拓扑声学 (Topological Acoustics)、拓扑声子极化激元与拓扑机械晶格在工作载波频段、非互易实现手段、内禀耗散容忍度与片上紧凑型器件应用前景。"
-    ]
-  },
-  {
     "id": "condensed_matter_magic_angle_graphene_correlated_insulator",
     "domain": "condensed_matter_magic_angle_graphene_correlated_insulator",
     "title": "魔角扭曲双层石墨烯：Bistritzer-MacDonald 平带与关联超导相图推导",
@@ -197,28 +177,6 @@
       "请使用 Python 编写基于二维正方晶格双子晶格交替磁性紧束缚模型的哈密顿量本征值求解程序，计算沿布里渊区高对称路径 \\Gamma - X - M - \\Gamma 上的自旋向上与自旋向下能带色散曲线并打印自旋劈裂极大值点。",
       "设计一个结构化 Markdown 表格，系统对比铁磁体 (FM)、常规共线反铁磁体 (Collinear AFM)、非共线反铁磁体 (Non-collinear AFM) 与交替磁体 (Altermagnet) 在宏观剩磁、反常霍尔电导率、自旋流极化率、磁共振频段 (GHz vs THz)、抗外磁场杂散干扰能力及自旋电子学读写能耗上的核心性能指标。",
       "推导交替磁体中由自旋转移矩 (STT) 与自旋轨道矩 (SOT) 驱动的反铁磁畴壁动力学方程，分析由于相对论洛伦兹洛仑兹不变性导致畴壁运动速度突破自旋波群速极限（超音速运动）且无 Walker 击穿现象的力学物理机制。"
-    ]
-  },
-  {
-    "id": "quantum_optics_rydberg_atom_quantum_simulator",
-    "domain": "quantum_optics_rydberg_atom_quantum_simulator",
-    "title": "量子光学与中性原子计算：里德堡原子阵列长程偶极阻断与多体量子模拟",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试里德堡阻塞半径推导、QuTiP 反铁磁相变量子演化脚本、光镊超冷原子高精度视觉渲染与多量子物理平台横向对比",
-    "turns": [
-      "严格推导里德堡原子（Rydberg Atoms）在主量子数 n >> 1 下的范德华相互作用势 V_vdW(R) = C_6 / R^6，定义里德堡阻断半径（Rydberg Blockade Radius）R_b = (C_6 / \\hbar \\Omega)^{1/6}，并从两原子缀饰态动力学出发推导阻断能级移动抑制双激发共振的跃迁振幅方程。",
-      "使用 Python 编写基于 NumPy/SciPy 的一维 5-原子链里德堡原子体系哈密顿量构建与态演化脚本，计算在有效失谐 \\Delta(t) 与驱动拉比频率 \\Omega(t) 绝热退火下，系统从全基态 |g...g> 向反铁磁序 Z_2 态 |rgrgr> 的量子相变基态保真度与交替自旋结构因子。",
-      "请帮我生成一张高科技量子物理视觉概念图：二维光镊阵列（Optical Tweezer Array）悬浮着数十个发光的超冷中性铷原子，在极低温度真空中排布成蜂窝晶格，处于里德堡高激发态的原子外层呈现出半透明发光的庞大电子轨道云（Blockade Sphere），阻断球体相互接触产生微弱的量子相干发光与干涉条纹。",
-      "使用 Markdown 表格系统横向对比超导量子比特 (Superconducting Transmon)、离子阱 (Trapped Ion, 如 Yb+)、中性原子光镊阵列 (Neutral Atoms, 如 Rb/Sr) 与光量子线路 (Photonic Cluster State) 在单/双量子比特门保真度、物理相干时间 T_2^*、全连通性几何自由度、常温/低温致冷需求及当前物理比特可扩展规模维度的技术特征对比。",
-      "深入推导里德堡原子体系模拟二维非平庸拓扑相（如 Z_2 拓扑量子自旋液体相）的横场 Ising 模型极限，论证环面（Torus）紧致拓扑流形边界条件下的四重拓扑基态简并度（Topological Ground State Degeneracy）与任意子激发物理特征。"
     ]
   },
   {
@@ -412,6 +370,49 @@
       "推导由微观可逆性与时间反演对称性决定的 Crooks 涨落定理 P_F(W) / P_R(-W) = exp(beta * (W - Delta F))，并分析在远离热力学平衡的极端非准静态拉伸过程中自由能变化 Delta F 的极大似然估计解析形式。",
       "使用 Python 编写 Langevin 随机动力学模拟脚本，数值求解布朗粒子在一维谐振子双势阱驱动移动过程中的随机轨迹，统计提取 5000 次独立非平衡实验路径上的做功做功积分，并绘制功分布直方图与 Jarzynski 平均收敛曲线。",
       "使用 Markdown 表格横向对比经典信息引擎 (Szilard Engine)、量子相干性驱动热机、超导腔量子电动力学热机与单自旋非平衡热机在工作工质尺度、量子相干能增益、最大功输出功率与卡诺效率比值 (Efficiency at Maximum Power)。"
+    ]
+  },
+  {
+    "id": "astrophysics_gravitational_microlensing_exoplanet",
+    "domain": "astrophysics_gravitational_microlensing_exoplanet",
+    "title": "引力微透镜与系外行星探测：爱因斯坦环、焦散线穿越与高保真光学渲染",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "测试双透镜引力微透镜方程代数求根、爱因斯坦半径计算、焦散线穿越光变曲线仿真与黑洞/恒星透镜科学可视化图生成",
+    "turns": [
+      "在点质量引力透镜几何光学中，推导母恒星作为透镜时对应的爱因斯坦角半径 theta_E = sqrt(4 * G * M / (c^2) * (D_s - D_l) / (D_l * D_s)) 的解析推导，并计算当透镜源距离 D_l = 4 kpc、背景背景源距离 D_s = 8 kpc 且透镜质量为 1 个太阳质量时的特征透镜微角秒尺度。",
+      "针对行星-主恒星双体透镜系统，写出复数坐标 z 下的二维无量纲双引力透镜多项式方程，推导雅可比矩阵行列式 det(J) = 0 所确定的临界曲线 (Critical Curves) 及其映射到源平面的焦散线 (Caustics) 尖点 (Cusp) 与折叠 (Fold) 奇点几何方程。",
+      "生成一张高分辨率天体物理科学可视化渲染图：展示深空背景银河系中心稠密星场中，一颗隐匿于黑暗中的孤立系外流浪行星 (Rogue Planet) 引发的引力微透镜效应，背景遥远恒星光线被弯曲拉伸为一个发光的完整金色闭合爱因斯坦环，旁边呈现高对比度焦散线穿越产生的双子像干涉光芒与冷色调太空尘埃。",
+      "使用 Python 编写微透镜光变曲线数值模拟脚本，采用射线追踪 (Ray-Shooting) 或根查找算法计算点源穿越行星焦散线时的放大率变化 A(t)，并绘制在无噪条件与信噪比 SNR=50 包含高斯光子散粒噪声下的时间依赖放大率光变曲线图。",
+      "使用 Markdown 表格横向对比径向速度法 (Radial Velocity)、凌星巡天法 (Transit Photometry)、天体测量法 (Astrometry) 与引力微透镜法 (Gravitational Microlensing) 在雪线 (Snow Line) 以外低质量类地行星灵敏度、对宿主恒星光度依赖性、距离适用范围及测量单次性不可重复约束。"
+    ]
+  },
+  {
+    "id": "condensed_matter_quantum_spin_liquid_kitaev_honeycomb",
+    "domain": "condensed_matter_quantum_spin_liquid_kitaev_honeycomb",
+    "title": "量子自旋液体与Kitaev蜂窝模型：马约拉纳费米子分数化与非阿贝尔任意子拓扑推导",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 Kitaev 蜂窝晶格严格可解自旋哈密顿量 Jordan-Wigner / 四费米子表示、Z2 规范场通量算符积分、非阿贝尔伊辛任意子量子编织",
+    "turns": [
+      "在二维蜂窝晶格中，写出具有方向依赖键交换相互作用的 Kitaev 纯自旋哈密顿量 H = - sum_{<ij>_gamma} J_gamma * sigma_i^gamma * sigma_j^gamma (gamma in {x, y, z})，引入 4 种局域马约拉纳费米子算符 c_i, b_i^x, b_i^y, b_i^z 实现自旋自由度的严格分数化映射。",
+      "证明定义在每个六边形晶胞上的通量算符 W_p = sigma_1^x * sigma_2^y * sigma_3^z * sigma_4^x * sigma_5^y * sigma_6^z 与哈密顿量完全对易且互相独立对易 ([W_p, H] = 0, [W_p, W_q] = 0)，从而证明整个希尔伯特空间能严格对角化为解耦的自由静态 Z_2 规范场扇区与流动马约拉纳费米子谱带。",
+      "在施加外部垂直微扰弱磁场 h_x * h_y * h_z 下，推导由有效时间反演破缺引起的三阶微扰非阿贝尔拓扑相有效哈密顿量，计算非零陈数 (Chern Number) nu = pm 1 导致的半整数量子热霍尔电导率 kappa_{xy} = (nu / 2) * (pi * k_B^2 / (6 * hbar)) * T。",
+      "使用 Python 编写基于动量空间布里渊区的 Kitaev 模型无通量基态能带结构计算脚本，求解并绘制沿 Gamma-M-K 高对称路径的马约拉纳费米子狄拉克锥色散曲线，计算费米速度并在存在质量能隙 Delta_M 时计算贝里曲率分布积分。",
+      "使用 Markdown 表格横向对比 Kitaev 量子自旋液体材料候选物 (如 alpha-RuCl3、Na2IrO3)、 Kagome 晶格自旋液体候选物 (Herbertsmithite) 与有机阻挫自旋液体系统的海森堡/非海森堡交换耦合参数、磁阻挫参数、连续自旋激发谱特征与无序杂质屏蔽机制。"
     ]
   }
 ]
