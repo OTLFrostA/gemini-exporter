@@ -2,7 +2,6 @@ import type { Conversation } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
 import { isTakeoutConversation } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
-import { getCredStorage } from "../api/client/credStorage.js";
 import {
     saveConversationDetailsBatch,
     removeConversationDetails,
@@ -280,12 +279,6 @@ export interface ConversationTransaction {
                 [countKey]: 0,
                 [expKey]: {}
             };
-            if (s === 'u0') {
-                toSet['exportedIds'] = {};
-                toSet['gemini_exported_u0'] = {};
-            } else {
-                toSet[`gemini_exported_${s}`] = {};
-            }
             await chrome.storage.local.set(toSet);
             await chrome.storage.local.remove([checkpointKey]);
             await updateAccountSlot(slot, { count: 0 });
@@ -456,14 +449,9 @@ export interface ConversationTransaction {
         const { expKey, slot: s } = getStorageKeys(slot);
         return enqueueSaveRecordChain(async () => {
             const sweepGlobal = s !== 'u0';
-            const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey, 'exportedIds'];
+            const readKeys = sweepGlobal ? [expKey, 'exportedIds'] : [expKey];
             const data = await chrome.storage.local.get(readKeys);
-            const ownMap: Record<string, any> = {};
-            const ownReadKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
-            for (const k of ownReadKeys) {
-                const m = (data as any)[k];
-                if (m && typeof m === 'object') Object.assign(ownMap, m);
-            }
+            const ownMap: Record<string, any> = (data[expKey] && typeof data[expKey] === 'object') ? { ...data[expKey] } : {};
             // Keys this slot owns among the doomed ids — used to conservatively
             // sweep only this slot's historical pollution out of the global key.
             const ownedBefore = new Set<string>();
@@ -499,11 +487,7 @@ export interface ConversationTransaction {
                     if (gRemoved > 0) updates['exportedIds'] = g;
                 }
             }
-            const hasLegacyU0Key = s === 'u0' && Boolean((data as any)['gemini_exported_u0']);
-            if (hasLegacyU0Key && typeof chrome.storage.local.remove === 'function') {
-                await chrome.storage.local.remove(['gemini_exported_u0']);
-            }
-            if (removed > 0 || hasLegacyU0Key || (sweepGlobal && updates['exportedIds'])) {
+            if (removed > 0 || (sweepGlobal && updates['exportedIds'])) {
                 await chrome.storage.local.set(updates);
             }
             return removed;
@@ -579,52 +563,6 @@ export interface ConversationTransaction {
         });
     }
 
-    async function getCredentialsMap(): Promise<Record<string, any>> {
-        const storage = getCredStorage();
-        if (!storage) return {};
-        const data: any = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
-        let map: Record<string, any> = data[STORAGE_KEYS.CREDENTIALS_MAP] || {};
-        if (Object.keys(map).length === 0 && storage !== chrome.storage.local && chrome.storage.local) {
-            try {
-                const localData: any = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP]);
-                if (localData && localData[STORAGE_KEYS.CREDENTIALS_MAP]) {
-                    map = localData[STORAGE_KEYS.CREDENTIALS_MAP];
-                    await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-                    await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-                }
-            } catch { /* intentional: migration fallback */ }
-        }
-        return map;
-    }
-
-    async function setCredentialsMap(map: Record<string, any>): Promise<void> {
-        const storage = getCredStorage();
-        if (!storage) return;
-        await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map || {} });
-        if (storage !== chrome.storage.local && chrome.storage.local) {
-            try {
-                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-            } catch { /* intentional: local purge */ }
-        }
-    }
-
-    async function clearCredentials(sid?: string | null): Promise<void> {
-        const storage = getCredStorage();
-        if (!storage) return;
-        if (sid) {
-            const map = await getCredentialsMap();
-            delete map[sid];
-            await setCredentialsMap(map);
-        } else {
-            await storage.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-        }
-        if (storage !== chrome.storage.local && chrome.storage.local) {
-            try {
-                await chrome.storage.local.remove([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
-            } catch { /* intentional: local purge */ }
-        }
-    }
-
     async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
         if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
         try {
@@ -686,9 +624,6 @@ export {
     setScanCheckpoint,
     getAccountSlots,
     updateAccountSlot,
-    getCredentialsMap,
-    setCredentialsMap,
-    clearCredentials,
     getDevMode,
     setDevMode,
     isTourCompleted,
@@ -736,9 +671,6 @@ export const StorageService = {
     setScanCheckpoint,
     getAccountSlots,
     updateAccountSlot,
-    getCredentialsMap,
-    setCredentialsMap,
-    clearCredentials,
     getDevMode,
     setDevMode,
     isTourCompleted,

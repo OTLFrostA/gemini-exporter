@@ -78,11 +78,10 @@ test('P1-3: 并发 clear + write 不丢失新记录', async () => {
     }
 });
 
-test('StorageService.removeExportRecords: u0 清除时同步清理 legacy gemini_exported_u0 防止复活', async () => {
+test('StorageService.removeExportRecords: u0 清除时正确从 exportedIds 中移除记录', async () => {
     const StorageService = require('../src/core/storage/storageService.js');
     const store: Record<string, any> = {
-        exportedIds: { chat_new: { exportedAt: 100 } },
-        gemini_exported_u0: { chat_legacy: { exportedAt: 90 }, c_chat_legacy: { exportedAt: 90 } }
+        exportedIds: { chat_new: { exportedAt: 100 }, chat_legacy: { exportedAt: 90 } }
     };
     const origChrome = (globalThis as any).chrome;
     (globalThis as any).chrome = {
@@ -105,13 +104,12 @@ test('StorageService.removeExportRecords: u0 清除时同步清理 legacy gemini
         }
     };
     try {
-        await StorageService.migrateExportAliases('u0');
         const before = await StorageService.getExportedIds('u0');
         assert.deepStrictEqual(Object.keys(before).sort(), ['chat_legacy', 'chat_new']);
         await StorageService.removeExportRecords('u0', Object.keys(before));
         const after = await StorageService.getExportedIds('u0');
-        assert.deepStrictEqual(after, {}, '清除后 getExportedIds(u0) 必须为空，legacy gemini_exported_u0 不得复活');
-        assert.strictEqual(store.gemini_exported_u0, undefined, 'gemini_exported_u0 键应被移除');
+        assert.deepStrictEqual(after, {}, '清除后 getExportedIds(u0) 必须为空');
+        assert.deepStrictEqual(store.exportedIds, {}, 'store.exportedIds 必须为空');
     } finally {
         (globalThis as any).chrome = origChrome;
     }
