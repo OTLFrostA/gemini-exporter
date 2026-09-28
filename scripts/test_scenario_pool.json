@@ -1,25 +1,5 @@
 [
   {
-    "id": "condensed_matter_magic_angle_graphene_correlated_insulator",
-    "domain": "condensed_matter_magic_angle_graphene_correlated_insulator",
-    "title": "魔角扭曲双层石墨烯：Bistritzer-MacDonald 平带与关联超导相图推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试魔角石墨烯 BM 连续统模型平带波函数狄拉克速度淬灭、莫特绝缘体 U/W 比值与 Python 动量空间对角化",
-    "turns": [
-      "在小扭角双层石墨烯 (TBG, theta ~ 1.08 度) 莫尔超晶格中，写出 Bistritzer-MacDonald (BM) 连续统哈密顿量，推导层间单重态与三重态层间跃迁振幅比值 w_0/w_1 导致狄拉克点费米速度 v_F 严格淬灭为零的「第一魔角」解析微扰条件。",
-      "当电子动能带宽 W 压缩至 < 10 meV 而长程库仑相互作用能 U 占优 (U/W >> 1) 时，推导在整数莫尔填充因子 nu = pm 2 处破缺时间反演对称性与能谷极化导致的反常霍尔关联绝缘态热力学自由能表达式。",
-      "使用 Python 编写脚本，在动量截断半径内构建 BM 模型低能有效 Bloch 矩阵并进行奇异值分解求解，绘制第一布里渊区 Gamma-M-K 高对称线上的两对超平带 (Flat Bands) 色散曲线。",
-      "详细推导通过微小静电门控电压注入额外空穴载流子时，基于 BCS 机制或非声子非常规电子关联机制诱发的非常规超导圆顶 (Superconducting Dome) 转变温度 T_c 与态密度拓扑积分关系。",
-      "使用 Markdown 表格横向对比扭曲双层石墨烯 (MATBG)、扭曲三层石墨烯 (MATTG)、二硒化钨/二硫化钨 (WSe2/WS2) 莫尔异质结与钇钡铜氧 (YBCO) 高温超导体的超导转变温度 T_c、费米温度比值 T_c/T_F、层间解耦机制与非常规配对对称性。"
-    ]
-  },
-  {
     "id": "climate_dynamics_amoc_tipping_points",
     "domain": "climate_dynamics_amoc_tipping_points",
     "title": "地球系统气候动力学：大西洋经向翻转环流 (AMOC) 盐度平流突变临界点分岔推演",
@@ -198,28 +178,6 @@
       "编写 Python 程序使用连分数法（Leaver's Continued Fraction Method）数值求解无自旋 Schwarzschild 黑洞基本四极引力辐射模（\\ell=2, m=2, n=0）的复特征频率初值，并计算其品质因数 Q = \\omega_R / (2\\omega_I)。",
       "使用 Markdown 表格对比极端质量比旋近 (EMRI)、双中子星并合千新星 (BNS Kilonova)、中等质量黑洞双星 (IMBHB) 以及超大质量黑洞双星并合 (SMBHB) 在特征引力波辐射频段 (Hz)、有效自旋进动效应、视界无毛定理（No-Hair Theorem）铃落多极模检验能力以及对应观测探测器（LIGO-Virgo-KAGRA, LISA, 太极/天琴, PTA 脉冲星测时阵列）的科学技术特征。",
       "深入推导双黑洞并合后期超辐射（Superradiance）与克尔黑洞测地极光圈（Light Ring / Photon Sphere）李雅普诺夫指数 \\lambda 之间的对应关系：证明大 \\ell 极限下准正规模频率与衰减率满足 \\omega_R \\to m \\Omega_c 和 \\omega_I \\to (n + 1/2) \\lambda，阐明其微观几何光学（Geometric Optics）测地线不稳定性的几何本质。"
-    ]
-  },
-  {
-    "id": "semiconductor_physics_quantum_dot_single_photon_source",
-    "domain": "semiconductor_quantum_dot_single_photon_source",
-    "title": "半导体量子光学：自组装量子点微腔耦合单光子源与珀塞尔效应推演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试 Stranski-Krastanov 量子点腔量子电动力学 (cQED) 珀塞尔因子推导、二阶光子关联函数 g^(2)(0) 反聚束仿真、纳米微柱光学共振腔图像生成与固态单光子源横向对比",
-    "turns": [
-      "在腔量子电动力学 (Cavity QED) 弱耦合与强耦合微扰论框架下，针对嵌入微柱微腔 (Micropillar Cavity) 中的 InAs/GaAs 自组装量子点激子跃迁，严格推导出珀塞尔增强因子 (Purcell Factor) F_P = \\frac{3}{4\\pi^2} \\left(\\frac{\\lambda}{n}\\right)^3 \\frac{Q}{V_m} 的理论形式，并推导模式体积 V_m 与微腔品质因数 Q 如何协同决定自发辐射速率增强比。",
-      "请生成一张科学级高分辨率多模态 3D 渲染概念插图：展现 GaAs/AlAs 分布式布拉格反射镜 (DBR) 构成的高品质纳米微柱谐振腔（Micropillar Cavity）。圆柱形微腔中央的纳米级有源层中精确嵌入单个 InAs 自组装锥形量子点，在脉冲共振荧光激光激发下，量子点向顶部微透镜单向垂直发射出一列纯净、等间隔的相干单光子波包（呈现深蓝色发光量子干涉涟漪），微柱侧壁呈现原子级平整布拉格反射镜交替分层结构，背景为低温冷冻恒温器微观光学平台。",
-      "基于量子回归定理 (Quantum Regression Theorem) 与三能级密度矩阵主方程，推导连续波共振激发与脉冲非共振激发下，单光子源的二阶强度自关联函数 g^{(2)}(\\tau) = \\frac{\\langle :I(t)I(t+\\tau): \\rangle}{\\langle I(t) \\rangle^2} 的解析表达式，证明当 \\tau = 0 时理想单光子发射满足 g^{(2)}(0) \\to 0 的强反聚束 (Antibunching) 条件。",
-      "使用 Python 编写脚本，基于 Hanbury Brown-Twiss (HBT) 双单光子探测干涉光路模型，模拟时间相关单光子计数 (TCSPC) 模块获取的探测延迟直方图，生成具有泊松激发抖动与探测器响应时间 (IRF) 卷积的脉冲 g^{(2)}(\\tau) 计数曲线，并计算单光子纯度与多光子发射概率上限。",
-      "使用 Markdown 表格，对比自组装半导体量子点 (InAs/GaAs QD)、金刚石自旋色心 (NV/SiV Center)、自发参量下转换 (SPDC 预报单光子源) 以及二维六方氮化硼 (hBN) 单缺陷单光子源在工作温度 (K)、光子不可分辨度 (Indistinguishability V)、单光子提取效率 (Brightness)、单光子纯度 1-g^{(2)}(0) 以及片上光子集成兼容性维度的核心技术参数。"
     ]
   },
   {
@@ -413,6 +371,50 @@
       "在施加外部垂直微扰弱磁场 h_x * h_y * h_z 下，推导由有效时间反演破缺引起的三阶微扰非阿贝尔拓扑相有效哈密顿量，计算非零陈数 (Chern Number) nu = pm 1 导致的半整数量子热霍尔电导率 kappa_{xy} = (nu / 2) * (pi * k_B^2 / (6 * hbar)) * T。",
       "使用 Python 编写基于动量空间布里渊区的 Kitaev 模型无通量基态能带结构计算脚本，求解并绘制沿 Gamma-M-K 高对称路径的马约拉纳费米子狄拉克锥色散曲线，计算费米速度并在存在质量能隙 Delta_M 时计算贝里曲率分布积分。",
       "使用 Markdown 表格横向对比 Kitaev 量子自旋液体材料候选物 (如 alpha-RuCl3、Na2IrO3)、 Kagome 晶格自旋液体候选物 (Herbertsmithite) 与有机阻挫自旋液体系统的海森堡/非海森堡交换耦合参数、磁阻挫参数、连续自旋激发谱特征与无序杂质屏蔽机制。"
+    ]
+  },
+  {
+    "id": "structural_biology_cryo_et_subtomogram_averaging_ribosome",
+    "domain": "structural_biology_cryo_et_subtomogram_averaging",
+    "title": "冷冻电子断层扫描：亚断层平均 (STA) 缺失楔补偿与三维大分子重构",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试冷冻电子断层扫描 (Cryo-ET) 倾转序列傅里叶投影切片定理缺失楔推导、CTF三维空间校正、亚断层平均局部互相关对齐与真实细胞原位核糖体重构科学插图生成",
+    "turns": [
+      "在冷冻电子断层扫描 (Cryo-ET) 与傅里叶投影切片定理 (Projection-Slice Theorem) 框架下，针对样品倾转角度限制 (例如 -60 度至 +60 度) 引发的傅里叶空间缺失楔 (Missing Wedge) 几何畸变，推导实空间点扩散函数 (PSF) 在 Z 轴方向拉伸展宽系数 e_z / e_{xy} = 1 / \\sin(\\theta_{max}) 的数学表达式，并分析其引起的伪影与非等方性分辨率损失机制。",
+      "请生成一张科学级高分辨率多模态 3D 原生生物分子渲染插图：展现冷冻聚焦离子束 (Cryo-FIB) 减薄后处于近生理玻璃态水环境的原核细胞内部纳米超微结构断层切片。视野中央密集分布着三维近原子分辨率重构的原生核糖体 (70S Ribosome) 大分子复合体，清晰可见大亚基 (50S) 与小亚基 (30S) 构象轮廓、正在转运的多肽链以及结合的信使 RNA (mRNA) 纤维；周围伴随柔性细胞骨架微管蛋白网格与双层脂质生物膜，图像具备冷冻电镜密度图与等值面高动态渲染质感。",
+      "针对亚断层平均 (Subtomogram Averaging, STA) 中的三维对比度传递函数 (3D CTF) 校正与旋转平移对齐，推导考虑电子衍射相衬与离焦梯度的三维互相关函数 (Cross-Correlation Function, CCF) 赋权积分公式，并给出基于四元数 (Quaternions) 或欧拉角空间采样的受约束最大似然优化算法收敛准则。",
+      "使用 Python 编写脚本，模拟合成包含高斯噪声与低信噪比 (SNR = 0.05) 的三维子断层体，实现基于快速傅里叶变换 (FFT) 的受限角度互相关配准算法，并计算金标准傅里叶壳层相关 (Gold-Standard Fourier Shell Correlation, FSC) 曲线，绘制 0.143 临界切断阈值处的名义空间分辨率图表。",
+      "使用 Markdown 表格，对比单颗粒冷冻电镜 (Single-Particle Cryo-EM)、冷冻电子断层扫描亚断层平均 (Cryo-ET STA)、微晶电子衍射 (MicroED) 以及同步辐射 X 射线自由电子激光 (XFEL) 在样品制备要求、最大分子量适用范围、构象异质性解析能力、原位生理保真度以及最终可达空间分辨率维度的技术指标差异。"
+    ]
+  },
+  {
+    "id": "quantum_optomechanics_cavity_ground_state_cooling",
+    "domain": "quantum_optomechanics_cavity_cooling",
+    "title": "量子腔光力学：辐射压力耦合线性化与微机械振子基态冷却动力学",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试腔光力学非线性哈密顿量有效声子占据数推导、边带分辨极限光力阻尼率分析、朗之万方程双稳态相图 Python 求解与宏观量子基态实验平台横向对比",
+    "turns": [
+      "从单模光学共振腔与微机械谐振子辐射压力耦合哈密顿量 \\hat{H} = \\hbar \\Delta \\hat{a}^\\dagger \\hat{a} + \\hbar \\omega_m \\hat{b}^\\dagger \\hat{b} - \\hbar g_0 \\hat{a}^\\dagger \\hat{a} (\\hat{b} + \\hat{b}^\\dagger) 出发，在强相干光驱动极限下推导有效线性化光力学耦合常数 G = g_0 \\sqrt{\\bar{n}_{cav}}，并求出光力诱导频移 (Optical Spring Effect) \\delta \\omega_m 与有效光力阻尼率 \\Gamma_{opt} 的解析形式。",
+      "在边带分辨良好条件 (Resolved Sideband Regime, \\omega_m \\gg \\kappa) 下，运用量子朗之万方程 (Quantum Langevin Equations) 与玻色输入-输出理论，推导微机械振子经反斯托克斯 (Anti-Stokes) 光子散射冷却后的稳态最小声子占据数 \\bar{n}_{min} = (\\kappa / 4 \\omega_m)^2，证明实现量子基态冷却 (\\bar{n}_{eff} < 1) 所需的临界光力协同度 C = 4 G^2 / (\\kappa \\gamma_m) \\gg n_{th} 条件。",
+      "使用 Python 编写脚本，基于 Scipy 或 QuTiP 求解线性化光力学系统的漂移矩阵 (Drift Matrix) 与稳态协方差矩阵 (Covariance Matrix)，数值计算机械位移对称化功率谱密度 S_{xx}(\\omega)，并可视化展示强耦合区模式分裂 (Normal Mode Splitting) 现象。",
+      "推导微机械振子处于非经典高阶量子态（如 Fock 态 |1\\rangle 或猫态薛定谔态）时的 Wigner 准几率分布函数 W(x, p)，并论证环境热库耗散下 Wigner 函数负值区域的退相干时间尺度 \\tau_{dec} \\approx 1 / (\\gamma_m \\bar{n}_{th}) 的物理起源。",
+      "使用 Markdown 表格，对比光子晶体纳米梁腔 (Optomechanical Crystal Beam)、硅基回音壁微环微环芯 (Whispering Gallery Mode Microtoroid)、氮化硅薄膜在超导微波腔 (Membrane-in-the-Middle) 以及悬浮光镊纳米颗粒 (Levitated Nanoparticle) 在机械共振频率 \\omega_m、机械品质因数 Q_m、单光子耦合强度 g_0 以及基态冷却可达极限维度的关键实验参数。"
     ]
   }
 ]
