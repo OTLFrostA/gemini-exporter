@@ -1,25 +1,5 @@
 [
   {
-    "id": "climate_dynamics_amoc_tipping_points",
-    "domain": "climate_dynamics_amoc_tipping_points",
-    "title": "地球系统气候动力学：大西洋经向翻转环流 (AMOC) 盐度平流突变临界点分岔推演",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables"
-    ],
-    "description": "测试 Stommel 双盒模型热盐环流动力学微分方程推导、淡水强迫分岔分析、相平面轨迹 Python 求解与气候临界要素对比",
-    "turns": [
-      "基于 Stommel 双盒经典热盐动力学模型（赤道低纬盒与极区高纬盒），根据热通量松弛与盐度虚拟流边界条件，推导无量纲化温度梯度 T 与盐度梯度 S 的非线性耦合常微分方程组，并求出对应稳态解的鞍结分岔判别式。",
-      "当考虑北大西洋格陵兰冰盖融化导致的附加淡水通量注入强迫 F(t) 缓慢增长时，推导 AMOC 从强热盐翻转态崩溃跃迁至弱环流/停滞态的迟滞回线（Hysteresis Loop）形成机理，分析突变临界点（Tipping Point）处的临界慢化（Critical Slowing Down）动力学特征。",
-      "使用 Python 编写脚本，基于 scipy.integrate.odeint 或 solve_ivp，对包含时变淡水扰动的 Stommel 双盒非线性动力学系统进行相平面（Phase Plane）轨迹数值积分，并可视化输出环流强度随淡水通量变化的分岔相图与极限环。",
-      "使用 Markdown 表格横向对比大西洋经向翻转环流 (AMOC)、西南极冰盖崩解、亚马逊热带雨林退化、永久冻土融化与青藏高原冰川退缩五大全球气候系统临界要素（Climate Tipping Elements）在临界温升阈值、突变响应时间尺度、不可逆转性及对全球环流的连锁级联效应。",
-      "论述临界突变早期预警系统（Early Warning Signals, EWS）在 AMOC 监测中的数学原理，推导时间序列在趋近分岔点时一阶自回归自相关系数 AR(1) 与方差（Variance）趋于发散的朗之万扰动涨落耗散定理证明。"
-    ]
-  },
-  {
     "id": "synthetic_biology_metabolic_flux_fermentation",
     "domain": "synthetic_biology_metabolic_flux_fermentation",
     "title": "计算系统生物学：重组大肠杆菌代谢通量平衡分析 (FBA) 与发酵稳态优化",
@@ -199,28 +179,6 @@
       "使用 Python 编写一个紧凑高效的二维九速 (D2Q9) MRT-LBM 模拟程序，实现顶盖驱动方腔流 (Lid-Driven Cavity Flow, Re = 1000) 或周期性压力驱动槽道泊肃叶流动，包含矩空间正反投影变换、平衡态力项源注入以及壁面半步反弹格式 (Half-Way Bounce-Back) 无滑移边界条件实现。",
       "推导近壁湍流边界层中的大涡模拟 (LES) 亚格子尺度模型（如 Smagorinsky 模型与壁面自适应局域涡粘 WALE 模型）在格子玻尔兹曼局部非平衡应力张量 Q_{\\alpha\\beta} 下的直接闭合代数形式，证明为何 LBM 无需在物理空间对速度场求导即可局部确定应变率张量 S_{\\alpha\\beta}。",
       "使用 Markdown 表格，对比格子玻尔兹曼方法 (LBM)、有限体积法 (FVM, 如 OpenFOAM)、直接数值模拟谱方法 (Spectral DNS) 以及光滑粒子流体动力学 (SPH) 在非结构网格几何适应性、大规模 GPU 并行扩展效率、不可压缩压力泊松方程解耦优势、多相多组分界面捕捉精度以及超音速可压缩激波捕捉能力等维度的核心性能特征。"
-    ]
-  },
-  {
-    "id": "nuclear_astrophysics_core_collapse_supernova_neutrino_shock",
-    "domain": "nuclear_astrophysics_core_collapse_supernova",
-    "title": "核天体物理学：核心坍缩超新星中微子驱动激波复苏与核合成推演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "code",
-      "tables"
-    ],
-    "description": "测试超新星延迟中微子加热机制 (Bethe-Wilson) 临界光度推导、驻立吸积激波不稳定性 (SASI) 模态分析、激波爆发多模态科学插图生成与爆发中微子探测对比",
-    "turns": [
-      "在贝特-威尔逊（Bethe-Wilson）延迟中微子加热机制框架下，针对大质量恒星（15-25 M_\\odot）铁核坍缩后形成的原始中子星（PNS），推导激波停滞半径 R_{sh} 处中微子净加热率 \\dot{q}_{net} = \\dot{q}_{gain} - \\dot{q}_{loss} 的解析模型，并导出驱动停滞激波重新复苏向外膨胀的临界电子中微子光度与物质吸积率定标关系 L_\\nu / \\dot{M} \\propto M_{PNS}^{1/2} R_{gain}^{-1/2}。",
-      "请生成一张科学级写实且极具视觉震撼力的多模态天文插图：展现超新星核心坍缩数秒后激波复苏突破恒星包层的壮烈全景。画面中央为刚诞生的致密暗蓝色发光原始中子星（直径约 30 km），周围环绕着剧烈湍流与非轴对称激波前沿（SASI 螺旋晃动漩涡），数以万亿计的超高能中微子流向外辐射并加热周围高密度铁-硅等离子体；外层恒星包层被爆发激波撕裂，展现出剧烈的流体动力学不稳定指状结构与放射性重核合成发光辉光，背景为深邃星际空间，高分辨率，具备深空射电望远镜与哈勃太空望远镜联合观测质感。",
-      "针对激波停滞阶段出现的驻立吸积激波不稳定性（Standing Accretion Shock Instability, SASI），推导声波-涡旋波反馈自激振荡机制（Acoustic-Vorticity Feedback Cycle）。写出激波面扰动产生的非绝热涡旋与熵扰动随吸积下落至原中子星表面产生声波反射的闭环耦合时标 \\tau_{SASI} = \\int_{R_{PNS}}^{R_{sh}} \\frac{dr}{|v_r|} + \\int_{R_{PNS}}^{R_{sh}} \\frac{dr}{c_s - |v_r|}，并分析偶极（\\ell=1）与四极（\\ell=2）模态的增长率。",
-      "使用 Python 编写脚本，基于简单准球对称一维流体动力学激波管与中微子光度参数化模型，数值求解不同原中子星中微子光度 L_\\nu 下激波半径 R_{sh}(t) 的动力学演化轨迹，并计算激波逃逸判据与临界爆炸能量 E_{exp}（量级 10^{51} erg / 1 Bethe）。",
-      "使用 Markdown 表格，对比热核爆炸超新星（Type Ia）、核心坍缩铁核超新星（Type II-P/II-L）、剥离包层超新星（Type Ib/Ic）以及电子俘获超新星（ECSN）在祖恒星质量范围、主导爆炸物理机制、中微子爆发能谱特征、放射性 56Ni 产量（太阳质量当量）以及晚期恒星致密遗迹类型维度的本质物理差异。"
     ]
   },
   {
@@ -415,6 +373,50 @@
       "使用 Python 编写脚本，基于 Scipy 或 QuTiP 求解线性化光力学系统的漂移矩阵 (Drift Matrix) 与稳态协方差矩阵 (Covariance Matrix)，数值计算机械位移对称化功率谱密度 S_{xx}(\\omega)，并可视化展示强耦合区模式分裂 (Normal Mode Splitting) 现象。",
       "推导微机械振子处于非经典高阶量子态（如 Fock 态 |1\\rangle 或猫态薛定谔态）时的 Wigner 准几率分布函数 W(x, p)，并论证环境热库耗散下 Wigner 函数负值区域的退相干时间尺度 \\tau_{dec} \\approx 1 / (\\gamma_m \\bar{n}_{th}) 的物理起源。",
       "使用 Markdown 表格，对比光子晶体纳米梁腔 (Optomechanical Crystal Beam)、硅基回音壁微环微环芯 (Whispering Gallery Mode Microtoroid)、氮化硅薄膜在超导微波腔 (Membrane-in-the-Middle) 以及悬浮光镊纳米颗粒 (Levitated Nanoparticle) 在机械共振频率 \\omega_m、机械品质因数 Q_m、单光子耦合强度 g_0 以及基态冷却可达极限维度的关键实验参数。"
+    ]
+  },
+  {
+    "id": "fusion_plasma_tokamak_tearing_modes_mhd",
+    "domain": "fusion_plasma_tokamak_tearing_modes",
+    "title": "受控核聚变等离子体物理：托卡马克新经典撕裂模 (NTM) 磁岛演化推导",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试托卡马克阻抗磁流体动力学 (Resistive MHD) 撕裂模色散关系推导、广义 Rutherford 磁岛演化方程、电子回旋电流驱动 (ECCD) 抑制与聚变装置参数对比",
+    "turns": [
+      "在环形托卡马克磁约束等离子体几何与阻抗磁流体动力学 (Resistive MHD) 框架下，针对有理磁面 q(r_s) = m/n 处的撕裂不稳定性，推导经典撕裂模稳定性判据指数 \\Delta' = \\lim_{\\epsilon \\to 0} \\frac{1}{\\psi(r_s)} \\left[ \\frac{d\\psi}{dr}\\Big|_{r_s+\\epsilon} - \\frac{d\\psi}{dr}\\Big|_{r_s-\\epsilon} \\right] 的渐近匹配渐进解，并分析磁剪切 s = (r/q)(dq/dr) 对阻抗撕裂层增长率 \\gamma \\tau_R \\propto (S)^{2/5} (-\\Delta')^{-4/5} 的稳定化效应。",
+      "当等离子体处于无碰撞高温香蕉区 (Banana Regime) 且具有高归一化极向比压 \\beta_p 时，分析自举电流 (Bootstrap Current) 扰动诱发的新经典撕裂模 (Neoclassical Tearing Mode, NTM)。推导修正的广义 Rutherford 方程 \\frac{\\tau_R}{r_s} \\frac{dw}{dt} = r_s \\Delta' + r_s \\Delta'_{BS}(w) - r_s \\Delta'_{GGJ}(w) - r_s \\Delta'_{pol}(w)，给出自举电流亏损项 \\Delta'_{BS} \\propto \\epsilon^{1/2} \\frac{\\beta_p L_q}{L_p} \\frac{w}{w^2 + w_d^2} 导致的非线性亚临界自激增长阈值条件。",
+      "使用 Python 编写脚本，基于 Scipy 对包含自举电流项、极向极化电流项 (Ion Polarization Current) 与有限径向热导展宽特征尺度 w_d 的广义 Rutherford 微分方程进行时域数值积分，绘制磁岛宽度 w(t) 随初始扰动种子宽度 w_0 的相空间轨道分岔图，确定触发 NTM 磁岛爆发的临界种子岛宽度 (Critical Seed Island Width)。",
+      "推导出利用高功率局域电子回旋共振波电流驱动 (ECCD) 对有理磁面磁岛 O 点进行相位同步射频波注入的稳定化功率平衡模型，推导完全抑制稳态磁岛所需的最小局域射频电流驱动密度 j_{cd} / j_{bs} 的临界阈值比例。",
+      "使用 Markdown 表格，对比国际热核聚变实验堆 (ITER)、全超导托卡马克 (EAST)、先进超导托卡马克 (KSTAR) 以及紧凑型高场强托卡马克 (SPARC) 在主半径 R、环向磁场 B_t、等离子体电流 I_p、归一化比压 \\beta_N、自举电流份额 f_{bs} 以及稳态长脉冲运行防破裂 (Disruption Mitigation) 应对策略维度的关键聚变参数。"
+    ]
+  },
+  {
+    "id": "topological_metamaterials_non_hermitian_skin_effect",
+    "domain": "topological_metamaterials_non_hermitian_skin_effect",
+    "title": "拓扑超构材料学：非厄米趋肤效应 (NHSE) 与广义布里渊区推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试非互易晶格非厄米哈密顿量广义布里渊区 (GBZ) 罗朗多项式鞍点推导、复能量谱能谱环绕数 (Winding Number)、高阶拓扑角态科学插图生成与拓扑光子学平台横向对比",
+    "turns": [
+      "在非互易单链 Hatano-Nelson 模型与非厄米苏-施里弗-希格 (NH-SSH) 晶格模型中，推导开边界条件 (OBC) 下全部本征态呈指数局域在系统边界的非厄米趋肤效应 (Non-Hermitian Skin Effect, NHSE) 物理机制。引入复动量变换 \\beta = e^{ik}，通过转移矩阵行列式特征多项式 P(\\beta, E) = 0，严格推导广义布里渊区 (Generalized Brillouin Zone, GBZ) 满足模长连续条件 |\\beta_M(E)| = |\\beta_{M+1}(E)| 的闭合解析代数轨迹。",
+      "请生成一张具备顶级科研学术期刊封面质感的科学级 3D 多模态超构材料概念插图：展现工作在可见光波段的双维非厄米拓扑光子超构晶格芯片（Nanophotonic Metamaterial Slab）。芯片由周期性微纳硅基回音壁纳米谐振环腔构成，环腔之间通过非互易光学波导桥接（微观展现光子手性单向跃迁路径）；在激光垂直泵浦激发下，原本弥散分布的光学电磁能量呈现出强烈的非厄米趋肤聚集效应，全部电磁能量坍缩局域在芯片单一边缘角落形成强烈高亮发光的拓扑边缘态辉光光斑，侧面悬浮半透明的复能量谱复数平面代数闭合环（拓扑能谱环绕数几何拓扑示意），展现极致微纳微腔刻蚀纹理与量子光学实验室冷色调背景。",
+      "推导周期性边界条件 (PBC) 下复能谱在复平面上形成环绕非零区域的谱拓扑缠绕数 (Spectral Winding Number) W = \\frac{1}{2\\pi i} \\oint_{0}^{2\\pi} \\frac{d}{dk} \\ln \\det[H(k) - E_B] dk，并证明非零能谱环绕数 W \\neq 0 与开边界条件下 NHSE 指数局域化衰减长度 \\kappa = -\\ln |\\beta| 之间的体-边对应关系 (Bulk-Boundary Correspondence) 对偶定理。",
+      "使用 Python 编写脚本，分别构建一维非互易 Hatano-Nelson 紧束缚模型在周期边界 (PBC) 与开边界 (OBC) 下的稀疏三对角非对称哈密顿矩阵，对角化求解并绘制复本征能量谱图（展示闭合椭圆 vs 实线段坍缩），并数值计算所有波函数概率密度分布 \\sum_n |\\psi_n(x)|^2，清晰展示趋肤效应指数富集曲线。",
+      "使用 Markdown 表格，对比拓扑声学超材料 (Topological Acoustics)、拓扑光子晶体与波导阵列 (Topological Photonics)、LC 电路拓扑电网络 (Topoelectrical Circuits) 以及超冷原子光晶格 (Ultracold Atoms in Optical Lattices) 在非厄米增益/损耗调控手段、非互易跃迁物理实现方案、趋肤效应观察信噪比以及高维高阶拓扑角态扩展能力维度的系统级优缺点。"
     ]
   }
 ]
