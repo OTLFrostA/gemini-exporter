@@ -1,8 +1,8 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "generatedAt": "2026-09-28",
   "classificationDefinitions": {
-    "P0": "Real Gemini: Directly observed in live Gemini, Takeout, or production traces. Blocker for migration.",
+    "P0": "Real Gemini: Strictly requires verified raw payload evidence file and originalHash. ONLY tier that can justify compatibility rules. (Currently 0 pending real session captures).",
     "P1": "Standard Syntax: CommonMark / GFM or standard LaTeX syntax. Verifies integration with standard behavior.",
     "P2": "Project Semantics: Exporter contracts (Canonical AST, diagnostics, asset mapping, payload serialization). Must pass unchanged.",
     "P3": "Synthetic Robustness: Artificial edge cases constructed for testing. Non-blocking for parser migration.",
@@ -91,10 +91,10 @@
     {
       "file": "tests/canonical-gemini-markup-sanitization.test.ts",
       "domain": "markdown",
-      "classification": "P0",
+      "classification": "P2",
       "provenanceSource": "Real Gemini web response markup quirks (raw HTML, citation tags, prompt artifacts)",
-      "policy": "MUST_PASS_REAL_REGRESSION",
-      "notes": "Tests real HTML/Gemini citation strip behaviors without corrupting legitimate markdown.",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Sanitization contract; synthetic inputs with injected HTML tags, no raw Gemini evidence.",
       "testCount": 1,
       "tests": [
         "Gemini structured markup is sanitized at normalization boundary and never reaches Canonical AST or HTML"
@@ -103,10 +103,10 @@
     {
       "file": "tests/canonical-generated-image-consistency.test.ts",
       "domain": "canonical_ast",
-      "classification": "P0",
+      "classification": "P2",
       "provenanceSource": "Real Gemini Imagen turns with companion asset metadata",
-      "policy": "MUST_PASS_REAL_REGRESSION",
-      "notes": "Ensures generated Imagen images preserve asset IDs, metadata, and canonical node mapping.",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Asset ID and companion consistency contract; mock asset objects, no raw Gemini evidence.",
       "testCount": 5,
       "tests": [
         "PR 4 - 1: Single generated image on model turn renders 1 inline figure and 1 companion card",
@@ -322,10 +322,10 @@
     {
       "file": "tests/canonical-underscore-html-regression.test.ts",
       "domain": "markdown",
-      "classification": "P0",
+      "classification": "P3",
       "provenanceSource": "Real Tier 2 production conversation containing LaTeX-like identifiers and snake_case file names",
-      "policy": "MUST_PASS_REAL_REGRESSION",
-      "notes": "Verifies snake_case identifiers (e.g. var_name_here) are not corrupted into broken italic tags.",
+      "policy": "ROBUSTNESS_NON_BLOCKING",
+      "notes": "Synthetic underscore cases mirroring Tier 2 checks without raw payload evidence.",
       "testCount": 2,
       "tests": [
         "full pipeline keeps LaTeX-like underscores and file names intact",
@@ -335,10 +335,10 @@
     {
       "file": "tests/html-canonical-migration.test.ts",
       "domain": "canonical_ast",
-      "classification": "P0",
+      "classification": "P2",
       "provenanceSource": "Real multi-turn Gemini conversation export through canonical pipeline",
-      "policy": "MUST_PASS_REAL_REGRESSION",
-      "notes": "Verifies end-to-end HTML export output integrity on full conversations.",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Canonical HTML export pipeline contract; hardcoded 4-turn chat, no raw Gemini evidence.",
       "testCount": 9,
       "tests": [
         "migration setup: production entry returns a valid HTML FormattedResult",
@@ -386,10 +386,10 @@
     {
       "file": "tests/typst-math-cases-operatorname.test.ts",
       "domain": "latex",
-      "classification": "P0",
+      "classification": "P1",
       "provenanceSource": "Real astrophysics / microlensing Gemini responses with \begin{cases}, \u0007rg, and \\pmod",
-      "policy": "MUST_PASS_REAL_REGRESSION",
-      "notes": "Production cases derived directly from live Tier 2 microlensing and math prompts.",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Standard LaTeX syntax tests for cases, operatorname, arg, and pmod; no raw Gemini evidence.",
       "testCount": 3,
       "tests": [
         "W3-1: cases rows, operatorname star distinction, circ mapping",
@@ -557,10 +557,9 @@
     "totalSuites": 27,
     "totalTests": 246,
     "byClassification": {
-      "P2": 161,
-      "P0": 20,
-      "P1": 43,
-      "P3": 17,
+      "P2": 176,
+      "P1": 46,
+      "P3": 19,
       "P4": 5
     }
   }
