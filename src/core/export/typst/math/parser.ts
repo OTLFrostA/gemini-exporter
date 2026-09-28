@@ -1,6 +1,7 @@
 import {
     ACCENTS,
     DELIMITERS,
+    EXTENSIBLE_ARROWS,
     FONT_SWITCHES,
     hasKey,
     LITERAL_CHARS,
@@ -130,10 +131,18 @@ export class Parser implements EnvironmentParserContext {
             const c = this.peek();
             if (c === '') this.fail('unclosed bracket: reached end of input inside [...]');
             if (c === ']') { this.pos += 1; break; }
-            if (c === '^' || c === '_' || c === '}' || c === '&') {
+            if (c === '^' || c === '_') {
+                if (atoms.length === 0) {
+                    const atom = this.attachScripts({ text: '("")', atomic: true });
+                    atoms.push(atom);
+                    continue;
+                }
+                this.fail(`script '${c}' without a base at offset ${this.pos}`);
+            }
+            if (c === '}' || c === '&') {
                 this.fail(`unexpected '${c}' inside [...] at offset ${this.pos}`);
             }
-            const atom = this.parseAtom();
+            const atom = this.attachScripts(this.parseAtom());
             if (atom.text !== '') atoms.push(atom);
         }
         if (atoms.length === 1 && atoms[0]!.atomic) return atoms[0]!;
@@ -251,8 +260,8 @@ export class Parser implements EnvironmentParserContext {
         if (SIZING_COMMANDS.has(name)) {
             return { text: '', atomic: true };
         }
-        if (name === 'xrightarrow' || name === 'xleftarrow') {
-            const arrow = name === 'xrightarrow' ? '-->' : '<--';
+        if (hasKey(EXTENSIBLE_ARROWS, name)) {
+            const arrow = EXTENSIBLE_ARROWS[name]!;
             const opt = this.parseOptionalArg();
             const req = this.parseArg(`\\${name}`);
             const sub = opt !== undefined ? (opt.atomic ? `_${opt.text}` : `_(${opt.text})`) : '';

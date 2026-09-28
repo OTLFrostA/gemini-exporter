@@ -242,11 +242,15 @@ test('escaped percent and greek / relation variants', async () => {
     eq('\\dddot{x}', 'dot.triple(x)');
 });
 
-test('extensible arrows (\\xrightarrow, \\xleftarrow)', async () => {
+test('extensible arrows (\\xrightarrow, \\xleftarrow, \\xrightleftharpoons, etc.)', async () => {
     eq('\\xrightarrow{\\Delta\\theta = 120^\\circ}', 'scripts(-->)^(Delta theta = 120^compose)');
     eq('\\xrightarrow[k]{n}', 'scripts(-->)_k^n');
     eq('\\xrightarrow[below]{above}', 'scripts(-->)_(b e l o w)^(a b o v e)');
     eq('A \\xleftarrow{n} B', 'A scripts(<--)^n B');
+    eq('A \\xrightleftharpoons{\\text{UdhA}} B', 'A scripts(harpoons.rtlb)^"UdhA" B');
+    eq('A \\xrightleftharpoons[k_{-1}]{k_1} B', 'A scripts(harpoons.rtlb)_k_(- 1)^k_1 B');
+    eq('A \\xleftrightarrow{f} B', 'A scripts(<-->)^f B');
+    eq('A \\xRightarrow{g} B', 'A scripts(==>)^g B');
 });
 
 test('delimiter sizing commands (\\big, \\Big, etc.)', async () => {

@@ -85,6 +85,16 @@ export const DELIMITERS: Record<string, string> = {
 
 export const LITERAL_CHARS = new Set('+-=<>!,;:.\'?*/()[]|'.split(''));
 
+export const EXTENSIBLE_ARROWS: Record<string, string> = {
+    xrightarrow: '-->',
+    xleftarrow: '<--',
+    xrightleftharpoons: 'harpoons.rtlb',
+    xleftrightarrow: '<-->',
+    xRightarrow: '==>',
+    xLeftarrow: '<==',
+    xLeftrightarrow: '<==>',
+};
+
 export const SIZING_COMMANDS = new Set([
     'big', 'Big', 'bigg', 'Bigg',
     'bigl', 'bigr', 'bigm',
