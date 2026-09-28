@@ -68,6 +68,8 @@ export const FONT_SWITCHES: Record<string, string> = {
 
 export const ACCENTS: Record<string, string> = {
     hat: 'hat', bar: 'bar', tilde: 'tilde', dot: 'dot', ddot: 'dot.double', dddot: 'dot.triple', vec: 'arrow',
+    overline: 'overline', underline: 'underline',
+    overbrace: 'overbrace', underbrace: 'underbrace',
 };
 
 export const DELIMITERS: Record<string, string> = {
