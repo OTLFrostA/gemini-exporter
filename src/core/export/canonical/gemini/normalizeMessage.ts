@@ -4,7 +4,7 @@ import type {
 } from '../../../../types/conversation.js';
 import type { Asset } from '../assets.js';
 import { collectReferencedAssetIds } from '../assetReferences.js';
-import type { BlockNode } from '../blocks.js';
+import type { AssetOrigin, BlockNode } from '../blocks.js';
 import type { Citation } from '../citations.js';
 import type { MessageNode, MessageRole } from '../conversation.js';
 import type { Diagnostic } from '../diagnostics.js';
@@ -14,6 +14,7 @@ import { unknownBlockFallbackText } from '../unknownFallback.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import {
     buildAsset,
+    classifyAttachmentKind,
     indexAssetRef,
     mergeMessageAttachments,
     newAssetLinkIndex,
@@ -113,8 +114,22 @@ export function normalizeMessage(
     const assetIndex = newAssetLinkIndex();
     merged.forEach((a, ai) => {
         const assetId = `${msgId}-a${ai}`;
-        const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` },
-            a.isGenerated ? 'generated' : a.__origin === 'attachment' ? 'attachment' : a.__origin === 'image' ? 'inline' : 'unknown');
+        const { isImage } = classifyAttachmentKind(a);
+        const isModelTurn = role === 'assistant' || (m.role as string) === 'model';
+        const isGenerated = a.isGenerated === true || (
+            a.isGenerated !== false &&
+            isModelTurn &&
+            isImage &&
+            a.__origin !== 'document'
+        );
+        const origin: AssetOrigin = isGenerated
+            ? 'generated'
+            : a.__origin === 'attachment'
+                ? 'attachment'
+                : a.__origin === 'image'
+                    ? 'inline'
+                    : 'unknown';
+        const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` }, origin);
         assets.push(built.asset);
         assetIds.push(assetId);
         for (const ref of [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {

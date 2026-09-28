@@ -1,5 +1,6 @@
 import type { Attachment as RepoAttachment, ChatMessage as RepoMessage } from '../../../../types/conversation.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
+import type { AssetOrigin } from '../blocks.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import { classifyAssetAvailability } from '../assetResolution.js';
@@ -255,14 +256,14 @@ export interface AssetBuild {
     asset: Asset;
     diagnostics: Diagnostic[];
     isImage: boolean;
-    origin: 'inline' | 'attachment' | 'generated' | 'unknown';
+    origin: AssetOrigin;
 }
 
 export function buildAsset(
     a: RepoAttachment,
     id: string,
     sourceRef: SourceRef,
-    origin: AssetBuild['origin'],
+    origin: AssetOrigin,
 ): AssetBuild {
     const diagnostics: Diagnostic[] = [];
     const { kind, isImage, diag } = classifyAttachmentKind(a);

@@ -84,6 +84,14 @@ const CANONICAL_EXTRA_CSS = `
   color: var(--text-secondary);
   margin-top: 6px;
 }
+.gem-image-block {
+  margin: 1.2em 0;
+  text-align: center;
+}
+.gem-image-block img {
+  display: block;
+  margin: 0 auto;
+}
 .gem-missing-asset {
   border: 1px dashed var(--border-color);
   border-radius: 8px;
@@ -259,6 +267,18 @@ function missingAssetHtml(assetId: string, label: string, ctx: RenderCtx, path: 
     return `<div class="gem-missing-asset">附件缺失 · ${escapeHtml(label)} <span class="gem-att-badge">MISSING</span></div>`;
 }
 
+function renderImageBlock(block: ImageBlock, ctx: RenderCtx, path: string): string {
+    const asset = ctx.assets.get(block.assetId);
+    const url = resolveAssetUrl(asset, ctx);
+    const name = block.alt ?? asset?.name ?? block.assetId;
+    const safeName = escapeHtml(name);
+    if (!url) return missingAssetHtml(block.assetId, name, ctx, path);
+    const caption = block.caption?.length
+        ? `<figcaption class="gem-image-caption">${renderInlines(block.caption, ctx)}</figcaption>`
+        : '';
+    return `<figure class="gem-figure gem-image-block" data-asset-id="${escapeHtml(block.assetId)}"><a href="${url}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${url}" alt="${safeName}" loading="lazy"></a>${caption}</figure>`;
+}
+
 function renderImageCard(block: ImageBlock, ctx: RenderCtx, path: string): string {
     const asset = ctx.assets.get(block.assetId);
     const url = resolveAssetUrl(asset, ctx);
@@ -393,8 +413,13 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
         }
         case 'table':
             return renderTable(block as TableBlock, ctx);
-        case 'image':
-            return renderImageCard(block as ImageBlock, ctx, path);
+        case 'image': {
+            const img = block as ImageBlock;
+            if (img.origin === 'generated' || img.origin === 'inline') {
+                return renderImageBlock(img, ctx, path);
+            }
+            return renderImageCard(img, ctx, path);
+        }
         case 'file':
             return renderFileCard(block as FileBlock, ctx, path);
         case 'citationGroup': {
@@ -473,18 +498,30 @@ function renderBlocks(blocks: BlockNode[], ctx: RenderCtx, path: string): string
     return (blocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/block:${i}`)).join('\n');
 }
 
-function isAssetBlock(b: BlockNode): b is ImageBlock | FileBlock {
-    return b.type === 'image' || b.type === 'file';
+function isAssetBlock(b: BlockNode): boolean {
+    if (b.type === 'file') return true;
+    if (b.type === 'image') {
+        return b.origin !== 'generated' && b.origin !== 'inline';
+    }
+    return false;
 }
 
-function renderCompanionCards(msg: MessageNode, bundle: CanonicalConversationBundle, ctx: RenderCtx, path: string): string {
+function renderCompanionCards(
+    msg: MessageNode,
+    bundle: CanonicalConversationBundle,
+    ctx: RenderCtx,
+    path: string,
+    seenCardAssetIds?: Set<string>,
+): string {
     const plan = collectCompanionPlacements(msg, bundle);
     for (const d of plan.diagnostics) diag(ctx, d.severity, d.code, d.message, d.path ?? path);
     const cards: string[] = [];
     plan.trailingImages.forEach((id, i) => {
+        seenCardAssetIds?.add(id);
         cards.push(renderImageCard({ type: 'image', id: `companion:image:${id}`, assetId: id }, ctx, `${path}/companion:${i}`));
     });
     plan.trailingFiles.forEach((id, i) => {
+        seenCardAssetIds?.add(id);
         cards.push(renderFileCard({ type: 'file', id: `companion:file:${id}`, assetId: id }, ctx, `${path}/companion:${i}`));
     });
     return cards.join('\n');
@@ -495,9 +532,33 @@ function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: C
     const assetBlocks = msg.blocks.filter(isAssetBlock);
     const contentBlocks = msg.blocks.filter((b) => !isAssetBlock(b));
     const cards: string[] = [];
-    if (assetBlocks.length) cards.push(assetBlocks.map((b, i) => renderBlock(b, ctx, `${path}/asset:${i}`)).join('\n'));
-    const companions = renderCompanionCards(msg, bundle, ctx, path);
+    const seenCardAssetIds = new Set<string>();
+
+    if (assetBlocks.length) {
+        for (let i = 0; i < assetBlocks.length; i++) {
+            const b = assetBlocks[i];
+            if (b.type === 'image' || b.type === 'file') {
+                seenCardAssetIds.add(b.assetId);
+            }
+            cards.push(renderBlock(b, ctx, `${path}/asset:${i}`));
+        }
+    }
+    const companions = renderCompanionCards(msg, bundle, ctx, path, seenCardAssetIds);
     if (companions) cards.push(companions);
+
+    if (msg.role === 'assistant' || (msg.role as string) === 'model') {
+        const generatedImageBlocks = contentBlocks.filter(
+            (b): b is ImageBlock => b.type === 'image' && b.origin === 'generated',
+        );
+        for (let i = 0; i < generatedImageBlocks.length; i++) {
+            const gb = generatedImageBlocks[i];
+            if (!seenCardAssetIds.has(gb.assetId)) {
+                seenCardAssetIds.add(gb.assetId);
+                cards.push(renderImageCard(gb, ctx, `${path}/generated-card:${i}`));
+            }
+        }
+    }
+
     const carouselHtml = cards.length ? renderCarousel(cards.join('\n')) : '';
     const bodyHtml = renderBlocks(contentBlocks, ctx, path);
 
