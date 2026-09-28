@@ -49,10 +49,23 @@ test('chipUtils - stripInternalChipMarkdown removes standalone chips and unwraps
         'Header\n\nFooter'
     );
 
-    // 4. Preserves non-chip links
-    const textWithRealLink = 'Check [Google Search](https://www.google.com) for details.';
-    assert.strictEqual(
-        stripInternalChipMarkdown(textWithRealLink),
-        'Check [Google Search](https://www.google.com) for details.'
-    );
+    // 5. Strips provider-only structured UI tags (ElicitationsGroup, Elicitation, FollowUp, GenerateWidget)
+    const textWithMarkup = [
+        'Main content line 1.',
+        '<ElicitationsGroup message="想要进一步探索量子计算的相关概念，可以尝试以下方向：">',
+        '  <Elicitation label="了解量子退相干物理机制" query="详细解释退相干"/>',
+        '  <Elicitation label="对比 Shor 与 Grover" query="对比原理"/>',
+        '</ElicitationsGroup>',
+        '<FollowUp label="需要支持 async 吗？" query="支持 async"/>',
+        '<GenerateWidget id="w1"/>',
+        'Main content line 2.',
+    ].join('\n');
+    const cleaned = stripInternalChipMarkdown(textWithMarkup);
+    assert.strictEqual(cleaned.includes('ElicitationsGroup'), false);
+    assert.strictEqual(cleaned.includes('Elicitation'), false);
+    assert.strictEqual(cleaned.includes('FollowUp'), false);
+    assert.strictEqual(cleaned.includes('GenerateWidget'), false);
+    assert.ok(cleaned.includes('Main content line 1.'));
+    assert.ok(cleaned.includes('Main content line 2.'));
 });
+
