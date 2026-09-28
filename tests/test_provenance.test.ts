@@ -1,12 +1,12 @@
 /**
  * tests/test_provenance.test.ts
  *
- * Validates the Test Provenance Classification Manifest (Section 5 & 21).
- * Ensures:
- * 1. Manifest exists, has valid structure, and conforms to P0-P4 tiers.
- * 2. Every registered test suite exists physically on disk.
+ * Validates the Test Provenance Classification Manifest (Section 5 & 21, Remediation 1.1).
+ * Enforces:
+ * 1. Strict P0 Admission Gate: ANY test claiming P0 MUST possess a verifiable
+ *    evidence file path on disk and a non-empty originalHash.
+ * 2. Manifest structural integrity and valid tier definitions.
  * 3. Every canonical & typst-math test file in tests/ is audited and classified.
- * 4. Summary counts and tier distributions match actual test files.
  */
 export {};
 const test = require('node:test');
@@ -31,6 +31,28 @@ test('Test Provenance Manifest: File existence and structural integrity', () => 
 
     assert.ok(Array.isArray(data.suites), 'Manifest must declare suites array');
     assert.ok(data.suites.length >= 27, `Expected at least 27 audited suites, got ${data.suites.length}`);
+});
+
+test('Test Provenance Manifest: Strict P0 Admission Gate (evidence + originalHash)', () => {
+    const data = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
+
+    for (const suite of data.suites) {
+        if (suite.classification === 'P0') {
+            assert.ok(
+                typeof suite.evidence === 'string' && suite.evidence.length > 0,
+                `P0 suite '${suite.file}' MUST specify an evidence file path.`
+            );
+            const evidencePath = path.join(__dirname, '..', suite.evidence);
+            assert.ok(
+                fs.existsSync(evidencePath),
+                `P0 suite '${suite.file}' evidence file must exist on disk: ${suite.evidence}`
+            );
+            assert.ok(
+                typeof suite.originalHash === 'string' && suite.originalHash.length >= 8,
+                `P0 suite '${suite.file}' MUST specify a valid originalHash.`
+            );
+        }
+    }
 });
 
 test('Test Provenance Manifest: All registered suites exist on disk with valid classifications', () => {

@@ -1,11 +1,13 @@
 /**
  * tests/diff_runner.test.ts
  *
- * Tier 1 unit test for Parser Differential Runner (Section 8.4 & 22).
+ * Tier 1 unit test for Parser Differential Runner (Section 8.4, 22 & Remediation 1.1).
  * Verifies:
  * 1. Semantic AST fingerprint extraction.
- * 2. Markdown comparison & four-tier diff categorization (A/B/C/D).
- * 3. Math conversion comparison & four-tier diff categorization.
+ * 2. Unresolved diffs default to 'D_CANNOT_DETERMINE' (Old parser is NOT an oracle).
+ * 3. Never auto-classifies differences as 'B_OLD_PARSER_GEMINI_DIALECT'.
+ * 4. Math conversion comparison correctly identifies candidate improvements (Category A)
+ *    and defaults unknown regressions to 'D_CANNOT_DETERMINE'.
  */
 export {};
 const test = require('node:test');
@@ -50,7 +52,7 @@ test('Differential Runner: Markdown AST comparison identifies identical structur
     assert.strictEqual(result.domain, 'markdown');
 });
 
-test('Differential Runner: Markdown AST categorization adheres to Section 8.4', () => {
+test('Differential Runner: Structural diffs default to D_CANNOT_DETERMINE (No automatic B bias)', () => {
     const bundleBase = {
         conversation: {
             messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Sample' }] }] }],
@@ -62,23 +64,26 @@ test('Differential Runner: Markdown AST categorization adheres to Section 8.4', 
         },
     };
 
-    // Category B: Candidate introduced unknown fallback where baseline parsed cleanly
-    const diffB = compareMarkdownAst('Sample', bundleBase, bundleWithUnknown);
-    assert.strictEqual(diffB.hasDiff, true);
-    assert.strictEqual(diffB.category, 'B_OLD_PARSER_GEMINI_DIALECT');
+    // Any diff MUST default to D_CANNOT_DETERMINE: Old parser is NOT an oracle
+    const diff = compareMarkdownAst('Sample', bundleBase, bundleWithUnknown);
+    assert.strictEqual(diff.hasDiff, true);
+    assert.strictEqual(diff.category, 'D_CANNOT_DETERMINE');
+    assert.ok(diff.rationale?.includes('Old parser is not an oracle'));
 
-    // Category A: Candidate parsed cleanly where baseline introduced fallback
-    const diffA = compareMarkdownAst('Sample', bundleWithUnknown, bundleBase);
-    assert.strictEqual(diffA.hasDiff, true);
-    assert.strictEqual(diffA.category, 'A_NEW_PARSER_CORRECT');
+    // Explicit override permitted only with verified rationale
+    const overridden = compareMarkdownAst('Sample', bundleBase, bundleWithUnknown, {
+        category: 'B_OLD_PARSER_GEMINI_DIALECT',
+        rationale: 'Verified against raw Takeout evidence fixture tests/fixtures/real-gemini/demo.json',
+    });
+    assert.strictEqual(overridden.category, 'B_OLD_PARSER_GEMINI_DIALECT');
 });
 
-test('Differential Runner: Math comparison identifies improvements vs regressions', () => {
+test('Differential Runner: Math comparison identifies improvements vs unverified diffs', () => {
     // Both identical
     const same = compareMathConversion('x^2', { typst: 'x^2' }, { typst: 'x^2' });
     assert.strictEqual(same.hasDiff, false);
 
-    // Improvement (Candidate converts where baseline failed) -> Category A
+    // Candidate converts where baseline failed -> Category A (improvement)
     const improve = compareMathConversion(
         '\\arg(z)',
         { diagnostic: { code: 'FAILED' } },
@@ -87,12 +92,12 @@ test('Differential Runner: Math comparison identifies improvements vs regression
     assert.strictEqual(improve.hasDiff, true);
     assert.strictEqual(improve.category, 'A_NEW_PARSER_CORRECT');
 
-    // Regression (Candidate failed where baseline succeeded) -> Category B
-    const regress = compareMathConversion(
+    // Candidate failed where baseline succeeded -> Defaults to D_CANNOT_DETERMINE (investigation required, not assumed B)
+    const diverge = compareMathConversion(
         '\\frac{1}{2}',
         { typst: 'frac(1, 2)' },
         { diagnostic: { code: 'FAILED' } }
     );
-    assert.strictEqual(regress.hasDiff, true);
-    assert.strictEqual(regress.category, 'B_OLD_PARSER_GEMINI_DIALECT');
+    assert.strictEqual(diverge.hasDiff, true);
+    assert.strictEqual(diverge.category, 'D_CANNOT_DETERMINE');
 });

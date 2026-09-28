@@ -1,20 +1,19 @@
 /**
  * scripts/parser_migration/diff_runner.ts
  *
- * Legacy vs New Parser Differential Runner (Section 8.4 & Section 22)
+ * Legacy vs New Parser Differential Runner (Section 8.4, 22 & Remediation 1.1)
  *
- * Provides semantic difference comparison between two parsers/converters.
- * NOT an oracle: Diffs are categorized into 4 tiers rather than failing:
- *   - Category A: New parser clearly correct (upstream standard)
- *   - Category B: Old parser clearly correct because real Gemini requires it
- *   - Category C: Both reasonable (prefer standard behavior)
- *   - Category D: Cannot determine (unresolved observation)
+ * CORE PRINCIPLE: The old parser is NOT an oracle.
+ * Any structural or conversion difference between baseline and candidate
+ * MUST default to 'D_CANNOT_DETERMINE' (unresolved observation).
+ *
+ * Automated promotion to 'B_OLD_PARSER_GEMINI_DIALECT' is strictly forbidden.
+ * Reclassification requires explicit human review or verifiable evidence:
+ *   - Category A: Upstream standard specification explicitly validates candidate (New parser correct).
+ *   - Category B: Verifiable raw Gemini evidence proves old semantic is necessary dialect.
+ *   - Category C: Both representations conform to reasonable standards.
+ *   - Category D: Default unresolved difference pending investigation.
  */
-
-import * as fs from 'fs';
-import * as path from 'path';
-import { normalizeGeminiConversation } from '../../src/core/export/canonical/normalizeGemini.js';
-import { convertMathWithDiagnostic } from '../../src/core/export/typst/math/convertMath.js';
 
 export type DiffCategory =
     | 'A_NEW_PARSER_CORRECT'
@@ -89,12 +88,13 @@ export function extractAstFingerprint(bundle: any): AstSemanticFingerprint {
 
 /**
  * Compares two Markdown normalization results semantically.
+ * Defaults all diffs to 'D_CANNOT_DETERMINE'. Old parser is NEVER assumed correct.
  */
 export function compareMarkdownAst(
     input: string,
     baselineBundle: any,
     candidateBundle: any,
-    provenanceTag?: string,
+    explicitCategoryOverride?: { category: DiffCategory; rationale: string },
 ): SemanticDiffResult {
     const baseFp = extractAstFingerprint(baselineBundle);
     const candFp = extractAstFingerprint(candidateBundle);
@@ -114,30 +114,26 @@ export function compareMarkdownAst(
         };
     }
 
-    // Categorization logic per Section 8.4
-    let category: DiffCategory = 'D_CANNOT_DETERMINE';
-    let rationale = 'Structural difference detected between baseline and candidate parser';
-
-    if (provenanceTag === 'P0' || provenanceTag === 'real-gemini') {
-        category = 'B_OLD_PARSER_GEMINI_DIALECT';
-        rationale = 'Difference observed on real Gemini provenance data; requires provenance fixture check';
-    } else if (candFp.blockTypes.includes('unknown') && !baseFp.blockTypes.includes('unknown')) {
-        category = 'B_OLD_PARSER_GEMINI_DIALECT';
-        rationale = 'Candidate produced unknown block fallback where baseline parsed cleanly';
-    } else if (!candFp.blockTypes.includes('unknown') && baseFp.blockTypes.includes('unknown')) {
-        category = 'A_NEW_PARSER_CORRECT';
-        rationale = 'Candidate parsed cleanly where baseline produced unknown block fallback';
-    } else if (baseFp.blockCount === candFp.blockCount) {
-        category = 'C_BOTH_REASONABLE';
-        rationale = 'Block structure identical; minor inline representation difference';
+    if (explicitCategoryOverride) {
+        return {
+            domain: 'markdown',
+            inputPreview: input.slice(0, 80),
+            hasDiff: true,
+            category: explicitCategoryOverride.category,
+            rationale: explicitCategoryOverride.rationale,
+            baseline: baseFp,
+            candidate: candFp,
+        };
     }
 
+    // Default to D_CANNOT_DETERMINE: Old parser is NOT an oracle.
     return {
         domain: 'markdown',
         inputPreview: input.slice(0, 80),
         hasDiff: true,
-        category,
-        rationale,
+        category: 'D_CANNOT_DETERMINE',
+        rationale:
+            'Structural difference detected between baseline and candidate. Old parser is not an oracle; requires standard validation or verified raw Gemini evidence to reclassify.',
         baseline: baseFp,
         candidate: candFp,
     };
@@ -145,11 +141,13 @@ export function compareMarkdownAst(
 
 /**
  * Compares two LaTeX math conversion results semantically.
+ * Defaults diffs to 'D_CANNOT_DETERMINE' unless candidate is demonstrably superior.
  */
 export function compareMathConversion(
     latex: string,
     baselineResult: { typst?: string; diagnostic?: any },
     candidateResult: { typst?: string; diagnostic?: any },
+    explicitCategoryOverride?: { category: DiffCategory; rationale: string },
 ): SemanticDiffResult {
     const hasDiff =
         baselineResult.typst !== candidateResult.typst ||
@@ -165,26 +163,39 @@ export function compareMathConversion(
         };
     }
 
-    let category: DiffCategory = 'D_CANNOT_DETERMINE';
-    let rationale = 'Difference in converted Typst math source';
-
-    if (!baselineResult.typst && candidateResult.typst) {
-        category = 'A_NEW_PARSER_CORRECT';
-        rationale = 'Candidate successfully converted LaTeX expression where baseline fell back';
-    } else if (baselineResult.typst && !candidateResult.typst) {
-        category = 'B_OLD_PARSER_GEMINI_DIALECT';
-        rationale = 'Candidate failed to convert expression where baseline succeeded';
-    } else if (baselineResult.typst && candidateResult.typst) {
-        category = 'C_BOTH_REASONABLE';
-        rationale = 'Both converted successfully; slight Typst notation difference';
+    if (explicitCategoryOverride) {
+        return {
+            domain: 'latex',
+            inputPreview: latex.slice(0, 80),
+            hasDiff: true,
+            category: explicitCategoryOverride.category,
+            rationale: explicitCategoryOverride.rationale,
+            baseline: baselineResult,
+            candidate: candidateResult,
+        };
     }
 
+    // If candidate successfully converts where baseline failed/fell back, it is an upstream capability improvement
+    if (!baselineResult.typst && candidateResult.typst) {
+        return {
+            domain: 'latex',
+            inputPreview: latex.slice(0, 80),
+            hasDiff: true,
+            category: 'A_NEW_PARSER_CORRECT',
+            rationale: 'Candidate successfully converted LaTeX expression where baseline fell back.',
+            baseline: baselineResult,
+            candidate: candidateResult,
+        };
+    }
+
+    // In all other divergence cases (candidate failed or notation differs), default to D
     return {
         domain: 'latex',
         inputPreview: latex.slice(0, 80),
         hasDiff: true,
-        category,
-        rationale,
+        category: 'D_CANNOT_DETERMINE',
+        rationale:
+            'Math conversion divergence detected. Old converter is not an oracle; requires MiTeX standard verification or raw Gemini evidence.',
         baseline: baselineResult,
         candidate: candidateResult,
     };
