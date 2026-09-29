@@ -97,12 +97,22 @@ export function decodeGeminiAnnotation(wa: unknown): GeminiAnnotation | null {
     if (typeof wa === "object" && !Array.isArray(wa)) {
         const d = wa as Record<string, unknown>;
         if (typeof d.start === "number" && typeof d.end === "number" && typeof d.type === "number") {
-            return {
-                start: d.start,
-                end: d.end,
-                type: d.type,
-                ...(typeof d.url === "string" ? { url: d.url } : {})
-            };
+            // Supported inline annotation types:
+            // 0: strong (bold)
+            // 2: emphasis (italic)
+            // 4: inline math
+            // 5: subtle/italic emphasis
+            // 6: link
+            // 7: inline code
+            // 12: strikethrough
+            if ([0, 2, 4, 5, 6, 7, 12].includes(d.type)) {
+                return {
+                    start: d.start,
+                    end: d.end,
+                    type: d.type,
+                    ...(typeof d.url === "string" ? { url: d.url } : {})
+                };
+            }
         }
         return null;
     }
@@ -136,8 +146,9 @@ export function decodeGeminiAnnotation(wa: unknown): GeminiAnnotation | null {
         }
     }
 
+    // Fail closed: Unknown or unsupported annotation must NEVER be coerced or guessed as bold.
     if (t === null) {
-        t = 0;
+        return null;
     }
 
     return {
@@ -152,10 +163,63 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
     if (!w) return null;
     if (typeof w === "object" && !Array.isArray(w)) {
         const node = w as Record<string, unknown>;
-        if (typeof node.nodeType === "number") {
-            return node as unknown as GeminiStructuredNode;
+        if (typeof node.nodeType !== "number") return null;
+        switch (node.nodeType) {
+            case 18: {
+                if (typeof node.text !== "string") return null;
+                if (Array.isArray(node.annotations)) {
+                    for (const a of node.annotations) {
+                        if (!decodeGeminiAnnotation(a)) return null;
+                    }
+                }
+                return node as unknown as GeminiStructuredNode;
+            }
+            case 12: {
+                if (typeof node.FTa !== "string") return null;
+                return node as unknown as GeminiStructuredNode;
+            }
+            case 1: {
+                if (typeof node.code !== "string") return null;
+                return node as unknown as GeminiStructuredNode;
+            }
+            case 19:
+            case 13:
+            case 0:
+                return node as unknown as GeminiStructuredNode;
+            case 15: {
+                if (!Array.isArray(node.children)) return null;
+                for (const c of node.children) {
+                    if (!decodeGeminiStructuredNode(c)) return null;
+                }
+                return node as unknown as GeminiStructuredNode;
+            }
+            case 20:
+            case 14: {
+                if (!Array.isArray(node.items)) return null;
+                for (const item of node.items as any[]) {
+                    if (!item || !Array.isArray(item.children)) return null;
+                    for (const c of item.children) {
+                        if (!decodeGeminiStructuredNode(c)) return null;
+                    }
+                }
+                return node as unknown as GeminiStructuredNode;
+            }
+            case 17: {
+                if (!Array.isArray(node.rows)) return null;
+                for (const row of node.rows as any[]) {
+                    if (!row || !Array.isArray(row.cells)) return null;
+                    for (const cell of row.cells) {
+                        if (!cell || !Array.isArray(cell.children)) return null;
+                        for (const c of cell.children) {
+                            if (!decodeGeminiStructuredNode(c)) return null;
+                        }
+                    }
+                }
+                return node as unknown as GeminiStructuredNode;
+            }
+            default:
+                return null;
         }
-        return null;
     }
     if (!Array.isArray(w)) return null;
 
@@ -187,7 +251,8 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
         const children: GeminiStructuredNode[] = [];
         for (const rc of rawChildren) {
             const dn = decodeGeminiStructuredNode(rc);
-            if (dn) children.push(dn);
+            if (!dn) return null; // Fail closed on unsupported nested node
+            children.push(dn);
         }
         return { nodeType: 15, children };
     }
@@ -204,7 +269,8 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             const children: GeminiStructuredNode[] = [];
             for (const rc of rawChildren) {
                 const dn = decodeGeminiStructuredNode(rc);
-                if (dn) children.push(dn);
+                if (!dn) return null; // Fail closed on unsupported nested node
+                children.push(dn);
             }
             items.push({ children });
         }
@@ -226,7 +292,8 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             const children: GeminiStructuredNode[] = [];
             for (const rc of rawChildren) {
                 const dn = decodeGeminiStructuredNode(rc);
-                if (dn) children.push(dn);
+                if (!dn) return null; // Fail closed on unsupported nested node
+                children.push(dn);
             }
             items.push({ children });
         }
@@ -248,7 +315,8 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                 const children: GeminiStructuredNode[] = [];
                 for (const rch of rawChildren) {
                     const dn = decodeGeminiStructuredNode(rch);
-                    if (dn) children.push(dn);
+                    if (!dn) return null; // Fail closed on unsupported nested node
+                    children.push(dn);
                 }
                 const cellObj: GeminiTableCell = { children };
                 if (Array.isArray(rc)) {
@@ -280,7 +348,8 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             const annotations: GeminiAnnotation[] = [];
             for (const ra of rawAnnots) {
                 const da = decodeGeminiAnnotation(ra);
-                if (da) annotations.push(da);
+                if (!da) return null; // Fail closed on unknown annotation
+                annotations.push(da);
             }
             return {
                 nodeType: 18,
@@ -292,7 +361,8 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
     }
 
     // Field 0 or 2: Attachments / follow-up chips
-    if ((w.length > 0 && w[0] !== null && w[0] !== undefined) || (w.length > 2 && w[2] !== null && w[2] !== undefined)) {
+    if ((w.length > 0 && w[0] !== null && typeof w[0] === 'object' && !Array.isArray(w[0])) ||
+        (w.length >= 3 && w[0] === null && w[1] === null && w[2] !== null)) {
         return { nodeType: 0 };
     }
 
@@ -320,9 +390,13 @@ export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDoc
     // Case 2: Array payload (wire format or array of nodes)
     if (Array.isArray(raw)) {
         let nodeArray: unknown[] = raw;
-        // Unwrap nested JSPB envelopes: rawF12[0][0]
-        while (nodeArray.length === 1 && Array.isArray(nodeArray[0])) {
-            nodeArray = nodeArray[0] as unknown[];
+        // Turn field 12 envelope in JSPB: [ [ [ node_0, node_1, ... ] ] ]
+        if (nodeArray.length === 1 && Array.isArray(nodeArray[0])) {
+            if (nodeArray[0].length === 1 && Array.isArray(nodeArray[0][0])) {
+                nodeArray = nodeArray[0][0] as unknown[];
+            } else if (nodeArray[0].length > 1 && Array.isArray(nodeArray[0][0])) {
+                nodeArray = nodeArray[0] as unknown[];
+            }
         }
 
         const children: GeminiStructuredNode[] = [];
@@ -340,18 +414,29 @@ export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDoc
     return null;
 }
 
-export function extractStructuredContent(turn: unknown, cand?: unknown): GeminiStructuredDocument | undefined {
-    // 1. Check if mock / test fixture already populated structuredContent on cand or turn
+export function extractStructuredContent(turn: unknown, cand?: unknown, candidateIndex: number = 0): GeminiStructuredDocument | undefined {
+    // 1. Check if mock / test fixture already populated structuredContent directly on cand
     if (cand && typeof cand === "object" && "structuredContent" in cand && (cand as any).structuredContent) {
         const decoded = decodeGeminiStructuredPayload((cand as any).structuredContent);
         if (decoded) return decoded;
     }
+
+    // 2. Direct turn-attached structuredContent (test fixture / mock): only applies to primary candidate
     if (turn && typeof turn === "object" && !Array.isArray(turn) && "structuredContent" in turn && (turn as any).structuredContent) {
-        const decoded = decodeGeminiStructuredPayload((turn as any).structuredContent);
-        if (decoded) return decoded;
+        if (candidateIndex === 0) {
+            const decoded = decodeGeminiStructuredPayload((turn as any).structuredContent);
+            if (decoded) return decoded;
+        }
+        return undefined;
     }
 
-    // 2. Wire path: turn[3][12]
+    // 3. Wire path: turn[3][12]
+    // PR #705 established turn[3][12] correlation specifically for the primary model candidate (index 0).
+    // Candidate 1+ must not inherit turn[3][12] without proven wire evidence.
+    if (candidateIndex !== 0) {
+        return undefined;
+    }
+
     if (!Array.isArray(turn) || turn.length <= GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD) {
         return undefined;
     }
