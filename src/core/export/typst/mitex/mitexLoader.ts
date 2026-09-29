@@ -15,6 +15,11 @@ const EMPTY_SPEC = new Uint8Array(0);
 
 let isReady = false;
 let initPromise: Promise<void> | null = null;
+let initFailureSimulator: (() => Error | null) | null = null;
+
+export function simulateMitexInitFailureForTesting(fn: (() => Error | null) | null): void {
+    initFailureSimulator = fn;
+}
 
 function getNodeModule(name: string): any {
     if (typeof process !== 'undefined' && process.versions?.node) {
@@ -70,10 +75,14 @@ export function isMitexReady(): boolean {
 }
 
 export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuffer): Promise<void> {
+    if (initFailureSimulator) {
+        const err = initFailureSimulator();
+        if (err) throw err;
+    }
     if (isReady) return;
     if (initPromise) return initPromise;
 
-    initPromise = (async () => {
+    const promise = (async () => {
         let bytes: Uint8Array | ArrayBuffer;
 
         if (wasmSource instanceof Uint8Array || wasmSource instanceof ArrayBuffer) {
@@ -105,7 +114,14 @@ export async function initMitexWasm(wasmSource?: string | Uint8Array | ArrayBuff
         isReady = true;
     })();
 
-    return initPromise;
+    initPromise = promise;
+
+    try {
+        await promise;
+    } catch (err) {
+        initPromise = null;
+        throw err;
+    }
 }
 
 export function mitexConvertMath(latex: string): string {
@@ -135,4 +151,5 @@ export function mitexConvertText(latex: string): string {
 export function resetMitexForTesting(): void {
     isReady = false;
     initPromise = null;
+    initFailureSimulator = null;
 }

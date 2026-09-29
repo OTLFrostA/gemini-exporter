@@ -21,8 +21,19 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
         throw new DOMException(`Pipeline aborted before stage 'payload'`, 'AbortError');
     }
 
-    // Ensure MiTeX WASM engine is ready for LaTeX math conversion
-    await initMitexWasm();
+    const initDiagnostics: TypstAdapterDiagnostic[] = [];
+    let mitexAvailable = true;
+
+    try {
+        await initMitexWasm();
+    } catch (err: any) {
+        mitexAvailable = false;
+        initDiagnostics.push({
+            severity: 'warning',
+            code: 'TYPST_MATH_INIT_FAILED',
+            message: `MiTeX WASM initialization failed: ${err?.message ?? String(err)}. Math formulas preserved as raw LaTeX fallback.`,
+        });
+    }
 
     // Capture math conversion diagnostics in the closure since the convertMath callback only returns string | undefined.
     const mathDiagnostics: TypstAdapterDiagnostic[] = [];
@@ -30,12 +41,15 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
         assetPath: (asset) => input.pathMap.get(asset.id),
         locale: input.locale,
         convertMath: (source, notation, display) => {
+            if (!mitexAvailable) {
+                return undefined;
+            }
             const converted = convertMathWithMitex(source, notation, display);
             if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);
             return converted.typst;
         },
         projectedMessages: input.view.messages,
     });
-    const diagnostics = [...result.diagnostics, ...mathDiagnostics].map(mapDiagnostic);
+    const diagnostics = [...result.diagnostics, ...initDiagnostics, ...mathDiagnostics].map(mapDiagnostic);
     return { output: { payload: result.payload }, diagnostics };
 };

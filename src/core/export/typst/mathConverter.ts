@@ -13,6 +13,8 @@ export {
     initMitexWasm,
     isMitexReady,
     mitexConvertMath,
+    resetMitexForTesting,
+    simulateMitexInitFailureForTesting,
     type MathConversionResult,
 } from './mitex/index.js';
 

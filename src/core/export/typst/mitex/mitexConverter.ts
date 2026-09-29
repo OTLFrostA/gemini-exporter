@@ -41,7 +41,12 @@ export function convertMathWithMitex(
     }
 
     if (notation !== 'latex') {
-        return {};
+        return {
+            diagnostic: warn(
+                'TYPST_MATH_UNSUPPORTED_NOTATION',
+                `Math notation '${notation}' is not supported by the controlled converter (only 'latex'); raw source preserved.`,
+            ),
+        };
     }
 
     if (typeof source !== 'string' || source.trim() === '') {

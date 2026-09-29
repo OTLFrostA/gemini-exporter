@@ -134,3 +134,46 @@ test('aborted signal throws AbortError', async () => {
         (e: any) => e instanceof DOMException && e.name === 'AbortError',
     );
 });
+
+test('MiTeX initialization failure emits single warning and preserves raw LaTeX fallback without aborting', async () => {
+    const { simulateMitexInitFailureForTesting } = require('../src/core/export/typst/mathConverter.js');
+    simulateMitexInitFailureForTesting(() => new Error('Simulated WebAssembly compile failure'));
+
+    try {
+        const m1 = message('m1', 'user', null, [para('question')]);
+        const m2 = message('m2', 'assistant', 'm1', [
+            mathBlock('\\int_0^1 x dx'),
+            mathBlock('\\frac{a}{b}'),
+        ]);
+        const bundle = bundleWith([m1, m2]);
+        const { output, diagnostics } = await payloadStage(
+            { bundle, view: viewOf([m1, m2]), pathMap: new Map(), locale: 'en' },
+            makeCtx(),
+        );
+
+        // Stage must not abort and produces payload
+        assert.ok(output.payload, 'Payload must be produced');
+        assert.strictEqual(output.payload.messageCount, 2);
+
+        // Emits exactly ONE init failure warning diagnostic (no duplicate error per formula)
+        const initWarnings = diagnostics.filter((d: any) => d.code === 'TYPST_MATH_INIT_FAILED');
+        assert.strictEqual(initWarnings.length, 1, `Expected exactly 1 init warning, got: ${JSON.stringify(diagnostics)}`);
+        assert.strictEqual(initWarnings[0].severity, 'warning');
+        assert.ok(initWarnings[0].message.includes('Simulated WebAssembly compile failure'));
+
+        // No formula-level conversion failure errors emitted
+        const convertFailures = diagnostics.filter((d: any) => d.code === 'TYPST_MATH_CONVERT_FAILED');
+        assert.strictEqual(convertFailures.length, 0, 'Must not emit duplicate conversion failures per formula');
+
+        // Both math nodes keep raw LaTeX and typst is undefined
+        const mathNodes = output.payload.messages[1].blocks.filter((b: any) => b.type === 'math');
+        assert.strictEqual(mathNodes.length, 2);
+        assert.strictEqual(mathNodes[0].latex, '\\int_0^1 x dx');
+        assert.strictEqual(mathNodes[0].typst, undefined);
+        assert.strictEqual(mathNodes[1].latex, '\\frac{a}{b}');
+        assert.strictEqual(mathNodes[1].typst, undefined);
+    } finally {
+        simulateMitexInitFailureForTesting(null);
+    }
+});
+
