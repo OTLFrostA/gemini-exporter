@@ -319,8 +319,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     // 2. Process Math expressions
     const mathStart = Date.now();
-    const baselineSuccessful: Array<{ id: string; latex: string; display: boolean }> = [];
-    const candidateSuccessful: Array<{ id: string; latex: string; display: boolean }> = [];
+    const baselineSuccessful: Array<{ id: string; latex: string; display: boolean; typst: string }> = [];
+    const candidateSuccessful: Array<{ id: string; latex: string; display: boolean; typst: string }> = [];
 
     for (const expr of mathExpressions) {
         let baseRes: any = null;
@@ -333,7 +333,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             baseRes = activeBaselineConverter(expr.latex, !!expr.display);
             if (baseRes?.typst) {
                 report.math.baseline.converted += 1;
-                baselineSuccessful.push(expr);
+                baselineSuccessful.push({
+                    id: expr.id,
+                    latex: expr.latex,
+                    display: !!expr.display,
+                    typst: baseRes.typst,
+                });
             } else {
                 report.math.baseline.conversionFailures += 1;
                 if (baseRes?.diagnostic) {
@@ -361,7 +366,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 candRes = options.candidateConverter(expr.latex, !!expr.display);
                 if (candRes?.typst) {
                     report.math.candidate!.converted += 1;
-                    candidateSuccessful.push(expr);
+                    candidateSuccessful.push({
+                        id: expr.id,
+                        latex: expr.latex,
+                        display: !!expr.display,
+                        typst: candRes.typst,
+                    });
                 } else {
                     report.math.candidate!.conversionFailures += 1;
                     if (candRes?.diagnostic) {
@@ -439,6 +449,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     report.math.conversionFailures = report.math.baseline.conversionFailures;
 
     // 3. Genuine Typst WASM compilation gate (100% of expressions evaluated, no truncation)
+    // Compiles the EXACT output obtained from conversion phase; never re-invokes converters.
     if (options.compileTypst) {
         // 3a. Baseline Typst compile gate
         if (baselineSuccessful.length > 0) {
@@ -466,7 +477,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         assets: [],
                         citations: [],
                     };
-                    const convertMathFn = (s: string, not: string, disp: boolean) => activeBaselineConverter(s, disp).typst;
+                    // Direct lookup of the cached exact Typst output from conversion phase:
+                    const baseTypstMap = new Map<string, string>();
+                    for (const e of baselineSuccessful) {
+                        baseTypstMap.set(e.latex, e.typst);
+                    }
+                    const convertMathFn = (s: string) => baseTypstMap.get(s);
                     const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
@@ -524,7 +540,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         assets: [],
                         citations: [],
                     };
-                    const convertMathFn = (s: string, not: string, disp: boolean) => options.candidateConverter!(s, disp).typst;
+                    // Direct lookup of the cached exact Typst output from conversion phase:
+                    const candTypstMap = new Map<string, string>();
+                    for (const e of candidateSuccessful) {
+                        candTypstMap.set(e.latex, e.typst);
+                    }
+                    const convertMathFn = (s: string) => candTypstMap.get(s);
                     const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,

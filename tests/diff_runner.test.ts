@@ -5,9 +5,11 @@
  * Verifies:
  * 1. Semantic AST fingerprint extraction.
  * 2. Unresolved diffs default to 'D_CANNOT_DETERMINE' (Old parser is NOT an oracle).
- * 3. Never auto-classifies differences as 'B_OLD_PARSER_GEMINI_DIALECT'.
- * 4. Math conversion comparison correctly identifies candidate improvements (Category A)
+ * 3. Never auto-classifies differences as 'B_OLD_PARSER_GEMINI_DIALECT' (0 manual override).
+ * 4. Math conversion comparison correctly identifies candidate improvements (candidateConversionGain)
  *    and defaults unknown regressions to 'D_CANNOT_DETERMINE'.
+ * 5. Default-Semantic Principle: Unknown/future semantic fields produce a diff by default.
+ * 6. Minimal canonicalization: Coalescing adjacent inline text nodes and ignoring ephemeral metadata.
  */
 export {};
 const test = require('node:test');
@@ -69,13 +71,6 @@ test('Differential Runner: Structural diffs default to D_CANNOT_DETERMINE (No au
     assert.strictEqual(diff.hasDiff, true);
     assert.strictEqual(diff.category, 'D_CANNOT_DETERMINE');
     assert.ok(diff.rationale?.includes('Old parser is not an oracle'));
-
-    // Explicit override permitted only with verified rationale
-    const overridden = compareMarkdownAst('Sample', bundleBase, bundleWithUnknown, {
-        category: 'B_OLD_PARSER_GEMINI_DIALECT',
-        rationale: 'Verified against raw Takeout evidence fixture tests/fixtures/real-gemini/demo.json',
-    });
-    assert.strictEqual(overridden.category, 'B_OLD_PARSER_GEMINI_DIALECT');
 });
 
 test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERMINE with conversion gain flag', () => {
@@ -103,18 +98,6 @@ test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERM
     assert.strictEqual(diverge.hasDiff, true);
     assert.strictEqual(diverge.category, 'D_CANNOT_DETERMINE');
     assert.strictEqual(diverge.candidateConversionGain, false);
-
-    // Explicit override permitted with verified standard rationale
-    const overrideA = compareMathConversion(
-        '\\arg(z)',
-        { diagnostic: { code: 'FAILED' } },
-        { typst: 'op("arg", limits: #false)(z)' },
-        {
-            category: 'A_NEW_PARSER_CORRECT',
-            rationale: 'Verified against MiTeX standard math operator specifications',
-        }
-    );
-    assert.strictEqual(overrideA.category, 'A_NEW_PARSER_CORRECT');
 });
 
 test('Differential Runner: Ignores ephemeral metadata (id, sourceRef, extensions) when content is identical', () => {
@@ -189,7 +172,7 @@ test('Differential Runner: Recursively catches lost formatting (strong -> text)'
     assert.strictEqual(result.hasDiff, true, 'Dropping strong to plain text must be detected as a diff');
     assert.strictEqual(result.category, 'D_CANNOT_DETERMINE');
     assert.strictEqual(result.rationaleKind, 'FORMATTING_LOST');
-    assert.ok(result.rationale?.includes('baseline formatting \'strong\' was lost in candidate to plain text'));
+    assert.ok(result.rationale?.includes('formatting \'strong\' was lost to plain text'));
 });
 
 test('Differential Runner: Recursively catches link href corruption', () => {
@@ -283,3 +266,112 @@ test('Differential Runner: Recursively catches table structure and cell alterati
     assert.strictEqual(result.rationaleKind, 'TABLE_DIVERGENCE');
 });
 
+test('Differential Runner: Unknown / future semantic fields produce diff by default without special-casing', () => {
+    // 1. Candidate introduces an unmentioned custom semantic attribute on a block
+    const baseBundle = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [{ type: 'text', text: 'Hello' }],
+                }],
+            }],
+        },
+    };
+    const candBundleWithExtraField = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    customSemanticAnnotation: 'v2-extra-meta', // not in any hardcoded allowlist!
+                    children: [{ type: 'text', text: 'Hello' }],
+                }],
+            }],
+        },
+    };
+
+    const diff1 = compareMarkdownAst('Hello', baseBundle, candBundleWithExtraField);
+    assert.strictEqual(diff1.hasDiff, true, 'Unknown block field must default to semantic and trigger diff');
+    assert.strictEqual(diff1.category, 'D_CANNOT_DETERMINE');
+    assert.ok(diff1.rationale?.includes('customSemanticAnnotation'));
+
+    // 2. Candidate modifies a cell-level property (e.g. rowSpan)
+    const baseTable = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'table',
+                    rows: [{
+                        cells: [{ rowSpan: 1, children: [{ type: 'text', text: 'cell' }] }],
+                    }],
+                }],
+            }],
+        },
+    };
+    const candTableSpan = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'table',
+                    rows: [{
+                        cells: [{ rowSpan: 2, children: [{ type: 'text', text: 'cell' }] }],
+                    }],
+                }],
+            }],
+        },
+    };
+
+    const diff2 = compareMarkdownAst('table', baseTable, candTableSpan);
+    assert.strictEqual(diff2.hasDiff, true, 'rowSpan difference must be detected automatically');
+    assert.ok(diff2.rationale?.includes('rowSpan'));
+});
+
+test('Differential Runner: Minimal canonicalization coalesces adjacent inline text nodes', () => {
+    const chunkedTextBundle = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [
+                        { type: 'text', text: 'Hello ' },
+                        { type: 'text', text: 'World' },
+                    ],
+                }],
+            }],
+        },
+    };
+
+    const singleTextBundle = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [
+                        { type: 'text', text: 'Hello World' },
+                    ],
+                }],
+            }],
+        },
+    };
+
+    // When text is identical after coalescing, it is considered equivalent
+    const resIdentical = compareMarkdownAst('Hello World', chunkedTextBundle, singleTextBundle);
+    assert.strictEqual(resIdentical.hasDiff, false, 'Coalesced identical text must not trigger false diff');
+
+    // When text actually differs, it must trigger diff
+    const differentTextBundle = {
+        conversation: {
+            messages: [{
+                blocks: [{
+                    type: 'paragraph',
+                    children: [
+                        { type: 'text', text: 'Hello Earth' },
+                    ],
+                }],
+            }],
+        },
+    };
+    const resDiff = compareMarkdownAst('Hello World', chunkedTextBundle, differentTextBundle);
+    assert.strictEqual(resDiff.hasDiff, true);
+    assert.strictEqual(resDiff.rationaleKind, 'CONTENT_CHANGED');
+});
