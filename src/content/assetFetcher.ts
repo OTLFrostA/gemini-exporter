@@ -14,6 +14,41 @@ export function isGgChainUrl(url: string): boolean {
     return url.includes('/gg/') || url.includes('/rd-gg/');
 }
 
+export async function fetchWithCredentialFallback(
+    url: string,
+    init?: RequestInit,
+    customFetch?: typeof fetch
+): Promise<Response> {
+    const doFetch = customFetch || fetch;
+    const baseInit = init || {};
+    const primaryCredentials = baseInit.credentials ?? 'include';
+    const primaryInit: RequestInit = {
+        ...baseInit,
+        credentials: primaryCredentials,
+    };
+
+    try {
+        return await doFetch(url, primaryInit);
+    } catch (err: any) {
+        if (baseInit.signal?.aborted) {
+            throw err;
+        }
+
+        if (primaryCredentials === 'include') {
+            const fallbackInit: RequestInit = {
+                ...baseInit,
+                credentials: 'omit',
+            };
+            try {
+                return await doFetch(url, fallbackInit);
+            } catch {
+                throw err;
+            }
+        }
+        throw err;
+    }
+}
+
 export async function fetchGgChain(url: string, init?: RequestInit): Promise<Response> {
     let current = ensureAlr(url);
     let lastRes: Response | null = null;
@@ -21,7 +56,7 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
 
     for (let i = 0; i < GG_CHAIN_MAX_HOPS; i++) {
         try {
-            const res = await fetch(current, { ...baseInit, signal: AbortSignal.timeout(8000) });
+            const res = await fetchWithCredentialFallback(current, { ...baseInit, signal: AbortSignal.timeout(8000) });
             lastRes = res;
             if (!res.ok) return res;
 
@@ -62,6 +97,7 @@ export async function fetchGgChain(url: string, init?: RequestInit): Promise<Res
 export function toHighRes(url: string, variant = 's1024-rj'): string {
     try {
         if (!url) return url;
+        if (url.includes('gstatic.com')) return url;
         if (url.includes('/gg/')) {
             return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
         }
@@ -159,7 +195,7 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
             seen.add(u);
 
             try {
-                const res = await fetch(u, { credentials: 'include', signal: AbortSignal.timeout(15000) });
+                const res = await fetchWithCredentialFallback(u, { credentials: 'include', signal: AbortSignal.timeout(15000) });
                 if (!res.ok) {
                     reasons.push(`${u} -> HTTP ${res.status}`);
                     continue;
@@ -213,7 +249,7 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
             try {
                 const init: RequestInit = { credentials: 'include', signal: AbortSignal.timeout(15000) };
                 if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher] try image', u.slice(0, 120));
-                const res = isGgChainUrl(u) ? await fetchGgChain(u, init) : await fetch(u, init);
+                const res = isGgChainUrl(u) ? await fetchGgChain(u, init) : await fetchWithCredentialFallback(u, init);
                 if (contentContext.isDevMode()) console.debug('[GemExporter:assetFetcher] res image', u.slice(0, 60), res?.status, res?.headers?.get('content-type'));
                 if (!res || !res.ok) {
                     lastErr = `HTTP ${res?.status || 'unknown'}`;
@@ -300,7 +336,7 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                 signal: AbortSignal.timeout(15000)
             };
             const isGg = isGgChainUrl(url);
-            const r = isGg ? await fetchGgChain(url, init2) : await fetch(url, init2);
+            const r = isGg ? await fetchGgChain(url, init2) : await fetchWithCredentialFallback(url, init2);
             if (r && r.ok) {
                 const ct = (r.headers.get('content-type') || '').toLowerCase();
                 const isTextResponse = ct.startsWith('text/plain') || ct.startsWith('text/html');
@@ -452,7 +488,8 @@ export const AssetFetcher = {
     fetchGgChain,
     isGgChainUrl,
     fetchImageBuffer,
-    inferImageExt
+    inferImageExt,
+    fetchWithCredentialFallback
 };
 
 
