@@ -331,11 +331,15 @@ THE SOFTWARE.
 
 ### 5. MiTeX
 
-- **Component**: MiTeX v0.2.5 (`mitex_wasm_bg.wasm`, `mitex_wasm_bg.js`, `mitex_wasm_bg.d.ts`, `mitex-scope.typ`)
-- **Homepage**: <https://github.com/mitex-rs/mitex>
-- **Copyright**: (c) 2023-2025 Myriad-Dreamin, OrangeX4, Enter-tainer and MiTeX Contributors
-- **License**: Apache License, Version 2.0
-- **Provenance**: Vendored at `src/core/export/typst/mitex/vendor/` and `src/core/export/typst/templates/mitex-scope.typ`. Upstream sources: `mitex-wasm@0.2.5` (npm) and `@preview/mitex:0.2.5` (Typst packages). WASM SHA256 `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`. Details recorded in `src/core/export/typst/mitex/vendor/README.md`.
+- **Version**: `0.2.5` (upstream commit `192593c5b817f6c38afd7888f7c84e514c759cf9`)
+- **Authors**: `Myriad-Dreamin`, `OrangeX4`, `mgt`, `Enter-tainer`
+- **Source**: <https://github.com/mitex-rs/mitex>
+- **License**: `Apache-2.0` (Apache License, Version 2.0)
+- **Provenance**:
+  - WASM & JS glue (`src/core/export/typst/mitex/vendor/`): vendored from third-party npm build `mitex-wasm@0.2.5` (`https://registry.npmjs.org/mitex-wasm/-/mitex-wasm-0.2.5.tgz`). `mitex_wasm_bg.wasm` SHA256: `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`.
+  - Typst scope (`src/core/export/typst/templates/mitex-scope.typ`): consolidated from `@preview/mitex:0.2.5` (`specs/prelude.typ` and `specs/latex/standard.typ`) with `#let mitex-scope = scope` appended and no LaTeX command mapping modifications.
+  - Full provenance and policy recorded in `src/core/export/typst/mitex/vendor/README.md`.
 - **License Text**: Licensed under the Apache License, Version 2.0. The full license text is reproduced in Section 3 above.
+
 
 
