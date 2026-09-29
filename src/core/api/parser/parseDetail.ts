@@ -346,7 +346,8 @@ function parseCandidateResponse(
         responseText = textArr.join("\n\n");
     }
 
-    const candImages = extractImages(cand, imageSeq);
+    const structuredContent = extractStructuredContent(turn, cand, candidateIndex);
+    const candImages = extractImages(structuredContent ? [cand, structuredContent] : cand, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
@@ -457,8 +458,6 @@ function parseCandidateResponse(
             }
         }
     }
-
-    const structuredContent = extractStructuredContent(turn, cand, candidateIndex);
 
     if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
 

@@ -8,6 +8,7 @@ import type { Diagnostic } from '../diagnostics.js';
 import type { ImageInline } from '../inline.js';
 import type { JsonValue } from '../json.js';
 import type { SourceRef } from '../provenance.js';
+import { extractImages } from '../../../api/parser/attachments.js';
 
 export interface AssetLinkIndex {
     byRef: Map<string, string>;
@@ -233,6 +234,18 @@ export function mergeMessageAttachments(m: RepoMessage): MergedAttachment[] {
     for (const a of m.attachments ?? []) push(a, 'attachment');
     for (const img of m.images ?? []) push({ ...img, type: img.type || 'image' }, 'image');
     for (const doc of (m.documents ?? []) as RepoAttachment[]) push({ ...doc, type: doc.type || 'file' }, 'document');
+    if ((!m.images || m.images.length === 0) && (!m.attachments || m.attachments.length === 0) && m.structuredContent) {
+        const scImages = extractImages(m.structuredContent);
+        for (const img of scImages) {
+            push({
+                ...img,
+                type: 'image',
+                src: img.sourceUrl,
+                name: img.fileName,
+                title: img.fileName,
+            }, 'image');
+        }
+    }
     return atts;
 }
 

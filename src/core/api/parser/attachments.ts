@@ -153,9 +153,10 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         detectorKind: string;
     }
 
-    type ImageNodeDetector = (node: any[], schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
+    type ImageNodeDetector = (node: any, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
 
     const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
+        if (!Array.isArray(node)) return null;
         const inl = schema.INLINE_IMAGE;
         const url = node[inl.URL];
         const width = node[inl.WIDTH];
@@ -179,6 +180,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     };
 
     const detectGeneratedMediaNode: ImageNodeDetector = (node, schema) => {
+        if (!Array.isArray(node)) return null;
         const gen = schema.GENERATED_IMAGE;
         const url = node[gen.URL];
         const filename = node[gen.FILENAME];
@@ -214,9 +216,80 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return null;
     };
 
+    const detectAttachmentType36: ImageNodeDetector = (node) => {
+        // Form 1: Deserialized object with attachmentType === 36 (runtime structured content node / attachment)
+        if (node && typeof node === "object" && !Array.isArray(node) && (node as any).attachmentType === 36) {
+            const obj = node as any;
+            const kc = typeof obj.Kc === "string" ? obj.Kc : undefined;
+            const ze = typeof obj.Ze === "string" ? obj.Ze : (typeof obj.NHc === "string" ? obj.NHc : undefined);
+            const imgUrl = typeof obj.imageUrl === "string" ? obj.imageUrl : undefined;
+            const title = typeof obj.title === "string" ? obj.title.trim() : undefined;
+            const width = typeof obj.imageWidth === "number" ? obj.imageWidth : undefined;
+            const height = typeof obj.imageHeight === "number" ? obj.imageHeight : undefined;
+
+            const sourceUrl = (kc && isGoogleMediaHost(kc))
+                ? kc
+                : ((ze && isGoogleMediaHost(ze))
+                    ? ze
+                    : ((imgUrl && isGoogleMediaHost(imgUrl))
+                        ? imgUrl
+                        : (kc || ze || imgUrl || "")));
+
+            if (!sourceUrl || !sourceUrl.startsWith("http")) return null;
+
+            return {
+                sourceUrl,
+                width,
+                height,
+                rawFileName: title ? `${title}.png` : undefined,
+                detectorKind: "extractImages attachmentType:36"
+            };
+        }
+
+        // Form 2: Wire format tuple for search image attachment (repeated array with image URLs and title)
+        if (Array.isArray(node) && node.length >= 8) {
+            const slot0 = node[0];
+            const slot3 = node[3];
+            const slot7 = node[7];
+            const gstaticTuple = Array.isArray(slot3) && slot3.length >= 4
+                ? slot3
+                : (Array.isArray(slot0) && slot0.length >= 4 ? slot0 : null);
+            if (gstaticTuple && Array.isArray(gstaticTuple[0]) && typeof gstaticTuple[0][0] === "string") {
+                const rawUrl = gstaticTuple[0][0];
+                const width = typeof gstaticTuple[2] === "number" ? gstaticTuple[2] : undefined;
+                const height = typeof gstaticTuple[3] === "number" ? gstaticTuple[3] : undefined;
+
+                let title: string | undefined;
+                let fallbackGoogleUrl: string | undefined;
+                if (Array.isArray(slot7) && typeof slot7[0] === "string") {
+                    fallbackGoogleUrl = slot7[0];
+                    if (typeof slot7[2] === "string" && slot7[2].trim()) {
+                        title = slot7[2].trim();
+                    }
+                }
+
+                const sourceUrl = (isGoogleMediaHost(rawUrl))
+                    ? rawUrl
+                    : (fallbackGoogleUrl && isGoogleMediaHost(fallbackGoogleUrl) ? fallbackGoogleUrl : rawUrl);
+
+                if (!sourceUrl || !sourceUrl.startsWith("http")) return null;
+
+                return {
+                    sourceUrl,
+                    width,
+                    height,
+                    rawFileName: title ? `${title}.png` : undefined,
+                    detectorKind: "extractImages attachmentType:36"
+                };
+            }
+        }
+        return null;
+    };
+
     const IMAGE_DETECTORS: ImageNodeDetector[] = [
         detectInlineImageTuple,
-        detectGeneratedMediaNode
+        detectGeneratedMediaNode,
+        detectAttachmentType36
     ];
 
     function normalizeRawImage(
@@ -259,7 +332,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         const counter = seqRef && typeof seqRef.value === "number" ? seqRef : { value: 1 };
 
         deepWalk(obj, (node) => {
-            if (!Array.isArray(node)) return;
+            if (!node || typeof node !== "object") return;
 
             for (const detector of IMAGE_DETECTORS) {
                 const raw = detector(node, GEMINI_JSPB_SCHEMA);
