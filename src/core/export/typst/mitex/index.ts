@@ -10,6 +10,7 @@ export {
     mitexConvertMath,
     mitexConvertText,
     resetMitexForTesting,
+    simulateMitexInitFailureForTesting,
 } from './mitexLoader.js';
 
 export {

@@ -331,35 +331,11 @@ THE SOFTWARE.
 
 ### 5. MiTeX
 
-- **Component**: MiTeX v0.2.4 (`mitex_wasm_bg.wasm`, `mitex_wasm_bg.js`, `mitex-scope.typ`)
+- **Component**: MiTeX v0.2.5 (`mitex_wasm_bg.wasm`, `mitex_wasm_bg.js`, `mitex_wasm_bg.d.ts`, `mitex-scope.typ`)
 - **Homepage**: <https://github.com/mitex-rs/mitex>
-- **Copyright**: (c) 2023-2024 Myriad-Dreamin and MiTeX Contributors
-- **License**: Dual-licensed under Apache License 2.0 or MIT License
-- **Provenance**: Vendored at `src/core/export/typst/mitex/vendor/` and `src/core/export/typst/templates/mitex-scope.typ`. WASM SHA256 `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`. Details recorded in `src/core/export/typst/mitex/vendor/README.md`.
+- **Copyright**: (c) 2023-2025 Myriad-Dreamin, OrangeX4, Enter-tainer and MiTeX Contributors
+- **License**: Apache License, Version 2.0
+- **Provenance**: Vendored at `src/core/export/typst/mitex/vendor/` and `src/core/export/typst/templates/mitex-scope.typ`. Upstream sources: `mitex-wasm@0.2.5` (npm) and `@preview/mitex:0.2.5` (Typst packages). WASM SHA256 `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`. Details recorded in `src/core/export/typst/mitex/vendor/README.md`.
+- **License Text**: Licensed under the Apache License, Version 2.0. The full license text is reproduced in Section 3 above.
 
-#### MIT License Text:
-
-```text
-MIT License
-
-Copyright (c) 2023-2024 Myriad-Dreamin and MiTeX Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 

@@ -1416,7 +1416,7 @@
       "provenanceSource": "MiTeX WASM integration and standard LaTeX-to-Typst conversion gate",
       "policy": "VERIFY_AGAINST_STANDARD",
       "notes": "Validates MiTeX adapter lifecycle, fail-closed diagnostics, representative standard LaTeX, and real Typst WASM compilation.",
-      "testCount": 10,
+      "testCount": 13,
       "tests": [
         {
           "name": "T1.1: MiTeX WASM initializes and reports ready state",
@@ -1467,17 +1467,32 @@
           "name": "T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T5.1: MiTeX version and provenance consistency across repository metadata",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T5.2: Failed MiTeX initialization clears cached state and allows subsequent retry",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T5.3: Unsupported math notations emit TYPST_MATH_UNSUPPORTED_NOTATION warning and return no Typst output",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
     }
   ],
   "summary": {
     "totalSuites": 24,
-    "totalTests": 231,
+    "totalTests": 234,
     "byClassification": {
       "P0": 0,
       "P1": 29,
-      "P2": 200,
+      "P2": 203,
       "P3": 2,
       "P4": 0
     }

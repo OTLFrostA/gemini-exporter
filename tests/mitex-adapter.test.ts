@@ -11,6 +11,9 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 
 const {
     convertMathWithMitex,
@@ -18,6 +21,7 @@ const {
     initMitexWasm,
     isMitexReady,
     mitexConvertMath,
+    resetMitexForTesting,
 } = require('../src/core/export/typst/mitex/index.js');
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
@@ -201,3 +205,77 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         await compiler.dispose();
     }
 });
+
+test('T5.1: MiTeX version and provenance consistency across repository metadata', () => {
+    const root = repoRoot();
+    const vendorReadmePath = path.join(root, 'src/core/export/typst/mitex/vendor/README.md');
+    const noticesPath = path.join(root, 'THIRD_PARTY_NOTICES.md');
+    const scopePath = path.join(root, 'src/core/export/typst/templates/mitex-scope.typ');
+    const wasmPath = path.join(root, 'src/core/export/typst/mitex/vendor/mitex_wasm_bg.wasm');
+
+    assert.ok(fs.existsSync(vendorReadmePath), 'Vendor README.md must exist');
+    assert.ok(fs.existsSync(noticesPath), 'THIRD_PARTY_NOTICES.md must exist');
+    assert.ok(fs.existsSync(scopePath), 'mitex-scope.typ must exist');
+    assert.ok(fs.existsSync(wasmPath), 'mitex_wasm_bg.wasm must exist');
+
+    const readmeContent = fs.readFileSync(vendorReadmePath, 'utf8');
+    const noticesContent = fs.readFileSync(noticesPath, 'utf8');
+    const scopeContent = fs.readFileSync(scopePath, 'utf8');
+    const wasmBytes = fs.readFileSync(wasmPath);
+
+    const actualWasmHash = crypto.createHash('sha256').update(wasmBytes).digest('hex');
+
+    // 1. Version consistency: all documents must declare 0.2.5
+    assert.ok(readmeContent.includes('v0.2.5'), 'Vendor README must declare v0.2.5');
+    assert.ok(!readmeContent.includes('v0.2.4'), 'Vendor README must not declare contradictory v0.2.4');
+    assert.ok(noticesContent.includes('MiTeX v0.2.5'), 'THIRD_PARTY_NOTICES must declare MiTeX v0.2.5');
+    assert.ok(!noticesContent.includes('MiTeX v0.2.4'), 'THIRD_PARTY_NOTICES must not declare contradictory v0.2.4');
+    assert.ok(scopeContent.includes('@preview/mitex:0.2.5'), 'mitex-scope.typ must declare derivation from @preview/mitex:0.2.5');
+
+    // 2. License consistency: must be Apache-2.0, not MIT
+    assert.ok(readmeContent.includes('Apache-2.0'), 'Vendor README must state Apache-2.0');
+    assert.ok(!readmeContent.includes('MIT'), 'Vendor README must not state MIT');
+    assert.ok(noticesContent.includes('**License**: Apache License, Version 2.0'), 'THIRD_PARTY_NOTICES must state Apache-2.0 for MiTeX');
+    assert.ok(!noticesContent.includes('Dual-licensed under Apache License 2.0 or MIT License'), 'THIRD_PARTY_NOTICES must not state dual MIT');
+
+    // 3. Exact SHA256 integrity
+    assert.strictEqual(actualWasmHash, '7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf');
+    assert.ok(readmeContent.includes(actualWasmHash), 'Vendor README must record exact WASM SHA256');
+    assert.ok(noticesContent.includes(actualWasmHash), 'THIRD_PARTY_NOTICES must record exact WASM SHA256');
+});
+
+test('T5.2: Failed MiTeX initialization clears cached state and allows subsequent retry', async () => {
+    resetMitexForTesting();
+    assert.strictEqual(isMitexReady(), false);
+
+    // 1. First init fails with invalid WASM bytes
+    const badBytes = new Uint8Array([0, 1, 2, 3]);
+    await assert.rejects(
+        initMitexWasm(badBytes),
+        /CompileError|WebAssembly|Failed/i,
+        'Invalid WASM bytes must reject',
+    );
+    assert.strictEqual(isMitexReady(), false, 'isMitexReady must remain false after failure');
+
+    // 2. Second init retries with valid node loading and succeeds
+    await initMitexWasm();
+    assert.strictEqual(isMitexReady(), true, 'Subsequent retry must succeed and report ready');
+});
+
+test('T5.3: Unsupported math notations emit TYPST_MATH_UNSUPPORTED_NOTATION warning and return no Typst output', () => {
+    const unsupportedNotations = ['asciimath', 'mathml', 'plain', 'unknown'];
+    const formula = 'x^2 + y^2';
+
+    for (const notation of unsupportedNotations) {
+        const res = convertMathWithMitex(formula, notation);
+        assert.strictEqual(res.typst, undefined, `Notation '${notation}' must yield no Typst output`);
+        assert.ok(res.diagnostic, `Notation '${notation}' must produce a diagnostic`);
+        assert.strictEqual(res.diagnostic.code, 'TYPST_MATH_UNSUPPORTED_NOTATION');
+        assert.strictEqual(res.diagnostic.severity, 'warning');
+        assert.ok(res.diagnostic.message.includes(notation), 'Diagnostic message must mention the unsupported notation');
+
+        const helperOutput = convertMathMitex(formula, notation);
+        assert.strictEqual(helperOutput, undefined, `convertMathMitex helper must return undefined for '${notation}'`);
+    }
+});
+
