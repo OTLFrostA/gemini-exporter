@@ -35,6 +35,9 @@ import type {
     Link,
     Image,
     Break,
+    Definition,
+    LinkReference,
+    ImageReference,
 } from 'mdast';
 import type { InlineMath, Math as MdastMath } from 'mdast-util-math';
 import type {
@@ -51,6 +54,7 @@ import type {
     TableColumn,
     TableRow,
     ThematicBreakBlock,
+    UnknownBlock,
 } from '../blocks.js';
 import type {
     ImageInline,
@@ -62,6 +66,7 @@ import type {
     StrongInline,
     EmphasisInline,
     TextInline,
+    UnknownInline,
 } from '../inline.js';
 import type { JsonValue } from '../json.js';
 import type { Diagnostic } from '../diagnostics.js';
@@ -73,6 +78,7 @@ import {
 
 export interface MarkdownParseContext extends AssetParserContext {
     nextBlockId: () => string;
+    definitions?: Map<string, { url: string; title?: string }>;
 }
 
 /**
@@ -119,6 +125,32 @@ function textWithSoftBreaks(text: string): InlineNode[] {
 }
 
 /**
+ * Recursively collect all Definition nodes in the MDAST tree.
+ * Follows CommonMark precedence: the first definition for a given identifier takes precedence.
+ */
+export function collectDefinitions(
+    node: Root | RootContent,
+    definitions: Map<string, { url: string; title?: string }>,
+): void {
+    if (!node) return;
+    if (node.type === 'definition') {
+        const def = node as Definition;
+        const normId = (def.identifier || def.label || '').trim().toLowerCase();
+        if (normId && !definitions.has(normId)) {
+            definitions.set(normId, {
+                url: def.url || '',
+                ...(def.title ? { title: def.title } : {}),
+            });
+        }
+    }
+    if ('children' in node && Array.isArray((node as any).children)) {
+        for (const child of (node as any).children) {
+            collectDefinitions(child, definitions);
+        }
+    }
+}
+
+/**
  * Adapt a single MDAST PhrasingContent node to Canonical InlineNode[].
  */
 export function adaptPhrasingNode(
@@ -158,9 +190,53 @@ export function adaptPhrasingNode(
             return [linkNode];
         }
 
+        case 'linkReference': {
+            const refNode = node as unknown as LinkReference;
+            const normId = (refNode.identifier || refNode.label || '').trim().toLowerCase();
+            const def = ctx.definitions?.get(normId);
+            const children = adaptInlines(refNode.children || [], ctx);
+            if (def) {
+                const linkNode: LinkInline = {
+                    type: 'link',
+                    href: def.url,
+                    ...(def.title ? { title: def.title } : {}),
+                    children,
+                };
+                return [linkNode];
+            }
+            // Principle: unknown != disappear. Keep children / visible text, emit diagnostic.
+            ctx.diagnostics.push({
+                id: `missing-ref-def:${ctx.nextBlockId()}`,
+                severity: 'warning',
+                code: 'REFERENCE_DEFINITION_MISSING',
+                message: `Missing definition for linkReference '[${refNode.label || refNode.identifier}]'`,
+                sourceRef: ctx.sourceRef,
+            });
+            return children.length > 0 ? children : [{ type: 'text', text: `[${refNode.label || refNode.identifier}]` }];
+        }
+
         case 'image': {
             const linked = linkInlineImage(node.url, node.alt || '', node.title || undefined, ctx);
             return [linked];
+        }
+
+        case 'imageReference': {
+            const refNode = node as unknown as ImageReference;
+            const normId = (refNode.identifier || refNode.label || '').trim().toLowerCase();
+            const def = ctx.definitions?.get(normId);
+            if (def) {
+                const linked = linkInlineImage(def.url, refNode.alt || '', def.title || undefined, ctx);
+                return [linked];
+            }
+            // Principle: unknown != disappear. Keep visible text fallback, emit diagnostic.
+            ctx.diagnostics.push({
+                id: `missing-img-def:${ctx.nextBlockId()}`,
+                severity: 'warning',
+                code: 'REFERENCE_DEFINITION_MISSING',
+                message: `Missing definition for imageReference '![${refNode.alt || ''}][${refNode.label || refNode.identifier}]'`,
+                sourceRef: ctx.sourceRef,
+            });
+            return [{ type: 'text', text: `![${refNode.alt || ''}][${refNode.label || refNode.identifier}]` }];
         }
 
         case 'break':
@@ -185,11 +261,36 @@ export function adaptPhrasingNode(
             }];
         }
 
-        default:
-            if ('value' in node && typeof (node as any).value === 'string') {
-                return textWithSoftBreaks((node as any).value);
+        default: {
+            const unknownNode = node as any;
+            ctx.diagnostics.push({
+                id: `unknown-inline:${ctx.nextBlockId()}`,
+                severity: 'warning',
+                code: 'MDAST_UNKNOWN_INLINE',
+                message: `Encountered unsupported MDAST phrasing node type '${unknownNode?.type}'; preserved via fallback`,
+                sourceRef: ctx.sourceRef,
+                details: { nodeType: unknownNode?.type } as JsonValue,
+            });
+
+            if (Array.isArray(unknownNode?.children) && unknownNode.children.length > 0) {
+                const adaptedChildren = adaptInlines(unknownNode.children, ctx);
+                if (adaptedChildren.length > 0) {
+                    return adaptedChildren;
+                }
             }
-            return [];
+
+            if (typeof unknownNode?.value === 'string' && unknownNode.value.length > 0) {
+                return textWithSoftBreaks(unknownNode.value);
+            }
+
+            const fallbackText = unknownNode?.alt || unknownNode?.label || unknownNode?.identifier || '';
+            const unknownInline: UnknownInline = {
+                type: 'unknownInline',
+                sourceType: String(unknownNode?.type || 'unknown'),
+                ...(fallbackText ? { fallbackText } : {}),
+            };
+            return [unknownInline];
+        }
     }
 }
 
@@ -200,6 +301,9 @@ export function adaptInlines(
     nodes: PhrasingContent[],
     ctx: MarkdownParseContext,
 ): InlineNode[] {
+    if (!ctx.definitions) {
+        ctx.definitions = new Map();
+    }
     const raw: InlineNode[] = [];
     for (const n of nodes) {
         raw.push(...adaptPhrasingNode(n, ctx));
@@ -446,8 +550,66 @@ export function adaptBlockNode(
             }];
         }
 
-        default:
+        case 'definition':
+            // Link reference definitions are resolved into linkReference / imageReference inlines
+            // and produce no visual block elements per CommonMark / GFM specification.
             return [];
+
+        default: {
+            const unknownNode = node as any;
+            const blockId = ctx.nextBlockId();
+            ctx.diagnostics.push({
+                id: `unknown-block:${blockId}`,
+                severity: 'warning',
+                code: 'MDAST_UNKNOWN_BLOCK',
+                message: `Encountered unsupported MDAST block node type '${unknownNode?.type}'; preserved via fallback`,
+                sourceRef: ctx.sourceRef,
+                details: { nodeType: unknownNode?.type } as JsonValue,
+            });
+
+            let fallbackBlocks: BlockNode[] = [];
+            if (Array.isArray(unknownNode?.children) && unknownNode.children.length > 0) {
+                const firstChildType = unknownNode.children[0]?.type;
+                const isPhrasing = firstChildType === 'text' || firstChildType === 'emphasis' ||
+                    firstChildType === 'strong' || firstChildType === 'inlineCode' ||
+                    firstChildType === 'link' || firstChildType === 'image' ||
+                    firstChildType === 'linkReference' || firstChildType === 'imageReference';
+
+                if (isPhrasing) {
+                    const inlines = adaptInlines(unknownNode.children, ctx);
+                    if (inlines.length > 0) {
+                        fallbackBlocks = [{
+                            id: ctx.nextBlockId(),
+                            type: 'paragraph',
+                            children: inlines,
+                            ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
+                        }];
+                    }
+                } else {
+                    fallbackBlocks = adaptBlockNodes(unknownNode.children, ctx, rawMarkdown);
+                }
+            } else if (typeof unknownNode?.value === 'string' && unknownNode.value.length > 0) {
+                fallbackBlocks = [{
+                    id: ctx.nextBlockId(),
+                    type: 'paragraph',
+                    children: textWithSoftBreaks(unknownNode.value),
+                    ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
+                }];
+            }
+
+            const unknownBlock: UnknownBlock = {
+                id: blockId,
+                type: 'unknown',
+                sourceType: String(unknownNode?.type || 'unknown'),
+                ...(fallbackBlocks.length > 0 ? { fallbackBlocks } : {}),
+                payload: {
+                    nodeType: unknownNode?.type || 'unknown',
+                    ...(unknownNode?.value ? { rawValue: unknownNode.value } : {}),
+                },
+                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
+            };
+            return [unknownBlock];
+        }
     }
 }
 
@@ -474,5 +636,9 @@ export function mdastRootToBlocks(
     ctx: MarkdownParseContext,
     rawMarkdown: string,
 ): BlockNode[] {
+    if (!ctx.definitions) {
+        ctx.definitions = new Map();
+        collectDefinitions(root, ctx.definitions);
+    }
     return adaptBlockNodes(root.children, ctx, rawMarkdown);
 }

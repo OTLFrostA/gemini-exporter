@@ -1,7 +1,8 @@
 /**
  * scripts/parser_migration/run_corpus.ts
  *
- * Real Gemini Corpus Runner (Section 6, 23 & Remediation Plan 1.1)
+ * Parser Migration Corpus Runner (Section 6, 23 & Remediation Plan 1.1)
+ * Evaluates 110 documents (108 scenario inputs + 2 synthetic fixtures | Real Gemini Output: 0).
  *
  * Capabilities:
  * 1. Injectable Architecture:
@@ -602,10 +603,25 @@ if (require.main === module) {
             const report = await runCorpus({ compileTypst: true });
             console.log(`\n📂 Corpus Set: ${report.corpusSet}`);
             console.log(`\n📄 Markdown Results:`);
-            console.log(`  • Documents Evaluated: ${report.markdown.documents}`);
-            console.log(`  • Parse Failures:      ${report.markdown.parseFailures} (Must be 0)`);
-            console.log(`  • Fallbacks:           ${report.markdown.fallbacks}`);
-            console.log(`  • Duration:            ${report.markdown.totalDurationMs} ms (avg ${report.markdown.avgDurationMs.toFixed(2)} ms/doc)`);
+            console.log(`  • Documents Evaluated:      ${report.markdown.documents} (108 scenario inputs + 2 synthetic fixtures | Real Gemini Output: 0)`);
+            console.log(`  • Baseline Parse Failures:  ${report.markdown.baseline.parseFailures}`);
+            console.log(`  • Baseline Fallbacks:       ${report.markdown.baseline.fallbacks}`);
+            if (report.markdown.candidate) {
+                console.log(`  • Candidate Parse Failures: ${report.markdown.candidate.parseFailures} (Must be 0)`);
+                console.log(`  • Candidate Fallbacks:      ${report.markdown.candidate.fallbacks}`);
+                if (report.markdown.candidate.parseFailures > 0) {
+                    throw new Error(`Candidate parser encountered ${report.markdown.candidate.parseFailures} fatal parse failure(s)!`);
+                }
+            }
+            console.log(`  • Markdown Diff Count:      ${report.markdown.diffCount}`);
+            if (report.markdown.diffCount > 0) {
+                console.log(`\n🔍 Markdown Semantic Diffs (${report.markdown.diffCount}):`);
+                const mdDiffs = report.diffs.filter((d) => d.domain === 'markdown');
+                for (const diff of mdDiffs) {
+                    console.log(`    - [${diff.category || 'UNKNOWN'}] Doc "${diff.id}": ${diff.rationale || 'No rationale'}`);
+                }
+            }
+            console.log(`  • Duration:                 ${report.markdown.totalDurationMs} ms (avg ${report.markdown.avgDurationMs.toFixed(2)} ms/doc)`);
 
             console.log(`\n📐 Math Results (Baseline):`);
             console.log(`  • Expressions Tested:  ${report.math.expressions}`);

@@ -383,3 +383,199 @@ test('Layer M2: Smoke test - parseMarkdownToInlines returns inline list', () => 
     assert.strictEqual(inlines[3].type, 'emphasis');
     assert.strictEqual(inlines[4].text, ' text');
 });
+
+// =========================================================================
+// Reference Nodes & Definition Resolution (PR 2.1 Hardening)
+// =========================================================================
+
+test('Reference Nodes: Standard full, collapsed, and shortcut linkReference resolve definitions', () => {
+    const { ctx } = createTestContext();
+    const doc = [
+        'See [Google Link][google-ref], [GitHub][], and [CommonMark].',
+        '',
+        '[google-ref]: https://google.com "Google Search"',
+        '[GitHub]: https://github.com',
+        '[CommonMark]: https://commonmark.org "Specification"',
+    ].join('\n');
+
+    const blocks = parseMarkdownToBlocks(doc, 'ref-test', ctx);
+    assert.strictEqual(blocks.length, 1);
+    assert.strictEqual(blocks[0].type, 'paragraph');
+
+    const para = blocks[0] as any;
+    const links = para.children.filter((c: any) => c.type === 'link');
+    assert.strictEqual(links.length, 3);
+
+    // Full reference
+    assert.strictEqual(links[0].href, 'https://google.com');
+    assert.strictEqual(links[0].title, 'Google Search');
+    assert.strictEqual(links[0].children[0].text, 'Google Link');
+
+    // Collapsed reference
+    assert.strictEqual(links[1].href, 'https://github.com');
+    assert.strictEqual(links[1].children[0].text, 'GitHub');
+
+    // Shortcut reference
+    assert.strictEqual(links[2].href, 'https://commonmark.org');
+    assert.strictEqual(links[2].title, 'Specification');
+    assert.strictEqual(links[2].children[0].text, 'CommonMark');
+});
+
+test('Reference Nodes: Case-insensitive definition matching and first-definition precedence', () => {
+    const { ctx } = createTestContext();
+    const doc = [
+        'Jump to [Section A][SEC_A].',
+        '',
+        '[sec_a]: https://example.com/first',
+        '[SEC_A]: https://example.com/second-ignored',
+    ].join('\n');
+
+    const blocks = parseMarkdownToBlocks(doc, 'case-test', ctx);
+    assert.strictEqual(blocks.length, 1);
+    const link = (blocks[0] as any).children.find((c: any) => c.type === 'link');
+    assert.ok(link, 'Link must be resolved');
+    // First definition takes precedence per CommonMark 4.7
+    assert.strictEqual(link.href, 'https://example.com/first');
+});
+
+test('Reference Nodes: Image reference resolves definition and asset linking', () => {
+    const { ctx, assetIndex } = createTestContext();
+    indexAssetRef(assetIndex, 'https://example.com/diagram.png', 'asset-diag-42');
+
+    const doc = [
+        'Architecture: ![System Diagram][diag-ref]',
+        '',
+        '[diag-ref]: https://example.com/diagram.png "Architecture Flow"',
+    ].join('\n');
+
+    const blocks = parseMarkdownToBlocks(doc, 'img-ref-test', ctx);
+    assert.strictEqual(blocks.length, 1);
+    const img = (blocks[0] as any).children.find((c: any) => c.type === 'image');
+    assert.ok(img, 'Image must be resolved');
+    assert.strictEqual(img.assetId, 'asset-diag-42');
+    assert.strictEqual(img.alt, 'System Diagram');
+    assert.strictEqual(img.title, 'Architecture Flow');
+});
+
+test('Reference Nodes: Programmatic linkReference without definition emits diagnostic and preserves text', () => {
+    const { ctx, diagnostics } = createTestContext();
+    const orphanRefNode: any = {
+        type: 'linkReference',
+        identifier: 'missing-ref',
+        label: 'missing-ref',
+        referenceType: 'full',
+        children: [{ type: 'text', value: 'Unresolved Link' }],
+    };
+
+    const inlines = adaptInlines([orphanRefNode], ctx);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].type, 'text');
+    assert.strictEqual((inlines[0] as any).text, 'Unresolved Link');
+
+    const diag = diagnostics.find((d: any) => d.code === 'REFERENCE_DEFINITION_MISSING');
+    assert.ok(diag, 'Must record REFERENCE_DEFINITION_MISSING diagnostic');
+});
+
+test('Reference Nodes: Programmatic imageReference without definition emits diagnostic and preserves fallback text', () => {
+    const { ctx, diagnostics } = createTestContext();
+    const orphanImgRef: any = {
+        type: 'imageReference',
+        identifier: 'missing-img',
+        label: 'missing-img',
+        referenceType: 'full',
+        alt: 'Missing Photo',
+    };
+
+    const inlines = adaptInlines([orphanImgRef], ctx);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].type, 'text');
+    assert.strictEqual((inlines[0] as any).text, '![Missing Photo][missing-img]');
+
+    const diag = diagnostics.find((d: any) => d.code === 'REFERENCE_DEFINITION_MISSING');
+    assert.ok(diag, 'Must record REFERENCE_DEFINITION_MISSING diagnostic');
+});
+
+// =========================================================================
+// Unknown != Disappear (Hardening: Never silently return [])
+// =========================================================================
+
+test('Unknown != Disappear: Unsupported phrasing node with children adapts children and records diagnostic', () => {
+    const { ctx, diagnostics } = createTestContext();
+    const unknownWithChildren: any = {
+        type: 'customPhrasingContainer',
+        children: [{ type: 'text', value: 'nested text' }],
+    };
+
+    const inlines = adaptInlines([unknownWithChildren], ctx);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].type, 'text');
+    assert.strictEqual((inlines[0] as any).text, 'nested text');
+
+    const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_INLINE');
+    assert.ok(diag, 'Must record MDAST_UNKNOWN_INLINE diagnostic');
+});
+
+test('Unknown != Disappear: Unsupported phrasing node with value preserves text and records diagnostic', () => {
+    const { ctx, diagnostics } = createTestContext();
+    const unknownWithValue: any = {
+        type: 'customBadge',
+        value: 'STATUS: OK',
+    };
+
+    const inlines = adaptInlines([unknownWithValue], ctx);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].type, 'text');
+    assert.strictEqual((inlines[0] as any).text, 'STATUS: OK');
+
+    const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_INLINE');
+    assert.ok(diag, 'Must record MDAST_UNKNOWN_INLINE diagnostic');
+});
+
+test('Unknown != Disappear: Unsupported phrasing node without value/children returns UnknownInline', () => {
+    const { ctx, diagnostics } = createTestContext();
+    const emptyUnknown: any = {
+        type: 'mysteryInline',
+        label: 'mystery-label',
+    };
+
+    const inlines = adaptInlines([emptyUnknown], ctx);
+    assert.strictEqual(inlines.length, 1);
+    assert.strictEqual(inlines[0].type, 'unknownInline');
+    assert.strictEqual((inlines[0] as any).sourceType, 'mysteryInline');
+    assert.strictEqual((inlines[0] as any).fallbackText, 'mystery-label');
+
+    const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_INLINE');
+    assert.ok(diag, 'Must record MDAST_UNKNOWN_INLINE diagnostic');
+});
+
+test('Unknown != Disappear: Unsupported block node creates UnknownBlock with fallback and records diagnostic', () => {
+    const { ctx, diagnostics } = createTestContext();
+    const root: any = {
+        type: 'root',
+        children: [
+            {
+                type: 'customCalloutBox',
+                children: [
+                    {
+                        type: 'paragraph',
+                        children: [{ type: 'text', value: 'Inside callout' }],
+                    },
+                ],
+            },
+        ],
+    };
+
+    const blocks = mdastRootToBlocks(root, ctx, '');
+    assert.strictEqual(blocks.length, 1);
+    assert.strictEqual(blocks[0].type, 'unknown');
+    const unknownBlock = blocks[0] as any;
+    assert.strictEqual(unknownBlock.sourceType, 'customCalloutBox');
+    assert.ok(unknownBlock.fallbackBlocks, 'Must have fallbackBlocks');
+    assert.strictEqual(unknownBlock.fallbackBlocks.length, 1);
+    assert.strictEqual(unknownBlock.fallbackBlocks[0].type, 'paragraph');
+    assert.strictEqual(unknownBlock.fallbackBlocks[0].children[0].text, 'Inside callout');
+
+    const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_BLOCK');
+    assert.ok(diag, 'Must record MDAST_UNKNOWN_BLOCK diagnostic');
+});
+
