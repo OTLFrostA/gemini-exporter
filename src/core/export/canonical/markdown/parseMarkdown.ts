@@ -41,7 +41,14 @@ export function parseMarkdownToBlocks(
         mdastExtensions: MDAST_EXTENSIONS,
     });
 
-    return mdastRootToBlocks(tree, ctx, markdown);
+    const definitions = new Map<string, { url: string; title?: string }>();
+    collectDefinitions(tree, definitions);
+    const parseCtx: MarkdownParseContext = {
+        ...ctx,
+        definitions,
+    };
+
+    return mdastRootToBlocks(tree, parseCtx, markdown);
 }
 
 /**
@@ -61,18 +68,20 @@ export function parseMarkdownToInlines(
         mdastExtensions: MDAST_EXTENSIONS,
     });
 
-    if (!ctx.definitions) {
-        ctx.definitions = new Map();
-        collectDefinitions(tree, ctx.definitions);
-    }
+    const definitions = new Map<string, { url: string; title?: string }>();
+    collectDefinitions(tree, definitions);
+    const parseCtx: MarkdownParseContext = {
+        ...ctx,
+        definitions,
+    };
 
     // Inlines are inside the first paragraph if fromMarkdown wraps them in a paragraph
     if (tree.children.length === 1 && tree.children[0].type === 'paragraph') {
-        return adaptInlines(tree.children[0].children, ctx);
+        return adaptInlines(tree.children[0].children, parseCtx);
     }
 
     // Otherwise, adapt blocks and extract inlines from paragraphs
-    const blocks = mdastRootToBlocks(tree, ctx, text);
+    const blocks = mdastRootToBlocks(tree, parseCtx, text);
     const inlines: InlineNode[] = [];
     for (const b of blocks) {
         if ('children' in b && Array.isArray((b as any).children)) {

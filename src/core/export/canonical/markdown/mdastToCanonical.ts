@@ -301,12 +301,12 @@ export function adaptInlines(
     nodes: PhrasingContent[],
     ctx: MarkdownParseContext,
 ): InlineNode[] {
-    if (!ctx.definitions) {
-        ctx.definitions = new Map();
-    }
+    const parseCtx: MarkdownParseContext = ctx.definitions
+        ? ctx
+        : { ...ctx, definitions: new Map() };
     const raw: InlineNode[] = [];
     for (const n of nodes) {
-        raw.push(...adaptPhrasingNode(n, ctx));
+        raw.push(...adaptPhrasingNode(n, parseCtx));
     }
     return mergeAdjacentTextNodes(raw);
 }
@@ -636,9 +636,14 @@ export function mdastRootToBlocks(
     ctx: MarkdownParseContext,
     rawMarkdown: string,
 ): BlockNode[] {
+    let parseCtx = ctx;
     if (!ctx.definitions) {
-        ctx.definitions = new Map();
-        collectDefinitions(root, ctx.definitions);
+        const definitions = new Map<string, { url: string; title?: string }>();
+        collectDefinitions(root, definitions);
+        parseCtx = {
+            ...ctx,
+            definitions,
+        };
     }
-    return adaptBlockNodes(root.children, ctx, rawMarkdown);
+    return adaptBlockNodes(root.children, parseCtx, rawMarkdown);
 }
