@@ -680,10 +680,12 @@ class HtmlExportDownloadCase(FeatureTestCase):
                     return False, f"HTML 导出文件 [{hf}] 存在属性被内联标签破坏缺陷: {corrupt_attrs[:3]}", None
 
                 # 校验本地图片资源物理存在性：所有引用的本地 assets 资源必须在解压目录物理存在且非空
-                img_srcs = re.findall(r'<img[^>]+src=[\"\x27](assets/[^\s\"\x27>]+)', content, re.IGNORECASE)
+                raw_matches = re.findall(r'<img[^>]+src=(?:\"(assets/[^\"]+)\"|\x27(assets/[^\x27]+)\x27)', content, re.IGNORECASE)
+                img_srcs = [m[0] or m[1] for m in raw_matches]
                 html_dir = os.path.dirname(fpath)
+                import urllib.parse
                 for img_rel in img_srcs:
-                    img_clean = img_rel.split('?')[0].split('#')[0]
+                    img_clean = urllib.parse.unquote(img_rel.split('?')[0].split('#')[0])
                     asset_disk_path = os.path.normpath(os.path.join(html_dir, img_clean))
                     if not os.path.isfile(asset_disk_path) or os.path.getsize(asset_disk_path) == 0:
                         return False, f"HTML 导出文件 [{hf}] 引用的本地附件图片在磁盘上不存在或为空: {img_rel} (检查路径: {asset_disk_path})", None
