@@ -17,8 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { normalizeGeminiConversation } from '../../src/core/export/canonical/normalizeGemini.js';
-import { convertMathWithDiagnostic } from '../../src/core/export/typst/math/convertMath.js';
-import { convertMathWithMitex, initMitexWasm } from '../../src/core/export/typst/mitex/index.js';
+import { convertMathWithMitex, initMitexWasm } from '../../src/core/export/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
 import { TypstSandboxCompiler } from '../../src/core/export/typst/typstSandboxCompiler.js';
 import { toTypstPayload } from '../../src/core/export/typst/payload.js';
@@ -126,7 +125,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     const activeBaselineParser = options.baselineParser || defaultBaselineParser;
     const activeCandidateParser = options.candidateParser;
-    const defaultBaselineConverter: MathConverterFn = (latex, display) => convertMathWithDiagnostic(latex, 'latex', display);
+    const defaultBaselineConverter: MathConverterFn = (latex, display) => convertMathWithMitex(latex, display);
     const activeBaselineConverter = options.baselineConverter || defaultBaselineConverter;
 
     const defaultCandidateConverter: MathConverterFn = (latex, display) => {
@@ -640,6 +639,15 @@ if (require.main === module) {
                 console.log(`  • Converted Typst:     ${report.math.candidate.converted}`);
                 console.log(`  • Conversion Fallback: ${report.math.candidate.conversionFailures}`);
                 console.log(`  • Typst WASM Failures: ${report.math.candidate.compileFailures} (Genuine WASM compiler check, 100% evaluated)`);
+                if (report.math.candidate.converted !== report.math.expressions) {
+                    throw new Error(`Candidate math converter failed gate: converted ${report.math.candidate.converted} != total ${report.math.expressions}`);
+                }
+                if (report.math.candidate.conversionFailures > 0) {
+                    throw new Error(`Candidate math converter failed gate: ${report.math.candidate.conversionFailures} conversion failure(s)`);
+                }
+                if (report.math.candidate.compileFailures > 0) {
+                    throw new Error(`Candidate math converter failed gate: ${report.math.candidate.compileFailures} Typst WASM compile failure(s)`);
+                }
             }
             console.log(`  • Duration:            ${report.math.totalDurationMs} ms (avg ${report.math.avgDurationMs.toFixed(2)} ms/expr)`);
 

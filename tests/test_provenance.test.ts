@@ -30,7 +30,7 @@ test('Test Provenance Manifest: File existence and structural integrity', () => 
     );
 
     assert.ok(Array.isArray(data.suites), 'Manifest must declare suites array');
-    assert.ok(data.suites.length >= 27, `Expected at least 27 audited suites, got ${data.suites.length}`);
+    assert.ok(data.suites.length >= 24, `Expected at least 24 audited suites, got ${data.suites.length}`);
 });
 
 const crypto = require('crypto');

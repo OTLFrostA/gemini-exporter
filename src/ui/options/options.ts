@@ -26,6 +26,7 @@ import { SyncController } from '../controllers/syncController.js';
 import { ExportController } from '../controllers/exportController.js';
 import { TourGuide } from '../tour/tourGuide.js';
 import { t } from '../uiCommon.js';
+import { initMitexWasm, isMitexReady, convertMathWithMitex } from '../../core/export/typst/mathConverter.js';
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (OptionsInit && OptionsInit.log) OptionsInit.log(msg, level);
@@ -192,6 +193,8 @@ if (typeof window !== 'undefined') {
     (window as any).FsWriter = FsWriter;
     (window as any).TakeoutController = TakeoutController;
     (window as any).SyncController = SyncController;
+    (window as any).ExportController = ExportController;
+    (window as any).__mitex = { initMitexWasm, isMitexReady, convertMathWithMitex };
 }
 
 export { OptionsModule };
