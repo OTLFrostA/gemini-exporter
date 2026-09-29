@@ -39,6 +39,7 @@ const {
     extractStructuredContent,
 } = require('../src/core/api/parser/structuredContent.js');
 const { parseDetail } = require('../src/core/api/parser/parseDetail.js');
+const { extractImages } = require('../src/core/api/parser/attachments.js');
 
 const fixturesDir = path.join(__dirname, 'fixtures', 'canonical', 'structured_rpc');
 
@@ -702,3 +703,147 @@ test('Generic HTML renderer renders Canonical AST from structured path cleanly',
     assert.ok(html.includes('<ul'), 'Unordered list rendered');
     assert.ok(html.includes('<li>'), 'List item rendered');
 });
+
+test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) preserved via existing asset pipeline without duplication', async () => {
+    const bWire = loadProbeFixture('wire-turn-3-12-b-stack.json');
+    const bRuntime = loadProbeFixture('b-stack-structured.json');
+
+    // 1. extractImages extracts the image attachment from both wire and runtime representations
+    const wireImages = extractImages(bWire);
+    assert.strictEqual(wireImages.length, 1, 'Wire fixture yields 1 image attachment');
+    assert.strictEqual(wireImages[0].fileName, '贝尔测试实验示意图.png');
+    assert.strictEqual(wireImages[0].width, 700);
+    assert.strictEqual(wireImages[0].height, 280);
+    assert.ok(wireImages[0].sourceUrl.startsWith('https://encrypted-tbn0.gstatic.com'), 'Uses whitelisted Google media host');
+
+    const runtimeImages = extractImages(bRuntime);
+    assert.strictEqual(runtimeImages.length, 1, 'Runtime fixture yields 1 image attachment');
+    assert.strictEqual(runtimeImages[0].fileName, '贝尔测试实验示意图.png');
+    assert.strictEqual(runtimeImages[0].width, 700);
+    assert.strictEqual(runtimeImages[0].height, 280);
+    assert.strictEqual(runtimeImages[0].sourceUrl, wireImages[0].sourceUrl, 'Source URLs match between wire and runtime');
+
+    // 2. Normalizing message with structuredContent preserves the image in Canonical AST
+    const conv = {
+        id: 'c_attachment36_test',
+        title: 'Attachment 36 Preservation Test',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'raw',
+                structuredContent: bRuntime,
+            },
+        ],
+    };
+
+    const { bundle, diagnostics } = await normalizeGeminiConversation(conv as any);
+    const errorDiags = diagnostics.filter((d: any) => d.severity === 'error');
+    assert.strictEqual(errorDiags.length, 0, 'No error diagnostics during normalization');
+
+    const msg = bundle.conversation.messages[0];
+    const imageBlocks = msg.blocks.filter((b: any) => b.type === 'image');
+    assert.strictEqual(imageBlocks.length, 1, 'Exactly 1 image block placed in Canonical message');
+    assert.strictEqual(imageBlocks[0].alt, '贝尔测试实验示意图.png');
+
+    // Exactly 1 asset in bundle (no duplicate)
+    assert.strictEqual(bundle.assets.length, 1, 'Exactly 1 asset in bundle');
+    const asset = bundle.assets[0];
+    assert.strictEqual(asset.kind, 'image');
+    assert.strictEqual(asset.name, '贝尔测试实验示意图.png');
+    assert.deepStrictEqual(asset.dimensions, { widthPx: 700, heightPx: 280 });
+    assert.strictEqual(asset.id, imageBlocks[0].assetId, 'Block assetId links to bundle asset ID');
+
+    // Validate bundle and message tree
+    const bundleErrors = validateBundle(bundle).filter((d: any) => d.severity === 'error');
+    assert.strictEqual(bundleErrors.length, 0, 'Bundle validates cleanly against Canonical schema');
+    const treeIssues = validateMessageTree(bundle.conversation);
+    assert.strictEqual(treeIssues.length, 0, 'Message tree has 0 issues');
+});
+
+test('PR #705 candidate wire fixture: candidate response parser preserves search image in both structured and fallback modes', async () => {
+    const cand = loadProbeFixture('wire-case-b-cand.json');
+    const bWire = loadProbeFixture('wire-turn-3-12-b-stack.json');
+
+    // 1. Candidate array itself contains the search image in its attachment slot
+    const candImages = extractImages(cand);
+    assert.strictEqual(candImages.length, 1, 'extractImages(cand) extracts 1 image');
+    assert.strictEqual(candImages[0].width, 700);
+    assert.strictEqual(candImages[0].height, 280);
+    assert.ok(candImages[0].sourceUrl.startsWith('https://encrypted-tbn0.gstatic.com'));
+
+    // 2. Structured path normalization
+    const convStructured = {
+        id: 'c_cand_wire_test',
+        title: 'Candidate Wire Test',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'raw content',
+                images: candImages,
+                structuredContent: decodeGeminiStructuredPayload(bWire),
+            },
+        ],
+    };
+
+    const resStructured = await normalizeGeminiConversation(convStructured as any);
+    const msgStructured = resStructured.bundle.conversation.messages[0];
+    const imgBlocksStructured = msgStructured.blocks.filter((b: any) => b.type === 'image');
+    assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
+    assert.strictEqual(resStructured.bundle.assets.length, 1, 'Structured path has exactly 1 asset');
+
+    // 3. Fallback markdown path normalization (without structuredContent)
+    const convFallback = {
+        id: 'c_cand_fallback_test',
+        title: 'Candidate Fallback Test',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'raw content without structured',
+                images: candImages,
+            },
+        ],
+    };
+
+    const resFallback = await normalizeGeminiConversation(convFallback as any);
+    const msgFallback = resFallback.bundle.conversation.messages[0];
+    const imgBlocksFallback = msgFallback.blocks.filter((b: any) => b.type === 'image');
+    assert.strictEqual(imgBlocksFallback.length, 1, 'Fallback path has exactly 1 image block');
+    assert.strictEqual(resFallback.bundle.assets.length, 1, 'Fallback path has exactly 1 asset');
+});
+
+test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to be skipped without creating unknown blocks or assets', async () => {
+    const psiRuntime = loadProbeFixture('psi-table-stack-structured.json');
+
+    // extractImages on UI chips returns empty
+    const imgs = extractImages(psiRuntime);
+    assert.strictEqual(imgs.length, 0, 'UI chips do not extract as images');
+
+    // Normalizing conversation with UI chips produces 0 image blocks and 0 assets
+    const conv = {
+        id: 'c_chips_test',
+        title: 'UI Chips Test',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'raw',
+                structuredContent: psiRuntime,
+            },
+        ],
+    };
+
+    const { bundle, diagnostics } = await normalizeGeminiConversation(conv as any);
+    const msg = bundle.conversation.messages[0];
+    const imageBlocks = msg.blocks.filter((b: any) => b.type === 'image');
+    assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
+    assert.strictEqual(bundle.assets.length, 0, 'UI chips create 0 assets');
+
+    // Only text paragraph and table blocks present
+    assert.strictEqual(msg.blocks.length, 2);
+    assert.strictEqual(msg.blocks[0].type, 'paragraph');
+    assert.strictEqual(msg.blocks[1].type, 'table');
+});
+

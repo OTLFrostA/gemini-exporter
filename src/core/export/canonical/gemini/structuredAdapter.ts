@@ -343,7 +343,9 @@ export function geminiStructuredToCanonical(
             }
 
             case 0: {
-                // Follow-up chips / elicitations / UI attachments: skipped from canonical body blocks
+                // Attachment nodes (nodeType: 0) such as search/web images (attachmentType: 36)
+                // and UI chips/elicitations are handled authoritatively by the existing candidate
+                // attachment/asset pipeline; not duplicated here in body blocks.
                 break;
             }
 
