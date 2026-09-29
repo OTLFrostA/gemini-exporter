@@ -438,6 +438,44 @@ test('Reference Nodes: Case-insensitive definition matching and first-definition
     assert.strictEqual(link.href, 'https://example.com/first');
 });
 
+test('Reference Nodes: Definition lifetime is isolated per parse run (no leakage across calls with same ctx)', () => {
+    const { ctx } = createTestContext();
+
+    const doc1 = [
+        'First: [x]',
+        '',
+        '[x]: https://example.com/A',
+    ].join('\n');
+
+    const doc2 = [
+        'Second: [x]',
+        '',
+        '[x]: https://example.com/B',
+    ].join('\n');
+
+    const blocks1 = parseMarkdownToBlocks(doc1, 'run1', ctx);
+    const link1 = (blocks1[0] as any).children.find((c: any) => c.type === 'link');
+    assert.ok(link1, 'First link must be resolved');
+    assert.strictEqual(link1.href, 'https://example.com/A');
+
+    // Second parse run with the SAME ctx must resolve to B, never leaking A
+    const blocks2 = parseMarkdownToBlocks(doc2, 'run2', ctx);
+    const link2 = (blocks2[0] as any).children.find((c: any) => c.type === 'link');
+    assert.ok(link2, 'Second link must be resolved');
+    assert.strictEqual(link2.href, 'https://example.com/B');
+
+    // Also test inline parse with the same ctx
+    const inlines1 = parseMarkdownToInlines('[x]\n\n[x]: https://example.com/A', 'inline1', ctx);
+    const inlineLink1 = inlines1.find((c: any) => c.type === 'link');
+    assert.ok(inlineLink1);
+    assert.strictEqual((inlineLink1 as any).href, 'https://example.com/A');
+
+    const inlines2 = parseMarkdownToInlines('[x]\n\n[x]: https://example.com/B', 'inline2', ctx);
+    const inlineLink2 = inlines2.find((c: any) => c.type === 'link');
+    assert.ok(inlineLink2);
+    assert.strictEqual((inlineLink2 as any).href, 'https://example.com/B');
+});
+
 test('Reference Nodes: Image reference resolves definition and asset linking', () => {
     const { ctx, assetIndex } = createTestContext();
     indexAssetRef(assetIndex, 'https://example.com/diagram.png', 'asset-diag-42');
