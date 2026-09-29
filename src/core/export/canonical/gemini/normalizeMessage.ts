@@ -19,12 +19,9 @@ import {
     mergeMessageAttachments,
     newAssetLinkIndex,
 } from './normalizeAssets.js';
-import {
-    cleanBody,
-    type MdParser,
-    parseMarkdownBlocks,
-} from './markdownToBlocks.js';
-import { parseMarkdownToBlocks } from '../markdown/index.js';
+import { convertHtmlToMarkdown } from '../../../engine/formatters/htmlConverter.js';
+import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
+import { type MarkdownParseContext, parseMarkdownToBlocks } from '../markdown/index.js';
 import {
     extractRawCitations,
     linkCitationMarkers,
@@ -70,11 +67,16 @@ export interface MessageBuild {
     diagnostics: Diagnostic[];
 }
 
+export function cleanBody(text: unknown): string {
+    if (typeof text !== 'string' || !text) return '';
+    return stripInternalChipMarkdown(convertHtmlToMarkdown(text));
+}
+
 export function normalizeMessage(
     m: RepoMessage,
     index: number,
     locator: string,
-    ctx: { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore; useLegacyMarkdownParser?: boolean },
+    ctx: { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore },
 ): MessageBuild {
     const diagnostics: Diagnostic[] = [];
     const msgId = isStr(m.id) && m.id ? m.id : `msg-${index}`;
@@ -155,10 +157,8 @@ export function normalizeMessage(
         }
     });
 
-    const st: MdParser = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore, nextBlockId };
+    const st: MarkdownParseContext = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore, nextBlockId };
     const blocks: BlockNode[] = [];
-
-    const parseBlocks = ctx.useLegacyMarkdownParser ? parseMarkdownBlocks : parseMarkdownToBlocks;
 
     const thoughtsRaw = m.thoughts ?? m.thinking ?? '';
     const thoughtsText = cleanBody(Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : thoughtsRaw);
@@ -168,13 +168,13 @@ export function normalizeMessage(
             type: 'thought',
             disclosure: 'providerExposed',
             kind: 'reasoning',
-            blocks: parseBlocks(thoughtsText, idPrefix, st),
+            blocks: parseMarkdownToBlocks(thoughtsText, idPrefix, st),
         });
     }
 
     if (typeof m.content === 'string') {
         const cleaned = cleanBody(m.content);
-        if (cleaned.trim()) blocks.push(...parseBlocks(cleaned, idPrefix, st));
+        if (cleaned.trim()) blocks.push(...parseMarkdownToBlocks(cleaned, idPrefix, st));
     } else if (m.content !== undefined && m.content !== null) {
         const ub: BlockNode = {
             id: nextBlockId(),

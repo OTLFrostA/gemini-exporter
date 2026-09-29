@@ -46,10 +46,8 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
 
     assert.strictEqual(report.markdown.documents >= 100, true);
     assert.strictEqual(report.markdown.parseFailures, 0, 'Markdown parsing must produce zero crashes');
-    assert.ok(report.markdown.candidate, 'Candidate markdown report must be populated');
-    assert.strictEqual(report.markdown.candidate.parseFailures, 0, 'Candidate markdown parser must produce zero crashes');
-    assert.strictEqual(report.markdown.candidate.fallbacks, 0, 'Candidate markdown parser must produce zero unknown block fallbacks');
-    assert.strictEqual(typeof report.markdown.diffCount, 'number');
+    assert.strictEqual(report.markdown.baseline.parseFailures, 0, 'Production markdown parser must produce zero crashes');
+    assert.strictEqual(report.markdown.baseline.fallbacks, 0, 'Production markdown parser must produce zero unknown block fallbacks');
     assert.strictEqual(report.math.expressions >= 50, true);
     assert.strictEqual(report.math.baseline.compileFailures, 0, 'Baseline converted expressions must compile cleanly in Typst WASM');
     assert.strictEqual(report.math.compileFailures, 0);
@@ -58,9 +56,8 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     const diskReport = JSON.parse(fs.readFileSync(REPORT_PATH, 'utf-8'));
     assert.strictEqual(diskReport.markdown.documents, report.markdown.documents);
     assert.strictEqual(diskReport.markdown.parseFailures, 0);
-    assert.strictEqual(diskReport.markdown.candidate?.parseFailures, 0);
-    assert.strictEqual(diskReport.markdown.candidate?.fallbacks, 0);
-    assert.strictEqual(typeof diskReport.markdown.diffCount, 'number');
+    assert.strictEqual(diskReport.markdown.baseline.parseFailures, 0);
+    assert.strictEqual(diskReport.markdown.baseline.fallbacks, 0);
     assert.strictEqual(diskReport.math.baseline.converted, report.math.baseline.converted);
 
     // 2. Test candidate parser injection capability
@@ -86,6 +83,10 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     assert.strictEqual(candidateParserCalled, true, 'Candidate parser must be invoked when provided');
     assert.strictEqual(candidateConverterCalled, true, 'Candidate converter must be invoked when provided');
     assert.ok(diffReport.markdown.documents > 0);
+    assert.ok(diffReport.markdown.candidate, 'Candidate markdown report must be populated when candidate parser provided');
+    assert.strictEqual(diffReport.markdown.candidate.parseFailures, 0);
+    assert.strictEqual(diffReport.markdown.candidate.fallbacks, 0);
+    assert.strictEqual(typeof diffReport.markdown.diffCount, 'number');
     assert.ok(diffReport.math.candidate, 'Candidate math report must be populated when candidate converter provided');
     assert.strictEqual(diffReport.math.candidate.compileFailures, 0, 'Candidate compiled expressions in WASM');
 });

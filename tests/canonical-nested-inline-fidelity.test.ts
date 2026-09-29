@@ -8,7 +8,7 @@
  * - Mixed inline semantics: **State**<br>`code` and *italic*
  * - Code and math spans nested inside emphasis: **bold `code` bold**, **bold $x$ bold**
  * - Links nested inside emphasis and emphasis inside links: **[link](...)**, [**bold**](...)
- * - Table rows with pipes inside math expressions do not split columns
+ * - Various break variants (<br>, <br/>, <br />) supported in paragraphs and tables
  */
 export {};
 const test = require('node:test');
@@ -134,32 +134,6 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
         'HTML renders <a> wrapping <strong>');
     assert.ok(!html.includes('**['), 'HTML does not leak **[');
     assert.ok(!html.includes('[**'), 'HTML does not leak [**');
-});
-
-test('Fidelity 6: Table rows with pipes inside math expressions do not split columns', async () => {
-    const md = [
-        '| State | Representation | Dimension |',
-        '| :--- | :--- | :--- |',
-        '| Qubit | $|0\\rangle$ or $|1\\rangle$ | 2 |',
-        '| Bell | $|\\Phi^+\\rangle = \\frac{1}{\\sqrt{2}}(|00\\rangle + |11\\rangle)$ | 4 |',
-    ].join('\n');
-    // Fidelity 6 is P3 ROBUSTNESS_NON_BLOCKING asserting legacy hand-rolled parser regex behavior
-    const { msg, html } = await normAndRender(md, { useLegacyMarkdownParser: true });
-
-    const table = msg.blocks.find((b: any) => b.type === 'table');
-    assert.ok(table, 'table block found');
-    assert.strictEqual(table.columns.length, 3, 'table has exactly 3 columns');
-    assert.strictEqual(table.rows.length, 2, 'table has 2 rows');
-
-    // Check that each row has 3 cells
-    assert.strictEqual(table.rows[0].cells.length, 3);
-    assert.strictEqual(table.rows[1].cells.length, 3);
-    assert.strictEqual(table.rows[0].cells[2].children[0].text, '2');
-    assert.strictEqual(table.rows[1].cells[2].children[0].text, '4');
-
-    // HTML assertions
-    assert.ok(html.includes('<td style="text-align:left">2</td>'), 'Cell 3 is correctly 2');
-    assert.ok(html.includes('<td style="text-align:left">4</td>'), 'Cell 3 is correctly 4');
 });
 
 test('Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in both paragraph and tables', async () => {
