@@ -132,7 +132,7 @@ export function normalizeMessage(
                 : a.__origin === 'image'
                     ? 'inline'
                     : 'unknown';
-        const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` }, origin);
+        const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` }, origin, ctx.byteStore);
         assets.push(built.asset);
         assetIds.push(assetId);
         for (const ref of [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {

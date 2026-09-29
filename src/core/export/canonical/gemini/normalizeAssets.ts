@@ -217,7 +217,17 @@ export function mergeMessageAttachments(m: RepoMessage): MergedAttachment[] {
     const push = (a: RepoAttachment, origin: MergedAttachment['__origin']): void => {
         if (!a || typeof a !== 'object') return;
         const key = a.localName || a.url || a.sourceUrl || a.resolvedUrl || a.src;
-        if (key && atts.some((x) => (x.localName || x.url || x.sourceUrl || x.resolvedUrl || x.src) === key)) return;
+        if (key) {
+            const existing = atts.find((x) => (x.localName || x.url || x.sourceUrl || x.resolvedUrl || x.src) === key);
+            if (existing) {
+                for (const [k, v] of Object.entries(a)) {
+                    if (v !== undefined && (existing as any)[k] === undefined) {
+                        (existing as any)[k] = v;
+                    }
+                }
+                return;
+            }
+        }
         atts.push({ ...a, __origin: origin });
     };
     for (const a of m.attachments ?? []) push(a, 'attachment');
@@ -252,6 +262,57 @@ export function normalizeLocalName(localName: string): string {
     return loc;
 }
 
+function decodeBase64Payload(raw: string): Uint8Array | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const b64 = trimmed.includes(',') && /^data:/i.test(trimmed)
+        ? trimmed.slice(trimmed.indexOf(',') + 1)
+        : trimmed;
+    const clean = b64.replace(/\s+/g, '');
+    if (!clean) return null;
+    try {
+        if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+            const buf = Buffer.from(clean, 'base64');
+            return buf.byteLength > 0 ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) : null;
+        }
+        const binStr = atob(clean);
+        if (!binStr.length) return null;
+        const out = new Uint8Array(binStr.length);
+        for (let k = 0; k < binStr.length; k++) out[k] = binStr.charCodeAt(k);
+        return out;
+    } catch {
+        return null;
+    }
+}
+
+export function extractAttachmentInlineBytes(a: RepoAttachment): Uint8Array | null {
+    const buf = a.dataBuffer;
+    if (buf) {
+        if (buf instanceof Uint8Array) {
+            return buf.byteLength > 0 ? buf : null;
+        }
+        if (typeof ArrayBuffer !== 'undefined' && buf instanceof ArrayBuffer) {
+            return buf.byteLength > 0 ? new Uint8Array(buf) : null;
+        }
+        if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(buf)) {
+            const view = buf as ArrayBufferView;
+            return view.byteLength > 0
+                ? new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+                : null;
+        }
+        if (Array.isArray(buf) && buf.length > 0) {
+            return new Uint8Array(buf);
+        }
+    }
+    const rawB64 = typeof a.dataBase64 === 'string' && a.dataBase64
+        ? a.dataBase64
+        : (typeof a.blobBase64 === 'string' && a.blobBase64 ? a.blobBase64 : '');
+    if (rawB64) {
+        return decodeBase64Payload(rawB64);
+    }
+    return null;
+}
+
 export interface AssetBuild {
     asset: Asset;
     diagnostics: Diagnostic[];
@@ -264,6 +325,7 @@ export function buildAsset(
     id: string,
     sourceRef: SourceRef,
     origin: AssetOrigin,
+    byteStore?: InlineByteStore,
 ): AssetBuild {
     const diagnostics: Diagnostic[] = [];
     const { kind, isImage, diag } = classifyAttachmentKind(a);
@@ -279,16 +341,34 @@ export function buildAsset(
     }
     const rawLocal = a.localName || '';
     const localIsUrl = /^https?:\/\//i.test(rawLocal);
-    const hasInlineBytes = !!(a.dataBuffer || a.blobBase64 || a.dataBase64);
+    const inlineBytes = extractAttachmentInlineBytes(a);
+    const hasInlineBytes = inlineBytes !== null && inlineBytes.byteLength > 0;
     const hasLocalFile = !!rawLocal && !localIsUrl;
     const url = a.resolvedUrl || a.sourceUrl || a.url || a.src || (localIsUrl ? rawLocal : undefined);
+    const explicitFailureReason = typeof (a as any).failureReason === 'string' && (a as any).failureReason.trim()
+        ? (a as any).failureReason.trim()
+        : undefined;
 
     let status: AssetStatus;
     let storageRef: string | undefined;
     let sourceUrl: string | undefined;
-    if (hasInlineBytes || hasLocalFile) {
+    let failureReason: string | undefined;
+    if (hasInlineBytes) {
         status = 'available';
-        if (hasLocalFile) storageRef = normalizeLocalName(rawLocal);
+        storageRef = hasLocalFile
+            ? normalizeLocalName(rawLocal)
+            : (byteStore ? pendingInlineRef(id) : normalizeLocalName(attachmentDisplayName(a, isImage)));
+        if (byteStore && storageRef && inlineBytes) {
+            byteStore.put(storageRef, inlineBytes);
+        }
+        if (url) sourceUrl = url;
+    } else if (explicitFailureReason) {
+        status = 'failed';
+        failureReason = explicitFailureReason;
+        if (url) sourceUrl = url;
+    } else if (hasLocalFile) {
+        status = 'available';
+        storageRef = normalizeLocalName(rawLocal);
         if (url) sourceUrl = url;
     } else if (url) {
         status = 'remote';
@@ -305,6 +385,7 @@ export function buildAsset(
         }
     } else {
         status = 'missing';
+        failureReason = 'no usable bytes, local file or URL in attachment record';
         diagnostics.push({
             id: `asset-no-source:${id}`,
             severity: 'warning',
@@ -316,25 +397,24 @@ export function buildAsset(
     }
 
     const mimeType = a.mimeType || a.mime || undefined;
+    const sizeBytes = typeof a.size === 'number' ? a.size : (inlineBytes ? inlineBytes.byteLength : undefined);
     const asset: Asset = {
         id,
         kind,
         name: attachmentDisplayName(a, isImage),
         ...(mimeType ? { mimeType } : {}),
-        ...(typeof a.size === 'number' ? { sizeBytes: a.size } : {}),
+        ...(sizeBytes !== undefined ? { sizeBytes } : {}),
         ...(typeof a.width === 'number' && typeof a.height === 'number'
             ? { dimensions: { widthPx: a.width, heightPx: a.height } }
             : {}),
         ...(sourceUrl ? { sourceUrl } : {}),
         ...(storageRef ? { storageRef } : {}),
         status,
-        ...(status === 'missing'
-            ? { failureReason: 'no usable bytes, local file or URL in attachment record' }
-            : {}),
+        ...(failureReason ? { failureReason } : {}),
         sourceRef,
         ...(a.type ? { extensions: { gemini: { attachmentType: String(a.type) } as JsonValue } } : {}),
     };
-    const classified = classifyAssetAvailability(asset, hasInlineBytes || hasLocalFile);
+    const classified = classifyAssetAvailability(asset, hasInlineBytes || (hasLocalFile && !explicitFailureReason));
     if (classified.diagnostic) diagnostics.push(classified.diagnostic);
     return { asset, diagnostics, isImage, origin };
 }
