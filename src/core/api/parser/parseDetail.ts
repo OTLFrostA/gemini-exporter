@@ -325,7 +325,8 @@ function parseCandidateResponse(
     getUniqueLocalName: (p: string) => string,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
-    imageSeq: { value: number }
+    imageSeq: { value: number },
+    candidateIndex = 0
 ): Message | null {
     const candidateId = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] || "";
     const candidateBlock = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
@@ -457,7 +458,7 @@ function parseCandidateResponse(
         }
     }
 
-    const structuredContent = extractStructuredContent(turn, cand);
+    const structuredContent = extractStructuredContent(turn, cand, candidateIndex);
 
     if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
 
@@ -551,7 +552,8 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
 
             const candList = extractModelCandidates(turn);
             if (Array.isArray(candList)) {
-                for (const cand of candList) {
+                for (let ci = 0; ci < candList.length; ci++) {
+                    const cand = candList[ci];
                     const modelMsg = parseCandidateResponse(
                         cand,
                         turn,
@@ -561,7 +563,8 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
                         getUniqueLocalName,
                         dedupSet,
                         docDedupSet,
-                        imageSeq
+                        imageSeq,
+                        ci
                     );
                     if (modelMsg) {
                         allMsgs.push(modelMsg);

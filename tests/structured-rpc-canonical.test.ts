@@ -33,6 +33,8 @@ const {
     convertGeminiInlines,
 } = require('../src/core/export/canonical/gemini/structuredAdapter.js');
 const {
+    decodeGeminiAnnotation,
+    decodeGeminiStructuredNode,
     decodeGeminiStructuredPayload,
     extractStructuredContent,
 } = require('../src/core/api/parser/structuredContent.js');
@@ -253,6 +255,273 @@ test('Real Tier 2 probe data: full documents validate cleanly against Canonical 
     assert.strictEqual(bundleErrorsB.length, 0, 'Case B bundle has no error diagnostics');
     const treeIssuesB = validateMessageTree(resB.bundle.conversation);
     assert.strictEqual(treeIssuesB.length, 0, 'Case B message tree is valid');
+});
+
+test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe fixtures', () => {
+    // 1. Psi-table wire fixture: real turn[3][12] from probe case-b turn 0
+    const psiWire = loadProbeFixture('wire-turn-3-12-psi-table.json');
+    const psiRuntime = loadProbeFixture('psi-table-stack-structured.json');
+
+    const decodedPsi = decodeGeminiStructuredPayload(psiWire);
+    assert.ok(decodedPsi, 'Decoded psi-table wire document');
+    assert.strictEqual(decodedPsi.children.length, psiRuntime.children.length, 'Root node count matches');
+    assert.deepStrictEqual(
+        decodedPsi.children.map((c: any) => c.nodeType),
+        psiRuntime.children.map((c: any) => c.nodeType),
+        'Node types match ([18, 17, 0])'
+    );
+
+    // Text content matches
+    const textNode = decodedPsi.children[0] as any;
+    assert.strictEqual(textNode.text, psiRuntime.children[0].text);
+
+    // Table shape, cell counts, and math intact
+    const decodedTable = decodedPsi.children[1] as any;
+    const runtimeTable = psiRuntime.children[1] as any;
+    assert.strictEqual(decodedTable.rows.length, runtimeTable.rows.length, 'Row count matches (5 rows)');
+    for (let r = 0; r < decodedTable.rows.length; r++) {
+        assert.strictEqual(decodedTable.rows[r].cells.length, 3, `Row ${r} has 3 cells`);
+    }
+
+    // Verify cell math annotations in row 1 cell 2 (psi table cell)
+    const decodedMathCell = decodedTable.rows[1].cells[2];
+    const mathChild = decodedMathCell.children.find((c: any) => c.text && c.text.includes('\\Vert{}\\psi'));
+    assert.ok(mathChild, 'Found math text child in row 1 cell 2');
+    const mathAnnot = mathChild.annotations?.find((a: any) => a.type === 4);
+    assert.ok(mathAnnot, 'Inline math annotation exists in decoded wire cell');
+    assert.strictEqual(mathAnnot.type, 4);
+
+    // 2. B-stack wire fixture: real turn[3][12] from probe case-b turn 1 (display math + lists + headings)
+    const bWire = loadProbeFixture('wire-turn-3-12-b-stack.json');
+    const bRuntime = loadProbeFixture('b-stack-structured.json');
+
+    const decodedB = decodeGeminiStructuredPayload(bWire);
+    assert.ok(decodedB, 'Decoded b-stack wire document');
+    assert.strictEqual(decodedB.children.length, bRuntime.children.length, 'Root node count matches (49)');
+
+    // Compare all 13 display math nodes
+    const decodedMath = decodedB.children.filter((c: any) => c.nodeType === 12);
+    const runtimeMath = bRuntime.children.filter((c: any) => c.nodeType === 12);
+    assert.strictEqual(decodedMath.length, 13, 'Contains 13 display math blocks');
+    assert.strictEqual(runtimeMath.length, 13, 'Runtime contains 13 display math blocks');
+    for (let i = 0; i < decodedMath.length; i++) {
+        assert.strictEqual((decodedMath[i] as any).FTa, (runtimeMath[i] as any).FTa, `Display math ${i} matches`);
+    }
+});
+
+test('Nested unknown node in list/table/blockquote fails closed to Markdown parser', async () => {
+    // 1. List with unsupported child: item 0 known, item 1 has unknown child, item 2 known
+    const listConv = {
+        id: 'c_nested_list',
+        title: 'Nested List Unknown',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Raw list markdown fallback',
+                structuredContent: {
+                    children: [
+                        {
+                            nodeType: 20,
+                            items: [
+                                { children: [{ nodeType: 18, text: 'Item 1' }] },
+                                { children: [{ nodeType: 9999, weird: 'data' }] }, // Unsupported!
+                                { children: [{ nodeType: 18, text: 'Item 3' }] },
+                            ],
+                        },
+                    ],
+                },
+            },
+        ],
+    };
+
+    const resList = await normalizeGeminiConversation(listConv as any);
+    assert.strictEqual(
+        resList.bundle.conversation.messages[0].blocks[0].children[0].text,
+        'Raw list markdown fallback',
+        'List with unknown child must fail closed to markdown without silent item dropping'
+    );
+
+    // 2. Table with unsupported cell child
+    const tableConv = {
+        id: 'c_nested_table',
+        title: 'Nested Table Unknown',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Raw table markdown fallback',
+                structuredContent: {
+                    children: [
+                        {
+                            nodeType: 17,
+                            rows: [
+                                {
+                                    cells: [
+                                        { children: [{ nodeType: 18, text: 'Cell 1' }] },
+                                        { children: [{ nodeType: 9999, weird: 'data' }] },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            },
+        ],
+    };
+
+    const resTable = await normalizeGeminiConversation(tableConv as any);
+    assert.strictEqual(
+        resTable.bundle.conversation.messages[0].blocks[0].children[0].text,
+        'Raw table markdown fallback',
+        'Table with unknown cell child must fail closed to markdown'
+    );
+
+    // 3. Blockquote with unsupported child
+    const bqConv = {
+        id: 'c_nested_bq',
+        title: 'Nested Blockquote Unknown',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Raw bq markdown fallback',
+                structuredContent: {
+                    children: [
+                        {
+                            nodeType: 15,
+                            children: [
+                                { nodeType: 18, text: 'Quote 1' },
+                                { nodeType: 9999, weird: 'data' },
+                            ],
+                        },
+                    ],
+                },
+            },
+        ],
+    };
+
+    const resBq = await normalizeGeminiConversation(bqConv as any);
+    assert.strictEqual(
+        resBq.bundle.conversation.messages[0].blocks[0].children[0].text,
+        'Raw bq markdown fallback',
+        'Blockquote with unknown child must fail closed to markdown'
+    );
+});
+
+test('Unknown annotation shape/type fails closed and is never coerced to bold', async () => {
+    // 1. Direct decoder checks: unknown annotation type must return null, never 0 (bold)
+    assert.strictEqual(decodeGeminiAnnotation({ start: 0, end: 5, type: 999 }), null);
+    assert.strictEqual(decodeGeminiAnnotation([0, 5, [[null, null, null, null, 999]]]), null);
+    assert.strictEqual(decodeGeminiAnnotation([0, 5, [null, 'unknown-shape']]), null);
+
+    // 2. Integration check: text node with unknown annotation falls back to raw markdown
+    const conv = {
+        id: 'c_unknown_annot',
+        title: 'Unknown Annotation Test',
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Raw markdown fallback for unknown annotation',
+                structuredContent: {
+                    children: [
+                        {
+                            nodeType: 18,
+                            text: 'Text with unknown annotation',
+                            annotations: [
+                                { start: 0, end: 4, type: 999 }, // Unknown type!
+                            ],
+                        },
+                    ],
+                },
+            },
+        ],
+    };
+
+    const res = await normalizeGeminiConversation(conv as any);
+    const msg = res.bundle.conversation.messages[0];
+    assert.strictEqual(
+        msg.blocks[0].children[0].text,
+        'Raw markdown fallback for unknown annotation',
+        'Unknown annotation must trigger Markdown fallback instead of guessing as bold'
+    );
+});
+
+test('Multi-candidate turn attaches structuredContent only to proven candidate 0', async () => {
+    const wirePsi = loadProbeFixture('wire-turn-3-12-psi-table.json');
+
+    // Turn with 2 candidates: candidate 0 (primary) and candidate 1 (alternative draft)
+    const multiCandTurn = [
+        'r_multicand_turn',
+        [1700000000, 0],
+        [['What is a qubit?']],
+        [
+            // Model payload:
+            // candidate 0: rc_0
+            // candidate 1: rc_1
+            [
+                ['rc_0', [null, ['Draft 0 raw text']]],
+                ['rc_1', [null, ['Draft 1 raw text']]],
+            ],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            wirePsi, // turn[3][12] structured document
+        ],
+    ];
+
+    // Primary candidate (candidateIndex = 0)
+    const struct0 = extractStructuredContent(multiCandTurn, multiCandTurn[3][0][0], 0);
+    assert.ok(struct0, 'Candidate 0 receives structured content from turn[3][12]');
+    assert.strictEqual(struct0.children.length, 3);
+
+    // Alternative candidate (candidateIndex = 1)
+    const struct1 = extractStructuredContent(multiCandTurn, multiCandTurn[3][0][1], 1);
+    assert.strictEqual(struct1, undefined, 'Candidate 1+ must NOT receive turn[3][12] without proven evidence');
+
+    // Verify end-to-end normalization of multi-candidate messages
+    const conv = {
+        id: 'c_multicand',
+        title: 'Multi-Candidate Normalization',
+        messages: [
+            {
+                id: 'm_cand0',
+                role: 'model',
+                content: 'Draft 0 raw text',
+                structuredContent: struct0,
+            },
+            {
+                id: 'm_cand1',
+                role: 'model',
+                content: 'Draft 1 raw text: **bold from markdown**',
+                structuredContent: struct1, // undefined
+            },
+        ],
+    };
+
+    const res = await normalizeGeminiConversation(conv as any);
+    const msg0 = res.bundle.conversation.messages[0];
+    const msg1 = res.bundle.conversation.messages[1];
+
+    // msg0 used structured content (contains table block)
+    const tableBlock0 = msg0.blocks.find((b: any) => b.type === 'table');
+    assert.ok(tableBlock0, 'Candidate 0 has table block from structured path');
+
+    // msg1 used markdown fallback (contains paragraph with strong inline)
+    assert.strictEqual(msg1.blocks.length, 1);
+    assert.strictEqual(msg1.blocks[0].type, 'paragraph');
+    const strong1 = msg1.blocks[0].children.find((c: any) => c.type === 'strong');
+    assert.ok(strong1, 'Candidate 1 used markdown parser for bold');
+    assert.strictEqual(strong1.children[0].text, 'bold from markdown');
 });
 
 test('Wire JSPB decoding in Gemini parser layer', () => {
