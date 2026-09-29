@@ -180,8 +180,9 @@ export class RealWasmSandboxFrame {
                 if (typeof binary.path !== 'string' || !(binary.buf instanceof ArrayBuffer)) {
                     throw new Error('compile binary entries must be {path, buf:ArrayBuffer}');
                 }
-                compiler.mapShadow(binary.path, new Uint8Array(binary.buf));
-                mappedPaths.push(binary.path);
+                const shadowPath = binary.path.startsWith('/') ? binary.path : `/${binary.path}`;
+                compiler.mapShadow(shadowPath, new Uint8Array(binary.buf));
+                mappedPaths.push(shadowPath);
             }
             if (fonts.length > 0 && !this.fontsInstalled) {
                 for (const font of fonts) {

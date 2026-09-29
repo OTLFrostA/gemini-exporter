@@ -125,8 +125,9 @@ async function handleCompile(jobId: string, body: Record<string, unknown>): Prom
             if (typeof entry.path !== 'string' || !(entry.buf instanceof ArrayBuffer)) {
                 throw new Error('compile binary entries must be {path, buf:ArrayBuffer}');
             }
-            activeCompiler.mapShadow(entry.path, new Uint8Array(entry.buf));
-            mappedPaths.push(entry.path);
+            const shadowPath = entry.path.startsWith('/') ? entry.path : `/${entry.path}`;
+            activeCompiler.mapShadow(shadowPath, new Uint8Array(entry.buf));
+            mappedPaths.push(shadowPath);
         }
 
         let fontMs = 0;

@@ -76,6 +76,14 @@ export interface PdfExporterOptions {
      * Gemini tab is needed.
      */
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
+    includeAssets?: boolean;
+    takeoutEngine?: any;
+    assetPipeline?: any;
+    fetchAssetDelegate?: (params: any) => Promise<any>;
+    fetchAsset?: (params: any) => Promise<any>;
+    getGeminiTab?: (slot?: string) => Promise<any>;
+    sendToGeminiTab?: (message: any, slot?: string, timeoutMs?: number) => Promise<any>;
+    maxAssetRetries?: number;
 }
 
 export interface PdfExporterCallbacks {
@@ -380,6 +388,14 @@ export class PdfExporter {
                 skip,
                 signal,
                 onLog,
+                includeAssets: options.includeAssets,
+                takeoutEngine: options.takeoutEngine,
+                assetPipeline: options.assetPipeline,
+                fetchAssetDelegate: options.fetchAssetDelegate,
+                fetchAsset: options.fetchAsset,
+                getGeminiTab: options.getGeminiTab,
+                sendToGeminiTab: options.sendToGeminiTab,
+                maxAssetRetries: options.maxAssetRetries,
             });
             if (this.aborted || signal.aborted) break;
             if (!prep.ok) {
