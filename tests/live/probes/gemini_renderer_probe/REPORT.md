@@ -1,5 +1,7 @@
 # Gemini Web renderer probe (production, 2026-09-29)
 
+**Follow-up finding:** [STRUCTURED_RPC_FINDING.md](STRUCTURED_RPC_FINDING.md) traces the renderer input back to a structured document already present in `hNvQHb`. It supersedes this report's earlier uncertainty about whether the RPC supplies the document tree and its recommendation to defer the route choice.
+
 ## Executive finding
 
 The production page receives plain model Markdown in its `hNvQHb` `batchexecute` response and renders a structured document tree with separate math block and inline math paths. Its math renderer is reachable as `window.katex` version `0.16.28`. The current micromark pipeline disagrees at math fence recognition (A/B) and GFM table splitting (C). The targeted runtime chunk does not establish the identity of Gemini's Markdown parser or whether math protection is a separate prepass or part of a combined parser.
