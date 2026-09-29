@@ -1,4 +1,8 @@
-import { BatchWorker, type FetchChatDetailResult } from '../../engine/export/batchWorker.js';
+import {
+    BatchWorker,
+    supplementTakeoutGeneratedMedia,
+    type FetchChatDetailResult,
+} from '../../engine/export/batchWorker.js';
 import {
     AssetPipeline as AssetPipelineStatic,
     type AssetPipelineInstance,
@@ -149,38 +153,6 @@ function cloneChatForHydration(chat: any): any {
             }),
         } : {}),
     };
-}
-
-function attachTakeoutGeneratedMedia(chat: any, nid: string, slot: string, takeoutEngine: any): void {
-    if (!takeoutEngine || typeof takeoutEngine.getTakeoutMediaForChat !== 'function') return;
-    if (!Array.isArray(chat?.messages) || chat.messages.length === 0) return;
-    const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
-    if (!Array.isArray(takeoutMedia) || takeoutMedia.length === 0) return;
-    for (const tm of takeoutMedia) {
-        if (!tm?.isGenerated || !tm?.filename) continue;
-        const alreadyHas = chat.messages.some((m: any) =>
-            (Array.isArray(m?.images) && m.images.some((im: any) => im?.fileName === tm.filename || (typeof im?.localName === 'string' && im.localName.includes(tm.filename)))) ||
-            (Array.isArray(m?.attachments) && m.attachments.some((at: any) => at?.fileName === tm.filename || (typeof at?.localName === 'string' && at.localName.includes(tm.filename)))) ||
-            (typeof m?.content === 'string' && m.content.includes(tm.filename))
-        );
-        if (!alreadyHas) {
-            const imgObj = {
-                url: tm.filename,
-                name: tm.filename,
-                fileName: tm.filename,
-                localName: `assets/${tm.filename}`,
-                source: 'takeout',
-                isGenerated: true,
-            };
-            const targetModelMsg = [...chat.messages].reverse().find((m: any) => m?.role === 'model' || m?.role === 'assistant');
-            if (targetModelMsg) {
-                targetModelMsg.images = Array.isArray(targetModelMsg.images) ? targetModelMsg.images : [];
-                targetModelMsg.attachments = Array.isArray(targetModelMsg.attachments) ? targetModelMsg.attachments : [];
-                targetModelMsg.images.push({ ...imgObj });
-                targetModelMsg.attachments.push({ ...imgObj });
-            }
-        }
-    }
 }
 
 interface ImageHydrationGroup {
@@ -362,7 +334,9 @@ export async function preparePdfItem(
         : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
 
     if (takeoutEngine) {
-        attachTakeoutGeneratedMedia(workingChat, id, currentSlot, takeoutEngine);
+        supplementTakeoutGeneratedMedia(workingChat, id, currentSlot, takeoutEngine, {
+            appendMarkdownRef: false,
+        });
     }
 
     if (pipeline && typeof pipeline.acquireAssetBytes === 'function') {

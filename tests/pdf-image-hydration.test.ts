@@ -332,6 +332,59 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     );
 });
 
+test('2b. Takeout generated-media supplementation via shared BatchWorker.supplementTakeoutGeneratedMedia: attaches generated Takeout media and hydrates into top-level PDF image block', async () => {
+    const rawChat = {
+        id: 'chat-takeout-supplement',
+        title: 'Takeout Supplemented Conversation',
+        messages: [
+            { id: 'u1', role: 'user', content: 'Generate an astronaut cat.' },
+            { id: 'm1', role: 'model', content: 'Here is your astronaut cat:' },
+        ],
+    };
+
+    const fakeTakeoutEngine = {
+        getTakeoutMediaForChat: () => [
+            { filename: 'user_upload_ignored.png', isGenerated: false },
+            { filename: 'watermarked_takeout_cat.png', isGenerated: true },
+        ],
+        getTakeoutFallbackMedia: async (_chatId: string, localName: string) => {
+            if (localName.includes('watermarked_takeout_cat.png')) return PNG_BYTES;
+            return null;
+        },
+    };
+
+    const prepared = await preparePdfItem(
+        { id: rawChat.id, title: rawChat.title },
+        {
+            conversations: [rawChat],
+            maxAssetRetries: 0,
+            takeoutEngine: fakeTakeoutEngine,
+        },
+    );
+
+    assert.strictEqual(prepared.ok, true);
+    if (!prepared.ok) return;
+
+    const { bundle, byteStore } = prepared;
+    assert.strictEqual(bundle.assets.length, 1, 'only generated Takeout media is supplemented');
+    assert.strictEqual(bundle.assets[0].status, 'available');
+    assert.strictEqual(bundle.assets[0].storageRef, 'assets/watermarked_takeout_cat.png');
+
+    const ctx = makeStageCtx();
+    const s1 = await projectStage({ bundle }, ctx);
+    const s2 = await resourceStage({ bundle, view: s1.output.view, byteStore }, ctx);
+    const s3 = await payloadStage(
+        { bundle, view: s1.output.view, pathMap: s2.output.pathMap, locale: 'zh' },
+        ctx,
+    );
+    const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
+    assert.strictEqual(
+        modelMsg.blocks.filter((b: any) => b.type === 'image').length,
+        1,
+        'supplemented Takeout generated media renders as a top-level image block in PDF',
+    );
+});
+
 test('3. Acquisition failure: when both network fetch and Takeout fallback fail, export does not crash and preserves missing-image fallback + diagnostics', async () => {
     const remoteUrl = 'https://lh3.googleusercontent.com/gg-dl/AOI_d_dead_link=s0';
     const rawChat = {
