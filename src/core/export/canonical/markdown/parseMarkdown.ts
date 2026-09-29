@@ -16,6 +16,7 @@ import {
     type MarkdownParseContext,
     mdastRootToBlocks,
     adaptInlines,
+    collectDefinitions,
 } from './mdastToCanonical.js';
 
 export { type MarkdownParseContext } from './mdastToCanonical.js';
@@ -59,6 +60,11 @@ export function parseMarkdownToInlines(
         extensions: EXTENSIONS,
         mdastExtensions: MDAST_EXTENSIONS,
     });
+
+    if (!ctx.definitions) {
+        ctx.definitions = new Map();
+        collectDefinitions(tree, ctx.definitions);
+    }
 
     // Inlines are inside the first paragraph if fromMarkdown wraps them in a paragraph
     if (tree.children.length === 1 && tree.children[0].type === 'paragraph') {
