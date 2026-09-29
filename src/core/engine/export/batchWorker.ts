@@ -27,6 +27,10 @@ export interface ResolveChatResult {
     convsNeedSave: boolean;
 }
 
+export interface SupplementTakeoutMediaOptions {
+    appendMarkdownRef?: boolean;
+}
+
 export interface BatchWorkerModule {
     fetchChatDetail: (
         requestedItem: any,
@@ -48,6 +52,13 @@ export interface BatchWorkerModule {
         onLog?: (msg: string, level?: string) => void,
         options?: any
     ) => Promise<ResolveChatResult>;
+    supplementTakeoutGeneratedMedia: (
+        chat: any,
+        nid: string,
+        slot?: string,
+        takeoutEngine?: any,
+        options?: SupplementTakeoutMediaOptions
+    ) => void;
     formatDebugInfo?: (debug: any) => string;
 }
 
@@ -246,6 +257,60 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
         });
     }
 
+    function supplementTakeoutGeneratedMedia(
+        chat: any,
+        nid: string,
+        slot: string = 'u0',
+        takeoutEngine?: any,
+        options: SupplementTakeoutMediaOptions = {}
+    ): void {
+        const appendMarkdownRef = options.appendMarkdownRef ?? true;
+        if (takeoutEngine && typeof takeoutEngine.getTakeoutMediaForChat === 'function' && Array.isArray(chat?.messages) && chat.messages.length > 0) {
+            const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
+            if (takeoutMedia && takeoutMedia.length > 0) {
+                for (const tm of takeoutMedia) {
+                    if (!tm?.isGenerated || !tm?.filename) continue;
+                    const alreadyHas = chat.messages.some((m: any) =>
+                        (m.images && m.images.some((im: any) => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
+                        (m.attachments && m.attachments.some((at: any) => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||
+                        (typeof m.content === 'string' && m.content.includes(tm.filename))
+                    );
+                    if (!alreadyHas) {
+                        const imgObj = {
+                            url: tm.filename,
+                            name: tm.filename,
+                            fileName: tm.filename,
+                            localName: `assets/${tm.filename}`,
+                            source: 'takeout',
+                            isGenerated: true
+                        };
+                        const targetModelMsg = chat.messages.slice().reverse().find((m: any) => m.role === 'model' || m.role === 'assistant');
+                        if (targetModelMsg) {
+                            targetModelMsg.images = targetModelMsg.images || [];
+                            targetModelMsg.attachments = targetModelMsg.attachments || [];
+                            targetModelMsg.images.push(imgObj);
+                            targetModelMsg.attachments.push(imgObj);
+                            if (appendMarkdownRef) {
+                                if (typeof targetModelMsg.content !== 'string') targetModelMsg.content = '';
+                                if (!targetModelMsg.content.includes(tm.filename)) {
+                                    targetModelMsg.content = (targetModelMsg.content ? targetModelMsg.content + '\n\n' : '') + `![Generated Image](assets/${tm.filename})`;
+                                }
+                            }
+                        } else {
+                            chat.messages.push({
+                                role: 'model',
+                                content: appendMarkdownRef ? `![Generated Image](assets/${tm.filename})` : '',
+                                timestamp: Date.now(),
+                                images: [imgObj],
+                                attachments: [imgObj]
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     async function resolveChat(
         chat: any,
         requestedItem: any,
@@ -297,48 +362,7 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
         }
 
-        if (takeoutEngine && typeof takeoutEngine.getTakeoutMediaForChat === 'function' && Array.isArray(chat.messages) && chat.messages.length > 0) {
-            const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
-            if (takeoutMedia && takeoutMedia.length > 0) {
-                for (const tm of takeoutMedia) {
-                    if (!tm.isGenerated) continue;
-                    const alreadyHas = chat.messages.some((m: any) =>
-                        (m.images && m.images.some((im: any) => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
-                        (m.attachments && m.attachments.some((at: any) => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||
-                        (m.content && m.content.includes(tm.filename))
-                    );
-                    if (!alreadyHas) {
-                        const imgObj = {
-                            url: tm.filename,
-                            name: tm.filename,
-                            fileName: tm.filename,
-                            localName: `assets/${tm.filename}`,
-                            source: 'takeout',
-                            isGenerated: true
-                        };
-                        let targetModelMsg = chat.messages.slice().reverse().find((m: any) => m.role === 'model');
-                        if (targetModelMsg) {
-                            targetModelMsg.images = targetModelMsg.images || [];
-                            targetModelMsg.attachments = targetModelMsg.attachments || [];
-                            targetModelMsg.images.push(imgObj);
-                            targetModelMsg.attachments.push(imgObj);
-                            if (typeof targetModelMsg.content !== 'string') targetModelMsg.content = '';
-                            if (!targetModelMsg.content.includes(tm.filename)) {
-                                targetModelMsg.content = (targetModelMsg.content ? targetModelMsg.content + '\n\n' : '') + `![Generated Image](assets/${tm.filename})`;
-                            }
-                        } else {
-                            chat.messages.push({
-                                role: 'model',
-                                content: `![Generated Image](assets/${tm.filename})`,
-                                timestamp: Date.now(),
-                                images: [imgObj],
-                                attachments: [imgObj]
-                            });
-                        }
-                    }
-                }
-            }
-        }
+        supplementTakeoutGeneratedMedia(chat, nid, slot, takeoutEngine);
 
         if (Array.isArray(chat.messages) && chat.messages.length > 0) {
             const scope = shortScope(nid);
@@ -566,12 +590,14 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
 export {
     fetchChatDetail,
     resolveChat,
+    supplementTakeoutGeneratedMedia,
     formatDebugInfo
 };
 
 export const BatchWorker: BatchWorkerModule = {
     fetchChatDetail,
     resolveChat,
+    supplementTakeoutGeneratedMedia,
     formatDebugInfo
 };
 
