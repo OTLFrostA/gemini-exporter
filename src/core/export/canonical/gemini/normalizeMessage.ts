@@ -26,11 +26,12 @@ import {
     extractRawCitations,
     linkCitationMarkers,
 } from './normalizeCitations.js';
+import { geminiStructuredToCanonical } from './structuredAdapter.js';
 
 export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
     'thinking', 'citations', 'images', 'documents', 'attachmentCount',
-    'messageCount', 'sources',
+    'messageCount', 'sources', 'structuredContent',
 ]);
 
 function isStr(v: unknown): v is string {
@@ -172,25 +173,39 @@ export function normalizeMessage(
         });
     }
 
-    if (typeof m.content === 'string') {
-        const cleaned = cleanBody(m.content);
-        if (cleaned.trim()) blocks.push(...parseMarkdownToBlocks(cleaned, idPrefix, st));
-    } else if (m.content !== undefined && m.content !== null) {
-        const ub: BlockNode = {
-            id: nextBlockId(),
-            type: 'unknown',
-            sourceType: 'message-content',
-            payload: m.content as JsonValue,
-        };
-        blocks.push(ub);
-        diagnostics.push({
-            id: `unknown-content:${msgId}`,
-            severity: 'warning',
-            code: 'UNKNOWN_MESSAGE_CONTENT',
-            message: `message content was not a string; preserved as unknown block`,
-            sourceRef,
-            details: { fallback: unknownBlockFallbackText(ub) } as JsonValue,
-        });
+    let usedStructured = false;
+    if (m.structuredContent) {
+        const structuredBlocks = geminiStructuredToCanonical(m.structuredContent, idPrefix, st);
+        if (structuredBlocks !== null) {
+            const rawText = typeof m.content === 'string' ? cleanBody(m.content).trim() : '';
+            if (structuredBlocks.length > 0 || !rawText) {
+                blocks.push(...structuredBlocks);
+                usedStructured = true;
+            }
+        }
+    }
+
+    if (!usedStructured) {
+        if (typeof m.content === 'string') {
+            const cleaned = cleanBody(m.content);
+            if (cleaned.trim()) blocks.push(...parseMarkdownToBlocks(cleaned, idPrefix, st));
+        } else if (m.content !== undefined && m.content !== null) {
+            const ub: BlockNode = {
+                id: nextBlockId(),
+                type: 'unknown',
+                sourceType: 'message-content',
+                payload: m.content as JsonValue,
+            };
+            blocks.push(ub);
+            diagnostics.push({
+                id: `unknown-content:${msgId}`,
+                severity: 'warning',
+                code: 'UNKNOWN_MESSAGE_CONTENT',
+                message: `message content was not a string; preserved as unknown block`,
+                sourceRef,
+                details: { fallback: unknownBlockFallbackText(ub) } as JsonValue,
+            });
+        }
     }
 
     for (const ia of st.inlineAssets) {

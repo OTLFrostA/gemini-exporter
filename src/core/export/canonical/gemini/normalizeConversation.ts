@@ -147,7 +147,7 @@ export async function normalizeGeminiConversation(
                 pushMessage({ role: 'user', content: t.userContent, timestamp: t.timestamp ?? undefined } as RepoMessage, mi++, `turns[${ti}].userContent`);
             }
             const hasModel = isStr(t.modelContent) && t.modelContent;
-            if (hasModel || t.thoughts || (t.attachments?.length) || (t.images?.length) || (t.sources?.length)) {
+            if (hasModel || t.thoughts || (t.attachments?.length) || (t.images?.length) || (t.sources?.length) || t.structuredContent) {
                 pushMessage({
                     role: 'model',
                     content: hasModel ? t.modelContent as string : '',
@@ -156,6 +156,7 @@ export async function normalizeGeminiConversation(
                     attachments: t.attachments as RepoAttachment[] | undefined,
                     images: t.images as RepoAttachment[] | undefined,
                     sources: t.sources as unknown[] | undefined,
+                    structuredContent: t.structuredContent,
                 } as RepoMessage, mi++, `turns[${ti}].modelContent`);
             }
         });

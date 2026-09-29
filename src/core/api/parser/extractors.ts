@@ -10,6 +10,7 @@ export interface JspbModelPayloadSchema {
     SEARCH_QUERIES: number;
     PROVIDER: number;
     TELEMETRY_START: number;
+    STRUCTURED_CONTENT?: number;
 }
 
 export interface JspbCandidateSchema {
@@ -164,7 +165,8 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
             CANDIDATES: 0,      // repeated Candidate: AI answer drafts
             SEARCH_QUERIES: 1,  // repeated SearchQuery: Grounding search keywords
             PROVIDER: 2,        // string: Grounding provider name ("google")
-            TELEMETRY_START: 3  // Internal routing/status codes ("c", "S", 6, 6, ".")
+            TELEMETRY_START: 3, // Internal routing/status codes ("c", "S", 6, 6, ".")
+            STRUCTURED_CONTENT: 12 // repeated StructuredNode: Wire document tree
         },
         CANDIDATE: {
             ID: 0,             // "rc_xxxx"

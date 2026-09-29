@@ -71,6 +71,7 @@ import GeminiUtils from "../../utils/utils.js";
 import { extractInnerPayload, extractNextPageToken } from "./payload.js";
 import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
 import { shortId, shortScope as getShortScope } from "../../utils/pathUtils.js";
+import { extractStructuredContent } from "./structuredContent.js";
 
 const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
 
@@ -456,7 +457,9 @@ function parseCandidateResponse(
         }
     }
 
-    if (!responseText && !thoughts && !attachments.length && !docDetails.length) return null;
+    const structuredContent = extractStructuredContent(turn, cand);
+
+    if (!responseText && !thoughts && !attachments.length && !docDetails.length && !structuredContent) return null;
 
     const fallbackTurnId = Array.isArray(turn?.[0])
         ? (turn[0].find((x: any) => typeof x === "string" && (x.startsWith("rc_") || x.startsWith("r_"))) || turn[0][1] || turn[0][0])
@@ -473,7 +476,8 @@ function parseCandidateResponse(
         documents: docDetails.length ? docDetails : void 0,
         attachments: attachments.length ? attachments : void 0,
         attachmentCount: attachments.length,
-        messageCount: 1
+        messageCount: 1,
+        ...(structuredContent ? { structuredContent } : {})
     };
 }
 

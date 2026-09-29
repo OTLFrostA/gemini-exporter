@@ -139,8 +139,17 @@ export {
     extractListItemTimestamp,
     parseList,
     parseDetail,
-    extractDocumentsMeta
+    extractDocumentsMeta,
 };
+export {
+    extractStructuredContent,
+    decodeGeminiStructuredPayload,
+    decodeGeminiStructuredNode,
+    decodeGeminiAnnotation,
+    type GeminiStructuredDocument,
+    type GeminiStructuredNode,
+    type GeminiAnnotation,
+} from "./parser/structuredContent.js";
 
 export const GeminiParser: GeminiParserModule = {
     GeminiResponseParserClass,
