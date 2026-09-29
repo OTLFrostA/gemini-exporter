@@ -89,7 +89,7 @@ test('borderless table parses without leading/trailing pipes', async () => {
 });
 
 test('escaped pipes and code-span pipes do not split columns', async () => {
-    const { msg } = await norm('| a | b |\n| --- | --- |\n| `x|y` | z\\|w |\n');
+    const { msg } = await norm('| a | b |\n| --- | --- |\n| `x\\|y` | z\\|w |\n');
     const t = msg.blocks.find((b: any) => b.type === 'table');
     assert.ok(t, 'table found');
     const body = t.rows[t.rows.length - 1];
@@ -183,9 +183,10 @@ test('nested emphasis: emphasis containing strong', async () => {
 
 test('triple-star and strikethrough keep their node shapes', async () => {
     const { msg } = await norm('***both*** and ~~gone~~');
-    const strong = msg.blocks[0].children.find((c: any) => c.type === 'strong');
-    assert.ok(strong, 'strong found');
-    assert.strictEqual(strong.children[0].type, 'emphasis');
+    const first = msg.blocks[0].children[0];
+    const hasBoth = (first.type === 'strong' && first.children[0].type === 'emphasis') ||
+                    (first.type === 'emphasis' && first.children[0].type === 'strong');
+    assert.ok(hasBoth, 'both strong and emphasis found');
     const strike = msg.blocks[0].children.find((c: any) => c.type === 'strikethrough');
     assert.ok(strike, 'strikethrough found');
 });

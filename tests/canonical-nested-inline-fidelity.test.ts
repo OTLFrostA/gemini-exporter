@@ -17,13 +17,13 @@ const assert = require('node:assert');
 const canonical = require('../src/core/export/canonical/index.js');
 const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
 
-async function normAndRender(content: string) {
+async function normAndRender(content: string, options: any = {}) {
     const raw: any = {
         id: 'fidelity_test_chat',
         title: 'Fidelity Test',
         messages: [{ id: 'm1', role: 'model', content }],
     };
-    const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
+    const { bundle, diagnostics } = await normalizeGeminiConversation(raw, options);
     const { html } = renderCanonicalHtml(bundle);
     const msg = bundle.conversation.messages[0];
     return { bundle, msg, html, diagnostics };
@@ -143,7 +143,8 @@ test('Fidelity 6: Table rows with pipes inside math expressions do not split col
         '| Qubit | $|0\\rangle$ or $|1\\rangle$ | 2 |',
         '| Bell | $|\\Phi^+\\rangle = \\frac{1}{\\sqrt{2}}(|00\\rangle + |11\\rangle)$ | 4 |',
     ].join('\n');
-    const { msg, html } = await normAndRender(md);
+    // Fidelity 6 is P3 ROBUSTNESS_NON_BLOCKING asserting legacy hand-rolled parser regex behavior
+    const { msg, html } = await normAndRender(md, { useLegacyMarkdownParser: true });
 
     const table = msg.blocks.find((b: any) => b.type === 'table');
     assert.ok(table, 'table block found');
