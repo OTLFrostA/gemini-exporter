@@ -22,8 +22,6 @@ import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 
 const fetchBatchChains = new Map<string, Promise<void>>();
-import { FsWriter } from '../core/engine/writers/fsWriter.js';
-import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { getExtensionVersion } from '../core/utils/constants.js';
 
 initSessionAccessLevel();

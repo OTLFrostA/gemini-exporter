@@ -115,13 +115,22 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
     }
 
     // Default baseline parser & converter if not injected
-    const defaultMdParser: MarkdownParserFn = async (content, id) => {
+    const defaultBaselineParser: MarkdownParserFn = async (content, id) => {
         return normalizeGeminiConversation({
             id,
             messages: [{ id: 'm1', role: 'user', content }],
-        });
+        }, { useLegacyMarkdownParser: true });
     };
-    const activeBaselineParser = options.baselineParser || defaultMdParser;
+    const defaultCandidateParser: MarkdownParserFn = async (content, id) => {
+        return normalizeGeminiConversation({
+            id,
+            messages: [{ id: 'm1', role: 'user', content }],
+        }, { useLegacyMarkdownParser: false });
+    };
+
+    const activeBaselineParser = options.baselineParser || defaultBaselineParser;
+    const hasCandidateParser = options.candidateParser !== undefined || !options.baselineParser;
+    const activeCandidateParser = options.candidateParser || (hasCandidateParser ? defaultCandidateParser : undefined);
     const activeBaselineConverter = options.baselineConverter || ((latex, display) => convertMathWithDiagnostic(latex, 'latex', display));
 
     const report: CorpusReport = {
@@ -134,7 +143,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 fallbacks: 0,
                 blockDistribution: {},
             },
-            ...(options.candidateParser
+            ...(activeCandidateParser
                 ? {
                       candidate: {
                           parseFailures: 0,
@@ -228,9 +237,9 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         }
 
         // 1b. Run Candidate parser in isolated try/catch (runs REGARDLESS of baseline)
-        if (options.candidateParser) {
+        if (activeCandidateParser) {
             try {
-                candRes = await options.candidateParser(doc.text, doc.id);
+                candRes = await activeCandidateParser(doc.text, doc.id);
                 for (const d of candRes?.diagnostics || []) {
                     report.diagnostics.push({
                         domain: 'markdown_candidate',
@@ -259,8 +268,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
             }
         }
 
-        // 1c. Differential comparison if candidate parser was injected
-        if (options.candidateParser) {
+        // 1c. Differential comparison if candidate parser was active
+        if (activeCandidateParser) {
             if (baseRes && candRes) {
                 const diff = compareMarkdownAst(doc.text, baseRes.bundle, candRes.bundle);
                 if (diff.hasDiff) {

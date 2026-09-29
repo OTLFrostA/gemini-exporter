@@ -82,6 +82,7 @@ async function build() {
         outdir: DIST,
         bundle: true,
         format: 'iife',
+        conditions: ['worker', 'browser'],
         minify: true,
         sourcemap: false,
         target: ['chrome120'],
