@@ -120,18 +120,11 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         return normalizeGeminiConversation({
             id,
             messages: [{ id: 'm1', role: 'user', content }],
-        }, { useLegacyMarkdownParser: true });
-    };
-    const defaultCandidateParser: MarkdownParserFn = async (content, id) => {
-        return normalizeGeminiConversation({
-            id,
-            messages: [{ id: 'm1', role: 'user', content }],
-        }, { useLegacyMarkdownParser: false });
+        });
     };
 
     const activeBaselineParser = options.baselineParser || defaultBaselineParser;
-    const hasCandidateParser = options.candidateParser !== undefined || !options.baselineParser;
-    const activeCandidateParser = options.candidateParser || (hasCandidateParser ? defaultCandidateParser : undefined);
+    const activeCandidateParser = options.candidateParser;
     const activeBaselineConverter = options.baselineConverter || ((latex, display) => convertMathWithDiagnostic(latex, 'latex', display));
 
     const report: CorpusReport = {
@@ -604,8 +597,8 @@ if (require.main === module) {
             console.log(`\n📂 Corpus Set: ${report.corpusSet}`);
             console.log(`\n📄 Markdown Results:`);
             console.log(`  • Documents Evaluated:      ${report.markdown.documents} (108 scenario inputs + 2 synthetic fixtures | Real Gemini Output: 0)`);
-            console.log(`  • Baseline Parse Failures:  ${report.markdown.baseline.parseFailures}`);
-            console.log(`  • Baseline Fallbacks:       ${report.markdown.baseline.fallbacks}`);
+            console.log(`  • Parse Failures:           ${report.markdown.baseline.parseFailures} (Must be 0)`);
+            console.log(`  • Fallbacks:                ${report.markdown.baseline.fallbacks}`);
             if (report.markdown.candidate) {
                 console.log(`  • Candidate Parse Failures: ${report.markdown.candidate.parseFailures} (Must be 0)`);
                 console.log(`  • Candidate Fallbacks:      ${report.markdown.candidate.fallbacks}`);

@@ -33,7 +33,6 @@ export interface GeminiNormalizationOptions {
     accountId?: string;
     observedAt?: string;
     rawRef?: string;
-    useLegacyMarkdownParser?: boolean;
 }
 
 export interface GeminiNormalizationResult extends NormalizationResult {
@@ -125,7 +124,6 @@ export async function normalizeGeminiConversation(
             providerId,
             diag: diagnostics,
             byteStore,
-            useLegacyMarkdownParser: options?.useLegacyMarkdownParser,
         });
         messages.push(built.node);
         assets.push(...built.assets);
