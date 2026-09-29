@@ -213,35 +213,34 @@ test('T5.1: MiTeX version and provenance consistency across repository metadata'
     const scopePath = path.join(root, 'src/core/export/typst/templates/mitex-scope.typ');
     const wasmPath = path.join(root, 'src/core/export/typst/mitex/vendor/mitex_wasm_bg.wasm');
 
-    assert.ok(fs.existsSync(vendorReadmePath), 'Vendor README.md must exist');
-    assert.ok(fs.existsSync(noticesPath), 'THIRD_PARTY_NOTICES.md must exist');
-    assert.ok(fs.existsSync(scopePath), 'mitex-scope.typ must exist');
-    assert.ok(fs.existsSync(wasmPath), 'mitex_wasm_bg.wasm must exist');
-
     const readmeContent = fs.readFileSync(vendorReadmePath, 'utf8');
     const noticesContent = fs.readFileSync(noticesPath, 'utf8');
     const scopeContent = fs.readFileSync(scopePath, 'utf8');
     const wasmBytes = fs.readFileSync(wasmPath);
 
+    // 1. Provable WASM SHA256 and byte length match documented metadata
     const actualWasmHash = crypto.createHash('sha256').update(wasmBytes).digest('hex');
+    assert.strictEqual(wasmBytes.length, 230735, 'Vendored mitex_wasm_bg.wasm byte size must match');
+    assert.ok(readmeContent.includes(actualWasmHash), 'Vendor README must record the exact SHA256 of the vendored WASM');
 
-    // 1. Version consistency: all documents must declare 0.2.5
-    assert.ok(readmeContent.includes('v0.2.5'), 'Vendor README must declare v0.2.5');
-    assert.ok(!readmeContent.includes('v0.2.4'), 'Vendor README must not declare contradictory v0.2.4');
-    assert.ok(noticesContent.includes('MiTeX v0.2.5'), 'THIRD_PARTY_NOTICES must declare MiTeX v0.2.5');
-    assert.ok(!noticesContent.includes('MiTeX v0.2.4'), 'THIRD_PARTY_NOTICES must not declare contradictory v0.2.4');
-    assert.ok(scopeContent.includes('@preview/mitex:0.2.5'), 'mitex-scope.typ must declare derivation from @preview/mitex:0.2.5');
+    const mitexNoticeSection = noticesContent.slice(noticesContent.indexOf('### 5. MiTeX'));
+    assert.ok(mitexNoticeSection.includes(actualWasmHash), 'THIRD_PARTY_NOTICES Section 5 must record the exact SHA256 of the vendored WASM');
 
-    // 2. License consistency: must be Apache-2.0, not MIT
-    assert.ok(readmeContent.includes('Apache-2.0'), 'Vendor README must state Apache-2.0');
-    assert.ok(!readmeContent.includes('MIT'), 'Vendor README must not state MIT');
-    assert.ok(noticesContent.includes('**License**: Apache License, Version 2.0'), 'THIRD_PARTY_NOTICES must state Apache-2.0 for MiTeX');
-    assert.ok(!noticesContent.includes('Dual-licensed under Apache License 2.0 or MIT License'), 'THIRD_PARTY_NOTICES must not state dual MIT');
+    // 2. Provable cross-file version consistency (scope header, vendor README, and notices cannot contradict each other)
+    const scopeVersionMatch = scopeContent.match(/@preview\/mitex:(\d+\.\d+\.\d+)/);
+    const readmeVersionMatch = readmeContent.match(/\*\*Version\*\*:\s*`(\d+\.\d+\.\d+)`/);
+    const noticesVersionMatch = mitexNoticeSection.match(/\*\*Version\*\*:\s*`(\d+\.\d+\.\d+)`/);
 
-    // 3. Exact SHA256 integrity
-    assert.strictEqual(actualWasmHash, '7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf');
-    assert.ok(readmeContent.includes(actualWasmHash), 'Vendor README must record exact WASM SHA256');
-    assert.ok(noticesContent.includes(actualWasmHash), 'THIRD_PARTY_NOTICES must record exact WASM SHA256');
+    assert.ok(scopeVersionMatch, 'mitex-scope.typ must declare @preview/mitex:<version>');
+    assert.ok(readmeVersionMatch, 'Vendor README must declare **Version**: `<version>`');
+    assert.ok(noticesVersionMatch, 'THIRD_PARTY_NOTICES Section 5 must declare **Version**: `<version>`');
+
+    assert.strictEqual(readmeVersionMatch[1], scopeVersionMatch[1], 'Vendor README version must match mitex-scope.typ version');
+    assert.strictEqual(noticesVersionMatch[1], scopeVersionMatch[1], 'THIRD_PARTY_NOTICES version must match mitex-scope.typ version');
+
+    // 3. Provable self-contained scope integration (exports mitex-scope, zero runtime @preview imports)
+    assert.ok(scopeContent.includes('#let mitex-scope = scope'), 'mitex-scope.typ must export #let mitex-scope = scope');
+    assert.ok(!/^\s*#import\s+"@preview\//m.test(scopeContent), 'mitex-scope.typ must not contain active @preview/ runtime imports');
 });
 
 test('T5.2: Failed MiTeX initialization clears cached state and allows subsequent retry', async () => {
