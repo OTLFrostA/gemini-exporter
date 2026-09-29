@@ -20,6 +20,7 @@ import componentsTyp from '../../core/export/typst/templates/components.typ';
 import renderBlockTyp from '../../core/export/typst/templates/render-block.typ';
 import renderInlineTyp from '../../core/export/typst/templates/render-inline.typ';
 import renderMessageTyp from '../../core/export/typst/templates/render-message.typ';
+import mitexScopeTyp from '../../core/export/typst/templates/mitex-scope.typ';
 import syntaxTheme from '../../core/export/typst/templates/quiet-light.tmTheme';
 
 const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
@@ -29,6 +30,7 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/render-block.typ', renderBlockTyp],
     ['/render-inline.typ', renderInlineTyp],
     ['/render-message.typ', renderMessageTyp],
+    ['/mitex-scope.typ', mitexScopeTyp],
     ['/quiet-light.tmTheme', syntaxTheme],
 ];
 

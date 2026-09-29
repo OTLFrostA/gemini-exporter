@@ -1668,15 +1668,76 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/mitex-adapter.test.ts",
+      "domain": "latex",
+      "classification": "P1",
+      "provenanceSource": "MiTeX WASM integration and standard LaTeX-to-Typst conversion gate",
+      "policy": "VERIFY_AGAINST_STANDARD",
+      "notes": "Validates MiTeX adapter lifecycle, fail-closed diagnostics, representative standard LaTeX, and real Typst WASM compilation.",
+      "testCount": 10,
+      "tests": [
+        {
+          "name": "T1.1: MiTeX WASM initializes and reports ready state",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T1.2: Empty or whitespace input emits TYPST_MATH_EMPTY diagnostic",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T1.3: Unknown command fails closed with TYPST_MATH_CONVERT_FAILED and preserves raw source",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T1.4: convertMathMitex helper respects notation and display flags",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "T2.1: Representative standard LaTeX: Arithmetic and fractions",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "T2.2: Representative standard LaTeX: Roots and scripts",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "T2.3: Representative standard LaTeX: Greek and operators",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "T2.4: Representative standard LaTeX: Matrices and cases",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "T2.5: Representative standard LaTeX: Delimiters and operatorname",
+          "classification": "P1",
+          "policy": "VERIFY_AGAINST_STANDARD"
+        },
+        {
+          "name": "T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 27,
-    "totalTests": 257,
+    "totalSuites": 28,
+    "totalTests": 267,
     "byClassification": {
       "P0": 0,
-      "P1": 24,
-      "P2": 205,
+      "P1": 29,
+      "P2": 210,
       "P3": 9,
       "P4": 19
     }

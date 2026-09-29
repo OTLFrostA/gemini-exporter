@@ -52,6 +52,7 @@ const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/render-block.typ', 'render-block.typ'],
     ['/render-inline.typ', 'render-inline.typ'],
     ['/render-message.typ', 'render-message.typ'],
+    ['/mitex-scope.typ', 'mitex-scope.typ'],
     // Referenced by components.typ as theme: "quiet-light.tmTheme",
     // resolved relative to /components.typ.
     ['/quiet-light.tmTheme', 'quiet-light.tmTheme'],
