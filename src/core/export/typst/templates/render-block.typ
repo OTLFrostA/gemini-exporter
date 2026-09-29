@@ -1,6 +1,7 @@
 #import "theme.typ": *
 #import "components.typ": *
 #import "render-inline.typ": render-inlines
+#import "mitex-scope.typ": mitex-scope
 
 #let block-gap(previous, current) = {
   let a = previous.type
@@ -58,7 +59,7 @@
 
 #let render-math(node, scope) = {
   if "typst" in node {
-    let math = eval(node.typst, mode: "math")
+    let math = eval(node.typst, mode: "math", scope: mitex-scope)
     if scope == "user" { block(width: 100%)[#align(center)[#math]] } else { math-surface(math) }
   } else {
     quiet-note[

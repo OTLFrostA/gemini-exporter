@@ -1,4 +1,5 @@
 #import "components.typ": inline-code, safe-text
+#import "mitex-scope.typ": mitex-scope
 
 // Nested children recurse via a local helper so render-inline does not reference render-inlines before its declaration.
 #let render-inline(node) = {
@@ -31,7 +32,7 @@
   } else if kind == "image" {
     inline-image(node.asset, alt: if "alt" in node { node.alt } else { none })
   } else if kind == "inlineMath" {
-    if "typst" in node { eval(node.typst, mode: "math") } else { inline-code(node.latex) }
+    if "typst" in node { eval(node.typst, mode: "math", scope: mitex-scope) } else { inline-code(node.latex) }
   } else {
     if "text" in node { node.text } else { [�] }
   }

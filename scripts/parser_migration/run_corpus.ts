@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { normalizeGeminiConversation } from '../../src/core/export/canonical/normalizeGemini.js';
 import { convertMathWithDiagnostic } from '../../src/core/export/typst/math/convertMath.js';
+import { convertMathWithMitex, initMitexWasm } from '../../src/core/export/typst/mitex/index.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
 import { TypstSandboxCompiler } from '../../src/core/export/typst/typstSandboxCompiler.js';
 import { toTypstPayload } from '../../src/core/export/typst/payload.js';
@@ -125,7 +126,20 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     const activeBaselineParser = options.baselineParser || defaultBaselineParser;
     const activeCandidateParser = options.candidateParser;
-    const activeBaselineConverter = options.baselineConverter || ((latex, display) => convertMathWithDiagnostic(latex, 'latex', display));
+    const defaultBaselineConverter: MathConverterFn = (latex, display) => convertMathWithDiagnostic(latex, 'latex', display);
+    const activeBaselineConverter = options.baselineConverter || defaultBaselineConverter;
+
+    const defaultCandidateConverter: MathConverterFn = (latex, display) => {
+        const res = convertMathWithMitex(latex, display);
+        return { typst: res.typst, diagnostic: res.diagnostic };
+    };
+    const activeCandidateConverter = 'candidateConverter' in options
+        ? options.candidateConverter
+        : defaultCandidateConverter;
+
+    if (activeCandidateConverter) {
+        await initMitexWasm();
+    }
 
     const report: CorpusReport = {
         timestamp: new Date().toISOString(),
@@ -166,7 +180,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 conversionFailures: 0,
                 compileFailures: 0,
             },
-            ...(options.candidateConverter
+            ...(activeCandidateConverter
                 ? {
                       candidate: {
                           converted: 0,
@@ -364,9 +378,9 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         }
 
         // 2b. Run Candidate converter in isolated try/catch (runs REGARDLESS of baseline)
-        if (options.candidateConverter) {
+        if (activeCandidateConverter) {
             try {
-                candRes = options.candidateConverter(expr.latex, !!expr.display);
+                candRes = activeCandidateConverter(expr.latex, !!expr.display);
                 if (candRes?.typst) {
                     report.math.candidate!.converted += 1;
                     candidateSuccessful.push({
@@ -398,7 +412,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         }
 
         // 2c. Differential comparison if candidate converter was injected
-        if (options.candidateConverter) {
+        if (activeCandidateConverter) {
             if (baseRes && candRes) {
                 const diff = compareMathConversion(expr.latex, baseRes, candRes);
                 if (diff.hasDiff) {
@@ -518,7 +532,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         }
 
         // 3b. Candidate Typst compile gate (compiles candidate's genuine typst output)
-        if (options.candidateConverter && candidateSuccessful.length > 0) {
+        if (activeCandidateConverter && candidateSuccessful.length > 0) {
             try {
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
