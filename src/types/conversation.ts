@@ -61,6 +61,7 @@ export interface ChatMessage {
     attachmentCount?: number;
     messageCount?: number;
     sources?: unknown[];
+    structuredContent?: unknown;
 }
 
 export type Message = ChatMessage;
@@ -75,6 +76,7 @@ export interface Turn {
     attachments?: Attachment[];
     images?: Attachment[];
     sources?: unknown[];
+    structuredContent?: unknown;
 }
 
 export interface Conversation {
