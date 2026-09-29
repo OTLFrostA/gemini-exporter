@@ -52,7 +52,9 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     assert.strictEqual(report.math.baseline.compileFailures, 0, 'Baseline converted expressions must compile cleanly in Typst WASM');
     assert.strictEqual(report.math.compileFailures, 0);
     assert.ok(report.math.candidate, 'Candidate math report must be populated');
-    assert.strictEqual(report.math.candidate.compileFailures, 0, 'Candidate MiTeX expressions must compile with 0 failures');
+    assert.strictEqual(report.math.candidate.converted, report.math.expressions, 'candidate.converted === expressions');
+    assert.strictEqual(report.math.candidate.conversionFailures, 0, 'candidate.conversionFailures === 0');
+    assert.strictEqual(report.math.candidate.compileFailures, 0, 'candidate.compileFailures === 0');
 
     assert.ok(fs.existsSync(REPORT_PATH), 'Corpus report must be saved on disk');
     const diskReport = JSON.parse(fs.readFileSync(REPORT_PATH, 'utf-8'));
@@ -61,6 +63,8 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
     assert.strictEqual(diskReport.markdown.baseline.parseFailures, 0);
     assert.strictEqual(diskReport.markdown.baseline.fallbacks, 0);
     assert.strictEqual(diskReport.math.baseline.converted, report.math.baseline.converted);
+    assert.strictEqual(diskReport.math.candidate?.converted, report.math.expressions);
+    assert.strictEqual(diskReport.math.candidate?.conversionFailures, 0);
     assert.strictEqual(diskReport.math.candidate?.compileFailures, 0);
 
     // 2. Test candidate parser injection capability

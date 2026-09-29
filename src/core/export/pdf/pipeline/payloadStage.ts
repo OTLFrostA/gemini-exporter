@@ -1,7 +1,7 @@
 import type { RenderDiagnostic } from '../../canonical/rendering.js';
 import type { TypstAdapterDiagnostic } from '../../typst/payload.js';
 import { toTypstPayload } from '../../typst/payload.js';
-import { convertMathWithDiagnostic } from '../../typst/mathConverter.js';
+import { convertMathWithMitex, initMitexWasm } from '../../typst/mathConverter.js';
 import {
     type PayloadStageInput,
     type PayloadStageOutput,
@@ -20,13 +20,17 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
     if (ctx.signal.aborted) {
         throw new DOMException(`Pipeline aborted before stage 'payload'`, 'AbortError');
     }
+
+    // Ensure MiTeX WASM engine is ready for LaTeX math conversion
+    await initMitexWasm();
+
     // Capture math conversion diagnostics in the closure since the convertMath callback only returns string | undefined.
     const mathDiagnostics: TypstAdapterDiagnostic[] = [];
     const result = toTypstPayload(input.bundle, {
         assetPath: (asset) => input.pathMap.get(asset.id),
         locale: input.locale,
         convertMath: (source, notation, display) => {
-            const converted = convertMathWithDiagnostic(source, notation, display);
+            const converted = convertMathWithMitex(source, notation, display);
             if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);
             return converted.typst;
         },

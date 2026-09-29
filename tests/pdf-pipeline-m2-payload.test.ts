@@ -63,7 +63,7 @@ function makeCtx() {
 
 test('degraded math is diagnosed, never silent', async () => {
     const m1 = message('m1', 'user', null, [para('hello')]);
-    const m2 = message('m2', 'assistant', 'm1', [mathBlock('\\begin{align} x = 1 \\end{align}')]);
+    const m2 = message('m2', 'assistant', 'm1', [mathBlock('\\notarealcommand{x}{y}')]);
     const bundle = bundleWith([m1, m2]);
     const { output, diagnostics } = await payloadStage(
         { bundle, view: viewOf([m1, m2]), pathMap: new Map(), locale: 'en' },
@@ -77,7 +77,7 @@ test('degraded math is diagnosed, never silent', async () => {
     // and the payload keeps the raw latex (visible, not dropped)
     const mathNodes = output.payload.messages[1].blocks.filter((b: any) => b.type === 'math');
     assert.strictEqual(mathNodes.length, 1);
-    assert.strictEqual(mathNodes[0].latex, '\\begin{align} x = 1 \\end{align}');
+    assert.strictEqual(mathNodes[0].latex, '\\notarealcommand{x}{y}');
     assert.strictEqual(mathNodes[0].typst, undefined);
     assert.strictEqual(output.payload.messageCount, 2);
 });
@@ -91,7 +91,7 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
     );
     const mathNodes = output.payload.messages[0].blocks.filter((b: any) => b.type === 'math');
     assert.strictEqual(mathNodes.length, 1);
-    assert.strictEqual(mathNodes[0].typst, 'frac(a, b)');
+    assert.strictEqual(mathNodes[0].typst, 'frac(a ,b )');
     assert.deepStrictEqual(diagnostics, []);
 });
 

@@ -27,8 +27,23 @@ function warn(code: string, message: string): RenderDiagnostic {
 
 export function convertMathWithMitex(
     source: string,
-    display: boolean = false,
+    notationOrDisplay?: string | boolean,
+    maybeDisplay?: boolean,
 ): MathConversionResult {
+    let notation = 'latex';
+    let display = false;
+
+    if (typeof notationOrDisplay === 'boolean') {
+        display = notationOrDisplay;
+    } else if (typeof notationOrDisplay === 'string') {
+        notation = notationOrDisplay;
+        display = maybeDisplay ?? false;
+    }
+
+    if (notation !== 'latex') {
+        return {};
+    }
+
     if (typeof source !== 'string' || source.trim() === '') {
         return {
             diagnostic: warn(
@@ -68,6 +83,5 @@ export function convertMathMitex(
     notation: string = 'latex',
     display: boolean = false,
 ): string | undefined {
-    if (notation !== 'latex') return undefined;
-    return convertMathWithMitex(source, display).typst;
+    return convertMathWithMitex(source, notation, display).typst;
 }
