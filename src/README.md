@@ -47,8 +47,6 @@ src/
       index.ts                 Provider subsystem barrel export
       gemini/                  Gemini platform adapter
         geminiProvider.ts      batchexecute RPC provider implementation
-      chatgpt/                 ChatGPT platform adapter (reserved extension point)
-        chatgptProvider.ts     ChatGPT DOM & API provider implementation
 
     api/                       Protocol Communication & Deserialization
       geminiClient.ts          batchexecute RPC client facade (abort, retry, token refresh)

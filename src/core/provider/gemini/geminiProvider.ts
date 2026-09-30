@@ -1,6 +1,5 @@
 import type {
     AIProvider,
-    ProviderCapabilities,
     ProviderReadiness,
     ProviderPageResult,
     ProviderConversationItem,
@@ -14,14 +13,6 @@ export class GeminiProvider implements AIProvider {
     readonly id = 'gemini';
     readonly name = 'Google Gemini';
     readonly hostPatterns = ['https://gemini.google.com/*', 'https://bard.google.com/*'];
-
-    readonly capabilities: ProviderCapabilities = {
-        supportsRealtimeSniffing: true,
-        supportsTakeoutImport: true,
-        supportsThoughtBlocks: true,
-        supportsIncrementalSync: true,
-        supportsMultiAccount: true
-    };
 
     private client: GeminiAPIClient | null = null;
 

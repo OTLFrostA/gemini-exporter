@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
-const { ChatGPTProvider, flattenChatGPTMapping } = require('../src/core/provider/chatgpt/chatgptProvider.js');
 
 function makeGeminiClient() {
     return {
@@ -49,60 +48,4 @@ test('provider-neutral - GeminiProvider.fetchConversationDetail guarantees id/ti
     assert.strictEqual(det.title, 'DT');
     assert.strictEqual(det.messages.length, 1);
     assert.strictEqual(det.nextPageToken, null); // extra Gemini fields preserved via spread
-});
-
-test('provider-neutral - ChatGPT fetch calls carry credentials:include (P0-3)', async () => {
-    const calls: Array<[string, any]> = [];
-    (global as any).fetch = async (url: string, init?: any) => {
-        calls.push([url, init]);
-        if (url.includes('/api/auth/session')) {
-            return { ok: true, json: async () => ({ accessToken: 'tok', user: { email: 'a@b.c' } }) };
-        }
-        if (url.includes('/backend-api/conversations?')) {
-            return { ok: true, json: async () => ({ items: [{ id: 'g1', title: 'GT', create_time: 1700000000, update_time: 1700000100 }] }) };
-        }
-        if (url.includes('/backend-api/conversation/')) {
-            return { ok: true, json: async () => ({ id: 'g1', title: 'GT', mapping: {}, create_time: 1700000000, update_time: 1700000100 }) };
-        }
-        throw new Error('unexpected ' + url);
-    };
-    try {
-        const cp = new ChatGPTProvider();
-        const ready = await cp.checkReadiness();
-        assert.strictEqual(ready.ready, true);
-        await assert.rejects(() => cp.listConversations({ maxPages: 1 }), /dormant/,
-            'dormant provider 不得发起列表请求');
-        await cp.fetchConversationDetail('g1');
-        assert.strictEqual(calls.length, 2);
-        for (const [url, init] of calls) {
-            assert.strictEqual(init && init.credentials, 'include', `credentials:include on ${url}`);
-        }
-    } finally {
-        delete (global as any).fetch;
-    }
-});
-
-test('provider-neutral - ChatGPTProvider.listConversations is dormant (Phase E)', async () => {
-    let fetched = false;
-    (global as any).fetch = async () => { fetched = true; throw new Error('must not fetch'); };
-    try {
-        const cp = new ChatGPTProvider();
-        await assert.rejects(() => cp.listConversations({ maxPages: 1 }), /dormant/);
-        assert.strictEqual(fetched, false, 'dormant 入口不得发起任何网络请求');
-    } finally {
-        delete (global as any).fetch;
-    }
-});
-
-test('provider-neutral - flattenChatGPTMapping returns neutral detail shape', () => {
-    const m = flattenChatGPTMapping({
-        id: 'x', title: ' T ',
-        mapping: { n1: { id: 'n1', parent: null, message: { id: 'm1', author: { role: 'user' }, content: { parts: ['hello'] }, create_time: 1700000000 } } },
-        current_node: 'n1', create_time: 1700000000, update_time: 1700000100
-    }, 'x');
-    assert.strictEqual(m.id, 'x');
-    assert.strictEqual(m.title, 'T');
-    assert.strictEqual(m.messages.length, 1);
-    assert.strictEqual(m.messages[0].role, 'user');
-    assert.strictEqual(m.messages[0].content, 'hello');
 });

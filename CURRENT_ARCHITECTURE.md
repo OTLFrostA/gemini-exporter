@@ -11,7 +11,7 @@
 | 平台 | 状态 | 说明 |
 |---|---|---|
 | Gemini (`gemini.google.com`) | **production** | 唯一生产支持的平台。`GeminiProvider` 为完整实现：batchexecute RPC、实时嗅探、多账号 slot、Takeout 导入。 |
-| ChatGPT (`chatgpt.com`) | **planned — implementation incomplete/unverified, NOT production-ready** | `ChatGPTProvider` 为 dormant scaffold：已注册但 `listConversations` 直接抛错；manifest 无 `chatgpt.com` host permission / content-script 匹配，运行时不可达。`mapping`/`current_node` 归一化（`flattenChatGPTMapping`）有单测、无真实会话验证。 |
+| ChatGPT (`chatgpt.com`) | **planned** | Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. |
 | Claude | **planned** | 无实现。`getAITab` 已预留 `https://claude.ai/*` 模式映射。 |
 | Grok | **planned** | 无实现。`getAITab`/`sendToAITab` 对未知 providerId 按 URL pattern 直通，无需改代码即可路由。 |
 
@@ -28,13 +28,11 @@ Verdict 定义：
 | Symbol | Verdict | 备注 |
 |---|---|---|
 | `AIProvider`（interface） | KEEP-contract | 中性生命周期：`checkReadiness` / `listConversations` / `fetchConversationDetail` / `matchesUrl` / `fetchAsset?`。被 `resolveProvider` 及 3 个 content 模块使用。 |
-| `ProviderConversationItem` / `ProviderConversationDetail` / `ProviderPageResult<T>` / `ProviderCapabilities` / `ProviderReadiness` | KEEP-contract | 中性形状，index signature 允许平台扩展字段。 |
+| `ProviderConversationItem` / `ProviderConversationDetail` / `ProviderPageResult<T>` / `ProviderReadiness` | KEEP-contract | 中性形状，index signature 允许平台扩展字段。 |
 | `ProviderRegistry`（`register`/`unregister`/`get`/`getAll`/`findByUrl`/`getDefault`） | KEEP-contract | 通用注册表契约。`getAll()`/`unregister()` 是注册表应有 surface，不是死代码。 |
 | `resolveProvider()` | KEEP-contract | `syncEngine` / `liveSaveCoordinator` / `messageRouter` 共用。 |
 | `GeminiProvider` | KEEP（production 实现） | 命名诚实。`fetchConversationDetail` 把完整 Gemini detail spread 进中性返回——这是生产适配器的本职，声明返回类型保持中性。 |
-| `ChatGPTProvider` | SCAFFOLD-unverified | 见上表。网络路径（`/api/auth/session`、`backend-api/conversation`）与 capability 声明（takeout/thoughts/incremental=true）均未用真实登录会话验证。 |
-| `flattenChatGPTMapping` | SCAFFOLD-unverified | 有单测，无真实 payload 验证（分支选择、thought 编码可能与实际不符）。 |
-| `defaultChatGPTProvider`（自注册） | SCAFFOLD-unverified | 保持注册表多 provider 形态，无害。 |
+| ChatGPT / Claude / Grok adapters | planned | Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. |
 | `export type { Conversation, ChatMessage, Attachment, TitleSources }`（`aiProvider.ts` 重导出） | GEMINI-SPECIFIC-misnamed | 模块头注释自称 "Universal AI Provider specification"，实际重导出 Gemini pipeline 类型（`TitleSources` 含 `rpc`/`dom`/`takeout`/`sniff`；`Conversation` 含 `hitGoogleLimit`/`isTakeoutOnly`/`accountSlot`）。已核实：仓内 0 外部引用。本 PR 不动，仅标出。 |
 | `getAITab` / `sendToAITab`（`tabService.ts`） | KEEP-contract | provider→tab 路由契约。当前无 production caller（仅测试）——这是 planned architecture 的预期状态，不是死代码。 |
 
@@ -49,7 +47,7 @@ Verdict 定义：
 ### 已知非 verdict 的跟进点（不属本 PR scope）
 
 - `syncEngine.ts` 注释承认 "the provider-neutral declared type is still stabilizing"，有一处 `as any` 绕过——待 provider 层稳定后收敛，不在本 PR 处理。
-- `ProviderCapabilities.supportsRealtimeSniffing` 的术语源自 Gemini batchexecute 拦截机制；capability 概念本身通用，暂判 KEEP-contract，若未来平台语义分歧再议。
+- Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified.
 
 ## `scripts/framework/` 平台层级 audit（PR12，2026-09-27）
 

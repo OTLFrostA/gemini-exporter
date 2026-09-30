@@ -32,14 +32,6 @@ export interface ProviderPageResult<T> {
     diagnostics?: any;
 }
 
-export interface ProviderCapabilities {
-    supportsRealtimeSniffing: boolean;
-    supportsTakeoutImport: boolean;
-    supportsThoughtBlocks: boolean;
-    supportsIncrementalSync: boolean;
-    supportsMultiAccount: boolean;
-}
-
 export interface ProviderReadiness {
     ready: boolean;
     accountSlot?: string;
@@ -51,7 +43,6 @@ export interface AIProvider {
     readonly id: string;
     readonly name: string;
     readonly hostPatterns: string[];
-    readonly capabilities: ProviderCapabilities;
 
     checkReadiness(context?: any): Promise<ProviderReadiness>;
     listConversations(options?: any): Promise<ProviderPageResult<ProviderConversationItem>>;
