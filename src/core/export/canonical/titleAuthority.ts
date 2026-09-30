@@ -3,6 +3,7 @@ export type TitleSource =
     | 'api-detail'
     | 'dom'
     | 'takeout'
+    | 'openai'
     | 'sniff'
     | 'legacy'
     | 'provider'
@@ -11,7 +12,7 @@ export type TitleSource =
     | 'default';
 
 export const TITLE_SOURCES: ReadonlySet<string> = new Set([
-    'rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy',
+    'rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy',
     'provider', 'user', 'derived', 'default',
 ]);
 
@@ -28,6 +29,7 @@ export const CANONICAL_TITLE_TIER_RANK: Record<TitleSource, number> = {
     dom: 40,
     provider: 30,
     takeout: 30,
+    openai: 30,
     sniff: 20,
     derived: 10,
     legacy: 10,
