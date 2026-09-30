@@ -18,6 +18,11 @@ import re
 import json
 import hashlib
 
+# Support direct CLI execution as well as framework imports.
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from scripts.framework.archive_resources import find_archive_resource, validate_archive_resources
+
 
 class ExportSpecificationAsserter:
     def __init__(self, export_root_dir):
@@ -54,7 +59,7 @@ class ExportSpecificationAsserter:
             self.assert_frontmatter(content, fname)
             self.assert_turn_flow(content, fname)
             self.assert_zero_noise(content, fname)
-            self.assert_multimedia_assets(content, fname)
+            self.assert_multimedia_assets(content, os.path.relpath(fpath, self.export_root_dir).replace(os.sep, "/"))
 
         # 3. 指定目标会话存在性核验 (针对单篇或指定会话导出)
         if target_chat_id:
@@ -252,27 +257,27 @@ class ExportSpecificationAsserter:
         if '["wrb.fr"' in content or '"hNvQHb"' in content or '"MaZiqc"' in content:
             self.log_error(file_name, "检测到泄露的原始 batchexecute RPC 包装数组")
 
-    def _find_physical_file(self, clean_ref):
-        import urllib.parse
-        target_name = urllib.parse.unquote(os.path.basename(clean_ref))
-        raw_name = os.path.basename(clean_ref)
-        for root, _, files in os.walk(self.export_root_dir):
-            for f in files:
-                if f == target_name or f.endswith('_' + target_name) or f == raw_name or f.endswith('_' + raw_name):
-                    return os.path.join(root, f)
-        return None
+    def _document_archive_path(self, document):
+        if os.path.isabs(document):
+            return os.path.relpath(document, self.export_root_dir).replace(os.sep, '/')
+        # Legacy golden checks pass display filenames; resolve the document only.
+        matches = [p for p in self.md_files if os.path.basename(p) == document]
+        if len(matches) == 1:
+            return os.path.relpath(matches[0], self.export_root_dir).replace(os.sep, '/')
+        return document.replace(os.sep, '/')
+
+    def _find_physical_file(self, reference, document):
+        try:
+            return find_archive_resource(self.export_root_dir, self._document_archive_path(document), reference)
+        except ValueError:
+            return None
 
     def assert_multimedia_assets(self, content, file_name):
-        """检查 Markdown 引用的图片物理文件是否存在且非空"""
-        img_refs = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
-        for ref in img_refs:
-            if ref.startswith("http://") or ref.startswith("https://"):
-                continue  # 外部网络图链接
-            # 本地图片相对路径
-            clean_ref = ref.split("?")[0].split("#")[0]
-            full_img_p = self._find_physical_file(clean_ref)
-            if not full_img_p or os.path.getsize(full_img_p) < 100:
-                self.log_error(file_name, f"Markdown 中引用的本地图片资源物理缺失或体积过小: {clean_ref}")
+        """Validate every rendered local Markdown image and attachment reference."""
+        for error in validate_archive_resources(
+            self.export_root_dir, self._document_archive_path(file_name), content,
+        ):
+            self.log_error(file_name, f"归档资源引用无效: {error}")
 
     def assert_multi_turn_uploads(self, matched_file, content, expected_count):
         """断言多轮用户上传：独立图片存在、MD5 互不相同（无覆盖）、角色归属正确（非 AI 生图）"""
@@ -304,7 +309,7 @@ class ExportSpecificationAsserter:
         # 2. 检查每张图片的物理存在并计算 MD5
         md5_map = {}
         for ref in user_img_refs:
-            fpath = self._find_physical_file(ref)
+            fpath = self._find_physical_file(ref, matched_file)
             if not fpath or not os.path.isfile(fpath):
                 self.log_error(matched_file, f"用户上传图片物理文件缺失: {ref}")
                 continue
@@ -395,7 +400,7 @@ class ExportSpecificationAsserter:
             return
 
         for ref in model_img_refs:
-            fpath = self._find_physical_file(ref)
+            fpath = self._find_physical_file(ref, matched_file)
             if not fpath or not os.path.isfile(fpath):
                 self.log_error(matched_file, f"AI 生成图片物理文件缺失: {ref}")
             else:
