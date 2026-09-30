@@ -71,21 +71,6 @@ test('H1 回归：api-detail 的 rank 高于 sniff，sniff 标题不得覆盖它
     );
 });
 
-test('H2 回归：chatgptProvider 槽位与 titleSource 一致', () => {
-    const { flattenChatGPTMapping } = require('../src/core/provider/chatgpt/chatgptProvider.js');
-    const raw = {
-        id: 'conv-1',
-        title: 'ChatGPT 标题',
-        create_time: 1700000000,
-        update_time: 1700000100,
-        mapping: {},
-    };
-    const conv = flattenChatGPTMapping(raw);
-    assert.strictEqual(conv.titleSource, 'api-detail');
-    assert.strictEqual(conv.titles['api-detail'], 'ChatGPT 标题');
-    assert.strictEqual(conv.titles.rpc, undefined);
-});
-
 test('api-detail 槽标题参与仲裁：不再依赖错位的 rpc 槽', () => {
     const chat = {
         id: 'c1',

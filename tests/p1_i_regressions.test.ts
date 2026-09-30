@@ -1,14 +1,7 @@
 /**
  * tests/p1_i_regressions.test.ts
- * I 组「协议层与 provider 契约收尾」P1-075~089, P1-043/044 回归测试。
- *
- * 约定: P1-081/082 标记为"已被 #356 修复" —— 本文件用类型级 + 运行时断言锁住,
- * 若有人把联合类型 / hitGoogleLimit 必填加回来, tsc 或测试会失败。
+ * I 组「协议层与 provider 契约收尾」P1-075~080, P1-084, P1-088/089 回归测试。
  */
-import type {
-    ProviderPageResult,
-    ProviderConversationItem,
-} from '../src/core/provider/aiProvider.js';
 import type { GeminiLiveSaveTriggerPayload } from '../src/core/protocol/events.js';
 
 const test = require('node:test');
@@ -19,10 +12,6 @@ const path = require('path');
 const Proto = require('../src/core/protocol/protocol.js');
 const { ProviderRegistryClass } = require('../src/core/provider/providerRegistry.js');
 const { GeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
-const { ChatGPTProvider, flattenChatGPTMapping } = require('../src/core/provider/chatgpt/chatgptProvider.js');
-const { t } = require('../src/core/utils/i18n.js');
-const enDict = require('../src/core/utils/locales/en.js');
-const zhDict = require('../src/core/utils/locales/zh.js');
 
 function fakeProvider(id: string, opts: { matchesUrl?: (u: string) => boolean; hostPatterns?: string[] } = {}) {
     const p: any = { id, name: id, hostPatterns: opts.hostPatterns || [] };
@@ -115,22 +104,7 @@ test('P1-080 - explicit matchesUrl=false is never overruled by hostPatterns', ()
 });
 
 // ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here; Phase E: dormant)
-test('P1-081/082 - provider contract stays neutral: no union, no hitGoogleLimit', async () => {
-    // Type-level lock (checked by tsc): listConversations still declares the single
-    // neutral page type, so .items is directly accessible (impossible on the
-    // old PaginationResult | ProviderListResult union)...
-    const provider = new ChatGPTProvider();
-    const pagePromise: Promise<ProviderPageResult<ProviderConversationItem>> = provider.listConversations({ maxPages: 1 });
-    // Runtime lock: the dormant downgrade throws before any pagination runs —
-    // there is no page shape left to leak Gemini-only fields from.
-    await assert.rejects(() => pagePromise, /dormant/, 'dormant provider must throw, not paginate');
-    // ...and a minimal page literal compiles only when hitGoogleLimit /
-    // diagnostics are NOT required (P1-082).
-    const minimal: ProviderPageResult<ProviderConversationItem> = {
-        items: [{ id: 'x', title: 'X' }],
-    };
-    assert.strictEqual(minimal.items[0].id, 'x');
-});
+
 
 // ---------------------------------------------------------------- P1-084
 test('P1-084 - live-save trigger payload is an explicit contract', () => {
@@ -147,93 +121,15 @@ test('P1-084 - live-save trigger payload is an explicit contract', () => {
 });
 
 // ---------------------------------------------------------------- P1-085
-test('P1-085 - missing timestamps are never fabricated with Date.now()', () => {
-    const raw = {
-        id: 'conv-no-time',
-        title: 'No times',
-        current_node: 'n1',
-        mapping: {
-            n1: {
-                id: 'n1', parent: null, children: [],
-                message: {
-                    id: 'm1',
-                    author: { role: 'user' },
-                    // NOTE: no create_time
-                    content: { content_type: 'text', parts: ['hello'] },
-                },
-            },
-        },
-    };
-    const before = Date.now();
-    const detail = flattenChatGPTMapping(raw);
-    assert.strictEqual(detail.messages[0].timestamp, undefined, 'message timestamp stays missing');
-    assert.strictEqual(detail.createdAt, null, 'conversation createdAt stays null');
-    assert.strictEqual(detail.updatedAt, null, 'conversation updatedAt stays null');
-    assert.ok(Date.now() - before < 5000, 'sanity: test ran fast');
-});
 
-test('P1-085 - dormant listConversations fabricates nothing (Phase E)', async () => {
-    // The old item-timestamp mapping is gone with the dormant downgrade: the
-    // entry throws before any mapping could run, so nothing can be fabricated.
-    await assert.rejects(() => new ChatGPTProvider().listConversations({ maxPages: 1 }), /dormant/);
-});
+
+
 
 // ---------------------------------------------------------------- P1-086
-test('P1-086 - unknown convId never fabricates a dirty URL; thought objects never String()ed', () => {
-    const raw = {
-        // NOTE: no id / conversation_id anywhere, and no current_node so the
-        // fallback path collects every node with a message.
-        title: 'Mystery',
-        mapping: {
-            n1: {
-                id: 'n1', parent: null, children: [],
-                message: {
-                    id: 'm1',
-                    author: { role: 'assistant' },
-                    create_time: 1726000001,
-                    metadata: { thought: { opaque: 'object-thought' } },
-                    content: { content_type: 'text', parts: ['answer'] },
-                },
-            },
-            n2: {
-                id: 'n2', parent: null, children: [],
-                message: {
-                    id: 'm2',
-                    author: { role: 'assistant' },
-                    create_time: 1726000002,
-                    metadata: { thought: ['step one', 'step two'] },
-                    content: { content_type: 'text', parts: ['answer 2'] },
-                },
-            },
-        },
-    };
-    const detail: any = flattenChatGPTMapping(raw);
-    assert.strictEqual(detail.url, undefined, 'no https://chatgpt.com/c/unknown dirty URL');
-    const allThoughts: string[] = detail.messages.flatMap((m: any) => m.thoughts || []);
-    assert.ok(allThoughts.length >= 2, 'object + array thoughts preserved');
-    for (const th of allThoughts) {
-        assert.ok(!th.includes('[object Object]'), `thought must not be "[object Object]": ${th}`);
-    }
-    assert.ok(allThoughts.some((th) => th.includes('opaque')), 'object thought serialized honestly');
-    assert.ok(allThoughts.includes('step one') && allThoughts.includes('step two'), 'string[] thought handled');
-});
+
 
 // ---------------------------------------------------------------- P1-087
-test('P1-087 - ChatGPT provider strings go through i18n keys', () => {
-    for (const key of [
-        'chatgptTitleFallback', 'chatgptUntitled', 'chatgptNotLoggedIn',
-        'chatgptReadinessCheckFailed', 'chatgptNetworkUnavailable',
-    ]) {
-        assert.ok(typeof enDict[key] === 'string' && enDict[key].length > 0, `en dict needs ${key}`);
-        assert.ok(typeof zhDict[key] === 'string' && zhDict[key].length > 0, `zh dict needs ${key}`);
-    }
-    const msg = t('chatgptNotLoggedIn');
-    assert.ok(msg !== 'chatgptNotLoggedIn', 't() resolves the key');
-    assert.ok(msg.includes('ChatGPT'), 'English default resolves');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/provider/chatgpt/chatgptProvider.ts'), 'utf8');
-    assert.ok(!src.includes('未登录 ChatGPT，请先登录 chatgpt.com'), 'hard-coded Chinese error gone');
-    assert.ok(!src.includes("'ChatGPT Conversation'"), 'hard-coded title fallback gone');
-});
+
 
 // ---------------------------------------------------------------- P1-088
 test('P1-088 - checkReadiness never passes the slot id off as the account name', async () => {
@@ -274,34 +170,6 @@ test('P1-089 - gemini hostPatterns cover everything matchesUrl accepts', () => {
 });
 
 // ------------------------------------------------------------- P1-043/044 (Phase E: dormant — no pagination walk left)
-test('P1-043 - dormant entry throws before any fetch, aborted or not', async () => {
-    const realFetch = globalThis.fetch;
-    let calls = 0;
-    globalThis.fetch = (async () => { calls++; throw new Error('must not fetch'); }) as any;
-    try {
-        const controller = new AbortController();
-        await assert.rejects(
-            () => new ChatGPTProvider().listConversations({ signal: controller.signal, maxPages: 1 }),
-            /dormant/,
-            'dormant entry fails loudly instead of walking pages'
-        );
-        assert.strictEqual(calls, 0, 'dormant entry must not start any fetch');
-        controller.abort();
-        await assert.rejects(
-            () => new ChatGPTProvider().listConversations({ signal: controller.signal, maxPages: 1 }),
-            /dormant/,
-            'already-aborted signal still surfaces dormant, not AbortError'
-        );
-        assert.strictEqual(calls, 0);
-    } finally {
-        globalThis.fetch = realFetch;
-    }
-});
 
-test('P1-044 - dormant entry throws instead of partial HTTP results', async () => {
-    await assert.rejects(
-        () => new ChatGPTProvider().listConversations({ maxPages: 5 }),
-        /dormant/,
-        'no HTTP walk remains to produce partial results'
-    );
-});
+
+

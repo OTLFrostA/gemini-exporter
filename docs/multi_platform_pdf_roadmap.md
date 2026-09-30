@@ -45,7 +45,7 @@ S4 的搜索索引是归档的可重建派生数据，不是第二份事实来�
 
 | 位置 | 已有能力 | 需解决的具体问题 |
 | --- | --- | --- |
-| [Provider 接口](../src/core/provider/aiProvider.ts) 与 [ChatGPT 预留模块](../src/core/provider/chatgpt/chatgptProvider.ts) | 注册表、Gemini 实现、ChatGPT 树形映射初稿 | ChatGPT 仍休眠；接口中的任意类型和网站内部请求未形成稳定契约 |
+| [Provider 接口](../src/core/provider/aiProvider.ts) | 注册表、Gemini 实现。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. | 接口中的任意类型和网站内部请求未形成稳定契约 |
 | [会话类型](../src/types/conversation.ts) | 共享的 Conversation、Message、Attachment 类型 | 正文仍以字符串为主；平台字段混入通用模型；缺少可保留未知块的 AST |
 | [存储服务](../src/core/storage/storageService.ts) 与 [明细库](../src/core/storage/conversationDetailStore.ts) | 元数据与详情分层，已有迁移框架 | Gemini 风格键和裸 ID 尚不能保证跨平台、跨账户隔离 |
 | [HTML 模板](../src/core/engine/template/htmlTemplate.ts) | 离线 HTML 与打印 CSS | 直接解析 Markdown 字符串，含交互和懒加载资源；不能直接作为 PDF 事实来源 |
@@ -129,7 +129,7 @@ F2 与 F3 是长期“只装一个导出器”的前置工作，不应延迟到 
 
 ## 5. ChatGPT 路线：实验、里程碑、验收
 
-ChatGPT 要分别验证**官方数据包导入**和**在线同步**。前者可独立发布；后者必须在真实扩展权限与普通登录环境中证明可用。现有 ChatGPTProvider 的树形映射只是起点，不代表列表、资源和权限已经接通。
+ChatGPT 要分别验证**官方数据包导入**和**在线同步**。前者可独立发布；后者必须在真实扩展权限与普通登录环境中证明可用。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified.
 
 ### C0：在线采集可行性实验（任何在线实现前）
 
