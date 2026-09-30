@@ -98,43 +98,11 @@ test('thought keeps code as a structured node instead of flat text', async () =>
     assert.strictEqual(note.blocks[0].text, 'const x = 1');
 });
 
-test('toolCall with input only exposes the structured payload as text', async () => {
-    const b = bundle([msg('m1', 'assistant', [
-        { type: 'toolCall', callId: 'c1', toolName: 'search', input: { city: 'Tokyo', days: 5 } },
-    ])]);
-    const { payload } = toTypstPayload(b, withPath);
-    const note = payload.messages[0].blocks[0] as any;
-    assert.strictEqual(note.type, 'note');
-    const flat = JSON.stringify(note.blocks);
-    assert.ok(flat.includes('Tokyo'), 'input city must be present');
-    assert.ok(flat.includes('5'), 'input days must be present');
-});
 
-test('toolResult with output only exposes the structured payload as text', async () => {
-    const b = bundle([msg('m1', 'assistant', [
-        { type: 'toolResult', callId: 'c1', toolName: 'search', output: { temp: '21C', ok: true } },
-    ])]);
-    const { payload } = toTypstPayload(b, withPath);
-    const note = payload.messages[0].blocks[0] as any;
-    assert.strictEqual(note.type, 'note');
-    const flat = JSON.stringify(note.blocks);
-    assert.ok(flat.includes('21C'), 'output temp must be present');
-});
 
-test('tool displayBlocks are rendered recursively alongside the json payload', async () => {
-    const b = bundle([msg('m1', 'assistant', [
-        {
-            type: 'toolCall',
-            callId: 'c1',
-            toolName: 'search',
-            input: { q: 'x' },
-            displayBlocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'ran search' }] }],
-        },
-    ])]);
-    const { payload } = toTypstPayload(b, withPath);
-    const kinds = (payload.messages[0].blocks[0] as any).blocks.map((x: any) => x.type);
-    assert.deepStrictEqual(kinds, ['paragraph', 'paragraph', 'code']);
-});
+
+
+
 
 test('strikethrough is transported natively without a warning', async () => {
     const b = bundle([msg('m1', 'user', [
@@ -147,13 +115,4 @@ test('strikethrough is transported natively without a warning', async () => {
     assert.strictEqual(node.children[0].text, 'gone');
 });
 
-test('unserializable tool input emits a diagnostic instead of silent loss', async () => {
-    const circular: any = { a: 1 };
-    circular.self = circular;
-    const b = bundle([msg('m1', 'assistant', [
-        { type: 'toolCall', callId: 'c1', toolName: 'search', input: circular },
-    ])]);
-    const { payload, diagnostics } = toTypstPayload(b, withPath);
-    assert.ok(diagnostics.some((d: any) => d.severity === 'warning' && d.code === 'TYPST_TOOL_PAYLOAD_FLATTENED'));
-    assert.strictEqual((payload.messages[0].blocks[0] as any).type, 'note');
-});
+

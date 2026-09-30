@@ -2,9 +2,6 @@ export interface RendererStrings {
     thinkingSummary: string;
     thinkingProgress: string;
     thinkingProcess: string;
-    toolCall: string;
-    toolResult: string;
-    toolFailed: string;
     sources: string;
     sizeUnknown: string;
     dateUnknown: string;
@@ -20,9 +17,6 @@ const EN: RendererStrings = {
     thinkingSummary: 'Thinking Summary',
     thinkingProgress: 'Thinking Progress',
     thinkingProcess: 'Thinking Process',
-    toolCall: 'Tool call',
-    toolResult: 'Tool result',
-    toolFailed: 'Failed',
     sources: 'Sources',
     sizeUnknown: 'size unknown',
     dateUnknown: 'date unknown',
@@ -38,9 +32,6 @@ const ZH: RendererStrings = {
     thinkingSummary: '思考摘要',
     thinkingProgress: '思考过程',
     thinkingProcess: '思考过程',
-    toolCall: '工具调用',
-    toolResult: '工具结果',
-    toolFailed: '失败',
     sources: '来源',
     sizeUnknown: '大小未知',
     dateUnknown: '日期未知',

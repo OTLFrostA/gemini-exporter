@@ -112,17 +112,6 @@ const CANONICAL_EXTRA_CSS = `
   padding: 2px 8px;
 }
 .gem-citation-group { margin: 1.2em 0; }
-.gem-tool-failed {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  color: #b3261e;
-  border: 1px solid #b3261e;
-  border-radius: 4px;
-  padding: 1px 6px;
-  margin-left: 8px;
-  vertical-align: middle;
-}
 .gem-citation-group-title {
   font-size: 13px;
   color: var(--text-secondary);
@@ -449,26 +438,6 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
       <div class="gem-thoughts-content">
         ${content}
       </div>
-    </details>`;
-        }
-        case 'toolCall':
-        case 'toolResult': {
-            const strings = getRendererStrings(ctx.isEn ? 'en' : 'zh');
-            const label = block.type === 'toolCall'
-                ? `${strings.toolCall} · ${block.toolName}`
-                : `${strings.toolResult} · ${block.toolName ?? block.callId}`;
-            const failedBadge = block.status === 'failed'
-                ? `<span class="gem-tool-failed">${escapeHtml(strings.toolFailed)}</span>`
-                : '';
-            const display = (block.displayBlocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/tool:${i}`)).join('');
-            const payload = block.type === 'toolCall' ? block.input : block.output;
-            const payloadHtml = payload !== undefined ? `<pre><code>${escapeHtml(JSON.stringify(payload, null, 2))}</code></pre>` : '';
-            return `
-    <details class="gem-thoughts">
-      <summary class="gem-thoughts-summary">
-        <div class="gem-thoughts-header"><span>${escapeHtml(label)}</span>${failedBadge}${CHEVRON_SVG}</div>
-      </summary>
-      <div class="gem-thoughts-content">${display}${payloadHtml}</div>
     </details>`;
         }
         case 'thematicBreak':

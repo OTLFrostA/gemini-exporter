@@ -357,50 +357,6 @@
                 ]
               }
             ]
-          },
-          {
-            "id": "a2:b1",
-            "type": "toolCall",
-            "callId": "call-1",
-            "toolName": "web.search",
-            "input": {
-              "q": "example"
-            },
-            "status": "completed",
-            "displayBlocks": [
-              {
-                "id": "a2:b1:p0",
-                "type": "paragraph",
-                "children": [
-                  {
-                    "type": "text",
-                    "text": "Searching the web"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "id": "a2:b2",
-            "type": "toolResult",
-            "callId": "call-1",
-            "toolName": "web.search",
-            "output": {
-              "count": 1
-            },
-            "status": "completed",
-            "displayBlocks": [
-              {
-                "id": "a2:b2:p0",
-                "type": "paragraph",
-                "children": [
-                  {
-                    "type": "text",
-                    "text": "1 result"
-                  }
-                ]
-              }
-            ]
           }
         ]
       }

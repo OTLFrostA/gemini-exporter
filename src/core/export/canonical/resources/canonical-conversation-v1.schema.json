@@ -375,12 +375,6 @@
           "$ref": "#/$defs/ThoughtBlock"
         },
         {
-          "$ref": "#/$defs/ToolCallBlock"
-        },
-        {
-          "$ref": "#/$defs/ToolResultBlock"
-        },
-        {
           "$ref": "#/$defs/ThematicBreakBlock"
         },
         {
@@ -883,103 +877,6 @@
           "items": {
             "$ref": "#/$defs/BlockNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
-        }
-      },
-      "additionalProperties": false
-    },
-    "ToolCallBlock": {
-      "type": "object",
-      "required": [
-        "type",
-        "id",
-        "callId",
-        "toolName"
-      ],
-      "properties": {
-        "type": {
-          "const": "toolCall"
-        },
-        "id": {
-          "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "callId": {
-          "type": "string"
-        },
-        "toolName": {
-          "type": "string"
-        },
-        "input": {
-          "$ref": "#/$defs/JsonValue"
-        },
-        "displayBlocks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BlockNode"
-          }
-        },
-        "status": {
-          "enum": [
-            "pending",
-            "running",
-            "completed",
-            "failed"
-          ]
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
-        }
-      },
-      "additionalProperties": false
-    },
-    "ToolResultBlock": {
-      "type": "object",
-      "required": [
-        "type",
-        "id",
-        "callId"
-      ],
-      "properties": {
-        "type": {
-          "const": "toolResult"
-        },
-        "id": {
-          "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "callId": {
-          "type": "string"
-        },
-        "toolName": {
-          "type": "string"
-        },
-        "output": {
-          "$ref": "#/$defs/JsonValue"
-        },
-        "displayBlocks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BlockNode"
-          }
-        },
-        "assetIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "status": {
-          "enum": [
-            "completed",
-            "failed"
-          ]
         },
         "sourceRef": {
           "$ref": "#/$defs/SourceRef"

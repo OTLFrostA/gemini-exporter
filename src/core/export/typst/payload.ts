@@ -128,16 +128,6 @@ function mimeLabel(asset: Asset): string {
     return asset.kind.toUpperCase();
 }
 
-function safeJsonStringify(value: unknown): string | undefined {
-    if (value === undefined) return undefined;
-    try {
-        const text = JSON.stringify(value, null, 2);
-        return typeof text === 'string' ? text : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
 function renderInline(
     node: InlineNode,
     assets: Map<string, Asset>,
@@ -298,27 +288,6 @@ function renderBlock(
                 : block.kind === 'reasoning' ? options.strings.thinkingProcess
                 : undefined;
             return { type: 'note', ...(label ? { label } : {}), blocks: kids };
-        }
-        case 'toolCall':
-        case 'toolResult': {
-            const kids: TypstBlockNode[] = [];
-            const failedSuffix = block.status === 'failed' ? ` · ${options.strings.toolFailed}` : '';
-            const label = (block.type === 'toolCall'
-                ? `${options.strings.toolCall}: ${block.toolName}`
-                : `${options.strings.toolResult}: ${block.toolName ?? block.callId}`) + failedSuffix;
-            kids.push({ type: 'paragraph', children: [{ type: 'text', text: label }] });
-            (block.displayBlocks ?? []).forEach((child, index) => {
-                const rendered = sub(child, index, block.type);
-                if (rendered) kids.push(rendered);
-            });
-            const raw = block.type === 'toolCall' ? block.input : block.output;
-            const json = safeJsonStringify(raw);
-            if (json) {
-                kids.push({ type: 'code', language: 'json', text: json });
-            } else if (raw !== undefined) {
-                diagnostics.push({ severity: 'warning', code: 'TYPST_TOOL_PAYLOAD_FLATTENED', message: 'Tool input/output could not be serialized; omitting structured payload.', path });
-            }
-            return { type: 'note', blocks: kids };
         }
         case 'thematicBreak': return { type: 'thematicBreak' };
         case 'unknown': {

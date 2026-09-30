@@ -319,7 +319,6 @@ test('collectCompanionPlacements: explicit placement wins, images/files split, u
         blocks: [
             { type: 'image', assetId: 'blk-img' },
             { type: 'paragraph', children: [{ type: 'image', assetId: 'inl-img' }] },
-            { type: 'toolResult', callId: 'c1', assetIds: ['tool-img', 'blk-img'] },
         ],
         associatedAssetIds: ['blk-img', 'comp-img', 'comp-doc', 'tool-img', 'ghost'],
     };

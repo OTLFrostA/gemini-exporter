@@ -14,8 +14,6 @@ export type BlockNode =
     | FileBlock
     | CitationGroupBlock
     | ThoughtBlock
-    | ToolCallBlock
-    | ToolResultBlock
     | ThematicBreakBlock
     | UnknownBlock;
 
@@ -125,25 +123,6 @@ export interface ThoughtBlock extends BlockBase {
     disclosure: 'providerExposed';
     kind?: 'summary' | 'progress' | 'reasoning' | 'unknown';
     blocks: BlockNode[];
-}
-
-export interface ToolCallBlock extends BlockBase {
-    type: 'toolCall';
-    callId: string;
-    toolName: string;
-    input?: JsonValue;
-    displayBlocks?: BlockNode[];
-    status?: 'pending' | 'running' | 'completed' | 'failed';
-}
-
-export interface ToolResultBlock extends BlockBase {
-    type: 'toolResult';
-    callId: string;
-    toolName?: string;
-    output?: JsonValue;
-    displayBlocks?: BlockNode[];
-    assetIds?: string[];
-    status?: 'completed' | 'failed';
 }
 
 export interface ThematicBreakBlock extends BlockBase {

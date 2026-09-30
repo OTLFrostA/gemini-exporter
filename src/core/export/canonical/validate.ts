@@ -125,9 +125,6 @@ function walkInlineBlocks(blocks: BlockNode[], visit: (b: BlockNode, path: strin
         const kids: Array<{ blocks: BlockNode[]; at: string }> = [];
         if (b.type === 'list') b.items?.forEach((it, i) => kids.push({ blocks: it.blocks ?? [], at: `${path}.items[${i}]` }));
         if (b.type === 'quote' || b.type === 'thought') kids.push({ blocks: b.blocks ?? [], at: path });
-        if (b.type === 'toolCall' || b.type === 'toolResult') {
-            if (b.displayBlocks) kids.push({ blocks: b.displayBlocks, at: `${path}.displayBlocks` });
-        }
         if (b.type === 'unknown' && b.fallbackBlocks) kids.push({ blocks: b.fallbackBlocks, at: `${path}.fallbackBlocks` });
         for (const k of kids) {
             k.blocks.forEach((child, i) => visitBlock(child, `${k.at}[${i}]`));
@@ -295,11 +292,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
             }
             if ((b.type === 'image' || b.type === 'file') && !assetIds.has(b.assetId)) {
                 c.add('error', 'ASSET_UNRESOLVED', `${b.type} block references unknown asset ${b.assetId}`, `${base}.${path}`);
-            }
-            if (b.type === 'toolResult') {
-                for (const aid of b.assetIds ?? []) {
-                    if (!assetIds.has(aid)) c.add('error', 'ASSET_UNRESOLVED', `toolResult references unknown asset ${aid}`, `${base}.${path}`);
-                }
             }
             if (b.type === 'math' && !b.source) {
                 c.add('warning', 'MATH_NO_SOURCE', 'math node without source; original notation must be preserved', `${base}.${path}`);
