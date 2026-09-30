@@ -1262,7 +1262,7 @@
       "provenanceSource": "Canonical Markdown serialization and Gemini normalization production route contracts",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Covers all Canonical blocks/inlines, local resource references, Sources, and structured/Markdown producer routes.",
-      "testCount": 19,
+      "testCount": 20,
       "tests": [
         {
           "name": "Markdown header uses Canonical metadata and omits absent optional fields",
@@ -1301,6 +1301,11 @@
         },
         {
           "name": "Markdown tables serialize alignment, captions, spans, pipes and newlines visibly",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown table separators preserve backslashes and formatted inline content",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1364,11 +1369,11 @@
   ],
   "summary": {
     "totalSuites": 23,
-    "totalTests": 214,
+    "totalTests": 215,
     "byClassification": {
       "P0": 0,
       "P1": 17,
-      "P2": 195,
+      "P2": 196,
       "P3": 2,
       "P4": 0
     }

@@ -55,6 +55,11 @@ test('Markdown tables serialize alignment, captions, spans, pipes and newlines v
     assert.ok(md.includes('caption\n\n| A | B |\n| :--- | ---: |\n| x\\|y<br>z |  |'));
 });
 
+test('Markdown table separators preserve backslashes and formatted inline content', () => {
+    const md = render([{ id: 't', type: 'table', rows: [{ cells: [{ children: [txt('a\\b|c '), { type: 'strong', children: [txt('bold')] }, { type: 'inlineCode', code: 'x|y' }] }] }] }]);
+    assert.ok(md.includes('a\\\\b\\|c **bold**`x\\|y`'));
+});
+
 test('Markdown block and inline images use local storageRef only', () => {
     const md = render([{ id: 'i', type: 'image', assetId: 'a', alt: 'block', caption: [txt('caption')] }, { id: 'p', type: 'paragraph', children: [{ type: 'image', assetId: 'a', alt: 'inline' }] }], { assets: [{ id: 'a', kind: 'image', status: 'available', storageRef: 'assets/pic.png', sourceUrl: 'https://remote/pic.png' }] });
     assert.ok(md.includes('![block](assets/pic.png)\n\ncaption')); assert.ok(md.includes('![inline](assets/pic.png)')); assert.ok(!md.includes('https://remote'));

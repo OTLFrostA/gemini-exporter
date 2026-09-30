@@ -90,7 +90,7 @@ export function renderCanonicalMarkdown(
                 const allRows = [...(node.headerRows ?? []), ...node.rows];
                 const width = Math.max(node.columns?.length ?? 0, ...allRows.map((row) => row.cells.reduce((n, cell) => n + (cell.colSpan ?? 1), 0)), 1);
                 const row = (cells: typeof node.rows[number]['cells']): string => {
-                    const values = cells.flatMap((cell) => [inlines(cell.children).replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>'), ...Array(Math.max(0, (cell.colSpan ?? 1) - 1)).fill('')]);
+                    const values = cells.flatMap((cell) => [inlines(cell.children).split('|').join('\\|').replace(/\r?\n/g, '<br>'), ...Array(Math.max(0, (cell.colSpan ?? 1) - 1)).fill('')]);
                     return `| ${Array.from({ length: width }, (_, i) => values[i] ?? '').join(' | ')} |`;
                 };
                 const header = node.headerRows?.[0];
