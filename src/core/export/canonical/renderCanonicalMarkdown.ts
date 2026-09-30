@@ -1,3 +1,4 @@
+import { assetPresentation, assetCaptionText } from './assetPresentation.js';
 import type { CanonicalConversationBundle, MessageRole } from './conversation.js';
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
@@ -39,7 +40,7 @@ export function renderCanonicalMarkdown(
         return destination(ref);
     };
     const image = (id: string, alt?: string): string => {
-        const name = alt || assets.get(id)?.name || id;
+        const name = assetPresentation(assets.get(id), alt).label;
         const ref = localRef(id);
         return ref ? `![${escapeText(name)}](${ref})` : `[Image unavailable: ${escapeText(name)}]`;
     };
@@ -109,11 +110,13 @@ export function renderCanonicalMarkdown(
                 const body = [...(node.headerRows?.slice(1) ?? []), ...node.rows].map((r) => row(r.cells));
                 return [node.caption ? inlines(node.caption) + '\n' : undefined, row(header?.cells ?? []), separator, ...body].filter((v) => v !== undefined).join('\n');
             }
-            case 'image': return [image(node.assetId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
+            case 'image': {
+                const caption = assetPresentation(assets.get(node.assetId), assetCaptionText(node.caption) ?? node.alt).caption;
+                return [image(node.assetId, node.alt), caption && (node.caption?.length && caption !== assets.get(node.assetId)?.name ? inlines(node.caption) : escapeText(caption))].filter(Boolean).join('\n\n');
+            }
             case 'file': {
                 const asset = assets.get(node.assetId);
-                const rawName = node.label || asset?.name || node.assetId;
-                const name = /^https?:\/\//i.test(rawName) ? asset?.storageRef?.split('/').pop() || 'attachment' : rawName;
+                const name = assetPresentation(asset, node.label, 'Attachment').label;
                 const ref = localRef(node.assetId);
                 const link = ref ? `[${escapeText(name)}](${ref})` : `[Attachment unavailable: ${escapeText(name)}]`;
                 return [link, node.description && inlines(node.description)].filter(Boolean).join('\n\n');

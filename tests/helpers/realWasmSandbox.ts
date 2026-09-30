@@ -28,6 +28,7 @@
  */
 
 export {};
+const { visual } = require('../../src/core/export/visualContract');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -90,6 +91,7 @@ export class RealWasmSandboxFrame {
         this.templates = TEMPLATE_FILES.map(([vpath, name]) => {
             return [vpath, fs.readFileSync(path.join(dir, name), 'utf8')] as [string, string];
         });
+        this.templates.push(['/visual-contract.json', JSON.stringify(visual)]);
     }
 
     postToSandbox(message: Record<string, unknown>, _transfer?: unknown): void {

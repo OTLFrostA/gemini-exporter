@@ -300,7 +300,8 @@ function stripHtmlChrome(line: string): string | null {
 }
 
 function textLinesFromHtml(html: string): string[] {
-    let t = html
+    // This oracle compares message bodies; the document title/metadata are rendered by document.typ.
+    let t = html.replace(/<header class="gem-conversation-header">[\s\S]*?<\/header>/gi, '')
         .replace(/<script[\s\S]*?<\/script>/gi, '')
         .replace(/<style[\s\S]*?<\/style>/gi, '')
         .replace(/<math[\s\S]*?<annotation\b[^>]*>([\s\S]*?)<\/annotation>[\s\S]*?<\/math>/gi, '$1');

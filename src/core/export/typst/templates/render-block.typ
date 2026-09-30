@@ -6,15 +6,11 @@
 #let block-gap(previous, current) = {
   let a = previous.type
   let b = current.type
-  if b == "heading" { sp-lg }
-  else if a == "heading" { sp-xs }
-  else if a == "paragraph" and b == "paragraph" { sp-sm }
-  else if b == "list" or a == "list" { sp-sm }
-  else if b == "code" or a == "code" { sp-md }
-  else if b == "table" or a == "table" { sp-md }
-  else if b == "image" or a == "image" { sp-md }
-  else if b == "math" or a == "math" { sp-sm }
-  else { sp-sm }
+  if b == "heading" or b == "thematicBreak" or a == "thematicBreak" { sp-section }
+  else if a == "heading" { sp-paragraph }
+  else if a == "paragraph" and b == "paragraph" { sp-paragraph }
+  else if a == "list" and b == "paragraph" or a == "paragraph" and b == "list" { sp-paragraph }
+  else { sp-block }
 }
 
 #let in-flow(body, scope, sticky: false) = {
@@ -80,7 +76,7 @@
   let table = modern-table(headers, rows, aligns: aligns)
   if "caption" in node and node.caption != "" {
     [
-      #align(center)[#text(size: 7.35pt, fill: muted)[#node.caption]]
+      #align(center)[#text(size: caption-size, fill: muted)[#node.caption]]
       #v(4pt)
       #table
     ]
@@ -97,7 +93,7 @@
   file-attachment(node.name, node.kind, node.size)
   if "description" in node and node.description != "" {
     v(3pt)
-    text(size: 7.35pt, fill: muted)[#node.description]
+    text(size: caption-size, fill: muted)[#node.description]
   }
 }
 
