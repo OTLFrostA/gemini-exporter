@@ -16,7 +16,7 @@ function bundle(messages: any[], extra: any = {}) {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: { value: 'Phase B', source: 'derived', candidates: [] },
+            title: 'Phase B',
             createdAt: '2026-09-26T10:00:00Z',
             messages,
         },

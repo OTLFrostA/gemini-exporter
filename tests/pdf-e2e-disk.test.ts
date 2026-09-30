@@ -132,7 +132,7 @@ class TitleTextPdfCompiler {
     async compile(payload: any, _context: any) {
         const title =
             payload?.document?.title ??
-            payload?.bundle?.conversation?.title?.value ??
+            payload?.bundle?.conversation?.title ??
             'untitled';
         const body = bundleBodyText(payload?.bundle);
         return { pdfBytes: buildTextPdf(String(title), body), diagnostics: [] };

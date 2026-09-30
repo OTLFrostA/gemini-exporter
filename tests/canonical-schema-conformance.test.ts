@@ -219,29 +219,20 @@ test('GeminiNormalizer output satisfies both contracts (incl. first-class inline
     assert.ok(img, 'output contains an ImageInline node');
 });
 
-test('rpc title with candidates and history satisfies both contracts', async () => {
+test('string title and URL satisfy both contracts', async () => {
     const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
     const { bundle } = await normalizeGeminiConversation(sample);
-    (bundle as any).conversation.title = {
-        value: 'Live title',
-        source: 'rpc',
-        candidates: [
-            { value: 'Old DOM title', source: 'dom', observedAt: '2026-09-20T00:00:00.000Z' },
-            { value: 'Live title', source: 'rpc', observedAt: '2026-09-26T00:00:00.000Z' },
-        ],
-    };
-    assertBothContracts(bundle, 'rpc title with candidates');
+    assert.strictEqual(bundle.conversation.title, 'RPC Authoritative Title');
+    assert.strictEqual(bundle.conversation.url, sample.url);
+    assertBothContracts(bundle, 'string title and URL');
 });
 
-test('title without candidates is rejected by the JSON Schema', async () => {
+test('object title is rejected by both contracts', async () => {
     const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
     const { bundle } = await normalizeGeminiConversation(sample);
-    (bundle as any).conversation.title = { value: 'No candidates', source: 'rpc' };
-    const errors = schemaErrors(bundle);
-    assert.ok(
-        errors.some((e) => e.includes('candidates') && e.includes('missing required')),
-        `schema must require title.candidates, got:\n${errors.slice(0, 5).join('\n')}`,
-    );
+    (bundle as any).conversation.title = { value: 'Retired title object', source: 'rpc' };
+    assert.ok(schemaErrors(bundle).length > 0);
+    assert.ok(validateBundle(bundle).some((d: any) => d.code === 'TITLE_INVALID'));
 });
 
 test('thought block with initiallyCollapsed is rejected by the JSON Schema', async () => {

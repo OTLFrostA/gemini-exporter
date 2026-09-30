@@ -6,16 +6,7 @@
       "accountId": "acct-parity-001",
       "conversationId": "conv-long-table-001"
     },
-    "title": {
-      "value": "长表格：模型指标对比",
-      "source": "provider",
-      "candidates": [
-        {
-          "value": "长表格：模型指标对比",
-          "source": "provider"
-        }
-      ]
-    },
+    "title": "长表格：模型指标对比",
     "createdAt": "2026-09-26T10:00:00-07:00",
     "updatedAt": "2026-09-26T10:02:00-07:00",
     "observedAt": "2026-09-26T10:02:00-07:00",

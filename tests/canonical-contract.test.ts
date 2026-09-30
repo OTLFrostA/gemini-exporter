@@ -16,7 +16,6 @@ const canonical = require('../src/core/export/canonical/index.js');
 const {
     validateBundle,
     resolveTitle,
-    applyTitleCandidate,
     titleAuthorityRank,
     unknownBlockFallbackText,
     classifyAssetAvailability,
@@ -74,16 +73,15 @@ test('validator rejects missing and duplicate message IDs', () => {
 test('low-authority observation cannot downgrade a high-authority title', () => {
     let title = resolveTitle([{ value: 'RPC权威标题', source: 'rpc' }]);
     assert.ok(title);
-    title = applyTitleCandidate(title, { value: 'sniff旧标题', source: 'sniff' });
+    title = resolveTitle([title!, { value: 'sniff旧标题', source: 'sniff' }]);
     assert.strictEqual(title!.value, 'RPC权威标题');
     assert.strictEqual(title!.source, 'rpc');
-    assert.strictEqual(title!.candidates.length, 2, 'the observation is still recorded');
 });
 
 test('higher-authority observation upgrades the title (no regression)', () => {
     let title = resolveTitle([{ value: 'Takeout旧标题', source: 'takeout' }]);
     assert.ok(title);
-    title = applyTitleCandidate(title, { value: 'RPC新标题', source: 'rpc' });
+    title = resolveTitle([title!, { value: 'RPC新标题', source: 'rpc' }]);
     assert.strictEqual(title!.value, 'RPC新标题');
     assert.strictEqual(title!.source, 'rpc');
 });
@@ -91,16 +89,15 @@ test('higher-authority observation upgrades the title (no regression)', () => {
 test('same-tier newer observation overwrites (repo setTitleBySource semantics)', () => {
     let title = resolveTitle([{ value: 'DOM旧标题', source: 'dom', observedAt: '2026-01-01T00:00:00Z' }]);
     assert.ok(title);
-    title = applyTitleCandidate(title, { value: 'DOM新标题', source: 'dom', observedAt: '2026-02-01T00:00:00Z' });
+    title = resolveTitle([title!, { value: 'DOM新标题', source: 'dom', observedAt: '2026-02-01T00:00:00Z' }]);
     assert.strictEqual(title!.value, 'DOM新标题');
 });
 
 test('same-tier older observation can never overwrite a newer title', () => {
     let title = resolveTitle([{ value: 'DOM新标题', source: 'dom', observedAt: '2026-02-01T00:00:00Z' }]);
     assert.ok(title);
-    title = applyTitleCandidate(title, { value: 'DOM旧标题', source: 'dom', observedAt: '2026-01-01T00:00:00Z' });
+    title = resolveTitle([title!, { value: 'DOM旧标题', source: 'dom', observedAt: '2026-01-01T00:00:00Z' }]);
     assert.strictEqual(title!.value, 'DOM新标题');
-    assert.strictEqual(title!.candidates.length, 2, 'stale observation still recorded');
 });
 
 test('same-tier: candidate with a timestamp beats one without', () => {
@@ -131,18 +128,9 @@ test('same-tier: later insertion wins on equal timestamps', () => {
 test('authority tier beats recency: newer sniff cannot beat older rpc', () => {
     let title = resolveTitle([{ value: 'RPC旧', source: 'rpc', observedAt: '2026-01-01T00:00:00Z' }]);
     assert.ok(title);
-    title = applyTitleCandidate(title, { value: 'sniff新', source: 'sniff', observedAt: '2026-06-01T00:00:00Z' });
+    title = resolveTitle([title!, { value: 'sniff新', source: 'sniff', observedAt: '2026-06-01T00:00:00Z' }]);
     assert.strictEqual(title!.value, 'RPC旧');
     assert.strictEqual(title!.source, 'rpc');
-});
-
-test('unusable candidates keep the previous title (winner-not-in-candidates defense)', () => {
-    const title = applyTitleCandidate(
-        { value: 'Keep', source: 'rpc', candidates: [] },
-        { value: '', source: 'sniff' },
-    );
-    assert.strictEqual(title.value, 'Keep');
-    assert.strictEqual(title.source, 'rpc');
 });
 
 test('resolveTitle returns undefined when no candidate is usable', () => {
@@ -311,4 +299,22 @@ test('missing accountId warns (F1 owns the value, F2a must not invent it)', () =
     const diags = validateBundle(bundle);
     assert.ok(diags.some((d: any) => d.code === 'ACCOUNT_ID_PENDING_F1'));
     assert.ok(!errorsOf(diags).some((d: any) => d.code === 'ACCOUNT_ID_PENDING_F1'), 'must be a warning, not an error');
+});
+
+
+test('conversation title and URL validate their final canonical values', () => {
+    for (const title of ['', '   ', null, 123, { value: 'old' }]) {
+        const bundle = rich();
+        bundle.conversation.title = title;
+        assert.ok(validateBundle(bundle).some((d: any) => d.code === 'TITLE_INVALID'));
+    }
+    for (const url of ['', null, 123, '/relative', 'https://', 'javascript:alert(1)']) {
+        const bundle = rich();
+        bundle.conversation.url = url;
+        assert.ok(validateBundle(bundle).some((d: any) => d.severity === 'error' && d.path === 'conversation.url'));
+    }
+    const bundle = rich();
+    bundle.conversation.title = 'Final title';
+    bundle.conversation.url = 'https://gemini.google.com/app/example';
+    assert.deepStrictEqual(validateBundle(bundle).filter((d: any) => d.severity === 'error'), []);
 });

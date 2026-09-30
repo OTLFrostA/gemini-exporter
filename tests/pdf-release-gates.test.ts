@@ -85,7 +85,7 @@ function bundle(messages: any[]) {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'gates-1' },
-            title: { value: 'P0 门禁回归', source: 'derived', candidates: [] },
+            title: 'P0 门禁回归',
             createdAt: '2026-09-26T00:00:00Z',
             messages,
         },

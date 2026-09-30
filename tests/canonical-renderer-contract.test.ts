@@ -32,7 +32,7 @@ function bundle(blocks: any[], extra: any = {}, messageExtra: any = {}) {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: { value: 'Contract', source: 'derived', candidates: [] },
+            title: 'Contract',
             createdAt: '2026-09-26T10:00:00Z',
             messages: [{ id: 'm1', role: 'assistant', blocks, ...messageExtra }],
         },

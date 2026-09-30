@@ -906,70 +906,6 @@
       },
       "additionalProperties": false
     },
-    "ConversationTitle": {
-      "type": "object",
-      "required": [
-        "value",
-        "source",
-        "candidates"
-      ],
-      "properties": {
-        "value": {
-          "type": "string"
-        },
-        "source": {
-          "enum": [
-            "rpc",
-            "api-detail",
-            "dom",
-            "takeout",
-            "sniff",
-            "legacy",
-            "provider",
-            "user",
-            "derived",
-            "default"
-          ]
-        },
-        "candidates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/TitleCandidate"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    "TitleCandidate": {
-      "type": "object",
-      "required": [
-        "value",
-        "source"
-      ],
-      "properties": {
-        "value": {
-          "type": "string"
-        },
-        "source": {
-          "enum": [
-            "rpc",
-            "api-detail",
-            "dom",
-            "takeout",
-            "sniff",
-            "legacy",
-            "provider",
-            "user",
-            "derived",
-            "default"
-          ]
-        },
-        "observedAt": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "MessageAuthor": {
       "type": "object",
       "properties": {
@@ -1051,7 +987,7 @@
           "$ref": "#/$defs/ConversationKey"
         },
         "title": {
-          "$ref": "#/$defs/ConversationTitle"
+          "type": "string"
         },
         "createdAt": {
           "type": "string"
@@ -1070,6 +1006,9 @@
         },
         "extensions": {
           "$ref": "#/$defs/ProviderExtensions"
+        },
+        "url": {
+          "type": "string"
         }
       },
       "additionalProperties": false

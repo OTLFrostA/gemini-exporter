@@ -211,7 +211,7 @@ test('inline image (#555 contract): renders inline <img>, never dropped', () => 
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 't', conversationId: 'inline_img' },
-            title: { value: 'Inline img', source: 'derived', candidates: [] },
+            title: 'Inline img',
             messages: [
                 {
                     id: 'm1', role: 'user',
@@ -241,7 +241,7 @@ test('inline image with missing asset: visible placeholder + diagnostic', () => 
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 't', conversationId: 'inline_img_missing' },
-            title: { value: 'Inline img missing', source: 'derived', candidates: [] },
+            title: 'Inline img missing',
             messages: [
                 {
                     id: 'm1', role: 'user',

@@ -351,7 +351,7 @@ export function toTypstPayload(
     return {
         payload: {
             schemaVersion: 1,
-            title: bundle.conversation.title?.value ?? 'Untitled conversation',
+            title: bundle.conversation.title ?? 'Untitled conversation',
             provider: bundle.conversation.key.providerId,
             date,
             messageCount: messages.length,

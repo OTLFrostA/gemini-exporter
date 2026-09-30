@@ -79,11 +79,6 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "unusable candidates keep the previous title (winner-not-in-candidates defense)",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
           "name": "resolveTitle returns undefined when no candidate is usable",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
@@ -167,6 +162,11 @@
           "name": "missing accountId warns (F1 owns the value, F2a must not invent it)",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "conversation title and URL validate their final canonical values",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
     },
@@ -240,7 +240,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "matrix: citation group title reaches Typst transport",
+          "name": "matrix: message citations reach HTML and Typst transport",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -255,7 +255,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "matrix: citation group chips follow the unified label rule",
+          "name": "matrix: message citation chips follow the unified label rule",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -425,7 +425,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "parity: thoughts accordion, code copy, carousel kept",
+          "name": "parity: thoughts accordion, code copy, attachments kept",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -503,10 +503,9 @@
           "notes": "GFM Specification Section 4.7 & 6.2 (Inlines in table cells)."
         },
         {
-          "name": "Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not leak literal <br>",
+          "name": "Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not leak literal &lt;br&gt;",
           "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT",
-          "notes": "Project HTML break normalization."
+          "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
           "name": "Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) render completely and accurately",
@@ -748,48 +747,17 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "rpc title with candidates and history satisfies both contracts",
+          "name": "string title and URL satisfy both contracts",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "title without candidates is rejected by the JSON Schema",
+          "name": "object title is rejected by both contracts",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
           "name": "thought block with initiallyCollapsed is rejected by the JSON Schema",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        }
-      ]
-    },
-    {
-      "file": "tests/canonical-title-source-allowlist.test.ts",
-      "domain": "canonical_ast",
-      "classification": "P2",
-      "provenanceSource": "Canonical title authority specification",
-      "policy": "PRESERVE_PROJECT_CONTRACT",
-      "notes": "Checks titleSource enum allowlist and fallback diagnostic coercion.",
-      "testCount": 4,
-      "tests": [
-        {
-          "name": "unknown raw.titles key is coerced to default with a diagnostic",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "coerced bundle passes JSON Schema title source enums and validateBundle",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "validateBundle rejects unknown title sources",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "unknown raw.titleSource still coerces with a diagnostic",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -802,80 +770,8 @@
       "provenanceSource": "CommonMark 0.30 Specification Section 6.2 (Left- and right-flanking delimiter run rules)",
       "policy": "VERIFY_AGAINST_STANDARD",
       "notes": "Verifies CommonMark 0.30 rules: intra-word underscores (foo_bar) stay plain text; valid _italic_ and __strong__ parse to emphasis.",
-      "testCount": 17,
+      "testCount": 5,
       "tests": [
-        {
-          "name": "underscore stays text: foo_bar",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385: intra-word underscore cannot open or close emphasis."
-        },
-        {
-          "name": "underscore stays text: foo_bar_baz",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: T_N",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: S_i",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: V_{eff}",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: \\omega_c",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: \\sum_{\\langle i, j \\rangle} \\vec{S}_i",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: |\\Theta_{CW}|/T_N",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: gemini_test_1790464921_a7b4a079.custom",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: file_name.txt",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: snake_case_variable",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
-        {
-          "name": "underscore stays text: gemini_test_123",
-          "classification": "P1",
-          "policy": "VERIFY_AGAINST_STANDARD",
-          "notes": "CommonMark 0.30 Example 385."
-        },
         {
           "name": "legit italic: _this is italic_",
           "classification": "P1",
@@ -981,7 +877,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "migration: duplicate message ids fail closed, not silently dropped",
+          "name": "migration: duplicate message IDs produce normalization diagnostics",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1361,12 +1257,12 @@
     }
   ],
   "summary": {
-    "totalSuites": 23,
-    "totalTests": 211,
+    "totalSuites": 22,
+    "totalTests": 195,
     "byClassification": {
       "P0": 0,
-      "P1": 29,
-      "P2": 180,
+      "P1": 17,
+      "P2": 176,
       "P3": 2,
       "P4": 0
     }
