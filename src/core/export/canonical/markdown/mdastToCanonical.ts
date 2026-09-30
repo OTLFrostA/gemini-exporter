@@ -493,7 +493,13 @@ export function adaptBlockNode(
         case 'math': {
             const mathNode = node as unknown as MdastMath;
             const blockId = ctx.nextBlockId();
-            const source = mathNode.value || '';
+            let source = mathNode.value || '';
+            if (mathNode.meta && mathNode.meta.trim()) {
+                source = `${mathNode.meta.trim()}\n${source}`;
+            }
+            if (source.endsWith('$$') && source.length > 2) {
+                source = source.slice(0, -2).trimEnd();
+            }
 
             const startOffset = node.position?.start?.offset;
             const endOffset = node.position?.end?.offset;

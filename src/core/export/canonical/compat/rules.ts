@@ -36,10 +36,116 @@ export interface TexCompatRule extends CompatRuleMetadata {
 }
 
 /**
- * Active Markdown compatibility rules.
- * Initial state MUST remain empty per Section 2.4 / Section 31.
+ * Normalizes multiline display-math fences ($$) where LaTeX environment keywords
+ * (e.g. \\begin{aligned}, \\end{aligned}) are attached directly to $$ on the fence line.
+ * Standard micromark mathFlow requires standalone $$ delimiters to open and close fences.
  */
-export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Object.freeze([]);
+export function normalizeMathFences(source: string): string {
+    if (!source || !source.includes('$$')) return source;
+
+    const lines = source.split('\n');
+    let inCodeBlock = false;
+    let codeFence = '';
+    let inDisplayMath = false;
+    const result: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trimStart();
+
+        // Track code blocks (``` or ~~~) so math delimiters inside code are left untouched
+        if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+            const fence = trimmed.slice(0, 3);
+            if (!inCodeBlock) {
+                inCodeBlock = true;
+                codeFence = fence;
+            } else if (trimmed.startsWith(codeFence)) {
+                inCodeBlock = false;
+                codeFence = '';
+            }
+            result.push(line);
+            continue;
+        }
+
+        if (inCodeBlock) {
+            result.push(line);
+            continue;
+        }
+
+        // Match lines with optional blockquote prefix or indentation
+        const prefixMatch = line.match(/^([ \t]*(?:>[ \t]*)*)(.*)$/);
+        const prefix = prefixMatch ? prefixMatch[1] : '';
+        const rest = prefixMatch ? prefixMatch[2] : line;
+        const restTrimmed = rest.trim();
+
+        if (!inDisplayMath) {
+            if (restTrimmed === '$$') {
+                inDisplayMath = true;
+                result.push(line);
+                continue;
+            }
+
+            // Check if line starts with $$ followed by content, but does NOT contain another $$ on the same line
+            // e.g. "$$\begin{aligned}" -> opening multiline display math fence with attached content.
+            // If rest contains another $$ (e.g. "$$x^2$$" or "$$x^2$$ text" or "$$a$$ and $$b$$"), it is self-contained on this line.
+            if (rest.startsWith('$$') && !rest.slice(2).trimStart().startsWith('$')) {
+                const restAfterOpen = rest.slice(2);
+                if (!restAfterOpen.includes('$$')) {
+                    result.push(prefix + '$$');
+                    result.push(prefix + restAfterOpen);
+                    inDisplayMath = true;
+                    continue;
+                }
+            }
+
+            result.push(line);
+        } else {
+            // Already inside multiline display math block
+            if (restTrimmed === '$$') {
+                inDisplayMath = false;
+                result.push(line);
+                continue;
+            }
+
+            // Check if line ends with $$ attached to math content (e.g. "\end{aligned}$$")
+            // Ensure this line does not contain an opening $$ earlier on the same line
+            if (restTrimmed.endsWith('$$') && !restTrimmed.slice(0, -2).trimEnd().endsWith('$')) {
+                const restBeforeClose = restTrimmed.slice(0, -2);
+                if (!restBeforeClose.includes('$$')) {
+                    result.push(prefix + restBeforeClose);
+                    result.push(prefix + '$$');
+                    inDisplayMath = false;
+                    continue;
+                }
+            }
+
+            result.push(line);
+        }
+    }
+
+    return result.join('\n');
+}
+
+export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
+    id: 'GM-MD-001',
+    domain: 'markdown',
+    evidence: 'tests/fixtures/canonical/math/gm_md_001_evidence.md',
+    observedAt: '2026-09-29T23:50:00Z',
+    description:
+        'Normalizes multiline display-math fences ($$) where LaTeX environment keywords ' +
+        '(e.g. \\begin{aligned}, \\end{aligned}) are attached directly to $$ on the fence line, ' +
+        'ensuring standard GFM/micromark mathFlow fences open and close deterministically ' +
+        'without swallowing subsequent document blocks.',
+    transform: normalizeMathFences,
+});
+
+/**
+ * Active Markdown compatibility rules.
+ * Initial state was empty; GM-MD-001 admitted per Section 4 & 31 admission policy.
+ */
+export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Object.freeze([
+    GM_MD_001_FENCE_NORMALIZATION,
+]);
 
 /**
  * Active LaTeX compatibility rules.

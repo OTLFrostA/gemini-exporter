@@ -12,25 +12,40 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const {
     GEMINI_MARKDOWN_COMPAT_RULES,
     GEMINI_TEX_COMPAT_RULES,
+    GM_MD_001_FENCE_NORMALIZATION,
     preprocessGeminiMarkdown,
     preprocessGeminiLatex,
 } = require('../src/core/export/canonical/compat/rules.js');
 
-test('Compatibility Rules: Initial state is strictly empty', () => {
+test('Compatibility Rules: GM-MD-001 is admitted with full provenance metadata', () => {
     assert.strictEqual(Array.isArray(GEMINI_MARKDOWN_COMPAT_RULES), true);
-    assert.strictEqual(GEMINI_MARKDOWN_COMPAT_RULES.length, 0, 'Markdown compat rules must initially be empty');
+    assert.strictEqual(GEMINI_MARKDOWN_COMPAT_RULES.length, 1, 'Markdown compat rules must contain admitted GM-MD-001');
     assert.strictEqual(Object.isFrozen(GEMINI_MARKDOWN_COMPAT_RULES), true, 'Markdown compat rules array must be frozen');
 
+    const rule = GEMINI_MARKDOWN_COMPAT_RULES[0];
+    assert.strictEqual(rule.id, 'GM-MD-001');
+    assert.strictEqual(rule.domain, 'markdown');
+    assert.strictEqual(typeof rule.observedAt, 'string');
+    assert.ok(rule.description.length > 20, 'Rule must have descriptive explanation');
+    assert.strictEqual(rule, GM_MD_001_FENCE_NORMALIZATION);
+
+    // Evidence file must physically exist
+    const evidencePath = path.resolve(__dirname, '..', rule.evidence);
+    assert.ok(fs.existsSync(evidencePath), `Evidence file must exist at ${rule.evidence}`);
+
     assert.strictEqual(Array.isArray(GEMINI_TEX_COMPAT_RULES), true);
-    assert.strictEqual(GEMINI_TEX_COMPAT_RULES.length, 0, 'TeX compat rules must initially be empty');
+    assert.strictEqual(GEMINI_TEX_COMPAT_RULES.length, 0, 'TeX compat rules must remain empty until evidence arrives');
     assert.strictEqual(Object.isFrozen(GEMINI_TEX_COMPAT_RULES), true, 'TeX compat rules array must be frozen');
 });
 
-test('Compatibility Rules: preprocessGeminiMarkdown is strict identity no-op', () => {
-    const testCases = [
+test('Compatibility Rules: preprocessGeminiMarkdown preserves standard Markdown structures', () => {
+    const standardCases = [
         '',
         'Hello World',
         '# Heading 1\n\n**bold** *italic* `code`',
@@ -38,10 +53,22 @@ test('Compatibility Rules: preprocessGeminiMarkdown is strict identity no-op', (
         '$$E = mc^2$$',
         'Multi-line\n\n\n\nwith trailing space   \n',
         'CJK 中文测试，带公式 $x^2 + y^2 = z^2$ 和表情 😊🚀',
+        '```markdown\n$$\\begin{aligned}\n\\end{aligned}$$\n```',
+        '~~~latex\n$$\\begin{matrix} 1 & 2 \\end{matrix}$$\n~~~',
     ];
-    for (const input of testCases) {
-        assert.strictEqual(preprocessGeminiMarkdown(input), input, 'preprocessGeminiMarkdown must be identity function');
+    for (const input of standardCases) {
+        assert.strictEqual(preprocessGeminiMarkdown(input), input, 'Standard markdown must be preserved exactly');
     }
+});
+
+test('Compatibility Rules: GM-MD-001 normalizes attached display math fences', () => {
+    const input = '$$\\begin{aligned}\nx = 1\n\\end{aligned}$$';
+    const expected = '$$\n\\begin{aligned}\nx = 1\n\\end{aligned}\n$$';
+    assert.strictEqual(preprocessGeminiMarkdown(input), expected);
+
+    const bqInput = '> $$\\begin{aligned}\n> x = 1\n> \\end{aligned}$$';
+    const bqExpected = '> $$\n> \\begin{aligned}\n> x = 1\n> \\end{aligned}\n> $$';
+    assert.strictEqual(preprocessGeminiMarkdown(bqInput), bqExpected);
 });
 
 test('Compatibility Rules: preprocessGeminiLatex is strict identity no-op', () => {
@@ -57,3 +84,4 @@ test('Compatibility Rules: preprocessGeminiLatex is strict identity no-op', () =
         assert.strictEqual(preprocessGeminiLatex(input), input, 'preprocessGeminiLatex must be identity function');
     }
 });
+
