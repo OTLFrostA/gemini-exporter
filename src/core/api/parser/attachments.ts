@@ -1,6 +1,9 @@
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../utils/chipUtils.js";
 
 export interface ImageAttachment {
+    isGenerated?: boolean;
+    providerRequestId?: string;
+    imageOrdinal?: number;
     sourceUrl: string;
     width?: number;
     height?: number;
@@ -89,7 +92,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     }
 
     function getImageDedupKey(imageObj: Partial<ImageAttachment>): string {
-        return imageObj.sourceUrl || imageObj.token || [imageObj.fileName, imageObj.mimeType, imageObj.width, imageObj.height, imageObj.size].filter(x => x != null && x !== "").join(":");
+        return imageObj.token
+            ? `token:${imageObj.token}`
+            : (imageObj.sourceUrl || [imageObj.fileName, imageObj.mimeType, imageObj.width, imageObj.height, imageObj.size].filter(x => x != null && x !== "").join(":"));
     }
 
     function filterNewImages(images: ImageAttachment[], seenSet: Set<string>): ImageAttachment[] {
@@ -110,7 +115,10 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         const qIdx = url.indexOf("?");
         const base = qIdx === -1 ? url : url.slice(0, qIdx);
         const query = qIdx === -1 ? "" : url.slice(qIdx);
-        const resized = base.replace(/=w\d+(-h\d+)?(-p|-k|-no)?$/i, "=s0").replace(/=s\d+(-p|-k|-no)?$/i, "=s0");
+        let resized = base.replace(/=[sw]\d+(?:-[a-z0-9]+)*$/i, "=s0");
+        if ((base.includes("/gg/") || base.includes("/rd-gg/")) && !/=[sw]\d+/i.test(base) && !base.endsWith("=s0")) {
+            resized = base + "=s0";
+        }
         return resized + query;
     }
 
@@ -196,6 +204,11 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 (Array.isArray(dims) && typeof dims[0] === "number" && typeof dims[1] === "number")
             )
         ) {
+            // Derivative upscale renditions (e.g. 2x with UPSCALE_FACTOR > 1) are secondary variants,
+            // not the authoritative source generation.
+            if (typeof node[gen.UPSCALE_FACTOR] === "number" && node[gen.UPSCALE_FACTOR] > 1) {
+                return null;
+            }
             const rawFileName = (typeof filename === "string" && filename.trim()) ? filename.trim() : "";
             const width = Array.isArray(dims) && typeof dims[0] === "number" ? dims[0] : void 0;
             const height = Array.isArray(dims) && typeof dims[1] === "number" ? dims[1] : void 0;
@@ -287,8 +300,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     };
 
     const IMAGE_DETECTORS: ImageNodeDetector[] = [
-        detectInlineImageTuple,
         detectGeneratedMediaNode,
+        detectInlineImageTuple,
         detectAttachmentType36
     ];
 
@@ -321,7 +334,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
             size: raw.size,
             token: raw.token,
             fileName,
-            mimeType
+            mimeType,
+            ...(raw.detectorKind === "extractImages generated-media" ? { isGenerated: true } : {})
         };
     }
 
@@ -348,6 +362,20 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 }
 
                 const img = normalizeRawImage(raw, counter);
+                if (img.token) {
+                    const existingIdx = images.findIndex(existing => existing.token === img.token);
+                    if (existingIdx !== -1) {
+                        if (img.isGenerated && !images[existingIdx].isGenerated) {
+                            const oldKey = getImageDedupKey(images[existingIdx]);
+                            seenKeys.delete(oldKey);
+                            const newKey = getImageDedupKey(img);
+                            seenKeys.add(newKey);
+                            images[existingIdx] = img;
+                        }
+                        return;
+                    }
+                }
+
                 const key = getImageDedupKey(img);
                 if (!seenKeys.has(key)) {
                     seenKeys.add(key);

@@ -1,3 +1,5 @@
+import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
+import { findGenerationModelMessage } from '../generatedMediaIdentity.js';
 import {
     normId as utilsNormId,
     shortScope as utilsShortScope,
@@ -13,6 +15,15 @@ import type { Conversation } from "../../../types/index.js";
 
 const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
 
+export interface GenerationBlock {
+    chatId: string;
+    time: number;
+    prompt: string;
+    imageCount?: number;
+    modelMessageIndex?: number;
+    generation?: GeneratedMediaIdentity;
+}
+
 export interface ParseTakeoutHtmlOptions {
     htmlText: string;
     zipFiles: Record<string, any>;
@@ -24,7 +35,7 @@ export interface ParseTakeoutHtmlOutput {
     extractedMap: Record<string, Conversation>;
     localConvCache: Record<string, any>;
     localMediaMap: Record<string, any[]>;
-    genBlocks: Array<{ chatId: string; time: number; prompt: string }>;
+    genBlocks: GenerationBlock[];
 }
 
 export interface TakeoutHtmlParserModule {
@@ -172,7 +183,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
     const extractedMap: Record<string, Conversation> = {};
     const localConvCache: Record<string, any> = {};
     const localMediaMap: Record<string, any[]> = {};
-    const genBlocks: Array<{ chatId: string; time: number; prompt: string }> = [];
+    const genBlocks: GenerationBlock[] = [];
 
     for (let i = 1; i < rawBlocks.length; i++) {
         if (i % 50 === 0) {
@@ -199,14 +210,17 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
         const { promptText, hasExplicitPrompt } = parseTakeoutPrompt(block);
         const ts = parseTakeoutTimestamp(block);
 
-        const hasGenMarker = /(?:(\d+)\s*generated images?|(\d+)\s*张生成的图片)/i.test(block);
+        const genMatch = /(?:(\d+)\s*generated images?|(\d+)\s*张生成的图片)/i.exec(block);
+        const hasGenMarker = !!genMatch;
+        const blockGenerations: GenerationBlock[] = [];
         if (hasGenMarker && foundIds.length > 0 && ts) {
             for (const cid of foundIds) {
-                genBlocks.push({
-                    chatId: cid,
-                    time: ts,
-                    prompt: promptText
-                });
+                const generationBlock: GenerationBlock = {
+                    chatId: cid, time: ts, prompt: promptText,
+                    imageCount: Number(genMatch![1] || genMatch![2]),
+                };
+                genBlocks.push(generationBlock);
+                blockGenerations.push(generationBlock);
             }
         }
 
@@ -272,7 +286,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             }
             turnMsgs.push(userMsg);
         }
-        if (responseHtml) {
+        if (responseHtml || hasGenMarker) {
             const modelTurn: any = {
                 role: 'model',
                 content: responseHtml,
@@ -357,6 +371,12 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                 }
             }
 
+            const generationBlock = blockGenerations.find((gb) => gb.chatId === cleanId);
+            if (generationBlock) {
+                generationBlock.modelMessageIndex = (localConvCache[cleanId]?.messages?.length || 0)
+                    + turnMsgs.findIndex((m) => m.role === 'model');
+            }
+
             const promptTitle = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : 'Takeout conversation';
             if (!localConvCache[cleanId]) {
                 localConvCache[cleanId] = {
@@ -364,7 +384,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     title: promptTitle,
                     titleSource: 'takeout',
                     titles: { takeout: promptTitle },
-                    messages: [...turnMsgs],
+                    messages: turnMsgs.map((m) => ({ ...m })),
                     timestamp: ts,
                     messageCount: turnMsgs.length,
                     attachmentCount: localMediaNames.length,
@@ -372,7 +392,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     hasExplicitPrompt
                 };
             } else if (turnMsgs.length > 0) {
-                localConvCache[cleanId].messages.push(...turnMsgs);
+                localConvCache[cleanId].messages.push(...turnMsgs.map((m) => ({ ...m })));
                 localConvCache[cleanId].messageCount = localConvCache[cleanId].messages.length;
                 localConvCache[cleanId].attachmentCount = (localConvCache[cleanId].attachmentCount || 0) + localMediaNames.length;
                 if (hasExplicitPrompt && !localConvCache[cleanId].hasExplicitPrompt && promptTitle) {
@@ -428,6 +448,18 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
         }
     }
 
+    const eventCounts = new Map<string, number>();
+    for (const block of [...genBlocks].sort((a, b) => a.time - b.time)) {
+        const ordinal = eventCounts.get(block.chatId) || 0;
+        eventCounts.set(block.chatId, ordinal + 1);
+        block.generation = {
+            chatId: block.chatId, time: block.time, prompt: block.prompt,
+            generationOrdinal: ordinal, imageCount: block.imageCount,
+        };
+        const model = localConvCache[block.chatId]?.messages?.[block.modelMessageIndex!];
+        if (model?.role === 'model') model.generation = block.generation;
+    }
+
     return {
         extractedMap,
         localConvCache,
@@ -443,15 +475,29 @@ export function correlateGeneratedImages(
     localConvCache: Record<string, any>,
     extractedMap: Record<string, any>
 ): void {
-    if (watermarkedImages.length === 0 || genBlocks.length === 0) return;
+    const blockOrdinalMap = new Map<any, number>();
 
-    function linkTakeoutGeneratedImage(chatId: string, img: any): void {
+    function linkTakeoutGeneratedImage(block: GenerationBlock, img: any, imageOrdinal = 0): void {
+        const chatId = block.chatId;
+        const providerRequestId = img.providerRequestId || block.generation?.providerRequestId;
+        const totalCount = block.imageCount || 1;
+        const generation: GeneratedMediaIdentity = {
+            ...(block.generation || { chatId, time: block.time, prompt: block.prompt, generationOrdinal: 0, imageCount: block.imageCount }),
+            providerRequestId,
+            imageCount: totalCount,
+            imageOrdinal,
+        };
         if (!localMediaMap[chatId]) localMediaMap[chatId] = [];
-        if (!localMediaMap[chatId].some(x => x.filename === img.filename)) {
+        const existing = localMediaMap[chatId].find(x => x.filename === img.filename);
+        if (existing) {
+            existing.isGenerated = true;
+            existing.providerRequestId = providerRequestId;
+            existing.imageOrdinal = imageOrdinal;
+            existing.generation = generation;
+        } else {
             localMediaMap[chatId].push({
-                filename: img.filename,
-                fileObj: img.fileObj,
-                isGenerated: true
+                filename: img.filename, fileObj: img.fileObj, isGenerated: true,
+                providerRequestId, imageOrdinal, generation,
             });
         }
         const imgObj = {
@@ -460,14 +506,19 @@ export function correlateGeneratedImages(
             fileName: img.filename,
             localName: `assets/${img.filename}`,
             source: 'takeout',
-            isGenerated: true
+            isGenerated: true,
+            providerRequestId,
+            imageOrdinal,
+            generation
         };
         const cached = localConvCache[chatId];
         if (cached && Array.isArray(cached.messages)) {
-            let modelTurn = cached.messages.find((m: any) => m.role === 'model');
+            let modelTurn = findGenerationModelMessage(cached, generation);
             if (!modelTurn) {
                 modelTurn = {
                     role: 'model',
+                    generation,
+                    providerRequestId,
                     content: `![Generated Image](assets/${img.filename})`,
                     timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : null),
                     images: [imgObj],
@@ -477,6 +528,9 @@ export function correlateGeneratedImages(
             } else {
                 modelTurn.images = modelTurn.images || [];
                 modelTurn.attachments = modelTurn.attachments || [];
+                if (!modelTurn.providerRequestId && providerRequestId) {
+                    modelTurn.providerRequestId = providerRequestId;
+                }
                 if (!modelTurn.images.some((im: any) => im.fileName === img.filename)) {
                     modelTurn.images.push(imgObj);
                 }
@@ -495,7 +549,7 @@ export function correlateGeneratedImages(
     }
 
     if (watermarkedImages.length === 1 && genBlocks.length === 1) {
-        linkTakeoutGeneratedImage(genBlocks[0].chatId, watermarkedImages[0]);
+        linkTakeoutGeneratedImage(genBlocks[0], watermarkedImages[0], 0);
     } else {
         for (const img of watermarkedImages) {
             let bestBlock: any = null;
@@ -509,7 +563,9 @@ export function correlateGeneratedImages(
                 }
             }
             if (bestBlock) {
-                linkTakeoutGeneratedImage(bestBlock.chatId, img);
+                const ord = blockOrdinalMap.get(bestBlock) || 0;
+                blockOrdinalMap.set(bestBlock, ord + 1);
+                linkTakeoutGeneratedImage(bestBlock, img, ord);
             }
         }
     }

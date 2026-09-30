@@ -359,7 +359,7 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
 
             if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {
                 try {
-                    const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot);
+                    const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot, item.generation);
                     if (offlineBin && offlineBin.length > 0) {
                         const bytes = offlineBin instanceof Uint8Array
                             ? offlineBin

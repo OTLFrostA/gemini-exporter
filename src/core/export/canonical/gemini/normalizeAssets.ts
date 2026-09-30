@@ -224,6 +224,48 @@ export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
                 return;
             }
         }
+        const aToken = (a as any).token;
+        if (aToken) {
+            const existingToken = atts.find((x) => (x as any).token === aToken);
+            if (existingToken) {
+                if ((a as any).isGenerated && !(existingToken as any).isGenerated) {
+                    for (const [k, v] of Object.entries(a)) {
+                        if (v !== undefined) {
+                            (existingToken as any)[k] = v;
+                        }
+                    }
+                } else {
+                    for (const [k, v] of Object.entries(a)) {
+                        if (v !== undefined && (existingToken as any)[k] === undefined) {
+                            (existingToken as any)[k] = v;
+                        }
+                    }
+                }
+                if (!existingToken.dataBuffer && a.dataBuffer) existingToken.dataBuffer = a.dataBuffer;
+                if (!existingToken.blobBase64 && a.blobBase64) existingToken.blobBase64 = a.blobBase64;
+                return;
+            }
+        }
+        const aReqId = (a.providerRequestId || a.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
+        if (aReqId) {
+            const aOrd = a.imageOrdinal ?? a.generation?.imageOrdinal ?? 0;
+            const existingGen = atts.find((x) => {
+                const xReqId = (x.providerRequestId || x.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
+                if (!xReqId || xReqId !== aReqId) return false;
+                const xOrd = x.imageOrdinal ?? x.generation?.imageOrdinal ?? 0;
+                return xOrd === aOrd;
+            });
+            if (existingGen) {
+                for (const [k, v] of Object.entries(a)) {
+                    if (v !== undefined && (existingGen as any)[k] === undefined) {
+                        (existingGen as any)[k] = v;
+                    }
+                }
+                if (!existingGen.dataBuffer && a.dataBuffer) existingGen.dataBuffer = a.dataBuffer;
+                if (!existingGen.blobBase64 && a.blobBase64) existingGen.blobBase64 = a.blobBase64;
+                return;
+            }
+        }
         atts.push({ ...a });
     };
     for (const a of m.attachments ?? []) push(a);

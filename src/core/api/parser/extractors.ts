@@ -70,6 +70,7 @@ export interface JspbGeneratedImageSchema {
     FILENAME: number;
     URL: number;
     TOKEN: number;
+    UPSCALE_FACTOR: number;
     MIME_TYPE: number;
     DIMENSIONS: number;  // [width, height, size]
 }
@@ -203,6 +204,7 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
             FILENAME: 2,       // string: original file name (e.g. "watermarked_img_*.png")
             URL: 3,            // string: Google media host download URL
             TOKEN: 5,          // string?: dedup token
+            UPSCALE_FACTOR: 8, // number?: e.g. 2 for 2x upscale derivative rendition
             MIME_TYPE: 11,     // string: e.g. "image/png"
             DIMENSIONS: 15     // [width, height, size]
         },

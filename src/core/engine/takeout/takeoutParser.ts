@@ -135,6 +135,8 @@ export async function parseTakeoutZip(
         totalMediaCount++;
 
         if (/watermarked_img_/i.test(filename)) {
+            const hexMatch = stem.match(/-([0-9a-fA-F]{16})$/i);
+            const providerRequestId = hexMatch ? hexMatch[1].toLowerCase() : undefined;
             try {
                 const bin = await fObj.async('uint8array');
                 const c2paTime = extractC2PATime(bin) || (fObj.date ? fObj.date.getTime() : null);
@@ -143,7 +145,8 @@ export async function parseTakeoutZip(
                     stem,
                     cleanStem,
                     fileObj: fObj,
-                    time: c2paTime
+                    time: c2paTime,
+                    providerRequestId
                 });
             } catch {
                 watermarkedImages.push({
@@ -151,7 +154,8 @@ export async function parseTakeoutZip(
                     stem,
                     cleanStem,
                     fileObj: fObj,
-                    time: fObj.date ? fObj.date.getTime() : null
+                    time: fObj.date ? fObj.date.getTime() : null,
+                    providerRequestId
                 });
             }
         }

@@ -98,8 +98,16 @@ export function toHighRes(url: string, variant = 's1024-rj'): string {
     try {
         if (!url) return url;
         if (url.includes('gstatic.com')) return url;
-        if (url.includes('/gg/')) {
-            return url.includes('?') ? (url.includes('alr=yes') ? url : url + '&alr=yes') : url + '?alr=yes';
+        if (url.includes('/gg/') || url.includes('/rd-gg/')) {
+            const [base, q = ''] = url.split('?');
+            const suffix = q ? (q.includes('alr=yes') ? q : q + '&alr=yes') : 'alr=yes';
+            let normBase = base;
+            if (/=[sw]\d+/i.test(base)) {
+                normBase = base.replace(/=[sw]\d+(?:-[a-z0-9]+)*/i, '=s0');
+            } else if (!normBase.endsWith('=s0')) {
+                normBase = normBase + '=s0';
+            }
+            return normBase + '?' + suffix;
         }
         const [base, q = ''] = url.split('?');
         const stripped = base.replace(/=s\d+(?:-[a-z0-9]+)*/i, '');

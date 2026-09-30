@@ -16,6 +16,18 @@ test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corr
     assert.ok(transformedLh3.includes('=s1024-rj'), 'googleusercontent URLs should still be upgraded');
 });
 
+test('assetFetcher & attachments - bare /gg/ and /rd-gg/ URLs normalize to authoritative =s0 rendition', () => {
+    const { highResVariant } = require('../src/core/api/parser/attachments.js');
+    const bareGg = 'https://lh3.googleusercontent.com/gg/AN-53XYZ1234567890';
+    assert.strictEqual(highResVariant(bareGg), `${bareGg}=s0`, 'highResVariant appends =s0 to bare /gg/');
+    assert.strictEqual(highResVariant(`${bareGg}?authuser=0`), `${bareGg}=s0?authuser=0`, 'highResVariant preserves queries on bare /gg/');
+    assert.strictEqual(highResVariant(`${bareGg}=s512-rj?authuser=0`), `${bareGg}=s0?authuser=0`, 'highResVariant replaces =s512-rj with =s0');
+
+    assert.strictEqual(toHighRes(bareGg), `${bareGg}=s0?alr=yes`, 'toHighRes appends =s0 and ?alr=yes to bare /gg/');
+    assert.strictEqual(toHighRes(`${bareGg}?authuser=0`), `${bareGg}=s0?authuser=0&alr=yes`, 'toHighRes preserves queries and ensures alr=yes');
+    assert.strictEqual(toHighRes(`${bareGg}=s0`), `${bareGg}=s0?alr=yes`, 'toHighRes avoids duplicating =s0');
+});
+
 test('fetchWithCredentialFallback - include 抛 TypeError → omit 成功', async () => {
     const callLog: { url: string; credentials?: string }[] = [];
 
@@ -175,6 +187,47 @@ test('downloadAssetDirect - transparently downloads CORS-restricted asset via om
         assert.strictEqual(result.size, 8);
         assert.strictEqual(fetchAttempts[0], 'include', 'First try must include credentials');
         assert.strictEqual(fetchAttempts[1], 'omit', 'Second try must omit credentials');
+    } finally {
+        (global as any).fetch = origFetch;
+    }
+});
+
+test('handleGetImageBlob - bare /gg/<token> requests =s0 rendition and downloads native resolution buffer', async () => {
+    const { handleGetImageBlob } = AssetFetcherModule;
+    const origFetch = (global as any).fetch;
+    const requestedUrls: string[] = [];
+    try {
+        const nativeBytes = Buffer.alloc(230904, 0x42); // 1408x768 native payload
+        (global as any).fetch = async (input: any, init?: RequestInit) => {
+            const url = String(input);
+            requestedUrls.push(url);
+            return {
+                ok: true,
+                status: 200,
+                headers: new Map([['content-type', 'image/jpeg']]),
+                clone: () => ({ blob: async () => ({ type: 'image/jpeg' }) }),
+                blob: async () => ({
+                    size: nativeBytes.length,
+                    type: 'image/jpeg',
+                    arrayBuffer: async () => nativeBytes.buffer
+                })
+            };
+        };
+
+        let result: any = null;
+        await handleGetImageBlob(
+            {
+                url: 'https://lh3.googleusercontent.com/gg/AN-53XYZ1234567890',
+                preferBuffer: true
+            },
+            (resp: any) => { result = resp; }
+        );
+
+        assert.ok(result?.success, 'handleGetImageBlob must succeed');
+        assert.ok(requestedUrls.length > 0, 'Must have initiated fetch');
+        assert.ok(requestedUrls[0].includes('=s0'), `Must request =s0 rendition, got: ${requestedUrls[0]}`);
+        assert.ok(requestedUrls[0].includes('alr=yes'), `Must include alr=yes, got: ${requestedUrls[0]}`);
+        assert.strictEqual(result.size, 230904, 'Must return native size (not preview 69036)');
     } finally {
         (global as any).fetch = origFetch;
     }

@@ -1,3 +1,4 @@
+import { findGenerationModelMessage, hasGenerationImage } from '../generatedMediaIdentity.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
 
 export interface FetchChatDetailOptions {
@@ -270,7 +271,16 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             if (takeoutMedia && takeoutMedia.length > 0) {
                 for (const tm of takeoutMedia) {
                     if (!tm?.isGenerated || !tm?.filename) continue;
-                    const alreadyHas = chat.messages.some((m: any) =>
+                    const generation = tm.generation || (tm.providerRequestId ? {
+                        chatId: nid,
+                        providerRequestId: tm.providerRequestId,
+                        generationOrdinal: 0,
+                        imageOrdinal: tm.imageOrdinal ?? 0,
+                    } : null);
+                    const eventTarget = generation ? findGenerationModelMessage(chat, generation) : null;
+                    if (eventTarget && generation && hasGenerationImage(eventTarget, generation)) continue;
+                    const candidates = generation ? (eventTarget ? [eventTarget] : []) : chat.messages;
+                    const alreadyHas = candidates.some((m: any) =>
                         (m.images && m.images.some((im: any) => im.fileName === tm.filename || (im.localName && im.localName.includes(tm.filename)))) ||
                         (m.attachments && m.attachments.some((at: any) => at.fileName === tm.filename || (at.localName && at.localName.includes(tm.filename)))) ||
                         (typeof m.content === 'string' && m.content.includes(tm.filename))
@@ -282,9 +292,12 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                             fileName: tm.filename,
                             localName: `assets/${tm.filename}`,
                             source: 'takeout',
-                            isGenerated: true
+                            isGenerated: true,
+                            providerRequestId: tm.providerRequestId || generation?.providerRequestId,
+                            imageOrdinal: tm.imageOrdinal ?? generation?.imageOrdinal,
+                            ...(generation ? { generation } : {})
                         };
-                        const targetModelMsg = chat.messages.slice().reverse().find((m: any) => m.role === 'model' || m.role === 'assistant');
+                        const targetModelMsg = generation ? eventTarget : chat.messages.slice().reverse().find((m: any) => m.role === 'model' || m.role === 'assistant');
                         if (targetModelMsg) {
                             targetModelMsg.images = targetModelMsg.images || [];
                             targetModelMsg.attachments = targetModelMsg.attachments || [];
@@ -300,7 +313,9 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                             chat.messages.push({
                                 role: 'model',
                                 content: appendMarkdownRef ? `![Generated Image](assets/${tm.filename})` : '',
-                                timestamp: Date.now(),
+                                timestamp: generation?.time ?? null,
+                                providerRequestId: tm.providerRequestId || generation?.providerRequestId,
+                                ...(generation ? { generation } : {}),
                                 images: [imgObj],
                                 attachments: [imgObj]
                             });
