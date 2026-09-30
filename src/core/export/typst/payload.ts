@@ -260,15 +260,6 @@ function renderBlock(
                 ...(block.description?.length ? { description: inlineText(block.description) } : {}),
             };
         }
-        case 'citationGroup': {
-            const text = block.citationIds.map(id => citations.get(id)?.label ?? id).join(' · ');
-            const title = block.title?.length ? inlineText(block.title) : undefined;
-            return {
-                type: 'note',
-                ...(title ? { label: title } : {}),
-                children: [{ type: 'text', text: text || options.strings.sources }],
-            };
-        }
         case 'thought': {
             const kids: TypstBlockNode[] = [];
             block.blocks.forEach((child, index) => {
@@ -323,6 +314,13 @@ function toRenderMessage(
         const mapped = renderBlock(block, assets, citations, options, diagnostics, `message:${message.id}/block:${index}`);
         if (mapped) blocks.push(mapped);
     });
+    if (message.citationIds?.length) {
+        const text = message.citationIds.map(id => citations.get(id)?.label ?? id).join(' · ');
+        blocks.push({
+            type: 'note',
+            children: [{ type: 'text', text: text || options.strings.sources }],
+        });
+    }
     const plainText = message.blocks
         .map(b => extractBlockText(b, { citationLabel: (id) => citations.get(id)?.label }))
         .join('\n');

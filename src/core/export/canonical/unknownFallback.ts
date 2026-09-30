@@ -100,8 +100,6 @@ export function extractBlockText(block: BlockNode, options?: TextExtractOptions)
                 return block.alt ?? '';
             case 'file':
                 return block.label ?? '';
-            case 'citationGroup':
-                return (block.title ?? []).map((i) => extractInlineText(i, options)).join('');
             case 'thematicBreak':
                 return '';
             case 'unknown':

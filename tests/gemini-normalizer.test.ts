@@ -3,7 +3,7 @@
  * Tier 1 tests for the F2b Gemini -> canonical normalizer.
  *
  * Covers: markdown body structure + block order, thoughts -> ThoughtBlock,
- * citations -> Citation entities + CitationGroupBlock + [n] markers,
+ * citations -> Citation entities + message.citationIds + [n] markers,
  * attachment/image/document mapping + dedupe, unknown/unknownInline
  * fallbacks, title authority tiers, attachment availability diagnostics,
  * turns-shape fallback, raw evidence preservation, and the
@@ -106,7 +106,7 @@ test('thoughts become ThoughtBlock without rendering state', async () => {
     assert.ok(!('initiallyCollapsed' in thought), 'no rendering state leaks into canonical');
 });
 
-test('citations become Citation entities, a CitationGroupBlock, and citationRef inlines', async () => {
+test('citations become Citation entities, message.citationIds, and citationRef inlines', async () => {
     const { bundle } = await normalizeGeminiConversation(sample);
     // Duplicate URL collapses to one Citation entity.
     assert.strictEqual(bundle.citations.length, 2);
@@ -120,9 +120,11 @@ test('citations become Citation entities, a CitationGroupBlock, and citationRef 
     );
 
     const model = bundle.conversation.messages.find((m: any) => m.id === 'm-a1');
-    const group = model.blocks[model.blocks.length - 1];
-    assert.strictEqual(group.type, 'citationGroup');
-    assert.strictEqual(group.citationIds.length, 2);
+    assert.deepStrictEqual(
+        model.citationIds?.sort(),
+        bundle.citations.map((c: any) => c.id).sort(),
+    );
+    assert.ok(!model.blocks.some((b: any) => b.type === 'citationGroup'), 'no citationGroup in blocks');
 
     // [1]/[2] markers map to citationRef inlines pointing at the right ids.
     const para = model.blocks[1];

@@ -369,9 +369,6 @@
           "$ref": "#/$defs/FileBlock"
         },
         {
-          "$ref": "#/$defs/CitationGroupBlock"
-        },
-        {
           "$ref": "#/$defs/ThoughtBlock"
         },
         {
@@ -788,41 +785,6 @@
       },
       "additionalProperties": false
     },
-    "CitationGroupBlock": {
-      "type": "object",
-      "required": [
-        "type",
-        "id",
-        "citationIds"
-      ],
-      "properties": {
-        "type": {
-          "const": "citationGroup"
-        },
-        "id": {
-          "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "citationIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "title": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/InlineNode"
-          }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
-        }
-      },
-      "additionalProperties": false
-    },
     "ThoughtBlock": {
       "type": "object",
       "required": [
@@ -1071,6 +1033,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/BlockNode"
+          }
+        },
+        "citationIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         },
         "extensions": {

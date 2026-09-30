@@ -366,19 +366,6 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
             return renderImageBlock(block as ImageBlock, ctx, path);
         case 'file':
             return renderFileCard(block as FileBlock, ctx, path);
-        case 'citationGroup': {
-            const title = block.title?.length ? `<div class="gem-citation-group-title">${renderInlines(block.title, ctx)}</div>` : '';
-            const chips = block.citationIds.map((id) => {
-                const c = ctx.citations.get(id);
-                const n = ctx.citationNumbers.get(id);
-                const label = escapeHtml(n === undefined ? id : citationDisplayLabel(c, n));
-                const url = c?.url ? sanitizeUrl(c.url, false) : '#';
-                return url !== '#'
-                    ? `<a class="gem-citation-chip" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
-                    : `<span class="gem-citation-chip">${label}</span>`;
-            }).join('');
-            return `<section class="gem-citation-group">${title}<div class="gem-citation-chips">${chips}</div></section>`;
-        }
         case 'thought': {
             const content = (block.blocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/thought:${i}`)).join('');
             return `
@@ -422,9 +409,24 @@ function renderBlocks(blocks: BlockNode[], ctx: RenderCtx, path: string): string
     return (blocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/block:${i}`)).join('\n');
 }
 
+function renderMessageSources(msg: MessageNode, ctx: RenderCtx): string {
+    if (!msg.citationIds?.length) return '';
+    const chips = msg.citationIds.map((id) => {
+        const c = ctx.citations.get(id);
+        const n = ctx.citationNumbers.get(id);
+        const label = escapeHtml(n === undefined ? id : citationDisplayLabel(c, n));
+        const url = c?.url ? sanitizeUrl(c.url, false) : '#';
+        return url !== '#'
+            ? `<a class="gem-citation-chip" href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+            : `<span class="gem-citation-chip">${label}</span>`;
+    }).join('');
+    return `<section class="gem-citation-group"><div class="gem-citation-chips">${chips}</div></section>`;
+}
+
 function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
     const path = `message:${msg.id}`;
     const bodyHtml = renderBlocks(msg.blocks, ctx, path);
+    const sourcesHtml = renderMessageSources(msg, ctx);
 
     if (msg.role === 'user') {
         const plain = msg.blocks.map((b) => extractBlockText(b)).join('\n');
@@ -444,6 +446,7 @@ function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: C
         <svg class="chevron-icon" viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
       </button>` : ''}
     </div>
+    ${sourcesHtml}
   </section>`;
     }
 
@@ -451,6 +454,7 @@ function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: C
   <section class="gem-turn gem-turn-model" id="turn-model-${turnIdx}">
     <div class="gem-model-content">
       ${bodyHtml}
+      ${sourcesHtml}
     </div>
   </section>`;
 }

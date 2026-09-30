@@ -74,33 +74,16 @@ test('colSpan/rowSpan map to native Typst table.cell spans with no warning', asy
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_TABLE_SPAN_IGNORED'));
 });
 
-test('citationGroup title becomes the note label', async () => {
+test('message citationIds appends a note to blocks in Typst payload', async () => {
     const b = bundle(
-        [msg('m1', 'assistant', [{
-            type: 'citationGroup', id: 'cg1',
-            citationIds: ['c1'],
-            title: [{ type: 'text', text: 'Key sources' }],
-        }])],
-        { citations: [{ id: 'c1', url: 'https://example.com/a' }] },
-    );
-    const { payload } = toTypstPayload(b, opts);
-    const node: any = payload.messages[0].blocks[0];
-    assert.strictEqual(node.type, 'note');
-    assert.strictEqual(node.label, 'Key sources');
-    assert.ok((node.children[0].text as string).includes('[1]'));
-});
-
-test('citationGroup without title has no label', async () => {
-    const b = bundle(
-        [msg('m1', 'assistant', [{
-            type: 'citationGroup', id: 'cg1', citationIds: ['c1'],
-        }])],
+        [msg('m1', 'assistant', [], { citationIds: ['c1'] })],
         { citations: [{ id: 'c1', url: 'https://example.com/a' }] },
     );
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
     assert.ok(!('label' in node));
+    assert.ok((node.children[0].text as string).includes('[1]'));
 });
 
 test('file description reaches the transport', async () => {
@@ -199,11 +182,6 @@ test('real WASM: phase B features compile with all text selectable', async () =>
                 rows: [row('cell-one', 'cell-two')],
             },
             {
-                type: 'citationGroup', id: 'cg1',
-                citationIds: ['c1'],
-                title: [{ type: 'text', text: 'Key sources' }],
-            },
-            {
                 type: 'file', id: 'f1', assetId: 'fa',
                 label: 'report.pdf',
                 description: [{ type: 'text', text: 'Q3 summary deck' }],
@@ -219,10 +197,10 @@ test('real WASM: phase B features compile with all text selectable', async () =>
                 type: 'code', id: 'c1', code: 'print(1)', language: 'python',
                 filename: 'app.py', meta: 'runnable',
             },
-        ])],
+        ], { citationIds: ['c1'] })],
         {
             assets: [{ id: 'fa', name: 'report.pdf', kind: 'document', mimeType: 'application/pdf', sizeBytes: 2048 }],
-            citations: [{ id: 'c1', url: 'https://example.com/a' }],
+            citations: [{ id: 'c1', url: 'https://example.com/a', title: 'Key sources' }],
         },
     );
     const result = await compileOnce(b);

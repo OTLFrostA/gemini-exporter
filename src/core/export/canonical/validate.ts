@@ -158,7 +158,6 @@ function inlineHosts(block: BlockNode): Array<{ inlines: InlineNode[]; at: strin
     }
     if (block.type === 'image' && block.caption) out.push({ inlines: block.caption, at: 'caption' });
     if (block.type === 'file' && block.description) out.push({ inlines: block.description, at: 'description' });
-    if (block.type === 'citationGroup' && block.title) out.push({ inlines: block.title, at: 'title' });
     return out;
 }
 
@@ -265,6 +264,13 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         const base = `conversation.messages[${mi}]`;
         if (!m || typeof m.id !== 'string') return;
         checkTimestamp(m.createdAt, c, `${base}.createdAt`);
+        if (Array.isArray(m.citationIds)) {
+            m.citationIds.forEach((cid: unknown, cidx: number) => {
+                if (typeof cid !== 'string' || !citationIds.has(cid)) {
+                    c.add('error', 'CITATION_UNRESOLVED', `message citationIds references unknown citation ${cid}`, `${base}.citationIds[${cidx}]`);
+                }
+            });
+        }
         const count = walkInlineBlocks(m.blocks ?? [], (b, path) => {
             if (!b || typeof b.id !== 'string' || !b.id) {
                 c.add('error', 'BLOCK_BAD_ID', `block has a missing or non-string id at ${base}.${path}`, `${base}.${path}`);
