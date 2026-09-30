@@ -80,14 +80,22 @@ src/
         mediaIndex.ts          C2PA metadata timestamp extraction & media pool mapping
         zipBombGuard.ts        ZIP bomb security validation (entry count, archive & uncompressed bounds)
       template/                Standalone HTML Rendering Templates
-        htmlTemplate.ts        1:1 Gemini-faithful standalone HTML renderer (Dark/Light theme, print CSS, KaTeX & copy fallback)
-      chatFormatter.ts         CommonMark (YAML Frontmatter), standalone 1:1 HTML, JSON & OpenAI formatters
-      liveSaveWriter.ts        High-speed live save disk writer for FileSystem Directory Handle
+        htmlTemplate.ts        Shared Canonical HTML styles/scripts and escaping/URL helpers
+      chatFormatter.ts         Async Canonical Markdown/HTML facade; synchronous JSON & OpenAI serialization
+      liveSaveWriter.ts        Async Canonical Markdown live-save formatting and FileSystem disk writes
       assetPipeline.ts         Media asset downloading & relative-path archive packaging
       writers/                 Pluggable Storage Writers
         writerInterface.ts     Unified Writer abstraction & factory
         zipWriter.ts           JSZip in-memory zip packaging writer (STORE mode for binary media)
         fsWriter.ts            FileSystem Access API directory tree writer
+
+    export/                    Canonical Document Normalization & Rendering
+      canonical/               Shared conversation, block/inline, asset & citation document contract
+        gemini/                Gemini input normalization; diagnostics/raw evidence stay outside the document
+        renderCanonicalHtml.ts HTML renderer
+        renderCanonicalMarkdown.ts Markdown serializer using archive-local assets
+      typst/                   Canonical to Typst payload and PDF rendering
+      pdf/pipeline/            Resource resolution, payload, compile & delivery stages
 
     storage/                   Storage Abstraction & Persistence Layer
       storageService.ts        Multi-account slot chrome.storage.local abstraction & two-tier storage coordinator

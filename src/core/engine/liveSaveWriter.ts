@@ -1,11 +1,9 @@
 // src/core/engine/liveSaveWriter.ts
 // Shared "format chat -> write markdown file via FsWriter" used by live-save.
 //
-// Previously this logic existed twice: content/liveSaveCoordinator.ts
-// (writeConversationToDisk) and background/liveSaveHandler.ts
-// (handleLiveSaveViaHandle) each reimplemented writer setup, the
-// "CleanTitle_Cid6.md" filename format and the markdown fallback template.
-// Both call sites use the Canonical Markdown formatter and shared filename format.
+// Content and background live-save share the async Canonical Markdown route,
+// writer setup and "CleanTitle_Cid6.md" filename format. Formatting failures
+// propagate to the caller's existing error handling.
 //
 // Context-specific orchestration stays at the call sites:
 // - content side keeps its own image asset pipeline (processAndSaveImages),

@@ -270,20 +270,14 @@ export function adaptPhrasingNode(
                 details: { nodeType: unknownNode?.type } as JsonValue,
             });
 
-            if (Array.isArray(unknownNode?.children) && unknownNode.children.length > 0) {
-                const adaptedChildren = adaptInlines(unknownNode.children, ctx);
-                if (adaptedChildren.length > 0) {
-                    return adaptedChildren;
-                }
-            }
-
-            if (typeof unknownNode?.value === 'string' && unknownNode.value.length > 0) {
-                return textWithSoftBreaks(unknownNode.value);
-            }
-
-            const fallbackText = [unknownNode?.alt, unknownNode?.label, unknownNode?.identifier]
-                .find((value) => typeof value === 'string' && value.length > 0);
-            return [{ type: 'text', text: fallbackText || `[Unsupported inline: ${unknownNode?.type || 'unknown'}]` }];
+            const visibleText = (node: any): string => {
+                if (node?.type === 'break') return '\n';
+                const children = Array.isArray(node?.children) ? node.children.map(visibleText).join('') : '';
+                if (children) return children;
+                return [node?.value, node?.alt, node?.label, node?.identifier, node?.source, node?.code]
+                    .find((value) => typeof value === 'string' && value.length > 0) || '';
+            };
+            return textWithSoftBreaks(visibleText(unknownNode) || `[Unsupported inline: ${unknownNode?.type || 'unknown'}]`);
         }
     }
 }

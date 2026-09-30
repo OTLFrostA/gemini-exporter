@@ -16,7 +16,7 @@
       "provenanceSource": "Project Canonical AST specification & validation invariants",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Defines canonical block schemas, validateBundle(), and diagnostics rules.",
-      "testCount": 29,
+      "testCount": 30,
       "tests": [
         {
           "name": "all canonical fixtures validate with zero errors",
@@ -160,6 +160,11 @@
         },
         {
           "name": "conversation title and URL validate their final canonical values",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "final document schema contains only reachable definitions and closed document fields",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -934,7 +939,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "real WASM: recursive list and unknown templates compile with all content selectable",
+          "name": "real WASM: nested lists and unknown text compile with all content selectable",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1262,7 +1267,7 @@
       "provenanceSource": "Canonical Markdown serialization and Gemini normalization production route contracts",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Covers all Canonical blocks/inlines, local resource references, Sources, and structured/Markdown producer routes.",
-      "testCount": 20,
+      "testCount": 21,
       "tests": [
         {
           "name": "Markdown header uses Canonical metadata and omits absent optional fields",
@@ -1363,17 +1368,22 @@
           "name": "Canonical Markdown rejects duplicate message IDs like HTML and PDF",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown table pipe and backslash cases preserve two columns and visible content",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
     }
   ],
   "summary": {
     "totalSuites": 23,
-    "totalTests": 215,
+    "totalTests": 217,
     "byClassification": {
       "P0": 0,
       "P1": 17,
-      "P2": 196,
+      "P2": 198,
       "P3": 2,
       "P4": 0
     }

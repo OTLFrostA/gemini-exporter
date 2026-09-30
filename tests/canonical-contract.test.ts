@@ -309,3 +309,31 @@ test('conversation title and URL validate their final canonical values', () => {
     bundle.conversation.url = 'https://gemini.google.com/app/example';
     assert.deepStrictEqual(validateBundle(bundle).filter((d: any) => d.severity === 'error'), []);
 });
+
+test('final document schema contains only reachable definitions and closed document fields', () => {
+    const schema = JSON.parse(fs.readFileSync(path.join(__dirname, '../src/core/export/canonical/resources/canonical-conversation-v1.schema.json'), 'utf8'));
+    const reachable = new Set<string>();
+    const refs = (value: any): void => {
+        if (!value || typeof value !== 'object') return;
+        if (typeof value.$ref === 'string') {
+            const name = value.$ref.replace('#/$defs/', '');
+            assert.ok(schema.$defs[name], `schema reference resolves: ${name}`);
+            if (!reachable.has(name)) { reachable.add(name); refs(schema.$defs[name]); }
+        }
+        Object.values(value).forEach(refs);
+    };
+    refs(schema.properties);
+    assert.deepStrictEqual([...reachable].sort(), Object.keys(schema.$defs).sort(), 'no unused document definitions');
+    const keys = (value: any) => Object.keys(value.properties).sort();
+    assert.deepStrictEqual(keys(schema), ['assets', 'citations', 'conversation', 'schemaVersion']);
+    for (const [name, fields] of Object.entries({
+        Conversation: ['key', 'title', 'url', 'createdAt', 'updatedAt', 'messages'],
+        MessageNode: ['id', 'role', 'author', 'createdAt', 'blocks', 'citationIds'],
+        InlineMath: ['type', 'source'],
+        MathBlock: ['id', 'type', 'source'],
+        UnknownBlock: ['id', 'type', 'sourceType', 'text'],
+    })) {
+        assert.deepStrictEqual(keys(schema.$defs[name]), fields.sort(), `final ${name} document shape`);
+        assert.strictEqual(schema.$defs[name].additionalProperties, false);
+    }
+});

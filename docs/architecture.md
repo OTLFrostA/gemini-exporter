@@ -24,6 +24,17 @@
 
 Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解耦为 **主世界网络嗅探层**、**隔离世界内容脚本层**、**后台服务工作线程 (Service Worker)**、**跨平台通用 Provider 与解析核心**、**领域导出/打包引擎**、**响应式持久化层** 以及 **用户界面展示层**。
 
+文档导出使用同一个 Canonical contract：
+
+```text
+Provider / Gemini input → Normalization → Canonical Conversation Bundle
+                                         ├─ HTML renderer
+                                         ├─ Typst/PDF renderer
+                                         └─ Markdown renderer
+```
+
+popup、批量导出和 live-save 的 Markdown 均使用 `formatMarkdownCanonical()`。消息数组顺序是唯一权威顺序；Canonical 只保存文档语义，诊断与 raw evidence 留在 ingestion 层。JSON exports remain separate legacy/raw serialization paths where applicable，继续使用同步 `formatContent()`。
+
 ```mermaid
 graph TD
     subgraph BrowserRuntime ["Chrome 运行时宿主环境 (Browser Runtime Environment)"]
@@ -208,8 +219,8 @@ graph TD
 | `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
 | `src/core/engine/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
 | `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
-| `src/core/engine/template/htmlTemplate.ts` | Core: Engine | `renderStandaloneHtml`, `renderIndexHtml` | 1:1 Gemini 像素级还原独立 HTML 模版引擎：支持亮/暗主题切换、离线代码复制、KaTeX 公式、相对路径媒体与 `@media print` 矢量打印样式。 | `chatFormatter.ts` | 独立 HTML 文档字符串 | `ENG_Formatter` |
-| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`toMarkdown` / `toHtml` / `toOpenAIJson` / `formatContent`…） | 格式转换引擎：生成标准 CommonMark (带 YAML Frontmatter、代码高亮、公式)、1:1 独立 HTML、JSON、OpenAI 规范。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
+| `src/core/engine/template/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Canonical HTML renderer 使用的共享样式、交互脚本和安全输出 helpers。 | `renderCanonicalHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
+| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownCanonical` / `formatHtmlCanonical` / `toOpenAIJson` / `formatContent`） | Markdown / HTML 通过异步 Canonical normalizer 与 renderer 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |

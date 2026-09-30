@@ -113,3 +113,31 @@ test('Markdown escapes unsafe links, local paths and YAML title boundaries', () 
 test('Canonical Markdown rejects duplicate message IDs like HTML and PDF', async () => {
     await assert.rejects(formatMarkdownCanonical({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] }), /MSG_DUP_ID/);
 });
+
+
+test('Markdown table pipe and backslash cases preserve two columns and visible content', async () => {
+    const { fromMarkdown } = await import('mdast-util-from-markdown');
+    const { gfm } = await import('micromark-extension-gfm');
+    const { gfmFromMarkdown } = await import('mdast-util-gfm');
+    const samples = [
+        { node: txt('a|b'), text: 'a|b' },
+        { node: txt('a\\|b'), text: 'a\\|b' },
+        { node: txt('a\\\\|b'), text: 'a\\\\|b' },
+        { node: { type: 'inlineCode', code: 'a|b' }, text: 'a|b' },
+        { node: { type: 'inlineCode', code: 'a\\|b' }, text: 'a\\|b' },
+        { node: { type: 'link', href: 'https://example.com', children: [txt('a|b')] }, text: 'a|b' },
+    ];
+    const md = render([{ id: 't', type: 'table', headerRows: [{ cells: [{ children: [txt('content')] }, { children: [txt('sentinel')] }] }],
+        rows: samples.map(({ node }) => ({ cells: [{ children: [node] }, { children: [txt('kept')] }] })) }]);
+    const tree = fromMarkdown(md, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
+    const table: any = tree.children.find((node: any) => node.type === 'table');
+    const visible = (node: any): string => node.type === 'html' ? '' : typeof node.value === 'string' ? node.value : (node.children ?? []).map(visible).join('');
+    assert.ok(table, 'serialized output parses as a GFM table');
+    assert.strictEqual(table.children.length, samples.length + 1);
+    samples.forEach(({ text }, index) => {
+        const row = table.children[index + 1];
+        assert.strictEqual(row.children.length, 2, `two columns for ${JSON.stringify(text)}`);
+        assert.strictEqual(visible(row.children[0]), text);
+        assert.strictEqual(visible(row.children[1]), 'kept');
+    });
+});

@@ -536,7 +536,7 @@ test('Reference Nodes: Programmatic imageReference without definition emits diag
 // Unknown != Disappear (Hardening: Never silently return [])
 // =========================================================================
 
-test('Unknown != Disappear: Unsupported phrasing node with children adapts children and records diagnostic', () => {
+test('Unknown != Disappear: Unsupported phrasing node extracts child text and records diagnostic', () => {
     const { ctx, diagnostics } = createTestContext();
     const unknownWithChildren: any = {
         type: 'customPhrasingContainer',
@@ -550,6 +550,23 @@ test('Unknown != Disappear: Unsupported phrasing node with children adapts child
 
     const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_INLINE');
     assert.ok(diag, 'Must record MDAST_UNKNOWN_INLINE diagnostic');
+});
+
+test('unsupported inline wrapper flattens rich children to text without asset placements', () => {
+    const { ctx, diagnostics, inlineAssets } = createTestContext();
+    const inlines = adaptInlines([{ type: 'customWrapper', children: [
+        { type: 'strong', children: [{ type: 'text', value: 'hello' }] },
+        { type: 'break' },
+        { type: 'image', alt: 'diagram', url: 'https://example.com/pic.png' },
+        { type: 'inlineMath', value: 'x^2' },
+        { type: 'link', url: 'https://example.com', children: [{ type: 'text', value: 'site' }] },
+        { type: 'inlineCode', value: 'code' },
+    ] } as any], ctx);
+    assert.ok(inlines.every((node: any) => node.type === 'text' || node.type === 'lineBreak'));
+    assert.strictEqual(inlines.map((node: any) => node.type === 'lineBreak' ? '\n' : node.text).join(''), 'hello\ndiagramx^2sitecode');
+    assert.strictEqual(inlineAssets.length, 0);
+    assert.strictEqual(diagnostics.filter((d: any) => d.code === 'MDAST_UNKNOWN_INLINE').length, 1);
+    assert.deepStrictEqual(diagnostics[0].sourceRef, ctx.sourceRef);
 });
 
 test('Unknown != Disappear: Unsupported phrasing node with value preserves text and records diagnostic', () => {
