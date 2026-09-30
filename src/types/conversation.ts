@@ -2,6 +2,7 @@ export type TitleSource =
     | 'rpc'
     | 'dom'
     | 'takeout'
+    | 'openai'
     | 'sniff'
     | 'api-detail'
     | 'legacy'

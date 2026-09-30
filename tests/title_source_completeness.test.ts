@@ -27,7 +27,7 @@ const {
 
 // 与 src/types/conversation.ts 的 TitleSource 联合保持同步：
 // 测试里硬编码一份"期望成员"，任一处增删都必须两处同步改，否则测试失败。
-const EXPECTED_SOURCES: string[] = ['rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy', 'default'];
+const EXPECTED_SOURCES: string[] = ['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default'];
 
 test('union 成员 ⊆ RANK keys：每个 TitleSource 都有权威分值', () => {
     for (const s of EXPECTED_SOURCES) {
