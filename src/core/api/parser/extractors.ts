@@ -134,6 +134,7 @@ export interface GeminiParserExtractorsModule {
     deepWalk: (root: unknown, visitor: (node: unknown, depth: number) => boolean | void, maxDepth?: number) => void;
     extractThoughts: (candidateBlock: unknown) => string | null;
     extractCitations: (candidateBlock: unknown) => Citation[];
+    extractGroundingCitationMarkers?: (candidate: unknown) => string[];
     extractConversationId: (inner: unknown, turns?: unknown[]) => string;
     smartSummarizePrompt: (rawText?: string | null) => string;
     extractConversationTitle: (inner: unknown, turns?: unknown[]) => TitleResult;
@@ -561,6 +562,31 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
         return citations;
     }
 
+    function extractGroundingCitationMarkers(candidate: unknown): string[] {
+        const markers = new Set<string>();
+        if (!candidate) return [];
+
+        deepWalk(candidate, (node) => {
+            if (!node || typeof node !== "object") return;
+            const f44 = (node as any)["44"] ?? (node as any)[44];
+            if (Array.isArray(f44)) {
+                for (const item of f44) {
+                    if (Array.isArray(item) && Array.isArray(item[0])) {
+                        const raw = item[0][0];
+                        if (typeof raw === "string") {
+                            const trimmed = raw.trim();
+                            if (/^\[cite:\s*\d+\]$/i.test(trimmed)) {
+                                markers.add(trimmed);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        return Array.from(markers);
+    }
+
     function extractConversationId(inner: unknown, turns?: unknown[]): string {
         const idFromCandidates = extractCandidateValue(
             inner,
@@ -705,6 +731,7 @@ export {
     deepWalk,
     extractThoughts,
     extractCitations,
+    extractGroundingCitationMarkers,
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
@@ -729,6 +756,7 @@ export const GeminiParserExtractors: GeminiParserExtractorsModule = {
     deepWalk,
     extractThoughts,
     extractCitations,
+    extractGroundingCitationMarkers,
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,

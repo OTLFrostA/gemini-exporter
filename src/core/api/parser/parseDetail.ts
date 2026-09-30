@@ -47,6 +47,7 @@ import {
     deepWalk,
     extractThoughts,
     extractCitations,
+    extractGroundingCitationMarkers,
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
@@ -455,6 +456,7 @@ function parseCandidateResponse(
 
     const thoughts = extractThoughts(candidateBlock);
     const citations = extractCitations(candidateBlock);
+    const groundingCitationMarkers = extractGroundingCitationMarkers(cand || candidateBlock);
 
     if (responseText) {
         responseText = responseText.replace(/^rc_[a-z0-9_]{10,}\s*/i, "");
@@ -538,7 +540,8 @@ function parseCandidateResponse(
         attachments: attachments.length ? attachments : void 0,
         attachmentCount: attachments.length,
         messageCount: 1,
-        ...(structuredContent ? { structuredContent } : {})
+        ...(structuredContent ? { structuredContent } : {}),
+        ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {})
     };
 }
 
