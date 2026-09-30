@@ -80,7 +80,6 @@
                 },
                 {
                   "type": "inlineMath",
-                  "notation": "latex",
                   "source": "Attention(Q,K,V)"
                 },
                 {

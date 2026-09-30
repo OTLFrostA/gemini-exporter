@@ -117,7 +117,6 @@ function walkInlineBlocks(blocks: BlockNode[], visit: (b: BlockNode, path: strin
         const kids: Array<{ blocks: BlockNode[]; at: string }> = [];
         if (b.type === 'list') b.items?.forEach((it, i) => kids.push({ blocks: it.blocks ?? [], at: `${path}.items[${i}]` }));
         if (b.type === 'quote' || b.type === 'thought') kids.push({ blocks: b.blocks ?? [], at: path });
-        if (b.type === 'unknown' && b.fallbackBlocks) kids.push({ blocks: b.fallbackBlocks, at: `${path}.fallbackBlocks` });
         for (const k of kids) {
             k.blocks.forEach((child, i) => visitBlock(child, `${k.at}[${i}]`));
         }
@@ -279,7 +278,7 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
                     const full = `${base}.${path}.${host.at}${ipath}`;
                     if (n.type === 'link') checkUrl(n.href, c, full);
                     if (n.type === 'inlineMath' && !n.source) {
-                        c.add('warning', 'MATH_NO_SOURCE', 'inlineMath node without source; original notation must be preserved', full);
+                        c.add('warning', 'MATH_NO_SOURCE', 'inlineMath node without source; original LaTeX source must be preserved', full);
                     }
                     if (n.type === 'citationRef' && !citationIds.has(n.citationId)) {
                         c.add('error', 'CITATION_UNRESOLVED', `citationRef to unknown citation ${n.citationId}`, full);
@@ -287,19 +286,21 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
                     if (n.type === 'image' && !assetIds.has(n.assetId)) {
                         c.add('error', 'ASSET_UNRESOLVED', `inline image references unknown asset ${n.assetId}`, full);
                     }
-                    if (n.type === 'unknownInline' && !n.fallbackText && !n.rawRef) {
-                        c.add('error', 'UNKNOWN_INLINE_EMPTY', 'unknownInline has no fallbackText or rawRef; evidence would be lost', full);
-                    }
                 }, '');
             }
             if ((b.type === 'image' || b.type === 'file') && !assetIds.has(b.assetId)) {
                 c.add('error', 'ASSET_UNRESOLVED', `${b.type} block references unknown asset ${b.assetId}`, `${base}.${path}`);
             }
             if (b.type === 'math' && !b.source) {
-                c.add('warning', 'MATH_NO_SOURCE', 'math node without source; original notation must be preserved', `${base}.${path}`);
+                c.add('warning', 'MATH_NO_SOURCE', 'math node without source; original LaTeX source must be preserved', `${base}.${path}`);
             }
-            if (b.type === 'unknown' && !b.fallbackBlocks && !b.rawRef && b.payload === undefined) {
-                c.add('error', 'UNKNOWN_EMPTY', 'unknown block has no fallbackBlocks, rawRef or payload; content would disappear', `${base}.${path}`);
+            if (b.type === 'unknown') {
+                if (typeof b.sourceType !== 'string' || !b.sourceType.trim()) {
+                    c.add('error', 'UNKNOWN_BAD_SOURCE_TYPE', 'unknown block sourceType must be non-empty', `${base}.${path}`);
+                }
+                if (typeof b.text !== 'string' || !b.text.trim()) {
+                    c.add('error', 'UNKNOWN_EMPTY', 'unknown block text must be non-empty', `${base}.${path}`);
+                }
             }
         }, `${base}.blocks`);
         totalBlocks += count;

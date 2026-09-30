@@ -15,23 +15,7 @@
             "id": "a1:b0",
             "type": "unknown",
             "sourceType": "gemini.future_rich_object",
-            "fallbackBlocks": [
-              {
-                "id": "a1:b0:f0",
-                "type": "paragraph",
-                "children": [
-                  {
-                    "type": "text",
-                    "text": "Readable fallback preserved for unsupported future object."
-                  }
-                ]
-              }
-            ],
-            "rawRef": "raw/gemini/conv-unknown-001/node-0.json",
-            "payload": {
-              "version": 7,
-              "kind": "future-object"
-            }
+            "text": "Readable fallback preserved for unsupported future object."
           }
         ]
       }

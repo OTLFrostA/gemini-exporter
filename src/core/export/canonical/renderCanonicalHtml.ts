@@ -15,8 +15,6 @@ import type {
 } from './rendering.js';
 import {
     extractBlockText,
-    resolveUnknownBlockFallback,
-    unknownInlineFallbackText,
 } from './unknownFallback.js';
 import {
     GEM_HTML_CSS,
@@ -60,7 +58,7 @@ const CANONICAL_EXTRA_CSS = `
   color: var(--text-muted);
   margin-bottom: 6px;
 }
-.gem-unknown-payload {
+.gem-unknown-text {
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -227,8 +225,6 @@ function renderInline(node: InlineNode, ctx: RenderCtx): string {
             }
             return `<img class="gem-inline-img" src="${url}" alt="${safeName}" loading="lazy"${titleAttr}>`;
         }
-        case 'unknownInline':
-            return escapeHtml(unknownInlineFallbackText(node));
         default:
             return '';
     }
@@ -384,19 +380,7 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
             return '<hr class="gem-hr">';
         case 'unknown': {
             diag(ctx, 'info', 'HTML_UNKNOWN_BLOCK', `unknown block rendered visibly (sourceType=${block.sourceType})`, path);
-            const resolved = resolveUnknownBlockFallback(block);
-            let body: string;
-            if (resolved.kind === 'blocks') {
-                body = (block.fallbackBlocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/fallback:${i}`)).join('');
-            } else if (resolved.kind === 'payload') {
-                if (resolved.truncated) {
-                    diag(ctx, 'warning', 'HTML_UNKNOWN_PAYLOAD_TRUNCATED', `unknown block payload truncated (sourceType=${block.sourceType})`, path);
-                }
-                body = `<pre class="gem-unknown-payload">${escapeHtml(resolved.text)}</pre>`;
-            } else {
-                body = `<div>${escapeHtml(resolved.text)}</div>`;
-            }
-            return `<section class="gem-unknown-block" data-source-type="${escapeHtml(block.sourceType)}"><div class="gem-unknown-label">Unsupported · ${escapeHtml(block.sourceType)}</div>${body}</section>`;
+            return `<section class="gem-unknown-block" data-source-type="${escapeHtml(block.sourceType)}"><div class="gem-unknown-label">Unsupported · ${escapeHtml(block.sourceType)}</div><pre class="gem-unknown-text">${escapeHtml(block.text)}</pre></section>`;
         }
         default:
             return '';

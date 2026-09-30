@@ -40,11 +40,11 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
     const result = toTypstPayload(input.bundle, {
         assetPath: (asset) => input.pathMap.get(asset.id),
         locale: input.locale,
-        convertMath: (source, notation, display) => {
+        convertMath: (source, display) => {
             if (!mitexAvailable) {
                 return undefined;
             }
-            const converted = convertMathWithMitex(source, notation, display);
+            const converted = convertMathWithMitex(source, 'latex', display);
             if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);
             return converted.typst;
         },

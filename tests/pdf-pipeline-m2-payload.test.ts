@@ -21,7 +21,7 @@ function para(text: string): any {
 }
 
 function mathBlock(source: string): any {
-    return { type: 'math', source, notation: 'latex' };
+    return { type: 'math', source };
 }
 
 function message(id: string, role: string, blocks: any[]): any {

@@ -7,7 +7,7 @@ import type {
     CanonicalConversationBundle,
     MessageNode,
 } from '../canonical/conversation.js';
-import { extractBlockText, extractInlineText, resolveUnknownBlockFallback } from '../canonical/unknownFallback.js';
+import { extractBlockText, extractInlineText } from '../canonical/unknownFallback.js';
 import { getRendererStrings, type RendererStrings } from '../canonical/rendererStrings.js';
 import { citationDisplayLabel } from '../canonical/citations.js';
 import type { InlineNode } from '../canonical/inline.js';
@@ -49,7 +49,7 @@ export type TypstBlockNode =
     | { type: 'quote'; blocks: TypstBlockNode[] }
     | { type: 'note'; label?: string; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
     | { type: 'thematicBreak' }
-    | { type: 'unknown'; sourceType?: string; label: string; blocks?: TypstBlockNode[]; fallback?: string };
+    | { type: 'unknown'; sourceType: string; label: string; fallback: string };
 
 export interface TypstRenderMessage {
     id: string;
@@ -77,7 +77,7 @@ export interface TypstAdapterDiagnostic {
 
 export interface TypstPayloadOptions {
     assetPath(asset: Asset): string | undefined;
-    convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
+    convertMath?: (source: string, display: boolean) => string | undefined;
     locale?: 'zh' | 'en';
 }
 
@@ -142,7 +142,7 @@ function renderInline(
             return { type: 'image', asset: assetPath, ...(node.alt ? { alt: node.alt } : {}) };
         }
         case 'inlineMath': {
-            const typst = options.convertMath?.(node.source, node.notation, false);
+            const typst = options.convertMath?.(node.source, false);
             return typst
                 ? { type: 'inlineMath', latex: node.source, typst }
                 : { type: 'inlineMath', latex: node.source };
@@ -155,7 +155,6 @@ function renderInline(
                 : { type: 'text', text: label };
         }
         case 'lineBreak': return { type: 'lineBreak' };
-        case 'unknownInline': return { type: 'text', text: node.fallbackText ?? `[Unsupported inline: ${node.sourceType}]` };
     }
 }
 
@@ -214,7 +213,7 @@ function renderBlock(
             ...(block.meta !== undefined ? { meta: block.meta } : {}),
         };
         case 'math': {
-            const typst = options.convertMath?.(block.source, block.notation, true);
+            const typst = options.convertMath?.(block.source, true);
             const fallbackLabel = options.strings.mathFallback;
             return typst
                 ? { type: 'math', latex: block.source, typst, fallbackLabel }
@@ -271,19 +270,7 @@ function renderBlock(
         }
         case 'thematicBreak': return { type: 'thematicBreak' };
         case 'unknown': {
-            if (block.fallbackBlocks?.length) {
-                const kids: TypstBlockNode[] = [];
-                block.fallbackBlocks.forEach((child, index) => {
-                    const rendered = sub(child, index, 'unknown');
-                    if (rendered) kids.push(rendered);
-                });
-                return { type: 'unknown', sourceType: block.sourceType, label: unknownLabel(block.sourceType, options.strings), blocks: kids };
-            }
-            const resolved = resolveUnknownBlockFallback(block);
-            if (resolved.truncated) {
-                diagnostics.push({ severity: 'warning', code: 'TYPST_UNKNOWN_PAYLOAD_TRUNCATED', message: `Unknown block payload truncated (sourceType=${block.sourceType}).`, path });
-            }
-            return { type: 'unknown', sourceType: block.sourceType, label: unknownLabel(block.sourceType, options.strings), fallback: resolved.text };
+            return { type: 'unknown', sourceType: block.sourceType, label: unknownLabel(block.sourceType, options.strings), fallback: block.text };
         }
     }
 }

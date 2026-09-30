@@ -1,23 +1,9 @@
-import type { BlockNode, UnknownBlock } from './blocks.js';
-import type { Diagnostic } from './diagnostics.js';
-import type { InlineNode, UnknownInline } from './inline.js';
+import type { BlockNode } from './blocks.js';
+import type { InlineNode } from './inline.js';
 import type { JsonValue } from './json.js';
-
-export interface UnknownRenderFallback {
-    text: string;
-    diagnostic: Diagnostic;
-}
 
 export interface TextExtractOptions {
     citationLabel?: (citationId: string) => string | undefined;
-}
-
-export type UnknownFallbackKind = 'blocks' | 'payload' | 'rawRef' | 'generic';
-
-export interface UnknownBlockFallback {
-    kind: UnknownFallbackKind;
-    text: string;
-    truncated: boolean;
 }
 
 const UNKNOWN_PAYLOAD_MAX_DEPTH = 4;
@@ -48,35 +34,6 @@ export function formatUnknownPayload(payload: JsonValue): { text: string; trunca
     return { text, truncated: false };
 }
 
-export function resolveUnknownBlockFallback(block: UnknownBlock): UnknownBlockFallback {
-    if (block.fallbackBlocks?.length) {
-        return { kind: 'blocks', text: '', truncated: false };
-    }
-    if (block.payload !== undefined) {
-        const { text, truncated } = formatUnknownPayload(block.payload);
-        return { kind: 'payload', text, truncated };
-    }
-    if (block.rawRef) {
-        return { kind: 'rawRef', text: `[Unknown content: ${block.sourceType}] (archived evidence: ${block.rawRef})`, truncated: false };
-    }
-    return { kind: 'generic', text: `[Unknown content: ${block.sourceType}]`, truncated: false };
-}
-
-export function unknownBlockFallbackText(block: UnknownBlock, options?: TextExtractOptions): string {
-    const fromBlocks = block.fallbackBlocks
-        ?.map((b) => extractBlockText(b, options))
-        .filter((t) => t.trim())
-        .join('\n')
-        .trim();
-    if (fromBlocks) return fromBlocks;
-    return resolveUnknownBlockFallback(block).text;
-}
-
-export function unknownInlineFallbackText(inline: UnknownInline): string {
-    if (inline.fallbackText && inline.fallbackText.trim()) return inline.fallbackText;
-    return `[Unknown inline content: ${inline.sourceType}]`;
-}
-
 export function extractBlockText(block: BlockNode, options?: TextExtractOptions): string {
     try {
         switch (block.type) {
@@ -103,7 +60,7 @@ export function extractBlockText(block: BlockNode, options?: TextExtractOptions)
             case 'thematicBreak':
                 return '';
             case 'unknown':
-                return unknownBlockFallbackText(block, options);
+                return block.text;
             default:
                 return '';
         }
@@ -133,8 +90,6 @@ export function extractInlineText(inline: InlineNode, options?: TextExtractOptio
                 return inline.label ?? options?.citationLabel?.(inline.citationId) ?? '';
             case 'lineBreak':
                 return '\n';
-            case 'unknownInline':
-                return unknownInlineFallbackText(inline);
             default:
                 return '';
         }

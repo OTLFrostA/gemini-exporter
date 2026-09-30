@@ -243,7 +243,7 @@ function deepCompareAst(path: string, a: any, b: any): DiffDetail | null {
             if (key === 'href' || aType === 'link') {
                 return { ...subDiff, kind: 'LINK_CORRUPTED' };
             }
-            if (key === 'source' || key === 'notation' || aType === 'math' || aType === 'inlineMath') {
+            if (key === 'source' || aType === 'math' || aType === 'inlineMath') {
                 return { ...subDiff, kind: 'MATH_CORRUPTED' };
             }
             if (aType === 'table' || key === 'columns' || key === 'headerRows' || key === 'rows') {

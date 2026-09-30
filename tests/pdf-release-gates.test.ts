@@ -73,7 +73,7 @@ const DISPLAY_LATEX_UNCONVERTIBLE = '\\operatorname{erf}(x) = \\frac{2}{\\sqrt{\
  * 最小受控转换器 (模拟 P0 实验 mathshim): 只认 frac/sqrt 子集,
  * 其余返回 undefined -> adapter 走原文回退。
  */
-function fakeConvertMath(source: string, _notation: string, _display: boolean): string | undefined {
+function fakeConvertMath(source: string, _display: boolean): string | undefined {
     if (source.includes('\\operatorname')) return undefined;
     if (source.includes('\\frac') || source.includes('\\sqrt')) return `TYPST(${source})`;
     if (/^[A-Za-z0-9 =^+_\-{}]+$/.test(source)) return `TYPST(${source})`;
@@ -111,14 +111,14 @@ function gatesBundle() {
                 type: 'paragraph',
                 children: [
                     { type: 'text', text: zhHead },
-                    { type: 'inlineMath', source: INLINE_LATEX, notation: 'latex' },
+                    { type: 'inlineMath', source: INLINE_LATEX },
                     { type: 'text', text: zhTail },
                 ],
             },
         ]),
         msg('m2', 'assistant', [
-            { type: 'math', source: DISPLAY_LATEX_OK, notation: 'latex' },
-            { type: 'math', source: DISPLAY_LATEX_UNCONVERTIBLE, notation: 'latex' },
+            { type: 'math', source: DISPLAY_LATEX_OK },
+            { type: 'math', source: DISPLAY_LATEX_UNCONVERTIBLE },
             { type: 'paragraph', children: [{ type: 'text', text: '以上是两个公式, 其中第二个故意超出转换器能力。' }] },
         ]),
     ]);

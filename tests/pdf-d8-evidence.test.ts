@@ -30,7 +30,8 @@ const assert = require('node:assert');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
-const { convertMath } = require('../src/core/export/typst/mathConverter.js');
+const { convertMath: convertLatex } = require('../src/core/export/typst/mathConverter.js');
+const convertMath = (source: string, display: boolean) => convertLatex(source, 'latex', display);
 const { withNetworkGate, assertZeroExternalRequests } = require('./helpers/compileNetworkGate.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
@@ -51,7 +52,7 @@ function para(text: string) {
 }
 
 function mathBlock(source: string) {
-    return { id: bid(), type: 'math', source, notation: 'latex' };
+    return { id: bid(), type: 'math', source };
 }
 
 function msg(id: string, role: 'user' | 'assistant', blocks: unknown[], extra: Record<string, unknown> = {}) {
@@ -100,7 +101,7 @@ function makeContext(overrides: { assets?: Record<string, Uint8Array>; bundle?: 
 /** Build the converged compiler contract payload: prebuilt document + asset paths. */
 function compilerPayload(
     bundle: unknown,
-    convertMathFn?: (source: string, notation: string, display: boolean) => string | undefined,
+    convertMathFn?: (source: string, display: boolean) => string | undefined,
 ) {
     const assetPath = (a: any) => `/assets/${a.id}`;
     const { payload: document } = toTypstPayload(bundle as any, {
@@ -128,7 +129,7 @@ async function compileOnce(
     opts: {
         fontPaths?: string[];
         assets?: Record<string, Uint8Array>;
-        convertMathFn?: (source: string, notation: string, display: boolean) => string | undefined;
+        convertMathFn?: (source: string, display: boolean) => string | undefined;
     } = {},
 ): Promise<CompiledEvidence & { host: import('./helpers/realWasmSandbox.js').RealWasmSandboxHost }> {
     const host = new RealWasmSandboxHost(repoRoot());

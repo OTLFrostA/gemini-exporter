@@ -224,7 +224,7 @@ test('contract: unknown block fallback is visible on both renderers', () => {
     const s = 'SENTINEL_UNKNOWN_F1B2';
     const blocks = [{
         type: 'unknown', sourceType: 'SENTINEL_UNKNOWN_SRC',
-        fallbackBlocks: [para(s)],
+        text: s,
     }];
     const { html, htmlDiags, payload, typstDiags } = renderBoth(blocks);
     assert.ok(html.includes(s), 'html shows unknown fallback text');

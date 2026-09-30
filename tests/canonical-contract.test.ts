@@ -17,7 +17,7 @@ const {
     validateBundle,
     resolveTitle,
     titleAuthorityRank,
-    unknownBlockFallbackText,
+    extractBlockText,
     classifyAssetAvailability,
     resolveAssetBytes,
     CANONICAL_TITLE_TIER_RANK,
@@ -161,25 +161,16 @@ test('unknown source titles resolve to nothing (unknown stays unknown)', () => {
 // -------------------------------------------------------------- unknown
 test('unknown block always yields readable fallback, never blank', () => {
     const block = unknownFx().conversation.messages[0].blocks[0];
-    const text = unknownBlockFallbackText(block);
+    const text = extractBlockText(block);
     assert.ok(text && text.trim().length > 0, 'fallback text must be non-empty');
 });
 
-test('bare unknown block (rawRef only) still produces visible fallback', () => {
-    const block = { id: 'x1', type: 'unknown', sourceType: 'gemini.mystery', rawRef: 'raw/x.json' };
-    const text = unknownBlockFallbackText(block as any);
-    assert.ok(text.includes('gemini.mystery'), 'sourceType must be visible');
-    assert.ok(text.includes('raw/x.json'), 'rawRef must be visible');
-});
-
-test('unknown round-trips through JSON with evidence intact', () => {
-    const bundle = unknownFx();
-    const roundTripped = JSON.parse(JSON.stringify(bundle));
-    const diags = validateBundle(roundTripped);
-    assert.deepStrictEqual(errorsOf(diags), []);
-    const block = roundTripped.conversation.messages[0].blocks[0];
-    assert.strictEqual(block.rawRef, 'raw/gemini/conv-unknown-001/node-0.json');
-    assert.ok(Array.isArray(block.fallbackBlocks) && block.fallbackBlocks.length > 0);
+test('unknown blocks require non-empty sourceType and visible text', () => {
+    for (const fields of [{ sourceType: '', text: 'visible' }, { sourceType: 'widget', text: '' }]) {
+        const bundle = unknownFx();
+        Object.assign(bundle.conversation.messages[0].blocks[0], fields);
+        assert.ok(errorsOf(validateBundle(bundle)).length > 0);
+    }
 });
 
 // ------------------------------------------------------- message order round-trip

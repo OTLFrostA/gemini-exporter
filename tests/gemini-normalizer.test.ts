@@ -4,7 +4,7 @@
  *
  * Covers: markdown body structure + block order, thoughts -> ThoughtBlock,
  * citations -> Citation entities + message.citationIds + [n] markers,
- * attachment/image/document mapping + dedupe, unknown/unknownInline
+ * attachment/image/document mapping + dedupe, unknown content
  * fallbacks, title authority tiers, attachment availability diagnostics,
  * turns-shape fallback, raw evidence preservation, and the
  * validateBundle self-checks.
@@ -20,7 +20,7 @@ const {
     normalizeGeminiConversation,
     GeminiNormalizer,
     validateBundle,
-    unknownBlockFallbackText,
+    extractBlockText,
     extractInlineText,
 } = canonical;
 
@@ -76,7 +76,7 @@ test('markdown body keeps block order and structure', async () => {
     assert.strictEqual(user.blocks[5].type, 'thematicBreak');
 
     // Inline markdown image is a first-class ImageInline: it references an
-    // asset by id and is never demoted to unknownInline.
+    // asset by id and is never demoted to unsupported text.
     const imgPara = user.blocks[6];
     assert.strictEqual(imgPara.type, 'paragraph');
     const img = imgPara.children.find((c: any) => c.type === 'image');
@@ -198,9 +198,24 @@ test('unknown role and non-string content are preserved, never dropped', async (
     const ub = weird.blocks[0];
     assert.strictEqual(ub.type, 'unknown');
     assert.strictEqual(ub.sourceType, 'message-content');
-    assert.deepStrictEqual(ub.payload, { not: 'a string' });
-    assert.ok(unknownBlockFallbackText(ub).length > 0, 'unknown block has a readable fallback');
+    assert.strictEqual(ub.text, '{"not": "a string"}');
+    assert.deepStrictEqual(Object.keys(ub).sort(), ['id', 'sourceType', 'text', 'type']);
+    assert.ok(extractBlockText(ub).length > 0, 'unknown block has a readable fallback');
     assert.ok(diagnostics.some((d: any) => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
+});
+
+test('non-string content becomes bounded, deterministic visible text at normalization', async () => {
+    const { bundle, diagnostics } = await normalizeGeminiConversation({ id: 'bounded', messages: [
+        { id: 'm1', role: 'assistant', content: { z: 1, a: 2 } },
+        { id: 'm2', role: 'assistant', content: { a: { b: { c: { d: { e: 1 } } } } } },
+        { id: 'm3', role: 'assistant', content: { s: 'x'.repeat(5000) } },
+    ] });
+    const blocks = bundle.conversation.messages.map((m: any) => m.blocks[0]);
+    assert.strictEqual(blocks[0].text, '{"a": 2, "z": 1}');
+    assert.ok(blocks[1].text.includes('{…}'));
+    assert.ok(blocks[2].text.endsWith('…'));
+    assert.ok(blocks[2].text.length <= 2001);
+    assert.ok(diagnostics.find((d: any) => d.id === 'unknown-content:m3').details.truncated);
 });
 
 test('title authority: rpc candidate wins over takeout/sniff', async () => {

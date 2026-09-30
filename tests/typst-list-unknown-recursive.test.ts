@@ -4,7 +4,8 @@ const assert = require('node:assert');
 
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { convertMath } = require('../src/core/export/typst/mathConverter.js');
+const { convertMath: convertLatex } = require('../src/core/export/typst/mathConverter.js');
+const convertMath = (source: string, display: boolean) => convertLatex(source, 'latex', display);
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,
@@ -60,7 +61,7 @@ test('list item keeps block image, nested list, code, math and multi-paragraph',
             { blocks: [{ type: 'image', assetId: 'list-img', alt: 'dot' }] },
             { blocks: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'nested' }] }] }] }] },
             { blocks: [{ type: 'code', language: 'python', code: 'print(1)' }] },
-            { blocks: [{ type: 'math', source: 'x^2', notation: 'latex' }] },
+            { blocks: [{ type: 'math', source: 'x^2' }] },
             { blocks: [
                 { type: 'paragraph', children: [{ type: 'text', text: 'first' }] },
                 { type: 'paragraph', children: [{ type: 'text', text: 'second' }] },
@@ -96,34 +97,14 @@ test('ordered list keeps start; absent start stays absent', async () => {
     assert.strictEqual(blocks[2].ordered, false);
 });
 
-test('unknown with fallbackBlocks renders recursive blocks including image', async () => {
-    const b = listBundle([{
-        type: 'unknown', sourceType: 'weird-widget',
-        fallbackBlocks: [
-            { type: 'paragraph', children: [{ type: 'text', text: 'kept-para' }] },
-            { type: 'image', assetId: 'list-img', alt: 'dot' },
-            { type: 'code', language: 'text', code: 'kept-code' },
-            { type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'kept-list' }] }] }] },
-        ],
-    }], [imgAsset]);
+test('unknown text remains visible without nested render blocks', async () => {
+    const b = listBundle([{ type: 'unknown', sourceType: 'weird-widget', text: 'kept-para\ndot\nkept-code\nkept-list' }]);
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'unknown');
     assert.strictEqual(node.sourceType, 'weird-widget');
-    assert.ok(!('fallback' in node));
-    assert.deepStrictEqual(node.blocks.map((x: any) => x.type), ['paragraph', 'image', 'code', 'list']);
-    assert.strictEqual(node.blocks[1].asset, 'assets/list-img.png');
-    assert.strictEqual(node.blocks[3].items[0].blocks[0].children[0].text, 'kept-list');
-});
-
-test('unknown without fallbackBlocks keeps the fallback string', async () => {
-    const b = listBundle([{ type: 'unknown', sourceType: 'bare-widget' }]);
-    const { payload } = toTypstPayload(b, opts);
-    const node: any = payload.messages[0].blocks[0];
-    assert.strictEqual(node.type, 'unknown');
-    assert.strictEqual(node.sourceType, 'bare-widget');
+    assert.strictEqual(node.fallback, 'kept-para\ndot\nkept-code\nkept-list');
     assert.ok(!('blocks' in node));
-    assert.strictEqual(typeof node.fallback, 'string');
 });
 
 async function compileOnce(bundle: any, assets: Record<string, Uint8Array>) {
@@ -172,16 +153,13 @@ test('real WASM: recursive list and unknown templates compile with all content s
                 { blocks: [
                     { type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'nested item text' }] }] }] },
                     { type: 'code', language: 'python', code: 'print("list code")' },
-                    { type: 'math', source: 'E=mc^2', notation: 'latex' },
+                    { type: 'math', source: 'E=mc^2' },
                 ] },
             ],
         },
         {
             type: 'unknown', sourceType: 'weird-widget',
-            fallbackBlocks: [
-                { type: 'paragraph', children: [{ type: 'text', text: 'unknown kept paragraph' }] },
-                { type: 'code', language: 'text', code: 'unknown kept code' },
-            ],
+            text: 'unknown kept paragraph\nunknown kept code',
         },
         {
             type: 'quote',

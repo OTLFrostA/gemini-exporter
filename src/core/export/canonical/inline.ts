@@ -1,6 +1,3 @@
-
-export type MathNotation = 'latex' | 'mathml' | 'asciimath' | 'plain' | 'unknown';
-
 export type InlineNode =
     | TextInline
     | StrongInline
@@ -11,8 +8,7 @@ export type InlineNode =
     | ImageInline
     | InlineMath
     | CitationRefInline
-    | LineBreakInline
-    | UnknownInline;
+    | LineBreakInline;
 
 export interface TextInline {
     type: 'text';
@@ -56,7 +52,6 @@ export interface ImageInline {
 export interface InlineMath {
     type: 'inlineMath';
     source: string;
-    notation: MathNotation;
 }
 
 export interface CitationRefInline {
@@ -68,11 +63,4 @@ export interface CitationRefInline {
 export interface LineBreakInline {
     type: 'lineBreak';
     kind: 'soft' | 'hard';
-}
-
-export interface UnknownInline {
-    type: 'unknownInline';
-    sourceType: string;
-    fallbackText?: string;
-    rawRef?: string;
 }
