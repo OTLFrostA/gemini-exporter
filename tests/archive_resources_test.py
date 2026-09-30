@@ -57,6 +57,18 @@ class ArchiveResourcesTest(unittest.TestCase):
         oracle.assert_multimedia_assets('[foo](files/foo.md)', 'cb8bd7.md')
         self.assertEqual(oracle.errors, [])
 
+    def test_math_function_application_is_not_an_attachment(self):
+        # Real Tier2 STA response contains \left[...\right](\mathbf{t}) inside $$.
+        for formula in (r'$$\left[W(k)\right](\mathbf{t})$$',
+                        r'$\left[W(k)\right](\mathbf{t})$',
+                        r'\[\left[W(k)\right](\mathbf{t})\]',
+                        r'\(\left[W(k)\right](\mathbf{t})\)'):
+            with self.subTest(formula=formula):
+                self.assertEqual(validate_archive_resources(self.root, 'chat.md', formula), [])
+                # Context exclusion must not hide a real broken attachment outside math.
+                self.assertEqual(len(validate_archive_resources(
+                    self.root, 'chat.md', formula + '\n[attachment](assets/files/foo.md)')), 1)
+
     def test_symlink_escape(self):
         (self.root / 'escape').symlink_to(self.root.parent)
         with self.assertRaises(ValueError):
