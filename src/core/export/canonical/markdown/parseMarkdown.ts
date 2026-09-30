@@ -12,6 +12,7 @@ import { math } from 'micromark-extension-math';
 import { mathFromMarkdown } from 'mdast-util-math';
 import type { BlockNode } from '../blocks.js';
 import type { InlineNode } from '../inline.js';
+import type { Root } from 'mdast';
 import { preprocessGeminiMarkdown } from '../compat/rules.js';
 import {
     type MarkdownParseContext,
@@ -24,6 +25,14 @@ export { type MarkdownParseContext } from './mdastToCanonical.js';
 
 const EXTENSIONS = [gfm(), math()];
 const MDAST_EXTENSIONS = [gfmFromMarkdown(), mathFromMarkdown()];
+
+/** Parse Markdown syntax only; provider preprocessing belongs to the caller. */
+export function parseMarkdownAst(source: string): Root {
+    return fromMarkdown(source, {
+        extensions: EXTENSIONS,
+        mdastExtensions: MDAST_EXTENSIONS,
+    });
+}
 
 /**
  * Parse a markdown string into Canonical AST BlockNode[].
@@ -38,10 +47,7 @@ export function parseMarkdownToBlocks(
     }
 
     const preprocessed = preprocessGeminiMarkdown(markdown);
-    const tree = fromMarkdown(preprocessed, {
-        extensions: EXTENSIONS,
-        mdastExtensions: MDAST_EXTENSIONS,
-    });
+    const tree = parseMarkdownAst(preprocessed);
 
     const definitions = new Map<string, { url: string; title?: string }>();
     collectDefinitions(tree, definitions);
@@ -65,10 +71,7 @@ export function parseMarkdownToInlines(
         return [];
     }
 
-    const tree = fromMarkdown(text, {
-        extensions: EXTENSIONS,
-        mdastExtensions: MDAST_EXTENSIONS,
-    });
+    const tree = parseMarkdownAst(text);
 
     const definitions = new Map<string, { url: string; title?: string }>();
     collectDefinitions(tree, definitions);

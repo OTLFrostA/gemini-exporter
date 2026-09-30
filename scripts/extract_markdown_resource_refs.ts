@@ -1,12 +1,7 @@
 /** Syntax only: archive URL/path semantics remain in the Python resolver. */
 import { readFileSync } from 'node:fs';
 import type { Root, RootContent } from 'mdast';
-import { fromMarkdown } from 'mdast-util-from-markdown';
-import { gfm } from 'micromark-extension-gfm';
-import { gfmFromMarkdown } from 'mdast-util-gfm';
-import { math } from 'micromark-extension-math';
-import { mathFromMarkdown } from 'mdast-util-math';
-import { preprocessGeminiMarkdown } from '../src/core/export/canonical/compat/rules.js';
+import { parseMarkdownAst } from '../src/core/export/canonical/markdown/parseMarkdown.js';
 import { collectDefinitions } from '../src/core/export/canonical/markdown/mdastToCanonical.js';
 
 export interface MarkdownResourceReference {
@@ -14,16 +9,8 @@ export interface MarkdownResourceReference {
     reference: string;
 }
 
-/** Identical production stack/options; no oracle-specific syntax policy. */
-export function parseExportedMarkdown(markdown: string): Root {
-    return fromMarkdown(preprocessGeminiMarkdown(markdown), {
-        extensions: [gfm(), math()],
-        mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
-    });
-}
-
 export function extractMarkdownResourceReferences(markdown: string): MarkdownResourceReference[] {
-    const tree = parseExportedMarkdown(markdown);
+    const tree = parseMarkdownAst(markdown);
     const definitions = new Map<string, { url: string; title?: string }>();
     collectDefinitions(tree, definitions);
     const references: MarkdownResourceReference[] = [];
