@@ -183,17 +183,17 @@ test('P0-6: takeout image attach must tolerate model messages without content', 
 });
 
 // ---------------------------------------------------------------- P0-7
-test('P0-7: toMarkdown must not throw on invalid date values', () => {
+test('P0-7: Canonical Markdown must not throw on invalid date values', async () => {
     let threw: any = null;
     let md = '';
     try {
-        md = ChatFormatter.toMarkdown(
+        md = (await ChatFormatter.formatMarkdownCanonical(
             { id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] }, {}
-        );
+        )).content;
     } catch (e) {
         threw = e;
     }
     // 带 bug 时: RangeError: Invalid time value（new Date('not-a-date').toISOString()）
-    assert.strictEqual(threw, null, `toMarkdown threw on invalid date: ${threw && threw.message}`);
-    assert.ok(md.includes('c_p0_7'), 'output should still contain the conversation id');
+    assert.strictEqual(threw, null, `Canonical Markdown threw on invalid date: ${threw && threw.message}`);
+    assert.ok(md.includes('id: "c_p0_7"'), 'output should still contain the conversation id');
 });

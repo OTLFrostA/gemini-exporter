@@ -205,7 +205,7 @@ test('P2: formatContent 未知格式显式抛错（不静默回落 markdown）',
     assert.throws(() => ChatFormatter.formatContent(chat, 'pdf'), /unsupported format: pdf/);
     assert.throws(() => ChatFormatter.formatContent(chat, 'typo-format'), /unsupported format/);
     // 合法格式不受影响
-    assert.strictEqual(ChatFormatter.formatContent(chat, 'markdown').ext, 'md');
+    assert.throws(() => ChatFormatter.formatContent(chat, 'markdown'), /unsupported format: markdown/);
     assert.strictEqual(ChatFormatter.formatContent(chat, 'json').ext, 'json');
     assert.strictEqual(ChatFormatter.formatContent(chat, 'json_openai').ext, 'json');
     assert.strictEqual(ChatFormatter.formatContent(chat, 'json_raw').ext, 'json');
