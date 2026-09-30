@@ -43,7 +43,6 @@ test('getRendererStrings returns zh and en copies', () => {
 test('typst zh locale localizes chrome copy', () => {
     const blocks = [
         { id: 't1', type: 'thought', kind: 'summary', blocks: [] },
-        { id: 'g1', type: 'citationGroup', citationIds: [] },
         { id: 'u1', type: 'unknown', sourceType: 'gemini.mystery' },
         { id: 'm1', type: 'math', source: 'x^2', notation: 'latex' },
     ];
@@ -52,8 +51,6 @@ test('typst zh locale localizes chrome copy', () => {
     const nodes = payload.messages[0].blocks;
     const thought = nodes.find((n: any) => n.type === 'note' && n.label === '思考摘要');
     assert.ok(thought, 'thought label localized');
-    const sources = nodes.find((n: any) => n.type === 'note' && n.children?.[0]?.text === '来源');
-    assert.ok(sources, 'sources localized');
     const unknown = nodes.find((n: any) => n.type === 'unknown');
     assert.ok(unknown.label.startsWith('不支持的内容'));
     const math = nodes.find((n: any) => n.type === 'math');

@@ -40,6 +40,9 @@
         "id": "a1",
         "parentId": "u1",
         "role": "assistant",
+        "citationIds": [
+          "cite-1"
+        ],
         "author": {
           "model": "Gemini 2.5 Pro",
           "rawRole": "model"
@@ -269,19 +272,6 @@
             "type": "file",
             "assetId": "asset-data",
             "label": "telemetry_data.json"
-          },
-          {
-            "id": "a1:b8",
-            "type": "citationGroup",
-            "citationIds": [
-              "cite-1"
-            ],
-            "title": [
-              {
-                "type": "text",
-                "text": "Sources"
-              }
-            ]
           },
           {
             "id": "a1:b9",

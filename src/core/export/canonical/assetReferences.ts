@@ -39,7 +39,6 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
                 }
                 case 'image': if (block.caption) walkInline(block.caption); break;
                 case 'file': if (block.description) walkInline(block.description); break;
-                case 'citationGroup': if (block.title) walkInline(block.title); break;
                 case 'unknown':
                     if (block.fallbackBlocks) walkBlocks(block.fallbackBlocks);
                     break;

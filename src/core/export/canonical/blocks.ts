@@ -12,7 +12,6 @@ export type BlockNode =
     | TableBlock
     | ImageBlock
     | FileBlock
-    | CitationGroupBlock
     | ThoughtBlock
     | ThematicBreakBlock
     | UnknownBlock;
@@ -100,12 +99,6 @@ export interface FileBlock extends BlockBase {
     assetId: string;
     label?: string;
     description?: InlineNode[];
-}
-
-export interface CitationGroupBlock extends BlockBase {
-    type: 'citationGroup';
-    citationIds: string[];
-    title?: InlineNode[];
 }
 
 export interface ThoughtBlock extends BlockBase {

@@ -6,17 +6,18 @@ const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
 
 function bundle(blocks: any[], extra: any = {}) {
+    const { messageExtra, ...rest } = extra;
     return {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
             title: { value: 'Matrix', source: 'derived', candidates: [] },
             createdAt: '2026-09-26T10:00:00Z',
-            messages: [{ id: 'm1', role: 'assistant', blocks }],
+            messages: [{ id: 'm1', role: 'assistant', blocks, ...(messageExtra ?? {}) }],
         },
         assets: [],
         citations: [],
-        ...extra,
+        ...rest,
     };
 }
 
@@ -148,13 +149,16 @@ test('matrix: file description reaches Typst transport', () => {
     assert.strictEqual(node.description, 'desc');
 });
 
-test('matrix: citation group title reaches Typst transport', () => {
-    const blocks = [{ type: 'citationGroup', citationIds: ['c1'], title: [txt('My sources')] }];
-    const extra = { citations: [{ id: 'c1', url: 'https://example.com' }] };
-    assert.ok(htmlOf(blocks, extra).includes('My sources'), 'html shows citation title');
-    const { node } = typstOf(blocks, extra);
+test('matrix: message citations reach HTML and Typst transport', () => {
+    const extra = {
+        citations: [{ id: 'c1', url: 'https://example.com', title: 'Example Source' }],
+        messageExtra: { citationIds: ['c1'] },
+    };
+    assert.ok(htmlOf([], extra).includes('Example Source'), 'html shows citation');
+    const { payload } = toTypstPayload(bundle([], extra), opts);
+    const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
-    assert.strictEqual(node.label, 'My sources');
+    assert.ok(node.children[0].text.includes('Example Source'), 'typst note shows citation');
 });
 
 test('matrix: thematic break is a native divider in HTML and Typst', () => {
@@ -193,13 +197,15 @@ test('matrix: citation label priority is identical in HTML and Typst', () => {
     assert.strictEqual(typstRefLabel([citeRef('c1', 'See here')], extra), 'See here', 'typst explicit inline label wins');
 });
 
-test('matrix: citation group chips follow the unified label rule', () => {
-    const blocks = [{ type: 'citationGroup', citationIds: ['c1', 'c2'] }];
-    const extra = { citations: [{ id: 'c1', publisher: 'PubOne' }, { id: 'c2' }] };
-    const html = htmlOf(blocks, extra);
+test('matrix: message citation chips follow the unified label rule', () => {
+    const extra = {
+        citations: [{ id: 'c1', publisher: 'PubOne' }, { id: 'c2' }],
+        messageExtra: { citationIds: ['c1', 'c2'] },
+    };
+    const html = htmlOf([], extra);
     assert.ok(html.includes('PubOne'), 'html chip uses publisher');
     assert.ok(html.includes('[2]'), 'html chip falls back to [n]');
-    const { payload } = toTypstPayload(bundle(blocks, extra), { assetPath: (a: any) => `assets/${a.id}.png` });
+    const { payload } = toTypstPayload(bundle([], extra), { assetPath: (a: any) => `assets/${a.id}.png` });
     const text = JSON.stringify(payload.messages[0].blocks[0]);
     assert.ok(text.includes('PubOne'), 'typst group uses publisher');
     assert.ok(text.includes('[2]'), 'typst group falls back to [n]');

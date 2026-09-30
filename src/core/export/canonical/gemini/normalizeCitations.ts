@@ -91,9 +91,6 @@ export function linkCitationMarkers(blocks: BlockNode[], citations: Citation[]):
                 for (const r of rows) for (const c of r.cells) c.children = walkInline(c.children);
                 break;
             }
-            case 'citationGroup':
-                if (b.title) b.title = walkInline(b.title);
-                break;
             default:
                 break;
         }

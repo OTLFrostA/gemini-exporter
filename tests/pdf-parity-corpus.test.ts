@@ -383,7 +383,6 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 return;
             case 'quote':
             case 'note': {
-                if (b.label && canonType === 'citationGroup') emit(isAsset, b.label);
                 if (b.blocks) {
                     for (const sub of b.blocks) emitBlock(sub, canonType);
                 } else {
@@ -523,14 +522,9 @@ test('parity corpus: math-cjk citation titles keep fidelity on both sides', () =
 
     const citeTitle = '微积分基本定理';
     assert.ok(htmlParts.body.some((l) => l.includes(citeTitle)), 'HTML shows the citation title');
-    assert.ok(htmlParts.body.includes('参考来源'), 'HTML shows the citation group title');
     assert.ok(
         pdfParts.body.some((l) => l.includes(citeTitle)),
         'PDF shows the citation title (label fidelity, no longer degraded to [n])',
-    );
-    assert.ok(
-        pdfParts.body.includes('参考来源'),
-        'PDF keeps the citation group title',
     );
 
     const htmlPara = htmlParts.body.find((l) => l.includes('牛顿—莱布尼茨公式'));

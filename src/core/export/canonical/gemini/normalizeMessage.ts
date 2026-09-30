@@ -233,12 +233,6 @@ export function normalizeMessage(
     });
     if (citations.length) {
         linkCitationMarkers(blocks, citations);
-        blocks.push({
-            id: nextBlockId(),
-            type: 'citationGroup',
-            citationIds: citations.map((c) => c.id),
-            sourceRef,
-        } as BlockNode);
     }
 
     const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));
@@ -249,6 +243,7 @@ export function normalizeMessage(
         ...(rawRole ? { author: { rawRole } } : {}),
         ...(createdAt ? { createdAt } : {}),
         blocks,
+        ...(citations.length ? { citationIds: citations.map((c) => c.id) } : {}),
         sourceRef,
         ...(unknownFields.length
             ? { extensions: { gemini: { unknownFields } as JsonValue } }

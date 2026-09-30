@@ -189,22 +189,24 @@ test('contract: file block placement exists on both renderers', () => {
     assertNoSilentDrop(htmlDiags, typstDiags, 'file block');
 });
 
-test('contract: citation label and group survive in HTML and Typst', () => {
+test('contract: citation label and message sources survive in HTML and Typst', () => {
     const s = 'SENTINEL_CITE_T5Y6';
     const blocks = [
         { type: 'paragraph', children: [txt(s), { type: 'citationRef', citationId: 'cite1' }] },
-        { type: 'citationGroup', citationIds: ['cite1'], title: [txt('Sources SENTINEL_CITE_SRC')] },
     ];
-    const { html, htmlDiags, payload, typstDiags } = renderBoth(blocks, {
-        citations: [{ id: 'cite1', kind: 'web', url: 'https://example.com/article' }],
-    });
+    const { html, htmlDiags, payload, typstDiags } = renderBoth(
+        blocks,
+        {
+            citations: [{ id: 'cite1', kind: 'web', url: 'https://example.com/article' }],
+        },
+        { citationIds: ['cite1'] },
+    );
     assert.ok(html.includes('gem-citation-ref'), 'html renders citation ref');
     assert.ok(html.includes('[1]'), 'html shows citation number');
-    assert.ok(html.includes('SENTINEL_CITE_SRC'), 'html keeps group title');
+    assert.ok(html.includes('gem-citation-group'), 'html keeps sources section');
     const jt = typstText(payload);
     assert.ok(jt.includes(s), 'typst keeps paragraph text');
     assert.ok(jt.includes('[1]'), 'typst keeps citation label');
-    assert.ok(jt.includes('SENTINEL_CITE_SRC'), 'typst keeps group title');
     assertNoSilentDrop(htmlDiags, typstDiags, 'citation');
 });
 

@@ -66,6 +66,7 @@ export interface MessageNode {
     state?: 'complete' | 'partial' | 'error';
 
     blocks: BlockNode[];
+    citationIds?: string[];
 
     sourceRef?: SourceRef;
     extensions?: ProviderExtensions;

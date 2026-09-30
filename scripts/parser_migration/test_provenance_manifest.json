@@ -1239,7 +1239,7 @@
       "provenanceSource": "Complex table spans and citation group specifications",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Ensures table rowSpan/colSpan and citation labels map to Typst payload.",
-      "testCount": 9,
+      "testCount": 8,
       "tests": [
         {
           "name": "multi header rows all reach the transport with no collapse diagnostic",
@@ -1252,12 +1252,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "citationGroup title becomes the note label",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "citationGroup without title has no label",
+          "name": "message citationIds appends a note to blocks in Typst payload",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1423,11 +1418,11 @@
   ],
   "summary": {
     "totalSuites": 24,
-    "totalTests": 228,
+    "totalTests": 227,
     "byClassification": {
       "P0": 0,
       "P1": 29,
-      "P2": 190,
+      "P2": 189,
       "P3": 2,
       "P4": 0
     }
