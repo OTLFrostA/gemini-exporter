@@ -15,7 +15,6 @@ const path = require('path');
 const canonical = require('../src/core/export/canonical/index.js');
 const {
     validateBundle,
-    projectConversation,
     resolveTitle,
     applyTitleCandidate,
     titleAuthorityRank,
@@ -58,11 +57,6 @@ test('representation independence: no thought block carries view state', () => {
         }
     };
     walk(rich());
-});
-
-test('projection preserves the authoritative message array', () => {
-    const bundle = rich();
-    assert.strictEqual(projectConversation(bundle).messages, bundle.conversation.messages);
 });
 
 test('validator rejects missing and duplicate message IDs', () => {
@@ -209,8 +203,7 @@ test('message order survives archive round-trip identically', () => {
         bundle.conversation.messages.map((m: any) => m.id),
     );
     assert.deepStrictEqual(errorsOf(validateBundle(roundTripped)), []);
-    const view = projectConversation(roundTripped);
-    assert.deepStrictEqual(view.messages.map((m: any) => m.id), ['u1', 'a1', 'u2', 'a2']);
+    assert.deepStrictEqual(roundTripped.conversation.messages.map((m: any) => m.id), ['u1', 'a1', 'u2', 'a2']);
 });
 
 // ------------------------------------------------------------------ assets

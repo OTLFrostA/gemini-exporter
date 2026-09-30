@@ -10,7 +10,6 @@ import { BatchWorker, type FetchChatDetailResult } from '../../engine/export/bat
 import { IPdfCompiler } from './pdfCompiler.js';
 import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
-import { projectStage } from './pipeline/projectionStage.js';
 import { resourceStage } from './pipeline/resourceStage.js';
 import { payloadStage } from './pipeline/payloadStage.js';
 import { compileStage } from './pipeline/compileStage.js';
@@ -93,7 +92,6 @@ export interface PdfExporterCallbacks {
 }
 
 const DEFAULT_PIPELINE_STAGES: PipelineStages = {
-    project: projectStage,
     resources: resourceStage,
     payload: payloadStage,
     compile: compileStage,

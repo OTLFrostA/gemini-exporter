@@ -48,7 +48,6 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
             if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);
             return converted.typst;
         },
-        projectedMessages: input.view.messages,
     });
     const diagnostics = [...result.diagnostics, ...initDiagnostics, ...mathDiagnostics].map(mapDiagnostic);
     return { output: { payload: result.payload }, diagnostics };

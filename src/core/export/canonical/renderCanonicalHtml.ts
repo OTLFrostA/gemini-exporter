@@ -6,7 +6,6 @@ import { citationDisplayLabel } from './citations.js';
 import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
 import type { InlineNode } from './inline.js';
 import { getRendererStrings } from './rendererStrings.js';
-import { projectConversation } from './projection.js';
 import type {
     CompanionResourcePlan,
     ConversationRenderer,
@@ -36,7 +35,6 @@ export interface CanonicalHtmlOptions {
 export interface CanonicalHtmlResult {
     html: string;
     diagnostics: RenderDiagnostic[];
-    projectedMessageIds: string[];
 }
 
 interface RenderCtx {
@@ -474,8 +472,7 @@ export function renderCanonicalHtml(
         diagnostics,
     };
 
-    const view = projectConversation(bundle);
-    const messages = view.messages;
+    const messages = bundle.conversation.messages;
     let turnsHtml = '';
     for (let i = 0; i < messages.length; i++) {
         turnsHtml += renderTurn(messages[i], i, ctx, bundle);
@@ -508,7 +505,7 @@ ${CANONICAL_EXTRA_CSS}</style>
 <script>${GEM_HTML_SCRIPT}</script>
 </body>
 </html>`;
-    return { html, diagnostics, projectedMessageIds: view.messages.map((m) => m.id) };
+    return { html, diagnostics };
 }
 
 export class CanonicalHtmlRenderer implements ConversationRenderer {
@@ -520,9 +517,9 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
         context.signal.throwIfAborted();
         context.reportProgress('html:collect-assets', 0, 1);
 
-        const view = projectConversation(context.bundle);
+        const messages = context.bundle.conversation.messages;
         const referenced = new Set<string>();
-        for (const m of view.messages) {
+        for (const m of messages) {
             for (const id of collectReferencedAssetIds(m.blocks)) referenced.add(id);
         }
 

@@ -1,6 +1,6 @@
 /**
  * tests/pdf-resource-stage.test.ts
- * Tier 1 tests for the D7 S2 resources stage
+ * Tier 1 tests for the resources stage
  * (src/core/export/pdf/pipeline/resourceStage.ts).
  *
  * Focused matrix:
@@ -71,7 +71,7 @@ function input(): any {
     store.put('inline/img-block', goodBlock);
     store.put('inline/img-para', goodPara);
 
-    const bundle = {
+    const bundle: any = {
         assets: [
             asset('img-block', { storageRef: 'inline/img-block', mimeType: 'image/png' }),
             asset('img-para', { storageRef: 'inline/img-para', mimeType: 'image/png' }),
@@ -79,7 +79,7 @@ function input(): any {
             asset('img-remote', { status: 'remote', sourceUrl: 'https://example.com/x.png' }),
         ],
     };
-    const view = {
+    bundle.conversation = {
         messages: [
             {
                 id: 'm1',
@@ -97,13 +97,13 @@ function input(): any {
             },
         ],
     };
-    return { bundle, view, byteStore: store, expected: { goodBlock, goodPara } };
+    return { bundle, byteStore: store, expected: { goodBlock, goodPara } };
 }
 
 test('resources stage: clean assets land in pathMap + mounts with byte-store bytes', async () => {
-    const { bundle, view, byteStore, expected } = input();
+    const { bundle, byteStore, expected } = input();
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, byteStore }, ctx);
 
     assert.deepStrictEqual([...output.pathMap.keys()].sort(), ['img-block', 'img-para']);
     assert.strictEqual(output.mounts.length, 2);
@@ -125,9 +125,9 @@ test('resources stage: clean assets land in pathMap + mounts with byte-store byt
 });
 
 test('resources stage: missing/remote/ghost assets are unresolved, each with a warning+ diagnostic', async () => {
-    const { bundle, view, byteStore } = input();
+    const { bundle, byteStore } = input();
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, byteStore }, ctx);
 
     assert.deepStrictEqual(
         output.unresolved.map((u: any) => u.assetId).sort(),
@@ -149,12 +149,12 @@ test('resources stage: missing/remote/ghost assets are unresolved, each with a w
 });
 
 test('resources stage: aborted signal throws AbortError', async () => {
-    const { bundle, view, byteStore } = input();
+    const { bundle, byteStore } = input();
     const controller = new AbortController();
     controller.abort();
     const { ctx } = stageCtx(controller.signal);
     await assert.rejects(
-        () => resourceStage({ bundle, view, byteStore }, ctx),
+        () => resourceStage({ bundle, byteStore }, ctx),
         (err: any) => err instanceof DOMException && err.name === 'AbortError',
     );
 });
@@ -177,7 +177,7 @@ test('resources stage: metadata-only file attachments skip byte resolution entir
     // them even when it cheaply could.
     spyStore.put('inline/report-pdf', new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])); // %PDF-
     spyStore.put('inline/img-ok', pngBytes(7));
-    const bundle = {
+    const bundle: any = {
         assets: [
             asset('doc-report', {
                 kind: 'file', storageRef: 'inline/report-pdf',
@@ -188,7 +188,7 @@ test('resources stage: metadata-only file attachments skip byte resolution entir
             asset('img-ok', { storageRef: 'inline/img-ok', mimeType: 'image/png' }),
         ],
     };
-    const view = {
+    bundle.conversation = {
         messages: [
             {
                 id: 'm1', role: 'model',
@@ -200,7 +200,7 @@ test('resources stage: metadata-only file attachments skip byte resolution entir
         ],
     };
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, byteStore: spyStore }, ctx);
 
     // The image still resolves + mounts as before.
     assert.ok(output.pathMap.has('img-ok'), 'image asset still resolves');
@@ -242,10 +242,10 @@ test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and r
         get entryCount() { return real.entryCount; },
     };
 
-    const bundle = {
+    const bundle: any = {
         assets: [asset('img-doomed', { storageRef: 'inline/doomed', mimeType: 'image/png' })],
     };
-    const view = {
+    bundle.conversation = {
         messages: [
             {
                 id: 'm1', role: 'model',
@@ -254,7 +254,7 @@ test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and r
         ],
     };
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: vanishing }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, byteStore: vanishing }, ctx);
 
     // pathMap must not claim a clean resolve for an asset with no mount.
     assert.ok(!output.pathMap.has('img-doomed'), 'pathMap must drop the bytes-missing asset');
@@ -274,7 +274,7 @@ test('resources stage: binary decision is AST placement, not Asset.kind (image p
     // degrade the image. Placement wins; the mismatch gets a warning.
     const real = createInlineByteStore();
     real.put('inline/misfiled', pngBytes(11));
-    const bundle = {
+    const bundle: any = {
         assets: [
             asset('misfiled', {
                 kind: 'file', storageRef: 'inline/misfiled',
@@ -282,7 +282,7 @@ test('resources stage: binary decision is AST placement, not Asset.kind (image p
             }),
         ],
     };
-    const view = {
+    bundle.conversation = {
         messages: [
             {
                 id: 'm1', role: 'model',
@@ -291,7 +291,7 @@ test('resources stage: binary decision is AST placement, not Asset.kind (image p
         ],
     };
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: real }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, byteStore: real }, ctx);
 
     assert.ok(output.pathMap.has('misfiled'),
         'image placement resolves even when Asset.kind is file');
@@ -317,7 +317,7 @@ test('resources stage: FileBlock referencing a kind:image asset is metadata-only
         get entryCount() { return real.entryCount; },
     };
     spyStore.put('inline/not-really-image', pngBytes(12));
-    const bundle = {
+    const bundle: any = {
         assets: [
             asset('filey', {
                 kind: 'image', storageRef: 'inline/not-really-image',
@@ -325,7 +325,7 @@ test('resources stage: FileBlock referencing a kind:image asset is metadata-only
             }),
         ],
     };
-    const view = {
+    bundle.conversation = {
         messages: [
             {
                 id: 'm1', role: 'model',
@@ -334,7 +334,7 @@ test('resources stage: FileBlock referencing a kind:image asset is metadata-only
         ],
     };
     const { ctx } = stageCtx(new AbortController().signal);
-    const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);
+    const { output, diagnostics } = await resourceStage({ bundle, byteStore: spyStore }, ctx);
 
     assert.strictEqual(output.pathMap.has('filey'), false,
         'FileBlock asset never enters pathMap');

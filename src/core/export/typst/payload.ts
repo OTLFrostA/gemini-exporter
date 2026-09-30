@@ -7,7 +7,6 @@ import type {
     CanonicalConversationBundle,
     MessageNode,
 } from '../canonical/conversation.js';
-import { projectConversation } from '../canonical/projection.js';
 import { extractBlockText, extractInlineText, resolveUnknownBlockFallback } from '../canonical/unknownFallback.js';
 import { getRendererStrings, type RendererStrings } from '../canonical/rendererStrings.js';
 import { citationDisplayLabel } from '../canonical/citations.js';
@@ -79,8 +78,6 @@ export interface TypstAdapterDiagnostic {
 export interface TypstPayloadOptions {
     assetPath(asset: Asset): string | undefined;
     convertMath?: (source: string, notation: string, display: boolean) => string | undefined;
-    projectedMessages?: MessageNode[];
-    leafMessageId?: string;
     locale?: 'zh' | 'en';
 }
 
@@ -345,7 +342,7 @@ export function toTypstPayload(
         label: citationDisplayLabel(citation, index + 1),
         url: citation.url,
     }]));
-    const messages = (options.projectedMessages ?? projectConversation(bundle).messages)
+    const messages = bundle.conversation.messages
         .map(message => toRenderMessage(message, bundle, assets, citations, renderOptions, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';

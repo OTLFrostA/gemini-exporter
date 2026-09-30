@@ -38,31 +38,22 @@ export class PdfPipeline {
         });
 
         try {
-            ctx.reportProgress('project', 0, PIPELINE_STAGE_ORDER.length);
-            const projected = await runStage('project', this.stages.project, {
-                bundle: input.bundle,
-                leafMessageId: input.leafMessageId,
-            }, ctx);
-            diagnostics.push(...projected.diagnostics);
-
-            ctx.reportProgress('resources', 1, PIPELINE_STAGE_ORDER.length);
+            ctx.reportProgress('resources', 0, PIPELINE_STAGE_ORDER.length);
             const resources = await runStage('resources', this.stages.resources, {
                 bundle: input.bundle,
-                view: projected.output.view,
                 byteStore: input.byteStore,
             }, ctx);
             diagnostics.push(...resources.diagnostics);
 
-            ctx.reportProgress('payload', 2, PIPELINE_STAGE_ORDER.length);
+            ctx.reportProgress('payload', 1, PIPELINE_STAGE_ORDER.length);
             const payload = await runStage('payload', this.stages.payload, {
                 bundle: input.bundle,
-                view: projected.output.view,
                 pathMap: resources.output.pathMap,
                 locale: input.locale,
             }, ctx);
             diagnostics.push(...payload.diagnostics);
 
-            ctx.reportProgress('compile', 3, PIPELINE_STAGE_ORDER.length);
+            ctx.reportProgress('compile', 2, PIPELINE_STAGE_ORDER.length);
             const compiled = await runStage('compile', this.stages.compile, {
                 payload: payload.output.payload,
                 bundle: input.bundle,
@@ -74,7 +65,7 @@ export class PdfPipeline {
             }, ctx);
             diagnostics.push(...compiled.diagnostics);
 
-            ctx.reportProgress('deliver', 4, PIPELINE_STAGE_ORDER.length);
+            ctx.reportProgress('deliver', 3, PIPELINE_STAGE_ORDER.length);
             const delivered = await runStage('deliver', this.stages.deliver, {
                 conversationId: input.conversationId,
                 title: input.title,

@@ -16,7 +16,7 @@
       "provenanceSource": "Project Canonical AST specification & validation invariants",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Defines canonical block schemas, validateBundle(), and diagnostics rules.",
-      "testCount": 31,
+      "testCount": 30,
       "tests": [
         {
           "name": "all canonical fixtures validate with zero errors",
@@ -30,11 +30,6 @@
         },
         {
           "name": "representation independence: no thought block carries view state",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "projection preserves the authoritative message array",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1367,11 +1362,11 @@
   ],
   "summary": {
     "totalSuites": 23,
-    "totalTests": 212,
+    "totalTests": 211,
     "byClassification": {
       "P0": 0,
       "P1": 29,
-      "P2": 181,
+      "P2": 180,
       "P3": 2,
       "P4": 0
     }
