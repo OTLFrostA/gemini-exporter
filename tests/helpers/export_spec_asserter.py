@@ -7,7 +7,7 @@ tests/helpers/export_spec_asserter.py
 用于对真实导出的 Markdown 归档包执行规范级 Lint 与确定性内容断言：
 1. 目录结构与索引完整性 (00_INDEX.md, meta.json, 文件命名规范)
 2. YAML Frontmatter 规范 (字段闭合、标准键、ISO 8601 时间戳、Tags)
-3. 问答轮次与角色规范 (## 👤 你 / ## 🤖 Gemini、时间戳、正文非空)
+3. 问答轮次与角色规范 (## 👤 You / ## 🤖 Assistant、正文非空)
 4. 纯净度与零噪点断言 (无 Google JSPB 遥测单字、无语言代码泄露、无未处理 RPC 壳)
 5. 附件与多媒体一致性 (Markdown 引用的 images/ 物理存在且体积合法)
 6. 固化测试账号的已知黄金对话特征断言 (代码块、表格、特定语义)
@@ -173,19 +173,35 @@ class ExportSpecificationAsserter:
                 if k not in fields:
                     fields[k] = v
 
-        required_keys = ["title", "id", "url", "date", "updated", "exported", "tags"]
+        required_keys = ["title", "id", "provider", "exported", "tags"]
         for key in required_keys:
             if key not in fields and f"{key}:" not in fm_text:
                 self.log_error(file_name, f"Frontmatter 缺少必要字段 '{key}'")
-            elif key in ["title", "id", "url", "date"]:
+            elif key in ["title", "id", "provider", "exported"]:
                 val = fields.get(key, "")
                 if not val:
                     self.log_error(file_name, f"Frontmatter 字段 '{key}' 值为空非法")
 
-        # 检查 date 格式 (ISO 8601)
-        date_val = fields.get("date", "")
-        if date_val and not re.match(r"^\d{4}-\d{2}-\d{2}", date_val):
-            self.log_error(file_name, f"Frontmatter 'date' 字段格式非法 (非 ISO 8601): {date_val}")
+        # 检查 exported 格式 (ISO 8601)
+        exported_val = fields.get("exported", "")
+        if exported_val and not re.match(r"^\d{4}-\d{2}-\d{2}", exported_val):
+            self.log_error(file_name, f"Frontmatter 'exported' 字段格式非法 (非 ISO 8601): {exported_val}")
+
+        # 当可选字段存在时校验其格式
+        if "url" in fields:
+            url_val = fields["url"]
+            if not url_val or not (url_val.startswith("http://") or url_val.startswith("https://")):
+                self.log_error(file_name, f"Frontmatter 'url' 字段格式非法: {url_val}")
+
+        if "date" in fields:
+            date_val = fields["date"]
+            if not date_val or not re.match(r"^\d{4}-\d{2}-\d{2}", date_val):
+                self.log_error(file_name, f"Frontmatter 'date' 字段格式非法 (非 ISO 8601): {date_val}")
+
+        if "updated" in fields:
+            updated_val = fields["updated"]
+            if not updated_val or not re.match(r"^\d{4}-\d{2}-\d{2}", updated_val):
+                self.log_error(file_name, f"Frontmatter 'updated' 字段格式非法 (非 ISO 8601): {updated_val}")
 
         if "gemini-export" not in fm_text:
             self.log_error(file_name, "Frontmatter tags 必须包含 'gemini-export'")
@@ -194,9 +210,9 @@ class ExportSpecificationAsserter:
         """校验问答轮次、角色交替与等量匹配"""
         # 提取所有角色标头及其出现位置
         headers = []
-        for m in re.finditer(r"^## 👤 (?:你|You)", content, flags=re.MULTILINE):
+        for m in re.finditer(r"^## 👤 You", content, flags=re.MULTILINE):
             headers.append((m.start(), "user"))
-        for m in re.finditer(r"^## 🤖 Gemini", content, flags=re.MULTILINE):
+        for m in re.finditer(r"^## 🤖 Assistant", content, flags=re.MULTILINE):
             headers.append((m.start(), "model"))
 
         headers.sort(key=lambda x: x[0])
@@ -218,11 +234,6 @@ class ExportSpecificationAsserter:
             if headers[i][1] == headers[i+1][1]:
                 self.log_error(file_name, f"第 {i+1} 处角色标头未交替出现: 连续两个 '{headers[i][1]}' 角色标头")
 
-        # 检查时间戳小标题 (至少与用户轮次数对齐)
-        time_quotes = re.findall(r"^> ⏱️ \d{4}/\d{1,2}/\d{1,2}", content, flags=re.MULTILINE)
-        if len(time_quotes) < user_count:
-            self.log_error(file_name, f"时间戳引用行数量不足: 找到 {len(time_quotes)} 个，用户轮次为 {user_count}")
-
     def assert_zero_noise(self, content, file_name):
         """纯净度断言：绝不包含 Google JSPB 遥测单字符、遥测短词、语言标签泄露"""
         # 1. 检查是否有独立的遥测单词行（如单独一行的 "google", "c", "S", "6", "."）
@@ -242,10 +253,12 @@ class ExportSpecificationAsserter:
             self.log_error(file_name, "检测到泄露的原始 batchexecute RPC 包装数组")
 
     def _find_physical_file(self, clean_ref):
-        target_name = os.path.basename(clean_ref)
+        import urllib.parse
+        target_name = urllib.parse.unquote(os.path.basename(clean_ref))
+        raw_name = os.path.basename(clean_ref)
         for root, _, files in os.walk(self.export_root_dir):
             for f in files:
-                if f == target_name or f.endswith('_' + target_name):
+                if f == target_name or f.endswith('_' + target_name) or f == raw_name or f.endswith('_' + raw_name):
                     return os.path.join(root, f)
         return None
 
@@ -264,7 +277,7 @@ class ExportSpecificationAsserter:
     def assert_multi_turn_uploads(self, matched_file, content, expected_count):
         """断言多轮用户上传：独立图片存在、MD5 互不相同（无覆盖）、角色归属正确（非 AI 生图）"""
         print(f"   [{matched_file}] 📸 深度断言：多轮用户上传与物理去重 (预期至少 {expected_count} 张)...")
-        parts = re.split(r'^(## 👤 你|## 🤖 Gemini)', content, flags=re.MULTILINE)
+        parts = re.split(r'^(## 👤 You|## 🤖 Assistant)', content, flags=re.MULTILINE)
         user_blocks = []
         model_blocks = []
         for i in range(1, len(parts), 2):
@@ -362,7 +375,7 @@ class ExportSpecificationAsserter:
     def assert_ai_generated_images(self, matched_file, content, min_images=1):
         """断言 AI 生成图片 (Imagen)：模型回复中引用、本地图片物理存在且合法"""
         print(f"   [{matched_file}] 🎨 深度断言：AI 生成图片 (Imagen)...")
-        parts = re.split(r'^(## 👤 你|## 🤖 Gemini)', content, flags=re.MULTILINE)
+        parts = re.split(r'^(## 👤 You|## 🤖 Assistant)', content, flags=re.MULTILINE)
         model_blocks = []
         for i in range(1, len(parts), 2):
             role = parts[i]
@@ -499,6 +512,52 @@ class ExportSpecificationAsserter:
             if exp_file_attachments:
                 self.assert_user_file_attachments(matched_file, matched_content, exp_file_attachments)
 
+    @staticmethod
+    def has_attachment_link(content: str, target_name: str) -> bool:
+        """检查 Markdown 正文中是否包含对附件文件的合规引用链接。
+        
+        Canonical Markdown 规范链接格式形如:
+        `[test\_config.json](assets/files/cb8bd7_test_config.json)`
+        `[gemini\_test\_1790746358\_8b68bd61.custom](assets/files/1201ab_gemini_test_1790746358_8b68bd61.custom)`
+        
+        解析规则：
+        1. 优先提取所有非图片 Markdown 超链接 [label](target)，解析链接目标 target 并进行 URL 解码；
+        2. 比对 target 的文件名 (basename)：若与 target_name 完全一致、以 _<target_name> 结尾、或包含 target_name；
+        3. 同时比对反转义后的 Markdown 标签 (label)：支持诸如 test\_config.json 等转义标签，
+           若其反转义后与 target_name 匹配，且链接目标位于本地归档目录 (assets/files/ 或 files/)，亦判定合规。
+        """
+        import urllib.parse
+        target_clean = target_name.strip()
+        if not target_clean:
+            return False
+
+        link_matches = re.findall(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)', content)
+        for label, dest in link_matches:
+            dest_clean = urllib.parse.unquote(dest.split('?')[0].split('#')[0].strip())
+            dest_base = os.path.basename(dest_clean)
+
+            # 1. 优先通过链接目标 target 的 basename 进行比对
+            if dest_base == target_clean or dest_base.endswith(f"_{target_clean}") or target_clean in dest_base:
+                return True
+
+            # 2. 对 label 进行 Markdown 常用转义字符还原
+            unescaped_label = (
+                label.replace(r'\_', '_')
+                     .replace(r'\*', '*')
+                     .replace(r'\[', '[')
+                     .replace(r'\]', ']')
+                     .replace(r'\#', '#')
+                     .replace(r'\`', '`')
+                     .replace(r'\\', '\\')
+            ).strip()
+
+            if unescaped_label == target_clean or target_clean in unescaped_label:
+                dest_parts = dest_clean.replace('\\', '/').split('/')
+                if any(p in dest_parts for p in ('files', 'assets')):
+                    return True
+
+        return False
+
     def assert_user_file_attachments(self, matched_file, content, expected_files):
         """断言用户上传的文件附件：files/ 目录下物理存在、非零字节、正文包含合规引用链接"""
         print(f"   [{matched_file}] 📎 深度断言：用户上传文件附件 ({len(expected_files)} 个)...")
@@ -538,9 +597,7 @@ class ExportSpecificationAsserter:
                     self.log_pass(matched_file, f"用户附件 '{target_name}' 内容 SHA256 100% 物理一致")
 
             # 校验正文中是否包含合规超链接引用
-            clean_escaped = re.escape(target_name)
-            has_link = bool(re.search(rf'\[{clean_escaped}\]\(files/[^)]+\)', content) or f"[{target_name}]" in content)
-            if not has_link:
+            if not self.has_attachment_link(content, target_name):
                 self.log_error(matched_file, f"Markdown 正文中缺少对附件 '{target_name}' 的超链接引用")
             else:
                 self.log_pass(matched_file, f"Markdown 正文中包含附件 '{target_name}' 的合规超链接引用")
@@ -601,9 +658,7 @@ class ExportSpecificationAsserter:
             if matched_md:
                 with open(matched_md, "r", encoding="utf-8", errors="ignore") as f:
                     md_text = f.read()
-                clean_escaped = re.escape(target_name)
-                has_link = bool(re.search(rf'\[{clean_escaped}\]\(files/[^)]+\)', md_text) or f"[{target_name}]" in md_text)
-                if not has_link:
+                if not self.has_attachment_link(md_text, target_name):
                     self.log_error(os.path.basename(matched_md), f"会话 Markdown 正文缺少对附件 '{target_name}' 的超链接引用")
                 else:
                     self.log_pass(os.path.basename(matched_md), f"会话 Markdown 包含对附件 '{target_name}' 的合规超链接引用")

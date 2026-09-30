@@ -330,6 +330,7 @@ class TestVisualQAAgent(unittest.TestCase):
         md_content = """---
 title: "火星宇航员"
 id: "c_mars123456"
+provider: "gemini"
 url: "https://gemini.google.com/app/mars123456"
 date: "2026-09-15"
 updated: "2026-09-15"
@@ -338,13 +339,11 @@ tags:
   - gemini-export
 ---
 
-## 👤 你
-> ⏱️ 2026/09/15 10:00:00
+## 👤 You
 
 火星上有水吗？
 
-## 🤖 Gemini
-> ⏱️ 2026/09/15 10:00:02
+## 🤖 Assistant
 
 火星上发现了冰形态的水。
 """
