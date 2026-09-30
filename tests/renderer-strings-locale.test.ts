@@ -110,13 +110,13 @@ test('typst localizes role prefix notes', () => {
         roleMsg('unknown'),
         roleMsg('unknown', { author: { rawRole: 'plugin-x' } }),
     ];
-    const zh = toTypstPayload(bundle([]), { ...opts, locale: 'zh', projectedMessages: msgs });
+    const zh = toTypstPayload(bundle(msgs), { ...opts, locale: 'zh' });
     assert.strictEqual(firstNoteText(zh.payload.messages[0]), '系统消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[1]), '开发者消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[2]), '工具消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[3]), '未知角色');
     assert.strictEqual(firstNoteText(zh.payload.messages[4]), '未知角色: plugin-x');
-    const en = toTypstPayload(bundle([]), { ...opts, projectedMessages: msgs });
+    const en = toTypstPayload(bundle(msgs), opts);
     assert.strictEqual(firstNoteText(en.payload.messages[0]), 'System message');
     assert.strictEqual(firstNoteText(en.payload.messages[1]), 'Developer message');
     assert.strictEqual(firstNoteText(en.payload.messages[2]), 'Tool message');
@@ -125,10 +125,7 @@ test('typst localizes role prefix notes', () => {
 });
 
 test('user/assistant roles get no prefix note', () => {
-    const { payload } = toTypstPayload(bundle([]), {
-        ...opts,
-        projectedMessages: [roleMsg('user'), roleMsg('model')],
-    });
+    const { payload } = toTypstPayload(bundle([roleMsg('user'), roleMsg('model')]), opts);
     assert.strictEqual(payload.messages[0].blocks.length, 0);
     assert.strictEqual(payload.messages[1].blocks.length, 0);
 });

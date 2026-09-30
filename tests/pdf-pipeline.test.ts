@@ -3,7 +3,7 @@
  * Tier 1 tests for the D7 pipeline skeleton (M1).
  *
  * Locks the frozen M1 semantics with fake stages:
- * - stages run strictly in S1->S5 order;
+ * - stages run strictly in resources->deliver order;
  * - diagnostics accumulate in stage order and are never dropped;
  * - a plain throw is wrapped as StageError carrying the stage name;
  * - StageError passes through untouched (code/retryable preserved);
@@ -53,7 +53,6 @@ function fakeInput() {
 
 function fakeStages(seen: string[], overrides: any = {}) {
     return {
-        project: okStage('project', { bundle: {}, view: { messages: [] } }, [], seen),
         resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [] }, [], seen),
         payload: okStage('payload', { payload: { schemaVersion: 1 } }, [], seen),
         compile: okStage('compile', { pdfBytes: new Uint8Array([0x25, 0x50]) }, [], seen),
@@ -62,11 +61,13 @@ function fakeStages(seen: string[], overrides: any = {}) {
     };
 }
 
-test('stages run in S1->S5 order and happy path delivers', async () => {
+test('stages run in resources->deliver order and happy path delivers', async () => {
     const seen: string[] = [];
     const p = new PdfPipeline(fakeStages(seen));
-    const res: any = await p.runOne(fakeInput(), makeCtx());
-    assert.deepStrictEqual(seen, ['project', 'resources', 'payload', 'compile', 'deliver']);
+    const progress: any[] = [];
+    const res: any = await p.runOne(fakeInput(), makeCtx({ reportProgress: (...args: any[]) => progress.push(args) }));
+    assert.deepStrictEqual(progress, [['resources', 0, 4], ['payload', 1, 4], ['compile', 2, 4], ['deliver', 3, 4], ['done', 4, 4]]);
+    assert.deepStrictEqual(seen, ['resources', 'payload', 'compile', 'deliver']);
     assert.strictEqual(res.status, 'delivered');
     assert.ok(res.writeReport);
     assert.strictEqual(res.error, undefined);
@@ -96,14 +97,13 @@ test('diagnostics accumulate in stage order and are never dropped', async () => 
     const seen: string[] = [];
     const d = (code: string) => ({ severity: 'warning' as const, code, message: code });
     const stages = fakeStages(seen, {
-        project: okStage('project', { bundle: {}, view: {} }, [d('P')], seen),
         payload: okStage('payload', { payload: {} }, [d('T1'), d('T2')], seen),
         deliver: okStage('deliver', { writeReport: {}, finalized: true }, [d('D')], seen),
     });
     const p = new PdfPipeline(stages);
     const res: any = await p.runOne(fakeInput(), makeCtx());
     assert.strictEqual(res.status, 'delivered');
-    assert.deepStrictEqual(res.diagnostics.map((x: any) => x.code), ['P', 'T1', 'T2', 'D']);
+    assert.deepStrictEqual(res.diagnostics.map((x: any) => x.code), ['T1', 'T2', 'D']);
 });
 
 test('plain throw is wrapped as StageError with the stage name; item failed and retryable', async () => {
@@ -118,7 +118,7 @@ test('plain throw is wrapped as StageError with the stage name; item failed and 
     assert.strictEqual(res.error.retryable, true);
     assert.strictEqual(res.writeReport, undefined);
     // deliver must not run after a compile failure
-    assert.deepStrictEqual(seen, ['project', 'resources', 'payload']);
+    assert.deepStrictEqual(seen, ['resources', 'payload']);
 });
 
 test('StageError passes through untouched', async () => {
@@ -140,9 +140,9 @@ test('StageError diagnostics are preserved on failure, exactly once', async () =
     const seen: string[] = [];
     const d = (code: string) => ({ severity: 'warning' as const, code, message: code });
     const stages = fakeStages(seen, {
-        project: okStage('project', { bundle: {}, view: {} }, [d('P')], seen),
-        resources: async () => {
-            throw new StageError('resources', 'ASSET_CORRUPT', 'bad bytes', {
+        resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [] }, [d('R')], seen),
+        payload: async () => {
+            throw new StageError('payload', 'ASSET_CORRUPT', 'bad bytes', {
                 retryable: true,
                 diagnostics: [d('R1'), d('R2')],
             });
@@ -151,10 +151,10 @@ test('StageError diagnostics are preserved on failure, exactly once', async () =
     const p = new PdfPipeline(stages);
     const res: any = await p.runOne(fakeInput(), makeCtx());
     assert.strictEqual(res.status, 'failed');
-    assert.strictEqual(res.error.stage, 'resources');
+    assert.strictEqual(res.error.stage, 'payload');
     assert.strictEqual(res.error.code, 'ASSET_CORRUPT');
     // Prior stage diagnostics first, then the throwing stage's own, each once.
-    assert.deepStrictEqual(res.diagnostics.map((x: any) => x.code), ['P', 'R1', 'R2']);
+    assert.deepStrictEqual(res.diagnostics.map((x: any) => x.code), ['R', 'R1', 'R2']);
     assert.strictEqual(res.writeReport, undefined);
 });
 
@@ -197,5 +197,5 @@ test('runStage lets AbortError propagate and wraps unknown throws', async () => 
 
 test('frozen stage order constant matches wiring', async () => {
     const { PIPELINE_STAGE_ORDER } = require('../src/core/export/pdf/pipeline/types.js');
-    assert.deepStrictEqual([...PIPELINE_STAGE_ORDER], ['project', 'resources', 'payload', 'compile', 'deliver']);
+    assert.deepStrictEqual([...PIPELINE_STAGE_ORDER], ['resources', 'payload', 'compile', 'deliver']);
 });

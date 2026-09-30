@@ -1,13 +1,13 @@
 /**
  * tests/pdf-pipeline-m2-payload.test.ts
- * Tier 1 focused test for the D7 S3 Typst payload stage (M2).
+ * Tier 1 focused test for the Typst payload stage (M2).
  *
  * Locks the stage behavior with fake inputs:
  * - degraded math (unsupported LaTeX) keeps its raw latex in the payload
  *   AND produces a warning diagnostic — never silent;
  * - convertible math carries the Typst body with no diagnostic;
- * - the stage consumes the S1 identity view in source order;
- * - asset paths are read from the S2 pathMap (no re-resolution);
+ * - the stage consumes the bundle messages in source order;
+ * - asset paths are read from the resource pathMap (no re-resolution);
  * - an aborted signal throws AbortError.
  */
 export {};
@@ -40,12 +40,6 @@ function bundleWith(messages: any[], assets: any[] = []): any {
     };
 }
 
-function viewOf(messages: any[]): any {
-    return {
-        messages,
-    };
-}
-
 function makeCtx() {
     const controller = new AbortController();
     return {
@@ -61,7 +55,7 @@ test('degraded math is diagnosed, never silent', async () => {
     const m2 = message('m2', 'assistant', [mathBlock('\\notarealcommand{x}{y}')]);
     const bundle = bundleWith([m1, m2]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, view: viewOf(bundle.conversation.messages), pathMap: new Map(), locale: 'en' },
+        { bundle, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     // diagnostic channel carries the failure
@@ -81,7 +75,7 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
     const m1 = message('m1', 'user', [mathBlock('\\frac{a}{b}')]);
     const bundle = bundleWith([m1]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, view: viewOf([m1]), pathMap: new Map(), locale: 'en' },
+        { bundle, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     const mathNodes = output.payload.messages[0].blocks.filter((b: any) => b.type === 'math');
@@ -90,27 +84,27 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
     assert.deepStrictEqual(diagnostics, []);
 });
 
-test('consumes the identity view in source order', async () => {
+test('consumes bundle messages in source order', async () => {
     const m1 = message('m1', 'user', [para('q')]);
     const m2 = message('m2', 'assistant', [para('a2')]);
     const m3 = message('m3', 'assistant', [para('a3')]);
     const bundle = bundleWith([m1, m2, m3]);
     const { output } = await payloadStage(
-        { bundle, view: viewOf(bundle.conversation.messages), pathMap: new Map(), locale: 'en' },
+        { bundle, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     assert.strictEqual(output.payload.messageCount, 3);
     assert.deepStrictEqual(output.payload.messages.map((m: any) => m.id), ['m1', 'm2', 'm3']);
 });
 
-test('asset paths come from the S2 pathMap without re-resolution', async () => {
+test('asset paths come from the resource pathMap without re-resolution', async () => {
     const m1 = message('m1', 'user', [{ type: 'image', assetId: 'img1', alt: 'pic' }]);
     const bundle = bundleWith([m1], [
         { id: 'img1', kind: 'image', status: 'available', mimeType: 'image/png', name: 'x.png' },
     ]);
     const pathMap = new Map([['img1', 'assets/sha256/ab/x.png']]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, view: viewOf([m1]), pathMap, locale: 'en' },
+        { bundle, pathMap, locale: 'en' },
         makeCtx(),
     );
     const images = output.payload.messages[0].blocks.filter((b: any) => b.type === 'image');
@@ -125,7 +119,7 @@ test('aborted signal throws AbortError', async () => {
     const ctx = makeCtx();
     ctx.controller.abort();
     await assert.rejects(
-        payloadStage({ bundle, view: viewOf([m1]), pathMap: new Map(), locale: 'en' }, ctx),
+        payloadStage({ bundle, pathMap: new Map(), locale: 'en' }, ctx),
         (e: any) => e instanceof DOMException && e.name === 'AbortError',
     );
 });
@@ -142,7 +136,7 @@ test('MiTeX initialization failure emits single warning and preserves raw LaTeX 
         ]);
         const bundle = bundleWith([m1, m2]);
         const { output, diagnostics } = await payloadStage(
-            { bundle, view: viewOf(bundle.conversation.messages), pathMap: new Map(), locale: 'en' },
+            { bundle, pathMap: new Map(), locale: 'en' },
             makeCtx(),
         );
 

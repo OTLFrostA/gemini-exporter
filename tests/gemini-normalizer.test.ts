@@ -7,7 +7,7 @@
  * attachment/image/document mapping + dedupe, unknown/unknownInline
  * fallbacks, title authority tiers, attachment availability diagnostics,
  * turns-shape fallback, raw evidence preservation, and the
- * projectConversation + validateBundle self-checks.
+ * validateBundle self-checks.
  */
 export {};
 const test = require('node:test');
@@ -20,7 +20,6 @@ const {
     normalizeGeminiConversation,
     GeminiNormalizer,
     validateBundle,
-    projectConversation,
     unknownBlockFallbackText,
     extractInlineText,
 } = canonical;
@@ -298,13 +297,12 @@ test('raw evidence write failure is visible exactly once and never fabricates a 
     assert.strictEqual(bundle.observations[0].rawRef, undefined);
 });
 
-test('bundle passes validateBundle and identity projection', async () => {
+test('bundle passes validateBundle', async () => {
     for (const raw of [sample, turnsSample]) {
         const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
         const issues = validateBundle(bundle);
         const errors = issues.filter((d: any) => d.severity === 'error');
         assert.deepStrictEqual(errors, [], `validateBundle errors for ${raw.id}`);
-        assert.doesNotThrow(() => projectConversation(bundle), `projectConversation for ${raw.id}`);
         assert.ok(
             !diagnostics.some((d: any) => d.severity === 'error'),
             'normalizer self-check clean',

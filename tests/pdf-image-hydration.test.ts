@@ -31,7 +31,6 @@ const assert = require('node:assert');
 
 const { preparePdfItem } = require('../src/core/export/pdf/prepareItem.js');
 const { PdfExporter } = require('../src/core/export/pdf/index.js');
-const { projectStage } = require('../src/core/export/pdf/pipeline/projectionStage.js');
 const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
 const { payloadStage } = require('../src/core/export/pdf/pipeline/payloadStage.js');
 const { validateBundle } = require('../src/core/export/canonical/index.js');
@@ -140,8 +139,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     assert.ok(!bundleIssues.some((d: any) => d.code === 'PSEUDO_AVAILABLE'), 'hydrated asset must not trigger PSEUDO_AVAILABLE');
 
     const ctx = makeStageCtx();
-    const s1 = await projectStage({ bundle }, ctx);
-    const s2 = await resourceStage({ bundle, view: s1.output.view, byteStore }, ctx);
+    const s2 = await resourceStage({ bundle, byteStore }, ctx);
 
     assert.strictEqual(s2.output.unresolved.length, 0, 'no unresolved assets in resourceStage');
     assert.strictEqual(s2.output.mounts.length, 1, 'resourceStage must produce 1 mount');
@@ -153,7 +151,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     );
 
     const s3 = await payloadStage(
-        { bundle, view: s1.output.view, pathMap: s2.output.pathMap, locale: 'zh' },
+        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
@@ -310,13 +308,12 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     );
 
     const ctx = makeStageCtx();
-    const s1 = await projectStage({ bundle }, ctx);
-    const s2 = await resourceStage({ bundle, view: s1.output.view, byteStore }, ctx);
+    const s2 = await resourceStage({ bundle, byteStore }, ctx);
     assert.strictEqual(s2.output.mounts.length, 1, 'Takeout fallback image must be mounted');
     assert.strictEqual(s2.output.unresolved.length, 0);
 
     const s3 = await payloadStage(
-        { bundle, view: s1.output.view, pathMap: s2.output.pathMap, locale: 'zh' },
+        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
@@ -371,10 +368,9 @@ test('2b. Takeout generated-media supplementation via shared BatchWorker.supplem
     assert.strictEqual(bundle.assets[0].storageRef, 'assets/watermarked_takeout_cat.png');
 
     const ctx = makeStageCtx();
-    const s1 = await projectStage({ bundle }, ctx);
-    const s2 = await resourceStage({ bundle, view: s1.output.view, byteStore }, ctx);
+    const s2 = await resourceStage({ bundle, byteStore }, ctx);
     const s3 = await payloadStage(
-        { bundle, view: s1.output.view, pathMap: s2.output.pathMap, locale: 'zh' },
+        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
@@ -442,8 +438,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     );
 
     const ctx = makeStageCtx();
-    const s1 = await projectStage({ bundle }, ctx);
-    const s2 = await resourceStage({ bundle, view: s1.output.view, byteStore }, ctx);
+    const s2 = await resourceStage({ bundle, byteStore }, ctx);
     assert.strictEqual(s2.output.mounts.length, 0);
     assert.strictEqual(s2.output.unresolved.length, 1);
     assert.ok(
@@ -452,7 +447,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     );
 
     const s3 = await payloadStage(
-        { bundle, view: s1.output.view, pathMap: s2.output.pathMap, locale: 'zh' },
+        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const blocks = s3.output.payload.messages[0].blocks;

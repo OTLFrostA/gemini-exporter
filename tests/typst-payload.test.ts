@@ -239,8 +239,6 @@ test('conversation renders every message in source order', async () => {
     const { payload } = toTypstPayload(b, opts);
     assert.deepStrictEqual(payload.messages.map((m: any) => m.id), ['root', 'a', 'b']);
 
-    const leaf = toTypstPayload(b, { ...opts, leafMessageId: 'b' });
-    assert.deepStrictEqual(leaf.payload.messages.map((m: any) => m.id), ['root', 'a', 'b']);
 });
 
 test('hostile text stays inert JSON data (injection red line)', async () => {

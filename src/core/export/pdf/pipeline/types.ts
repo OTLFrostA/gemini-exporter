@@ -1,5 +1,4 @@
 import type { CanonicalConversationBundle } from '../../canonical/conversation.js';
-import type { ProjectedView } from '../../canonical/projection.js';
 import type {
     ArtifactWriteReport,
     RenderDiagnostic,
@@ -12,10 +11,9 @@ import type { IExportWriter } from '../../../engine/writers/writerInterface.js';
 
 export type { RenderDiagnostic } from '../../canonical/rendering.js';
 
-export type PipelineStageName = 'project' | 'resources' | 'payload' | 'compile' | 'deliver';
+export type PipelineStageName = 'resources' | 'payload' | 'compile' | 'deliver';
 
 export const PIPELINE_STAGE_ORDER: readonly PipelineStageName[] = [
-    'project',
     'resources',
     'payload',
     'compile',
@@ -54,16 +52,6 @@ export class StageError extends Error {
     }
 }
 
-export interface ProjectStageInput {
-    bundle: CanonicalConversationBundle;
-    leafMessageId?: string;
-}
-
-export interface ProjectStageOutput {
-    bundle: CanonicalConversationBundle;
-    view: ProjectedView;
-}
-
 export interface ImageMount {
     virtualPath: string;
     bytes: Uint8Array;
@@ -72,7 +60,6 @@ export interface ImageMount {
 
 export interface ResourceStageInput {
     bundle: CanonicalConversationBundle;
-    view: ProjectedView;
     byteStore: InlineByteStore;
 }
 
@@ -85,7 +72,6 @@ export interface ResourceStageOutput {
 
 export interface PayloadStageInput {
     bundle: CanonicalConversationBundle;
-    view: ProjectedView;
     pathMap: Map<string, string>;
     locale: 'zh' | 'en';
 }
@@ -125,7 +111,6 @@ export interface DeliveryStageOutput {
 }
 
 export interface PipelineStages {
-    project: StageFn<ProjectStageInput, ProjectStageOutput>;
     resources: StageFn<ResourceStageInput, ResourceStageOutput>;
     payload: StageFn<PayloadStageInput, PayloadStageOutput>;
     compile: StageFn<CompileStageInput, CompileStageOutput>;
@@ -144,7 +129,6 @@ export interface PipelineItemInput {
     writer: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     folderName: string;
-    leafMessageId?: string;
 }
 
 export interface PipelineContext {

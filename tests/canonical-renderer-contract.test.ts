@@ -330,7 +330,6 @@ test('HTML renders all messages in authoritative source order', () => {
         key: { providerId: 'gemini', accountId: 'a', conversationId: 'order' },
         messages: ['second', 'first'].map((id) => ({ id, role: 'user', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: id }] }] })),
     }, assets: [], citations: [] };
-    const { html, projectedMessageIds } = renderCanonicalHtml(bundle);
-    assert.deepStrictEqual(projectedMessageIds, ['second', 'first']);
+    const { html } = renderCanonicalHtml(bundle);
     assert.ok(html.indexOf('second') < html.indexOf('first'));
 });

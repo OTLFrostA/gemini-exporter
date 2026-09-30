@@ -48,7 +48,7 @@ function makeMountAssetResolver(
             if (virtualPath === undefined) {
                 return miss(
                     'COMPILE_ASSET_PATHMAP_MISSING',
-                    `Asset ${assetId} has no S2 pathMap entry; refusing to guess the mount, returning null so the template renders its placeholder.`,
+                    `Asset ${assetId} has no resource pathMap entry; refusing to guess the mount, returning null so the template renders its placeholder.`,
                 );
             }
             const candidates = byVirtualPath.get(virtualPath) ?? [];

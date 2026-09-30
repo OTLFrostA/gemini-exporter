@@ -40,7 +40,7 @@ function unresolvedReason(
     effectiveStatus: Map<string, AssetStatus>,
 ): string {
     if (!asset) {
-        return 'referenced by the projected view but absent from bundle.assets';
+        return 'referenced by conversation messages but absent from bundle.assets';
     }
     const status = effectiveStatus.get(asset.id) ?? asset.status;
     const detail = asset.failureReason ? ` (${asset.failureReason})` : '';
@@ -69,7 +69,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     for (const asset of input.bundle.assets) byId.set(asset.id, asset);
     const referencedIds = new Set<string>();
     const binaryIds = new Set<string>();
-    for (const message of input.view.messages) {
+    for (const message of input.bundle.conversation.messages) {
         throwIfAborted(ctx.signal);
         const blockIds = collectReferencedAssetIds(message.blocks);
         for (const id of blockIds) referencedIds.add(id);
@@ -84,7 +84,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     }
     const metadataOnlySkipped = referencedIds.size - binaryIds.size;
     ctx.log(
-        `[${STAGE_NAME}] ${referencedIds.size} asset reference(s) in projected view ` +
+        `[${STAGE_NAME}] ${referencedIds.size} asset reference(s) in conversation messages ` +
         `(${binaryIds.size} binary, ${metadataOnlySkipped} metadata-only skipped before resolution)`,
     );
 
@@ -131,7 +131,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
         unresolved.push({ assetId, reason });
         if (!hasWarnPlus(diagnostics, assetId)) {
             diagFor(diagnostics, assetId, 'warning', 'RESOURCE_ASSET_UNRESOLVED',
-                `asset ${assetId} was referenced by the projected view but not resolved: ${reason}`);
+                `asset ${assetId} was referenced by conversation messages but not resolved: ${reason}`);
         }
     }
 

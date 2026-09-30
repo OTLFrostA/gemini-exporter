@@ -14,8 +14,6 @@ export {
     type PipelineItemStatus,
     type PipelineStageName,
     type PipelineStages,
-    type ProjectStageInput,
-    type ProjectStageOutput,
     type ResourceStageInput,
     type ResourceStageOutput,
     type StageContext,
