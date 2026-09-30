@@ -1,6 +1,6 @@
 /**
  * tests/pdf-compile-stage.test.ts
- * Tier 1 tests for the D7 S4 compile stage (M4).
+ * Tier 1 tests for the compile stage (M4).
  *
  * Focused coverage with an injected stub compiler:
  * - happy path: stub output verified and returned; RenderContext carries
@@ -128,7 +128,7 @@ test('happy path: verified pdfBytes returned; compiler got bundle/locale/signal 
     assert.strictEqual(String.fromCharCode(...output.pdfBytes.slice(0, 5)), '%PDF-');
 
     // The frozen IPdfCompiler takes TypstRenderPayload: the stage re-wraps the
-    // bundle and carries the D7 S3 prebuilt doc + S2 pathMap (M1c contract).
+    // bundle and carries the prebuilt payload + resource pathMap (M1c contract).
     assert.strictEqual(captured.payload.rendererSchemaVersion, 1);
     assert.strictEqual(captured.payload.sourceSchemaVersion, 1);
     assert.strictEqual(captured.payload.bundle, input.bundle);

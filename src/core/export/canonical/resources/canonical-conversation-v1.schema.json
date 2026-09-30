@@ -938,7 +938,6 @@
             "assistant",
             "system",
             "developer",
-            "tool",
             "unknown"
           ]
         },

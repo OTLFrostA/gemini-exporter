@@ -9,7 +9,6 @@
  *
  * 修复：union 收敛为真实存在的 7 个 source（删死成员、补 rpc/legacy/default），
  * RANK 与 PRIORITY 与之对齐并改用 Record<TitleSource, number> 约束；
- * chatgptProvider 的槽位错位（titleSource:'api-detail' 却写 titles.rpc）一并修正，
  * api-detail 与 rpc 同级（50），行为与修正前一致。
  *
  * 本测试是防漂移网：新增 TitleSource 时若不同步更新 RANK/PRIORITY，测试失败。

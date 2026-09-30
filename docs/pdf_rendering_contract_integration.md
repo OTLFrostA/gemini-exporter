@@ -34,13 +34,13 @@
 
 | 项目 | 包内现状 | 接入要求与验收 |
 | --- | --- | --- |
-| 消息树与分支 | Typst 适配器选 `selectedLeafMessageId`；HTML 直接排序全部消息 | 抽出唯一的 `projectConversation(bundle, selection)`；校验 ID 唯一、父节点存在、无环、叶节点有效；明确无选择、多根、旧线性会话策略。两种输出同一路径、同顺序；其他分支仍保存在 canonical/归档 |
+| 消息顺序 | `conversation.messages` 数组顺序是唯一权威顺序 | HTML 与 Typst 直接按数组顺序渲染；PDF 按 resources → payload → compile → deliver 四阶段执行。消息 ID 必须存在且唯一，生产导出拒绝 `MSG_BAD_ID` / `MSG_DUP_ID` |
 | 标题权威 | `provider/user/derived` 不足以表达当前 `rpc/dom/takeout/sniff/api-detail/legacy` 升级规则 | 保留来源候选与权威等级，旧标题升级回归通过；不能因一次低可信观察覆盖高可信标题 |
 | 未知内容 | `unknown` 可仅有 rawRef/payload，`unknownInline` 可没有可读文本 | canonical 保留原始证据；渲染视图必须有可见 fallback 或明确诊断，禁止空白吞块 |
 | 资源 | `available` 是元数据；HTML 可回退 `sourceUrl` | 导出前解析真实字节、状态和归档局部路径；HTML 离线可读，PDF 虚拟文件确实存在；缺失实体给占位与诊断 |
 | 渲染接口 | `RenderContext` 缺取消/进度；`ExportArtifact` 缺伴随文件 | 补 `AbortSignal`、阶段进度、资源/伴随文件计划及写入结果；与现有 Writer、批量任务对接 |
 | 表示独立性 | canonical 的 `ThoughtBlock.initiallyCollapsed` 是视图状态 | 折叠默认值移到 HTML renderer 配置；归档只保留平台实际公开的思考内容与语义 |
-| 输入校验 | 包内检查以示例、文件存在和名称匹配为主 | 类型与 JSON Schema 对齐；加入运行时结构/大小/路径/URL 校验和负例（环、缺父、伪 available、恶意链接、损坏资源）；合约测试在仓库 CI 运行 |
+| 输入校验 | 包内检查以示例、文件存在和名称匹配为主 | 类型与 JSON Schema 对齐；加入运行时结构/大小/路径/URL 校验和负例（缺失/重复消息 ID、伪 available、恶意链接、损坏资源）；合约测试在仓库 CI 运行 |
 
 `ConversationKey.accountId` 依赖 F1 复合身份迁移；F2 接入不得临时造一个可能碰撞的账户 ID。来源时间未知时保持未知，`observedAt` 不冒充服务端时间。
 

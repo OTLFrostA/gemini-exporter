@@ -9,7 +9,6 @@ export interface RendererStrings {
     mathFallback: string;
     systemMessage: string;
     developerMessage: string;
-    toolMessage: string;
     unknownRole: string;
 }
 
@@ -24,7 +23,6 @@ const EN: RendererStrings = {
     mathFallback: 'Could not typeset this formula; original LaTeX preserved:',
     systemMessage: 'System message',
     developerMessage: 'Developer message',
-    toolMessage: 'Tool message',
     unknownRole: 'Unknown role',
 };
 
@@ -39,7 +37,6 @@ const ZH: RendererStrings = {
     mathFallback: '无法排版该公式；保留原始 LaTeX：',
     systemMessage: '系统消息',
     developerMessage: '开发者消息',
-    toolMessage: '工具消息',
     unknownRole: '未知角色',
 };
 

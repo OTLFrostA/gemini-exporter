@@ -22,7 +22,7 @@ const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8'
 
 // ---------------------------------------------------------------------------
 // P1-090: ChatMessage.thoughts is honestly string | string[]
-// (parseDetail writes a joined string, chatgptProvider writes string[]).
+// parseDetail writes a joined string.
 // ---------------------------------------------------------------------------
 test('p1_g - P1-090 thoughts accepts both string and string[]', () => {
     const fromParser: ChatMessage = { role: 'model', content: 'hi', thoughts: 'joined\n\nstring' };

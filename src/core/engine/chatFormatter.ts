@@ -54,7 +54,9 @@ export async function formatHtmlCanonical(
     chat: any,
     opts: CanonicalHtmlExportOptions = {}
 ): Promise<FormattedResult> {
-    const { bundle } = await normalizeGeminiConversation(chat);
+    const { bundle, diagnostics } = await normalizeGeminiConversation(chat);
+    const integrityError = diagnostics.find((d) => d.severity === 'error' && (d.code === 'MSG_BAD_ID' || d.code === 'MSG_DUP_ID'));
+    if (integrityError) throw new Error(`[${integrityError.code}] ${integrityError.message}`);
     const renderer = new CanonicalHtmlRenderer({
         lang: opts.lang === 'en' ? 'en' : 'zh',
         theme: opts.theme === 'light' ? 'light' : 'dark',

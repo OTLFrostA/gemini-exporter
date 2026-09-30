@@ -429,7 +429,7 @@ function typstTextParts(payload: any, bundle: any): TextParts {
     for (const msg of payload.messages ?? []) {
         const cblocks: any[] = canonById.get(msg.id)?.blocks ?? [];
         // toRenderMessage maps canonical blocks 1:1, optionally prepending one
-        // role-prefix note (system/developer/tool/unknown roles only).
+        // role-prefix note (system/developer/unknown roles only).
         const offset = (msg.blocks?.length ?? 0) - cblocks.length;
         (msg.blocks ?? []).forEach((b: any, j: number) => {
             emitBlock(b, cblocks[j - offset]?.type);

@@ -1,6 +1,6 @@
 /**
  * tests/pdf-delivery-stage.test.ts
- * Tier 1 tests for the D7 S5 delivery stage (M5, corrected): staged/finalized
+ * Tier 1 tests for the delivery stage (M5, corrected): staged/finalized
  * batch-ZIP semantics.
  *
  * Locks the corrected behavior (per D7 coordinator, M1b #577):

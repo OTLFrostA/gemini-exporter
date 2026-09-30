@@ -72,11 +72,7 @@
 #let figure-caption-max-width = 115mm
 
 #let attachment-single-max-ratio = 48%
-#let attachment-group-width-ratio = 70%
-#let attachment-grid-gap = 7pt
 #let attachment-card-height = 38.6pt
-#let attachment-grid-min-card-width = 118pt
-#let attachment-stack-max-height = 145pt
 
 #let sp-micro = 3pt
 #let sp-xs = 5pt

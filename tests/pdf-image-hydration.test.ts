@@ -596,3 +596,22 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
     }
 });
 
+
+
+test('PDF preparation refuses duplicate message IDs before entering the pipeline', async () => {
+    const chat = { id: 'duplicate', title: 'Duplicate', messages: [
+        { id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' },
+    ] };
+    const result = await preparePdfItem(chat);
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /MSG_DUP_ID/);
+    assert.ok(result.diagnostics.some((d: any) => d.code === 'MSG_DUP_ID'));
+});
+
+test('PDF preparation preserves nonfatal normalization diagnostics', async () => {
+    const result = await preparePdfItem({ id: 'warning', title: 'Warning', messages: [
+        { id: 'valid', role: 'unrecognized', content: 'visible' },
+    ] });
+    assert.strictEqual(result.ok, true);
+    assert.ok(result.diagnostics.some((d: any) => d.code === 'UNKNOWN_ROLE'));
+});
