@@ -1,3 +1,4 @@
+import { normalizeArchiveResourceName } from '../../assets/archivePath.js';
 import type { Attachment as RepoAttachment, ChatMessage as RepoMessage } from '../../../../types/conversation.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
@@ -264,9 +265,7 @@ export function classifyAttachmentKind(a: RepoAttachment): { kind: AssetKind; is
 }
 
 export function normalizeLocalName(localName: string): string {
-    let loc = localName;
-    if (loc && !loc.startsWith('assets/') && !/^https?:\/\//i.test(loc)) loc = `assets/${loc}`;
-    return loc;
+    return normalizeArchiveResourceName(localName);
 }
 
 function decodeBase64Payload(raw: string): Uint8Array | null {
