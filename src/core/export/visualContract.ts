@@ -12,5 +12,4 @@ export const visual = {
         small: { size: 13, weight: 400, lineHeight: 1.5 },
         metadata: { size: 12, weight: 400, lineHeight: 1.4 },
     },
-    surface: { userBubbleRadius: 16, blockRadius: 12 },
 } as const;

@@ -129,7 +129,7 @@
 }
 
 // Natural user bubble width is capped globally; height only controls pagination/elevation.
-#let user-bubble(body, plain-text: "") = layout(size => {
+#let user-bubble(body, plain-text: "", min-content-width: 0pt) = layout(size => {
   let px = 12.5pt
   let py = 8.4pt
   let max-width = calc.min(size.width * user-bubble-max-ratio, prose-width)
@@ -145,7 +145,7 @@
     measure(text(size: body-size)[#plain-text]).width + 2 * px
   }
 
-  let bubble-width = calc.min(calc.max(raw-width, 2 * px + 28pt), max-width)
+  let bubble-width = calc.min(calc.max(raw-width, 2 * px + calc.max(28pt, min-content-width)), max-width)
 
   let inner-width = calc.max(bubble-width - 2 * px, 28pt)
   let content-height = measure(width: inner-width, styled-body).height
@@ -227,14 +227,16 @@
   )
 })
 
-#let file-attachment(name, kind, size) = layout(size-info => {
-  let px = 10.5pt
-  let icon-w = 22pt
-  let gap = 8pt
+// File cards reserve their actual label/metadata width plus icon and insets.
+// The enclosing user bubble must account for the same intrinsic width.
+#let file-attachment-natural-width(name, kind, size) = {
   let name-w = measure(text(size: 8.25pt, weight: 560)[#name]).width
-  let meta = kind + " · " + size
-  let meta-w = measure(text(size: metadata-size)[#meta]).width
-  let natural = icon-w + gap + calc.max(name-w, meta-w) + 2 * px
+  let meta-w = measure(text(size: metadata-size)[#(kind + " · " + size)]).width
+  22pt + 8pt + calc.max(name-w, meta-w) + 2 * 10.5pt
+}
+
+#let file-attachment(name, kind, size) = layout(size-info => {
+  let natural = file-attachment-natural-width(name, kind, size)
   let max-width = size-info.width
   let card-width = calc.min(natural, max-width)
 

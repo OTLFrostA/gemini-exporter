@@ -2,9 +2,13 @@
 #import "components.typ": *
 #import "render-block.typ": render-blocks
 
-#let render-user-message(message) = {
+#let render-user-message(message) = context {
+  let file-widths = message.blocks.filter(node => node.type == "file").map(node => {
+    file-attachment-natural-width(node.name, node.kind, node.size)
+  })
   user-bubble(
     render-blocks(message.blocks, scope: "user"),
+    min-content-width: calc.max(0pt, ..file-widths),
     plain-text: if "plainText" in message { message.plainText } else { "" },
   )
 }
