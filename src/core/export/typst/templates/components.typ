@@ -148,9 +148,7 @@
     measure(text(size: body-size)[#plain-text]).width + 2 * px
   }
 
-  let bubble-width = if raw-width <= short-cutoff {
-    raw-width
-  } else if raw-width <= medium-cutoff {
+  let bubble-width = if raw-width <= medium-cutoff and measure(width: calc.max(raw-width - 2 * px, 28pt), styled-body).height <= 31pt {
     raw-width
   } else {
     let candidates = (
