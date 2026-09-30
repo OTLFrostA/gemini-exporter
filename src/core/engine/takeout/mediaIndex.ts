@@ -1,3 +1,5 @@
+import { sameGenerationEvent } from '../generatedMediaIdentity.js';
+import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 import { normId as utilsNormId } from "../../utils/utils.js";
 
 export interface TakeoutStore {
@@ -12,7 +14,7 @@ export interface MediaIndexModule {
     extractC2PATimestamp: (bufferOrArray: any) => number | null;
     getTakeoutOfflineChat: (chatId: string, slot?: string | null) => any;
     getTakeoutMediaForChat: (chatId: string, slot?: string | null) => any[];
-    getTakeoutFallbackMedia: (chatId: string, filenameOrId: string, slot?: string | null) => Promise<Uint8Array | null>;
+    getTakeoutFallbackMedia: (chatId: string, filenameOrId: string, slot?: string | null, generation?: GeneratedMediaIdentity) => Promise<Uint8Array | null>;
     commitTakeoutData: (slot: string | null | undefined, data: TakeoutStore) => void;
     clearTakeoutData: (slot?: string | null) => void;
     __slotTakeouts: Map<string, TakeoutStore>;
@@ -86,12 +88,30 @@ export const normId = utilsNormId;
         return (store.mediaMap && store.mediaMap[nid]) || [];
     }
 
-    async function getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slot?: string | null): Promise<Uint8Array | null> {
+    async function getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slot?: string | null, generation?: GeneratedMediaIdentity): Promise<Uint8Array | null> {
         if (!filenameOrId) return null;
         const nid = normId(chatId);
         const store = getStore(slot);
         const mediaMap = store.mediaMap;
         const globalMedia = store.globalMedia;
+        if (generation) {
+            if (generation.chatId && generation.chatId !== nid) return null;
+            const matches = (mediaMap[nid] || []).filter((item: any) => {
+                const gen = item.generation;
+                if (!gen) return false;
+                if (!sameGenerationEvent(gen, generation)) return false;
+                const targetOrd = generation.imageOrdinal ?? 0;
+                const itemOrd = gen.imageOrdinal ?? 0;
+                return itemOrd === targetOrd;
+            });
+            if (matches.length === 1) {
+                try {
+                    const bytes = await matches[0].fileObj.async('uint8array');
+                    return bytes?.length ? bytes : null;
+                } catch { return null; }
+            }
+            return null;
+        }
         const isGenericName = (s: string) => /^(?:image(?:[_-]?\d+)?|file(?:[_-]?\d+)?|asset(?:[_-]?\d+)?|media(?:[_-]?\d+)?|thumb(?:nail)?(?:[_-]?\d+)?|photo(?:[_-]?\d+)?|picture(?:[_-]?\d+)?|screenshot(?:[_-]?\d+)?)$/i.test(s);
 
         let target = String(filenameOrId).replace(/^.*[\\\/]/, '').trim();

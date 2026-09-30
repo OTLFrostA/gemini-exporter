@@ -20,6 +20,18 @@ export interface TitleSources {
 
 export type AttachmentType = 'image' | 'file' | 'doc' | 'grounding' | 'code';
 
+export interface GeneratedMediaIdentity {
+    chatId: string;
+    providerRequestId?: string;
+    time?: number | null;
+    prompt?: string;
+    generationOrdinal: number;
+    imageCount?: number;
+    /** Present only when the source establishes a stable ordinal (single image => 0). */
+    imageOrdinal?: number;
+    turnId?: string;
+}
+
 export interface Attachment {
     type: AttachmentType | string;
     url?: string;
@@ -38,6 +50,9 @@ export interface Attachment {
     source?: string;
     subDir?: string;
     isGenerated?: boolean;
+    providerRequestId?: string;
+    imageOrdinal?: number;
+    generation?: GeneratedMediaIdentity;
     isImage?: boolean;
     dataBuffer?: ArrayBuffer | ArrayBufferView;
     blobBase64?: string;
@@ -53,6 +68,8 @@ export interface ChatMessage {
     /** Server-authoritative message time; null when the server provided none (never fabricate Date.now()). */
     timestamp?: number | null;
     turnId?: string;
+    providerRequestId?: string;
+    generation?: GeneratedMediaIdentity;
     attachments?: Attachment[];
     thoughts?: string | string[];
     thinking?: string;

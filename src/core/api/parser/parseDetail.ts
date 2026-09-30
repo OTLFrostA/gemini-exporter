@@ -97,6 +97,23 @@ function extractUserTextFromPayload(userPayload: unknown): string {
     return "";
 }
 
+function extractTurnRequestId(turn: any): string | undefined {
+    let raw: string | undefined;
+    if (Array.isArray(turn?.[0])) {
+        raw = turn[0].find((x: any) => typeof x === "string" && x.startsWith("r_"));
+        if (!raw && typeof turn[0][1] === "string" && turn[0][1].startsWith("r_")) raw = turn[0][1];
+        if (!raw && typeof turn[0][0] === "string" && turn[0][0].startsWith("r_")) raw = turn[0][0];
+    } else if (typeof turn?.[0] === "string" && turn[0].startsWith("r_")) {
+        raw = turn[0];
+    }
+    if (!raw && typeof turn?.[1] === "string" && turn[1].startsWith("r_")) {
+        raw = turn[1];
+    }
+    if (!raw) return undefined;
+    const match = raw.match(/^r_([0-9a-fA-F]+)$/i);
+    return match ? match[1].toLowerCase() : raw.replace(/^r_/i, '').toLowerCase();
+}
+
 function isTurn(turn: unknown): boolean {
     if (!Array.isArray(turn) || turn.length < 3) return false;
     const cached = isTurnCache.get(turn);
@@ -303,9 +320,13 @@ function buildUserMessage(
         }
     }
 
+    const userRequestId = extractTurnRequestId(turn);
+
     return {
         id: userMsgId,
         role: "user",
+        providerRequestId: userRequestId || void 0,
+        turnId: userMsgId || void 0,
         content: uText,
         timestamp: ts,
         images: formattedImages,
@@ -326,7 +347,8 @@ function parseCandidateResponse(
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number },
-    candidateIndex = 0
+    candidateIndex = 0,
+    convId?: string
 ): Message | null {
     const candidateId = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] || "";
     const candidateBlock = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
@@ -423,12 +445,28 @@ function parseCandidateResponse(
         responseText = stripInternalChipMarkdown(responseText);
     }
 
-    const formattedImages = filteredImages.length ? filteredImages.map((img: any) => ({
-        ...img,
-        resolvedUrl: highResVariant(img.sourceUrl),
-        localName: getUniqueLocalName(`assets/${shortScope}${sanitizeFileName(img.fileName || "img.jpg", "img.jpg")}`),
-        type: "image"
-    })) : void 0;
+    const providerRequestId = extractTurnRequestId(turn);
+    let genOrdinal = 0;
+    const formattedImages = filteredImages.length ? filteredImages.map((img: any) => {
+        const isGen = !!img.isGenerated;
+        const ordinal = isGen ? genOrdinal++ : undefined;
+        return {
+            ...img,
+            resolvedUrl: highResVariant(img.sourceUrl),
+            localName: getUniqueLocalName(`assets/${shortScope}${sanitizeFileName(img.fileName || "img.jpg", "img.jpg")}`),
+            type: "image",
+            providerRequestId: isGen ? providerRequestId : undefined,
+            imageOrdinal: ordinal,
+            ...(isGen && providerRequestId ? {
+                generation: {
+                    chatId: String(convId || '').replace(/^c_/, ''),
+                    providerRequestId,
+                    imageOrdinal: ordinal,
+                    generationOrdinal: 0,
+                }
+            } : {})
+        };
+    }) : void 0;
 
     const attachments: any[] = [];
     if (formattedImages) {
@@ -440,7 +478,12 @@ function parseCandidateResponse(
                 alt: img.fileName,
                 isBlob: false,
                 isImage: true,
-                originalUrl: img.sourceUrl
+                originalUrl: img.sourceUrl,
+                token: img.token,
+                providerRequestId: img.providerRequestId,
+                imageOrdinal: img.imageOrdinal,
+                ...(img.isGenerated ? { isGenerated: true } : {}),
+                ...(img.generation ? { generation: img.generation } : {})
             });
         }
     }
@@ -469,6 +512,8 @@ function parseCandidateResponse(
         id: candidateId || fallbackTurnId || "",
         role: "model",
         content: responseText || "",
+        providerRequestId: providerRequestId || void 0,
+        turnId: fallbackTurnId || void 0,
         thoughts: thoughts || void 0,
         citations: citations.length ? citations : void 0,
         timestamp: ts,
@@ -563,7 +608,8 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
                         dedupSet,
                         docDedupSet,
                         imageSeq,
-                        ci
+                        ci,
+                        convId
                     );
                     if (modelMsg) {
                         allMsgs.push(modelMsg);

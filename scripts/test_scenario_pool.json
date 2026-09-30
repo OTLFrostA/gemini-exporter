@@ -1,45 +1,5 @@
 [
   {
-    "id": "high_energy_astrophysics_frb_magnetar_synchrotron_maser",
-    "domain": "high_energy_astrophysics_fast_radio_burst_magnetar",
-    "title": "高能天体物理学：磁星超强磁层重联与快速射电暴(FRB)相对论激波同步脉泽辐射推演",
-    "features": [
-      "code",
-      "math",
-      "latex",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试极强磁场磁星 (B > 10^14 G) 磁层阿尔芬波能量耗散、相对论激波前沿同步辐射脉泽 (Synchrotron Maser) 不稳定性频散关系、FRB 色散量 (DM) 与法拉第旋转量 (RM) 宇宙学距离反演算法",
-    "turns": [
-      "在相对论无力场电动力学（Relativistic Force-Free Electrodynamics）框架下，推导超强磁场磁星（Magnetar, \\text{B} \\sim 10^{14}-10^{15}\\,\\text{G}）在星震（Crustal Crustquake）激发下，磁层内部产生剪切阿尔芬波（Shear Alfvén Waves）向外传播的能量通量 Poynting 矢量 \\vec{S} = \\frac{c}{4\\pi} (\\vec{E} \\times \\vec{B})，并推导阿尔芬波在光圆柱（Light Cylinder）之外转变为超相对论性磁化外流（Magnetized Relativistic Outflow, 洛伦兹因子 \\Gamma \\gg 10^2）的极限光度上限。",
-      "推导磁星相对论性爆炸波冲击周围星周介质时，激波前沿产生的同步辐射脉泽不稳定性（Synchrotron Maser Instability）微观物理过程。推导磁化冷等离子体在垂直于激波面的环形相空间分布下的电磁异常模式（X-mode）微观色散方程，证明其为何能在千兆赫兹（GHz）射电波段产生亮度温度高达 T_b \\sim 10^{35}\\,\\text{K} 的超相干瞬态射电脉冲。",
-      "从等离子体色散理论出发，推导快速射电暴（FRB）信号在星际介质（ISM）与星系际介质（IGM）传播时的群延迟公式 \\Delta t = \\frac{e^2}{2\\pi m_e c} \\frac{\\text{DM}}{\\nu^2}，并推导出法拉第旋转量（Rotation Measure, RM）与磁场沿视线积分的物理公式 \\text{RM} = \\frac{e^3}{2\\pi m_e^2 c^4} \\int n_e B_\\parallel ds，说明为何偏振角线性变化与超大 RM 值（如 FRB 121102）是断言致密高度磁化极端环境的核心指纹。",
-      "使用 Python 编写一个天文数据处理算法脚本，模拟宽带射电望远镜（频率范围 1.0 GHz 至 1.8 GHz，含 1024 个频段通道）接收到的被色散污染的原始动态谱（Dynamic Spectrum），实现基于非相干消色散（Incoherent Dedispersion）的遍历试探步长算法，计算试验色散量 \\text{DM}_{trial} 对应的脉冲信噪比曲线，精确重构脉冲固有到达时间与半高全宽（FWHM）。",
-      "使用 Markdown 表格，对比重复快速射电暴（Repeating FRBs, 如 FRB 121102 / FRB 20200120E）、非重复快速射电暴（Non-repeating FRBs）、旋转射电暂现源（RRATs）以及银河系内磁星 SGR 1935+2154 射电暴在脉冲爆发各向同性能量量级（\\text{erg}）、偏振度与电矢量位置角（EVPA）摆动行为、能量谱指数与微结构子脉冲下漂（Sad Trombone Effect）特征上的异同点。"
-    ]
-  },
-  {
-    "id": "neuroengineering_optogenetic_closed_loop_bci",
-    "domain": "neuroengineering_optogenetic_closed_loop_bci",
-    "title": "神经工程学：全光学生理学闭环脑机接口与双光子全息神经回路调控",
-    "features": [
-      "code",
-      "math",
-      "latex",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试双光子全息点扩散函数计算、钙成像动态解卷积降噪 Python 算法、神经微回路网络脉冲动态对比表与低延迟闭环控制理论",
-    "turns": [
-      "基于空间光调制器 (SLM) 与两光子吸收微透镜干涉原理，推导 Gerchberg-Saxton 迭代傅里叶相位恢复算法如何将近红外飞秒激光波前调制为能在三维脑组织内同时靶向激发数百个特定神经元的三维全息衍射点阵列点扩散函数 (PSF)。",
-      "推导基于一阶自回归模型 (AR(1)) 与非负截断惩罚的快速在线钙成像荧光轨迹解卷积算法 (OASIS)，写出如何从低采样率、高泊松噪声的 GCaMP8 荧光强度动态 F(t) 准确反演神经元离散动作电位触发时刻与发放率 \\lambda(t)。",
-      "请使用 Python 编写一段紧凑高效的 OASIS 钙信号解卷积反演函数，输入一段含随机光漂移与高斯-泊松混合白噪声的一维荧光信号序列，输出估计的基线荧光、去噪后钙离子瞬变过程及重建的离散动作电位脉冲时刻列表。",
-      "设计一个结构化 Markdown 表格，横向对比全光学生理学闭环系统、高密度刚性穿透硅微电极阵列 (Neuropixels 2.0)、微创柔性高分子电极刺入阵列与硬膜下皮层脑电 (ECoG) 在记录通道规模、单细胞空间分辨率 (μm)、时间精度 (ms)、长期在体生物相容性及双向闭环反馈延迟。",
-      "阐述皮层浅层微回路中兴奋性锥体神经元与抑制性中间神经元 (PV/SST) 构成的平衡态网络 (Balanced State Network) 在光遗传全息扰动下的非线性增益控制动力学，分析预防异常同步化与癫痫样放电的闭环反馈阻尼控制器数学模型。"
-    ]
-  },
-  {
     "id": "quantum_materials_altermagnetism_spintronics",
     "domain": "quantum_materials_altermagnetism_spintronics",
     "title": "量子材料学：交替磁性 (Altermagnetism) 自旋分裂与超快反铁磁自旋电子学",
@@ -228,29 +188,6 @@
     ]
   },
   {
-    "id": "topological_metamaterials_non_hermitian_skin_effect",
-    "domain": "topological_metamaterials_non_hermitian_skin_effect",
-    "title": "拓扑超构材料学：非厄米趋肤效应 (NHSE) 与广义布里渊区推导",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试非互易晶格非厄米哈密顿量广义布里渊区 (GBZ) 罗朗多项式鞍点推导、复能量谱能谱环绕数 (Winding Number)、高阶拓扑角态科学插图生成与拓扑光子学平台横向对比",
-    "turns": [
-      "在非互易单链 Hatano-Nelson 模型与非厄米苏-施里弗-希格 (NH-SSH) 晶格模型中，推导开边界条件 (OBC) 下全部本征态呈指数局域在系统边界的非厄米趋肤效应 (Non-Hermitian Skin Effect, NHSE) 物理机制。引入复动量变换 \\beta = e^{ik}，通过转移矩阵行列式特征多项式 P(\\beta, E) = 0，严格推导广义布里渊区 (Generalized Brillouin Zone, GBZ) 满足模长连续条件 |\\beta_M(E)| = |\\beta_{M+1}(E)| 的闭合解析代数轨迹。",
-      "请生成一张具备顶级科研学术期刊封面质感的科学级 3D 多模态超构材料概念插图：展现工作在可见光波段的双维非厄米拓扑光子超构晶格芯片（Nanophotonic Metamaterial Slab）。芯片由周期性微纳硅基回音壁纳米谐振环腔构成，环腔之间通过非互易光学波导桥接（微观展现光子手性单向跃迁路径）；在激光垂直泵浦激发下，原本弥散分布的光学电磁能量呈现出强烈的非厄米趋肤聚集效应，全部电磁能量坍缩局域在芯片单一边缘角落形成强烈高亮发光的拓扑边缘态辉光光斑，侧面悬浮半透明的复能量谱复数平面代数闭合环（拓扑能谱环绕数几何拓扑示意），展现极致微纳微腔刻蚀纹理与量子光学实验室冷色调背景。",
-      "推导周期性边界条件 (PBC) 下复能谱在复平面上形成环绕非零区域的谱拓扑缠绕数 (Spectral Winding Number) W = \\frac{1}{2\\pi i} \\oint_{0}^{2\\pi} \\frac{d}{dk} \\ln \\det[H(k) - E_B] dk，并证明非零能谱环绕数 W \\neq 0 与开边界条件下 NHSE 指数局域化衰减长度 \\kappa = -\\ln |\\beta| 之间的体-边对应关系 (Bulk-Boundary Correspondence) 对偶定理。",
-      "使用 Python 编写脚本，分别构建一维非互易 Hatano-Nelson 紧束缚模型在周期边界 (PBC) 与开边界 (OBC) 下的稀疏三对角非对称哈密顿矩阵，对角化求解并绘制复本征能量谱图（展示闭合椭圆 vs 实线段坍缩），并数值计算所有波函数概率密度分布 \\sum_n |\\psi_n(x)|^2，清晰展示趋肤效应指数富集曲线。",
-      "使用 Markdown 表格，对比拓扑声学超材料 (Topological Acoustics)、拓扑光子晶体与波导阵列 (Topological Photonics)、LC 电路拓扑电网络 (Topoelectrical Circuits) 以及超冷原子光晶格 (Ultracold Atoms in Optical Lattices) 在非厄米增益/损耗调控手段、非互易跃迁物理实现方案、趋肤效应观察信噪比以及高维高阶拓扑角态扩展能力维度的系统级优缺点。"
-    ]
-  },
-  {
     "id": "spintronics_magnetic_skyrmion_racetrack_memory",
     "domain": "spintronics_magnetic_skyrmions",
     "title": "自旋电子学：拓扑磁斯格明子 Thiele 动力学方程与赛道内存推导",
@@ -269,29 +206,6 @@
       "使用 Python 编写脚本，基于 Runge-Kutta (RK4) 数值求解包含边缘排斥势垒、随机钉扎杂质点 (Pinning Sites) 以及脉冲驱动电流的二维 Thiele 动力学微分方程，模拟斯格明子在限制赛道 (Confined Racetrack) 内部的纵向行进轨迹，展示随电流密度增加从蠕变 (Creep) 到退钉扎解卡 (Depinning) 的非线性速度响应曲线。",
       "推导反铁磁斯格明子 (Antiferromagnetic Skyrmion) 或合成反铁磁 (SAF) 双层耦合系统抵消拓扑 Magnus 力的微观配对机制，证明由两个具有相反拓扑荷 Q_1 = -Q_2 的亚点阵耦合构成的复合斯格明子如何实现严格为零的斯格明子霍尔角 \\theta_{SkHE} = 0，从而根除赛道侧壁碰撞湮灭瓶颈。",
       "使用 Markdown 表格，对比拓扑磁斯格明子赛道内存 (Skyrmion Racetrack)、传统磁畴壁内存 (Domain Wall Memory)、自旋转移力矩磁阻随机存取存储器 (STT-MRAM) 以及相变存储器 (PCRAM) 在位单元尺寸 (nm)、写入/擦除能耗 (fJ/bit)、读写速度 (ns)、抗外磁场干扰能力以及室温热稳定性因子 \\Delta = E_b / (k_B T) 维度的核心技术指标。"
-    ]
-  },
-  {
-    "id": "quantum_acoustics_saw_resonator_circuit_qed",
-    "domain": "quantum_acoustics_saw_resonator",
-    "title": "量子声学：声表面波 (SAW) 谐振器与超导比特量子相干调控推导",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试压电衬底声表面波瑞利波色散关系推导、叉指换能器 (IDT) P 矩阵声电耦合参数化、声子 Fock 态量子层析与高分辨率微纳芯片科学插图生成",
-    "turns": [
-      "在强压电各向异性晶体衬底（如黑磷或钽酸锂 LiNbO3）上，联立弹性力学应力平衡微分方程与准静电麦克斯韦方程，推导无耗散表面瑞利波（Rayleigh SAW）在自由表面边界条件下的三维声场应变张量 S_{ij}(x,y,z) 与电势波 \\phi(x,y,z) 空间剖面，分析声速比体电磁波慢 10^5 倍（v_{saw} \\approx 3000 m/s）形成的极短声子波长 \\lambda_{saw} \\approx 1 \\mu\\text{m} 的量子受限效应。",
-      "请生成一张具备顶级物理科研期刊封底质感的科学级 3D 多模态量子声学芯片渲染概念插图：展现深低温（10 mK）微波屏蔽封装内部的超导量子声学芯片（Quantum Surface Acoustic Wave Chip）。高纯钽酸锂压电晶圆表面精细微加工着铝基超导叉指换能器 (IDT) 与布拉格声学反射栅阵列，中央耦合着一个超导 Transmon 量子比特（呈现淡金色约瑟夫森结超导环）；量子比特向左侧微声学谐振腔发射出波长亚微米级的相干单声子表面波纹（呈现亮青色透明起伏的声学微晶格涟漪），背景呈现稀释制冷机镀金辐射屏蔽罩与冷凝量子光学微波电缆，具备极致纳米金属光泽与电磁-声学多物理场耦合渲染美感。",
-      "在电路量子电动力学 (cQED) 拓展框架下，推导超导 Transmon 量子比特电容焊盘与叉指换能器 (IDT) 压电电极之间的电声耦合 Jaynes-Cummings 哈密顿量 \\hat{H}_{int} = \\hbar g (\\hat{a} \\hat{\\sigma}_+ + \\hat{a}^\\dagger \\hat{\\sigma}_-)，并给出电声耦合强度 g / 2\\pi \\propto \\sqrt{K^2 f_{saw} / C_{\\Sigma}} 的电容分压与压电机电耦合系数 K^2 定标律，分析强耦合条件 g \\gg (\\kappa, \\gamma) 的实验可达性。",
-      "使用 Python 编写脚本，基于开放量子系统 QuTiP 库构建超导比特与单模声学谐振腔的复合希尔伯特空间，数值模拟真空拉比振荡 (Vacuum Rabi Oscillation) 过程，演示单个微波光子在约瑟夫森比特与机械表面声子之间的确定性量子态相干互换，并计算声子态保真度 F(\\rho, |1\\rangle\\langle 1|)。",
-      "使用 Markdown 表格，对比声表面波量子体系 (SAW cQED)、体声波超导谐振器 (HBAR)、光机械悬臂梁 (Optomechanical Beams) 以及三维微波腔 (3D Superconducting Cavities) 在特征共振频率、机械/电磁品质因数 Q、相干退相干时间 T_1 与 T_2、单激发封装体积以及量子非破坏 (QND) 单声子探测能力维度的综合物理特性。"
     ]
   },
   {
@@ -419,6 +333,93 @@
       "使用 Python 代码块模拟一个含组内相关性与网络溢出的虚构实验，生成处理与对照数据并计算一个随机化检验的双侧 p 值。",
       "使用 Markdown 表格比较个体随机、集群随机、两阶段饱和度随机与匹配观察设计，列出识别假设、统计功效、成本和主要偏差来源。",
       "构建含公式、参数表和伪代码的实验审计方案，分析网络跨群边、差异失访和测量误差对估计的影响，并给出教学模拟的敏感性分析步骤。"
+    ]
+  },
+  {
+    "id": "nanophotonics_chiral_plasmonic_metasurface",
+    "domain": "nanophotonics_chiral_plasmonic_metasurface",
+    "title": "纳米光子学：手性等离子体超表面近场超手性场与生物分子对映异构体传感",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试手性等离子体近场光学手性密度推导、微纳手性格形超表面 3D 渲染生图、圆二色性 (CD) 光谱 Python 仿真与对映异构传感平台对比",
+    "turns": [
+      "基于麦克斯韦电动力学与 Lipkin 守恒量（Zilch）理论，推导真空中电磁场局部光学手性密度（Optical Chirality Density）物理公式 C = \\frac{\\varepsilon_0}{2} \\vec{E} \\cdot (\\nabla \\times \\vec{E}) + \\frac{1}{2\\mu_0} \\vec{B} \\cdot (\\nabla \\times \\vec{B})，并推导在平面圆偏振波激发下手性等离子体微纳结构热点（Hotspot）区域相比自由空间产生超手性场增强因子 \\hat{C} = C / C_{\\text{CPL}} \\gg 10^2 的电磁耦合条件。",
+      "请生成一张极高精度的纳米光子学三维示意图，展示在石英衬底上微纳加工的金（Au）手性十字交叉旋涡超表面阵列（Chiral Gammadion Metasurface），在左旋圆偏振光（LCP）照射下，纳米级微隙中激发强烈的局部超手性电磁近场热点（呈现高对比度蓝紫色电磁能流辉光），并与吸附的手性氨基酸生物大分子（双螺旋与四面体立体化学结构）发生特异性共振相互作用，学术论文级专业光影渲染。",
+      "推导手性分子与等离子体超表面手性近场共振耦合时的库恩不对称因子（Kuhn's Dissymmetry Factor）g = \\frac{2(A_L - A_R)}{A_L + A_R} 与玻恩-库恩双偶极振子模型微观解析式，阐明为何超手性场能将纳摩尔（nM）级痕量手性药物对映异构体的圆二色性测量信噪比提高三个数量级。",
+      "请使用 Python 编写基于双洛伦兹振子色散模型的数值计算脚本，仿真手性超表面在 600 nm 至 1000 nm 波段对左旋圆偏振光（LCP）与右旋圆偏振光（RCP）的透射率曲线 T_{LCP}(\\lambda) 与 T_{RCP}(\\lambda)，并计算差分透射圆二色性光谱 \\Delta T(\\lambda) = T_{LCP} - T_{RCP} 与对应的共振偏振旋转角度谱（Optical Rotatory Dispersion, ORD）。",
+      "使用 Markdown 表格，系统对比平面二维手性超表面（Planar 2D Metasurfaces）、立体三维螺旋等离子体纳米天线（3D Helical Plasmonics）、介质全介电高折射率硅超表面（All-Dielectric Silicon Resonators）以及石墨烯等离激元手性微腔在近场手性增强倍数、欧姆热损耗、制造工艺难度、工作波段及对映异构体检测极限（LOD）上的核心性能表现。"
+    ]
+  },
+  {
+    "id": "geophysics_ambient_noise_adjoint_tomography",
+    "domain": "geophysics_ambient_noise_adjoint_tomography",
+    "title": "地球物理学：环境噪声全波形干涉测量与伴随状态层析成像理论",
+    "features": [
+      "code",
+      "math",
+      "latex",
+      "tables",
+      "algorithms",
+      "physics"
+    ],
+    "description": "测试漫散射环境噪声波场格林函数互相关反演声学互易定理、有限频伴随核香蕉甜甜圈敏感核推导、地震干涉预处理 Python 算法与深地成像方法对比",
+    "turns": [
+      "基于声学与弹性动力学互易定理（Elastodynamic Reciprocity Theorem），严格推导在均匀无规分布的被动源（如海浪微震与大气扰动）激励下，两个独立地震台站 A 与 B 处记录的长时间连续环境噪声时间序列互相关函数对时间的导数与台站间的弹性张量格林函数之间的定量对应关系：\\frac{d}{d\\tau} C_{AB}(\\tau) \\propto - [G_{AB}(\\tau) - G_{AB}(-\\tau)]，并说明能量均分假设与漫散射波场条件在消除伪相干信号中的关键作用。",
+      "推导全波形反演（FWI）中基于伴随状态法（Adjoint-State Method）计算走时残差对地下纵波速度 \\alpha(\\mathbf{x}) 与横波速度 \\beta(\\mathbf{x}) 的有限频敏感核函数（Sensitivity Kernels），阐释为何在波长尺度下灵敏度核在几何射线路径中心由于同相相消展现出经典的空心“香蕉-甜甜圈”（Banana-Doughnut Kernel）拓扑几何特征。",
+      "使用 Python 编写一套完整的被动源地震环境噪声互相关数据预处理模块，包含对连续地震动时程记录的均值移除、趋势消除、频域谱白化（Spectral Whitening）以展宽频带，以及时域时间域一比特归一化（1-bit Normalization）以抑制局部大地震尖锐瞬态脉冲污染，最后计算两通道信号的快速傅里叶互相关（FFT Cross-Correlation）并提取对称经验格林函数波形。",
+      "设计一个结构化 Markdown 表格，对比经典射线理论走时层析成像（Ray-Theory Tomography）、环境噪声互相关干涉成像（Ambient Noise Interferometry）、远震接收函数剖面法（P-wave Receiver Function）以及三维全波形伴随层析成像（Adjoint Full-Waveform Inversion）在水平/垂直空间分辨率、对深部构造（地壳 vs 上地幔）速度梯度敏感性、计算复杂度（GPU/CPU核时）及对密集台阵几何分布依赖性。",
+      "阐述多相介质中剪切波速度 \\beta 与介质剪切模量 \\mu、密度 \\rho 的偏微分关系，推导在黏弹性衰减（Q因子）存在时的走时与振幅联合伴随源（Adjoint Source）构造方式，分析如何利用多周期面波频散反演技术有效克服深部克拉通岩石圈底部低速软流圈界面的非线性多解性与局部极小陷阱。"
+    ]
+  },
+  {
+    "id": "astrochemistry_ice_mantle_photolysis_spectroscopy",
+    "domain": "astrochemistry_ice_mantle_photolysis_spectroscopy",
+    "title": "天体化学：星际冰颗粒幔光解反应与红外特征光谱反演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试星际尘埃表面吸附动力学、宇宙线引发冰幔光化学反应、红外吸收光谱多高斯反卷积 Python 代码与 Imagen 冰幔粒子微观结构生成",
+    "turns": [
+      "基于天体物理分子云冷核（T ~ 10 K, n_H ~ 10^4 cm^-3）环境，根据 Langmuir-Hinshelwood 与 Eley-Rideal 表面反应动力学机制，推导气相 CO 与 H 原子在非晶态水冰表面吸附、热扩散与逐级加氢生成甲醛 (H2CO) 及甲醇 (CH3OH) 的速率方程组，写出反应活化能垒与特征时间尺度的解析关系。",
+      "针对韦伯空间望远镜 (JWST) NIRSpec 与 MIRI 观测原恒星盘吸收光谱，推导包含非晶态实水冰 (3.05 μm OH伸缩振动)、CO (4.67 μm) 与 CO2 (15.2 μm 弯曲振动) 的朗伯-比尔吸光度光深度 \\tau(\\lambda) 积分反演分子柱密度 N 的理论公式，解释晶体水冰 3.1 μm 伴峰与 44 μm 晶格振动特征的退火相变判据。",
+      "请生成一张展现星际分子云深处微米级无定形硅酸盐颗粒表面包覆水冰、一氧化碳与甲醇多层复杂冰幔，在极低温度下受宇宙射线诱发次级紫外光子照射并在表面产生自由基重组产生复杂有机分子 (COMs) 的高精度微观三维剖面示意图，高对比度科学插画风格。",
+      "请使用 Python 编写一个处理红外冰特征吸收光谱的局部连续谱拟合与非线性高斯反卷积程序，输入一组波长-通量拟合数据，扣除多项式基线后将 3.0 μm 水冰宽吸收峰分解为主带和短波端游离-OH键小吸收峰，输出各组分的柱密度比例和拟合残差。",
+      "设计一个结构化 Markdown 表格，对比空间红外望远镜 (JWST)、地面亚毫米波干涉阵列 (ALMA)、实验室超高真空表面反应模拟装置 (UHV Setup) 与实验室傅里叶红外光谱仪 (FTIR) 在探测星际冰幔及气相复杂有机分子时的波段覆盖、谱分辨本领 (R = \\lambda/\\Delta\\lambda)、空间分辨率、探测相态（固相冰 vs 气相分子）及各自关键观测局限。"
+    ]
+  },
+  {
+    "id": "cryo_em_single_particle_ab_initio_reconstruction",
+    "domain": "cryo_em_single_particle_ab_initio_reconstruction",
+    "title": "冷冻电镜单颗粒技术：从头三维重构投影切片定理与贝叶斯优化",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "physics"
+    ],
+    "description": "测试冷冻电镜傅里叶中心投影截面定理推导、CTF调谐对比度传递函数反卷积、Python CTF曲线生成与现代结构生物学方法综合对比",
+    "turns": [
+      "严格证明三维投影切片定理（Fourier Projection-Slice Theorem）：推导沿三维密度势场 \\rho(\\mathbf{r}) 在任意欧拉角 (\\phi, \\theta, \\psi) 投影方向的二维透射投影图像 p(x, y) 其二维连续傅里叶变换 P(k_x, k_y)，精确等于 \\rho(\\mathbf{r}) 的三维傅里叶变换 \\hat{\\rho}(\\mathbf{k}) 穿过原点且平行于探测器平面的中心二维切面，并阐明其在单颗粒从头三维角重构中的基本几何意义。",
+      "根据部分相干像差理论，推导透射电子显微镜中对比度传递函数（Contrast Transfer Function, CTF）的数学形式 CTF(k) = -A(k) \\sin(\\chi(k)) - Q(k) \\cos(\\chi(k))，其中波差函数 \\chi(k) = \\pi \\lambda k^2 \\Delta z + \\frac{1}{2} \\pi C_s \\lambda^3 k^4，解释散焦量 \\Delta z、球差系数 C_s 与振幅对比度占比 Q 对 CTF 零点振荡及高频包络衰减（B-factor 阻尼）的调制机理。",
+      "请使用 Python 编写计算并绘制 300 kV 冷冻透镜 (波长 \\lambda \\approx 0.01968 \\text{ Å}, C_s = 2.7 \\text{ mm}) 在指定欠焦量 \\Delta z = 1.5 \\,\\mu\\text{m} 和 \\text{B-factor} = 80 \\text{ Å}^2 条件下，径向空间频率 k 从 0 到 0.5 \\text{ Å}^{-1} (即对应 2 \\text{ Å} 分辨率) 的一维理论 CTF 响应曲线函数，并打印前三个零点对应的实空间分辨率。",
+      "设计一个结构化 Markdown 表格，横向系统对比单颗粒冷冻电镜 (SPA Cryo-EM)、冷冻电子断层扫描与亚断层平均 (Cryo-ET / STA)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在样品制备要求、辐射损伤容限、最高理论空间分辨率、适用的生物大分子质量范围 (kDa) 及动态构象异质性解析能力。",
+      "推导基于经验贝叶斯最大后验概率估计（Empirical Bayes MAP / Expectation-Maximization）的冷冻电镜三维分类迭代算法目标函数，详细阐述 RELION 算法如何在未知单颗粒颗粒取向分布函数 P(\\phi, \\theta, \\psi, \\mathbf{t}) 存在强高斯白噪声与局部对比度掩蔽条件下，结合正则化先验平滑滤波实现抗过拟合的金标准黄金傅里叶壳层相关 (Gold-Standard FSC = 0.143) 独立半数据集真实分辨率评估。"
     ]
   }
 ]
