@@ -207,7 +207,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     }
     checkTimestamp(conversation.createdAt, c, 'conversation.createdAt');
     checkTimestamp(conversation.updatedAt, c, 'conversation.updatedAt');
-    checkTimestamp(conversation.observedAt, c, 'conversation.observedAt');
 
     const title = (conversation as Record<string, unknown>).title;
     if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
@@ -288,8 +287,8 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
                     if (n.type === 'image' && !assetIds.has(n.assetId)) {
                         c.add('error', 'ASSET_UNRESOLVED', `inline image references unknown asset ${n.assetId}`, full);
                     }
-                    if (n.type === 'unknownInline' && !n.fallbackText && !n.rawRef && !n.extensions) {
-                        c.add('error', 'UNKNOWN_INLINE_EMPTY', 'unknownInline has no fallbackText, rawRef or extensions; evidence would be lost', full);
+                    if (n.type === 'unknownInline' && !n.fallbackText && !n.rawRef) {
+                        c.add('error', 'UNKNOWN_INLINE_EMPTY', 'unknownInline has no fallbackText or rawRef; evidence would be lost', full);
                     }
                 }, '');
             }

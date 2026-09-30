@@ -6,7 +6,7 @@
  * CORE INVARIANTS:
  * 1. Default-Semantic Principle:
  *    The comparator performs recursive deep comparison over the entire Canonical AST.
- *    Only explicit ephemeral metadata (id, sourceRef, extensions) is ignored.
+ *    Only explicit ephemeral metadata (id) is ignored.
  *    Any other field (known or future unknown) is default-semantic and will trigger a diff.
  * 2. Minimal Explicit Canonicalization:
  *    - Undefined and absent keys are equivalent.
@@ -59,7 +59,7 @@ export interface SemanticDiffResult {
 }
 
 /** Ephemeral execution/provenance metadata ignored during semantic AST comparison */
-const EPHEMERAL_FIELDS = new Set(['id', 'sourceRef', 'extensions']);
+const EPHEMERAL_FIELDS = new Set(['id']);
 
 /**
  * Coalesces adjacent text nodes in an inline list without modifying original nodes.

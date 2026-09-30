@@ -1,5 +1,3 @@
-import type { ProviderExtensions } from './json.js';
-import type { SourceRef } from './provenance.js';
 
 export type AssetKind = 'image' | 'file' | 'audio' | 'video' | 'other';
 
@@ -34,6 +32,4 @@ export interface Asset {
     status: AssetStatus;
     failureReason?: string;
 
-    sourceRef?: SourceRef;
-    extensions?: ProviderExtensions;
 }

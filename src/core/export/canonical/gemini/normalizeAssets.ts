@@ -181,7 +181,6 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
         ...(storageRef ? { storageRef } : {}),
         status,
         ...(failureReason ? { failureReason } : {}),
-        sourceRef: st.sourceRef,
     });
     indexAssetRef(st.assetIndex, trimmedSrc, assetId);
     if (status === 'missing' && !ambiguous) {
@@ -417,8 +416,6 @@ export function buildAsset(
         ...(storageRef ? { storageRef } : {}),
         status,
         ...(failureReason ? { failureReason } : {}),
-        sourceRef,
-        ...(a.type ? { extensions: { gemini: { attachmentType: String(a.type) } as JsonValue } } : {}),
     };
     const classified = classifyAssetAvailability(asset, hasInlineBytes || (hasLocalFile && !explicitFailureReason));
     if (classified.diagnostic) diagnostics.push(classified.diagnostic);

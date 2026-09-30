@@ -344,7 +344,7 @@ export function toTypstPayload(
     const messages = bundle.conversation.messages
         .map(message => toRenderMessage(message, bundle, assets, citations, renderOptions, diagnostics));
 
-    const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';
+    const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? '';
     const date = observed ? observed.slice(0, 10) : strings.dateUnknown;
 
     return {

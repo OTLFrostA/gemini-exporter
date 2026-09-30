@@ -27,18 +27,6 @@
       "items": {
         "$ref": "#/$defs/Citation"
       }
-    },
-    "observations": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/SourceObservation"
-      }
-    },
-    "diagnostics": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Diagnostic"
-      }
     }
   },
   "additionalProperties": false,
@@ -70,12 +58,6 @@
           }
         }
       ]
-    },
-    "ProviderExtensions": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      }
     },
     "SourceRef": {
       "type": "object",
@@ -332,9 +314,6 @@
         },
         "rawRef": {
           "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
         }
       },
       "additionalProperties": false
@@ -393,17 +372,11 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "children": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/InlineNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -423,9 +396,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "level": {
           "type": "integer",
           "minimum": 1,
@@ -436,9 +406,6 @@
           "items": {
             "$ref": "#/$defs/InlineNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -473,9 +440,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "ordered": {
           "type": "boolean"
         },
@@ -487,9 +451,6 @@
           "items": {
             "$ref": "#/$defs/ListItem"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -508,17 +469,11 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "blocks": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/BlockNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -537,9 +492,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "code": {
           "type": "string"
         },
@@ -551,9 +503,6 @@
         },
         "filename": {
           "type": "string"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -573,9 +522,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "notation": {
           "enum": [
             "latex",
@@ -584,9 +530,6 @@
             "plain",
             "unknown"
           ]
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         },
         "source": {
           "type": "string"
@@ -660,9 +603,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "caption": {
           "type": "array",
           "items": {
@@ -686,9 +626,6 @@
           "items": {
             "$ref": "#/$defs/TableRow"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -707,9 +644,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "assetId": {
           "type": "string"
         },
@@ -721,9 +655,6 @@
           "items": {
             "$ref": "#/$defs/InlineNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -764,9 +695,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "assetId": {
           "type": "string"
         },
@@ -778,9 +706,6 @@
           "items": {
             "$ref": "#/$defs/InlineNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -800,9 +725,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "disclosure": {
           "const": "providerExposed"
         },
@@ -819,9 +741,6 @@
           "items": {
             "$ref": "#/$defs/BlockNode"
           }
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -838,12 +757,6 @@
         },
         "id": {
           "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -862,9 +775,6 @@
         "id": {
           "type": "string"
         },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
         "sourceType": {
           "type": "string"
         },
@@ -879,9 +789,6 @@
         },
         "payload": {
           "$ref": "#/$defs/JsonValue"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -947,13 +854,6 @@
         "createdAt": {
           "type": "string"
         },
-        "state": {
-          "enum": [
-            "complete",
-            "partial",
-            "error"
-          ]
-        },
         "blocks": {
           "type": "array",
           "items": {
@@ -965,12 +865,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -994,17 +888,11 @@
         "updatedAt": {
           "type": "string"
         },
-        "observedAt": {
-          "type": "string"
-        },
         "messages": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/MessageNode"
           }
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
         },
         "url": {
           "type": "string"
@@ -1080,12 +968,6 @@
         },
         "failureReason": {
           "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false
@@ -1123,133 +1005,6 @@
         },
         "assetId": {
           "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
-        }
-      },
-      "additionalProperties": false
-    },
-    "ObservationIssue": {
-      "type": "object",
-      "required": [
-        "code",
-        "message"
-      ],
-      "properties": {
-        "code": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        },
-        "details": {
-          "$ref": "#/$defs/JsonValue"
-        }
-      },
-      "additionalProperties": false
-    },
-    "SourceObservation": {
-      "type": "object",
-      "required": [
-        "id",
-        "providerId",
-        "sourceType",
-        "observedAt"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "providerId": {
-          "type": "string"
-        },
-        "sourceType": {
-          "enum": [
-            "live",
-            "official-export",
-            "archive-import",
-            "legacy-migration",
-            "other"
-          ]
-        },
-        "observedAt": {
-          "type": "string"
-        },
-        "requestScope": {
-          "$ref": "#/$defs/JsonValue"
-        },
-        "cursor": {
-          "type": "string"
-        },
-        "batchId": {
-          "type": "string"
-        },
-        "rawCount": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "parsedCount": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "errors": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ObservationIssue"
-          }
-        },
-        "unknownFields": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "rawRef": {
-          "type": "string"
-        },
-        "extensions": {
-          "$ref": "#/$defs/ProviderExtensions"
-        }
-      },
-      "additionalProperties": false
-    },
-    "Diagnostic": {
-      "type": "object",
-      "required": [
-        "id",
-        "severity",
-        "code",
-        "message"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "severity": {
-          "enum": [
-            "info",
-            "warning",
-            "error"
-          ]
-        },
-        "code": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "details": {
-          "$ref": "#/$defs/JsonValue"
-        },
-        "sourceRef": {
-          "$ref": "#/$defs/SourceRef"
         }
       },
       "additionalProperties": false

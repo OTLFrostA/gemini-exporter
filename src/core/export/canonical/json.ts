@@ -4,5 +4,3 @@ export type JsonValue =
     | JsonPrimitive
     | JsonValue[]
     | { [key: string]: JsonValue };
-
-export type ProviderExtensions = Record<string, JsonValue>;

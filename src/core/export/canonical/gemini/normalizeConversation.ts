@@ -17,7 +17,6 @@ import type {
     NormalizationResult,
     ProviderNormalizer,
 } from '../normalizer.js';
-import type { SourceObservation } from '../provenance.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource, type TitleCandidate } from '../titleAuthority.js';
 import { validateBundle } from '../validate.js';
 import { normalizeMessage, toIso } from './normalizeMessage.js';
@@ -54,7 +53,7 @@ export function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): T
             id: 'title-source-coerced',
             severity: 'info',
             code: 'TITLE_SOURCE_COERCED',
-            message: `unrecognized titleSource '${raw}' coerced to 'default'; raw kept in observation`,
+            message: `unrecognized titleSource '${raw}' coerced to 'default'; raw source reported in diagnostic`,
         });
     }
     return 'default';
@@ -80,24 +79,12 @@ export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[])
     return resolveTitle(candidates)?.value;
 }
 
-function observationSourceType(source: unknown): SourceObservation['sourceType'] {
-    if (isStr(source)) {
-        const s = source.toLowerCase();
-        if (s.includes('takeout')) return 'official-export';
-        if (s.includes('live') || s.includes('rpc')) return 'live';
-        if (s.includes('archive') || s.includes('import')) return 'archive-import';
-        if (s.includes('legacy') || s.includes('migrat')) return 'legacy-migration';
-    }
-    return 'other';
-}
-
 export async function normalizeGeminiConversation(
     raw: RepoConversation,
     options: GeminiNormalizationOptions = {},
 ): Promise<GeminiNormalizationResult> {
     const providerId = options.providerId ?? 'gemini';
     const accountId = options.accountId ?? '';
-    const observedAt = options.observedAt ?? new Date().toISOString();
     const diagnostics: Diagnostic[] = [];
     const assets: Asset[] = [];
     const citations: Citation[] = [];
@@ -173,24 +160,10 @@ export async function normalizeGeminiConversation(
     await finalizeInlineAssetDigests(assets, byteStore);
 
     const unknownFields = Object.keys(raw ?? {}).filter((k) => !KNOWN_CONVERSATION_FIELDS.has(k));
-    const observation: SourceObservation = {
-        id: 'obs-gemini-normalize',
-        providerId,
-        sourceType: observationSourceType(raw.source),
-        observedAt,
-        rawCount: rawMessages.length || rawTurns.length,
-        parsedCount: messages.length,
-        ...(unknownFields.length ? { unknownFields } : {}),
-        ...(options.rawRef ? { rawRef: options.rawRef } : {}),
-        extensions: {
-            gemini: {
-                source: isStr(raw.source) ? raw.source : null,
-                accountSlot: isStr(raw.accountSlot) ? raw.accountSlot : null,
-                isTakeoutOnly: raw.isTakeoutOnly ?? null,
-                titleSource: isStr(raw.titleSource) ? raw.titleSource : null,
-            } as JsonValue,
-        },
-    };
+    if (unknownFields.length) {
+        diagnostics.push({ id: 'unknown-conversation-fields', severity: 'info', code: 'UNKNOWN_CONVERSATION_FIELDS',
+            message: 'unrecognized conversation fields omitted from the document', details: { fields: unknownFields } });
+    }
 
     const convCreatedAt = toIso(raw.createdAt ?? raw.timestamp ?? raw.chatTime);
     const convUpdatedAt = toIso(raw.updatedAt ?? raw.lastSeen);
@@ -201,7 +174,6 @@ export async function normalizeGeminiConversation(
             ...(title ? { title } : {}),
             ...(convCreatedAt ? { createdAt: convCreatedAt } : {}),
             ...(convUpdatedAt ? { updatedAt: convUpdatedAt } : {}),
-            observedAt,
             messages,
             ...(raw.url || raw.href
                 ? { url: raw.url || raw.href }
@@ -209,8 +181,6 @@ export async function normalizeGeminiConversation(
         },
         assets,
         citations,
-        observations: [observation],
-        ...(diagnostics.length ? { diagnostics } : {}),
     };
 
     try {
@@ -228,7 +198,6 @@ export async function normalizeGeminiConversation(
             message: `validateBundle self-check failed: ${err instanceof Error ? err.message : String(err)}`,
         });
     }
-    if (diagnostics.length && !bundle.diagnostics) bundle.diagnostics = diagnostics;
 
     return { bundle, diagnostics, byteStore };
 }
@@ -270,11 +239,7 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
                 details: { error: rawEvidenceError.slice(0, 300) } as JsonValue,
             };
             result.diagnostics.push(diagnostic);
-            if (!result.bundle.diagnostics) {
-                result.bundle.diagnostics = result.diagnostics;
-            } else if (result.bundle.diagnostics !== result.diagnostics) {
-                result.bundle.diagnostics.push(diagnostic);
-            }
+
         }
         return result;
     }

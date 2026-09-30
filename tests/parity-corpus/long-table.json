@@ -9,12 +9,10 @@
     "title": "长表格：模型指标对比",
     "createdAt": "2026-09-26T10:00:00-07:00",
     "updatedAt": "2026-09-26T10:02:00-07:00",
-    "observedAt": "2026-09-26T10:02:00-07:00",
     "messages": [
       {
         "id": "u1",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T10:00:00-07:00",
         "blocks": [
           {
@@ -45,7 +43,6 @@
       {
         "id": "a1",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T10:02:00-07:00",
         "author": {
           "model": "Gemini 2.5 Pro",
