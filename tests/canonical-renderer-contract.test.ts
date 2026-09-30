@@ -8,9 +8,8 @@
  * placements must exist on BOTH sides, and nothing may be silently dropped
  * (no error diagnostics, no drop-indicating warning codes).
  *
- * Item 15: companion-placement architecture gate (same file). Both render
- * paths must route companion assets through collectCompanionPlacements() so
- * future renderers cannot grow a second placement implementation.
+ * Item 15: asset block placement gate (same file). Both render paths must
+ * route asset blocks faithfully so future renderers cannot drop them.
  */
 export {};
 const test = require('node:test');
@@ -158,38 +157,36 @@ test('contract: table cells survive in HTML and Typst', () => {
     assertNoSilentDrop(htmlDiags, typstDiags, 'table');
 });
 
-test('contract: image companion placement exists on both renderers', () => {
-    const s = 'SENTINEL_IMGCOMP_Q1W2';
-    const blocks = [para(s)];
+test('contract: image block placement exists on both renderers', () => {
+    const s = 'SENTINEL_IMG_Q1W2';
+    const blocks = [{ type: 'image', assetId: 'imgA', alt: s }];
     const { html, htmlDiags, payload, typstDiags } = renderBoth(
         blocks,
         { assets: [imgAsset('imgA', 'imgA.png')] },
-        { associatedAssetIds: ['imgA'] },
     );
-    assert.ok(html.includes('href="https://img.test/imgA"'), 'html companion card links the image');
-    const attachments = payload.messages[0].attachments ?? [];
+    assert.ok(html.includes('src="https://img.test/imgA"'), 'html renders image block');
+    const msgBlocks = payload.messages[0].blocks ?? [];
     assert.ok(
-        attachments.some((a: any) => a.type === 'image' && a.asset === 'assets/imgA.png'),
-        `typst attachments place the image, got: ${JSON.stringify(attachments)}`,
+        msgBlocks.some((b: any) => b.type === 'image' && b.asset === 'assets/imgA.png'),
+        `typst blocks place the image, got: ${JSON.stringify(msgBlocks)}`,
     );
-    assertNoSilentDrop(htmlDiags, typstDiags, 'image companion');
+    assertNoSilentDrop(htmlDiags, typstDiags, 'image block');
 });
 
-test('contract: file companion placement exists on both renderers', () => {
-    const s = 'SENTINEL_FILECOMP_E3R4';
-    const blocks = [para(s)];
+test('contract: file block placement exists on both renderers', () => {
+    const s = 'SENTINEL_FILE_Q7R8.pdf';
+    const blocks = [{ type: 'file', assetId: 'fileB', label: s }];
     const { html, htmlDiags, payload, typstDiags } = renderBoth(
         blocks,
-        { assets: [fileAsset('fileB', 'SENTINEL_FILE_Q7R8.pdf')] },
-        { associatedAssetIds: ['fileB'] },
+        { assets: [fileAsset('fileB', s)] },
     );
-    assert.ok(html.includes('SENTINEL_FILE_Q7R8.pdf'), 'html companion card names the file');
-    const attachments = payload.messages[0].attachments ?? [];
+    assert.ok(html.includes(s), 'html renders file card');
+    const msgBlocks = payload.messages[0].blocks ?? [];
     assert.ok(
-        attachments.some((a: any) => a.type === 'file' && a.name === 'SENTINEL_FILE_Q7R8.pdf'),
-        `typst attachments place the file, got: ${JSON.stringify(attachments)}`,
+        msgBlocks.some((b: any) => b.type === 'file' && b.name === s),
+        `typst blocks place the file, got: ${JSON.stringify(msgBlocks)}`,
     );
-    assertNoSilentDrop(htmlDiags, typstDiags, 'file companion');
+    assertNoSilentDrop(htmlDiags, typstDiags, 'file block');
 });
 
 test('contract: citation label and group survive in HTML and Typst', () => {
@@ -236,53 +233,3 @@ test('contract: unknown block fallback is visible on both renderers', () => {
     assertNoSilentDrop(htmlDiags, typstDiags, 'unknown fallback');
 });
 
-// ------------------------------------------------- Item 15: architecture gate
-
-const HTML_RENDERER_FILE = 'src/core/export/canonical/renderCanonicalHtml.ts';
-const TYPST_PAYLOAD_FILE = 'src/core/export/typst/payload.ts';
-
-function callSitesOf(pattern: string, file: string): string[] {
-    let out = '';
-    try {
-        out = execSync(`git -C "${REPO_ROOT}" grep -n -F -- "${pattern}" -- "${file}"`, { encoding: 'utf8' });
-    } catch (e: any) {
-        if (e && e.status === 1) return [];
-        throw e;
-    }
-    return out
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .filter((l) => !l.replace(/^[^:]+:\d+:/, '').trimStart().startsWith('import '));
-}
-
-test('arch: HTML renderer routes companion placement through collectCompanionPlacements()', () => {
-    const calls = callSitesOf('collectCompanionPlacements(', HTML_RENDERER_FILE);
-    assert.ok(
-        calls.length >= 1,
-        `HTML renderer must call collectCompanionPlacements(); found ${calls.length} call site(s) in ${HTML_RENDERER_FILE}`,
-    );
-});
-
-test('arch: Typst payload routes companion placement through collectCompanionPlacements()', () => {
-    const calls = callSitesOf('collectCompanionPlacements(', TYPST_PAYLOAD_FILE);
-    assert.ok(
-        calls.length >= 1,
-        `Typst payload must call collectCompanionPlacements(); found ${calls.length} call site(s) in ${TYPST_PAYLOAD_FILE}`,
-    );
-});
-
-test('arch: collectCompanionPlacements has exactly one implementation', () => {
-    let out = '';
-    try {
-        out = execSync(`git -C "${REPO_ROOT}" grep -n -F -- "function collectCompanionPlacements(" -- "src/*.ts" "src/**/*.ts"`, { encoding: 'utf8' });
-    } catch (e: any) {
-        if (e && e.status === 1) out = '';
-        else throw e;
-    }
-    const defs = out.trim().split('\n').filter(Boolean).filter((l) => !l.includes('tests/'));
-    assert.strictEqual(
-        defs.length, 1,
-        `exactly one collectCompanionPlacements implementation must exist; found: ${JSON.stringify(defs)}`,
-    );
-});

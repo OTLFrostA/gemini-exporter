@@ -332,27 +332,27 @@
       "testCount": 5,
       "tests": [
         {
-          "name": "PR 4 - 1: Single generated image on model turn renders 1 inline figure and 1 companion card",
+          "name": "PR 3 - 1: Single generated image on model turn renders 1 inline figure and no companion cards",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "PR 4 - 2: Multiple generated images on model turn render N inline figures and N companion cards",
+          "name": "PR 3 - 2: Multiple generated images on model turn render N inline figures and no companion cards",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "PR 4 - 3: User uploaded image attachment renders 0 inline figures and 1 attachment card",
+          "name": "PR 3 - 3: User uploaded image attachment renders 1 inline figure and no companion cards",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "PR 4 - 4: Generated image with explicit markdown embed does not produce duplicate cards",
+          "name": "PR 3 - 4: Generated image with explicit markdown embed does not produce duplicate cards",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "PR 4 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)",
+          "name": "PR 3 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -725,7 +725,7 @@
       "provenanceSource": "Dual-renderer cross contract (CanonicalHtmlRenderer x Typst payload)",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Ensures both HTML and Typst renderers faithfully convey identical canonical node semantics.",
-      "testCount": 14,
+      "testCount": 11,
       "tests": [
         {
           "name": "contract: paragraph text survives in HTML and Typst",
@@ -758,12 +758,12 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "contract: image companion placement exists on both renderers",
+          "name": "contract: image block placement exists on both renderers",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "contract: file companion placement exists on both renderers",
+          "name": "contract: file block placement exists on both renderers",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -779,21 +779,6 @@
         },
         {
           "name": "contract: unknown block fallback is visible on both renderers",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "arch: HTML renderer routes companion placement through collectCompanionPlacements()",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "arch: Typst payload routes companion placement through collectCompanionPlacements()",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "arch: collectCompanionPlacements has exactly one implementation",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1168,7 +1153,7 @@
       "provenanceSource": "Typst v8 payload specification and adapter contract",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Canonical AST to Typst payload adapter contract test.",
-      "testCount": 18,
+      "testCount": 15,
       "tests": [
         {
           "name": "maps paragraph, heading, code and table blocks",
@@ -1216,7 +1201,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "inline image asset is not duplicated as a trailing attachment",
+          "name": "inline image placements are intact in blocks",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1242,21 +1227,6 @@
         },
         {
           "name": "system role becomes a visible note prefix",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "associated image companion with no path emits TYPST_V8_ASSOCIATED_IMAGE_MISSING (no silent drop)",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "associated image companion with a path renders trailing attachment without diagnostic",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "collectCompanionPlacements: explicit placement wins, images/files split, unknown ignored with diagnostic",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1453,11 +1423,11 @@
   ],
   "summary": {
     "totalSuites": 24,
-    "totalTests": 234,
+    "totalTests": 228,
     "byClassification": {
       "P0": 0,
       "P1": 29,
-      "P2": 196,
+      "P2": 190,
       "P3": 2,
       "P4": 0
     }

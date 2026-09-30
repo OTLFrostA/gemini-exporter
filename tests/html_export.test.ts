@@ -61,11 +61,12 @@ test('html_export - formatHtmlCanonical returns valid structure, metadata, and s
     assert.ok(!html.includes('gem-top-bar'), 'Must NOT contain top bar to keep 1:1 fidelity');
     assert.ok(html.includes('prefers-color-scheme'), 'Must support adaptive system theme');
 
-    // 3. User Turn & Attachment Carousel
+    // 3. User Turn & Attachments
     assert.ok(html.includes('gem-turn-user'), 'Must contain user turn section');
     assert.ok(html.includes('gem-user-bubble'), 'Must contain user bubble');
     assert.ok(html.includes("What is Grover&#39;s algorithm?"), 'Must contain user text escaped');
-    assert.ok(html.includes('gem-carousel-wrapper'), 'Must render attachment carousel');
+    assert.ok(!html.includes('gem-carousel-wrapper'), 'Must NOT render attachment carousel');
+    assert.ok(html.includes('gem-image-block'), 'Must render image attachment block');
     assert.ok(html.includes('assets/grover_circuit.png'), 'Must link image attachment to assets/ path');
     assert.ok(html.includes('assets/quantum_notes.pdf'), 'Must link file attachment to assets/ path');
     assert.ok(html.includes('download="quantum_notes.pdf"'), 'File card must include download attribute');

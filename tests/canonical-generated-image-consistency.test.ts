@@ -1,13 +1,13 @@
 /**
  * tests/canonical-generated-image-consistency.test.ts
- * Tier 1 unit tests for PR 4 (Issue D): Generated Image Semantic Consistency.
+ * Tier 1 unit tests for PR 3: Asset Placement & Single Placement Contract.
  *
  * Verifies:
- * 1. Single generated image -> 1 inline figure + 1 companion card
- * 2. Multiple generated images -> N inline figures + N companion cards
- * 3. Uploaded image attachment (user turn) -> 0 inline figures + 1 attachment card (no upgrade)
+ * 1. Single generated image -> 1 inline figure, 0 companion cards
+ * 2. Multiple generated images -> N inline figures, 0 companion cards, each path appears exactly once
+ * 3. Uploaded image attachment (user turn) -> 1 inline figure, 0 companion cards
  * 4. Inline Markdown image attachment -> 0 duplicate companion cards
- * 5. Real-world 040ffd Imagen regression shape (model text + 6 generated images)
+ * 5. Real-world 040ffd Imagen regression shape (model text + 6 generated images, placed exactly once)
  */
 export {};
 const test = require('node:test');
@@ -16,7 +16,7 @@ const assert = require('node:assert');
 const canonical = require('../src/core/export/canonical/index.js');
 const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
 
-test('PR 4 - 1: Single generated image on model turn renders 1 inline figure and 1 companion card', async () => {
+test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and no companion cards', async () => {
     const raw: any = {
         id: 'c_gen_single',
         title: 'Single Imagen Test',
@@ -43,7 +43,6 @@ test('PR 4 - 1: Single generated image on model turn renders 1 inline figure and
     // Canonical AST check
     const imgBlock = msg.blocks.find((b: any) => b.type === 'image');
     assert.ok(imgBlock, 'ImageBlock must exist in canonical blocks');
-    assert.strictEqual(imgBlock.origin, 'generated', 'ImageBlock origin must be "generated"');
 
     // HTML Rendering check
     const { html, diagnostics } = renderCanonicalHtml(bundle);
@@ -55,13 +54,17 @@ test('PR 4 - 1: Single generated image on model turn renders 1 inline figure and
     assert.ok(html.includes('class="gem-msg-img"'), 'Expected inline image to have gem-msg-img class');
     assert.ok(html.includes('src="assets/martian_cat.png"'), 'Expected image URL in inline img src');
 
-    // 1 companion card in carousel
-    const cards = html.match(/<a class="gem-att-card gem-att-img"/g) || [];
-    assert.strictEqual(cards.length, 1, 'Expected exactly 1 companion card in carousel');
-    assert.ok(html.includes('href="assets/martian_cat.png"'), 'Expected companion card to link to image storageRef');
+    // No companion cards or carousel
+    const cards = html.match(/<a class="gem-att-card/g) || [];
+    assert.strictEqual(cards.length, 0, 'No companion card should be rendered');
+    assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
+
+    // Image appears in exactly 1 figure
+    const srcCount = html.split('src="assets/martian_cat.png"').length - 1;
+    assert.strictEqual(srcCount, 1, 'Image src must appear exactly once in rendered HTML');
 });
 
-test('PR 4 - 2: Multiple generated images on model turn render N inline figures and N companion cards', async () => {
+test('PR 3 - 2: Multiple generated images on model turn render N inline figures and no companion cards', async () => {
     const images = [
         { type: 'image', name: 'cat_variant_1.png', localName: 'assets/cat_1.png', url: 'https://example.com/cat_1.png' },
         { type: 'image', name: 'cat_variant_2.png', localName: 'assets/cat_2.png', url: 'https://example.com/cat_2.png' },
@@ -87,9 +90,6 @@ test('PR 4 - 2: Multiple generated images on model turn render N inline figures 
 
     const imgBlocks = msg.blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocks.length, 4, 'Expected 4 canonical ImageBlocks');
-    for (const b of imgBlocks) {
-        assert.strictEqual(b.origin, 'generated', 'Every model image block must have origin "generated"');
-    }
 
     const { html, diagnostics } = renderCanonicalHtml(bundle);
     assert.strictEqual(diagnostics.length, 0, 'Expected zero diagnostics');
@@ -98,20 +98,20 @@ test('PR 4 - 2: Multiple generated images on model turn render N inline figures 
     const inlineFigures = html.match(/<figure class="gem-figure gem-image-block"/g) || [];
     assert.strictEqual(inlineFigures.length, 4, 'Expected 4 inline figures');
 
-    // N companion cards
-    const cards = html.match(/<a class="gem-att-card gem-att-img"/g) || [];
-    assert.strictEqual(cards.length, 4, 'Expected 4 companion cards');
+    // No companion cards or carousel
+    const cards = html.match(/<a class="gem-att-card/g) || [];
+    assert.strictEqual(cards.length, 0, 'Expected 0 companion cards');
+    assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
 
-    // Verify all 4 paths exist in both inline figures and companion cards
+    // Verify all 4 paths exist in exactly 1 figure each
     for (let i = 1; i <= 4; i++) {
         const path = `assets/cat_${i}.png`;
-        const count = html.split(path).length - 1;
-        // Each path appears at least twice (inline img + card)
-        assert.ok(count >= 2, `Expected path ${path} to appear at least twice in HTML, found ${count}`);
+        const count = html.split(`src="${path}"`).length - 1;
+        assert.strictEqual(count, 1, `Expected src="${path}" to appear exactly once in HTML, found ${count}`);
     }
 });
 
-test('PR 4 - 3: User uploaded image attachment renders 0 inline figures and 1 attachment card', async () => {
+test('PR 3 - 3: User uploaded image attachment renders 1 inline figure and no companion cards', async () => {
     const raw: any = {
         id: 'c_user_upload',
         title: 'User Upload Test',
@@ -143,23 +143,21 @@ test('PR 4 - 3: User uploaded image attachment renders 0 inline figures and 1 at
     // Canonical AST check
     const userImgBlock = userMsg.blocks.find((b: any) => b.type === 'image');
     assert.ok(userImgBlock, 'User image block must exist');
-    assert.strictEqual(userImgBlock.origin, 'attachment', 'User image must have origin "attachment", NOT "generated"');
 
     const { html } = renderCanonicalHtml(bundle);
 
-    // User prompt bubble must NOT contain inline image figures
     const userTurn = html.slice(html.indexOf('<section class="gem-turn gem-turn-user"'), html.indexOf('<section class="gem-turn gem-turn-model"'));
-    const userBubble = userTurn.slice(userTurn.indexOf('gem-user-bubble'));
-    assert.ok(!userBubble.includes('gem-image-block'), 'User prompt bubble must not contain .gem-image-block inline figures');
-    assert.ok(!userBubble.includes('gem-msg-img'), 'User prompt bubble must not contain .gem-msg-img');
+    assert.ok(userTurn.includes('gem-image-block'), 'User prompt contains inline figure');
+    assert.ok(userTurn.includes('gem-msg-img'), 'User prompt contains gem-msg-img');
+    assert.ok(userTurn.includes('garden_photo.jpg'), 'User prompt contains garden_photo.jpg');
 
-    // User turn carousel track MUST contain the attachment card
-    const userCards = userTurn.match(/<a class="gem-att-card gem-att-img"/g) || [];
-    assert.strictEqual(userCards.length, 1, 'Expected exactly 1 attachment card in user turn');
-    assert.ok(userTurn.includes('garden_photo.jpg'), 'Attachment card must display file name');
+    // No companion cards or carousel
+    const userCards = userTurn.match(/<a class="gem-att-card/g) || [];
+    assert.strictEqual(userCards.length, 0, 'Expected 0 companion cards in user turn');
+    assert.ok(!userTurn.includes('gem-carousel'), 'No carousel in user turn');
 });
 
-test('PR 4 - 4: Generated image with explicit markdown embed does not produce duplicate cards', async () => {
+test('PR 3 - 4: Generated image with explicit markdown embed does not produce duplicate cards', async () => {
     const raw: any = {
         id: 'c_markdown_dedup',
         title: 'Markdown Embed Dedup Test',
@@ -185,15 +183,20 @@ test('PR 4 - 4: Generated image with explicit markdown embed does not produce du
     const { html } = renderCanonicalHtml(bundle);
 
     // Markdown inline image rendered
-    assert.ok(html.includes('gem-inline-img'), 'Expected inline markdown image to be rendered');
+    assert.ok(html.includes('gem-inline-img') || html.includes('gem-image-block'), 'Expected inline image to be rendered');
     assert.ok(html.includes('assets/generated_preview.png'), 'Expected asset path in HTML');
 
     // No duplicate companion cards for inline markdown image
     const cards = html.match(/<a class="gem-att-card/g) || [];
     assert.strictEqual(cards.length, 0, 'Explicit inline markdown image should not generate redundant companion cards');
+    assert.ok(!html.includes('gem-carousel'), 'No carousel should be rendered');
+
+    // Image path appears exactly once
+    const count = html.split('assets/generated_preview.png').length - 1;
+    assert.strictEqual(count, 1, 'Path must appear exactly once in HTML');
 });
 
-test('PR 4 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)', async () => {
+test('PR 3 - 5: Real-world 040ffd Imagen regression shape (model text + 6 generated images)', async () => {
     const rawImages = [
         { type: 'image', name: 'cat_01.jpg', localName: 'assets/cat_01.jpg', url: 'https://example.com/cat_01.jpg' },
         { type: 'image', name: 'cat_02.jpg', localName: 'assets/cat_02.jpg', url: 'https://example.com/cat_02.jpg' },
@@ -245,7 +248,15 @@ test('PR 4 - 5: Real-world 040ffd Imagen regression shape (model text + 6 genera
     const inlineFigures = modelContent.match(/<figure class="gem-figure gem-image-block"/g) || [];
     assert.strictEqual(inlineFigures.length, 6, 'gem-model-content must contain all 6 generated images inline');
 
-    // Carousel must contain all 6 companion download cards
-    const cards = modelTurn.match(/<a class="gem-att-card gem-att-img"/g) || [];
-    assert.strictEqual(cards.length, 6, 'Carousel must contain all 6 companion download cards');
+    // No companion download cards or carousel
+    const cards = modelTurn.match(/<a class="gem-att-card/g) || [];
+    assert.strictEqual(cards.length, 0, 'No companion download cards should be rendered');
+    assert.ok(!modelTurn.includes('gem-carousel'), 'No carousel should be rendered');
+
+    // Verify all 6 paths appear in exactly 1 figure each
+    for (let i = 1; i <= 6; i++) {
+        const path = `assets/cat_0${i}.jpg`;
+        const count = html.split(`src="${path}"`).length - 1;
+        assert.strictEqual(count, 1, `Expected src="${path}" to appear exactly once in HTML, found ${count}`);
+    }
 });

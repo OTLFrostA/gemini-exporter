@@ -1,6 +1,5 @@
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
-import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
 
 function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<string> {
     const ids = new Set<string>();
@@ -62,47 +61,4 @@ export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<
  */
 export function collectBinaryRenderAssetIds(blocks: BlockNode[] | undefined): Set<string> {
     return collectImpl(blocks, true);
-}
-
-/**
- * Unplaced message-level attachments have no AST block placement, so their Asset.kind
- * determines whether they render as trailing images (requiring bytes) or metadata-only file cards.
- */
-export interface CompanionPlacementPlan {
-    trailingImages: string[];
-    trailingFiles: string[];
-    ignored: Array<{ assetId: string; reason: string }>;
-    diagnostics: Array<{ severity: 'warning'; code: string; message: string; path?: string }>;
-}
-
-export function collectCompanionPlacements(
-    message: MessageNode | undefined,
-    bundle: CanonicalConversationBundle,
-): CompanionPlacementPlan {
-    const trailingImages: string[] = [];
-    const trailingFiles: string[] = [];
-    const ignored: Array<{ assetId: string; reason: string }> = [];
-    const diagnostics: CompanionPlacementPlan['diagnostics'] = [];
-    const seen = new Set<string>(collectReferencedAssetIds(message?.blocks));
-    const byId = new Map((bundle.assets ?? []).map((a) => [a.id, a]));
-    const consider = (id: string, source: string): void => {
-        if (seen.has(id)) return;
-        seen.add(id);
-        const asset = byId.get(id);
-        if (!asset) {
-            const reason = `${source} references unknown asset ${id}; skipping companion placement`;
-            ignored.push({ assetId: id, reason });
-            diagnostics.push({
-                severity: 'warning',
-                code: 'ASSET_UNRESOLVED',
-                message: reason,
-                path: message?.id ? `message:${message.id}` : undefined,
-            });
-            return;
-        }
-        if (asset.kind === 'image') trailingImages.push(id);
-        else trailingFiles.push(id);
-    };
-    for (const id of message?.associatedAssetIds ?? []) consider(id, 'associatedAssetIds');
-    return { trailingImages, trailingFiles, ignored, diagnostics };
 }

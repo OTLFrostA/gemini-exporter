@@ -1,7 +1,4 @@
-// User text travels strictly as JSON data fields consumed via json() in Typst; only convertMath output is evaluated as Typst math.
-
 import type { Asset } from '../canonical/assets.js';
-import { collectCompanionPlacements } from '../canonical/assetReferences.js';
 import type {
     BlockNode,
     TableCell,
@@ -55,16 +52,11 @@ export type TypstBlockNode =
     | { type: 'thematicBreak' }
     | { type: 'unknown'; sourceType?: string; label: string; blocks?: TypstBlockNode[]; fallback?: string };
 
-export type TypstRenderAttachment =
-    | { type: 'file'; name: string; kind: string; size: string }
-    | { type: 'image'; asset: string; name: string; meta: string };
-
 export interface TypstRenderMessage {
     id: string;
     role: 'user' | 'assistant';
     model?: string;
     plainText?: string;
-    attachments?: TypstRenderAttachment[];
     blocks: TypstBlockNode[];
 }
 
@@ -331,31 +323,6 @@ function toRenderMessage(
         const mapped = renderBlock(block, assets, citations, options, diagnostics, `message:${message.id}/block:${index}`);
         if (mapped) blocks.push(mapped);
     });
-
-    const plan = collectCompanionPlacements(message, bundle);
-    for (const d of plan.diagnostics) diagnostics.push({ ...d });
-    const attachments: TypstRenderAttachment[] = [];
-    for (const id of plan.trailingImages) {
-        const asset = assets.get(id);
-        if (!asset) continue;
-        const path = options.assetPath(asset);
-        if (path) {
-            attachments.push({ type: 'image', asset: path, name: asset.name ?? id, meta: `${mimeLabel(asset)} · ${humanBytes(asset.sizeBytes, options.strings)}` });
-        } else {
-            diagnostics.push({
-                severity: 'warning',
-                code: 'TYPST_V8_ASSOCIATED_IMAGE_MISSING',
-                message: `Associated image asset ${id} has no Typst path; dropping the trailing image attachment instead of rendering it.`,
-                path: `message:${message.id}/attachment:${id}`,
-            });
-        }
-    }
-    for (const id of plan.trailingFiles) {
-        const asset = assets.get(id);
-        if (!asset) continue;
-        attachments.push({ type: 'file', name: asset.name ?? id, kind: mimeLabel(asset), size: humanBytes(asset.sizeBytes, options.strings) });
-    }
-
     const plainText = message.blocks
         .map(b => extractBlockText(b, { citationLabel: (id) => citations.get(id)?.label }))
         .join('\n');
@@ -364,7 +331,6 @@ function toRenderMessage(
         role: message.role === 'user' ? 'user' : 'assistant',
         ...(message.author?.model ? { model: message.author.model } : {}),
         ...(plainText ? { plainText } : {}),
-        ...(attachments.length ? { attachments } : {}),
         blocks,
     };
 }

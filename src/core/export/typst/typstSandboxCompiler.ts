@@ -203,9 +203,6 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
         }
     };
     for (const message of doc.messages) {
-        for (const attachment of message.attachments ?? []) {
-            if (attachment.type === 'image') paths.add(attachment.asset);
-        }
         for (const block of message.blocks) visitBlock(block);
     }
     return paths;

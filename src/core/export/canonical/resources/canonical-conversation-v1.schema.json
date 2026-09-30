@@ -725,16 +725,6 @@
             "$ref": "#/$defs/InlineNode"
           }
         },
-        "origin": {
-          "enum": [
-            "inline",
-            "attachment",
-            "generated",
-            "citation",
-            "tool",
-            "unknown"
-          ]
-        },
         "sourceRef": {
           "$ref": "#/$defs/SourceRef"
         }
@@ -791,16 +781,6 @@
           "items": {
             "$ref": "#/$defs/InlineNode"
           }
-        },
-        "origin": {
-          "enum": [
-            "inline",
-            "attachment",
-            "generated",
-            "citation",
-            "tool",
-            "unknown"
-          ]
         },
         "sourceRef": {
           "$ref": "#/$defs/SourceRef"
@@ -1091,12 +1071,6 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/BlockNode"
-          }
-        },
-        "associatedAssetIds": {
-          "type": "array",
-          "items": {
-            "type": "string"
           }
         },
         "extensions": {

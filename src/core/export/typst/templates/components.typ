@@ -255,7 +255,7 @@
   let meta = kind + " · " + size
   let meta-w = measure(text(size: 7.1pt)[#meta]).width
   let natural = icon-w + gap + calc.max(name-w, meta-w) + 2 * px
-  let max-width = size-info.width * attachment-single-max-ratio
+  let max-width = size-info.width
   let card-width = calc.min(natural, max-width)
 
   block(width: 100%)[

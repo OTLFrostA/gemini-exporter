@@ -88,20 +88,11 @@ export interface TableBlock extends BlockBase {
     rows: TableRow[];
 }
 
-export type AssetOrigin =
-    | 'inline'
-    | 'attachment'
-    | 'generated'
-    | 'citation'
-    | 'tool'
-    | 'unknown';
-
 export interface ImageBlock extends BlockBase {
     type: 'image';
     assetId: string;
     alt?: string;
     caption?: InlineNode[];
-    origin?: AssetOrigin;
 }
 
 export interface FileBlock extends BlockBase {
@@ -109,7 +100,6 @@ export interface FileBlock extends BlockBase {
     assetId: string;
     label?: string;
     description?: InlineNode[];
-    origin?: AssetOrigin;
 }
 
 export interface CitationGroupBlock extends BlockBase {

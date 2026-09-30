@@ -167,14 +167,14 @@ test('parity: long prompt collapses', () => {
     assert.ok(newHtml.includes('gem-prompt-toggle'), 'AST renderer keeps expand toggle');
 });
 
-test('parity: thoughts accordion, code copy, carousel kept', () => {
+test('parity: thoughts accordion, code copy, attachments kept', () => {
     assert.ok(newHtml.includes('gem-thoughts'), 'thoughts accordion kept');
     assert.ok(newHtml.includes('思考过程'), 'thoughts title kept');
     assert.ok(newHtml.includes('The user wants binary search explained'), 'thought text kept');
     assert.ok(newHtml.includes('gem-code-block'), 'code block kept');
     assert.ok(newHtml.includes('copyCode(this)'), 'code copy button kept');
     assert.ok(newHtml.includes('def bsearch(a, x):'), 'code content kept');
-    assert.ok(newHtml.includes('gem-carousel-wrapper'), 'attachment carousel kept');
+    assert.ok(!newHtml.includes('gem-carousel-wrapper'), 'carousel removed in favor of single placement');
     assert.ok(newHtml.includes('assets/plan.png'), 'image asset offline path kept');
     assert.ok(newHtml.includes('assets/notes.pdf'), 'file asset offline path kept');
     assert.ok(newHtml.includes('gem-math-block') || newHtml.includes('gem-math-inline'), 'math kept');
