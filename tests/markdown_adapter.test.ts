@@ -346,7 +346,6 @@ test('Layer M2: Smoke test - Inline and display math formulas', () => {
     assert.strictEqual(blocks[1].type, 'math');
     const mathBlock = blocks[1] as any;
     assert.strictEqual(mathBlock.source, '\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}');
-    assert.strictEqual(mathBlock.notation, 'latex');
 });
 
 test('Layer M2: Smoke test - Standalone single-line $$...$$ is recognized as MathBlock', () => {
@@ -569,7 +568,7 @@ test('Unknown != Disappear: Unsupported phrasing node with value preserves text 
     assert.ok(diag, 'Must record MDAST_UNKNOWN_INLINE diagnostic');
 });
 
-test('Unknown != Disappear: Unsupported phrasing node without value/children returns UnknownInline', () => {
+test('Unknown != Disappear: Unsupported phrasing node without value/children returns visible text', () => {
     const { ctx, diagnostics } = createTestContext();
     const emptyUnknown: any = {
         type: 'mysteryInline',
@@ -578,15 +577,42 @@ test('Unknown != Disappear: Unsupported phrasing node without value/children ret
 
     const inlines = adaptInlines([emptyUnknown], ctx);
     assert.strictEqual(inlines.length, 1);
-    assert.strictEqual(inlines[0].type, 'unknownInline');
-    assert.strictEqual((inlines[0] as any).sourceType, 'mysteryInline');
-    assert.strictEqual((inlines[0] as any).fallbackText, 'mystery-label');
+    assert.deepStrictEqual(inlines[0], { type: 'text', text: 'mystery-label' });
+    assert.deepStrictEqual(adaptInlines([{ type: 'emptyWidget' } as any], ctx), [{ type: 'text', text: '[Unsupported inline: emptyWidget]' }]);
 
     const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_INLINE');
     assert.ok(diag, 'Must record MDAST_UNKNOWN_INLINE diagnostic');
 });
 
-test('Unknown != Disappear: Unsupported block node creates UnknownBlock with fallback and records diagnostic', () => {
+test('unsupported inline text follows children, value, alt, label, identifier priority', () => {
+    const { ctx } = createTestContext();
+    const samples = [
+        { type: 'customInline', children: [{ type: 'text', value: 'child' }], value: 'value', alt: 'alt' },
+        { type: 'customInline', value: 'value', alt: 'alt' },
+        { type: 'customInline', alt: 'alt', label: 'label' },
+        { type: 'customInline', label: 'label', identifier: 'identifier' },
+        { type: 'customInline', identifier: 'identifier' },
+    ];
+    for (const [index, node] of samples.entries()) {
+        assert.deepStrictEqual(adaptInlines([node as any], ctx), [{ type: 'text', text: ['child', 'value', 'alt', 'label', 'identifier'][index] }]);
+    }
+});
+
+test('unsupported blocks retain raw slices, visible values, image alt text and empty placeholders', () => {
+    const { ctx, diagnostics, inlineAssets } = createTestContext();
+    const nodes: any[] = [
+        { type: 'widget', position: { start: { offset: 0 }, end: { offset: 9 } }, value: 'value' },
+        { type: 'widget', value: 'visible value' },
+        { type: 'widget', children: [{ type: 'paragraph', children: [{ type: 'text', value: 'see ' }, { type: 'image', alt: 'diagram', url: 'https://example.com/image.png' }] }] },
+        { type: 'emptyWidget' },
+    ];
+    const blocks = mdastRootToBlocks({ type: 'root', children: nodes } as any, ctx, 'raw slice');
+    assert.deepStrictEqual(blocks.map((b: any) => b.text), ['raw slice', 'visible value', 'see diagram', '[Unsupported block: emptyWidget]']);
+    assert.strictEqual(inlineAssets.length, 0, 'text-only unknown blocks do not manufacture asset placements');
+    assert.strictEqual(diagnostics.filter((d: any) => d.code === 'MDAST_UNKNOWN_BLOCK').length, 4);
+});
+
+test('Unknown != Disappear: Unsupported block node collapses visible content to text and records diagnostic', () => {
     const { ctx, diagnostics } = createTestContext();
     const root: any = {
         type: 'root',
@@ -608,10 +634,8 @@ test('Unknown != Disappear: Unsupported block node creates UnknownBlock with fal
     assert.strictEqual(blocks[0].type, 'unknown');
     const unknownBlock = blocks[0] as any;
     assert.strictEqual(unknownBlock.sourceType, 'customCalloutBox');
-    assert.ok(unknownBlock.fallbackBlocks, 'Must have fallbackBlocks');
-    assert.strictEqual(unknownBlock.fallbackBlocks.length, 1);
-    assert.strictEqual(unknownBlock.fallbackBlocks[0].type, 'paragraph');
-    assert.strictEqual(unknownBlock.fallbackBlocks[0].children[0].text, 'Inside callout');
+    assert.strictEqual(unknownBlock.text, 'Inside callout');
+    assert.deepStrictEqual(Object.keys(unknownBlock).sort(), ['id', 'sourceType', 'text', 'type']);
 
     const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_BLOCK');
     assert.ok(diag, 'Must record MDAST_UNKNOWN_BLOCK diagnostic');
@@ -644,7 +668,6 @@ test('GM-MD-001 Regression: Attached multiline display math fences do not swallo
 
     assert.strictEqual(blocks[2].type, 'math');
     const mathBlock = blocks[2] as any;
-    assert.strictEqual(mathBlock.notation, 'latex');
     assert.ok(mathBlock.source.startsWith('\\begin{aligned}'), 'Must retain \\begin{aligned} in math source');
     assert.ok(mathBlock.source.endsWith('\\end{aligned}'), 'Must retain \\end{aligned} in math source');
     assert.ok(!mathBlock.source.includes('$$'), 'Must not contain fence delimiters in math source');

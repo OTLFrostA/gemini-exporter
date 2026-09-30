@@ -104,7 +104,7 @@ test('Runner Isolation Matrix [3/8]: Baseline Success / Candidate Fail (Fallback
             diagnostics: [],
         }),
         candidateParser: async () => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'unknown', sourceType: 'unsupported' }] }] } },
+            bundle: { conversation: { messages: [{ blocks: [{ type: 'unknown', sourceType: 'unsupported', text: 'Unsupported content' }] }] } },
             diagnostics: [{ code: 'CANDIDATE_FALLBACK', message: 'Candidate fallback' }],
         }),
     });

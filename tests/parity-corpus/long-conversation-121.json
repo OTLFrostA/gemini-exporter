@@ -913,7 +913,6 @@
           {
             "id": "a21:b3",
             "type": "math",
-            "notation": "latex",
             "source": "\\sum_{i=1}^{11} i = 66"
           }
         ]
@@ -1821,7 +1820,6 @@
           {
             "id": "a42:b3",
             "type": "math",
-            "notation": "latex",
             "source": "\\sum_{i=1}^{21} i = 231"
           }
         ]

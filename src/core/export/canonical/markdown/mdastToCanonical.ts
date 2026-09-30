@@ -66,7 +66,6 @@ import type {
     StrongInline,
     EmphasisInline,
     TextInline,
-    UnknownInline,
 } from '../inline.js';
 import type { JsonValue } from '../json.js';
 import type { Diagnostic } from '../diagnostics.js';
@@ -257,7 +256,6 @@ export function adaptPhrasingNode(
             return [{
                 type: 'inlineMath',
                 source: val,
-                notation: 'latex',
             }];
         }
 
@@ -283,13 +281,9 @@ export function adaptPhrasingNode(
                 return textWithSoftBreaks(unknownNode.value);
             }
 
-            const fallbackText = unknownNode?.alt || unknownNode?.label || unknownNode?.identifier || '';
-            const unknownInline: UnknownInline = {
-                type: 'unknownInline',
-                sourceType: String(unknownNode?.type || 'unknown'),
-                ...(fallbackText ? { fallbackText } : {}),
-            };
-            return [unknownInline];
+            const fallbackText = [unknownNode?.alt, unknownNode?.label, unknownNode?.identifier]
+                .find((value) => typeof value === 'string' && value.length > 0);
+            return [{ type: 'text', text: fallbackText || `[Unsupported inline: ${unknownNode?.type || 'unknown'}]` }];
         }
     }
 }
@@ -387,7 +381,6 @@ function tryExtractDisplayMathParagraph(
                 id: mathBlockId,
                 type: 'math',
                 source,
-                notation: 'latex',
             };
         }
     }
@@ -525,7 +518,6 @@ export function adaptBlockNode(
                 id: blockId,
                 type: 'math',
                 source,
-                notation: 'latex',
             }];
         }
 
@@ -562,43 +554,24 @@ export function adaptBlockNode(
                 details: { nodeType: unknownNode?.type } as JsonValue,
             });
 
-            let fallbackBlocks: BlockNode[] = [];
-            if (Array.isArray(unknownNode?.children) && unknownNode.children.length > 0) {
-                const firstChildType = unknownNode.children[0]?.type;
-                const isPhrasing = firstChildType === 'text' || firstChildType === 'emphasis' ||
-                    firstChildType === 'strong' || firstChildType === 'inlineCode' ||
-                    firstChildType === 'link' || firstChildType === 'image' ||
-                    firstChildType === 'linkReference' || firstChildType === 'imageReference';
-
-                if (isPhrasing) {
-                    const inlines = adaptInlines(unknownNode.children, ctx);
-                    if (inlines.length > 0) {
-                        fallbackBlocks = [{
-                            id: ctx.nextBlockId(),
-                            type: 'paragraph',
-                            children: inlines,
-                        }];
-                    }
-                } else {
-                    fallbackBlocks = adaptBlockNodes(unknownNode.children, ctx, rawMarkdown);
-                }
-            } else if (typeof unknownNode?.value === 'string' && unknownNode.value.length > 0) {
-                fallbackBlocks = [{
-                    id: ctx.nextBlockId(),
-                    type: 'paragraph',
-                    children: textWithSoftBreaks(unknownNode.value),
-                }];
-            }
-
+            const visibleText = (value: any): string => {
+                const ownText = [value?.value, value?.alt, value?.label, value?.identifier]
+                    .find((text) => typeof text === 'string' && text.trim());
+                if (ownText) return ownText;
+                if (!Array.isArray(value?.children)) return '';
+                const separator = value.type === 'paragraph' || value.type === 'heading' ? '' : '\n';
+                return value.children.map(visibleText).filter((text: string) => text.trim()).join(separator);
+            };
+            const start = unknownNode.position?.start?.offset;
+            const end = unknownNode.position?.end?.offset;
+            const rawSlice = typeof start === 'number' && typeof end === 'number'
+                ? rawMarkdown.slice(start, end).trim() : '';
+            const sourceType = String(unknownNode?.type || 'unknown');
             const unknownBlock: UnknownBlock = {
                 id: blockId,
                 type: 'unknown',
-                sourceType: String(unknownNode?.type || 'unknown'),
-                ...(fallbackBlocks.length > 0 ? { fallbackBlocks } : {}),
-                payload: {
-                    nodeType: unknownNode?.type || 'unknown',
-                    ...(unknownNode?.value ? { rawValue: unknownNode.value } : {}),
-                },
+                sourceType,
+                text: rawSlice || visibleText(unknownNode) || `[Unsupported block: ${sourceType}]`,
             };
             return [unknownBlock];
         }

@@ -43,8 +43,8 @@ test('getRendererStrings returns zh and en copies', () => {
 test('typst zh locale localizes chrome copy', () => {
     const blocks = [
         { id: 't1', type: 'thought', kind: 'summary', blocks: [] },
-        { id: 'u1', type: 'unknown', sourceType: 'gemini.mystery' },
-        { id: 'm1', type: 'math', source: 'x^2', notation: 'latex' },
+        { id: 'u1', type: 'unknown', sourceType: 'gemini.mystery', text: 'Mystery content' },
+        { id: 'm1', type: 'math', source: 'x^2' },
     ];
     const b = bundle([msg(blocks)]);
     const { payload } = toTypstPayload(b, { ...opts, locale: 'zh' });

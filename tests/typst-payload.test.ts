@@ -63,7 +63,7 @@ test('maps paragraph, heading, code and table blocks', async () => {
 });
 
 test('math without converter keeps latex only; with converter adds typst', async () => {
-    const mathBlock = { type: 'math', source: '\\frac{1}{2}', notation: 'latex' };
+    const mathBlock = { type: 'math', source: '\\frac{1}{2}' };
     const noConv = toTypstPayload(bundle([msg('m1', 'assistant', [mathBlock])]), opts);
     assert.deepStrictEqual(noConv.payload.messages[0].blocks[0], { type: 'math', latex: '\\frac{1}{2}', fallbackLabel: 'Could not typeset this formula; original LaTeX preserved:' });
     assert.ok(!('typst' in noConv.payload.messages[0].blocks[0]), 'no typst key without converter');
@@ -79,6 +79,16 @@ test('math without converter keeps latex only; with converter adds typst', async
         convertMath: () => undefined,
     });
     assert.ok(!('typst' in failed.payload.messages[0].blocks[0]), 'failed conversion degrades to latex-only');
+});
+
+test('math callback receives LaTeX source and the inline/display flag', () => {
+    const calls: any[] = [];
+    const b = bundle([msg('m1', 'assistant', [
+        { type: 'paragraph', children: [{ type: 'inlineMath', source: 'x^2' }] },
+        { type: 'math', source: 'y^2' },
+    ])]);
+    toTypstPayload(b, { ...opts, convertMath: (...args: any[]) => { calls.push(args); return 'x'; } });
+    assert.deepStrictEqual(calls, [['x^2', false], ['y^2', true]]);
 });
 
 test('missing image asset becomes visible unknown node with diagnostic', async () => {
@@ -178,12 +188,12 @@ test('collectReferencedAssetIds walks block and inline trees recursively', async
             items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'list-img' }] }] }],
         },
         { type: 'quote', blocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'quote-img' }] }] },
-        { type: 'unknown', sourceType: 'x', fallbackBlocks: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'unknown-img' }] }] },
+        { type: 'unknown', sourceType: 'x', text: 'unknown image alt' },
     ];
     const ids = collectReferencedAssetIds(blocks as any);
     assert.deepStrictEqual([...ids].sort(), [
         'cell-img', 'heading-img', 'list-img', 'para-img',
-        'quote-img', 'top-file', 'top-img', 'unknown-img',
+        'quote-img', 'top-file', 'top-img',
     ].sort());
 });
 
@@ -210,15 +220,14 @@ test('inline image placements are intact in blocks', async () => {
 
 test('unknown blocks are never dropped', async () => {
     const b = bundle([msg('m1', 'assistant', [
-        { type: 'unknown', sourceType: 'weird-widget', fallbackBlocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'kept' }] }] },
+        { type: 'unknown', sourceType: 'weird-widget', text: 'kept' },
     ])]);
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'unknown');
     assert.strictEqual(node.sourceType, 'weird-widget');
-    assert.ok(!('fallback' in node), 'fallbackBlocks present: recursive blocks, not a flattened string');
-    assert.strictEqual(node.blocks[0].type, 'paragraph');
-    assert.strictEqual(node.blocks[0].children[0].text, 'kept');
+    assert.strictEqual(node.fallback, 'kept');
+    assert.ok(!('blocks' in node));
 });
 
 test('heading level passes through without clamping', async () => {

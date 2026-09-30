@@ -114,7 +114,6 @@ export function convertGeminiInlines(
                 nodes.push({
                     type: 'inlineMath',
                     source: rawSlice,
-                    notation: 'latex',
                 });
             } else if (a.type === 7) {
                 // Inline Code
@@ -236,7 +235,6 @@ export function geminiStructuredToCanonical(
                     id: ctx.nextBlockId(),
                     type: 'math',
                     source: node.FTa,
-                    notation: 'latex',
                 });
                 break;
             }

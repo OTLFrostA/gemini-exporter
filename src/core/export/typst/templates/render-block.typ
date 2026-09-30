@@ -132,18 +132,8 @@
   }
 }
 
-#let render-unknown(node, scope, recurse) = {
-  if "blocks" in node {
-    let body = {
-      for (index, sub) in node.blocks.enumerate() {
-        if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
-        recurse(sub, scope: scope)
-      }
-    }
-    unknown-surface(node.label, body)
-  } else {
-    unknown-surface(node.label, node.fallback)
-  }
+#let render-unknown(node) = {
+  unknown-surface(node.label, node.fallback)
 }
 
 #let render-thematic-break(node, scope) = {
@@ -167,7 +157,7 @@
   else if kind == "thematicBreak" { render-thematic-break(node, scope) }
   else if kind == "quote" { render-quote(node, scope, render-block) }
   else if kind == "note" { render-note(node, scope, render-block) }
-  else { render-unknown(node, scope, render-block) }
+  else { render-unknown(node) }
 }
 
 #let should-keep-with-next(blocks, index) = {

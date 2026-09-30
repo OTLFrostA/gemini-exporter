@@ -72,7 +72,6 @@
               },
               {
                 "type": "inlineMath",
-                "notation": "latex",
                 "source": "a^2+b^2=c^2"
               },
               {
@@ -163,7 +162,6 @@
           {
             "id": "a1:b4",
             "type": "math",
-            "notation": "latex",
             "source": "\\frac{P(B\\mid A)P(A)}{P(B)}"
           },
           {
@@ -264,19 +262,7 @@
             "id": "a1:b9",
             "type": "unknown",
             "sourceType": "gemini.ast_composable_future",
-            "fallbackBlocks": [
-              {
-                "id": "a1:b9:f0",
-                "type": "paragraph",
-                "children": [
-                  {
-                    "type": "text",
-                    "text": "Future provider block fallback."
-                  }
-                ]
-              }
-            ],
-            "rawRef": "raw/gemini/conv-rich-001/a1/node-9.json"
+            "text": "Future provider block fallback."
           }
         ]
       },

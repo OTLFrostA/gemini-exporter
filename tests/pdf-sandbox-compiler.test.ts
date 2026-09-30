@@ -221,7 +221,7 @@ function assetPathFor(asset: any) {
     return `assets/${asset.id}${ext}`;
 }
 
-function makePayload(bundle: any, opts: { convertMath?: (source: string, notation: string, display: boolean) => string | undefined } = {}) {
+function makePayload(bundle: any, opts: { convertMath?: (source: string, display: boolean) => string | undefined } = {}) {
     const { payload: document } = toTypstPayload(bundle, {
         assetPath: assetPathFor,
         ...(opts.convertMath ? { convertMath: opts.convertMath } : {}),
@@ -487,7 +487,7 @@ test('compile: without a MATH font, converted math is stripped with a diagnostic
     const compiler = makeCompiler(host);
     const controller = new AbortController();
     const bundle = makeBundle();
-    bundle.conversation.messages[0].blocks.push({ type: 'math', source: 'x^2', notation: 'latex' });
+    bundle.conversation.messages[0].blocks.push({ type: 'math', source: 'x^2' });
     const promise = compiler.compile(
         makePayload(bundle, { convertMath: () => 'x^2' }),
         { ...makeContext(controller.signal), bundle },

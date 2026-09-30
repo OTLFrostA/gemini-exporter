@@ -1,5 +1,4 @@
-import type { InlineNode, MathNotation } from './inline.js';
-import type { JsonValue } from './json.js';
+import type { InlineNode } from './inline.js';
 
 export type BlockNode =
     | ParagraphBlock
@@ -57,7 +56,6 @@ export interface CodeBlock extends BlockBase {
 export interface MathBlock extends BlockBase {
     type: 'math';
     source: string;
-    notation: MathNotation;
 }
 
 export type TableAlignment = 'left' | 'center' | 'right' | 'default';
@@ -109,11 +107,9 @@ export interface ThematicBreakBlock extends BlockBase {
     type: 'thematicBreak';
 }
 
-/** At least one of fallbackBlocks, rawRef, or payload must be present so unknown content is never silently dropped. */
+/** Unsupported content remains visible as plain text. */
 export interface UnknownBlock extends BlockBase {
     type: 'unknown';
     sourceType: string;
-    fallbackBlocks?: BlockNode[];
-    rawRef?: string;
-    payload?: JsonValue;
+    text: string;
 }

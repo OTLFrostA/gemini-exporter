@@ -10,7 +10,7 @@ import type { MessageNode, MessageRole } from '../conversation.js';
 import type { Diagnostic } from '../diagnostics.js';
 import type { JsonValue } from '../json.js';
 import type { SourceRef } from '../provenance.js';
-import { unknownBlockFallbackText } from '../unknownFallback.js';
+import { formatUnknownPayload } from '../unknownFallback.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import {
     buildAsset,
@@ -170,11 +170,12 @@ export function normalizeMessage(
             const cleaned = cleanBody(m.content);
             if (cleaned.trim()) blocks.push(...parseMarkdownToBlocks(cleaned, idPrefix, st));
         } else if (m.content !== undefined && m.content !== null) {
+            const visible = formatUnknownPayload(m.content as JsonValue);
             const ub: BlockNode = {
                 id: nextBlockId(),
                 type: 'unknown',
                 sourceType: 'message-content',
-                payload: m.content as JsonValue,
+                text: visible.text,
             };
             blocks.push(ub);
             diagnostics.push({
@@ -183,7 +184,7 @@ export function normalizeMessage(
                 code: 'UNKNOWN_MESSAGE_CONTENT',
                 message: `message content was not a string; preserved as unknown block`,
                 sourceRef,
-                details: { fallback: unknownBlockFallbackText(ub) } as JsonValue,
+                details: { truncated: visible.truncated } as JsonValue,
             });
         }
     }

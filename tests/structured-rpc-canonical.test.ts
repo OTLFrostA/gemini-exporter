@@ -100,7 +100,6 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
     // Check math block:
     const math = modelMsg.blocks[1];
     assert.strictEqual(math.source, 'E = mc^2');
-    assert.strictEqual(math.notation, 'latex');
 
     // Ensure raw markdown string was NOT used
     const allText = JSON.stringify(modelMsg.blocks);
@@ -148,11 +147,9 @@ test('#705 Divergence Case: Display Math directly to Canonical math block', asyn
 
     const math1 = msg.blocks[1];
     assert.strictEqual(math1.source, multilineFormula);
-    assert.strictEqual(math1.notation, 'latex');
 
     const math2 = msg.blocks[2];
     assert.strictEqual(math2.source, afterProseFormula);
-    assert.strictEqual(math2.notation, 'latex');
 });
 
 test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count and math intact', async () => {

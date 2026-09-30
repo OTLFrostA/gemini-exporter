@@ -128,17 +128,15 @@ test('matrix: colSpan/rowSpan are native in Typst with no degradation diagnostic
     noDegradation(diagnostics, 'TYPST_V8_TABLE_SPAN_IGNORED');
 });
 
-test('matrix: unknown fallbackBlocks render recursively in HTML and Typst', () => {
-    const blocks = [{
-        type: 'unknown', sourceType: 'x.y',
-        fallbackBlocks: [para('fb'), { type: 'image', assetId: 'a1', alt: 'pic' }],
-    }];
-    const extra = { assets: [imgAsset('a1')] };
-    assert.ok(htmlOf(blocks, extra, imgUrl).includes('img.test/a1.png'), 'html renders fallback image');
-    const { node } = typstOf(blocks, extra);
+test('matrix: unknown content renders as visible text in HTML and Typst', () => {
+    const blocks = [{ type: 'unknown', sourceType: 'x.y', text: 'fb\npic' }];
+    const html = htmlOf(blocks);
+    assert.ok(html.includes('fb\npic'));
+    assert.ok(html.includes('Unsupported · x.y'));
+    const { node } = typstOf(blocks);
     assert.strictEqual(node.type, 'unknown');
-    assert.strictEqual(node.blocks.length, 2);
-    assert.strictEqual(node.blocks[1].type, 'image');
+    assert.strictEqual(node.fallback, 'fb\npic');
+    assert.ok(!('blocks' in node));
 });
 
 test('matrix: file description reaches Typst transport', () => {

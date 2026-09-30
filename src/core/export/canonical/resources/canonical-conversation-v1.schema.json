@@ -111,9 +111,6 @@
         },
         {
           "$ref": "#/$defs/LineBreakInline"
-        },
-        {
-          "$ref": "#/$defs/UnknownInline"
         }
       ]
     },
@@ -236,8 +233,7 @@
       "type": "object",
       "required": [
         "type",
-        "source",
-        "notation"
+        "source"
       ],
       "properties": {
         "type": {
@@ -245,15 +241,6 @@
         },
         "source": {
           "type": "string"
-        },
-        "notation": {
-          "enum": [
-            "latex",
-            "mathml",
-            "asciimath",
-            "plain",
-            "unknown"
-          ]
         }
       },
       "additionalProperties": false
@@ -292,28 +279,6 @@
             "soft",
             "hard"
           ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "UnknownInline": {
-      "type": "object",
-      "required": [
-        "type",
-        "sourceType"
-      ],
-      "properties": {
-        "type": {
-          "const": "unknownInline"
-        },
-        "sourceType": {
-          "type": "string"
-        },
-        "fallbackText": {
-          "type": "string"
-        },
-        "rawRef": {
-          "type": "string"
         }
       },
       "additionalProperties": false
@@ -512,8 +477,7 @@
       "required": [
         "type",
         "id",
-        "source",
-        "notation"
+        "source"
       ],
       "properties": {
         "type": {
@@ -521,15 +485,6 @@
         },
         "id": {
           "type": "string"
-        },
-        "notation": {
-          "enum": [
-            "latex",
-            "mathml",
-            "asciimath",
-            "plain",
-            "unknown"
-          ]
         },
         "source": {
           "type": "string"
@@ -764,9 +719,10 @@
     "UnknownBlock": {
       "type": "object",
       "required": [
-        "type",
         "id",
-        "sourceType"
+        "type",
+        "sourceType",
+        "text"
       ],
       "properties": {
         "type": {
@@ -776,19 +732,12 @@
           "type": "string"
         },
         "sourceType": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
-        "fallbackBlocks": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BlockNode"
-          }
-        },
-        "rawRef": {
-          "type": "string"
-        },
-        "payload": {
-          "$ref": "#/$defs/JsonValue"
+        "text": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false

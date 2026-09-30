@@ -73,7 +73,7 @@ test('quote keeps code and math as structured nodes instead of flat text', async
             type: 'quote',
             blocks: [
                 { type: 'code', language: 'python', code: 'print(1)' },
-                { type: 'math', source: 'E=mc^2', notation: 'latex' },
+                { type: 'math', source: 'E=mc^2' },
             ],
         },
     ])]);

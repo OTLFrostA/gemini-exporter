@@ -16,7 +16,7 @@
       "provenanceSource": "Project Canonical AST specification & validation invariants",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Defines canonical block schemas, validateBundle(), and diagnostics rules.",
-      "testCount": 30,
+      "testCount": 29,
       "tests": [
         {
           "name": "all canonical fixtures validate with zero errors",
@@ -99,12 +99,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "bare unknown block (rawRef only) still produces visible fallback",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "unknown round-trips through JSON with evidence intact",
+          "name": "unknown blocks require non-empty sourceType and visible text",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -230,7 +225,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "matrix: unknown fallbackBlocks render recursively in HTML and Typst",
+          "name": "matrix: unknown content renders as visible text in HTML and Typst",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -913,10 +908,10 @@
       "file": "tests/typst-list-unknown-recursive.test.ts",
       "domain": "canonical_ast",
       "classification": "P2",
-      "provenanceSource": "Typst payload nested list and recursive unknown node mapping contract",
+      "provenanceSource": "Typst payload nested list and visible unknown text mapping contract",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Guarantees arbitrary nested list items with embedded images/math map cleanly to Typst payload.",
-      "testCount": 6,
+      "testCount": 5,
       "tests": [
         {
           "name": "list item keeps inline image as a node, not flattened text",
@@ -934,12 +929,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "unknown with fallbackBlocks renders recursive blocks including image",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "unknown without fallbackBlocks keeps the fallback string",
+          "name": "unknown text remains visible without nested render blocks",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -993,7 +983,7 @@
       "provenanceSource": "Typst v8 payload specification and adapter contract",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Canonical AST to Typst payload adapter contract test.",
-      "testCount": 16,
+      "testCount": 17,
       "tests": [
         {
           "name": "maps paragraph, heading, code and table blocks",
@@ -1002,6 +992,11 @@
         },
         {
           "name": "math without converter keeps latex only; with converter adds typst",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "math callback receives LaTeX source and the inline/display flag",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1263,11 +1258,11 @@
   ],
   "summary": {
     "totalSuites": 22,
-    "totalTests": 196,
+    "totalTests": 195,
     "byClassification": {
       "P0": 0,
       "P1": 17,
-      "P2": 177,
+      "P2": 176,
       "P3": 2,
       "P4": 0
     }

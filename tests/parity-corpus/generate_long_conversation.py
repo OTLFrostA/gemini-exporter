@@ -85,7 +85,7 @@ def build_message(idx, role, rng):
         })
     if role == "assistant" and idx % 21 == 0:
         blocks.append({
-            "id": f"{mid}:b3", "type": "math", "notation": "latex",
+            "id": f"{mid}:b3", "type": "math",
             "source": r"\sum_{i=1}^{%d} i = %d" % (n, n * (n + 1) // 2),
         })
     if role == "user" and idx % 7 == 0:
