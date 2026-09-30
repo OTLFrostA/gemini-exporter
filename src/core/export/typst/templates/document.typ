@@ -4,12 +4,12 @@
 
 #let render-document(doc) = document-theme[
   #reading[
-    #text(size: 18.1pt, weight: 650, fill: ink)[#doc.title]
-    #v(4.5pt)
-    #text(size: 7.85pt, fill: muted)[
+    #text(size: title-size, weight: visual.type.title.weight, fill: ink)[#doc.title]
+    #v(sp-inline)
+    #text(size: metadata-size, fill: muted)[
       #doc.provider · #doc.date · #doc.messageCount messages
     ]
   ]
-  #v(15.5pt)
+  #v(sp-section)
   #render-messages(doc.messages)
 ]

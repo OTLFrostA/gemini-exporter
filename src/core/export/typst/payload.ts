@@ -1,3 +1,4 @@
+import { assetPresentation, assetCaptionText } from '../canonical/assetPresentation.js';
 import type { Asset } from '../canonical/assets.js';
 import type {
     BlockNode,
@@ -240,17 +241,17 @@ function renderBlock(
             const assetPath = asset ? options.assetPath(asset) : undefined;
             if (!asset || !assetPath) {
                 diagnostics.push({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Image asset ${block.assetId} unavailable to Typst.`, path });
-                return { type: 'unknown', sourceType: 'missing-image', label: unknownLabel('missing-image', options.strings), fallback: block.alt ?? asset?.name ?? `Missing image: ${block.assetId}` };
+                return { type: 'unknown', sourceType: 'missing-image', label: unknownLabel('missing-image', options.strings), fallback: assetPresentation(asset, assetCaptionText(block.caption) ?? block.alt).label };
             }
-            const caption = block.caption ? inlineText(block.caption) : block.alt;
+            const caption = assetPresentation(asset, block.caption?.length ? inlineText(block.caption) : block.alt).caption;
             return { type: 'image', asset: assetPath, ...(caption ? { caption } : {}) };
         }
         case 'file': {
             const asset = assets.get(block.assetId);
-            if (!asset) return { type: 'unknown', sourceType: 'missing-file', label: unknownLabel('missing-file', options.strings), fallback: block.label ?? `Missing file: ${block.assetId}` };
+            if (!asset) return { type: 'unknown', sourceType: 'missing-file', label: unknownLabel('missing-file', options.strings), fallback: assetPresentation(asset, block.label, 'Attachment').label };
             return {
                 type: 'file',
-                name: block.label ?? asset.name ?? block.assetId,
+                name: assetPresentation(asset, block.label, 'Attachment').label,
                 kind: mimeLabel(asset),
                 size: humanBytes(asset.sizeBytes, options.strings),
                 ...(block.description?.length ? { description: inlineText(block.description) } : {}),

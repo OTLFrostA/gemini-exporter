@@ -1,3 +1,5 @@
+import { visual } from '../visualContract.js';
+import { assetPresentation, assetCaptionText } from './assetPresentation.js';
 import type { Asset } from './assets.js';
 import { collectReferencedAssetIds } from './assetReferences.js';
 import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
@@ -50,38 +52,43 @@ const CANONICAL_EXTRA_CSS = `
   border: 1px dashed var(--border-color);
   border-radius: 8px;
   padding: 10px 14px;
-  margin: 1em 0;
+  margin: var(--sp-block) 0;
   background: rgba(168, 199, 250, 0.04);
 }
 .gem-unknown-label {
-  font-size: 12px;
+  font-size: ${visual.type.metadata.size}px;
+  line-height: ${visual.type.metadata.lineHeight};
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-inline);
 }
 .gem-unknown-text {
-  font-size: 12px;
+  font-size: ${visual.type.metadata.size}px;
+  line-height: ${visual.type.metadata.lineHeight};
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
 }
 .gem-att-caption, .gem-att-desc {
-  font-size: 12.5px;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
   color: var(--text-secondary);
   padding: 0 12px 10px;
 }
 .gem-code-meta {
-  font-size: 12px;
+  font-size: ${visual.type.metadata.size}px;
+  line-height: ${visual.type.metadata.lineHeight};
   color: var(--text-muted);
   margin-left: 8px;
 }
-.gem-figure { margin: 1em 0; }
+.gem-figure { margin: var(--sp-block) 0; }
 .gem-figure figcaption {
-  font-size: 13px;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
   color: var(--text-secondary);
-  margin-top: 6px;
+  margin-top: var(--sp-inline);
 }
 .gem-image-block {
-  margin: 1.2em 0;
+  margin: var(--sp-block) 0;
   text-align: center;
 }
 .gem-image-block img {
@@ -92,9 +99,10 @@ const CANONICAL_EXTRA_CSS = `
   border: 1px dashed var(--border-color);
   border-radius: 8px;
   padding: 12px 14px;
-  margin: 1em 0;
+  margin: var(--sp-block) 0;
   color: var(--text-secondary);
-  font-size: 13.5px;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
 }
 .gem-inline-img {
   max-width: 100%;
@@ -107,11 +115,12 @@ const CANONICAL_EXTRA_CSS = `
   margin: 0 4px;
   padding: 2px 8px;
 }
-.gem-citation-group { margin: 1.2em 0; }
+.gem-citation-group { margin: var(--sp-block) 0; }
 .gem-citation-group-title {
-  font-size: 13px;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-inline);
 }
 .gem-citation-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .gem-citation-chip {
@@ -119,7 +128,8 @@ const CANONICAL_EXTRA_CSS = `
   padding: 4px 12px;
   border: 1px solid var(--border-color);
   border-radius: 999px;
-  font-size: 12.5px;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
   color: var(--text-secondary);
   text-decoration: none;
 }
@@ -131,17 +141,19 @@ a.gem-citation-chip { color: var(--accent-blue); }
   border: 1px dashed var(--border-color);
   border-radius: 8px;
   padding: 10px 14px;
-  margin: 1em 0;
+  margin: var(--sp-block) 0;
   background: rgba(168, 199, 250, 0.04);
   text-align: left;
 }
 .gem-math-fallback-label {
-  font-size: 12px;
+  font-size: ${visual.type.metadata.size}px;
+  line-height: ${visual.type.metadata.lineHeight};
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-inline);
 }
 .gem-math-fallback-source {
-  font-size: 12.5px;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
   margin: 0;
   background: transparent;
   padding: 0;
@@ -216,7 +228,7 @@ function renderInline(node: InlineNode, ctx: RenderCtx): string {
         case 'image': {
             const asset = ctx.assets.get(node.assetId);
             const url = resolveAssetUrl(asset, ctx);
-            const name = node.alt ?? asset?.name ?? node.assetId;
+            const name = assetPresentation(asset, node.alt).label;
             const safeName = escapeHtml(name);
             const titleAttr = node.title ? ` title="${escapeHtml(node.title)}"` : '';
             if (!url) {
@@ -253,11 +265,12 @@ function missingAssetHtml(assetId: string, label: string, ctx: RenderCtx, path: 
 function renderImageBlock(block: ImageBlock, ctx: RenderCtx, path: string): string {
     const asset = ctx.assets.get(block.assetId);
     const url = resolveAssetUrl(asset, ctx);
-    const name = block.alt ?? asset?.name ?? block.assetId;
+    const presentation = assetPresentation(asset, assetCaptionText(block.caption) ?? block.alt);
+    const name = presentation.label;
     const safeName = escapeHtml(name);
     if (!url) return missingAssetHtml(block.assetId, name, ctx, path);
-    const caption = block.caption?.length
-        ? `<figcaption class="gem-image-caption">${renderInlines(block.caption, ctx)}</figcaption>`
+    const caption = presentation.caption
+        ? `<figcaption class="gem-image-caption">${block.caption?.length && presentation.caption !== asset?.name ? renderInlines(block.caption, ctx) : escapeHtml(presentation.caption)}</figcaption>`
         : '';
     return `<figure class="gem-figure gem-image-block" data-asset-id="${escapeHtml(block.assetId)}"><a href="${url}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${url}" alt="${safeName}" loading="lazy"></a>${caption}</figure>`;
 }
@@ -265,7 +278,7 @@ function renderImageBlock(block: ImageBlock, ctx: RenderCtx, path: string): stri
 function renderFileCard(block: FileBlock, ctx: RenderCtx, path: string): string {
     const asset = ctx.assets.get(block.assetId);
     const url = resolveAssetUrl(asset, ctx);
-    const name = block.label ?? asset?.name ?? block.assetId;
+    const name = assetPresentation(asset, block.label, 'Attachment').label;
     const safeName = escapeHtml(name);
     if (!url) return missingAssetHtml(block.assetId, name, ctx, path);
     const description = block.description?.length ? `<div class="gem-att-desc">${renderInlines(block.description, ctx)}</div>` : '';
@@ -483,6 +496,10 @@ ${CANONICAL_EXTRA_CSS}</style>
 <body class="${isLightTheme ? 'light-theme' : ''}">
 
 <main class="gem-container">
+  <header class="gem-conversation-header">
+    <h1 class="gem-conversation-title">${safeTitle}</h1>
+    <p class="gem-conversation-metadata">${escapeHtml(bundle.conversation.key.providerId)}${bundle.conversation.createdAt ? ' · ' + escapeHtml(bundle.conversation.createdAt.slice(0, 10)) : ''} · ${messages.length} ${ctx.isEn ? 'messages' : '条消息'}</p>
+  </header>
   ${turnsHtml}
 </main>
 

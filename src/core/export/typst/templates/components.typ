@@ -1,6 +1,6 @@
 #import "theme.typ": *
 
-#let reading(body, sticky: false) = block(width: reading-width, sticky: sticky, body)
+#let reading(body, sticky: false) = layout(size => block(width: calc.min(prose-width, size.width), sticky: sticky, body))
 #let wide(body) = block(width: 100%, body)
 
 #let inline-code(code) = box(
@@ -121,21 +121,18 @@
           column-gutter: 5pt,
           align: horizon,
           sparkle-mark(),
-          text(size: 7.65pt, weight: 520, fill: muted)[#model],
+          text(size: metadata-size, weight: 520, fill: muted)[#model],
         )
       ]
     )
   }
 }
 
-// Fit medium/long user prompts to candidate widths up to 72%, dropping elevation above
-// user-elevation-max-height so multi-page prompts can break across pages.
-#let user-bubble(body, plain-text: "") = layout(size => {
+// Natural user bubble width is capped globally; height only controls pagination/elevation.
+#let user-bubble(body, plain-text: "", min-content-width: 0pt) = layout(size => {
   let px = 12.5pt
   let py = 8.4pt
-  let short-cutoff = size.width * 0.32
-  let medium-cutoff = size.width * 0.54
-  let max-width = size.width * 0.72
+  let max-width = calc.min(size.width * user-bubble-max-ratio, prose-width)
 
   let styled-body = block(width: 100%)[
     #set par(leading: user-leading, spacing: 0pt)
@@ -148,22 +145,7 @@
     measure(text(size: body-size)[#plain-text]).width + 2 * px
   }
 
-  let bubble-width = if raw-width <= medium-cutoff and measure(width: calc.max(raw-width - 2 * px, 28pt), styled-body).height <= 31pt {
-    raw-width
-  } else {
-    let candidates = (
-      size.width * 0.56,
-      size.width * 0.62,
-      size.width * 0.68,
-      max-width,
-    )
-    let target = 31pt
-    let fitting = candidates.find(w => {
-      let inner = calc.max(w - 2 * px, 28pt)
-      measure(width: inner, styled-body).height <= target
-    })
-    if fitting == none { max-width } else { fitting }
-  }
+  let bubble-width = calc.min(calc.max(raw-width, 2 * px + calc.max(28pt, min-content-width)), max-width)
 
   let inner-width = calc.max(bubble-width - 2 * px, 28pt)
   let content-height = measure(width: inner-width, styled-body).height
@@ -235,7 +217,7 @@
           #box(width: text-area)[
             #text(size: 8.25pt, weight: 560, fill: ink-soft)[#display-name]
             #v(2.2pt)
-            #text(size: 7.1pt, fill: muted)[#meta]
+            #text(size: metadata-size, fill: muted)[#meta]
           ]
         ]
       ]
@@ -245,14 +227,16 @@
   )
 })
 
-#let file-attachment(name, kind, size) = layout(size-info => {
-  let px = 10.5pt
-  let icon-w = 22pt
-  let gap = 8pt
+// File cards reserve their actual label/metadata width plus icon and insets.
+// The enclosing user bubble must account for the same intrinsic width.
+#let file-attachment-natural-width(name, kind, size) = {
   let name-w = measure(text(size: 8.25pt, weight: 560)[#name]).width
-  let meta = kind + " · " + size
-  let meta-w = measure(text(size: 7.1pt)[#meta]).width
-  let natural = icon-w + gap + calc.max(name-w, meta-w) + 2 * px
+  let meta-w = measure(text(size: metadata-size)[#(kind + " · " + size)]).width
+  22pt + 8pt + calc.max(name-w, meta-w) + 2 * 10.5pt
+}
+
+#let file-attachment(name, kind, size) = layout(size-info => {
+  let natural = file-attachment-natural-width(name, kind, size)
   let max-width = size-info.width
   let card-width = calc.min(natural, max-width)
 
@@ -271,7 +255,7 @@
     breakable: true,
   )[
     #block(sticky: true, inset: (left: 12pt, right: 12pt, top: 7pt, bottom: 2pt))[
-      #text(size: 7.05pt, weight: 530, fill: muted)[
+      #text(size: metadata-size, weight: 530, fill: muted)[
         #if filename == none { lang } else if lang == "text" { filename } else { filename + " · " + lang }#if meta != none and meta != "" [ · #meta]
       ]
     ]
@@ -286,7 +270,7 @@
   ]
 )
 
-#let math-surface(body) = reading(
+#let math-surface(body) = wide(
   block(width: 100%, breakable: false)[#align(center)[#body]]
 )
 
@@ -302,7 +286,7 @@
       img-w
     } else {
       calc.min(
-        measure(text(size: 7.35pt)[#caption]).width + 4pt,
+        measure(text(size: caption-size)[#caption]).width + 4pt,
         figure-caption-max-width,
       )
     }
@@ -330,7 +314,7 @@
           ]
           #if caption != none and caption != "" {
             v(4.5pt)
-            text(size: 7.35pt, fill: muted)[#caption]
+            text(size: caption-size, fill: muted)[#caption]
           }
         ]
       ]
@@ -352,7 +336,7 @@
 
 #let unknown-surface(label, body) = reading(
   block(fill: embedded-fill, radius: 7pt, inset: 8pt)[
-    #text(size: 7.2pt, fill: muted)[#label]
+    #text(size: metadata-size, fill: muted)[#label]
     #v(3pt)
     #body
   ]

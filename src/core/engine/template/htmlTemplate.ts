@@ -1,3 +1,5 @@
+import { visual } from '../../export/visualContract';
+
 function escapeHtml(text?: string | null): string {
     if (!text || typeof text !== 'string') return '';
     return text
@@ -40,6 +42,14 @@ export function sanitizeUrl(rawUrl?: string | null, allowImageData: boolean = fa
 
 export const GEM_HTML_CSS = `
 :root {
+  --sp-inline: ${visual.spacing.inline}px;
+  --sp-paragraph: ${visual.spacing.paragraph}px;
+  --sp-block: ${visual.spacing.block}px;
+  --sp-section: ${visual.spacing.section}px;
+  --sp-turn: ${visual.spacing.turn}px;
+  --content-width: ${visual.content.maxWidth}px;
+  --prose-width: ${visual.content.proseWidth}px;
+  --page-side-padding: ${visual.content.pageSidePadding}px;
   --bg-main: #131314;
   --bg-user-bubble: #282a2c;
   --bg-card: #1e1f20;
@@ -105,21 +115,36 @@ body {
   background-color: var(--bg-main);
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Google Sans", Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: ${visual.type.body.size}px;
+  line-height: ${visual.type.body.lineHeight};
   -webkit-font-smoothing: antialiased;
 }
 
 /* Conversation Container - 1:1 Gemini Pure Stream */
 .gem-container {
-  max-width: 840px;
+  max-width: calc(var(--content-width) + 2 * var(--page-side-padding));
   margin: 0 auto;
-  padding: 40px 20px 80px;
+  padding: 40px var(--page-side-padding) 80px;
+}
+
+/* Conversation title is the strongest document anchor. */
+.gem-conversation-header { max-width: var(--prose-width); margin-bottom: var(--sp-section); }
+.gem-conversation-title {
+  font-size: ${visual.type.title.size}px;
+  font-weight: ${visual.type.title.weight};
+  line-height: ${visual.type.title.lineHeight};
+  overflow-wrap: anywhere;
+}
+.gem-conversation-metadata {
+  margin-top: var(--sp-inline);
+  font-size: ${visual.type.metadata.size}px;
+  line-height: ${visual.type.metadata.lineHeight};
+  color: var(--text-muted);
 }
 
 /* Turn Items */
 .gem-turn {
-  margin-bottom: 32px;
+  margin-bottom: var(--sp-turn);
 }
 
 .gem-turn-user {
@@ -133,9 +158,9 @@ body {
   color: var(--text-primary);
   border-radius: 20px 20px 4px 20px;
   padding: 14px 18px;
-  max-width: 85%;
-  font-size: 15px;
-  line-height: 1.55;
+  max-width: min(85%, var(--prose-width));
+  font-size: ${visual.type.body.size}px;
+  line-height: ${visual.type.body.lineHeight};
   box-shadow: var(--shadow-sm);
   word-break: break-word;
 }
@@ -158,7 +183,7 @@ body {
   background: transparent;
   border: none;
   color: var(--accent-blue);
-  font-size: 13px;
+  font-size: ${visual.type.small.size}px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
@@ -233,7 +258,7 @@ body {
 }
 
 .gem-att-name {
-  font-size: 13px;
+  font-size: ${visual.type.small.size}px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -241,7 +266,8 @@ body {
 }
 
 .gem-att-badge {
-  font-size: 10px;
+  font-size: ${visual.type.metadata.size}px;
+  line-height: ${visual.type.metadata.lineHeight};
   color: var(--text-muted);
   text-transform: uppercase;
 }
@@ -261,19 +287,19 @@ body {
 .gem-turn-model {
   display: flex;
   flex-direction: column;
-  margin-bottom: 40px;
+  margin-bottom: var(--sp-turn);
 }
 
 .gem-model-content {
   color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: ${visual.type.body.size}px;
+  line-height: ${visual.type.body.lineHeight};
   word-break: break-word;
 }
 
 /* Thinking Process Accordion */
 .gem-thoughts {
-  margin-bottom: 16px;
+  margin-bottom: var(--sp-block);
   border-left: 2px solid var(--border-color);
   padding-left: 12px;
 }
@@ -292,7 +318,7 @@ body {
   align-items: center;
   gap: 6px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: ${visual.type.small.size}px;
   font-weight: 500;
   padding: 4px 8px;
   border-radius: 6px;
@@ -308,31 +334,48 @@ body {
 }
 
 .gem-thoughts-content {
-  margin-top: 10px;
-  font-size: 13.5px;
+  margin-top: var(--sp-paragraph);
+  font-size: ${visual.type.small.size}px;
   color: var(--text-secondary);
-  line-height: 1.55;
+  line-height: ${visual.type.small.lineHeight};
   font-style: italic;
 }
 
+/* Semantic prose measure leaves tables, code, media and display math wide. */
+.gem-turn-model .gem-paragraph,
+.gem-turn-model .gem-heading,
+.gem-turn-model .gem-blockquote {
+  max-width: var(--prose-width);
+}
+.gem-turn-model .gem-list {
+  max-width: calc(var(--prose-width) - 1.8em);
+}
+@media (max-width: 600px) {
+  .gem-container { padding-inline: calc(var(--page-side-padding) / 2); }
+}
+
+/* Explicit rhythm also prevents outer paragraph margins from inflating turns. */
+.gem-model-content > :first-child, .gem-prompt-content > :first-child { margin-top: 0; }
+.gem-model-content > :last-child, .gem-prompt-content > :last-child { margin-bottom: 0; }
+
 /* Content Elements */
 .gem-paragraph {
-  margin: 0.8em 0;
+  margin: var(--sp-paragraph) 0;
 }
 
 .gem-heading {
   font-weight: 600;
-  margin: 1.4em 0 0.6em;
+  margin: var(--sp-section) 0 var(--sp-paragraph);
   color: var(--text-primary);
 }
-h1.gem-heading { font-size: 1.65em; }
-h2.gem-heading { font-size: 1.4em; }
-h3.gem-heading { font-size: 1.2em; }
-h4.gem-heading { font-size: 1.05em; }
+h1.gem-heading { font-size: ${visual.type.title.size}px; font-weight: ${visual.type.title.weight}; line-height: ${visual.type.title.lineHeight}; }
+h2.gem-heading { font-size: ${visual.type.h2.size}px; font-weight: ${visual.type.h2.weight}; line-height: ${visual.type.h2.lineHeight}; }
+h3.gem-heading { font-size: ${visual.type.h3.size}px; font-weight: ${visual.type.h3.weight}; line-height: ${visual.type.h3.lineHeight}; }
+h4.gem-heading, h5.gem-heading, h6.gem-heading { font-size: ${visual.type.body.size}px; font-weight: ${visual.type.h3.weight}; line-height: ${visual.type.h3.lineHeight}; }
 
 .gem-blockquote {
   border-left: 3px solid var(--accent-blue);
-  margin: 1.2em 0;
+  margin: var(--sp-block) 0;
   padding: 0.6em 1.2em;
   background: rgba(168, 199, 250, 0.06);
   border-radius: 0 8px 8px 0;
@@ -342,14 +385,14 @@ h4.gem-heading { font-size: 1.05em; }
 .gem-hr {
   border: none;
   border-top: 1px solid var(--border-color);
-  margin: 2em 0;
+  margin: var(--sp-section) 0;
 }
 
 .gem-list {
-  margin: 0.8em 0 0.8em 1.8em;
+  margin: var(--sp-paragraph) 0 var(--sp-paragraph) 1.8em;
 }
 .gem-list li {
-  margin-bottom: 0.35em;
+  margin-bottom: var(--sp-inline);
 }
 
 .gem-inline-code {
@@ -357,12 +400,12 @@ h4.gem-heading { font-size: 1.05em; }
   padding: 2px 6px;
   border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13.5px;
+  font-size: ${visual.type.small.size}px;
   border: 1px solid var(--border-color);
 }
 
 .gem-code-block {
-  margin: 1.2em 0;
+  margin: var(--sp-block) 0;
   border: 1px solid var(--code-border);
   border-radius: 10px;
   overflow: hidden;
@@ -379,7 +422,7 @@ h4.gem-heading { font-size: 1.05em; }
 }
 
 .gem-code-lang {
-  font-size: 12px;
+  font-size: ${visual.type.metadata.size}px;
   font-weight: 500;
   color: var(--text-muted);
   text-transform: lowercase;
@@ -389,7 +432,7 @@ h4.gem-heading { font-size: 1.05em; }
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: ${visual.type.metadata.size}px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -413,13 +456,13 @@ h4.gem-heading { font-size: 1.05em; }
 }
 .gem-code-block code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: ${visual.type.small.size}px;
+  line-height: ${visual.type.small.lineHeight};
 }
 
 .gem-table-wrapper {
   overflow-x: auto;
-  margin: 1.2em 0;
+  margin: var(--sp-block) 0;
   border: 1px solid var(--border-color);
   border-radius: 8px;
 }
@@ -447,7 +490,7 @@ h4.gem-heading { font-size: 1.05em; }
   padding: 0 2px;
 }
 .gem-math-block {
-  margin: 1.2em 0;
+  margin: var(--sp-block) 0;
   text-align: center;
   overflow-x: auto;
   padding: 10px;
@@ -456,7 +499,7 @@ h4.gem-heading { font-size: 1.05em; }
 .gem-msg-img {
   max-width: 100%;
   border-radius: 12px;
-  margin: 10px 0;
+  margin: var(--sp-block) 0;
   cursor: pointer;
   transition: opacity 0.2s;
 }
@@ -478,7 +521,7 @@ h4.gem-heading { font-size: 1.05em; }
   text-align: center;
   color: var(--text-muted);
   padding: 60px 0;
-  font-size: 15px;
+  font-size: ${visual.type.body.size}px;
 }
 
 /* High Fidelity Print Stylesheet (@media print) for direct PDF output */

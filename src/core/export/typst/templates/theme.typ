@@ -1,3 +1,5 @@
+#let visual = json("/visual-contract.json")
+
 #let page-fill = rgb("#FCFCFB")
 #let ink = rgb("#202327")
 #let ink-soft = rgb("#34383E")
@@ -40,18 +42,31 @@
   "Noto Sans Math",
 )
 
-#let body-size = 9.6pt
-#let body-leading = 3.55pt
-#let user-leading = 3.45pt
+#let body-size = visual.type.body.size * 0.625pt
+#let body-leading = body-size * (visual.type.body.lineHeight - 1) * 0.6
+#let user-leading = body-leading
+// PDF follows the same semantic type hierarchy in native print units.
+#let title-size = visual.type.title.size * 0.75pt
+#let h1-size = visual.type.title.size * 0.625pt
+#let h2-size = visual.type.h2.size * 0.625pt
+#let h3-size = visual.type.h3.size * 0.625pt
+#let small-size = visual.type.small.size * 0.625pt
+#let metadata-size = visual.type.metadata.size * 0.625pt
+#let caption-size = small-size
 #let code-size = 8.15pt
-#let reading-width = 147mm
+// PDF shares the content/prose hierarchy with visualContract.ts, in print units.
+#let content-width = 166mm
+#let prose-width = content-width * visual.content.proseWidth / visual.content.maxWidth
+#let reading-width = prose-width
+#let user-bubble-max-ratio = 85%
 
 #let page-width = 210mm
 #let page-height = 297mm
 #let page-margin-top = 18.5mm
 #let page-margin-bottom = 18mm
-#let page-margin-left = 22mm
-#let page-margin-right = 22mm
+#let page-side-padding = (page-width - content-width) / 2
+#let page-margin-left = page-side-padding
+#let page-margin-right = page-side-padding
 #let page-body-height = page-height - page-margin-top - page-margin-bottom
 
 #let radius-inline = 3.2pt
@@ -74,13 +89,19 @@
 #let attachment-single-max-ratio = 48%
 #let attachment-card-height = 38.6pt
 
-#let sp-micro = 3pt
-#let sp-xs = 5pt
-#let sp-sm = 7.5pt
-#let sp-md = 10pt
-#let sp-lg = 15.5pt
-#let sp-xl = 19pt
-#let sp-turn = 25pt
+// Semantic rhythm shares HTML tokens; px becomes pt at 72/96.
+#let sp-inline = visual.spacing.inline * 0.75pt
+#let sp-paragraph = visual.spacing.paragraph * 0.75pt
+#let sp-block = visual.spacing.block * 0.75pt
+#let sp-section = visual.spacing.section * 0.75pt
+#let sp-turn = visual.spacing.turn * 0.75pt
+// Compatibility names used by component internals.
+#let sp-micro = sp-inline / 2
+#let sp-xs = sp-inline
+#let sp-sm = sp-paragraph
+#let sp-md = sp-block
+#let sp-lg = sp-section
+#let sp-xl = sp-section
 
 #let document-theme(body) = {
   set page(
@@ -97,50 +118,51 @@
   set text(
     font: font-ui,
     size: body-size,
+    weight: visual.type.body.weight,
     fill: ink,
     lang: "zh",
     cjk-latin-spacing: auto,
   )
   show math.equation: set text(font: font-math)
   set par(leading: body-leading, spacing: 0pt, justify: false)
-  set list(indent: 0pt, body-indent: 0.66em, spacing: 2.6pt)
+  set list(indent: 0pt, body-indent: 0.66em, spacing: sp-inline)
   set heading(numbering: none)
 
   show heading.where(level: 1): it => block(
     sticky: true,
     above: 0pt,
     below: 0pt,
-    text(size: 14.4pt, weight: 650, fill: ink, it.body),
+    text(size: h1-size, weight: visual.type.title.weight, fill: ink, it.body),
   )
   show heading.where(level: 2): it => block(
     sticky: true,
     above: 0pt,
     below: 0pt,
-    text(size: 11.55pt, weight: 630, fill: ink, it.body),
+    text(size: h2-size, weight: visual.type.h2.weight, fill: ink, it.body),
   )
   show heading.where(level: 3): it => block(
     sticky: true,
     above: 0pt,
     below: 0pt,
-    text(size: 10.1pt, weight: 620, fill: ink, it.body),
+    text(size: h3-size, weight: visual.type.h3.weight, fill: ink, it.body),
   )
   show heading.where(level: 4): it => block(
     sticky: true,
     above: 0pt,
     below: 0pt,
-    text(size: 9.3pt, weight: 610, fill: ink, it.body),
+    text(size: body-size, weight: 620, fill: ink, it.body),
   )
   show heading.where(level: 5): it => block(
     sticky: true,
     above: 0pt,
     below: 0pt,
-    text(size: 8.7pt, weight: 600, fill: ink, it.body),
+    text(size: body-size, weight: 600, fill: ink, it.body),
   )
   show heading.where(level: 6): it => block(
     sticky: true,
     above: 0pt,
     below: 0pt,
-    text(size: 8.2pt, weight: 600, fill: ink-soft, it.body),
+    text(size: body-size, weight: 600, fill: ink-soft, it.body),
   )
 
   show link: set text(fill: accent)
