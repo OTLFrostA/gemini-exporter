@@ -311,20 +311,15 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
         }
     }
 
-    async function resolveChat(
+    /** Shared acquisition policy: usable online data, then Takeout, then stored detail. */
+    export async function resolveConversationData(
         chat: any,
-        requestedItem: any,
+        nid: string,
         listConversation?: any,
         takeoutEngine?: any,
-        currentSlot?: string,
-        onTitleUpdated: (id: string, title: string, source: string) => void = (() => {}),
+        slot: string = 'u0',
         onLog: (msg: string, level?: string) => void = (() => {}),
-        options: any = {}
-    ): Promise<ResolveChatResult> {
-        const nid = normId(requestedItem.id);
-        const slot = currentSlot || 'u0';
-        let convsNeedSave = false;
-
+    ): Promise<any> {
         if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0)) {
             if (takeoutEngine) {
                 const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
@@ -361,6 +356,25 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                 } catch { /* intentional */ }
             }
         }
+
+        return chat;
+    }
+
+    async function resolveChat(
+        chat: any,
+        requestedItem: any,
+        listConversation?: any,
+        takeoutEngine?: any,
+        currentSlot?: string,
+        onTitleUpdated: (id: string, title: string, source: string) => void = (() => {}),
+        onLog: (msg: string, level?: string) => void = (() => {}),
+        options: any = {}
+    ): Promise<ResolveChatResult> {
+        const nid = normId(requestedItem.id);
+        const slot = currentSlot || 'u0';
+        let convsNeedSave = false;
+
+        chat = await resolveConversationData(chat, nid, listConversation, takeoutEngine, slot, onLog);
 
         supplementTakeoutGeneratedMedia(chat, nid, slot, takeoutEngine);
 

@@ -307,8 +307,8 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
     assert.strictEqual(result.succeeded, 0, 'succeeded must not increase');
     assert.strictEqual(result.failed.length, 1);
     assert.ok(
-        result.failed[0].error.includes('PDF_DETAIL_FETCH_FAILED'),
-        `error must carry PDF_DETAIL_FETCH_FAILED, got: ${result.failed[0].error}`
+        result.failed[0].error.includes(PDF_NO_MESSAGES),
+        `error must carry PDF_NO_MESSAGES, got: ${result.failed[0].error}`
     );
     assert.strictEqual(compilerState.calls, 0, 'compiler must not run');
     assert.strictEqual(writer.files.size, 0, 'no PDF must be written');

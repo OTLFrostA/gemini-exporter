@@ -1,5 +1,6 @@
 import {
     BatchWorker,
+    resolveConversationData,
     supplementTakeoutGeneratedMedia,
     type FetchChatDetailResult,
 } from '../../engine/export/batchWorker.js';
@@ -289,39 +290,27 @@ export async function preparePdfItem(
     let chat: any = listChat ?? selectedChat;
 
     if (!hasUsableMessages(chat)) {
-        if (!context.fetchChatDetail) {
+        let fetchError: string | undefined;
+        if (context.fetchChatDetail) {
+            const fetched = await resolveFullChatDetail({
+                id, title, index, total, currentSlot, skip, signal,
+                fetchChatDetail: context.fetchChatDetail, onLog,
+            });
+            if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
+            if (fetched.ok) chat = fetched.chat;
+            else fetchError = fetched.error;
+        }
+        const takeout = context.takeoutEngine
+            ?? __getModuleOverride('TakeoutEngine')
+            ?? (typeof window !== 'undefined' ? (window as any).TakeoutEngine : null);
+        chat = await resolveConversationData(chat, id, listChat, takeout, currentSlot, onLog);
+        if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
+        if (!hasUsableMessages(chat)) {
             return {
-                ok: false,
-                id,
-                title,
-                error: `[${PDF_DETAIL_FETCH_FAILED}] fetchChatDetail function not provided`,
-                diagnostics,
+                ok: false, id, title, diagnostics,
+                error: `[${PDF_NO_MESSAGES}] ${fetchError || 'No usable conversation after online, Takeout and cache resolution'}`,
             };
         }
-        const fetched = await resolveFullChatDetail({
-            id,
-            title,
-            index,
-            total,
-            currentSlot,
-            skip,
-            signal,
-            fetchChatDetail: context.fetchChatDetail,
-            onLog,
-        });
-        if (signal.aborted) {
-            return { ok: false, id, title, error: 'aborted', diagnostics };
-        }
-        if (!fetched.ok) {
-            return {
-                ok: false,
-                id,
-                title,
-                error: `[${PDF_DETAIL_FETCH_FAILED}] ${fetched.error}`,
-                diagnostics,
-            };
-        }
-        chat = fetched.chat;
     }
 
     const workingChat = cloneChatForHydration(chat);
