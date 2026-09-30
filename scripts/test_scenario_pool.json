@@ -1,25 +1,5 @@
 [
   {
-    "id": "quantum_error_correction_color_code_transversal_clifford",
-    "domain": "quantum_computing_topological_color_codes",
-    "title": "拓扑量子纠错与容错量子计算：二维色码六边形晶格上的横截Clifford门与联合伴随子解码",
-    "features": [
-      "code",
-      "math",
-      "latex",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试二维色码 2D Color Code 链式复形三色可着色性、横截全 Clifford 群相位门容错实现、联合 X/Z 伴随子限制图解码器算法与表面码对比",
-    "turns": [
-      "在代数拓扑与链式复形（Chain Complexes）理论框架下，形式化定义二维色码（2D Color Code）在非紧致二维流形（如 4.8.8 或 6.6.6 正规镶嵌）上的稳定子生成元（Stabilizers）。证明该晶格满足每个面（Plaquette）都是三色可着色（Three-colorable）且每个顶点度数均为 3 的拓扑充要条件，并推导每个面 p 上的 X 类与 Z 类稳定子算符 B_p^X = \\prod_{i \\in p} X_i, B_p^Z = \\prod_{i \\in p} Z_i 相互对易的严密代数证明。",
-      "详细推导为什么二维色码相比于标准 Kitaev 表面码（Surface Code）具备实现整个横截 Clifford 门群（Transversal Clifford Group：含 H、S 以及 CNOT 门）的根本拓扑代数优势。写出横截阿达玛门 H^{\\otimes n} 与横截相位门 S^{\\otimes n} 对逻辑量子态作用下的映射法则，并论证 Eastin-Knill 定理为什么依然保证不存在非平凡非 Clifford 门（如 T 门）的横截实现从而必须引入容错魔态蒸馏（Magic State Distillation）。",
-      "推导色码中由泡利 X 与 Z 物理误差引发的伴随子（Syndrome）在红、绿、蓝三种面缺陷上的分支拓扑约束关系 \\partial(c_R) + \\partial(c_G) + \\partial(c_B) = 0，并推演如何通过将色码投影分解为两个解耦的表面码格子（Decoupled Surface Codes），利用最小权重完美匹配（MWPM）解码器或联合限制图（Restriction Graph）提升容错纠错阈值（Threshold）。",
-      "使用 Python 编写一个色码纠错解码器核心逻辑脚本，输入一个距离 d=3 的三角形色码（含 7 个物理量子比特、3 个稳定子面）上随机产生的物理单比特泡利 X 翻转误差，计算 3 个面的 Z 稳定子伴随子测量结果，并通过查表匹配或加权图匹配返回纠错恢复算符 R，验证逻辑态保真度达到 100%。",
-      "使用 Markdown 表格，横向对比二维色码（Color Code）、二维表面码（Surface Code / Rotated Planar Code）、三维量子低密度奇偶校验码（qLDPC Code）以及玻色猫态码（Cat Code）在物理比特到逻辑比特编码开销率 k/n、容错阈值（电路噪声模型下 %）、逻辑门执行开销（横截门集合 vs 格子手术 Lattice Surgery）以及超导/中性原子硬件布线连接性要求四个维度的关键工程指标。"
-    ]
-  },
-  {
     "id": "high_energy_astrophysics_frb_magnetar_synchrotron_maser",
     "domain": "high_energy_astrophysics_fast_radio_burst_magnetar",
     "title": "高能天体物理学：磁星超强磁层重联与快速射电暴(FRB)相对论激波同步脉泽辐射推演",
@@ -203,29 +183,6 @@
       "在施加外部垂直微扰弱磁场 h_x * h_y * h_z 下，推导由有效时间反演破缺引起的三阶微扰非阿贝尔拓扑相有效哈密顿量，计算非零陈数 (Chern Number) nu = pm 1 导致的半整数量子热霍尔电导率 kappa_{xy} = (nu / 2) * (pi * k_B^2 / (6 * hbar)) * T。",
       "使用 Python 编写基于动量空间布里渊区的 Kitaev 模型无通量基态能带结构计算脚本，求解并绘制沿 Gamma-M-K 高对称路径的马约拉纳费米子狄拉克锥色散曲线，计算费米速度并在存在质量能隙 Delta_M 时计算贝里曲率分布积分。",
       "使用 Markdown 表格横向对比 Kitaev 量子自旋液体材料候选物 (如 alpha-RuCl3、Na2IrO3)、 Kagome 晶格自旋液体候选物 (Herbertsmithite) 与有机阻挫自旋液体系统的海森堡/非海森堡交换耦合参数、磁阻挫参数、连续自旋激发谱特征与无序杂质屏蔽机制。"
-    ]
-  },
-  {
-    "id": "structural_biology_cryo_et_subtomogram_averaging_ribosome",
-    "domain": "structural_biology_cryo_et_subtomogram_averaging",
-    "title": "冷冻电子断层扫描：亚断层平均 (STA) 缺失楔补偿与三维大分子重构",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试冷冻电子断层扫描 (Cryo-ET) 倾转序列傅里叶投影切片定理缺失楔推导、CTF三维空间校正、亚断层平均局部互相关对齐与真实细胞原位核糖体重构科学插图生成",
-    "turns": [
-      "在冷冻电子断层扫描 (Cryo-ET) 与傅里叶投影切片定理 (Projection-Slice Theorem) 框架下，针对样品倾转角度限制 (例如 -60 度至 +60 度) 引发的傅里叶空间缺失楔 (Missing Wedge) 几何畸变，推导实空间点扩散函数 (PSF) 在 Z 轴方向拉伸展宽系数 e_z / e_{xy} = 1 / \\sin(\\theta_{max}) 的数学表达式，并分析其引起的伪影与非等方性分辨率损失机制。",
-      "请生成一张科学级高分辨率多模态 3D 原生生物分子渲染插图：展现冷冻聚焦离子束 (Cryo-FIB) 减薄后处于近生理玻璃态水环境的原核细胞内部纳米超微结构断层切片。视野中央密集分布着三维近原子分辨率重构的原生核糖体 (70S Ribosome) 大分子复合体，清晰可见大亚基 (50S) 与小亚基 (30S) 构象轮廓、正在转运的多肽链以及结合的信使 RNA (mRNA) 纤维；周围伴随柔性细胞骨架微管蛋白网格与双层脂质生物膜，图像具备冷冻电镜密度图与等值面高动态渲染质感。",
-      "针对亚断层平均 (Subtomogram Averaging, STA) 中的三维对比度传递函数 (3D CTF) 校正与旋转平移对齐，推导考虑电子衍射相衬与离焦梯度的三维互相关函数 (Cross-Correlation Function, CCF) 赋权积分公式，并给出基于四元数 (Quaternions) 或欧拉角空间采样的受约束最大似然优化算法收敛准则。",
-      "使用 Python 编写脚本，模拟合成包含高斯噪声与低信噪比 (SNR = 0.05) 的三维子断层体，实现基于快速傅里叶变换 (FFT) 的受限角度互相关配准算法，并计算金标准傅里叶壳层相关 (Gold-Standard Fourier Shell Correlation, FSC) 曲线，绘制 0.143 临界切断阈值处的名义空间分辨率图表。",
-      "使用 Markdown 表格，对比单颗粒冷冻电镜 (Single-Particle Cryo-EM)、冷冻电子断层扫描亚断层平均 (Cryo-ET STA)、微晶电子衍射 (MicroED) 以及同步辐射 X 射线自由电子激光 (XFEL) 在样品制备要求、最大分子量适用范围、构象异质性解析能力、原位生理保真度以及最终可达空间分辨率维度的技术指标差异。"
     ]
   },
   {
@@ -419,6 +376,49 @@
       "使用 Python 写一个小型可复现示例，生成半小时通量数据，完成异常值过滤、缺测填补和年度累积碳收支计算。",
       "用 Markdown 表格比较涡度协方差、树木样地调查、遥感反演和过程模型在空间尺度、时间分辨率、主要偏差及验证方式上的差异。",
       "设计一套用贝叶斯数据同化估计森林呼吸参数的方案，明确先验、似然、观测误差协方差和交叉验证策略。"
+    ]
+  },
+  {
+    "id": "urban_hydrology_sensor_leak_localization",
+    "domain": "urban_hydrology_inverse_sensor_networks",
+    "title": "城市水力学：虚构管网漏损定位、传感器布置与贝叶斯反演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖虚构工程示意图、管网守恒与逆问题公式、Python模拟、传感器方案比较；仅使用教学数据。",
+    "turns": [
+      "生成一个完全虚构的城市供水管网教学示意图，包含六个节点、两处水源、一条环路和四个压力传感器，以图例区分管径、流向与潜在漏损位置，不使用真实城市数据。",
+      "使用 LaTeX 建立该虚构管网的节点质量守恒与管段压降模型，说明未知漏损参数如何进入观测方程，并分析参数可辨识性。",
+      "给出 Python 代码块，模拟小规模管网压力观测中的高斯噪声，并使用有限差分雅可比和最小二乘估计一个虚构漏损位置与流量。",
+      "使用 Markdown 表格比较均匀传感器布置、按节点度数布置、贪心互信息布置和随机布置，列出观测成本、可辨识性与失败情景。",
+      "为这个教学逆问题写出贝叶斯后验与不确定性区间的公式，设计可复现实验并说明模型误差、边界条件变化与多漏点条件的局限。"
+    ]
+  },
+  {
+    "id": "causal_inference_cluster_randomized_interference",
+    "domain": "causal_inference_experimental_design",
+    "title": "因果推断：集群随机实验、干扰效应与随机化推断",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖潜在结果与网络干扰公式、Python模拟、随机化统计量、实验设计对比表格。",
+    "turns": [
+      "使用一个完全虚构的社区节能教学实验定义潜在结果与处理分配变量，用 LaTeX 表达无干扰假设和部分干扰假设的区别，避免把相关性当成因果证据。",
+      "推导集群随机设计下直接效应与溢出效应的估计量，解释集群大小不均与组内相关性如何影响方差和有效样本量。",
+      "使用 Python 代码块模拟一个含组内相关性与网络溢出的虚构实验，生成处理与对照数据并计算一个随机化检验的双侧 p 值。",
+      "使用 Markdown 表格比较个体随机、集群随机、两阶段饱和度随机与匹配观察设计，列出识别假设、统计功效、成本和主要偏差来源。",
+      "构建含公式、参数表和伪代码的实验审计方案，分析网络跨群边、差异失访和测量误差对估计的影响，并给出教学模拟的敏感性分析步骤。"
     ]
   }
 ]

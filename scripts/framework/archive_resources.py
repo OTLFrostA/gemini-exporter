@@ -1,6 +1,7 @@
 """Resolve exported references exactly as a document-relative archive path."""
 import posixpath
-import re
+import json
+import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -54,25 +55,32 @@ def resource_references(content, html=False):
         parser = _HtmlReferences()
         parser.feed(content)
         return parser.references
-    # Fenced and inline code contain examples, not rendered resource references.
-    content = re.sub(r'(?ms)^\s*(`{3,}|~{3,})[^\n]*\n.*?^\s*\1\s*$', '', content)
-    content = re.sub(r'(`+).*?\1', '', content, flags=re.DOTALL)
-    # Formula brackets and function application are not rendered Markdown links.
-    content = re.sub(r'(?<!\\)\$\$.*?(?<!\\)\$\$', '', content, flags=re.DOTALL)
-    content = re.sub(r'(?<!\\)\$(?!\$).*?(?<!\\)\$', '', content, flags=re.DOTALL)
-    content = re.sub(r'\\\[.*?\\\]|\\\(.*?\\\)', '', content, flags=re.DOTALL)
-    refs = []
-    for match in re.finditer(r'!?\[(?:\\.|[^\]\\])*\]\(\s*(<[^>]*>|(?:\\.|[^\s)])+)\s*(?:["\'][^"\']*["\'])?\s*\)', content):
-        dest = match.group(1)
-        if dest.startswith('<'):
-            dest = dest[1:-1]
-        refs.append(re.sub(r'\\([!"#$%&\'()*+,\-./:;<=>?@\[\]\\^_`{|}~])', r'\1', dest))
-    return refs
+    repo_root = Path(__file__).resolve().parents[2]
+    command = [
+        'node', '-r', str(repo_root / 'tests/ts_register.js'),
+        str(repo_root / 'scripts/extract_markdown_resource_refs.ts'),
+    ]
+    try:
+        result = subprocess.run(command, input=content, text=True, capture_output=True,
+                                cwd=repo_root, timeout=30, check=True)
+        references = json.loads(result.stdout)
+        if not isinstance(references, list) or any(
+            not isinstance(ref, dict) or ref.get('kind') not in ('link', 'image')
+            or not isinstance(ref.get('reference'), str) for ref in references
+        ):
+            raise ValueError('invalid parser reference output')
+        return [ref['reference'] for ref in references]
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        raise RuntimeError(f'Markdown parser reference extraction failed: {exc}') from exc
 
 
 def validate_archive_resources(root, document, content, html=False):
     errors = []
-    for reference in resource_references(content, html):
+    try:
+        references = resource_references(content, html)
+    except RuntimeError as exc:
+        return [str(exc)]  # Fail closed: never fall back to syntax heuristics.
+    for reference in references:
         try:
             find_archive_resource(root, document, reference)
         except ValueError as exc:

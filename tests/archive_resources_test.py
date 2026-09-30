@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from scripts.framework.archive_resources import find_archive_resource, resolve_archive_reference, validate_archive_resources
+from scripts.framework.archive_resources import find_archive_resource, resolve_archive_reference, validate_archive_resources, resource_references
 
 
 class ArchiveResourcesTest(unittest.TestCase):
@@ -60,14 +60,51 @@ class ArchiveResourcesTest(unittest.TestCase):
     def test_math_function_application_is_not_an_attachment(self):
         # Real Tier2 STA response contains \left[...\right](\mathbf{t}) inside $$.
         for formula in (r'$$\left[W(k)\right](\mathbf{t})$$',
-                        r'$\left[W(k)\right](\mathbf{t})$',
-                        r'\[\left[W(k)\right](\mathbf{t})\]',
-                        r'\(\left[W(k)\right](\mathbf{t})\)'):
+                        r'$\left[W(k)\right](\mathbf{t})$'):
             with self.subTest(formula=formula):
                 self.assertEqual(validate_archive_resources(self.root, 'chat.md', formula), [])
-                # Context exclusion must not hide a real broken attachment outside math.
+                # Math parsing must not hide a real broken attachment outside math.
                 self.assertEqual(len(validate_archive_resources(
                     self.root, 'chat.md', formula + '\n[attachment](assets/files/foo.md)')), 1)
+
+    def test_real_tier2_sta_excerpt(self):
+        content = (Path(__file__).parent / 'fixtures/canonical/math/tier2_sta_resource_oracle.md').read_text()
+        self.assertEqual(resource_references(content), [])
+        self.assertEqual(validate_archive_resources(self.root, 'chat.md', content), [])
+        errors = validate_archive_resources(self.root, 'chat.md', content + '\n[attachment](files/missing.pdf)')
+        self.assertEqual(len(errors), 1)
+        self.assertIn('files/missing.pdf', errors[0])
+
+    def test_currency_does_not_hide_a_real_attachment(self):
+        content = r'The price changed from \$5 [receipt](files/missing.pdf) to \$10.'
+        self.assertEqual(resource_references(content), ['files/missing.pdf'])
+        self.assertEqual(len(validate_archive_resources(self.root, 'chat.md', content)), 1)
+
+    def test_code_and_fenced_code_do_not_emit_references(self):
+        for content in ('`[fake](files/missing.pdf)`', '```md\n[fake](files/missing.pdf)\n```'):
+            with self.subTest(content=content):
+                self.assertEqual(resource_references(content), [])
+
+    def test_link_image_titles_nested_and_escaped_syntax(self):
+        for content, expected in (
+            ('[foo](files/foo.md)', 'files/foo.md'),
+            ('![foo](assets/foo.png)', 'assets/foo.png'),
+            (r'[label \(test\)](files/foo.md)', 'files/foo.md'),
+            ('[label](<files/a b.pdf>)', 'files/a b.pdf'),
+            (r'[label](files/a\(b\).pdf)', 'files/a(b).pdf'),
+            ('[nested [label]](files/foo.md "link title")', 'files/foo.md'),
+            ('| Resource |\n| --- |\n| [foo](files/foo.md) |', 'files/foo.md'),
+            ('[foo][ref]\n\n[ref]: files/foo.md', 'files/foo.md'),
+        ):
+            with self.subTest(content=content):
+                self.assertEqual(resource_references(content), [expected])
+
+    def test_parser_failure_is_not_a_pass(self):
+        from unittest.mock import patch
+        with patch('scripts.framework.archive_resources.subprocess.run', side_effect=OSError('node unavailable')):
+            errors = validate_archive_resources(self.root, 'chat.md', '[foo](files/foo.md)')
+        self.assertEqual(len(errors), 1)
+        self.assertIn('parser reference extraction failed', errors[0])
 
     def test_symlink_escape(self):
         (self.root / 'escape').symlink_to(self.root.parent)
