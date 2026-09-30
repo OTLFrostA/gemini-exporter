@@ -1,6 +1,5 @@
 import type { InlineNode, MathNotation } from './inline.js';
-import type { JsonValue, ProviderExtensions } from './json.js';
-import type { SourceRef } from './provenance.js';
+import type { JsonValue } from './json.js';
 
 export type BlockNode =
     | ParagraphBlock
@@ -18,8 +17,6 @@ export type BlockNode =
 
 export interface BlockBase {
     id: string;
-    sourceRef?: SourceRef;
-    extensions?: ProviderExtensions;
 }
 
 export interface ParagraphBlock extends BlockBase {

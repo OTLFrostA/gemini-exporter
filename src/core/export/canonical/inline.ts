@@ -1,4 +1,3 @@
-import type { ProviderExtensions } from './json.js';
 
 export type MathNotation = 'latex' | 'mathml' | 'asciimath' | 'plain' | 'unknown';
 
@@ -76,5 +75,4 @@ export interface UnknownInline {
     sourceType: string;
     fallbackText?: string;
     rawRef?: string;
-    extensions?: ProviderExtensions;
 }

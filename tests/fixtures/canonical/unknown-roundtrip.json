@@ -38,14 +38,5 @@
     ]
   },
   "assets": [],
-  "citations": [],
-  "diagnostics": [
-    {
-      "id": "diag-1",
-      "severity": "warning",
-      "code": "UNSUPPORTED_PROVIDER_BLOCK",
-      "message": "Preserved unknown provider block for future reparse.",
-      "path": "conversation.messages[a1].blocks[0]"
-    }
-  ]
+  "citations": []
 }

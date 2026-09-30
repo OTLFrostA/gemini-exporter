@@ -388,7 +388,6 @@ function tryExtractDisplayMathParagraph(
                 type: 'math',
                 source,
                 notation: 'latex',
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             };
         }
     }
@@ -414,7 +413,6 @@ export function adaptBlockNode(
                 id: ctx.nextBlockId(),
                 type: 'paragraph',
                 children,
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -425,7 +423,6 @@ export function adaptBlockNode(
                 type: 'heading',
                 level,
                 children: adaptInlines(node.children, ctx),
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -433,7 +430,6 @@ export function adaptBlockNode(
             return [{
                 id: ctx.nextBlockId(),
                 type: 'thematicBreak',
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
 
         case 'blockquote':
@@ -441,7 +437,6 @@ export function adaptBlockNode(
                 id: ctx.nextBlockId(),
                 type: 'quote',
                 blocks: adaptBlockNodes(node.children, ctx, rawMarkdown),
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
 
         case 'list': {
@@ -453,7 +448,6 @@ export function adaptBlockNode(
                 ordered,
                 ...(ordered ? { start: typeof node.start === 'number' ? node.start : 1 } : {}),
                 items,
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -475,7 +469,6 @@ export function adaptBlockNode(
                 ...(columns.length ? { columns } : {}),
                 ...(headerRows.length ? { headerRows } : {}),
                 rows,
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -486,7 +479,6 @@ export function adaptBlockNode(
                 code: node.value,
                 ...(node.lang ? { language: node.lang } : {}),
                 ...(node.meta ? { meta: node.meta } : {}),
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -534,7 +526,6 @@ export function adaptBlockNode(
                 type: 'math',
                 source,
                 notation: 'latex',
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -543,7 +534,6 @@ export function adaptBlockNode(
                 return [{
                     id: ctx.nextBlockId(),
                     type: 'thematicBreak',
-                    ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
                 }];
             }
             const children = textWithSoftBreaks(node.value);
@@ -552,7 +542,6 @@ export function adaptBlockNode(
                 id: ctx.nextBlockId(),
                 type: 'paragraph',
                 children,
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             }];
         }
 
@@ -588,7 +577,6 @@ export function adaptBlockNode(
                             id: ctx.nextBlockId(),
                             type: 'paragraph',
                             children: inlines,
-                            ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
                         }];
                     }
                 } else {
@@ -599,7 +587,6 @@ export function adaptBlockNode(
                     id: ctx.nextBlockId(),
                     type: 'paragraph',
                     children: textWithSoftBreaks(unknownNode.value),
-                    ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
                 }];
             }
 
@@ -612,7 +599,6 @@ export function adaptBlockNode(
                     nodeType: unknownNode?.type || 'unknown',
                     ...(unknownNode?.value ? { rawValue: unknownNode.value } : {}),
                 },
-                ...(ctx.sourceRef ? { sourceRef: ctx.sourceRef } : {}),
             };
             return [unknownBlock];
         }

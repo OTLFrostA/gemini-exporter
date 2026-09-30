@@ -129,13 +129,11 @@ export function normalizeMessage(
             attachmentBlocks.push({
                 id: bid, type: 'image', assetId,
                 alt: built.asset.name,
-                sourceRef,
             });
         } else {
             attachmentBlocks.push({
                 id: bid, type: 'file', assetId,
                 label: built.asset.name,
-                sourceRef,
             });
         }
     });
@@ -225,7 +223,6 @@ export function normalizeMessage(
             kind,
             url: rc.url,
             title: rc.title,
-            sourceRef: { ...sourceRef, locator: `${locator}.citations[${ci}]` },
         });
     });
     if (citations.length) {
@@ -233,6 +230,10 @@ export function normalizeMessage(
     }
 
     const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));
+    if (unknownFields.length) {
+        diagnostics.push({ id: `unknown-message-fields:${msgId}`, severity: 'info', code: 'UNKNOWN_MESSAGE_FIELDS',
+            message: 'unrecognized message fields omitted from the document', sourceRef, details: { fields: unknownFields } });
+    }
     const createdAt = toIso(m.timestamp);
     const node: MessageNode = {
         id: msgId,
@@ -241,10 +242,6 @@ export function normalizeMessage(
         ...(createdAt ? { createdAt } : {}),
         blocks,
         ...(citations.length ? { citationIds: citations.map((c) => c.id) } : {}),
-        sourceRef,
-        ...(unknownFields.length
-            ? { extensions: { gemini: { unknownFields } as JsonValue } }
-            : {}),
     };
     return { node, assets, citations, diagnostics };
 }

@@ -218,14 +218,12 @@ export function geminiStructuredToCanonical(
                         type: 'heading',
                         level: node.jJ as 1 | 2 | 3 | 4 | 5 | 6,
                         children: inlines,
-                        sourceRef: ctx.sourceRef,
                     });
                 } else {
                     blocks.push({
                         id: ctx.nextBlockId(),
                         type: 'paragraph',
                         children: inlines,
-                        sourceRef: ctx.sourceRef,
                     });
                 }
                 break;
@@ -239,7 +237,6 @@ export function geminiStructuredToCanonical(
                     type: 'math',
                     source: node.FTa,
                     notation: 'latex',
-                    sourceRef: ctx.sourceRef,
                 });
                 break;
             }
@@ -252,7 +249,6 @@ export function geminiStructuredToCanonical(
                     type: 'code',
                     code: node.code,
                     ...(node.info ? { language: node.info } : {}),
-                    sourceRef: ctx.sourceRef,
                 });
                 break;
             }
@@ -262,7 +258,6 @@ export function geminiStructuredToCanonical(
                 blocks.push({
                     id: ctx.nextBlockId(),
                     type: 'thematicBreak',
-                    sourceRef: ctx.sourceRef,
                 });
                 break;
             }
@@ -288,7 +283,6 @@ export function geminiStructuredToCanonical(
                     ordered: node.nodeType === 14,
                     ...(node.nodeType === 14 ? { start: typeof node.VHa === 'number' ? node.VHa : 1 } : {}),
                     items,
-                    sourceRef: ctx.sourceRef,
                 });
                 break;
             }
@@ -306,7 +300,6 @@ export function geminiStructuredToCanonical(
                     id: ctx.nextBlockId(),
                     type: 'quote',
                     blocks: quoteBlocks,
-                    sourceRef: ctx.sourceRef,
                 });
                 break;
             }
@@ -337,7 +330,6 @@ export function geminiStructuredToCanonical(
                     type: 'table',
                     ...(headerRows.length ? { headerRows } : {}),
                     rows: dataRows,
-                    sourceRef: ctx.sourceRef,
                 });
                 break;
             }

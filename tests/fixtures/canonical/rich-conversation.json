@@ -7,7 +7,6 @@
       "conversationId": "conv-rich-001"
     },
     "title": "Canonical AST rich fixture",
-    "observedAt": "2026-09-25T20:00:00-07:00",
     "messages": [
       {
         "id": "u1",
@@ -279,17 +278,7 @@
             ],
             "rawRef": "raw/gemini/conv-rich-001/a1/node-9.json"
           }
-        ],
-        "extensions": {
-          "gemini": {
-            "candidateId": "candidate-demo"
-          }
-        },
-        "sourceRef": {
-          "providerId": "gemini",
-          "providerMessageId": "provider-a1",
-          "locator": "response/0"
-        }
+        ]
       },
       {
         "id": "u2",
@@ -365,16 +354,5 @@
       "title": "Example source",
       "publisher": "Example"
     }
-  ],
-  "observations": [
-    {
-      "id": "obs-1",
-      "providerId": "gemini",
-      "sourceType": "live",
-      "observedAt": "2026-09-25T20:00:00-07:00",
-      "rawCount": 4,
-      "parsedCount": 4
-    }
-  ],
-  "diagnostics": []
+  ]
 }

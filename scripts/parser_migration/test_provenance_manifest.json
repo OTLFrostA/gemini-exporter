@@ -993,7 +993,7 @@
       "provenanceSource": "Typst v8 payload specification and adapter contract",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Canonical AST to Typst payload adapter contract test.",
-      "testCount": 15,
+      "testCount": 16,
       "tests": [
         {
           "name": "maps paragraph, heading, code and table blocks",
@@ -1067,6 +1067,11 @@
         },
         {
           "name": "system role becomes a visible note prefix",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "PDF date uses document timestamps and stays unknown without them",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1258,11 +1263,11 @@
   ],
   "summary": {
     "totalSuites": 22,
-    "totalTests": 195,
+    "totalTests": 196,
     "byClassification": {
       "P0": 0,
       "P1": 17,
-      "P2": 176,
+      "P2": 177,
       "P3": 2,
       "P4": 0
     }

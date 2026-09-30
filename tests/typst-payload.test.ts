@@ -267,3 +267,15 @@ test('system role becomes a visible note prefix', async () => {
     assert.strictEqual((payload.messages[0].blocks[0] as any).type, 'note');
 });
 
+
+
+test('PDF date uses document timestamps and stays unknown without them', () => {
+    const b: any = bundle([]);
+    b.conversation.updatedAt = '2026-09-28T00:00:00Z';
+    assert.strictEqual(toTypstPayload(b, opts).payload.date, '2026-09-28');
+    delete b.conversation.updatedAt;
+    assert.strictEqual(toTypstPayload(b, opts).payload.date, '2026-09-20');
+    delete b.conversation.createdAt;
+    const { getRendererStrings } = require('../src/core/export/canonical/rendererStrings.js');
+    assert.strictEqual(toTypstPayload(b, { ...opts, locale: 'en' }).payload.date, getRendererStrings('en').dateUnknown);
+});

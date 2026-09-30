@@ -240,7 +240,7 @@ test('turns shape flattens to user/assistant messages', async () => {
     assert.strictEqual(gen.status, 'remote');
 });
 
-test('raw evidence is stored before deriving, ref lands in the observation', async () => {
+test('raw evidence is persisted independently before deriving the document', async () => {
     const stored: Array<{ kind: string; data: any }> = [];
     const context = {
         providerId: 'gemini',
@@ -258,7 +258,7 @@ test('raw evidence is stored before deriving, ref lands in the observation', asy
     assert.strictEqual(stored.length, 1);
     assert.strictEqual(stored[0].kind, 'gemini-conversation');
     assert.strictEqual(stored[0].data, sample, 'original payload stored, not the cleaned text');
-    assert.strictEqual(bundle.observations[0].rawRef, 'raw://test/evidence-1');
+    assert.strictEqual(bundle.observations, undefined);
 });
 
 test('raw evidence write failure is visible exactly once and never fabricates a rawRef', async () => {
@@ -283,11 +283,8 @@ test('raw evidence write failure is visible exactly once and never fabricates a 
         String(hits[0].details.error).includes('disk is on fire'),
         'error message safely extracted into details',
     );
-    // bundle.diagnostics is the same array: no duplicate from the second push site.
-    const bundleHits = (bundle.diagnostics || []).filter((d: any) => d.code === 'RAW_EVIDENCE_WRITE_FAILED');
-    assert.strictEqual(bundleHits.length, 1, 'no duplicate in bundle diagnostics');
-    // No raw payload was archived, so the observation must not claim one.
-    assert.strictEqual(bundle.observations[0].rawRef, undefined);
+    assert.strictEqual(bundle.diagnostics, undefined);
+    assert.strictEqual(bundle.observations, undefined);
 });
 
 test('bundle passes validateBundle', async () => {
@@ -558,4 +555,25 @@ test('conversation URL uses url before href and stays outside extensions', async
         assert.strictEqual(bundle.conversation.url, raw.url || raw.href);
         assert.strictEqual(bundle.conversation.extensions, undefined);
     }
+});
+
+
+test('unknown fields are reported as independent diagnostics, never document metadata', async () => {
+    const raw = { id: 'unknown-fields', futureConversationField: { secret: 'raw' }, messages: [
+        { id: 'm', role: 'user', content: 'visible', futureMessageField: { secret: 'raw' } },
+    ] };
+    const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
+    assert.deepStrictEqual(diagnostics.find((d: any) => d.code === 'UNKNOWN_CONVERSATION_FIELDS').details.fields, ['futureConversationField']);
+    const messageDiagnostic = diagnostics.find((d: any) => d.code === 'UNKNOWN_MESSAGE_FIELDS');
+    assert.deepStrictEqual(messageDiagnostic.details.fields, ['futureMessageField']);
+    assert.strictEqual(messageDiagnostic.sourceRef.locator, 'messages[0]');
+    assert.deepStrictEqual(Object.keys(bundle).sort(), ['assets', 'citations', 'conversation', 'schemaVersion']);
+    const walk = (v: any): void => {
+        if (!v || typeof v !== 'object') return;
+        for (const key of ['sourceRef', 'extensions', 'state', 'observations', 'diagnostics', 'observedAt']) {
+            assert.ok(!(key in v), `document must omit ${key}`);
+        }
+        Object.values(v).forEach(walk);
+    };
+    walk(bundle);
 });

@@ -615,6 +615,8 @@ test('Unknown != Disappear: Unsupported block node creates UnknownBlock with fal
 
     const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_BLOCK');
     assert.ok(diag, 'Must record MDAST_UNKNOWN_BLOCK diagnostic');
+    assert.deepStrictEqual(diag.sourceRef, ctx.sourceRef, 'diagnostic retains parser location');
+    assert.strictEqual(unknownBlock.sourceRef, undefined, 'document block has no sourceRef');
 });
 
 test('GM-MD-001 Regression: Attached multiline display math fences do not swallow following blocks', () => {

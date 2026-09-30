@@ -9,12 +9,10 @@
     "title": "长会话：121 消息 parity 语料",
     "createdAt": "2026-09-26T14:00:00-07:00",
     "updatedAt": "2026-09-26T16:02:00-07:00",
-    "observedAt": "2026-09-26T16:02:00-07:00",
     "messages": [
       {
         "id": "u1",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:01-07:00",
         "blocks": [
           {
@@ -32,7 +30,6 @@
       {
         "id": "a1",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:01-07:00",
         "blocks": [
           {
@@ -50,7 +47,6 @@
       {
         "id": "u2",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:02-07:00",
         "blocks": [
           {
@@ -68,7 +64,6 @@
       {
         "id": "a2",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:02-07:00",
         "blocks": [
           {
@@ -86,7 +81,6 @@
       {
         "id": "u3",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:03-07:00",
         "blocks": [
           {
@@ -104,7 +98,6 @@
       {
         "id": "a3",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:03-07:00",
         "blocks": [
           {
@@ -122,7 +115,6 @@
       {
         "id": "u4",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:04-07:00",
         "blocks": [
           {
@@ -140,7 +132,6 @@
       {
         "id": "a4",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:04-07:00",
         "blocks": [
           {
@@ -158,7 +149,6 @@
       {
         "id": "u5",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:05-07:00",
         "blocks": [
           {
@@ -176,7 +166,6 @@
       {
         "id": "a5",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:05-07:00",
         "blocks": [
           {
@@ -194,7 +183,6 @@
       {
         "id": "u6",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:06-07:00",
         "blocks": [
           {
@@ -212,7 +200,6 @@
       {
         "id": "a6",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:06-07:00",
         "blocks": [
           {
@@ -230,7 +217,6 @@
       {
         "id": "u7",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:07-07:00",
         "blocks": [
           {
@@ -288,7 +274,6 @@
       {
         "id": "a7",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:07-07:00",
         "blocks": [
           {
@@ -306,7 +291,6 @@
       {
         "id": "u8",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:08-07:00",
         "blocks": [
           {
@@ -324,7 +308,6 @@
       {
         "id": "a8",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:08-07:00",
         "blocks": [
           {
@@ -342,7 +325,6 @@
       {
         "id": "u9",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:09-07:00",
         "blocks": [
           {
@@ -360,7 +342,6 @@
       {
         "id": "a9",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:09-07:00",
         "blocks": [
           {
@@ -378,7 +359,6 @@
       {
         "id": "u10",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:10-07:00",
         "blocks": [
           {
@@ -396,7 +376,6 @@
       {
         "id": "a10",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:10-07:00",
         "blocks": [
           {
@@ -420,7 +399,6 @@
       {
         "id": "u11",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:11-07:00",
         "blocks": [
           {
@@ -438,7 +416,6 @@
       {
         "id": "a11",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:11-07:00",
         "blocks": [
           {
@@ -456,7 +433,6 @@
       {
         "id": "u12",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:12-07:00",
         "blocks": [
           {
@@ -474,7 +450,6 @@
       {
         "id": "a12",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:12-07:00",
         "blocks": [
           {
@@ -492,7 +467,6 @@
       {
         "id": "u13",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:13-07:00",
         "blocks": [
           {
@@ -510,7 +484,6 @@
       {
         "id": "a13",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:13-07:00",
         "blocks": [
           {
@@ -528,7 +501,6 @@
       {
         "id": "u14",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:14-07:00",
         "blocks": [
           {
@@ -586,7 +558,6 @@
       {
         "id": "a14",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:14-07:00",
         "blocks": [
           {
@@ -604,7 +575,6 @@
       {
         "id": "u15",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:15-07:00",
         "blocks": [
           {
@@ -622,7 +592,6 @@
       {
         "id": "a15",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:15-07:00",
         "blocks": [
           {
@@ -696,7 +665,6 @@
       {
         "id": "u16",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:16-07:00",
         "blocks": [
           {
@@ -714,7 +682,6 @@
       {
         "id": "a16",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:16-07:00",
         "blocks": [
           {
@@ -732,7 +699,6 @@
       {
         "id": "u17",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:17-07:00",
         "blocks": [
           {
@@ -750,7 +716,6 @@
       {
         "id": "a17",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:17-07:00",
         "blocks": [
           {
@@ -768,7 +733,6 @@
       {
         "id": "u18",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:18-07:00",
         "blocks": [
           {
@@ -786,7 +750,6 @@
       {
         "id": "a18",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:18-07:00",
         "blocks": [
           {
@@ -804,7 +767,6 @@
       {
         "id": "u19",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:19-07:00",
         "blocks": [
           {
@@ -822,7 +784,6 @@
       {
         "id": "a19",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:19-07:00",
         "blocks": [
           {
@@ -840,7 +801,6 @@
       {
         "id": "u20",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:20-07:00",
         "blocks": [
           {
@@ -858,7 +818,6 @@
       {
         "id": "a20",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:20-07:00",
         "blocks": [
           {
@@ -882,7 +841,6 @@
       {
         "id": "u21",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:21-07:00",
         "blocks": [
           {
@@ -940,7 +898,6 @@
       {
         "id": "a21",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:21-07:00",
         "blocks": [
           {
@@ -964,7 +921,6 @@
       {
         "id": "u22",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:22-07:00",
         "blocks": [
           {
@@ -982,7 +938,6 @@
       {
         "id": "a22",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:22-07:00",
         "blocks": [
           {
@@ -1000,7 +955,6 @@
       {
         "id": "u23",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:23-07:00",
         "blocks": [
           {
@@ -1018,7 +972,6 @@
       {
         "id": "a23",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:23-07:00",
         "blocks": [
           {
@@ -1036,7 +989,6 @@
       {
         "id": "u24",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:24-07:00",
         "blocks": [
           {
@@ -1054,7 +1006,6 @@
       {
         "id": "a24",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:24-07:00",
         "blocks": [
           {
@@ -1072,7 +1023,6 @@
       {
         "id": "u25",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:25-07:00",
         "blocks": [
           {
@@ -1090,7 +1040,6 @@
       {
         "id": "a25",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:25-07:00",
         "blocks": [
           {
@@ -1108,7 +1057,6 @@
       {
         "id": "u26",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:26-07:00",
         "blocks": [
           {
@@ -1126,7 +1074,6 @@
       {
         "id": "a26",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:26-07:00",
         "blocks": [
           {
@@ -1144,7 +1091,6 @@
       {
         "id": "u27",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:27-07:00",
         "blocks": [
           {
@@ -1162,7 +1108,6 @@
       {
         "id": "a27",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:27-07:00",
         "blocks": [
           {
@@ -1180,7 +1125,6 @@
       {
         "id": "u28",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:28-07:00",
         "blocks": [
           {
@@ -1238,7 +1182,6 @@
       {
         "id": "a28",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:28-07:00",
         "blocks": [
           {
@@ -1256,7 +1199,6 @@
       {
         "id": "u29",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:29-07:00",
         "blocks": [
           {
@@ -1274,7 +1216,6 @@
       {
         "id": "a29",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:29-07:00",
         "blocks": [
           {
@@ -1292,7 +1233,6 @@
       {
         "id": "u30",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:30-07:00",
         "blocks": [
           {
@@ -1310,7 +1250,6 @@
       {
         "id": "a30",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:30-07:00",
         "blocks": [
           {
@@ -1390,7 +1329,6 @@
       {
         "id": "u31",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:31-07:00",
         "blocks": [
           {
@@ -1408,7 +1346,6 @@
       {
         "id": "a31",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:31-07:00",
         "blocks": [
           {
@@ -1426,7 +1363,6 @@
       {
         "id": "u32",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:32-07:00",
         "blocks": [
           {
@@ -1444,7 +1380,6 @@
       {
         "id": "a32",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:32-07:00",
         "blocks": [
           {
@@ -1462,7 +1397,6 @@
       {
         "id": "u33",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:33-07:00",
         "blocks": [
           {
@@ -1480,7 +1414,6 @@
       {
         "id": "a33",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:33-07:00",
         "blocks": [
           {
@@ -1498,7 +1431,6 @@
       {
         "id": "u34",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:34-07:00",
         "blocks": [
           {
@@ -1516,7 +1448,6 @@
       {
         "id": "a34",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:34-07:00",
         "blocks": [
           {
@@ -1534,7 +1465,6 @@
       {
         "id": "u35",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:35-07:00",
         "blocks": [
           {
@@ -1592,7 +1522,6 @@
       {
         "id": "a35",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:35-07:00",
         "blocks": [
           {
@@ -1610,7 +1539,6 @@
       {
         "id": "u36",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:36-07:00",
         "blocks": [
           {
@@ -1628,7 +1556,6 @@
       {
         "id": "a36",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:36-07:00",
         "blocks": [
           {
@@ -1646,7 +1573,6 @@
       {
         "id": "u37",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:37-07:00",
         "blocks": [
           {
@@ -1664,7 +1590,6 @@
       {
         "id": "a37",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:37-07:00",
         "blocks": [
           {
@@ -1682,7 +1607,6 @@
       {
         "id": "u38",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:38-07:00",
         "blocks": [
           {
@@ -1700,7 +1624,6 @@
       {
         "id": "a38",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:38-07:00",
         "blocks": [
           {
@@ -1718,7 +1641,6 @@
       {
         "id": "u39",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:39-07:00",
         "blocks": [
           {
@@ -1736,7 +1658,6 @@
       {
         "id": "a39",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:39-07:00",
         "blocks": [
           {
@@ -1754,7 +1675,6 @@
       {
         "id": "u40",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:40-07:00",
         "blocks": [
           {
@@ -1772,7 +1692,6 @@
       {
         "id": "a40",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:40-07:00",
         "blocks": [
           {
@@ -1796,7 +1715,6 @@
       {
         "id": "u41",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:41-07:00",
         "blocks": [
           {
@@ -1814,7 +1732,6 @@
       {
         "id": "a41",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:41-07:00",
         "blocks": [
           {
@@ -1832,7 +1749,6 @@
       {
         "id": "u42",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:42-07:00",
         "blocks": [
           {
@@ -1890,7 +1806,6 @@
       {
         "id": "a42",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:42-07:00",
         "blocks": [
           {
@@ -1914,7 +1829,6 @@
       {
         "id": "u43",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:43-07:00",
         "blocks": [
           {
@@ -1932,7 +1846,6 @@
       {
         "id": "a43",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:43-07:00",
         "blocks": [
           {
@@ -1950,7 +1863,6 @@
       {
         "id": "u44",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:44-07:00",
         "blocks": [
           {
@@ -1968,7 +1880,6 @@
       {
         "id": "a44",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:44-07:00",
         "blocks": [
           {
@@ -1986,7 +1897,6 @@
       {
         "id": "u45",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:45-07:00",
         "blocks": [
           {
@@ -2004,7 +1914,6 @@
       {
         "id": "a45",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:45-07:00",
         "blocks": [
           {
@@ -2078,7 +1987,6 @@
       {
         "id": "u46",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:46-07:00",
         "blocks": [
           {
@@ -2096,7 +2004,6 @@
       {
         "id": "a46",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:46-07:00",
         "blocks": [
           {
@@ -2114,7 +2021,6 @@
       {
         "id": "u47",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:47-07:00",
         "blocks": [
           {
@@ -2132,7 +2038,6 @@
       {
         "id": "a47",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:47-07:00",
         "blocks": [
           {
@@ -2150,7 +2055,6 @@
       {
         "id": "u48",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:48-07:00",
         "blocks": [
           {
@@ -2168,7 +2072,6 @@
       {
         "id": "a48",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:48-07:00",
         "blocks": [
           {
@@ -2186,7 +2089,6 @@
       {
         "id": "u49",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:49-07:00",
         "blocks": [
           {
@@ -2244,7 +2146,6 @@
       {
         "id": "a49",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:49-07:00",
         "blocks": [
           {
@@ -2262,7 +2163,6 @@
       {
         "id": "u50",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:50-07:00",
         "blocks": [
           {
@@ -2280,7 +2180,6 @@
       {
         "id": "a50",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:50-07:00",
         "blocks": [
           {
@@ -2304,7 +2203,6 @@
       {
         "id": "u51",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:51-07:00",
         "blocks": [
           {
@@ -2322,7 +2220,6 @@
       {
         "id": "a51",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:51-07:00",
         "blocks": [
           {
@@ -2340,7 +2237,6 @@
       {
         "id": "u52",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:52-07:00",
         "blocks": [
           {
@@ -2358,7 +2254,6 @@
       {
         "id": "a52",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:52-07:00",
         "blocks": [
           {
@@ -2376,7 +2271,6 @@
       {
         "id": "u53",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:53-07:00",
         "blocks": [
           {
@@ -2394,7 +2288,6 @@
       {
         "id": "a53",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:53-07:00",
         "blocks": [
           {
@@ -2412,7 +2305,6 @@
       {
         "id": "u54",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:54-07:00",
         "blocks": [
           {
@@ -2430,7 +2322,6 @@
       {
         "id": "a54",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:54-07:00",
         "blocks": [
           {
@@ -2448,7 +2339,6 @@
       {
         "id": "u55",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:55-07:00",
         "blocks": [
           {
@@ -2466,7 +2356,6 @@
       {
         "id": "a55",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:55-07:00",
         "blocks": [
           {
@@ -2484,7 +2373,6 @@
       {
         "id": "u56",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:56-07:00",
         "blocks": [
           {
@@ -2542,7 +2430,6 @@
       {
         "id": "a56",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:56-07:00",
         "blocks": [
           {
@@ -2560,7 +2447,6 @@
       {
         "id": "u57",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:57-07:00",
         "blocks": [
           {
@@ -2578,7 +2464,6 @@
       {
         "id": "a57",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:57-07:00",
         "blocks": [
           {
@@ -2596,7 +2481,6 @@
       {
         "id": "u58",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:58-07:00",
         "blocks": [
           {
@@ -2614,7 +2498,6 @@
       {
         "id": "a58",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:58-07:00",
         "blocks": [
           {
@@ -2632,7 +2515,6 @@
       {
         "id": "u59",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:59-07:00",
         "blocks": [
           {
@@ -2650,7 +2532,6 @@
       {
         "id": "a59",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:00:59-07:00",
         "blocks": [
           {
@@ -2668,7 +2549,6 @@
       {
         "id": "u60",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:01:00-07:00",
         "blocks": [
           {
@@ -2686,7 +2566,6 @@
       {
         "id": "a60",
         "role": "assistant",
-        "state": "complete",
         "createdAt": "2026-09-26T14:01:00-07:00",
         "blocks": [
           {
@@ -2766,7 +2645,6 @@
       {
         "id": "u61",
         "role": "user",
-        "state": "complete",
         "createdAt": "2026-09-26T14:01:01-07:00",
         "blocks": [
           {

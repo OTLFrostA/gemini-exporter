@@ -98,7 +98,6 @@ def build_message(idx, role, rng):
     msg = {
         "id": mid,
         "role": role,
-        "state": "complete",
         "createdAt": "2026-09-26T14:%02d:%02d-07:00" % ((idx // 60) % 60, idx % 60),
         "blocks": blocks,
     }
@@ -144,7 +143,6 @@ def main():
             },
             "createdAt": "2026-09-26T14:00:00-07:00",
             "updatedAt": "2026-09-26T16:02:00-07:00",
-            "observedAt": "2026-09-26T16:02:00-07:00",
             "messages": messages,
         },
         "assets": [],

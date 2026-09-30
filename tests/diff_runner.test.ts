@@ -100,15 +100,13 @@ test('Differential Runner: Math comparison defaults all diffs to D_CANNOT_DETERM
     assert.strictEqual(diverge.candidateConversionGain, false);
 });
 
-test('Differential Runner: Ignores ephemeral metadata (id, sourceRef, extensions) when content is identical', () => {
+test('Differential Runner: Ignores ephemeral IDs when content is identical', () => {
     const bundleA = {
         conversation: {
             messages: [{
                 blocks: [{
                     id: 'b-random-uuid-1',
                     type: 'paragraph',
-                    sourceRef: { start: 0, end: 10, line: 1 },
-                    extensions: { provider: 'testA' },
                     children: [{
                         type: 'strong',
                         children: [{ type: 'text', text: 'Important' }],
@@ -124,8 +122,6 @@ test('Differential Runner: Ignores ephemeral metadata (id, sourceRef, extensions
                 blocks: [{
                     id: 'b-completely-different-uuid-2',
                     type: 'paragraph',
-                    sourceRef: { start: 20, end: 30, line: 2 },
-                    extensions: { provider: 'testB' },
                     children: [{
                         type: 'strong',
                         children: [{ type: 'text', text: 'Important' }],
@@ -374,4 +370,14 @@ test('Differential Runner: Minimal canonicalization coalesces adjacent inline te
     const resDiff = compareMarkdownAst('Hello World', chunkedTextBundle, differentTextBundle);
     assert.strictEqual(resDiff.hasDiff, true);
     assert.strictEqual(resDiff.rationaleKind, 'CONTENT_CHANGED');
+});
+
+
+test('Differential Runner: only IDs are ephemeral', () => {
+    const a = { conversation: { messages: [{ blocks: [{ id: 'a', type: 'paragraph', children: [] }] }] } };
+    for (const key of ['sourceRef', 'extensions']) {
+        const b = JSON.parse(JSON.stringify(a));
+        b.conversation.messages[0].blocks[0][key] = { unexpected: true };
+        assert.strictEqual(compareMarkdownAst('', a, b).hasDiff, true);
+    }
 });
