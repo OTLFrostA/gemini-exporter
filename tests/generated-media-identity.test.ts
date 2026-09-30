@@ -308,4 +308,173 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
     assert.equal(imgs[0].isGenerated, true);
 });
 
+test('regression: model message with only ordinary inline/grounding image must NEVER suppress Takeout generated image (both preserved)', async () => {
+    const { renderCanonicalMarkdown } = require('../src/core/export/canonical/renderCanonicalMarkdown.js');
+    const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
+
+    // Model message has only 1 normal inline image (NOT generated, no providerRequestId, no generation identity)
+    const normalInlineImage = {
+        type: 'image',
+        fileName: 'web_search_chart.png',
+        sourceUrl: 'https://example.com/web_search_chart.png',
+        localName: 'assets/web_search_chart.png',
+        isGenerated: false
+    };
+
+    const chatWithInlineImage: any = {
+        id,
+        messages: [
+            { id: 'u1', role: 'user', content: prompt, timestamp: time },
+            { id: 'm1', role: 'model', content: 'Here is information with an inline web diagram.', images: [normalInlineImage] }
+        ]
+    };
+
+    // Takeout has a generated image for the same prompt/event
+    const generation = {
+        chatId: id,
+        time: Math.floor(time / 1000) * 1000,
+        prompt,
+        generationOrdinal: 0,
+        imageCount: 1,
+        imageOrdinal: 0,
+        providerRequestId: '1c81efe352c9ef8a'
+    };
+    const engine = {
+        getTakeoutMediaForChat: () => [{
+            filename: png,
+            isGenerated: true,
+            generation
+        }]
+    };
+
+    supplementTakeoutGeneratedMedia(chatWithInlineImage, id, 'test_slot', engine);
+
+    // The model message MUST retain both: the ordinary inline image AND the Takeout generated image
+    const modelMsg = chatWithInlineImage.messages.find((m: any) => m.role === 'model');
+    assert.ok(modelMsg, 'Model message must exist');
+    assert.equal(modelMsg.images.length, 2, 'Must contain BOTH the inline image and Takeout generated image');
+    assert.ok(modelMsg.images.some((img: any) => img.fileName === 'web_search_chart.png'), 'Inline image preserved');
+    assert.ok(modelMsg.images.some((img: any) => img.fileName === png), 'Takeout generated image preserved');
+
+    // Canonical normalization must retain both assets
+    const { bundle } = await normalizeGeminiConversation(chatWithInlineImage);
+    const imageAssets = bundle.assets.filter((a: any) => a.kind === 'image');
+    assert.equal(imageAssets.length, 2, 'Canonical bundle must have exactly 2 image assets');
+
+    const md = renderCanonicalMarkdown(bundle);
+    const mdImgs = md.match(/!\[.*?\]\(.*?\)/g) || [];
+    assert.equal(mdImgs.length, 2, 'Markdown has 2 image refs');
+
+    const { html } = renderCanonicalHtml(bundle);
+    const htmlImgs = html.match(/<img\s+[^>]*>/gi) || [];
+    assert.equal(htmlImgs.length, 2, 'HTML has 2 img tags');
+});
+
+test('regression: sameGenerationEvent requires matching chatId (cross-conversation same providerRequestId never dedupes)', () => {
+    const { sameGenerationEvent } = require('../src/core/engine/generatedMediaIdentity.js');
+    const sharedReqId = '1c81efe352c9ef8a';
+    const genA = {
+        chatId: '1bd028d5c5b0c0e2',
+        providerRequestId: sharedReqId,
+        time: time,
+        prompt: prompt,
+        generationOrdinal: 0,
+        imageCount: 1,
+        imageOrdinal: 0
+    };
+    const genB = {
+        chatId: 'different_conv_9999',
+        providerRequestId: sharedReqId,
+        time: time,
+        prompt: prompt,
+        generationOrdinal: 0,
+        imageCount: 1,
+        imageOrdinal: 0
+    };
+
+    // Even though providerRequestId matches, different chatId must return false
+    assert.equal(sameGenerationEvent(genA, genB), false, 'Cross-conversation with same requestId must NOT match');
+
+    // Same chatId matches (including c_ prefix tolerance)
+    const genWithPrefix = { ...genA, chatId: 'c_' + genA.chatId };
+    assert.equal(sameGenerationEvent(genA, genWithPrefix), true, 'Same conversation with c_ prefix must match');
+
+    // Cross-conversation supplementation test
+    const chatA: any = {
+        id: 'different_conv_9999',
+        messages: [
+            { id: 'u1', role: 'user', content: prompt, timestamp: time },
+            { id: 'm1', role: 'model', providerRequestId: sharedReqId, content: '', images: [{
+                type: 'image', fileName: jpg, sourceUrl: 'https://lh3.googleusercontent.com/cat',
+                isGenerated: true, providerRequestId: sharedReqId, imageOrdinal: 0
+            }] }
+        ]
+    };
+    const engine = {
+        getTakeoutMediaForChat: () => [{
+            filename: png,
+            isGenerated: true,
+            generation: genA // generation is for chat 1bd028d5c5b0c0e2
+        }]
+    };
+    supplementTakeoutGeneratedMedia(chatA, 'different_conv_9999', 'test_slot', engine);
+    // Takeout image for conv A cannot be deduped into conv B
+    assert.equal(chatA.messages.length, 3, 'Cross-conversation media must not be deduped');
+});
+
+test('regression: extractTurnRequestId schema slot evidence and fallback boundaries', () => {
+    const { extractTurnRequestId } = require('../src/core/api/parser/parseDetail.js');
+    const { GEMINI_JSPB_SCHEMA } = require('../src/core/api/parser/extractors.js');
+
+    // Verify schema constant
+    assert.equal(GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT, 1, 'REQUEST_ID_SLOT must be index 1 in ID_META');
+
+    // Case 1: Standard canonical slot: idMeta[1] carries "r_<hex>"
+    const turnStandard = [
+        ["c_d3226d9a046c1116", "r_1c81efe352c9ef8a"],
+        [1725302200, 0],
+        [["user text"]],
+        [[["rc_model_1", ["model text"]]]]
+    ];
+    assert.equal(extractTurnRequestId(turnStandard), '1c81efe352c9ef8a', 'Extract from standard slot 1');
+
+    // Case 2: Standalone slot 0 when convId is absent
+    const turnStandalone = [
+        ["r_2b3c4d5e6f7a8b9c"],
+        [1725302200, 0],
+        [["user text"]],
+        [[["rc_model_1", ["model text"]]]]
+    ];
+    assert.equal(extractTurnRequestId(turnStandalone), '2b3c4d5e6f7a8b9c', 'Extract from slot 0 when convId is absent');
+
+    // Case 3: Direct string idMeta
+    const turnStringId = [
+        "r_9988776655443322",
+        [1725302200, 0]
+    ];
+    assert.equal(extractTurnRequestId(turnStringId), '9988776655443322', 'Extract from direct string idMeta');
+
+    // Case 4: Weak heuristic fallback bounded strictly within idMeta array (e.g. slot 2)
+    const turnFallbackInsideIdMeta = [
+        ["c_conv123", null, "r_fallback12345678"],
+        [1725302200, 0]
+    ];
+    assert.equal(extractTurnRequestId(turnFallbackInsideIdMeta), 'fallback12345678', 'Extract from fallback within idMeta');
+
+    // Case 5: "r_" in turn[1] (TIMESTAMP slot) or other non-id slots must be REJECTED
+    const turnWithRInTimestamp = [
+        ["c_conv123"],
+        "r_fake_in_timestamp_slot"
+    ];
+    assert.equal(extractTurnRequestId(turnWithRInTimestamp), undefined, 'Must NEVER search outside ID_META (e.g. timestamp slot 1)');
+
+    // Case 6: No r_ present anywhere in idMeta
+    const turnNoR = [
+        ["c_conv123", "non_r_identifier"],
+        [1725302200, 0]
+    ];
+    assert.equal(extractTurnRequestId(turnNoR), undefined, 'Return undefined when no r_ present');
+});
+
+
 

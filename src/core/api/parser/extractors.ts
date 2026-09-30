@@ -3,6 +3,7 @@ export interface JspbTurnSchema {
     TIMESTAMP: number;
     USER_PAYLOAD: number;
     MODEL_PAYLOAD: number;
+    REQUEST_ID_SLOT: number;
 }
 
 export interface JspbModelPayloadSchema {
@@ -160,7 +161,8 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
             ID_META: 0,        // ["c_xxx", "r_xxx"]
             TIMESTAMP: 1,      // [seconds, nanos]
             USER_PAYLOAD: 2,   // User input block
-            MODEL_PAYLOAD: 3   // Model payload container
+            MODEL_PAYLOAD: 3,  // Model payload container
+            REQUEST_ID_SLOT: 1 // Canonical request ID position in ID_META tuple: ["c_xxx", "r_xxx"][1]
         },
         MODEL_PAYLOAD: {
             CANDIDATES: 0,      // repeated Candidate: AI answer drafts

@@ -32,6 +32,7 @@ export interface GeminiParserParseDetailModule {
     isTurnsArray: (arr: unknown) => boolean;
     findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
     parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
+    extractTurnRequestId?: (turn: any) => string | undefined;
     DOC_TITLE_FALLBACK_RE?: RegExp;
 }
 
@@ -97,18 +98,38 @@ function extractUserTextFromPayload(userPayload: unknown): string {
     return "";
 }
 
+/**
+ * Extract turn request ID from Gemini JSPB turn structure.
+ *
+ * Schema investigation evidence:
+ * In Google's Gemini JSPB wire format, turn[GEMINI_JSPB_SCHEMA.TURN.ID_META] (index 0)
+ * is a metadata tuple [conversationId, requestId, ...].
+ * - Standard slot (REQUEST_ID_SLOT = 1): `idMeta[1]` is "r_<requestId>" (e.g. ["c_d3226d9a046c1116", "r_turn_1"]).
+ * - Alternate slot 0: `idMeta[0]` is "r_<requestId>" when conversationId is omitted.
+ * - String idMeta: `idMeta` is directly "r_<requestId>".
+ * - Never search in turn[1] (which is TIMESTAMP: [seconds, nanos]).
+ * - A fallback scan is strictly restricted within `idMeta` array as a weak heuristic.
+ */
 function extractTurnRequestId(turn: any): string | undefined {
+    const idMeta = turn?.[GEMINI_JSPB_SCHEMA.TURN.ID_META];
     let raw: string | undefined;
-    if (Array.isArray(turn?.[0])) {
-        raw = turn[0].find((x: any) => typeof x === "string" && x.startsWith("r_"));
-        if (!raw && typeof turn[0][1] === "string" && turn[0][1].startsWith("r_")) raw = turn[0][1];
-        if (!raw && typeof turn[0][0] === "string" && turn[0][0].startsWith("r_")) raw = turn[0][0];
-    } else if (typeof turn?.[0] === "string" && turn[0].startsWith("r_")) {
-        raw = turn[0];
+
+    if (Array.isArray(idMeta)) {
+        // 1. Primary schema slot: idMeta[1]
+        const reqSlot = GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT;
+        if (typeof idMeta[reqSlot] === "string" && idMeta[reqSlot].startsWith("r_")) {
+            raw = idMeta[reqSlot];
+        } else if (typeof idMeta[0] === "string" && idMeta[0].startsWith("r_")) {
+            // 2. Alternate slot 0 when conversation ID is omitted
+            raw = idMeta[0];
+        } else {
+            // 3. Fallback scan strictly bounded within idMeta array (weak heuristic)
+            raw = idMeta.find((x: any) => typeof x === "string" && x.startsWith("r_"));
+        }
+    } else if (typeof idMeta === "string" && idMeta.startsWith("r_")) {
+        raw = idMeta;
     }
-    if (!raw && typeof turn?.[1] === "string" && turn[1].startsWith("r_")) {
-        raw = turn[1];
-    }
+
     if (!raw) return undefined;
     const match = raw.match(/^r_([0-9a-fA-F]+)$/i);
     return match ? match[1].toLowerCase() : raw.replace(/^r_/i, '').toLowerCase();
@@ -687,6 +708,7 @@ export {
     isTurnsArray,
     findTurnsDeep,
     parseDetail,
+    extractTurnRequestId,
     DOC_TITLE_FALLBACK_RE
 };
 
@@ -695,6 +717,7 @@ export const GeminiParserParseDetail: GeminiParserParseDetailModule = {
     isTurnsArray,
     findTurnsDeep,
     parseDetail,
+    extractTurnRequestId,
     DOC_TITLE_FALLBACK_RE
 };
 

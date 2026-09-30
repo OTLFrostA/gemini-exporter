@@ -252,6 +252,9 @@ export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
             const existingGen = atts.find((x) => {
                 const xReqId = (x.providerRequestId || x.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
                 if (!xReqId || xReqId !== aReqId) return false;
+                const aChat = String(a.generation?.chatId || '').trim().replace(/^c_/, '');
+                const xChat = String(x.generation?.chatId || '').trim().replace(/^c_/, '');
+                if (aChat && xChat && aChat !== xChat) return false;
                 const xOrd = x.imageOrdinal ?? x.generation?.imageOrdinal ?? 0;
                 return xOrd === aOrd;
             });
