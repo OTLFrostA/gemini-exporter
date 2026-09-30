@@ -34,9 +34,6 @@
               }
             ]
           }
-        ],
-        "associatedAssetIds": [
-          "asset-data"
         ]
       },
       {
@@ -265,15 +262,13 @@
                 "type": "text",
                 "text": "Block AST 到多格式 renderer"
               }
-            ],
-            "origin": "inline"
+            ]
           },
           {
             "id": "a1:b7",
             "type": "file",
             "assetId": "asset-data",
-            "label": "telemetry_data.json",
-            "origin": "attachment"
+            "label": "telemetry_data.json"
           },
           {
             "id": "a1:b8",

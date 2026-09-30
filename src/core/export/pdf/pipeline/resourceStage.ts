@@ -1,4 +1,4 @@
-import { collectReferencedAssetIds, collectBinaryRenderAssetIds, collectCompanionPlacements } from '../../canonical/assetReferences.js';
+import { collectReferencedAssetIds, collectBinaryRenderAssetIds } from '../../canonical/assetReferences.js';
 import { resolveAssets } from '../../assets/resolver.js';
 import type { Asset, AssetStatus } from '../../canonical/assets.js';
 import type {
@@ -64,7 +64,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     const diagnostics: RenderDiagnostic[] = [];
     const unresolved: ResourceStageOutput['unresolved'] = [];
 
-    // Only image placements and unplaced image-kind message companions require binary resolution; file/audio/video attachments render as metadata-only cards.
+    // Only image placements require binary resolution; file attachments render as metadata-only cards.
     const byId = new Map<string, Asset>();
     for (const asset of input.bundle.assets) byId.set(asset.id, asset);
     const referencedIds = new Set<string>();
@@ -74,13 +74,6 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
         const blockIds = collectReferencedAssetIds(message.blocks);
         for (const id of blockIds) referencedIds.add(id);
         for (const id of collectBinaryRenderAssetIds(message.blocks)) binaryIds.add(id);
-        const companions = collectCompanionPlacements(message, input.bundle);
-        for (const id of companions.trailingImages) {
-            referencedIds.add(id);
-            binaryIds.add(id);
-        }
-        for (const id of companions.trailingFiles) referencedIds.add(id);
-        diagnostics.push(...companions.diagnostics);
     }
     for (const id of binaryIds) {
         const asset = byId.get(id);

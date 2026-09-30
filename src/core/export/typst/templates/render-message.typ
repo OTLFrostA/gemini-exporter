@@ -2,40 +2,7 @@
 #import "components.typ": *
 #import "render-block.typ": render-blocks
 
-#let render-attachment(attachment) = {
-  if attachment.type == "image" {
-    image-attachment(
-      attachment.asset,
-      attachment.name,
-      attachment.meta,
-      width: 50%,
-    )
-  } else {
-    file-attachment(attachment.name, attachment.kind, attachment.size)
-  }
-}
-
-#let render-attachments(attachments) = {
-  let file-only = true
-  for attachment in attachments {
-    if attachment.type == "image" { file-only = false }
-  }
-
-  if file-only {
-    file-attachment-group(attachments)
-  } else {
-    for (index, attachment) in attachments.enumerate() {
-      render-attachment(attachment)
-      if index < attachments.len() - 1 { v(sp-sm) }
-    }
-  }
-}
-
 #let render-user-message(message) = {
-  if "attachments" in message and message.attachments.len() > 0 {
-    render-attachments(message.attachments)
-    v(sp-md)
-  }
   user-bubble(
     render-blocks(message.blocks, scope: "user"),
     plain-text: if "plainText" in message { message.plainText } else { "" },

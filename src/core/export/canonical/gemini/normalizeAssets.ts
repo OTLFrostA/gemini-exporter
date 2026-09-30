@@ -1,6 +1,5 @@
 import type { Attachment as RepoAttachment, ChatMessage as RepoMessage } from '../../../../types/conversation.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
-import type { AssetOrigin } from '../blocks.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import { classifyAssetAvailability } from '../assetResolution.js';
@@ -209,13 +208,9 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
     return makeImageInline(assetId, alt, title);
 }
 
-export interface MergedAttachment extends RepoAttachment {
-    __origin: 'attachment' | 'image' | 'document';
-}
-
-export function mergeMessageAttachments(m: RepoMessage): MergedAttachment[] {
-    const atts: MergedAttachment[] = [];
-    const push = (a: RepoAttachment, origin: MergedAttachment['__origin']): void => {
+export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
+    const atts: RepoAttachment[] = [];
+    const push = (a: RepoAttachment): void => {
         if (!a || typeof a !== 'object') return;
         const key = a.localName || a.url || a.sourceUrl || a.resolvedUrl || a.src;
         if (key) {
@@ -229,11 +224,11 @@ export function mergeMessageAttachments(m: RepoMessage): MergedAttachment[] {
                 return;
             }
         }
-        atts.push({ ...a, __origin: origin });
+        atts.push({ ...a });
     };
-    for (const a of m.attachments ?? []) push(a, 'attachment');
-    for (const img of m.images ?? []) push({ ...img, type: img.type || 'image' }, 'image');
-    for (const doc of (m.documents ?? []) as RepoAttachment[]) push({ ...doc, type: doc.type || 'file' }, 'document');
+    for (const a of m.attachments ?? []) push(a);
+    for (const img of m.images ?? []) push({ ...img, type: img.type || 'image' });
+    for (const doc of (m.documents ?? []) as RepoAttachment[]) push({ ...doc, type: doc.type || 'file' });
     if ((!m.images || m.images.length === 0) && (!m.attachments || m.attachments.length === 0) && m.structuredContent) {
         const scImages = extractImages(m.structuredContent);
         for (const img of scImages) {
@@ -243,7 +238,7 @@ export function mergeMessageAttachments(m: RepoMessage): MergedAttachment[] {
                 src: img.sourceUrl,
                 name: img.fileName,
                 title: img.fileName,
-            }, 'image');
+            });
         }
     }
     return atts;
@@ -330,14 +325,12 @@ export interface AssetBuild {
     asset: Asset;
     diagnostics: Diagnostic[];
     isImage: boolean;
-    origin: AssetOrigin;
 }
 
 export function buildAsset(
     a: RepoAttachment,
     id: string,
     sourceRef: SourceRef,
-    origin: AssetOrigin,
     byteStore?: InlineByteStore,
 ): AssetBuild {
     const diagnostics: Diagnostic[] = [];
@@ -429,5 +422,5 @@ export function buildAsset(
     };
     const classified = classifyAssetAvailability(asset, hasInlineBytes || (hasLocalFile && !explicitFailureReason));
     if (classified.diagnostic) diagnostics.push(classified.diagnostic);
-    return { asset, diagnostics, isImage, origin };
+    return { asset, diagnostics, isImage };
 }

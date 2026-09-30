@@ -180,7 +180,6 @@ test('attachments map to assets with availability and dedupe', async () => {
     const user = bundle.conversation.messages.find((m: any) => m.id === 'm-u1');
     const inlineImg = byName.get('alt text');
     assert.ok(inlineImg, 'inline image asset present');
-    assert.deepStrictEqual(user.associatedAssetIds, [receipt.id, inlineImg.id]);
     const imgBlock = user.blocks.find((b: any) => b.type === 'image');
     assert.strictEqual(imgBlock.assetId, receipt.id);
     const model = bundle.conversation.messages.find((m: any) => m.id === 'm-a1');
@@ -499,7 +498,6 @@ test('inline markdown image reusing an attachment asset keeps a single visual pl
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, 'm1-a0');
     assert.strictEqual(blockImagesOf(m1).length, 0);
-    assert.deepStrictEqual(m1.associatedAssetIds, ['m1-a0']);
 });
 
 test('linked inline image reusing an attachment asset keeps a single visual placement', async () => {
@@ -538,5 +536,4 @@ test('two attachments with only one inlined keep one inline and one trailing blo
     const blocks = blockImagesOf(m1);
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].assetId, 'm1-a1');
-    assert.deepStrictEqual(m1.associatedAssetIds, ['m1-a0', 'm1-a1']);
 });

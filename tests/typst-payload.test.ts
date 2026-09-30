@@ -187,7 +187,7 @@ test('collectReferencedAssetIds walks block and inline trees recursively', async
     ].sort());
 });
 
-test('inline image asset is not duplicated as a trailing attachment', async () => {
+test('inline image placements are intact in blocks', async () => {
     const b = bundle(
         [msg('m1', 'user', [
             { type: 'paragraph', children: [{ type: 'text', text: 'see ' }, { type: 'image', assetId: 'a-inline', alt: 'd' }] },
@@ -195,18 +195,14 @@ test('inline image asset is not duplicated as a trailing attachment', async () =
                 type: 'table',
                 rows: [{ cells: [{ children: [{ type: 'image', assetId: 'a-cell' }] }] }],
             },
-        ], { associatedAssetIds: ['a-inline', 'a-cell', 'a-orphan'] })],
+        ])],
         { assets: [
             { id: 'a-inline', kind: 'image', name: 'd.png', mimeType: 'image/png', status: 'available' },
             { id: 'a-cell', kind: 'image', name: 'c.png', mimeType: 'image/png', status: 'available' },
-            { id: 'a-orphan', kind: 'image', name: 'o.png', mimeType: 'image/png', status: 'available' },
         ] },
     );
     const { payload, diagnostics } = toTypstPayload(b, { assetPath: (a: any) => `assets/${a.id}.png` });
-    const attachments = payload.messages[0].attachments ?? [];
-    assert.strictEqual(attachments.length, 1, 'inline-placed assets must not reappear as attachments');
-    assert.strictEqual((attachments[0] as any).name, 'o.png');
-    // ... and the inline placements themselves are intact
+    assert.strictEqual((payload.messages[0] as any).attachments, undefined);
     assert.strictEqual((payload.messages[0].blocks[0] as any).children[1].type, 'image');
     assert.strictEqual((payload.messages[0].blocks[1] as any).rows[0][0].children[0].type, 'image');
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
@@ -273,67 +269,3 @@ test('system role becomes a visible note prefix', async () => {
     assert.strictEqual((payload.messages[0].blocks[0] as any).type, 'note');
 });
 
-test('associated image companion with no path emits TYPST_V8_ASSOCIATED_IMAGE_MISSING (no silent drop)', async () => {
-    // The companion rule promises a trailing image attachment, but the stage
-    // output gave it no path (not resolved, or missing). Dropping it silently
-    // is forbidden: the payload must say so.
-    const b = bundle(
-        [msg('m1', 'model', [
-            { type: 'paragraph', children: [{ type: 'text', text: 'see attached' }] },
-        ], { associatedAssetIds: ['comp-img'] })],
-        { assets: [
-            { id: 'comp-img', kind: 'image', name: 'comp.png', mimeType: 'image/png', status: 'available' },
-        ] },
-    );
-    const { payload, diagnostics } = toTypstPayload(b, opts); // opts.assetPath always returns undefined
-    const attachments = payload.messages[0].attachments ?? [];
-    assert.strictEqual(attachments.length, 0, 'unresolvable companion image must not vanish silently');
-    const d = diagnostics.find((x: any) => x.code === 'TYPST_V8_ASSOCIATED_IMAGE_MISSING');
-    assert.ok(d, 'must emit TYPST_V8_ASSOCIATED_IMAGE_MISSING');
-    assert.strictEqual(d.severity, 'warning');
-    assert.strictEqual(d.path, 'message:m1/attachment:comp-img');
-});
-
-test('associated image companion with a path renders trailing attachment without diagnostic', async () => {
-    const b = bundle(
-        [msg('m1', 'model', [
-            { type: 'paragraph', children: [{ type: 'text', text: 'see attached' }] },
-        ], { associatedAssetIds: ['comp-img'] })],
-        { assets: [
-            { id: 'comp-img', kind: 'image', name: 'comp.png', mimeType: 'image/png', status: 'available' },
-        ] },
-    );
-    const { payload, diagnostics } = toTypstPayload(b, { assetPath: (a: any) => `assets/${a.id}.png` });
-    const attachments = payload.messages[0].attachments ?? [];
-    assert.strictEqual(attachments.length, 1);
-    assert.strictEqual((attachments[0] as any).type, 'image');
-    assert.strictEqual((attachments[0] as any).asset, 'assets/comp-img.png');
-    assert.ok(!diagnostics.some((x: any) => x.code === 'TYPST_V8_ASSOCIATED_IMAGE_MISSING'),
-        'resolved companion must not emit the missing diagnostic');
-});
-
-test('collectCompanionPlacements: explicit placement wins, images/files split, unknown ignored with diagnostic', async () => {
-    const { collectCompanionPlacements } = require('../src/core/export/canonical/assetReferences.js');
-    const message: any = {
-        id: 'm1',
-        blocks: [
-            { type: 'image', assetId: 'blk-img' },
-            { type: 'paragraph', children: [{ type: 'image', assetId: 'inl-img' }] },
-        ],
-        associatedAssetIds: ['blk-img', 'comp-img', 'comp-doc', 'tool-img', 'ghost'],
-    };
-    const bundle: any = {
-        assets: [
-            { id: 'blk-img', kind: 'image' },
-            { id: 'inl-img', kind: 'image' },
-            { id: 'comp-img', kind: 'image' },
-            { id: 'comp-doc', kind: 'file' },
-            { id: 'tool-img', kind: 'image' },
-        ],
-    };
-    const plan = collectCompanionPlacements(message, bundle);
-    assert.deepStrictEqual(plan.trailingImages, ['comp-img', 'tool-img']);
-    assert.deepStrictEqual(plan.trailingFiles, ['comp-doc']);
-    assert.deepStrictEqual(plan.ignored.map((x: any) => x.assetId), ['ghost']);
-    assert.ok(plan.diagnostics.some((x: any) => x.code === 'ASSET_UNRESOLVED' && x.severity === 'warning'));
-});

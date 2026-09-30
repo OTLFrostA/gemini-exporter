@@ -176,55 +176,6 @@ body {
   transform: rotate(180deg);
 }
 
-/* Attachment Carousel */
-.gem-carousel-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin-bottom: 12px;
-  max-width: 85%;
-}
-
-.gem-carousel-track {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  padding: 4px 2px;
-  scrollbar-width: none;
-}
-.gem-carousel-track::-webkit-scrollbar {
-  display: none;
-}
-
-.gem-carousel-nav-btn {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 5;
-  transition: background 0.2s, opacity 0.2s;
-}
-.gem-carousel-nav-btn:hover {
-  background: var(--bg-card-hover);
-}
-.gem-carousel-nav-btn.prev {
-  left: -14px;
-}
-.gem-carousel-nav-btn.next {
-  right: -14px;
-}
-
 .gem-att-card {
   flex: 0 0 auto;
   display: flex;
@@ -540,7 +491,7 @@ h4.gem-heading { font-size: 1.05em; }
     background: #ffffff !important;
     color: #111111 !important;
   }
-  .gem-carousel-nav-btn, .gem-copy-btn, .gem-prompt-toggle, .gem-att-open-btn {
+  .gem-copy-btn, .gem-prompt-toggle, .gem-att-open-btn {
     display: none !important;
   }
   .gem-container {
@@ -657,42 +608,5 @@ function togglePrompt(btn, showMore, showLess) {
     btn.querySelector('.toggle-text').textContent = showMore;
   }
 }
-
-// Carousel horizontal scroll
-function scrollCarousel(btn, dir) {
-  var wrapper = btn.closest('.gem-carousel-wrapper');
-  if (!wrapper) return;
-  var track = wrapper.querySelector('.gem-carousel-track');
-  if (!track) return;
-  var step = track.clientWidth * 0.75 * dir;
-  track.scrollBy({ left: step, behavior: 'smooth' });
-}
-
-function updateCarouselNav(track) {
-  var wrapper = track.closest('.gem-carousel-wrapper');
-  if (!wrapper) return;
-  var prevBtn = wrapper.querySelector('.gem-carousel-nav-btn.prev');
-  var nextBtn = wrapper.querySelector('.gem-carousel-nav-btn.next');
-  var canScroll = track.scrollWidth > track.clientWidth + 5;
-  if (!canScroll) {
-    if (prevBtn) prevBtn.style.display = 'none';
-    if (nextBtn) nextBtn.style.display = 'none';
-    return;
-  }
-  if (prevBtn) prevBtn.style.display = track.scrollLeft > 5 ? 'flex' : 'none';
-  if (nextBtn) nextBtn.style.display = track.scrollLeft < track.scrollWidth - track.clientWidth - 5 ? 'flex' : 'none';
-}
-
-// Check carousel buttons on initial render
-window.addEventListener('load', function() {
-  document.querySelectorAll('.gem-carousel-track').forEach(function(track) {
-    updateCarouselNav(track);
-  });
-});
-window.addEventListener('resize', function() {
-  document.querySelectorAll('.gem-carousel-track').forEach(function(track) {
-    updateCarouselNav(track);
-  });
-});
 `;
 

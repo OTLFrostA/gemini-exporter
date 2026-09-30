@@ -289,14 +289,21 @@ test('D8-4: 50 MiB file attachment stays metadata-only (no read, no hash, no OOM
     };
     const bundle = makeBundle(
         [
-            msg('m1', 'user', [para('请看附件里的 50MB 数据集。')], { associatedAssetIds: ['big-file'] }),
+            msg('m1', 'user', [
+                para('请看附件里的 50MB 数据集。'),
+                { type: 'file', assetId: 'big-file', label: 'dataset.zip' },
+            ]),
             msg('m2', 'assistant', [para('已收到附件信息，文件卡片如下。')]),
         ],
         { title: '大附件元数据测试', conversationId: 'd8-50mib', assets: [bigFile] },
     );
     const heapBefore = process.memoryUsage().heapUsed;
+    const cjkFont = resolveLocalCjkFont();
     const host = new RealWasmSandboxHost(repoRoot());
-    const compiler = new TypstSandboxCompiler({ host });
+    const compiler = new TypstSandboxCompiler({
+        host,
+        ...(cjkFont ? { fontPaths: [cjkFont] } : {}),
+    });
     const { context, calls } = makeContext({ bundle });
     let result: { pdfBytes: Uint8Array; diagnostics: Array<{ severity: string; message: string }> };
     try {

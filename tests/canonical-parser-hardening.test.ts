@@ -115,10 +115,6 @@ test('bare remote image becomes a first-class ImageInline with a remote asset', 
     assert.ok(asset, 'asset registered');
     assert.strictEqual(asset.status, 'remote');
     assert.strictEqual(asset.sourceUrl, 'https://example.com/i.png');
-    assert.ok(
-        msg.associatedAssetIds.includes(img.assetId),
-        'message associatedAssetIds includes the inline image asset',
-    );
     assert.deepStrictEqual(validateBundle(bundle).filter((d: any) => d.severity === 'error'), []);
 });
 

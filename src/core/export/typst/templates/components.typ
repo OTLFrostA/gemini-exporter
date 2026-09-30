@@ -148,9 +148,7 @@
     measure(text(size: body-size)[#plain-text]).width + 2 * px
   }
 
-  let bubble-width = if raw-width <= short-cutoff {
-    raw-width
-  } else if raw-width <= medium-cutoff {
+  let bubble-width = if raw-width <= medium-cutoff and measure(width: calc.max(raw-width - 2 * px, 28pt), styled-body).height <= 31pt {
     raw-width
   } else {
     let candidates = (
@@ -255,7 +253,7 @@
   let meta = kind + " · " + size
   let meta-w = measure(text(size: 7.1pt)[#meta]).width
   let natural = icon-w + gap + calc.max(name-w, meta-w) + 2 * px
-  let max-width = size-info.width * attachment-single-max-ratio
+  let max-width = size-info.width
   let card-width = calc.min(natural, max-width)
 
   block(width: 100%)[

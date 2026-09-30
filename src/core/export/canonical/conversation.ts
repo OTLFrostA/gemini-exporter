@@ -67,9 +67,6 @@ export interface MessageNode {
 
     blocks: BlockNode[];
 
-    /** Message-level asset association index; visual order is determined by blocks, not this list. */
-    associatedAssetIds?: string[];
-
     sourceRef?: SourceRef;
     extensions?: ProviderExtensions;
 }

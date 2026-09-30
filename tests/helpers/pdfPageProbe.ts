@@ -423,6 +423,7 @@ export function checkBlankPages(
     report.pages.forEach((page, i) => {
         const isLast = i === report.pages.length - 1;
         const min = isLast ? lastMin : midMin;
+        if (page.imageDraws && page.imageDraws.length > 0) return;
         if (page.charCount < min) {
             issues.push({
                 check: isLast ? 'blank-tail' : 'blank-page',

@@ -27,10 +27,6 @@
         "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T13:00:00-07:00",
-        "associatedAssetIds": [
-          "asset-img-1",
-          "asset-file-1"
-        ],
         "blocks": [
           {
             "id": "u1:b0",
@@ -46,15 +42,13 @@
             "id": "u1:b1",
             "type": "image",
             "assetId": "asset-img-1",
-            "alt": "用户上传的架构图",
-            "origin": "attachment"
+            "alt": "用户上传的架构图"
           },
           {
             "id": "u1:b2",
             "type": "file",
             "assetId": "asset-file-1",
             "label": "data_dictionary.xlsx",
-            "origin": "attachment",
             "description": [
               {
                 "type": "text",
@@ -99,7 +93,6 @@
             "type": "image",
             "assetId": "asset-img-1",
             "alt": "Block AST 到多格式 renderer 流程图",
-            "origin": "inline",
             "caption": [
               {
                 "type": "text",

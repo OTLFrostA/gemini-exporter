@@ -1,5 +1,5 @@
 import type { Asset } from './assets.js';
-import { collectReferencedAssetIds, collectCompanionPlacements } from './assetReferences.js';
+import { collectReferencedAssetIds } from './assetReferences.js';
 import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
 import type { Citation } from './citations.js';
 import { citationDisplayLabel } from './citations.js';
@@ -268,27 +268,6 @@ function renderImageBlock(block: ImageBlock, ctx: RenderCtx, path: string): stri
     return `<figure class="gem-figure gem-image-block" data-asset-id="${escapeHtml(block.assetId)}"><a href="${url}" target="_blank" rel="noopener noreferrer" class="gem-img-link"><img class="gem-msg-img" src="${url}" alt="${safeName}" loading="lazy"></a>${caption}</figure>`;
 }
 
-function renderImageCard(block: ImageBlock, ctx: RenderCtx, path: string): string {
-    const asset = ctx.assets.get(block.assetId);
-    const url = resolveAssetUrl(asset, ctx);
-    const name = block.alt ?? asset?.name ?? block.assetId;
-    const safeName = escapeHtml(name);
-    if (!url) return missingAssetHtml(block.assetId, name, ctx, path);
-    const caption = block.caption?.length ? `<div class="gem-att-caption">${renderInlines(block.caption, ctx)}</div>` : '';
-    return `
-      <a class="gem-att-card gem-att-img" href="${url}" target="_blank" rel="noopener noreferrer" title="点击查看原图 ${safeName}">
-        <div class="gem-att-preview">
-          <img src="${url}" alt="${safeName}" loading="lazy">
-        </div>
-        <div class="gem-att-info">
-          <span class="gem-att-name">${safeName}</span>
-          <span class="gem-att-badge">${extBadge(name, 'IMG')}</span>
-        </div>
-        ${caption}
-        <div class="gem-att-open-btn">${OPEN_SVG}</div>
-      </a>`;
-}
-
 function renderFileCard(block: FileBlock, ctx: RenderCtx, path: string): string {
     const asset = ctx.assets.get(block.assetId);
     const url = resolveAssetUrl(asset, ctx);
@@ -306,25 +285,6 @@ function renderFileCard(block: FileBlock, ctx: RenderCtx, path: string): string 
         ${description}
         <div class="gem-att-open-btn">${OPEN_SVG}</div>
       </a>`;
-}
-
-function renderCarousel(cardsHtml: string): string {
-    const count = (cardsHtml.match(/gem-att-card/g) || []).length;
-    const showNav = count > 2;
-    return `
-    <div class="gem-carousel-wrapper">
-      ${showNav ? `
-      <button class="gem-carousel-nav-btn prev" onclick="scrollCarousel(this, -1)" title="Previous attachments" style="display:none;">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-      </button>` : ''}
-      <div class="gem-carousel-track" onscroll="updateCarouselNav(this)">
-        ${cardsHtml}
-      </div>
-      ${showNav ? `
-      <button class="gem-carousel-nav-btn next" onclick="scrollCarousel(this, 1)" title="Next attachments" style="display:none;">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-      </button>` : ''}
-    </div>`;
 }
 
 function renderTable(block: TableBlock, ctx: RenderCtx): string {
@@ -402,13 +362,8 @@ function renderBlock(block: BlockNode, ctx: RenderCtx, path: string): string {
         }
         case 'table':
             return renderTable(block as TableBlock, ctx);
-        case 'image': {
-            const img = block as ImageBlock;
-            if (img.origin === 'generated' || img.origin === 'inline') {
-                return renderImageBlock(img, ctx, path);
-            }
-            return renderImageCard(img, ctx, path);
-        }
+        case 'image':
+            return renderImageBlock(block as ImageBlock, ctx, path);
         case 'file':
             return renderFileCard(block as FileBlock, ctx, path);
         case 'citationGroup': {
@@ -467,79 +422,18 @@ function renderBlocks(blocks: BlockNode[], ctx: RenderCtx, path: string): string
     return (blocks ?? []).map((b, i) => renderBlock(b, ctx, `${path}/block:${i}`)).join('\n');
 }
 
-function isAssetBlock(b: BlockNode): boolean {
-    if (b.type === 'file') return true;
-    if (b.type === 'image') {
-        return b.origin !== 'generated' && b.origin !== 'inline';
-    }
-    return false;
-}
-
-function renderCompanionCards(
-    msg: MessageNode,
-    bundle: CanonicalConversationBundle,
-    ctx: RenderCtx,
-    path: string,
-    seenCardAssetIds?: Set<string>,
-): string {
-    const plan = collectCompanionPlacements(msg, bundle);
-    for (const d of plan.diagnostics) diag(ctx, d.severity, d.code, d.message, d.path ?? path);
-    const cards: string[] = [];
-    plan.trailingImages.forEach((id, i) => {
-        seenCardAssetIds?.add(id);
-        cards.push(renderImageCard({ type: 'image', id: `companion:image:${id}`, assetId: id }, ctx, `${path}/companion:${i}`));
-    });
-    plan.trailingFiles.forEach((id, i) => {
-        seenCardAssetIds?.add(id);
-        cards.push(renderFileCard({ type: 'file', id: `companion:file:${id}`, assetId: id }, ctx, `${path}/companion:${i}`));
-    });
-    return cards.join('\n');
-}
-
 function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: CanonicalConversationBundle): string {
     const path = `message:${msg.id}`;
-    const assetBlocks = msg.blocks.filter(isAssetBlock);
-    const contentBlocks = msg.blocks.filter((b) => !isAssetBlock(b));
-    const cards: string[] = [];
-    const seenCardAssetIds = new Set<string>();
-
-    if (assetBlocks.length) {
-        for (let i = 0; i < assetBlocks.length; i++) {
-            const b = assetBlocks[i];
-            if (b.type === 'image' || b.type === 'file') {
-                seenCardAssetIds.add(b.assetId);
-            }
-            cards.push(renderBlock(b, ctx, `${path}/asset:${i}`));
-        }
-    }
-    const companions = renderCompanionCards(msg, bundle, ctx, path, seenCardAssetIds);
-    if (companions) cards.push(companions);
-
-    if (msg.role === 'assistant' || (msg.role as string) === 'model') {
-        const generatedImageBlocks = contentBlocks.filter(
-            (b): b is ImageBlock => b.type === 'image' && b.origin === 'generated',
-        );
-        for (let i = 0; i < generatedImageBlocks.length; i++) {
-            const gb = generatedImageBlocks[i];
-            if (!seenCardAssetIds.has(gb.assetId)) {
-                seenCardAssetIds.add(gb.assetId);
-                cards.push(renderImageCard(gb, ctx, `${path}/generated-card:${i}`));
-            }
-        }
-    }
-
-    const carouselHtml = cards.length ? renderCarousel(cards.join('\n')) : '';
-    const bodyHtml = renderBlocks(contentBlocks, ctx, path);
+    const bodyHtml = renderBlocks(msg.blocks, ctx, path);
 
     if (msg.role === 'user') {
-        const plain = contentBlocks.map((b) => extractBlockText(b)).join('\n');
+        const plain = msg.blocks.map((b) => extractBlockText(b)).join('\n');
         const isLongPrompt = plain.length > 280 || plain.split('\n').length > 5;
         const showMoreText = ctx.isEn ? 'Show more' : '展开';
         const showLessText = ctx.isEn ? 'Show less' : '收起';
 
         return `
   <section class="gem-turn gem-turn-user" id="turn-user-${turnIdx}">
-    ${carouselHtml}
     <div class="gem-user-bubble">
       <div class="gem-prompt-content ${isLongPrompt ? 'collapsed' : ''}" id="prompt-content-${turnIdx}">
         ${bodyHtml}
@@ -558,7 +452,6 @@ function renderTurn(msg: MessageNode, turnIdx: number, ctx: RenderCtx, bundle: C
     <div class="gem-model-content">
       ${bodyHtml}
     </div>
-    ${carouselHtml}
   </section>`;
 }
 
@@ -627,9 +520,6 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
         const referenced = new Set<string>();
         for (const m of view.messages) {
             for (const id of collectReferencedAssetIds(m.blocks)) referenced.add(id);
-            const plan = collectCompanionPlacements(m, context.bundle);
-            for (const id of plan.trailingImages) referenced.add(id);
-            for (const id of plan.trailingFiles) referenced.add(id);
         }
 
         const urlByAssetId = new Map<string, string>();
