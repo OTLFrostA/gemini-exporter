@@ -376,6 +376,11 @@ export async function preparePdfItem(
 
     const { bundle, diagnostics: normDiags, byteStore } = await normalizeGeminiConversation(workingChat as any);
     for (const d of normDiags) diagnostics.push(toRenderDiagnostic(d));
+    const integrityError = normDiags.find((d) => d.severity === 'error' && (d.code === 'MSG_BAD_ID' || d.code === 'MSG_DUP_ID'));
+    if (integrityError) {
+        return { ok: false, id, title, error: `[${integrityError.code}] ${integrityError.message}`, diagnostics };
+    }
+
 
     // Hydrate any standalone inline markdown remote images (not backed by m.attachments / m.images)
     if (pipeline && typeof pipeline.acquireAssetBytes === 'function') {

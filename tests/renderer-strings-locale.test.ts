@@ -93,12 +93,10 @@ test('role prefix strings live in the string table (en + zh)', () => {
     const en = getRendererStrings('en');
     assert.strictEqual(en.systemMessage, 'System message');
     assert.strictEqual(en.developerMessage, 'Developer message');
-    assert.strictEqual(en.toolMessage, 'Tool message');
     assert.strictEqual(en.unknownRole, 'Unknown role');
     const zh = getRendererStrings('zh');
     assert.strictEqual(zh.systemMessage, '系统消息');
     assert.strictEqual(zh.developerMessage, '开发者消息');
-    assert.strictEqual(zh.toolMessage, '工具消息');
     assert.strictEqual(zh.unknownRole, '未知角色');
 });
 
@@ -106,22 +104,19 @@ test('typst localizes role prefix notes', () => {
     const msgs = [
         roleMsg('system'),
         roleMsg('developer'),
-        roleMsg('tool'),
         roleMsg('unknown'),
         roleMsg('unknown', { author: { rawRole: 'plugin-x' } }),
     ];
     const zh = toTypstPayload(bundle(msgs), { ...opts, locale: 'zh' });
     assert.strictEqual(firstNoteText(zh.payload.messages[0]), '系统消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[1]), '开发者消息');
-    assert.strictEqual(firstNoteText(zh.payload.messages[2]), '工具消息');
-    assert.strictEqual(firstNoteText(zh.payload.messages[3]), '未知角色');
-    assert.strictEqual(firstNoteText(zh.payload.messages[4]), '未知角色: plugin-x');
+    assert.strictEqual(firstNoteText(zh.payload.messages[2]), '未知角色');
+    assert.strictEqual(firstNoteText(zh.payload.messages[3]), '未知角色: plugin-x');
     const en = toTypstPayload(bundle(msgs), opts);
     assert.strictEqual(firstNoteText(en.payload.messages[0]), 'System message');
     assert.strictEqual(firstNoteText(en.payload.messages[1]), 'Developer message');
-    assert.strictEqual(firstNoteText(en.payload.messages[2]), 'Tool message');
-    assert.strictEqual(firstNoteText(en.payload.messages[3]), 'Unknown role');
-    assert.strictEqual(firstNoteText(en.payload.messages[4]), 'Unknown role: plugin-x');
+    assert.strictEqual(firstNoteText(en.payload.messages[2]), 'Unknown role');
+    assert.strictEqual(firstNoteText(en.payload.messages[3]), 'Unknown role: plugin-x');
 });
 
 test('user/assistant roles get no prefix note', () => {

@@ -291,7 +291,6 @@ function renderBlock(
 function rolePrefix(message: MessageNode, strings: RendererStrings): string | undefined {
     if (message.role === 'system') return strings.systemMessage;
     if (message.role === 'developer') return strings.developerMessage;
-    if (message.role === 'tool') return strings.toolMessage;
     if (message.role === 'unknown') return message.author?.rawRole ? `${strings.unknownRole}: ${message.author.rawRole}` : strings.unknownRole;
     return undefined;
 }

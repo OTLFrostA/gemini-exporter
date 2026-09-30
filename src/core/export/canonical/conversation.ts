@@ -16,7 +16,6 @@ export type MessageRole =
     | 'assistant'
     | 'system'
     | 'developer'
-    | 'tool'
     | 'unknown';
 
 export interface MessageAuthor {

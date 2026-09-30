@@ -113,13 +113,11 @@ export function normalizeMessage(
     const merged = mergeMessageAttachments(m);
     const attachmentBlocks: BlockNode[] = [];
     const assets: Asset[] = [];
-    const assetIds: string[] = [];
     const assetIndex = newAssetLinkIndex();
     merged.forEach((a, ai) => {
         const assetId = `${msgId}-a${ai}`;
         const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` }, ctx.byteStore);
         assets.push(built.asset);
-        assetIds.push(assetId);
         for (const ref of [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {
             if (typeof ref === 'string' && ref) {
                 indexAssetRef(assetIndex, ref, assetId);
@@ -194,7 +192,6 @@ export function normalizeMessage(
 
     for (const ia of st.inlineAssets) {
         assets.push(ia);
-        assetIds.push(ia.id);
     }
     const placedAssetIds = collectReferencedAssetIds(blocks);
     for (const block of attachmentBlocks) {

@@ -877,7 +877,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "migration: duplicate message IDs produce normalization diagnostics",
+          "name": "migration: duplicate message IDs fail closed at the production export boundary",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }

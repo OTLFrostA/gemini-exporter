@@ -132,7 +132,7 @@ test('migration: citation not dropped', () => {
     assert.ok(newHtml.includes('gem-citation'), 'citation markup missing');
 });
 
-test('migration: duplicate message IDs produce normalization diagnostics', async () => {
+test('migration: duplicate message IDs fail closed at the production export boundary', async () => {
     // Repeated pagination IDs remain an ingestion data-integrity diagnostic.
     const dupChat: any = {
         id: 'dup_001',
@@ -146,4 +146,5 @@ test('migration: duplicate message IDs produce normalization diagnostics', async
     const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
     const { diagnostics } = await normalizeGeminiConversation(dupChat);
     assert.ok(diagnostics.some((d: any) => d.code === 'MSG_DUP_ID'));
+    await assert.rejects(() => ChatFormatter.formatHtmlCanonical(dupChat), /MSG_DUP_ID/);
 });

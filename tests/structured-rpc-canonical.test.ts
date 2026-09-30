@@ -749,7 +749,7 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     assert.deepStrictEqual(asset.dimensions, { widthPx: 700, heightPx: 280 });
     assert.strictEqual(asset.id, imageBlocks[0].assetId, 'Block assetId links to bundle asset ID');
 
-    // Validate bundle and message tree
+    // Validate the canonical bundle
     const bundleErrors = validateBundle(bundle).filter((d: any) => d.severity === 'error');
     assert.strictEqual(bundleErrors.length, 0, 'Bundle validates cleanly against Canonical schema');
 });
