@@ -80,6 +80,7 @@ export interface ChatMessage {
     messageCount?: number;
     sources?: unknown[];
     structuredContent?: unknown;
+    groundingCitationMarkers?: string[];
 }
 
 export type Message = ChatMessage;

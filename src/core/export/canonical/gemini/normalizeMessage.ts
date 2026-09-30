@@ -30,7 +30,7 @@ import { geminiStructuredToCanonical } from './structuredAdapter.js';
 export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
     'thinking', 'citations', 'images', 'documents', 'attachmentCount',
-    'messageCount', 'sources', 'structuredContent',
+    'messageCount', 'sources', 'structuredContent', 'groundingCitationMarkers',
 ]);
 
 function isStr(v: unknown): v is string {
@@ -204,6 +204,7 @@ export function normalizeMessage(
     }
 
     const citations: Citation[] = [];
+    const webCitations: Citation[] = [];
     const { list: rawCits, skipped } = extractRawCitations(m);
     if (skipped > 0) {
         diagnostics.push({
@@ -219,15 +220,43 @@ export function normalizeMessage(
         let kind: Citation['kind'] = 'web';
         if (!rc.url) kind = 'other';
         else if (!/^https?:\/\//i.test(rc.url)) kind = 'other';
-        citations.push({
+        const cit: Citation = {
             id: cid,
             kind,
             url: rc.url,
             title: rc.title,
-        });
+        };
+        citations.push(cit);
+        webCitations.push(cit);
     });
-    if (citations.length) {
-        linkCitationMarkers(blocks, citations);
+
+    const groundingMap = new Map<string, { citation: Citation; displayLabel: string }>();
+    if (Array.isArray(m.groundingCitationMarkers) && m.groundingCitationMarkers.length > 0) {
+        for (const rawMarker of m.groundingCitationMarkers) {
+            if (typeof rawMarker !== 'string') continue;
+            const marker = rawMarker.trim();
+            const numMatch = marker.match(/\d+/);
+            const n = numMatch ? numMatch[0] : '1';
+            const displayLabel = `[${n}]`;
+            const cid = `${msgId}-gcit-${n}`;
+            let cit = citations.find((c) => c.id === cid);
+            if (!cit) {
+                cit = {
+                    id: cid,
+                    kind: 'attachment',
+                };
+                citations.push(cit);
+            }
+            groundingMap.set(marker, { citation: cit, displayLabel });
+            const normKey = marker.toLowerCase().replace(/\s+/g, ' ');
+            if (normKey !== marker) {
+                groundingMap.set(normKey, { citation: cit, displayLabel });
+            }
+        }
+    }
+
+    if (webCitations.length > 0 || groundingMap.size > 0) {
+        linkCitationMarkers(blocks, webCitations, groundingMap);
     }
 
     const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));

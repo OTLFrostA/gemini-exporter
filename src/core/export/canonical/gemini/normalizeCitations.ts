@@ -41,24 +41,48 @@ export function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skip
     return { list, skipped };
 }
 
-export function linkCitationMarkers(blocks: BlockNode[], citations: Citation[]): void {
-    if (!citations.length) return;
+export function linkCitationMarkers(
+    blocks: BlockNode[],
+    citations: Citation[],
+    groundingMap?: Map<string, { citation: Citation; displayLabel: string }>,
+): void {
+    const hasWebCits = citations.length > 0;
+    const hasGrounding = !!(groundingMap && groundingMap.size > 0);
+    if (!hasWebCits && !hasGrounding) return;
+
     const byIndex = new Map(citations.map((c, i) => [i + 1, c]));
     const walkInline = (nodes: InlineNode[]): InlineNode[] => {
         const out: InlineNode[] = [];
         for (const n of nodes) {
             if (n.type === 'text') {
-                const re = /\[(\d+)\]/g;
+                const re = /\[(?:cite:\s*)?(\d+)\]/gi;
                 let last = 0;
                 let mt: RegExpExecArray | null;
                 let replaced = false;
                 while ((mt = re.exec(n.text)) !== null) {
-                    const cit = byIndex.get(Number(mt[1]));
-                    if (!cit) continue;
+                    const matchedStr = mt[0];
+                    const isCite = /^\[cite:/i.test(matchedStr);
+                    let targetCitId: string | undefined;
+                    let targetLabel: string | undefined;
+
+                    if (isCite) {
+                        if (!hasGrounding) continue;
+                        const entry = groundingMap!.get(matchedStr) ?? groundingMap!.get(matchedStr.toLowerCase().replace(/\s+/g, ' '));
+                        if (!entry) continue;
+                        targetCitId = entry.citation.id;
+                        targetLabel = entry.displayLabel;
+                    } else {
+                        if (!hasWebCits) continue;
+                        const cit = byIndex.get(Number(mt[1]));
+                        if (!cit) continue;
+                        targetCitId = cit.id;
+                        targetLabel = matchedStr;
+                    }
+
                     replaced = true;
                     if (mt.index > last) out.push({ type: 'text', text: n.text.slice(last, mt.index) });
-                    out.push({ type: 'citationRef', citationId: cit.id, label: mt[0] });
-                    last = mt.index + mt[0].length;
+                    out.push({ type: 'citationRef', citationId: targetCitId, label: targetLabel });
+                    last = mt.index + matchedStr.length;
                 }
                 if (replaced) {
                     if (last < n.text.length) out.push({ type: 'text', text: n.text.slice(last) });
