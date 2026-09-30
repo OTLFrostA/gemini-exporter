@@ -50,16 +50,24 @@ export function renderCanonicalMarkdown(
         const url = c?.url && destination(c.url);
         return url ? `[${name}](${url})` : `[${name}]`;
     };
-    const inline = (node: InlineNode): string => {
+    const inline = (node: InlineNode, tableCell = false): string => {
         switch (node.type) {
             case 'text': return escapeText(node.text);
-            case 'strong': return `**${inlines(node.children)}**`;
-            case 'emphasis': return `*${inlines(node.children)}*`;
-            case 'strikethrough': return `~~${inlines(node.children)}~~`;
-            case 'inlineCode': return codeSpan(node.code);
+            case 'strong': return `**${inlines(node.children, tableCell)}**`;
+            case 'emphasis': return `*${inlines(node.children, tableCell)}*`;
+            case 'strikethrough': return `~~${inlines(node.children, tableCell)}~~`;
+            case 'inlineCode': {
+                // GFM splits a pipe preceded by an even backslash run even inside code spans.
+                // Use standard inline HTML only for that table-cell edge case.
+                if (tableCell && /\\+\|/.test(node.code)) {
+                    const text = node.code.replace(/[&<>\\|`*_{}\[\]]/g, (c) => `&#${c.charCodeAt(0)};`);
+                    return `<code>${text}</code>`;
+                }
+                return codeSpan(node.code);
+            }
             case 'link': {
                 const url = destination(node.href);
-                return url ? `[${inlines(node.children)}](${url})` : inlines(node.children);
+                return url ? `[${inlines(node.children, tableCell)}](${url})` : inlines(node.children, tableCell);
             }
             case 'image': return image(node.assetId, node.alt);
             case 'inlineMath': return `$${node.source}$`;
@@ -67,7 +75,7 @@ export function renderCanonicalMarkdown(
             case 'lineBreak': return node.kind === 'hard' ? '  \n' : '\n';
         }
     };
-    const inlines = (nodes: InlineNode[]): string => nodes.map(inline).join('');
+    const inlines = (nodes: InlineNode[], tableCell = false): string => nodes.map((node) => inline(node, tableCell)).join('');
     const blocks = (nodes: BlockNode[]): string => nodes.map(block).join('\n\n');
     const block = (node: BlockNode): string => {
         switch (node.type) {
@@ -90,7 +98,7 @@ export function renderCanonicalMarkdown(
                 const allRows = [...(node.headerRows ?? []), ...node.rows];
                 const width = Math.max(node.columns?.length ?? 0, ...allRows.map((row) => row.cells.reduce((n, cell) => n + (cell.colSpan ?? 1), 0)), 1);
                 const row = (cells: typeof node.rows[number]['cells']): string => {
-                    const values = cells.flatMap((cell) => [inlines(cell.children).split('|').join('\\|').replace(/\r?\n/g, '<br>'), ...Array(Math.max(0, (cell.colSpan ?? 1) - 1)).fill('')]);
+                    const values = cells.flatMap((cell) => [inlines(cell.children, true).split('|').join('\\|').replace(/\r?\n/g, '<br>'), ...Array(Math.max(0, (cell.colSpan ?? 1) - 1)).fill('')]);
                     return `| ${Array.from({ length: width }, (_, i) => values[i] ?? '').join(' | ')} |`;
                 };
                 const header = node.headerRows?.[0];

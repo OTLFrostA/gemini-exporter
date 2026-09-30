@@ -25,7 +25,6 @@ import { finalizeInlineAssetDigests } from './normalizeAssets.js';
 export interface GeminiNormalizationOptions {
     providerId?: string;
     accountId?: string;
-    observedAt?: string;
     rawRef?: string;
 }
 
@@ -227,7 +226,6 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
             rawRef,
             providerId: effectiveProviderId,
             accountId: context.accountId,
-            observedAt: context.observedAt,
         });
         if (rawEvidenceError !== undefined) {
             const diagnostic: Diagnostic = {

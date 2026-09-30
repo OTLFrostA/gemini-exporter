@@ -31,55 +31,6 @@
   },
   "additionalProperties": false,
   "$defs": {
-    "JsonValue": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "string"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/JsonValue"
-          }
-        }
-      ]
-    },
-    "SourceRef": {
-      "type": "object",
-      "required": [
-        "providerId"
-      ],
-      "properties": {
-        "providerId": {
-          "type": "string"
-        },
-        "providerMessageId": {
-          "type": "string"
-        },
-        "locator": {
-          "type": "string"
-        },
-        "rawRef": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "InlineNode": {
       "oneOf": [
         {
