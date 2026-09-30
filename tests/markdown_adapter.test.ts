@@ -617,3 +617,39 @@ test('Unknown != Disappear: Unsupported block node creates UnknownBlock with fal
     assert.ok(diag, 'Must record MDAST_UNKNOWN_BLOCK diagnostic');
 });
 
+test('GM-MD-001 Regression: Attached multiline display math fences do not swallow following blocks', () => {
+    const { ctx } = createTestContext();
+    const doc = [
+        '#### 3. Teukolsky 主方程（TME）',
+        '',
+        '将方向导数转化为 Boyer-Lindquist 坐标微商，Teukolsky 统一方程写作：',
+        '$$\\begin{aligned}',
+        '\\Biggl[ &\\left(\\frac{(r^2+a^2)^2}{\\Delta} - a^2\\sin^2\\theta\\right)\\frac{\\partial^2\\psi}{\\partial t^2} \\\\',
+        '&+ (s^2\\cot^2\\theta - s) \\psi \\Biggr] = 4\\pi \\Sigma T',
+        '\\end{aligned}$$',
+        '在真空辐射规范（Radiation Gauge / 无外源）条件下，令源项 $T = 0$。',
+        '',
+        '---',
+    ].join('\n');
+
+    const blocks = parseMarkdownToBlocks(doc, 'gm-md-001-test', ctx);
+    assert.strictEqual(blocks.length, 5, 'Must cleanly parse into 5 distinct blocks without unclosed fence swallowing');
+
+    assert.strictEqual(blocks[0].type, 'heading');
+    assert.strictEqual((blocks[0] as any).level, 4);
+
+    assert.strictEqual(blocks[1].type, 'paragraph');
+
+    assert.strictEqual(blocks[2].type, 'math');
+    const mathBlock = blocks[2] as any;
+    assert.strictEqual(mathBlock.notation, 'latex');
+    assert.ok(mathBlock.source.startsWith('\\begin{aligned}'), 'Must retain \\begin{aligned} in math source');
+    assert.ok(mathBlock.source.endsWith('\\end{aligned}'), 'Must retain \\end{aligned} in math source');
+    assert.ok(!mathBlock.source.includes('$$'), 'Must not contain fence delimiters in math source');
+
+    assert.strictEqual(blocks[3].type, 'paragraph');
+    assert.ok(!mathBlock.source.includes('真空辐射规范'), 'Subsequent paragraph must not be swallowed into math block');
+
+    assert.strictEqual(blocks[4].type, 'thematicBreak');
+});
+

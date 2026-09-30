@@ -12,6 +12,7 @@ import { math } from 'micromark-extension-math';
 import { mathFromMarkdown } from 'mdast-util-math';
 import type { BlockNode } from '../blocks.js';
 import type { InlineNode } from '../inline.js';
+import { preprocessGeminiMarkdown } from '../compat/rules.js';
 import {
     type MarkdownParseContext,
     mdastRootToBlocks,
@@ -36,7 +37,8 @@ export function parseMarkdownToBlocks(
         return [];
     }
 
-    const tree = fromMarkdown(markdown, {
+    const preprocessed = preprocessGeminiMarkdown(markdown);
+    const tree = fromMarkdown(preprocessed, {
         extensions: EXTENSIONS,
         mdastExtensions: MDAST_EXTENSIONS,
     });
@@ -48,7 +50,7 @@ export function parseMarkdownToBlocks(
         definitions,
     };
 
-    return mdastRootToBlocks(tree, parseCtx, markdown);
+    return mdastRootToBlocks(tree, parseCtx, preprocessed);
 }
 
 /**
