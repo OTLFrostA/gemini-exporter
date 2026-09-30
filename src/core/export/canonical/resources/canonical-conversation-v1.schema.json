@@ -996,16 +996,6 @@
         "id": {
           "type": "string"
         },
-        "parentId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "siblingIndex": {
-          "type": "integer",
-          "minimum": 0
-        },
         "role": {
           "enum": [
             "user",
@@ -1077,9 +1067,6 @@
           "items": {
             "$ref": "#/$defs/MessageNode"
           }
-        },
-        "selectedLeafMessageId": {
-          "type": "string"
         },
         "extensions": {
           "$ref": "#/$defs/ProviderExtensions"

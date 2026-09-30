@@ -21,7 +21,6 @@ import type {
     NormalizationResult,
     ProviderNormalizer,
 } from '../normalizer.js';
-import { projectConversation, validateMessageTree } from '../projection.js';
 import type { SourceObservation } from '../provenance.js';
 import { resolveTitle } from '../titleAuthority.js';
 import { validateBundle } from '../validate.js';
@@ -218,26 +217,6 @@ export async function normalizeGeminiConversation(
         ...(diagnostics.length ? { diagnostics } : {}),
     };
 
-    try {
-        const treeIssues = validateMessageTree(bundle.conversation);
-        if (treeIssues.length) {
-            diagnostics.push({
-                id: 'selfcheck-tree',
-                severity: 'error',
-                code: 'SELFCHECK_TREE_INVALID',
-                message: `normalizer produced an invalid message tree: ${treeIssues[0].message}`,
-            });
-        } else {
-            projectConversation(bundle);
-        }
-    } catch (err) {
-        diagnostics.push({
-            id: 'selfcheck-project',
-            severity: 'error',
-            code: 'SELFCHECK_PROJECT_FAILED',
-            message: `projectConversation self-check failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
-    }
     try {
         const issues = validateBundle(bundle);
         for (const issue of issues) {

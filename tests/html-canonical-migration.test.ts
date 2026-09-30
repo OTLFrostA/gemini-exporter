@@ -132,13 +132,8 @@ test('migration: citation not dropped', () => {
     assert.ok(newHtml.includes('gem-citation'), 'citation markup missing');
 });
 
-test('migration: duplicate message ids fail closed, not silently dropped', async () => {
-    // Mirrors the real pagination re-fetch shape: a message whose id equals
-    // the conversation id is returned on two pages. Before the W3 root fix
-    // (pagination.ts convId bypass removal), the migration adapter silently
-    // dropped the duplicate to keep the export green. With unique ids now
-    // enforced at ingestion, the canonical projection must fail closed here
-    // instead of masking a data-integrity violation downstream.
+test('migration: duplicate message IDs produce normalization diagnostics', async () => {
+    // Repeated pagination IDs remain an ingestion data-integrity diagnostic.
     const dupChat: any = {
         id: 'dup_001',
         title: 'Duplicate Id Chat',
@@ -148,9 +143,7 @@ test('migration: duplicate message ids fail closed, not silently dropped', async
             { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
         ],
     };
-    await assert.rejects(
-        () => ChatFormatter.formatHtmlCanonical(dupChat),
-        /duplicate message id/,
-        'duplicate message ids must throw CanonicalProjectionError(MSG_DUP_ID)'
-    );
+    const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
+    const { diagnostics } = await normalizeGeminiConversation(dupChat);
+    assert.ok(diagnostics.some((d: any) => d.code === 'MSG_DUP_ID'));
 });

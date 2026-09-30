@@ -21,7 +21,6 @@ const {
     GeminiNormalizer,
     validateBundle,
     projectConversation,
-    validateMessageTree,
     unknownBlockFallbackText,
     extractInlineText,
 } = canonical;
@@ -299,17 +298,15 @@ test('raw evidence write failure is visible exactly once and never fabricates a 
     assert.strictEqual(bundle.observations[0].rawRef, undefined);
 });
 
-test('bundle passes validateBundle and projectConversation self-check', async () => {
+test('bundle passes validateBundle and identity projection', async () => {
     for (const raw of [sample, turnsSample]) {
         const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
         const issues = validateBundle(bundle);
         const errors = issues.filter((d: any) => d.severity === 'error');
         assert.deepStrictEqual(errors, [], `validateBundle errors for ${raw.id}`);
-        const treeIssues = validateMessageTree(bundle.conversation);
-        assert.deepStrictEqual(treeIssues, [], `message tree valid for ${raw.id}`);
         assert.doesNotThrow(() => projectConversation(bundle), `projectConversation for ${raw.id}`);
         assert.ok(
-            !diagnostics.some((d: any) => d.code === 'SELFCHECK_TREE_INVALID' || d.code === 'SELFCHECK_PROJECT_FAILED'),
+            !diagnostics.some((d: any) => d.severity === 'error'),
             'normalizer self-check clean',
         );
     }
@@ -538,4 +535,12 @@ test('two attachments with only one inlined keep one inline and one trailing blo
     const blocks = blockImagesOf(m1);
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].assetId, 'm1-a1');
+});
+
+
+test('duplicate message IDs remain normalization error diagnostics', async () => {
+    const { diagnostics } = await normalizeGeminiConversation({
+        id: 'dup', messages: [{ id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' }],
+    });
+    assert.ok(diagnostics.some((d: any) => d.code === 'MSG_DUP_ID' && d.severity === 'error'));
 });

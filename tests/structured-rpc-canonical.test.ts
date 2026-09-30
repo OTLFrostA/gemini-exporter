@@ -25,7 +25,6 @@ const path = require('path');
 const {
     normalizeGeminiConversation,
     validateBundle,
-    validateMessageTree,
     renderCanonicalHtml,
 } = require('../src/core/export/canonical/index.js');
 const {
@@ -241,8 +240,6 @@ test('Real Tier 2 probe data: full documents validate cleanly against Canonical 
     const resA = await normalizeGeminiConversation(convA as any);
     const bundleErrorsA = validateBundle(resA.bundle).filter((d: any) => d.severity === 'error');
     assert.strictEqual(bundleErrorsA.length, 0, 'Case A bundle has no error diagnostics');
-    const treeIssuesA = validateMessageTree(resA.bundle.conversation);
-    assert.strictEqual(treeIssuesA.length, 0, 'Case A message tree is valid');
 
     // Case B: 49 root nodes
     assert.strictEqual(bStack.children.length, 49);
@@ -254,8 +251,6 @@ test('Real Tier 2 probe data: full documents validate cleanly against Canonical 
     const resB = await normalizeGeminiConversation(convB as any);
     const bundleErrorsB = validateBundle(resB.bundle).filter((d: any) => d.severity === 'error');
     assert.strictEqual(bundleErrorsB.length, 0, 'Case B bundle has no error diagnostics');
-    const treeIssuesB = validateMessageTree(resB.bundle.conversation);
-    assert.strictEqual(treeIssuesB.length, 0, 'Case B message tree is valid');
 });
 
 test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe fixtures', () => {
@@ -757,8 +752,6 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     // Validate bundle and message tree
     const bundleErrors = validateBundle(bundle).filter((d: any) => d.severity === 'error');
     assert.strictEqual(bundleErrors.length, 0, 'Bundle validates cleanly against Canonical schema');
-    const treeIssues = validateMessageTree(bundle.conversation);
-    assert.strictEqual(treeIssues.length, 0, 'Message tree has 0 issues');
 });
 
 test('PR #705 candidate wire fixture: candidate response parser preserves search image in both structured and fallback modes', async () => {

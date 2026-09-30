@@ -16,10 +16,10 @@
       "provenanceSource": "Project Canonical AST specification & validation invariants",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Defines canonical block schemas, validateBundle(), and diagnostics rules.",
-      "testCount": 38,
+      "testCount": 31,
       "tests": [
         {
-          "name": "all three canonical fixtures validate with zero errors",
+          "name": "all canonical fixtures validate with zero errors",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -34,47 +34,12 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "branching fixture projects the selected leaf path only",
+          "name": "projection preserves the authoritative message array",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "explicit selection overrides the bundle leaf",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "null selection projects all messages in source order (legacy linear policy)",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "legacy linear messages (no parentId) project in array order",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "projection rejects duplicate message ids",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "projection rejects orphan parentId",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "projection rejects parent cycles",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "projection rejects unknown selected leaf",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "validateBundle reports the same tree defects as diagnostics",
+          "name": "validator rejects missing and duplicate message IDs",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -154,7 +119,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "message tree survives archive round-trip identically",
+          "name": "message order survives archive round-trip identically",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -502,37 +467,6 @@
       ]
     },
     {
-      "file": "tests/canonical-html-projection.test.ts",
-      "domain": "canonical_ast",
-      "classification": "P2",
-      "provenanceSource": "Canonical branching conversation projection specification",
-      "policy": "PRESERVE_PROJECT_CONTRACT",
-      "notes": "Tests branching timeline resolution and active path projection.",
-      "testCount": 4,
-      "tests": [
-        {
-          "name": "branched conversation renders only the selected branch",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "no selection renders all messages in source order",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "shared collectReferencedAssetIds sees inline images everywhere",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "inline image assets enter the HTML companion resource plan",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        }
-      ]
-    },
-    {
       "file": "tests/canonical-html-renderer-adapter.test.ts",
       "domain": "canonical_ast",
       "classification": "P2",
@@ -725,7 +659,7 @@
       "provenanceSource": "Dual-renderer cross contract (CanonicalHtmlRenderer x Typst payload)",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "notes": "Ensures both HTML and Typst renderers faithfully convey identical canonical node semantics.",
-      "testCount": 11,
+      "testCount": 14,
       "tests": [
         {
           "name": "contract: paragraph text survives in HTML and Typst",
@@ -768,7 +702,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "contract: citation label and group survive in HTML and Typst",
+          "name": "contract: citation label and message sources survive in HTML and Typst",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -779,6 +713,21 @@
         },
         {
           "name": "contract: unknown block fallback is visible on both renderers",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "shared collectReferencedAssetIds sees inline images everywhere",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "inline image assets enter the HTML companion resource plan",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "HTML renders all messages in authoritative source order",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1216,7 +1165,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "branched conversation without selected leaf renders every message in source order",
+          "name": "conversation renders every message in source order",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1417,12 +1366,12 @@
     }
   ],
   "summary": {
-    "totalSuites": 24,
-    "totalTests": 227,
+    "totalSuites": 23,
+    "totalTests": 212,
     "byClassification": {
       "P0": 0,
       "P1": 29,
-      "P2": 189,
+      "P2": 181,
       "P3": 2,
       "P4": 0
     }

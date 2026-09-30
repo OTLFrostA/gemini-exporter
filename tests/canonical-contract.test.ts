@@ -3,7 +3,7 @@
  * Tier 1 contract tests for the canonical layer (F2a).
  *
  * Covers the integration doc section 3 exit gates for F2a:
- * positive + negative structural cases, unknown round-trip, message-tree
+ * positive + negative structural cases, unknown round-trip, message-order
  * round-trip, title non-regression, and resource/URL/size validation.
  */
 export {};
@@ -16,7 +16,6 @@ const canonical = require('../src/core/export/canonical/index.js');
 const {
     validateBundle,
     projectConversation,
-    CanonicalProjectionError,
     resolveTitle,
     applyTitleCandidate,
     titleAuthorityRank,
@@ -33,12 +32,11 @@ const clone = (o: any): any => JSON.parse(JSON.stringify(o));
 const errorsOf = (diags: any[]): any[] => diags.filter((d) => d.severity === 'error');
 
 const rich = () => loadFixture('rich-conversation.json');
-const branching = () => loadFixture('branching-conversation.json');
 const unknownFx = () => loadFixture('unknown-roundtrip.json');
 
 // ---------------------------------------------------------------- fixtures
-test('all three canonical fixtures validate with zero errors', () => {
-    for (const name of ['rich-conversation.json', 'branching-conversation.json', 'unknown-roundtrip.json']) {
+test('all canonical fixtures validate with zero errors', () => {
+    for (const name of ['rich-conversation.json', 'unknown-roundtrip.json']) {
         const diags = validateBundle(loadFixture(name));
         assert.deepStrictEqual(errorsOf(diags), [], `${name} should have no validation errors, got: ${JSON.stringify(diags)}`);
     }
@@ -60,70 +58,22 @@ test('representation independence: no thought block carries view state', () => {
         }
     };
     walk(rich());
-    walk(branching());
 });
 
-// --------------------------------------------------------------- projection
-test('branching fixture projects the selected leaf path only', () => {
-    const view = projectConversation(branching());
-    assert.deepStrictEqual(view.messages.map((m: any) => m.id), ['u1', 'a1', 'u2b', 'a2b']);
-    assert.deepStrictEqual(view.selectedPathIds, ['u1', 'a1', 'u2b', 'a2b']);
-    assert.deepStrictEqual(view.omittedBranchMessageIds.sort(), ['a2a', 'u2a']);
-    assert.deepStrictEqual(view.rootIds, ['u1']);
+test('projection preserves the authoritative message array', () => {
+    const bundle = rich();
+    assert.strictEqual(projectConversation(bundle).messages, bundle.conversation.messages);
 });
 
-test('explicit selection overrides the bundle leaf', () => {
-    const view = projectConversation(branching(), { leafMessageId: 'a2a' });
-    assert.deepStrictEqual(view.messages.map((m: any) => m.id), ['u1', 'a1', 'u2a', 'a2a']);
-    assert.deepStrictEqual(view.omittedBranchMessageIds.sort(), ['a2b', 'u2b']);
-});
-
-test('null selection projects all messages in source order (legacy linear policy)', () => {
-    const bundle = branching();
-    const view = projectConversation(bundle, { leafMessageId: null });
-    assert.deepStrictEqual(view.messages.map((m: any) => m.id), ['u1', 'a1', 'u2a', 'a2a', 'u2b', 'a2b']);
-    assert.strictEqual(view.selectedPathIds, null);
-    assert.deepStrictEqual(view.omittedBranchMessageIds, []);
-});
-
-test('legacy linear messages (no parentId) project in array order', () => {
-    const bundle = unknownFx();
-    const view = projectConversation(bundle);
-    assert.deepStrictEqual(view.messages.map((m: any) => m.id), ['a1']);
-});
-
-test('projection rejects duplicate message ids', () => {
-    const bundle = branching();
+test('validator rejects missing and duplicate message IDs', () => {
+    const bundle = rich();
     bundle.conversation.messages.push(clone(bundle.conversation.messages[0]));
-    assert.throws(() => projectConversation(bundle), (e: any) =>
-        e instanceof CanonicalProjectionError && e.code === 'MSG_DUP_ID');
-});
-
-test('projection rejects orphan parentId', () => {
-    const bundle = branching();
-    bundle.conversation.messages[2].parentId = 'nope';
-    assert.throws(() => projectConversation(bundle), (e: any) =>
-        e instanceof CanonicalProjectionError && e.code === 'MSG_ORPHAN');
-});
-
-test('projection rejects parent cycles', () => {
-    const bundle = branching();
-    bundle.conversation.messages[0].parentId = 'a2b';
-    assert.throws(() => projectConversation(bundle), (e: any) =>
-        e instanceof CanonicalProjectionError && e.code === 'MSG_CYCLE');
-});
-
-test('projection rejects unknown selected leaf', () => {
-    const bundle = branching();
-    assert.throws(() => projectConversation(bundle, { leafMessageId: 'ghost' }), (e: any) =>
-        e instanceof CanonicalProjectionError && e.code === 'MSG_BAD_LEAF');
-});
-
-test('validateBundle reports the same tree defects as diagnostics', () => {
-    const bundle = branching();
-    bundle.conversation.messages[1].parentId = 'missing-parent';
-    const codes = validateBundle(bundle).map((d: any) => d.code);
-    assert.ok(codes.includes('MSG_ORPHAN'), `expected MSG_ORPHAN in ${codes}`);
+    assert.ok(errorsOf(validateBundle(bundle)).some((d: any) => d.code === 'MSG_DUP_ID'));
+    for (const id of [undefined, '', 123]) {
+        const invalid = rich();
+        invalid.conversation.messages[0].id = id;
+        assert.ok(errorsOf(validateBundle(invalid)).some((d: any) => d.code === 'MSG_BAD_ID'));
+    }
 });
 
 // ---------------------------------------------------------- title authority
@@ -250,8 +200,8 @@ test('unknown round-trips through JSON with evidence intact', () => {
     assert.ok(Array.isArray(block.fallbackBlocks) && block.fallbackBlocks.length > 0);
 });
 
-// ------------------------------------------------------- tree round-trip
-test('message tree survives archive round-trip identically', () => {
+// ------------------------------------------------------- message order round-trip
+test('message order survives archive round-trip identically', () => {
     const bundle = rich();
     const roundTripped = JSON.parse(JSON.stringify(bundle));
     assert.deepStrictEqual(

@@ -96,9 +96,6 @@ function input(): any {
                 ],
             },
         ],
-        rootIds: ['m1'],
-        selectedPathIds: ['m1'],
-        omittedBranchMessageIds: [],
     };
     return { bundle, view, byteStore: store, expected: { goodBlock, goodPara } };
 }
@@ -201,9 +198,6 @@ test('resources stage: metadata-only file attachments skip byte resolution entir
                 ],
             },
         ],
-        rootIds: ['m1'],
-        selectedPathIds: ['m1'],
-        omittedBranchMessageIds: [],
     };
     const { ctx } = stageCtx(new AbortController().signal);
     const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);
@@ -258,9 +252,6 @@ test('resources stage: RESOURCE_BYTES_MISSING drops the asset from pathMap and r
                 blocks: [{ type: 'image', assetId: 'img-doomed' }],
             },
         ],
-        rootIds: ['m1'],
-        selectedPathIds: ['m1'],
-        omittedBranchMessageIds: [],
     };
     const { ctx } = stageCtx(new AbortController().signal);
     const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: vanishing }, ctx);
@@ -298,9 +289,6 @@ test('resources stage: binary decision is AST placement, not Asset.kind (image p
                 blocks: [{ type: 'image', assetId: 'misfiled' }],
             },
         ],
-        rootIds: ['m1'],
-        selectedPathIds: ['m1'],
-        omittedBranchMessageIds: [],
     };
     const { ctx } = stageCtx(new AbortController().signal);
     const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: real }, ctx);
@@ -344,9 +332,6 @@ test('resources stage: FileBlock referencing a kind:image asset is metadata-only
                 blocks: [{ type: 'file', assetId: 'filey', label: 'attachment.bin' }],
             },
         ],
-        rootIds: ['m1'],
-        selectedPathIds: ['m1'],
-        omittedBranchMessageIds: [],
     };
     const { ctx } = stageCtx(new AbortController().signal);
     const { output, diagnostics } = await resourceStage({ bundle, view, byteStore: spyStore }, ctx);

@@ -57,9 +57,6 @@ export interface MessageAuthor {
 export interface MessageNode {
     id: string;
 
-    parentId?: string | null;
-    siblingIndex?: number;
-
     role: MessageRole;
     author?: MessageAuthor;
     createdAt?: string;
@@ -80,9 +77,8 @@ export interface Conversation {
     updatedAt?: string;
     observedAt?: string;
 
+    /** The array order is the authoritative message order. */
     messages: MessageNode[];
-
-    selectedLeafMessageId?: string;
 
     extensions?: ProviderExtensions;
 }
