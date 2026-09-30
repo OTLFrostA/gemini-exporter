@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
-test('chat_formatter - formatContent markdown', () => {
+test('chat_formatter - formatMarkdownCanonical', async () => {
     const mockChat = {
         id: '12345678',
         title: 'Quantum Physics Guide',
@@ -15,7 +15,7 @@ test('chat_formatter - formatContent markdown', () => {
         ]
     };
 
-    const res = ChatFormatter.formatContent(mockChat, 'markdown');
+    const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
     assert.strictEqual(res.ext, 'md');
     // Frontmatter structure assertions
     assert.ok(res.content.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
@@ -79,34 +79,6 @@ test('chat_formatter - convertHtmlToMarkdown converts html tables to GFM tables'
     assert.ok(md.includes('| --- | --- | --- |'), 'Table separator should be present');
     assert.ok(md.includes('| 状态 | 0 或 1 | 叠加态<br>\\|psi> |'), 'Table cells with pipe and br should be properly formatted');
     assert.ok(/\|\s*:?-{3,}:?\s*\|/.test(md), 'Matches table markdown regex');
-});
-
-test('chat_formatter - adjustHeadingHierarchy shifts headings outside code blocks', () => {
-    const md = '# Title\n## Subtitle\n```\n# Not a heading\n```\n### Inner';
-    const shifted = ChatFormatter.adjustHeadingHierarchy(md, 2);
-    const lines = shifted.split('\n');
-    assert.strictEqual(lines[0], '### Title');
-    assert.strictEqual(lines[1], '#### Subtitle');
-    assert.strictEqual(lines[3], '# Not a heading');
-    assert.strictEqual(lines[5], '##### Inner');
-});
-
-test('chat_formatter - cleanMessageBody strips placeholder urls and chips', () => {
-    const text = 'Hello world\nhttps://googleusercontent.com/immersive_entry_chip/12345\nNext line';
-    const cleaned = ChatFormatter.cleanMessageBody(text);
-    assert.ok(!cleaned.includes('immersive_entry_chip'), 'Immersive chip url should be stripped');
-    assert.ok(cleaned.includes('Hello world'));
-    assert.ok(cleaned.includes('Next line'));
-});
-
-test('chat_formatter - renderAttachments renders images and file attachments', () => {
-    const atts = [
-        { type: 'image', localName: 'assets/cat.png', alt: 'Cute cat', src: 'https://images.google.com/cat.png' },
-        { type: 'file', localName: 'files/data.csv', name: 'data.csv', title: 'Data File' }
-    ];
-    const rendered = ChatFormatter.renderAttachments(atts, true);
-    assert.ok(rendered.includes('![Cute cat](assets/cat.png)'), 'Image markdown should be rendered');
-    assert.ok(rendered.includes('- 📎 [Data File](files/data.csv)'), 'File attachment should be rendered');
 });
 
 test('engine - AsyncQueue supports concurrent queueing, abort signals, and closing', async () => {
@@ -211,7 +183,7 @@ test('engine - SessionRecovery.updateSessionStatus updates chrome.storage.local 
     }
 });
 
-test('chat_formatter - natural language prompt > 400 chars with code keywords is never mangled into javascript fence', () => {
+test('chat_formatter - natural language prompt > 400 chars with code keywords is never mangled into javascript fence', async () => {
     const longPrompt = 'Please explain the following architectural concepts in detail. In JavaScript and TypeScript, developers often ask why const and let were introduced to replace var in ES6, and how lexical scoping works with closures inside a function() declaration. ' + 'Extra discussion text for length padding. '.repeat(10);
     assert.ok(longPrompt.length > 400);
     const mockChat = {
@@ -222,40 +194,23 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
             { role: 'model', content: 'Here is the detailed explanation of const vs var.' }
         ]
     };
-    const res = ChatFormatter.formatContent(mockChat, 'markdown');
+    const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
     assert.ok(!res.content.includes('```javascript\nPlease explain'), 'Natural language prompt must not be wrapped in javascript code block');
     assert.ok(res.content.includes('Please explain the following architectural concepts'), 'Prompt content must remain plain text');
 });
 
-test('chat_formatter - raw userscript header is properly wrapped into javascript fence', () => {
-    const rawUserscript = '// ==UserScript==\n// @name Test\n// @match *://*/*\n// ==/UserScript==\nconsole.log(1);';
-    const mockChat = {
-        id: 'userscript_test',
-        title: 'Script Chat',
-        messages: [
-            { role: 'user', content: rawUserscript }
-        ]
-    };
-    const res = ChatFormatter.formatContent(mockChat, 'markdown');
-    assert.ok(res.content.includes('```javascript\n// ==UserScript=='), 'Raw userscript header should be wrapped in code fence');
-});
-
-test('chat_formatter - decoupled formatters export valid focused functions', () => {
-    const { toMarkdown, adjustHeadingHierarchy, renderAttachments, cleanMessageBody } = require('../src/core/engine/formatters/markdownFormatter.js');
+test('chat_formatter - decoupled formatters export valid focused functions', async () => {
     const { toOpenAIJson, toJsonStandard, toJsonRaw } = require('../src/core/engine/formatters/jsonFormatter.js');
     const { convertHtmlToMarkdown } = require('../src/core/engine/formatters/htmlConverter.js');
 
-    assert.strictEqual(typeof toMarkdown, 'function');
-    assert.strictEqual(typeof adjustHeadingHierarchy, 'function');
-    assert.strictEqual(typeof renderAttachments, 'function');
-    assert.strictEqual(typeof cleanMessageBody, 'function');
     assert.strictEqual(typeof toOpenAIJson, 'function');
     assert.strictEqual(typeof toJsonStandard, 'function');
     assert.strictEqual(typeof toJsonRaw, 'function');
     assert.strictEqual(typeof convertHtmlToMarkdown, 'function');
 
     const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
-    assert.ok(toMarkdown(testChat).includes('title: "Test"'));
+    assert.ok((await ChatFormatter.formatMarkdownCanonical(testChat)).content.includes('title: "Test"'));
+    assert.throws(() => ChatFormatter.formatContent(testChat, 'markdown'), /unsupported format/);
     assert.ok(toOpenAIJson(testChat).includes('"content": "hello"'));
     assert.ok(toJsonStandard(testChat).includes('"id": "c1"'));
     assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));

@@ -482,7 +482,7 @@ test('BatchWorker.resolveChat - detects cloud-deleted chat with BardErrorInfo: 1
 // ---------------------------------------------------------------------------
 // ChatFormatter - Empty Chat Markdown Notice
 // ---------------------------------------------------------------------------
-test('ChatFormatter.toMarkdown - renders clean notice for verified empty chats', () => {
+test('Canonical Markdown preserves the header for empty chats', async () => {
     const emptyChat = {
         id: 'cca63136d0630930',
         title: 'Used an Assistant feature',
@@ -490,12 +490,12 @@ test('ChatFormatter.toMarkdown - renders clean notice for verified empty chats',
         isEmpty: true
     };
 
-    const mdZh = ChatFormatter.toMarkdown(emptyChat, { lang: 'zh' });
+    const { content: mdZh } = await ChatFormatter.formatMarkdownCanonical(emptyChat, { lang: 'zh' });
     assert.ok(mdZh.includes('title: "Used an Assistant feature"'), 'Frontmatter title');
-    assert.ok(mdZh.includes('*（此会话无对话内容）*'), 'Chinese empty conversation notice');
+    assert.ok(!mdZh.includes('## 👤'), 'empty chat has no fabricated messages');
 
-    const mdEn = ChatFormatter.toMarkdown(emptyChat, { lang: 'en' });
-    assert.ok(mdEn.includes('*(Empty conversation)*'), 'English empty conversation notice');
+    const { content: mdEn } = await ChatFormatter.formatMarkdownCanonical(emptyChat, { lang: 'en' });
+    assert.ok(mdEn.includes('# Used an Assistant feature'), 'empty chat retains title');
 });
 
 // ---------------------------------------------------------------------------

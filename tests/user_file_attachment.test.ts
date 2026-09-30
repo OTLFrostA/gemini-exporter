@@ -99,7 +99,7 @@ test('user_file_attachment: extractUserFiles supports multiple diverse extension
     assert.strictEqual(extracted[2].fileName, 'dataset_random.custom');
 });
 
-test('user_file_attachment: ChatFormatter renders clean attachment link without URL leakage', () => {
+test('user_file_attachment: ChatFormatter renders clean attachment link without URL leakage', async () => {
     const mockChat = {
         id: '273175',
         title: 'Gemini 架构设计评估报告',
@@ -131,14 +131,14 @@ test('user_file_attachment: ChatFormatter renders clean attachment link without 
         ]
     };
 
-    const res = ChatFormatter.formatContent(mockChat, 'markdown');
-    assert.ok(res.content.includes('- 📎 [architecture.md](files/273175_architecture.md)'), 'Must render clean Markdown link for architecture.md');
-    assert.ok(res.content.includes('- 📎 [custom_data.xyz](files/273175_custom_data.xyz)'), 'Must render clean Markdown link for custom_data.xyz');
+    const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
+    assert.ok(res.content.includes('[architecture.md](assets/files/273175_architecture.md)'), 'Must render clean Markdown link for architecture.md');
+    assert.ok(res.content.includes('[custom\\_data.xyz](assets/files/273175_custom_data.xyz)'), 'Must render clean Markdown link for custom_data.xyz');
     assert.ok(!res.content.includes('https___contribution'), 'Must NOT contain sanitized URL artifacts in Markdown');
     assert.ok(!res.content.includes('[https://'), 'Must NOT render URL as link title');
 });
 
-test('user_file_attachment: ChatFormatter protects against accidentally leaked URL in title', () => {
+test('user_file_attachment: ChatFormatter protects against accidentally leaked URL in title', async () => {
     const mockChat = {
         id: '273175',
         title: 'Leaked URL Title Test',
@@ -157,8 +157,8 @@ test('user_file_attachment: ChatFormatter protects against accidentally leaked U
         ]
     };
 
-    const res = ChatFormatter.formatContent(mockChat, 'markdown');
+    const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
     assert.ok(!res.content.includes('[https://'), 'Leaked URL must be sanitized out of link text');
     assert.ok(res.content.includes('files/273175_leaked.json'), 'Must keep localName path');
-    assert.ok(res.content.includes('- 📎 [leaked.json](files/273175_leaked.json)'), 'Must fallback to basename of localName');
+    assert.ok(res.content.includes('[273175\\_leaked.json](assets/files/273175_leaked.json)'), 'Must fallback to basename of localName');
 });

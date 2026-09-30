@@ -1,16 +1,10 @@
 import {
     normalizeGeminiConversation,
     CanonicalHtmlRenderer,
+    renderCanonicalMarkdown,
+    type CanonicalMarkdownOptions,
     type RenderContext
 } from "../export/canonical/index.js";
-import {
-    adjustHeadingHierarchy,
-    renderAttachments,
-    cleanMessageBody,
-    sanitizeUserPrompt,
-    toMarkdown,
-    type MarkdownFormatterOptions
-} from "./formatters/markdownFormatter.js";
 import { convertHtmlToMarkdown } from "./formatters/htmlConverter.js";
 import {
     toOpenAIJson,
@@ -24,16 +18,11 @@ export interface FormattedResult {
     mime: string;
 }
 
-export type ChatFormatterOptions = MarkdownFormatterOptions;
-
 export interface ChatFormatterModule {
-    adjustHeadingHierarchy: (text: string, shift?: number) => string;
-    renderAttachments: (atts?: any[] | null, isEn?: boolean) => string;
     convertHtmlToMarkdown: (html?: string | null) => string;
-    cleanMessageBody: (text?: string | null) => string;
-    toMarkdown: (chat: any, opts?: ChatFormatterOptions) => string;
     toOpenAIJson: (chat: any) => string;
-    formatContent: (chat: any, formatType?: string, opts?: ChatFormatterOptions) => FormattedResult;
+    formatContent: (chat: any, formatType: string) => FormattedResult;
+    formatMarkdownCanonical: (chat: any, opts?: CanonicalMarkdownOptions) => Promise<FormattedResult>;
     formatHtmlCanonical: (chat: any, opts?: CanonicalHtmlExportOptions) => Promise<FormattedResult>;
 }
 
@@ -76,10 +65,19 @@ export async function formatHtmlCanonical(
     };
 }
 
+export async function formatMarkdownCanonical(
+    chat: any,
+    opts: CanonicalMarkdownOptions = {},
+): Promise<FormattedResult> {
+    const { bundle, diagnostics } = await normalizeGeminiConversation(chat);
+    const integrityError = diagnostics.find((d) => d.severity === 'error' && (d.code === 'MSG_BAD_ID' || d.code === 'MSG_DUP_ID'));
+    if (integrityError) throw new Error(`[${integrityError.code}] ${integrityError.message}`);
+    return { content: renderCanonicalMarkdown(bundle, opts), ext: 'md', mime: 'text/markdown' };
+}
+
 export function formatContent(
     chat: any,
-    formatType: string = 'markdown',
-    opts: ChatFormatterOptions = {}
+    formatType: string
 ): FormattedResult {
     if (formatType === 'json_openai') {
         return {
@@ -102,41 +100,23 @@ export function formatContent(
             mime: 'application/json'
         };
     }
-    if (formatType === 'markdown') {
-        return {
-            content: toMarkdown(chat, opts),
-            ext: 'md',
-            mime: 'text/markdown'
-        };
-    }
-    // NOTE: 'html' is intentionally not handled here. HTML export
-    // must go through the async formatHtmlCanonical() (Canonical AST path);
-    // the legacy sync toHtml() was removed.
     // Fail-closed: unsupported format must throw explicitly
     throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
 }
 
 export {
-    adjustHeadingHierarchy,
-    renderAttachments,
     convertHtmlToMarkdown,
-    cleanMessageBody,
-    sanitizeUserPrompt,
-    toMarkdown,
     toOpenAIJson,
     toJsonStandard,
     toJsonRaw
 };
 
 export const ChatFormatter: ChatFormatterModule = {
-    adjustHeadingHierarchy,
-    renderAttachments,
     convertHtmlToMarkdown,
-    cleanMessageBody,
-    toMarkdown,
     toOpenAIJson,
     formatContent,
-    formatHtmlCanonical
+    formatHtmlCanonical,
+    formatMarkdownCanonical
 };
 
 export default ChatFormatter;

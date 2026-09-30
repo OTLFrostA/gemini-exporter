@@ -19,3 +19,4 @@ export * from './normalizeGemini.js';
 export * from './renderCanonicalHtml.js';
 export * from './htmlMath.js';
 export * from './compat/index.js';
+export * from './renderCanonicalMarkdown.js';

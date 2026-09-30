@@ -1254,15 +1254,121 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/canonical-markdown-renderer.test.ts",
+      "domain": "canonical_markdown",
+      "classification": "P2",
+      "provenanceSource": "Canonical Markdown serialization and Gemini normalization production route contracts",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Covers all Canonical blocks/inlines, local resource references, Sources, and structured/Markdown producer routes.",
+      "testCount": 19,
+      "tests": [
+        {
+          "name": "Markdown header uses Canonical metadata and omits absent optional fields",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown paragraph preserves nested inline formatting and line breaks",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown emits headings and every message role in source order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown nested lists preserve ordered start and multiline item indentation",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown quotes and thematic breaks serialize without losing nested text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown code uses standard fences longer than embedded runs and labels metadata",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown inline and display math use the original LaTeX source",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown tables serialize alignment, captions, spans, pipes and newlines visibly",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown block and inline images use local storageRef only",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown missing and remote-only images remain visible without remote embedding",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown files use local links or a visible unavailable label",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown thought blocks contain nested Markdown inside details",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown inline citations link URLs and retain labels without URLs",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown message Sources preserve citation order after the body",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown unknown content remains visible as escaped text",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Gemini structuredContent reaches Canonical Markdown without using the string body",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Gemini Markdown fallback reaches Canonical Markdown with semantic formatting",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Markdown escapes unsafe links, local paths and YAML title boundaries",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Canonical Markdown rejects duplicate message IDs like HTML and PDF",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 22,
-    "totalTests": 195,
+    "totalSuites": 23,
+    "totalTests": 214,
     "byClassification": {
       "P0": 0,
       "P1": 17,
-      "P2": 176,
+      "P2": 195,
       "P3": 2,
       "P4": 0
     }

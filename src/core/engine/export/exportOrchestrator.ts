@@ -754,13 +754,14 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                             }
                         }
 
-                        // Production HTML export goes through the canonical
-                        // path (Conversation -> normalizeGeminiConversation ->
-                        // CanonicalHtmlRenderer); legacy toHtml() is no longer
-                        // the production route.
-                        const formatted = format === 'html'
-                            ? await ChatFormatter.formatHtmlCanonical(chat)
-                            : ChatFormatter.formatContent(chat, format);
+                        let formatted;
+                        if (format === 'html') {
+                            formatted = await ChatFormatter.formatHtmlCanonical(chat);
+                        } else if (format === 'markdown') {
+                            formatted = await ChatFormatter.formatMarkdownCanonical(chat);
+                        } else {
+                            formatted = ChatFormatter.formatContent(chat, format);
+                        }
 
                         const content = formatted.content;
                         const ext = formatted.ext;

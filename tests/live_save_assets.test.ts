@@ -197,10 +197,11 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
     const success = await LiveSaveCoordinator.executeLiveSave('c_aabbccddeeff0011', 'turn_complete');
     assert.strictEqual(success, true, 'Save should succeed even when image download fails');
 
-    // Verify Markdown file was written with original remote URL intact
+    // Verify Markdown visibly represents unavailable images without remote embedding
     const mdFile = 'Failing Image Test_ff0011.md';
     assert.ok(mdFile in writtenFiles);
-    assert.ok(writtenFiles[mdFile].includes('https://example.com/broken_image.jpg'));
+    assert.ok(writtenFiles[mdFile].includes('[Image unavailable: Broken]'));
+    assert.ok(!writtenFiles[mdFile].includes('https://example.com/broken_image.jpg'));
     // assets/ should have 0 files
     const assetFiles = Object.keys(writtenFiles).filter(k => k.startsWith('assets/'));
     assert.strictEqual(assetFiles.length, 0);

@@ -5,8 +5,7 @@
 // (writeConversationToDisk) and background/liveSaveHandler.ts
 // (handleLiveSaveViaHandle) each reimplemented writer setup, the
 // "CleanTitle_Cid6.md" filename format and the markdown fallback template.
-// Both call sites now converge here so the filename format and fallback
-// template cannot drift apart again.
+// Both call sites use the Canonical Markdown formatter and shared filename format.
 //
 // Context-specific orchestration stays at the call sites:
 // - content side keeps its own image asset pipeline (processAndSaveImages),
@@ -26,7 +25,7 @@ export interface LiveSaveWriteInput {
 
 export interface LiveSaveWriterDeps {
     fsWriterClass?: new (dirHandle: any, rootDir: string) => FsWriter;
-    formatter?: { toMarkdown?: (chat: any) => string } | null;
+    formatter?: Pick<typeof ChatFormatter, 'formatMarkdownCanonical'>;
     buildFileName?: (safeTitle: string, nid: string, ext: string) => string;
 }
 
@@ -55,17 +54,15 @@ export async function createLiveSaveWriter(
     };
 }
 
-export function formatLiveSaveMarkdown(
+export async function formatLiveSaveMarkdown(
     input: LiveSaveWriteInput,
     deps: LiveSaveWriterDeps = {}
-): { fileName: string; markdown: string } {
+): Promise<{ fileName: string; markdown: string }> {
     const buildFileName = deps.buildFileName || buildExportFileName;
-    const formatter = deps.formatter !== undefined ? deps.formatter : ChatFormatter;
+    const formatter = deps.formatter ?? ChatFormatter;
     const fileName = buildFileName(input.safeTitle, input.nid, 'md');
     const shaped = { ...input.chat, title: input.safeTitle, id: input.nid };
-    const markdown = (formatter as any)?.toMarkdown
-        ? (formatter as any).toMarkdown(shaped)
-        : `# ${input.safeTitle}\n\n${JSON.stringify(input.chat?.messages || [], null, 2)}`;
+    const { content: markdown } = await formatter.formatMarkdownCanonical(shaped);
     return { fileName, markdown };
 }
 
@@ -75,7 +72,7 @@ export async function writeLiveSaveMarkdown(
     deps: LiveSaveWriterDeps = {},
     opts: { fileName?: string } = {}
 ): Promise<string> {
-    const { fileName, markdown } = formatLiveSaveMarkdown(input, deps);
+    const { fileName, markdown } = await formatLiveSaveMarkdown(input, deps);
     const targetFile = opts.fileName || fileName;
     await writer.writeFile('', targetFile, markdown);
     return targetFile;

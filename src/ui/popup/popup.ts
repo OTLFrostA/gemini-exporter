@@ -283,9 +283,14 @@ function initPopupEvents(): void {
                     if (!chat.id) chat.id = _activeConvId;
                     chat.title = cleanTitle(chat.title || _activeChatTitle);
 
-                    const formatted = format === 'html'
-                        ? await ChatFormatter.formatHtmlCanonical(chat)
-                        : ChatFormatter.formatContent(chat, format);
+                    let formatted;
+                    if (format === 'html') {
+                        formatted = await ChatFormatter.formatHtmlCanonical(chat);
+                    } else if (format === 'markdown') {
+                        formatted = await ChatFormatter.formatMarkdownCanonical(chat);
+                    } else {
+                        formatted = ChatFormatter.formatContent(chat, format);
+                    }
                     const fileName = buildExportFileName(chat.title || chat.id, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
                     const url = URL.createObjectURL(blob);
