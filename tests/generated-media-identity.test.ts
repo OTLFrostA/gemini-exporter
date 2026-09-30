@@ -454,12 +454,12 @@ test('regression: extractTurnRequestId schema slot evidence and fallback boundar
     ];
     assert.equal(extractTurnRequestId(turnStringId), '9988776655443322', 'Extract from direct string idMeta');
 
-    // Case 4: Weak heuristic fallback bounded strictly within idMeta array (e.g. slot 2)
-    const turnFallbackInsideIdMeta = [
-        ["c_conv123", null, "r_fallback12345678"],
+    // Case 4: Non-schema slot (e.g. slot 2) must NOT be matched via .find() heuristic (returns undefined)
+    const turnUnconfirmedSlot = [
+        ["c_conv123", null, "r_unconfirmed12345678"],
         [1725302200, 0]
     ];
-    assert.equal(extractTurnRequestId(turnFallbackInsideIdMeta), 'fallback12345678', 'Extract from fallback within idMeta');
+    assert.equal(extractTurnRequestId(turnUnconfirmedSlot), undefined, 'Must return undefined for unconfirmed slot (no .find() heuristic)');
 
     // Case 5: "r_" in turn[1] (TIMESTAMP slot) or other non-id slots must be REJECTED
     const turnWithRInTimestamp = [

@@ -108,23 +108,18 @@ function extractUserTextFromPayload(userPayload: unknown): string {
  * - Alternate slot 0: `idMeta[0]` is "r_<requestId>" when conversationId is omitted.
  * - String idMeta: `idMeta` is directly "r_<requestId>".
  * - Never search in turn[1] (which is TIMESTAMP: [seconds, nanos]).
- * - A fallback scan is strictly restricted within `idMeta` array as a weak heuristic.
+ * - Strict contract: no heuristic .find() scanning; unconfirmed slots return undefined to prevent accidental dedupe.
  */
 function extractTurnRequestId(turn: any): string | undefined {
     const idMeta = turn?.[GEMINI_JSPB_SCHEMA.TURN.ID_META];
     let raw: string | undefined;
 
     if (Array.isArray(idMeta)) {
-        // 1. Primary schema slot: idMeta[1]
         const reqSlot = GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT;
         if (typeof idMeta[reqSlot] === "string" && idMeta[reqSlot].startsWith("r_")) {
             raw = idMeta[reqSlot];
         } else if (typeof idMeta[0] === "string" && idMeta[0].startsWith("r_")) {
-            // 2. Alternate slot 0 when conversation ID is omitted
             raw = idMeta[0];
-        } else {
-            // 3. Fallback scan strictly bounded within idMeta array (weak heuristic)
-            raw = idMeta.find((x: any) => typeof x === "string" && x.startsWith("r_"));
         }
     } else if (typeof idMeta === "string" && idMeta.startsWith("r_")) {
         raw = idMeta;
