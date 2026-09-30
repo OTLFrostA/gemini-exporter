@@ -57,6 +57,10 @@ def resource_references(content, html=False):
     # Fenced and inline code contain examples, not rendered resource references.
     content = re.sub(r'(?ms)^\s*(`{3,}|~{3,})[^\n]*\n.*?^\s*\1\s*$', '', content)
     content = re.sub(r'(`+).*?\1', '', content, flags=re.DOTALL)
+    # Formula brackets and function application are not rendered Markdown links.
+    content = re.sub(r'(?<!\\)\$\$.*?(?<!\\)\$\$', '', content, flags=re.DOTALL)
+    content = re.sub(r'(?<!\\)\$(?!\$).*?(?<!\\)\$', '', content, flags=re.DOTALL)
+    content = re.sub(r'\\\[.*?\\\]|\\\(.*?\\\)', '', content, flags=re.DOTALL)
     refs = []
     for match in re.finditer(r'!?\[(?:\\.|[^\]\\])*\]\(\s*(<[^>]*>|(?:\\.|[^\s)])+)\s*(?:["\'][^"\']*["\'])?\s*\)', content):
         dest = match.group(1)
