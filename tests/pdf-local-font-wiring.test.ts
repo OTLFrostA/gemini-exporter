@@ -155,7 +155,7 @@ function makeBundle() {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: { value: 'Test convo', source: 'derived', candidates: [] },
+            title: 'Test convo',
             createdAt: '2026-09-20T10:00:00Z',
             messages: [
                 {
@@ -364,7 +364,7 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
             schemaVersion: 1,
             conversation: {
                 key: { providerId: 'gemini', conversationId: 'local-font-cjk' },
-                title: { value: '本地字体 CJK 路径测试' },
+                title: '本地字体 CJK 路径测试',
                 createdAt: '2026-09-26T00:00:00Z',
                 updatedAt: '2026-09-26T00:10:00Z',
                 messages,

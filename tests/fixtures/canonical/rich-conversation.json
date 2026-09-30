@@ -6,16 +6,7 @@
       "accountId": "acct-demo",
       "conversationId": "conv-rich-001"
     },
-    "title": {
-      "value": "Canonical AST rich fixture",
-      "source": "provider",
-      "candidates": [
-        {
-          "value": "Canonical AST rich fixture",
-          "source": "provider"
-        }
-      ]
-    },
+    "title": "Canonical AST rich fixture",
     "observedAt": "2026-09-25T20:00:00-07:00",
     "messages": [
       {

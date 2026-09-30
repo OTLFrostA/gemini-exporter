@@ -482,7 +482,7 @@ export function renderCanonicalHtml(
         turnsHtml = `<div class="gem-empty-notice">${emptyMsg}</div>`;
     }
 
-    const rawTitle = bundle.conversation.title?.value ?? 'Gemini Conversation';
+    const rawTitle = bundle.conversation.title ?? 'Gemini Conversation';
     const safeTitle = escapeHtml(String(rawTitle).replace(/[\r\n]+/g, ' ').trim());
     const isLightTheme = options.theme === 'light';
 
@@ -552,7 +552,7 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
             resourceIds: [...urlByAssetId.keys()],
             omitted,
         };
-        const rawTitle = context.bundle.conversation.title?.value ?? 'conversation';
+        const rawTitle = context.bundle.conversation.title ?? 'conversation';
         const fileName = `${String(rawTitle).replace(/[\r\n]+/g, ' ').trim().replace(/[^\w\-. ]+/g, '').slice(0, 80) || 'conversation'}.html`;
 
         return {

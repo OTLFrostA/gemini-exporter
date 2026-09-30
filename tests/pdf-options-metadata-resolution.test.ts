@@ -104,7 +104,7 @@ function makeCaptureCompiler(state: { calls: number; bundle: any }) {
             state.bundle = payload?.bundle ?? null;
             const title =
                 payload?.document?.title ??
-                payload?.bundle?.conversation?.title?.value ??
+                payload?.bundle?.conversation?.title ??
                 'untitled';
             return { pdfBytes: buildTextPdf(String(title), bundleBodyText(payload?.bundle)), diagnostics: [] };
         }

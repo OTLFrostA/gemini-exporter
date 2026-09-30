@@ -32,7 +32,7 @@ function bundleWith(messages: any[], assets: any[] = []): any {
     return {
         conversation: {
             key: { providerId: 'gemini', accountId: 't', conversationId: 'c1' },
-            title: { value: 'T', source: 'default', candidates: [] },
+            title: 'T',
             messages,
         },
         assets,

@@ -8,12 +8,8 @@ import { createInlineByteStore, type InlineByteStore } from '../../assets/index.
 import type { Citation } from '../citations.js';
 import type {
     CanonicalConversationBundle,
-    CanonicalTitleSource,
-    ConversationTitle,
     MessageNode,
-    TitleCandidate,
 } from '../conversation.js';
-import { CANONICAL_TITLE_SOURCES } from '../conversation.js';
 import type { Diagnostic } from '../diagnostics.js';
 import type { JsonValue } from '../json.js';
 import type {
@@ -22,7 +18,7 @@ import type {
     ProviderNormalizer,
 } from '../normalizer.js';
 import type { SourceObservation } from '../provenance.js';
-import { resolveTitle } from '../titleAuthority.js';
+import { resolveTitle, TITLE_SOURCES, type TitleSource, type TitleCandidate } from '../titleAuthority.js';
 import { validateBundle } from '../validate.js';
 import { normalizeMessage, toIso } from './normalizeMessage.js';
 import { finalizeInlineAssetDigests } from './normalizeAssets.js';
@@ -49,9 +45,9 @@ export const KNOWN_CONVERSATION_FIELDS: ReadonlySet<string> = new Set([
     'messageCount', 'href', 'hasExplicitPrompt',
 ]);
 
-export function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): CanonicalTitleSource {
-    if (isStr(raw) && CANONICAL_TITLE_SOURCES.has(raw)) {
-        return raw as CanonicalTitleSource;
+export function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): TitleSource {
+    if (isStr(raw) && TITLE_SOURCES.has(raw)) {
+        return raw as TitleSource;
     }
     if (isStr(raw)) {
         diagnostics.push({
@@ -64,7 +60,7 @@ export function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): C
     return 'default';
 }
 
-export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[]): ConversationTitle | undefined {
+export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[]): string | undefined {
     const candidates: TitleCandidate[] = [];
     const titles = raw.titles;
     if (titles && typeof titles === 'object') {
@@ -81,7 +77,7 @@ export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[])
         }
     }
     if (!candidates.length) return undefined;
-    return resolveTitle(candidates);
+    return resolveTitle(candidates)?.value;
 }
 
 function observationSourceType(source: unknown): SourceObservation['sourceType'] {
@@ -208,7 +204,7 @@ export async function normalizeGeminiConversation(
             observedAt,
             messages,
             ...(raw.url || raw.href
-                ? { extensions: { gemini: { url: (raw.url || raw.href) as string } as JsonValue } }
+                ? { url: raw.url || raw.href }
                 : {}),
         },
         assets,

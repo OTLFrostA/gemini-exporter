@@ -143,7 +143,7 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', conversationId: 'mitex-compile-test' },
-            title: { value: 'MiTeX WASM Compilation Test' },
+            title: 'MiTeX WASM Compilation Test',
             createdAt: '2026-09-28T00:00:00Z',
             updatedAt: '2026-09-28T00:00:00Z',
             source: { format: 'gemini-web', rawPayloadAvailable: false },

@@ -66,7 +66,7 @@ function makeBundle(
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', conversationId: opts.conversationId ?? 'd8-evidence' },
-            title: { value: opts.title ?? 'D8 evidence' },
+            title: opts.title ?? 'D8 evidence',
             createdAt: '2026-09-26T00:00:00Z',
             updatedAt: '2026-09-26T00:10:00Z',
             messages,

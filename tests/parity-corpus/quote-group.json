@@ -6,16 +6,7 @@
       "accountId": "acct-parity-001",
       "conversationId": "conv-quote-group-001"
     },
-    "title": {
-      "value": "引用组：嵌套引用与列表",
-      "source": "provider",
-      "candidates": [
-        {
-          "value": "引用组：嵌套引用与列表",
-          "source": "provider"
-        }
-      ]
-    },
+    "title": "引用组：嵌套引用与列表",
     "createdAt": "2026-09-26T12:00:00-07:00",
     "updatedAt": "2026-09-26T12:04:00-07:00",
     "observedAt": "2026-09-26T12:04:00-07:00",

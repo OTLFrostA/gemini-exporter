@@ -1,7 +1,6 @@
 import type { Asset } from './assets.js';
 import type { BlockNode } from './blocks.js';
 import type { CanonicalConversationBundle, Conversation } from './conversation.js';
-import { CANONICAL_TITLE_SOURCES } from './conversation.js';
 import type { Diagnostic, DiagnosticSeverity } from './diagnostics.js';
 import type { InlineNode } from './inline.js';
 
@@ -83,12 +82,6 @@ function checkTimestamp(value: unknown, c: Collector, path: string): void {
     if (value === undefined || value === null) return;
     if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
         c.add('warning', 'TIME_INVALID', `unparseable timestamp at ${path}; unknown times must stay absent`, path);
-    }
-}
-
-function checkTitleSource(value: unknown, c: Collector, path: string): void {
-    if (typeof value !== 'string' || !CANONICAL_TITLE_SOURCES.has(value)) {
-        c.add('error', 'TITLE_BAD_SOURCE', `unknown title source at ${path}; must be a canonical enum value`, path);
     }
 }
 
@@ -217,14 +210,20 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     checkTimestamp(conversation.observedAt, c, 'conversation.observedAt');
 
     const title = (conversation as Record<string, unknown>).title;
-    if (isRecord(title)) {
-        checkTitleSource(title.source, c, 'conversation.title.source');
-        if (Array.isArray(title.candidates)) {
-            title.candidates.forEach((cand, i) => {
-                if (isRecord(cand)) {
-                    checkTitleSource(cand.source, c, `conversation.title.candidates[${i}].source`);
-                }
-            });
+    if (title !== undefined && (typeof title !== 'string' || !title.trim())) {
+        c.add('error', 'TITLE_INVALID', 'conversation.title must be a non-empty string', 'conversation.title');
+    }
+    const url = (conversation as Record<string, unknown>).url;
+    if (url !== undefined) {
+        if (typeof url !== 'string' || !url.trim()) {
+            c.add('error', 'URL_MALFORMED', 'conversation.url must be a non-empty URL string', 'conversation.url');
+        } else {
+            try {
+                new URL(url);
+                checkUrl(url, c, 'conversation.url');
+            } catch {
+                c.add('error', 'URL_MALFORMED', 'conversation.url must be a valid URL', 'conversation.url');
+            }
         }
     }
 

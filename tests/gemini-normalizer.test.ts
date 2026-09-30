@@ -206,16 +206,9 @@ test('unknown role and non-string content are preserved, never dropped', async (
 test('title authority: rpc candidate wins over takeout/sniff', async () => {
     const { bundle } = await normalizeGeminiConversation(sample);
     const title = bundle.conversation.title;
-    assert.strictEqual(title.value, 'RPC Authoritative Title');
-    assert.strictEqual(title.source, 'rpc');
-    const seen = new Set(title.candidates.map((c: any) => `${c.source}:${c.value}`));
-    assert.ok(seen.has('rpc:RPC Authoritative Title'));
-    assert.ok(seen.has('sniff:Sniff Observed Title'));
-    assert.ok(seen.has('takeout:Takeout Provisional Title'));
-
-    // A low-authority candidate alone must not claim a higher tier.
+    assert.strictEqual(title, 'RPC Authoritative Title');
     const low = await normalizeGeminiConversation({ id: 'x', titles: { takeout: 'T' }, messages: [] });
-    assert.strictEqual(low.bundle.conversation.title.source, 'takeout');
+    assert.strictEqual(low.bundle.conversation.title, 'T');
 });
 
 test('conversation timestamps and key are preserved', async () => {
@@ -225,7 +218,7 @@ test('conversation timestamps and key are preserved', async () => {
     assert.strictEqual(conv.key.conversationId, 'c_f2b_sample_001');
     assert.strictEqual(conv.createdAt, '2024-09-22T10:13:20.000Z');
     assert.strictEqual(conv.updatedAt, '2024-09-22T11:13:20.000Z');
-    assert.strictEqual(conv.extensions.gemini.url, 'https://gemini.google.com/share/f2b-sample');
+    assert.strictEqual(conv.url, 'https://gemini.google.com/share/f2b-sample');
 });
 
 test('turns shape flattens to user/assistant messages', async () => {
@@ -541,4 +534,28 @@ test('duplicate message IDs remain normalization error diagnostics', async () =>
         id: 'dup', messages: [{ id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' }],
     });
     assert.ok(diagnostics.some((d: any) => d.code === 'MSG_DUP_ID' && d.severity === 'error'));
+});
+
+test('title source coercion remains an ingestion concern', async () => {
+    const { bundle, diagnostics } = await normalizeGeminiConversation({
+        id: 'unknown-source', titles: { rpc: 'Good', 'future-provider-tier': 'Future' }, messages: [],
+    });
+    assert.strictEqual(bundle.conversation.title, 'Good');
+    assert.ok(diagnostics.some((d: any) => d.code === 'TITLE_SOURCE_COERCED'));
+    const unknown = await normalizeGeminiConversation({
+        id: 'unknown-source-only', title: 'Plain title', titleSource: 'future-provider-tier', messages: [],
+    });
+    assert.strictEqual(unknown.bundle.conversation.title, 'Plain title');
+    assert.ok(unknown.diagnostics.some((d: any) => d.code === 'TITLE_SOURCE_COERCED'));
+});
+
+test('conversation URL uses url before href and stays outside extensions', async () => {
+    for (const raw of [
+        { url: 'https://gemini.google.com/app/url', href: 'https://gemini.google.com/app/href' },
+        { href: 'https://gemini.google.com/app/href' },
+    ]) {
+        const { bundle } = await normalizeGeminiConversation({ id: 'url', messages: [], ...raw });
+        assert.strictEqual(bundle.conversation.url, raw.url || raw.href);
+        assert.strictEqual(bundle.conversation.extensions, undefined);
+    }
 });

@@ -6,16 +6,7 @@
       "accountId": "acct-parity-001",
       "conversationId": "conv-image-attachment-001"
     },
-    "title": {
-      "value": "图片与附件占位",
-      "source": "provider",
-      "candidates": [
-        {
-          "value": "图片与附件占位",
-          "source": "provider"
-        }
-      ]
-    },
+    "title": "图片与附件占位",
     "createdAt": "2026-09-26T13:00:00-07:00",
     "updatedAt": "2026-09-26T13:02:00-07:00",
     "observedAt": "2026-09-26T13:02:00-07:00",

@@ -1,6 +1,27 @@
-import type { CanonicalTitleSource, ConversationTitle, TitleCandidate } from './conversation.js';
+export type TitleSource =
+    | 'rpc'
+    | 'api-detail'
+    | 'dom'
+    | 'takeout'
+    | 'sniff'
+    | 'legacy'
+    | 'provider'
+    | 'user'
+    | 'derived'
+    | 'default';
 
-export const CANONICAL_TITLE_TIER_RANK: Record<CanonicalTitleSource, number> = {
+export const TITLE_SOURCES: ReadonlySet<string> = new Set([
+    'rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy',
+    'provider', 'user', 'derived', 'default',
+]);
+
+export interface TitleCandidate {
+    value: string;
+    source: TitleSource;
+    observedAt?: string;
+}
+
+export const CANONICAL_TITLE_TIER_RANK: Record<TitleSource, number> = {
     user: 60,
     rpc: 50,
     'api-detail': 50,
@@ -13,7 +34,7 @@ export const CANONICAL_TITLE_TIER_RANK: Record<CanonicalTitleSource, number> = {
     default: 0,
 };
 
-export function titleAuthorityRank(source: CanonicalTitleSource | string | null | undefined): number {
+export function titleAuthorityRank(source: TitleSource | string | null | undefined): number {
     if (!source) return CANONICAL_TITLE_TIER_RANK.default;
     const rank = (CANONICAL_TITLE_TIER_RANK as Record<string, number>)[source];
     return typeof rank === 'number' ? rank : CANONICAL_TITLE_TIER_RANK.default;
@@ -41,27 +62,6 @@ function pickWinner(candidates: TitleCandidate[]): TitleCandidate | undefined {
     return winner;
 }
 
-export function resolveTitle(candidates: TitleCandidate[]): ConversationTitle | undefined {
-    const usable = candidates.filter((c) => c && typeof c.value === 'string' && c.value.trim());
-    const winner = pickWinner(usable);
-    if (!winner) return undefined;
-    return {
-        value: winner.value,
-        source: winner.source,
-        candidates: [...candidates],
-    };
-}
-
-export function applyTitleCandidate(
-    title: ConversationTitle | undefined,
-    candidate: TitleCandidate,
-): ConversationTitle {
-    const candidates = [...(title?.candidates ?? [])];
-    if (candidate && typeof candidate.value === 'string' && candidate.value) {
-        candidates.push(candidate);
-    }
-    const resolved = resolveTitle(candidates);
-    if (resolved) return resolved;
-    if (title) return { value: title.value, source: title.source, candidates };
-    return { value: candidate.value, source: candidate.source, candidates };
+export function resolveTitle(candidates: TitleCandidate[]): TitleCandidate | undefined {
+    return pickWinner(candidates.filter((c) => c && typeof c.value === 'string' && c.value.trim()));
 }

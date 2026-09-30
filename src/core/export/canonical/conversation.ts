@@ -11,35 +11,6 @@ export interface ConversationKey {
     conversationId: string;
 }
 
-export type CanonicalTitleSource =
-    | 'rpc'
-    | 'api-detail'
-    | 'dom'
-    | 'takeout'
-    | 'sniff'
-    | 'legacy'
-    | 'provider'
-    | 'user'
-    | 'derived'
-    | 'default';
-
-export const CANONICAL_TITLE_SOURCES: ReadonlySet<string> = new Set([
-    'rpc', 'api-detail', 'dom', 'takeout', 'sniff', 'legacy',
-    'provider', 'user', 'derived', 'default',
-]);
-
-export interface TitleCandidate {
-    value: string;
-    source: CanonicalTitleSource;
-    observedAt?: string;
-}
-
-export interface ConversationTitle {
-    value: string;
-    source: CanonicalTitleSource;
-    candidates: TitleCandidate[];
-}
-
 export type MessageRole =
     | 'user'
     | 'assistant'
@@ -71,7 +42,8 @@ export interface MessageNode {
 
 export interface Conversation {
     key: ConversationKey;
-    title?: ConversationTitle;
+    title?: string;
+    url?: string;
 
     createdAt?: string;
     updatedAt?: string;

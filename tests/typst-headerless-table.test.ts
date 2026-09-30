@@ -16,7 +16,7 @@ function bundle(messages: any[], extra: any = {}) {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: { value: 'Table break strike', source: 'derived', candidates: [] },
+            title: 'Table break strike',
             createdAt: '2026-09-26T10:00:00Z',
             messages,
         },

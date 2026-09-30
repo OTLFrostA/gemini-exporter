@@ -6,16 +6,7 @@
       "accountId": "acct-parity-001",
       "conversationId": "conv-code-block-001"
     },
-    "title": {
-      "value": "代码块：多语言代码示例",
-      "source": "provider",
-      "candidates": [
-        {
-          "value": "代码块：多语言代码示例",
-          "source": "provider"
-        }
-      ]
-    },
+    "title": "代码块：多语言代码示例",
     "createdAt": "2026-09-26T11:00:00-07:00",
     "updatedAt": "2026-09-26T11:03:00-07:00",
     "observedAt": "2026-09-26T11:03:00-07:00",

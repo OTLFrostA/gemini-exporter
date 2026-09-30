@@ -9,7 +9,7 @@ function bundle(messages: any[], assets: any[] = []) {
         schemaVersion: 1,
         conversation: {
             key: { providerId: 'gemini', accountId: 't', conversationId: 'c1' },
-            title: { value: 't', source: 'derived', candidates: [] },
+            title: 't',
             createdAt: '2026-09-20T10:00:00Z',
             messages,
         },
