@@ -41,10 +41,6 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
                 case 'image': if (block.caption) walkInline(block.caption); break;
                 case 'file': if (block.description) walkInline(block.description); break;
                 case 'citationGroup': if (block.title) walkInline(block.title); break;
-                case 'toolCall':
-                case 'toolResult':
-                    if (block.displayBlocks) walkBlocks(block.displayBlocks);
-                    break;
                 case 'unknown':
                     if (block.fallbackBlocks) walkBlocks(block.fallbackBlocks);
                     break;
@@ -79,36 +75,6 @@ export interface CompanionPlacementPlan {
     diagnostics: Array<{ severity: 'warning'; code: string; message: string; path?: string }>;
 }
 
-function collectToolResultAssetIds(blocks: BlockNode[] | undefined): string[] {
-    const out: string[] = [];
-    const walk = (list: BlockNode[]): void => {
-        for (const block of list) {
-            if (block.type === 'toolResult') {
-                for (const id of block.assetIds ?? []) out.push(id);
-            }
-            switch (block.type) {
-                case 'list':
-                    for (const item of block.items) walk(item.blocks);
-                    break;
-                case 'quote':
-                case 'thought':
-                    walk(block.blocks);
-                    break;
-                case 'toolCall':
-                case 'toolResult':
-                    if (block.displayBlocks) walk(block.displayBlocks);
-                    break;
-                case 'unknown':
-                    if (block.fallbackBlocks) walk(block.fallbackBlocks);
-                    break;
-                default: break;
-            }
-        }
-    };
-    walk(blocks ?? []);
-    return out;
-}
-
 export function collectCompanionPlacements(
     message: MessageNode | undefined,
     bundle: CanonicalConversationBundle,
@@ -138,6 +104,5 @@ export function collectCompanionPlacements(
         else trailingFiles.push(id);
     };
     for (const id of message?.associatedAssetIds ?? []) consider(id, 'associatedAssetIds');
-    for (const id of collectToolResultAssetIds(message?.blocks)) consider(id, 'toolResult.assetIds');
     return { trailingImages, trailingFiles, ignored, diagnostics };
 }

@@ -236,28 +236,6 @@ test('contract: unknown block fallback is visible on both renderers', () => {
     assertNoSilentDrop(htmlDiags, typstDiags, 'unknown fallback');
 });
 
-test('contract: tool result attachment is placed on both renderers', () => {
-    const s = 'SENTINEL_TOOL_Z8X7';
-    const blocks = [
-        para(s),
-        { type: 'toolResult', callId: 'call1', toolName: 'imageGen', assetIds: ['toolimg'], status: 'completed' },
-    ];
-    const { html, htmlDiags, payload, typstDiags } = renderBoth(
-        blocks,
-        { assets: [imgAsset('toolimg', 'toolimg.png')] },
-    );
-    assert.ok(html.includes(s), 'html keeps surrounding text');
-    assert.ok(html.includes('href="https://img.test/toolimg"'), 'html companion card links the tool result image');
-    const jt = typstText(payload);
-    assert.ok(jt.includes(s), 'typst keeps surrounding text');
-    const attachments = payload.messages[0].attachments ?? [];
-    assert.ok(
-        attachments.some((a: any) => a.type === 'image' && a.asset === 'assets/toolimg.png'),
-        `typst attachments place the tool result image, got: ${JSON.stringify(attachments)}`,
-    );
-    assertNoSilentDrop(htmlDiags, typstDiags, 'tool result attachment');
-});
-
 // ------------------------------------------------- Item 15: architecture gate
 
 const HTML_RENDERER_FILE = 'src/core/export/canonical/renderCanonicalHtml.ts';
