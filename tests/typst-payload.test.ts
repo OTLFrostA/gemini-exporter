@@ -230,17 +230,17 @@ test('heading level passes through without clamping', async () => {
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_HEADING_CLAMP'));
 });
 
-test('branched conversation without selected leaf renders every message in source order', async () => {
+test('conversation renders every message in source order', async () => {
     const b = bundle([
         msg('root', 'user', [{ type: 'paragraph', children: [{ type: 'text', text: 'q' }] }]),
-        msg('a', 'assistant', [{ type: 'paragraph', children: [{ type: 'text', text: 'a1' }] }], { parentId: 'root' }),
-        msg('b', 'assistant', [{ type: 'paragraph', children: [{ type: 'text', text: 'a2' }] }], { parentId: 'root' }),
+        msg('a', 'assistant', [{ type: 'paragraph', children: [{ type: 'text', text: 'a1' }] }]),
+        msg('b', 'assistant', [{ type: 'paragraph', children: [{ type: 'text', text: 'a2' }] }]),
     ]);
     const { payload } = toTypstPayload(b, opts);
     assert.deepStrictEqual(payload.messages.map((m: any) => m.id), ['root', 'a', 'b']);
 
     const leaf = toTypstPayload(b, { ...opts, leafMessageId: 'b' });
-    assert.deepStrictEqual(leaf.payload.messages.map((m: any) => m.id), ['root', 'b']);
+    assert.deepStrictEqual(leaf.payload.messages.map((m: any) => m.id), ['root', 'a', 'b']);
 });
 
 test('hostile text stays inert JSON data (injection red line)', async () => {

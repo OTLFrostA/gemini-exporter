@@ -17,12 +17,10 @@
       ]
     },
     "observedAt": "2026-09-25T20:00:00-07:00",
-    "selectedLeafMessageId": "a2",
     "messages": [
       {
         "id": "u1",
         "role": "user",
-        "siblingIndex": 0,
         "blocks": [
           {
             "id": "u1:b0",
@@ -38,7 +36,6 @@
       },
       {
         "id": "a1",
-        "parentId": "u1",
         "role": "assistant",
         "citationIds": [
           "cite-1"
@@ -305,7 +302,6 @@
       },
       {
         "id": "u2",
-        "parentId": "a1",
         "role": "user",
         "blocks": [
           {
@@ -322,7 +318,6 @@
       },
       {
         "id": "a2",
-        "parentId": "u2",
         "role": "assistant",
         "blocks": [
           {

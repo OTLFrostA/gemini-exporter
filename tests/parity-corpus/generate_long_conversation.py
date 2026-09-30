@@ -5,7 +5,7 @@ Deterministic (seeded) so the committed JSON is reproducible. The fixture is
 NOT hand-written: regenerate with
     python3 generate_long_conversation.py --messages 121 --out long-conversation-121.json
 
-Every message carries a unique id/block id, a linear parentId chain, and
+Every message carries a unique id/block id, source array order, and
 mixed Chinese/English content so the HTML/PDF parity harness has realistic
 long-document material (page breaks, repeated headings, mid-document tables
 and code blocks).
@@ -16,7 +16,7 @@ import random
 
 USER_TEMPLATES = [
     "第 {n} 轮：请解释一下增量同步里「上次扫描的最大时间戳」作为停止条件的含义。",
-    "Round {n}: what happens when the message tree has a branching sibling?",
+    "Round {n}: how is message order preserved during export?",
     "第 {n} 轮：如果导出中途用户取消了，失败的条目应该怎么标记？",
     "Round {n}: compare the trade-offs of bundling CJK fonts vs local-first loading.",
     "第 {n} 轮：表格超过一页时，表头应该怎么处理？",
@@ -26,9 +26,8 @@ ASSISTANT_TEMPLATES = [
     "第 {n} 轮回答：停止条件以「上次扫描的最大时间戳」为准——扫描按时间倒序进行，"
     "一旦遇到更新时间早于（或等于）该时间戳且内容未变更的记录即停止，保证增量扫描收敛。",
 
-    "Round {n} answer: when a message has multiple children (branches), only the "
-    "selected leaf path is exported. Sibling branches stay in storage but are excluded "
-    "from the render tree, and `selectedLeafMessageId` records which path won.",
+    "Round {n} answer: messages are exported in source array order. "
+    "The message array is the sole authoritative order.",
 
     "第 {n} 轮回答：取消是协作式的——导出循环每次迭代检查取消标志；"
     "已标记失败的条目保持 {{failed}} 状态并可重试，绝不能被标成成功。",
@@ -99,7 +98,6 @@ def build_message(idx, role, rng):
     msg = {
         "id": mid,
         "role": role,
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:%02d:%02d-07:00" % ((idx // 60) % 60, idx % 60),
         "blocks": blocks,
@@ -116,7 +114,6 @@ def main():
 
     rng = random.Random(args.seed)
     messages = []
-    prev_id = None
     user_i = 0
     asst_i = 0
     for i in range(args.messages):
@@ -128,9 +125,6 @@ def main():
             asst_i += 1
             idx = asst_i
         msg = build_message(idx, role, rng)
-        if prev_id is not None:
-            msg["parentId"] = prev_id
-        prev_id = msg["id"]
         messages.append(msg)
 
     bundle = {
@@ -151,7 +145,6 @@ def main():
             "createdAt": "2026-09-26T14:00:00-07:00",
             "updatedAt": "2026-09-26T16:02:00-07:00",
             "observedAt": "2026-09-26T16:02:00-07:00",
-            "selectedLeafMessageId": prev_id,
             "messages": messages,
         },
         "assets": [],

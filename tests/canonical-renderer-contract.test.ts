@@ -235,3 +235,102 @@ test('contract: unknown block fallback is visible on both renderers', () => {
     assertNoSilentDrop(htmlDiags, typstDiags, 'unknown fallback');
 });
 
+
+test('shared collectReferencedAssetIds sees inline images everywhere', () => {
+    const blocks: any = [
+        {
+            type: 'paragraph',
+            children: [
+                { type: 'text', text: 'before ' },
+                { type: 'image', assetId: 'img-para', alt: 'para' },
+                { type: 'text', text: ' after' },
+            ],
+        },
+        {
+            type: 'heading',
+            level: 2,
+            children: [{ type: 'image', assetId: 'img-heading', alt: 'h' }],
+        },
+        {
+            type: 'table',
+            headerRows: [],
+            rows: [
+                { cells: [{ children: [{ type: 'image', assetId: 'img-cell', alt: 'c' }] }] },
+            ],
+        },
+        { type: 'image', assetId: 'img-block', alt: 'b' },
+    ];
+    const ids = require('../src/core/export/canonical/index.js').collectReferencedAssetIds(blocks);
+    assert.deepStrictEqual(
+        [...ids].sort(),
+        ['img-block', 'img-cell', 'img-heading', 'img-para'],
+    );
+});
+
+test('inline image assets enter the HTML companion resource plan', async () => {
+    const bundle: any = {
+        schemaVersion: 1,
+        conversation: {
+            key: { providerId: 'gemini', conversationId: 'inline_asset_001' },
+            messages: [
+                {
+                    id: 'm-1',
+                    role: 'model',
+                    blocks: [
+                        {
+                            type: 'paragraph',
+                            children: [
+                                { type: 'text', text: 'diagram: ' },
+                                { type: 'image', assetId: 'img-1', alt: 'architecture' },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        assets: [
+            { id: 'img-1', kind: 'image', mimeType: 'image/png', status: 'available', storageRef: 'assets/img-1.png' },
+        ],
+        citations: [],
+    };
+    const context: any = {
+        bundle,
+        locale: 'en',
+        signal: new AbortController().signal,
+        reportProgress() {},
+        assets: {
+            resolve: async (assetId: string) => {
+                const asset = bundle.assets.find((a: any) => a.id === assetId);
+                if (!asset) return null;
+                return { asset, renderUrl: `assets/${assetId}.png` };
+            },
+        },
+    };
+    const renderer = new (require('../src/core/export/canonical/index.js').CanonicalHtmlRenderer)({});
+    const artifact = await renderer.render(context);
+    assert.ok(
+        artifact.companionResourceIds.includes('img-1'),
+        'inline image asset must be in companionResourceIds',
+    );
+    assert.ok(
+        artifact.companionPlan.resourceIds.includes('img-1'),
+        'inline image asset must be in the companion plan',
+    );
+    assert.ok(artifact.content.includes('<img'), 'html references the image');
+    assert.ok(
+        artifact.content.includes('assets/img-1.png'),
+        'html uses the resolved asset url',
+    );
+});
+
+
+test('HTML renders all messages in authoritative source order', () => {
+    const { renderCanonicalHtml } = require('../src/core/export/canonical/index.js');
+    const bundle = { schemaVersion: 1, conversation: {
+        key: { providerId: 'gemini', accountId: 'a', conversationId: 'order' },
+        messages: ['second', 'first'].map((id) => ({ id, role: 'user', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: id }] }] })),
+    }, assets: [], citations: [] };
+    const { html, projectedMessageIds } = renderCanonicalHtml(bundle);
+    assert.deepStrictEqual(projectedMessageIds, ['second', 'first']);
+    assert.ok(html.indexOf('second') < html.indexOf('first'));
+});

@@ -345,7 +345,7 @@ export function toTypstPayload(
         label: citationDisplayLabel(citation, index + 1),
         url: citation.url,
     }]));
-    const messages = (options.projectedMessages ?? projectConversation(bundle, { leafMessageId: options.leafMessageId }).messages)
+    const messages = (options.projectedMessages ?? projectConversation(bundle).messages)
         .map(message => toRenderMessage(message, bundle, assets, citations, renderOptions, diagnostics));
 
     const observed = bundle.conversation.updatedAt ?? bundle.conversation.createdAt ?? bundle.conversation.observedAt ?? '';

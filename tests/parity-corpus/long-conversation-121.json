@@ -19,12 +19,10 @@
     "createdAt": "2026-09-26T14:00:00-07:00",
     "updatedAt": "2026-09-26T16:02:00-07:00",
     "observedAt": "2026-09-26T16:02:00-07:00",
-    "selectedLeafMessageId": "u61",
     "messages": [
       {
         "id": "u1",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:01-07:00",
         "blocks": [
@@ -43,7 +41,6 @@
       {
         "id": "a1",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:01-07:00",
         "blocks": [
@@ -57,13 +54,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u1"
+        ]
       },
       {
         "id": "u2",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:02-07:00",
         "blocks": [
@@ -77,13 +72,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a1"
+        ]
       },
       {
         "id": "a2",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:02-07:00",
         "blocks": [
@@ -97,13 +90,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u2"
+        ]
       },
       {
         "id": "u3",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:03-07:00",
         "blocks": [
@@ -113,17 +104,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 2: what happens when the message tree has a branching sibling?"
+                "text": "Round 2: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a2"
+        ]
       },
       {
         "id": "a3",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:03-07:00",
         "blocks": [
@@ -137,13 +126,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u3"
+        ]
       },
       {
         "id": "u4",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:04-07:00",
         "blocks": [
@@ -153,17 +140,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 2: what happens when the message tree has a branching sibling?"
+                "text": "Round 2: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a3"
+        ]
       },
       {
         "id": "a4",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:04-07:00",
         "blocks": [
@@ -177,13 +162,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u4"
+        ]
       },
       {
         "id": "u5",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:05-07:00",
         "blocks": [
@@ -197,13 +180,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a4"
+        ]
       },
       {
         "id": "a5",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:05-07:00",
         "blocks": [
@@ -217,13 +198,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u5"
+        ]
       },
       {
         "id": "u6",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:06-07:00",
         "blocks": [
@@ -237,13 +216,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a5"
+        ]
       },
       {
         "id": "a6",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:06-07:00",
         "blocks": [
@@ -253,17 +230,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 3 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 3 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u6"
+        ]
       },
       {
         "id": "u7",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:07-07:00",
         "blocks": [
@@ -273,7 +248,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 4: what happens when the message tree has a branching sibling?"
+                "text": "Round 4: how is message order preserved during export?"
               }
             ]
           },
@@ -317,13 +292,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a6"
+        ]
       },
       {
         "id": "a7",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:07-07:00",
         "blocks": [
@@ -333,17 +306,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 4 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 4 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u7"
+        ]
       },
       {
         "id": "u8",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:08-07:00",
         "blocks": [
@@ -357,13 +328,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a7"
+        ]
       },
       {
         "id": "a8",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:08-07:00",
         "blocks": [
@@ -377,13 +346,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u8"
+        ]
       },
       {
         "id": "u9",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:09-07:00",
         "blocks": [
@@ -397,13 +364,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a8"
+        ]
       },
       {
         "id": "a9",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:09-07:00",
         "blocks": [
@@ -417,13 +382,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u9"
+        ]
       },
       {
         "id": "u10",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:10-07:00",
         "blocks": [
@@ -437,13 +400,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a9"
+        ]
       },
       {
         "id": "a10",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:10-07:00",
         "blocks": [
@@ -453,7 +414,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 5 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 5 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           },
@@ -463,13 +424,11 @@
             "language": "python",
             "code": "def round_5():\n    return 'parity-check-5'\n"
           }
-        ],
-        "parentId": "u10"
+        ]
       },
       {
         "id": "u11",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:11-07:00",
         "blocks": [
@@ -483,13 +442,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a10"
+        ]
       },
       {
         "id": "a11",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:11-07:00",
         "blocks": [
@@ -503,13 +460,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u11"
+        ]
       },
       {
         "id": "u12",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:12-07:00",
         "blocks": [
@@ -523,13 +478,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a11"
+        ]
       },
       {
         "id": "a12",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:12-07:00",
         "blocks": [
@@ -539,17 +492,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 6 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 6 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u12"
+        ]
       },
       {
         "id": "u13",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:13-07:00",
         "blocks": [
@@ -559,17 +510,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 7: what happens when the message tree has a branching sibling?"
+                "text": "Round 7: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a12"
+        ]
       },
       {
         "id": "a13",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:13-07:00",
         "blocks": [
@@ -583,13 +532,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u13"
+        ]
       },
       {
         "id": "u14",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:14-07:00",
         "blocks": [
@@ -643,13 +590,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a13"
+        ]
       },
       {
         "id": "a14",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:14-07:00",
         "blocks": [
@@ -663,13 +608,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u14"
+        ]
       },
       {
         "id": "u15",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:15-07:00",
         "blocks": [
@@ -683,13 +626,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a14"
+        ]
       },
       {
         "id": "a15",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:15-07:00",
         "blocks": [
@@ -759,13 +700,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u15"
+        ]
       },
       {
         "id": "u16",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:16-07:00",
         "blocks": [
@@ -775,17 +714,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 8: what happens when the message tree has a branching sibling?"
+                "text": "Round 8: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a15"
+        ]
       },
       {
         "id": "a16",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:16-07:00",
         "blocks": [
@@ -799,13 +736,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u16"
+        ]
       },
       {
         "id": "u17",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:17-07:00",
         "blocks": [
@@ -819,13 +754,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a16"
+        ]
       },
       {
         "id": "a17",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:17-07:00",
         "blocks": [
@@ -839,13 +772,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u17"
+        ]
       },
       {
         "id": "u18",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:18-07:00",
         "blocks": [
@@ -859,13 +790,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a17"
+        ]
       },
       {
         "id": "a18",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:18-07:00",
         "blocks": [
@@ -879,13 +808,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u18"
+        ]
       },
       {
         "id": "u19",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:19-07:00",
         "blocks": [
@@ -899,13 +826,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a18"
+        ]
       },
       {
         "id": "a19",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:19-07:00",
         "blocks": [
@@ -919,13 +844,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u19"
+        ]
       },
       {
         "id": "u20",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:20-07:00",
         "blocks": [
@@ -939,13 +862,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a19"
+        ]
       },
       {
         "id": "a20",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:20-07:00",
         "blocks": [
@@ -955,7 +876,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 10 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 10 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           },
@@ -965,13 +886,11 @@
             "language": "python",
             "code": "def round_10():\n    return 'parity-check-10'\n"
           }
-        ],
-        "parentId": "u20"
+        ]
       },
       {
         "id": "u21",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:21-07:00",
         "blocks": [
@@ -1025,13 +944,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a20"
+        ]
       },
       {
         "id": "a21",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:21-07:00",
         "blocks": [
@@ -1051,13 +968,11 @@
             "notation": "latex",
             "source": "\\sum_{i=1}^{11} i = 66"
           }
-        ],
-        "parentId": "u21"
+        ]
       },
       {
         "id": "u22",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:22-07:00",
         "blocks": [
@@ -1071,13 +986,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a21"
+        ]
       },
       {
         "id": "a22",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:22-07:00",
         "blocks": [
@@ -1087,17 +1000,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 11 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 11 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u22"
+        ]
       },
       {
         "id": "u23",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:23-07:00",
         "blocks": [
@@ -1111,13 +1022,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a22"
+        ]
       },
       {
         "id": "a23",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:23-07:00",
         "blocks": [
@@ -1131,13 +1040,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u23"
+        ]
       },
       {
         "id": "u24",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:24-07:00",
         "blocks": [
@@ -1151,13 +1058,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a23"
+        ]
       },
       {
         "id": "a24",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:24-07:00",
         "blocks": [
@@ -1167,17 +1072,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 12 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 12 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u24"
+        ]
       },
       {
         "id": "u25",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:25-07:00",
         "blocks": [
@@ -1191,13 +1094,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a24"
+        ]
       },
       {
         "id": "a25",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:25-07:00",
         "blocks": [
@@ -1207,17 +1108,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 13 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 13 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u25"
+        ]
       },
       {
         "id": "u26",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:26-07:00",
         "blocks": [
@@ -1227,17 +1126,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 13: what happens when the message tree has a branching sibling?"
+                "text": "Round 13: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a25"
+        ]
       },
       {
         "id": "a26",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:26-07:00",
         "blocks": [
@@ -1247,17 +1144,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 13 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 13 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u26"
+        ]
       },
       {
         "id": "u27",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:27-07:00",
         "blocks": [
@@ -1267,17 +1162,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 14: what happens when the message tree has a branching sibling?"
+                "text": "Round 14: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a26"
+        ]
       },
       {
         "id": "a27",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:27-07:00",
         "blocks": [
@@ -1291,13 +1184,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u27"
+        ]
       },
       {
         "id": "u28",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:28-07:00",
         "blocks": [
@@ -1351,13 +1242,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a27"
+        ]
       },
       {
         "id": "a28",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:28-07:00",
         "blocks": [
@@ -1371,13 +1260,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u28"
+        ]
       },
       {
         "id": "u29",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:29-07:00",
         "blocks": [
@@ -1391,13 +1278,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a28"
+        ]
       },
       {
         "id": "a29",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:29-07:00",
         "blocks": [
@@ -1411,13 +1296,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u29"
+        ]
       },
       {
         "id": "u30",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:30-07:00",
         "blocks": [
@@ -1431,13 +1314,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a29"
+        ]
       },
       {
         "id": "a30",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:30-07:00",
         "blocks": [
@@ -1447,7 +1328,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 15 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 15 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           },
@@ -1513,13 +1394,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u30"
+        ]
       },
       {
         "id": "u31",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:31-07:00",
         "blocks": [
@@ -1533,13 +1412,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a30"
+        ]
       },
       {
         "id": "a31",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:31-07:00",
         "blocks": [
@@ -1553,13 +1430,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u31"
+        ]
       },
       {
         "id": "u32",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:32-07:00",
         "blocks": [
@@ -1573,13 +1448,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a31"
+        ]
       },
       {
         "id": "a32",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:32-07:00",
         "blocks": [
@@ -1593,13 +1466,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u32"
+        ]
       },
       {
         "id": "u33",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:33-07:00",
         "blocks": [
@@ -1613,13 +1484,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a32"
+        ]
       },
       {
         "id": "a33",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:33-07:00",
         "blocks": [
@@ -1629,17 +1498,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 17 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 17 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u33"
+        ]
       },
       {
         "id": "u34",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:34-07:00",
         "blocks": [
@@ -1653,13 +1520,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a33"
+        ]
       },
       {
         "id": "a34",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:34-07:00",
         "blocks": [
@@ -1673,13 +1538,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u34"
+        ]
       },
       {
         "id": "u35",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:35-07:00",
         "blocks": [
@@ -1733,13 +1596,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a34"
+        ]
       },
       {
         "id": "a35",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:35-07:00",
         "blocks": [
@@ -1753,13 +1614,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u35"
+        ]
       },
       {
         "id": "u36",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:36-07:00",
         "blocks": [
@@ -1773,13 +1632,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a35"
+        ]
       },
       {
         "id": "a36",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:36-07:00",
         "blocks": [
@@ -1793,13 +1650,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u36"
+        ]
       },
       {
         "id": "u37",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:37-07:00",
         "blocks": [
@@ -1813,13 +1668,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a36"
+        ]
       },
       {
         "id": "a37",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:37-07:00",
         "blocks": [
@@ -1829,17 +1682,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 19 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 19 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u37"
+        ]
       },
       {
         "id": "u38",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:38-07:00",
         "blocks": [
@@ -1849,17 +1700,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 19: what happens when the message tree has a branching sibling?"
+                "text": "Round 19: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a37"
+        ]
       },
       {
         "id": "a38",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:38-07:00",
         "blocks": [
@@ -1873,13 +1722,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u38"
+        ]
       },
       {
         "id": "u39",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:39-07:00",
         "blocks": [
@@ -1893,13 +1740,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a38"
+        ]
       },
       {
         "id": "a39",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:39-07:00",
         "blocks": [
@@ -1913,13 +1758,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u39"
+        ]
       },
       {
         "id": "u40",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:40-07:00",
         "blocks": [
@@ -1933,13 +1776,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a39"
+        ]
       },
       {
         "id": "a40",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:40-07:00",
         "blocks": [
@@ -1949,7 +1790,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 20 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 20 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           },
@@ -1959,13 +1800,11 @@
             "language": "python",
             "code": "def round_20():\n    return 'parity-check-20'\n"
           }
-        ],
-        "parentId": "u40"
+        ]
       },
       {
         "id": "u41",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:41-07:00",
         "blocks": [
@@ -1979,13 +1818,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a40"
+        ]
       },
       {
         "id": "a41",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:41-07:00",
         "blocks": [
@@ -1999,13 +1836,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u41"
+        ]
       },
       {
         "id": "u42",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:42-07:00",
         "blocks": [
@@ -2015,7 +1850,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 21: what happens when the message tree has a branching sibling?"
+                "text": "Round 21: how is message order preserved during export?"
               }
             ]
           },
@@ -2059,13 +1894,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a41"
+        ]
       },
       {
         "id": "a42",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:42-07:00",
         "blocks": [
@@ -2085,13 +1918,11 @@
             "notation": "latex",
             "source": "\\sum_{i=1}^{21} i = 231"
           }
-        ],
-        "parentId": "u42"
+        ]
       },
       {
         "id": "u43",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:43-07:00",
         "blocks": [
@@ -2105,13 +1936,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a42"
+        ]
       },
       {
         "id": "a43",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:43-07:00",
         "blocks": [
@@ -2125,13 +1954,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u43"
+        ]
       },
       {
         "id": "u44",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:44-07:00",
         "blocks": [
@@ -2145,13 +1972,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a43"
+        ]
       },
       {
         "id": "a44",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:44-07:00",
         "blocks": [
@@ -2165,13 +1990,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u44"
+        ]
       },
       {
         "id": "u45",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:45-07:00",
         "blocks": [
@@ -2185,13 +2008,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a44"
+        ]
       },
       {
         "id": "a45",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:45-07:00",
         "blocks": [
@@ -2261,13 +2082,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u45"
+        ]
       },
       {
         "id": "u46",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:46-07:00",
         "blocks": [
@@ -2281,13 +2100,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a45"
+        ]
       },
       {
         "id": "a46",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:46-07:00",
         "blocks": [
@@ -2301,13 +2118,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u46"
+        ]
       },
       {
         "id": "u47",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:47-07:00",
         "blocks": [
@@ -2321,13 +2136,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a46"
+        ]
       },
       {
         "id": "a47",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:47-07:00",
         "blocks": [
@@ -2341,13 +2154,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u47"
+        ]
       },
       {
         "id": "u48",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:48-07:00",
         "blocks": [
@@ -2361,13 +2172,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a47"
+        ]
       },
       {
         "id": "a48",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:48-07:00",
         "blocks": [
@@ -2381,13 +2190,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u48"
+        ]
       },
       {
         "id": "u49",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:49-07:00",
         "blocks": [
@@ -2441,13 +2248,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a48"
+        ]
       },
       {
         "id": "a49",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:49-07:00",
         "blocks": [
@@ -2461,13 +2266,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u49"
+        ]
       },
       {
         "id": "u50",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:50-07:00",
         "blocks": [
@@ -2481,13 +2284,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a49"
+        ]
       },
       {
         "id": "a50",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:50-07:00",
         "blocks": [
@@ -2497,7 +2298,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 25 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 25 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           },
@@ -2507,13 +2308,11 @@
             "language": "python",
             "code": "def round_25():\n    return 'parity-check-25'\n"
           }
-        ],
-        "parentId": "u50"
+        ]
       },
       {
         "id": "u51",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:51-07:00",
         "blocks": [
@@ -2523,17 +2322,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 26: what happens when the message tree has a branching sibling?"
+                "text": "Round 26: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a50"
+        ]
       },
       {
         "id": "a51",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:51-07:00",
         "blocks": [
@@ -2547,13 +2344,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u51"
+        ]
       },
       {
         "id": "u52",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:52-07:00",
         "blocks": [
@@ -2567,13 +2362,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a51"
+        ]
       },
       {
         "id": "a52",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:52-07:00",
         "blocks": [
@@ -2587,13 +2380,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u52"
+        ]
       },
       {
         "id": "u53",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:53-07:00",
         "blocks": [
@@ -2607,13 +2398,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a52"
+        ]
       },
       {
         "id": "a53",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:53-07:00",
         "blocks": [
@@ -2627,13 +2416,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u53"
+        ]
       },
       {
         "id": "u54",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:54-07:00",
         "blocks": [
@@ -2647,13 +2434,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a53"
+        ]
       },
       {
         "id": "a54",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:54-07:00",
         "blocks": [
@@ -2667,13 +2452,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u54"
+        ]
       },
       {
         "id": "u55",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:55-07:00",
         "blocks": [
@@ -2683,17 +2466,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 28: what happens when the message tree has a branching sibling?"
+                "text": "Round 28: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a54"
+        ]
       },
       {
         "id": "a55",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:55-07:00",
         "blocks": [
@@ -2707,13 +2488,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u55"
+        ]
       },
       {
         "id": "u56",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:56-07:00",
         "blocks": [
@@ -2723,7 +2502,7 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 28: what happens when the message tree has a branching sibling?"
+                "text": "Round 28: how is message order preserved during export?"
               }
             ]
           },
@@ -2767,13 +2546,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a55"
+        ]
       },
       {
         "id": "a56",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:56-07:00",
         "blocks": [
@@ -2783,17 +2560,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 28 answer: when a message has multiple children (branches), only the selected leaf path is exported. Sibling branches stay in storage but are excluded from the render tree, and `selectedLeafMessageId` records which path won."
+                "text": "Round 28 answer: messages are exported in source array order. The message array is the sole authoritative order."
               }
             ]
           }
-        ],
-        "parentId": "u56"
+        ]
       },
       {
         "id": "u57",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:57-07:00",
         "blocks": [
@@ -2803,17 +2578,15 @@
             "children": [
               {
                 "type": "text",
-                "text": "Round 29: what happens when the message tree has a branching sibling?"
+                "text": "Round 29: how is message order preserved during export?"
               }
             ]
           }
-        ],
-        "parentId": "a56"
+        ]
       },
       {
         "id": "a57",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:57-07:00",
         "blocks": [
@@ -2827,13 +2600,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u57"
+        ]
       },
       {
         "id": "u58",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:58-07:00",
         "blocks": [
@@ -2847,13 +2618,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a57"
+        ]
       },
       {
         "id": "a58",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:58-07:00",
         "blocks": [
@@ -2867,13 +2636,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u58"
+        ]
       },
       {
         "id": "u59",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:59-07:00",
         "blocks": [
@@ -2887,13 +2654,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a58"
+        ]
       },
       {
         "id": "a59",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:00:59-07:00",
         "blocks": [
@@ -2907,13 +2672,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u59"
+        ]
       },
       {
         "id": "u60",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:01:00-07:00",
         "blocks": [
@@ -2927,13 +2690,11 @@
               }
             ]
           }
-        ],
-        "parentId": "a59"
+        ]
       },
       {
         "id": "a60",
         "role": "assistant",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:01:00-07:00",
         "blocks": [
@@ -3009,13 +2770,11 @@
               }
             ]
           }
-        ],
-        "parentId": "u60"
+        ]
       },
       {
         "id": "u61",
         "role": "user",
-        "siblingIndex": 0,
         "state": "complete",
         "createdAt": "2026-09-26T14:01:01-07:00",
         "blocks": [
@@ -3029,8 +2788,7 @@
               }
             ]
           }
-        ],
-        "parentId": "a60"
+        ]
       }
     ]
   },

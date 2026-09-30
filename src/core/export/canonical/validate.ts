@@ -4,7 +4,6 @@ import type { CanonicalConversationBundle, Conversation } from './conversation.j
 import { CANONICAL_TITLE_SOURCES } from './conversation.js';
 import type { Diagnostic, DiagnosticSeverity } from './diagnostics.js';
 import type { InlineNode } from './inline.js';
-import { CanonicalProjectionError, validateMessageTree } from './projection.js';
 
 export interface CanonicalValidationOptions {
     maxMessages?: number;
@@ -204,15 +203,14 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
     } else if (messages.length > limits.maxMessages) {
         c.add('error', 'LIMIT_MESSAGES', `message count ${messages.length} exceeds limit ${limits.maxMessages}`);
     }
-    for (const issue of validateMessageTree(conversation)) {
-        const err = issue as CanonicalProjectionError;
-        c.add('error', err.code, err.message);
-    }
-    if (typeof conversation.selectedLeafMessageId === 'string') {
-        const ids = new Set(messages.map((m) => m?.id));
-        if (!ids.has(conversation.selectedLeafMessageId)) {
-            c.add('error', 'MSG_BAD_LEAF', `selectedLeafMessageId not found: ${conversation.selectedLeafMessageId}`);
+    const messageIds = new Set<string>();
+    for (const m of messages) {
+        if (!m || typeof m.id !== 'string' || !m.id) {
+            c.add('error', 'MSG_BAD_ID', 'message has a missing or non-string id');
+            continue;
         }
+        if (messageIds.has(m.id)) c.add('error', 'MSG_DUP_ID', `duplicate message id: ${m.id}`);
+        messageIds.add(m.id);
     }
     checkTimestamp(conversation.createdAt, c, 'conversation.createdAt');
     checkTimestamp(conversation.updatedAt, c, 'conversation.updatedAt');
