@@ -1,6 +1,7 @@
 import { test } from 'node:test';
+import { parseMarkdownAst } from '../src/core/export/canonical/markdown/parseMarkdown.js';
 import assert from 'node:assert/strict';
-import { extractMarkdownResourceReferences, parseExportedMarkdown } from '../scripts/extract_markdown_resource_refs.js';
+import { extractMarkdownResourceReferences } from '../scripts/extract_markdown_resource_refs.js';
 
 test('production MDAST links and images retain URLs and reference definition precedence', () => {
     assert.deepEqual(extractMarkdownResourceReferences(
@@ -46,7 +47,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
     const markdown = renderCanonicalMarkdown(bundle);
     assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));
-    const tree = parseExportedMarkdown(markdown);
+    const tree = parseMarkdownAst(markdown);
     const paragraph = tree.children.find(node => node.type === 'paragraph' && node.children.some(child => child.type === 'link'));
     assert.ok(paragraph?.type === 'paragraph');
     assert.deepEqual(paragraph.children.map(node => node.type), ['text', 'link', 'text', 'inlineMath']);
@@ -69,4 +70,12 @@ test('serialized literal dollars round-trip as text while links and math retain 
         writeFileSync(join(root, 'files/foo.pdf'), 'nonempty attachment');
         assert.deepEqual(validate(), []);
     } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('shared AST primitive preserves source offsets without Gemini preprocessing', () => {
+    // GM-MD-001 inserts fence newlines for raw Gemini fallback. The syntax
+    // primitive must preserve the final artifact exactly, including positions.
+    const source = '$$\\begin{aligned}\nx = 1\n\\end{aligned}$$\n';
+    const tree = parseMarkdownAst(source);
+    assert.equal(tree.position?.end.offset, source.length);
 });

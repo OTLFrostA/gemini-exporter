@@ -1,6 +1,6 @@
 # Tier2 Markdown resource oracle follow-up
 
-Syntax recognition uses the existing production MDAST pipeline, with unchanged GFM, math options and Gemini compatibility rules. Python retains exact archive validation and HTML extraction.
+Syntax recognition uses the shared `parseMarkdownAst(source)` primitive with unchanged GFM and math options. Production fallback applies Gemini preprocessing before parsing; Tier2 parses final artifacts directly without provider preprocessing. Python retains exact archive validation and HTML extraction.
 
 ## Real replay provenance
 
