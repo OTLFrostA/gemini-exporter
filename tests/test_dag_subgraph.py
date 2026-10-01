@@ -42,13 +42,13 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.dag = FrameworkRunner._assemble_dag()
 
     def test_dag_registration_and_count(self):
-        """验证 23 项特性全部成功注册进 DAG"""
-        self.assertEqual(len(self.dag.cases), 23)
+        """验证 24 项特性全部成功注册进 DAG"""
+        self.assertEqual(len(self.dag.cases), 24)
 
     def test_topological_sort_order(self):
         """验证拓扑排序：所有前置依赖必须在其依赖者之前执行"""
         order = self.dag.get_execution_order()
-        self.assertEqual(len(order), 23)
+        self.assertEqual(len(order), 24)
 
         position = {case.feature_id: idx for idx, case in enumerate(order)}
 
@@ -57,14 +57,22 @@ class TestDAGSubgraphPruning(unittest.TestCase):
             position["feat_takeout_zip_import"],
             position["feat_search_filter_by_keyword"]
         )
-        # Chat generation 必须在 multimodal 和 continued chat 之前
+        # Chat generation 必须在 multimodal 和 continued chat 以及 live save 之前
         self.assertLess(
             position["feat_chat_generation"],
             position["feat_imagen_multimodal"]
         )
         self.assertLess(
             position["feat_chat_generation"],
+            position["feat_live_save_new_chat"]
+        )
+        self.assertLess(
+            position["feat_chat_generation"],
             position["feat_continued_chat_promotion"]
+        )
+        self.assertLess(
+            position["feat_updated_badge_display"],
+            position["feat_live_auto_save_disk_write"]
         )
         # Search clear 必须在 Zip export 之前
         self.assertLess(

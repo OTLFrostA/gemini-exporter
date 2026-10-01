@@ -2,7 +2,7 @@ import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHan
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { getEffectiveTimestamp } from '../core/utils/utils.js';
+import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/utils.js';
 import { sanitizeFileName, sanitizeRelativePath } from '../core/utils/pathUtils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
@@ -179,15 +179,21 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         try {
             const slot = accountSlot || 'u0';
             if (StorageService?.saveExportRecord) {
-                const chatTs = getEffectiveTimestamp(chat);
+                const chatTs = Math.max(
+                    getEffectiveTimestamp(chat),
+                    toTimestampMs((chat as any)?.lastActiveAt) ?? 0,
+                    toTimestampMs((chat as any)?.updatedAt) ?? 0,
+                    toTimestampMs((chat as any)?.timestamp) ?? 0
+                );
+                const msgCount = (chat as any)?.messageCount || (Array.isArray((chat as any)?.messages) ? (chat as any).messages.length : 0);
                 await StorageService.saveExportRecord(slot, nid, {
                     exportedAt: new Date(now).toISOString(),
                     title: safeTitle,
                     format: 'markdown',
-                    messageCount: Array.isArray(chat?.messages) ? chat.messages.length : 0,
+                    messageCount: msgCount,
                     status: failedAssets.length > 0 ? 'partial' : 'ok',
                     hasFailedAssets: failedAssets.length > 0,
-                    ...(chatTs > 0 ? { chatTime: chatTs } : {}),
+                    ...(chatTs > 0 ? { chatTime: chatTs } : {})
                 });
             }
         } catch (e) {

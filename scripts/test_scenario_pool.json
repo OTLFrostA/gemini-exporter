@@ -1,25 +1,5 @@
 [
   {
-    "id": "quantum_materials_altermagnetism_spintronics",
-    "domain": "quantum_materials_altermagnetism_spintronics",
-    "title": "量子材料学：交替磁性 (Altermagnetism) 自旋分裂与超快反铁磁自旋电子学",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables"
-    ],
-    "description": "测试交替磁性 d-波自旋分裂群论推导、反常霍尔效应非相对论拓扑机制、紧束缚模型自旋分裂色散 Python 计算与自旋输运器件对比",
-    "turns": [
-      "基于非相对论自旋空间群（Spin Space Groups）与晶体点群对称性分析，严格推导交替磁体（如金红石结构 RuO2 或六方 MnTe）在实空间具有净零剩磁但反演与时间反演联合对称性破缺的物理条件，推导其在动量空间产生非相对论性 d-波自旋轨道分裂 \\Delta E_{spin}(\\mathbf{k}) \\propto k_x^2 - k_y^2 的哈密顿量形式。",
-      "深入阐释交替磁体为何能够在宏观总磁矩严格为零的条件下展现显著的反常霍尔效应（Anomalous Hall Effect）与自旋分裂力矩，对比其贝里曲率 \\Omega_n^z(\\mathbf{k}) 在布里渊区内的宇称积分行为与传统外尔铁磁体的差异。",
-      "请使用 Python 编写基于二维正方晶格双子晶格交替磁性紧束缚模型的哈密顿量本征值求解程序，计算沿布里渊区高对称路径 \\Gamma - X - M - \\Gamma 上的自旋向上与自旋向下能带色散曲线并打印自旋劈裂极大值点。",
-      "设计一个结构化 Markdown 表格，系统对比铁磁体 (FM)、常规共线反铁磁体 (Collinear AFM)、非共线反铁磁体 (Non-collinear AFM) 与交替磁体 (Altermagnet) 在宏观剩磁、反常霍尔电导率、自旋流极化率、磁共振频段 (GHz vs THz)、抗外磁场杂散干扰能力及自旋电子学读写能耗上的核心性能指标。",
-      "推导交替磁体中由自旋转移矩 (STT) 与自旋轨道矩 (SOT) 驱动的反铁磁畴壁动力学方程，分析由于相对论洛伦兹洛仑兹不变性导致畴壁运动速度突破自旋波群速极限（超音速运动）且无 Walker 击穿现象的力学物理机制。"
-    ]
-  },
-  {
     "id": "gravitational_physics_black_hole_ringdown_qnm",
     "domain": "gravitational_physics_black_hole_ringdown_qnm",
     "title": "广义相对论与黑洞摄动理论：克尔黑洞准正规模与极端引力波铃落推导",
@@ -206,28 +186,6 @@
       "使用 Python 编写脚本，基于 Runge-Kutta (RK4) 数值求解包含边缘排斥势垒、随机钉扎杂质点 (Pinning Sites) 以及脉冲驱动电流的二维 Thiele 动力学微分方程，模拟斯格明子在限制赛道 (Confined Racetrack) 内部的纵向行进轨迹，展示随电流密度增加从蠕变 (Creep) 到退钉扎解卡 (Depinning) 的非线性速度响应曲线。",
       "推导反铁磁斯格明子 (Antiferromagnetic Skyrmion) 或合成反铁磁 (SAF) 双层耦合系统抵消拓扑 Magnus 力的微观配对机制，证明由两个具有相反拓扑荷 Q_1 = -Q_2 的亚点阵耦合构成的复合斯格明子如何实现严格为零的斯格明子霍尔角 \\theta_{SkHE} = 0，从而根除赛道侧壁碰撞湮灭瓶颈。",
       "使用 Markdown 表格，对比拓扑磁斯格明子赛道内存 (Skyrmion Racetrack)、传统磁畴壁内存 (Domain Wall Memory)、自旋转移力矩磁阻随机存取存储器 (STT-MRAM) 以及相变存储器 (PCRAM) 在位单元尺寸 (nm)、写入/擦除能耗 (fJ/bit)、读写速度 (ns)、抗外磁场干扰能力以及室温热稳定性因子 \\Delta = E_b / (k_B T) 维度的核心技术指标。"
-    ]
-  },
-  {
-    "id": "marine_biology_bioluminescent_reef_imaging",
-    "domain": "marine_biology_bioluminescent_reef_imaging",
-    "title": "海洋生物光学：珊瑚礁荧光成像与水下光谱反演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "覆盖水下光传播公式、科学示意生图、光谱反演代码和跨物种对比表格",
-    "turns": [
-      "推导海水中波长相关的 Beer–Lambert 衰减和后向散射模型，解释珊瑚荧光蛋白激发光与发射光在不同水深下的信噪比变化，并用 LaTeX 写出反演目标函数。",
-      "生成一张科学信息图：展示夜间珊瑚礁、蓝光激发源、绿色荧光珊瑚及水下相机的几何关系；图中要有清晰的光路箭头和水深标尺。",
-      "使用 Python 写一个可复现的小型模拟，给定三种波长的吸收和散射系数，估计 5、15、30 米深度的相机接收辐亮度并绘图。",
-      "用 Markdown 表格比较珊瑚荧光、浮游生物生物发光与人工荧光示踪剂的发光机制、典型波段、成像限制和生态干扰风险。",
-      "设计一套野外校准流程，说明如何用白板、暗场帧和参考光谱纠正水下相机的颜色偏差，并列出可量化的验收指标。"
     ]
   },
   {
@@ -420,6 +378,50 @@
       "请使用 Python 编写计算并绘制 300 kV 冷冻透镜 (波长 \\lambda \\approx 0.01968 \\text{ Å}, C_s = 2.7 \\text{ mm}) 在指定欠焦量 \\Delta z = 1.5 \\,\\mu\\text{m} 和 \\text{B-factor} = 80 \\text{ Å}^2 条件下，径向空间频率 k 从 0 到 0.5 \\text{ Å}^{-1} (即对应 2 \\text{ Å} 分辨率) 的一维理论 CTF 响应曲线函数，并打印前三个零点对应的实空间分辨率。",
       "设计一个结构化 Markdown 表格，横向系统对比单颗粒冷冻电镜 (SPA Cryo-EM)、冷冻电子断层扫描与亚断层平均 (Cryo-ET / STA)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在样品制备要求、辐射损伤容限、最高理论空间分辨率、适用的生物大分子质量范围 (kDa) 及动态构象异质性解析能力。",
       "推导基于经验贝叶斯最大后验概率估计（Empirical Bayes MAP / Expectation-Maximization）的冷冻电镜三维分类迭代算法目标函数，详细阐述 RELION 算法如何在未知单颗粒颗粒取向分布函数 P(\\phi, \\theta, \\psi, \\mathbf{t}) 存在强高斯白噪声与局部对比度掩蔽条件下，结合正则化先验平滑滤波实现抗过拟合的金标准黄金傅里叶壳层相关 (Gold-Standard FSC = 0.143) 独立半数据集真实分辨率评估。"
+    ]
+  },
+  {
+    "id": "computational_neuroscience_retinal_connectome_bipolar_cell",
+    "domain": "computational_neuroscience_retinal_connectome_bipolar_cell",
+    "title": "计算神经科学：视网膜双极细胞突触连接组重构与感受野动力学推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试视网膜突触带三联体微观结构生图、时空感受野差分滤波核推导、神经电生理发放序列数值模拟与视网膜中间神经元突触动力学横向对比",
+    "turns": [
+      "请生成一幅超高分辨率的视网膜外丛状层 (Outer Plexiform Layer, OPL) 纳米尺度突触连接组结构示意图：画面必须清晰呈现视杆/视锥细胞终球 (Spherule/Pedicle) 内的突触带 (Synaptic Ribbon)、系留突触囊泡以及内陷突触三联体 (Invaginating Triad) 中水平细胞突起与 ON/OFF 双极细胞树突末梢的接触空间拓扑，标注谷氨酸受体分布。",
+      "基于线性-非线性-泊松 (LNP, Linear-Nonlinear-Poisson) 神经编码模型与空间高斯差分 (DoG, Difference-of-Gaussians) 核，严格推导视网膜双极细胞时空感受野中心-周边拮抗 (Center-Surround Antagonism) 冲激响应函数 W(x, y, t) = A_c G_c(x, y) F_c(t) - A_s G_s(x, y) F_s(t) 的时频域傅里叶变换解析式，分析空间对比度调谐特性。",
+      "使用 Python 编写一个视网膜局部神经回路仿真脚本，实现给定正弦漂移光栅刺激 (Sinusoidal Drifting Grating) 下，光感受器膜电位响应、水平细胞侧向抑制电流网络以及 ON 视网膜神经节细胞 (RGC) 的动作电位发放时间列 (Spike Trains) 泊松抽样生成与光栅调谐曲线计算。",
+      "构建结构化 Markdown 对比表格，横向分析感光细胞 (Photoreceptor)、水平细胞 (Horizontal Cell)、ON型双极细胞 (mGluR6受体)、OFF型双极细胞 (AMPA/Kainate受体) 与无长突细胞 (Amacrine Cell) 在神经递质释放类型、受体门控离子通道、感受野极性、突触后电位潜伏期与明暗适应动态范围上的电生理差异。",
+      "深入推导视网膜神经节细胞群体的最大熵原理 (Maximum Entropy Model) 与高阶突触相关性：从伊辛自旋玻璃 (Ising Spin Glass) 哈密顿量出发，推导配分函数 Z 以及观测相关矩阵 \\langle \\sigma_i \\sigma_j \\rangle 与有效突触耦合强度 J_{ij} 之间的平均场反演方程，阐明视网膜为何以群体同步发放编码自然场景高阶统计特征。"
+    ]
+  },
+  {
+    "id": "seismology_planetary_core_mantle_boundary_ultralow_velocity_zone",
+    "domain": "seismology_planetary_core_mantle_boundary_ultralow_velocity_zone",
+    "title": "行星地球物理学：核幔边界超低速带 (ULVZ) 走时异常与剪切波全波形反演",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试核幔边界 PcP/ScS 走时残差敏感核推导、伴随波动方程全波形反演渐近分析、反射率法合成地震图 Python 求解器与下地幔热化学非均匀性对比",
+    "turns": [
+      "在球对称各向同性参考地球模型 (PREM) 背景下，推导核幔边界 (Core-Mantle Boundary, CMB, 深度 2891 km) 反射震相 PcP 与 ScS 相对于震中距 \\Delta 的走时射线积分方程，并使用 Born 散射近似推导局部超低速带 (ULVZ) 产生的初至延迟 \\delta t 与波形前后尾波畸变的 Fréchet 敏感核核函数 K_{\\alpha}(\\mathbf{x}), K_{\\beta}(\\mathbf{x})。",
+      "详细推导弹性波动方程全波形反演 (Full Waveform Inversion, FWI) 中的伴随状态法 (Adjoint State Method)：构造目标波形 L2 范数残差能量泛函 E = \\frac{1}{2} \\int \\| u(t) - d(t) \\|^2 dt，推导反向传播的伴随波场 \\mathbf{u}^\\dagger(\\mathbf{x}, t) 所满足的无源波动偏微分方程，并给出核幔边界介质密度 \\rho 与拉梅参数 \\lambda, \\mu 的梯度更新算子。",
+      "使用 Python 编写基于一维层状介质反射率法 (Kennett Reflectivity Method) 或频散波慢度求和法的小型数值仿真脚本，合成高频震相 SPdKS 在经过具有 15 km 厚度、-10% P波降速与 -30% S波降速的核幔边界 ULVZ 介质时的合成三分量地震位移记录图。",
+      "设计结构化 Markdown 表格，系统对比下地幔底部 D\" 层四大核心构造：大剪切波低速省 (LLVP)、超低速带 (ULVZ)、俯冲板块残余巨型石板 (Subducted Slab Graveyard) 以及全地幔柱根 (Mantle Plume Root) 在横波波速异常 \\delta V_s、纵横波波速比 \\delta \\ln V_s / \\delta \\ln V_p、密度异常 \\delta \\rho、空间分布尺度与富铁硅酸盐部分熔融热力学状态。",
+      "从高压凝聚态物理矿物相变角度，推导后钙钛矿 (Post-Perovskite, pPv, (Mg,Fe)SiO3) 相变与富铁方镁铁矿 ((Mg,Fe)O) 在 CMB 强剪切流动下的晶格择优取向 (LPO)，分析晶体声学各向异性导致横波沿不同偏振方向产生剪切波分裂 (SKS/SKKS Splitting) 的相变微观动力学机制。"
     ]
   }
 ]

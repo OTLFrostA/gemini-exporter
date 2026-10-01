@@ -153,6 +153,18 @@ description: "Dynamically created test attachment to verify multi-format user up
                     except Exception as exp_err:
                         print(f"      ⚠️ 会话 1 初始基准导出提示: {exp_err}")
 
+                if chat_idx == 0:
+                    print("      🚀 开启实时落盘 (Live Save)，准备进入场景一：开着实时导出生成会话 2...")
+                    try:
+                        cdp_opt_live = ctx.connect_options()
+                        try:
+                            CDPActions.setup_live_save(cdp_opt_live, enabled=True)
+                            print("      ✓ 实时落盘已就绪 (enabledDisk=True)")
+                        finally:
+                            cdp_opt_live.close()
+                    except Exception as live_setup_err:
+                        print(f"      ⚠️ 实时落盘开启提示: {live_setup_err}")
+
             ctx.shared_data["imagen_found"] = imagen_found
             return True, "2 次会话全部轮次正常生成落地", {"chat_records": ctx.chat_records}
         finally:

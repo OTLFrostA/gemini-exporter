@@ -77,6 +77,14 @@ class FeatureRegistry:
             description="监听页面加载，徽标处于就绪状态，记录并响应拖拽位置持久化",
             critical=False
         ))
+        self.register(Feature(
+            id="feat_live_save_new_chat",
+            domain=FeatureDomain.PAGE_CHAT,
+            name="新会话实时落盘与状态验证",
+            description="开着实时落盘生成新会话（场景一），验证本地磁盘自动落盘非空且工作台直接呈现「已导出」状态",
+            critical=True,
+            prerequisites=["feat_chat_generation"]
+        ))
 
         # -------------------------------------------------------------
         # 领域二：会话生命周期与实时同步
@@ -96,6 +104,14 @@ class FeatureRegistry:
             description="已导出过的会话检测到新提问后，渲染琥珀色「已更新」徽章并被默认自动勾选",
             critical=True,
             prerequisites=["feat_continued_chat_promotion"]
+        ))
+        self.register(Feature(
+            id="feat_live_auto_save_disk_write",
+            domain=FeatureDomain.LIFECYCLE,
+            name="老会话开启实时导出与增量更新落盘",
+            description="已更新的老会话开启实时落盘并继续更新（场景二），验证物理写盘与「已导出」状态跃迁",
+            critical=True,
+            prerequisites=["feat_updated_badge_display"]
         ))
         self.register(Feature(
             id="feat_ephemeral_chat_pruning",
@@ -192,13 +208,6 @@ class FeatureRegistry:
         # -------------------------------------------------------------
         # 领域五：物理磁盘真实落盘与多模态双轨断言
         # -------------------------------------------------------------
-        self.register(Feature(
-            id="feat_live_auto_save_disk_write",
-            domain=FeatureDomain.EXPORT_DISK,
-            name="物理磁盘实时落盘与非零字节核验",
-            description="直接扫描本地磁盘 gemini_export/ 目录，验证 .md 文件及 assets/ 所有图片 > 0 字节",
-            critical=True
-        ))
         self.register(Feature(
             id="feat_zip_export_download",
             domain=FeatureDomain.EXPORT_DISK,

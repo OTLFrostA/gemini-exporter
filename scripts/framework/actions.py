@@ -750,3 +750,152 @@ class CDPActions(ExtensionActions):
         """)
         time.sleep(2.0)
         return bool(confirm_click)
+
+    @staticmethod
+    def setup_live_save(cdp_opt, enabled: bool = True) -> bool:
+        """
+        在 Options 工作台环境中配置或开关实时本地落盘 (Live Auto-Save)。
+        当 enabled=True 时：
+        1. 确保导出格式为 markdown；
+        2. 获取 native OPFS handle，并持久化写入 gemini_exporter_idb 的 handles 库；
+        3. 模拟 showDirectoryPicker 适配返回 OPFS handle；
+        4. 点击开启 liveSaveDiskToggle 并确保 live_save_config.enabledDisk 为 True；
+        当 enabled=False 时：
+        1. 点击关闭 liveSaveDiskToggle 并将 live_save_config.enabledDisk 置为 False。
+        """
+        res = cdp_opt.eval(f"""
+        (async () => {{
+            try {{
+                const enabled = {json.dumps(enabled)};
+                const diskToggle = document.getElementById('liveSaveDiskToggle');
+                const formatSelect = document.getElementById('format');
+
+                if (enabled) {{
+                    if (formatSelect && formatSelect.value !== 'markdown') {{
+                        formatSelect.value = 'markdown';
+                        formatSelect.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+
+                    const root = await navigator.storage.getDirectory();
+                    await root.getDirectoryHandle('gemini_export', {{ create: true }});
+
+                    await new Promise((resolve, reject) => {{
+                        const req = indexedDB.open('gemini_exporter_idb', 1);
+                        req.onsuccess = () => {{
+                            const db = req.result;
+                            const tx = db.transaction('handles', 'readwrite');
+                            const store = tx.objectStore('handles');
+                            store.put(root, 'export_dir_handle');
+                            tx.oncomplete = () => {{ db.close(); resolve(true); }};
+                            tx.onerror = () => {{ db.close(); reject(tx.error); }};
+                        }};
+                        req.onerror = () => reject(req.error);
+                    }});
+
+                    window.showDirectoryPicker = async () => root;
+
+                    if (diskToggle && !diskToggle.checked) {{
+                        diskToggle.checked = true;
+                        diskToggle.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+
+                    await chrome.storage.local.set({{
+                        live_save_config: {{
+                            enabledDisk: true,
+                            dirName: 'gemini_export',
+                            format: 'markdown',
+                            includeAssets: true,
+                            dirError: null
+                        }}
+                    }});
+                    return {{ ok: true, enabled: true }};
+                }} else {{
+                    if (diskToggle && diskToggle.checked) {{
+                        diskToggle.checked = false;
+                        diskToggle.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+                    const data = await chrome.storage.local.get(['live_save_config']);
+                    const cur = data.live_save_config || {{}};
+                    await chrome.storage.local.set({{
+                        live_save_config: {{
+                            ...cur,
+                            enabledDisk: false
+                        }}
+                    }});
+                    return {{ ok: true, enabled: false }};
+                }}
+            }} catch (e) {{
+                return {{ ok: false, error: e.message }};
+            }}
+        }})()
+        """, await_promise=True) or {}
+        time.sleep(0.5)
+        return bool(res.get("ok"))
+
+    @staticmethod
+    def flush_live_save_to_disk(cdp_opt, target_disk_dir: str) -> Dict[str, Any]:
+        """
+        从 OPFS 遍历 gemini_export 目录下的所有 Markdown 文件与 assets/ 图片，
+        并将其物理回写到 target_disk_dir/gemini_export/ 目录中，确保磁盘存在物理落地实体。
+        返回写入的文件统计清单。
+        """
+        res = cdp_opt.eval("""
+        (async () => {
+            try {
+                const root = await navigator.storage.getDirectory();
+                let exportDir;
+                try {
+                    exportDir = await root.getDirectoryHandle('gemini_export');
+                } catch {
+                    return { ok: true, files: [] };
+                }
+
+                const files = [];
+                for await (const [name, handle] of exportDir.entries()) {
+                    if (handle.kind === 'file') {
+                        const f = await handle.getFile();
+                        const text = await f.text();
+                        files.push({ path: name, text, isBinary: false, mtime: f.lastModified });
+                    } else if (handle.kind === 'directory' && name === 'assets') {
+                        for await (const [assetName, assetHandle] of handle.entries()) {
+                            if (assetHandle.kind === 'file') {
+                                const af = await assetHandle.getFile();
+                                const buf = await af.arrayBuffer();
+                                const bytes = new Uint8Array(buf);
+                                let binary = '';
+                                for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+                                files.push({ path: 'assets/' + assetName, base64: btoa(binary), isBinary: true, mtime: af.lastModified });
+                            }
+                        }
+                    }
+                }
+                return { ok: true, files };
+            } catch (e) {
+                return { ok: false, error: e.message };
+            }
+        })()
+        """, await_promise=True) or {}
+
+        if not res.get("ok"):
+            return {"ok": False, "error": res.get("error"), "files": []}
+
+        files = res.get("files", [])
+        sub_export = os.path.join(target_disk_dir, "gemini_export")
+        os.makedirs(sub_export, exist_ok=True)
+
+        written_paths = []
+        for item in files:
+            fpath = os.path.join(sub_export, item["path"])
+            os.makedirs(os.path.dirname(fpath), exist_ok=True)
+            if item.get("isBinary"):
+                import base64
+                data = base64.b64decode(item["base64"])
+                with open(fpath, "wb") as f:
+                    f.write(data)
+            else:
+                with open(fpath, "w", encoding="utf-8") as f:
+                    f.write(item["text"])
+            written_paths.append(fpath)
+
+        return {"ok": True, "count": len(written_paths), "files": written_paths}
+
