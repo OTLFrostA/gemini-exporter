@@ -528,7 +528,7 @@ export async function initLiveSaveSettings(): Promise<void> {
                 }
                 updateLiveSaveFormatAvailability();
             }
-            if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {
+            if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_') || k.startsWith('gemini_conversations')))) {
                 const exportCtrl = getExportCtrl();
                 if (exportCtrl && typeof exportCtrl.isRunning === 'function' && exportCtrl.isRunning()) {
                     return;

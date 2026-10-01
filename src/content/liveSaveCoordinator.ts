@@ -17,7 +17,7 @@ import type { LiveSaveConfig } from '../types/liveSave.js';
 
 export interface LiveSaveCoordinatorDeps {
     storageManager?: typeof LiveStorageManager;
-    exportRecordStore?: Pick<typeof StorageService, 'saveExportRecord'>;
+    exportRecordStore?: Pick<typeof StorageService, 'saveExportRecord'> & Partial<Pick<typeof StorageService, 'finalizeConversationExport'>>;
     scraper?: typeof DomScraper;
     formatter?: typeof ChatFormatter;
     fsWriterClass?: typeof FsWriter;
@@ -271,16 +271,32 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 const now = Date.now();
                 const chatTime = getEffectiveTimestamp(chat);
                 const records = _deps.exportRecordStore || StorageService;
+                const slot = detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
+                const msgCount = (chat as any)?.messageCount || (Array.isArray(chat?.messages) ? chat.messages.length : 0);
+                const exportRecord = {
+                    exportedAt: new Date(now).toISOString(),
+                    title: safeTitle,
+                    format: 'markdown',
+                    status: failedAssets.length ? 'partial' : 'ok',
+                    hasFailedAssets: failedAssets.length > 0,
+                    messageCount: msgCount,
+                    ...(chatTime > 0 ? { chatTime } : {})
+                };
                 try {
-                    await records.saveExportRecord(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), nid, {
-                        exportedAt: new Date(now).toISOString(),
-                        title: safeTitle,
-                        format: 'markdown',
-                        status: failedAssets.length ? 'partial' : 'ok',
-                        hasFailedAssets: failedAssets.length > 0,
-                        messageCount: chat.messages.length,
-                        ...(chatTime > 0 ? { chatTime } : {})
-                    });
+                    if (records && typeof records.finalizeConversationExport === 'function') {
+                        await records.finalizeConversationExport(slot, nid, exportRecord, {
+                            conversationUpdate: {
+                                title: safeTitle,
+                                titleSource: (chat as any)?.titleSource || 'api-detail',
+                                titles: (chat as any)?.titles,
+                                messageCount: msgCount,
+                                chatTime,
+                                lastActiveAt: (chat as any)?.lastActiveAt || now
+                            }
+                        });
+                    } else if (records && typeof records.saveExportRecord === 'function') {
+                        await records.saveExportRecord(slot, nid, exportRecord);
+                    }
                 } catch (err) {
                     console.warn('[LiveSaveCoordinator] Failed to mark conversation as exported:', err);
                 }

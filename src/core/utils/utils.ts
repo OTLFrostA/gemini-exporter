@@ -27,6 +27,7 @@ import {
     resolveTitle,
     resolveDetailTitle,
     setTitleBySource,
+    applyExportTitleWriteback,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
@@ -41,6 +42,7 @@ import {
     type ConversationBadgeDescriptor,
     type ResolveConversationExportStateOptions
 } from './titleUtils.js';
+
 import {
     formatExportProgress,
     type ExportProgressFormatted,
@@ -84,6 +86,7 @@ export {
     resolveTitle,
     resolveDetailTitle,
     setTitleBySource,
+    applyExportTitleWriteback,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
@@ -137,6 +140,7 @@ export interface GeminiUtilsModule {
 
     resolveDetailTitle: (messages: any[] | null | undefined, convId?: string | number) => { title: string; source: 'sniff' } | null;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
+    applyExportTitleWriteback: (existing: any, incoming: any) => any;
     toTimestampMs: (raw: any) => number | null;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
@@ -190,6 +194,7 @@ export const GeminiUtils: GeminiUtilsModule = {
 
     resolveDetailTitle,
     setTitleBySource,
+    applyExportTitleWriteback,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,

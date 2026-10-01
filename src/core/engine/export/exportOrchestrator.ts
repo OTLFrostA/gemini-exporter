@@ -48,8 +48,10 @@ import GeminiUtils, {
     getEffectiveTimestamp as utilsGetEffectiveTimestamp,
     setTitleBySource as utilsSetTitleBySource,
     cleanTitle as utilsCleanTitle,
-    isRealTitle as utilsIsRealTitle
+    isRealTitle as utilsIsRealTitle,
+    applyExportTitleWriteback
 } from "../../utils/utils.js";
+export { applyExportTitleWriteback };
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
@@ -101,44 +103,7 @@ export const cleanTitle = (rawTitle?: string | null): string =>
 export const isRealTitle = (title?: string | null, id?: string | number): boolean =>
     ((getUtils()?.isRealTitle) || utilsIsRealTitle)(title, id);
 
-/**
- * Applies an export-time title write-back from a list-snapshot conversation
- * (listC) onto the stored record (existing) through the canonical title tier
- * arbitration (setTitleBySource -> resolveTitle -> TITLE_TIER_RANK).
- *
- * Previously this was a blind overwrite (`existing.title = listC.title`),
- * which let a lower-authority list snapshot downgrade a higher-authority
- * stored title (e.g. storage holds an rpc title while the list snapshot only
- * carries takeout). Now listC's titles are adopted per source-tier slot and
- * the resolved title is re-arbitrated, so the stored title can stay or be
- * upgraded, but never be downgraded by a weaker source.
- */
-export function applyExportTitleWriteback(existing: any, listC: any): any {
-    if (!existing || !listC) return existing;
-    // Seed the stored record's own resolved title into its tier slot first
-    // (mirrors mergeConversation step 0), so legacy-shaped records whose
-    // title lives only in title/titleSource are protected by arbitration too.
-    // The slot-worthiness gate mirrors setTitleBySource/mergeConversation so
-    // placeholder titles never trigger a gratuitous titleSource rewrite.
-    if (existing.titleSource && existing.title &&
-        (!existing.titles || typeof existing.titles !== 'object' || !existing.titles[existing.titleSource])) {
-        const cleanedSeed = cleanTitle(existing.title);
-        if (cleanedSeed && (isRealTitle(cleanedSeed, existing.id) || existing.titleSource === 'takeout')) {
-            setTitleBySource(existing, existing.titleSource, existing.title);
-        }
-    }
-    if (listC.titles && typeof listC.titles === 'object') {
-        for (const [slot, slotTitle] of Object.entries(listC.titles)) {
-            if (typeof slotTitle === 'string' && slotTitle) {
-                setTitleBySource(existing, slot, slotTitle);
-            }
-        }
-    }
-    if (listC.title) {
-        setTitleBySource(existing, listC.titleSource || 'legacy', listC.title);
-    }
-    return existing;
-}
+
 
     function toIso(v: any): string | null {
         if (!v) return null;

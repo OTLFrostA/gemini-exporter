@@ -238,25 +238,30 @@ export { EXT_VERSION, getExtensionVersion };
         // persist and notify the same chat twice. Release on write failure.
         if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
         try {
-            await storageAdapter.saveExportRecord(slot, targetId, rec);
+            if (typeof storageAdapter.finalizeConversationExport === 'function') {
+                await storageAdapter.finalizeConversationExport(slot, targetId, rec, {
+                    onItemExported
+                });
+            } else {
+                await storageAdapter.saveExportRecord(slot, targetId, rec);
+                try {
+                    onItemExported(targetId, rec);
+                } catch (e) {
+                    if (typeof console !== 'undefined' && console.debug) {
+                        console.debug('[GemExporter:sessionRecovery.ts] onItemExported callback error', e);
+                    }
+                }
+            }
         } catch (e) {
             if (finalizedChatsSet) finalizedChatsSet.delete(targetNid);
             if (typeof console !== 'undefined' && console.error) {
-                console.error('[GemExporter:sessionRecovery.ts] saveExportRecord failed for', targetId, e);
+                console.error('[GemExporter:sessionRecovery.ts] finalizeChatExport failed for', targetId, e);
             }
             throw e;
         }
 
         if (curIds && targetNid) curIds[targetNid] = rec;
         if (exportedIds && targetNid) exportedIds[targetNid] = rec;
-
-        try {
-            onItemExported(targetId, rec);
-        } catch (e) {
-            if (typeof console !== 'undefined' && console.debug) {
-                console.debug('[GemExporter:sessionRecovery.ts] onItemExported callback error', e);
-            }
-        }
         return true;
     }
 

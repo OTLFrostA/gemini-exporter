@@ -180,6 +180,32 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
     return resolved;
 }
 
+/**
+ * Adopt titles from incoming conversation per source-tier slot and re-arbitrate
+ * so that higher-authority stored titles are never downgraded by weaker sources.
+ */
+export function applyExportTitleWriteback(existing: any, incoming: any): any {
+    if (!existing || !incoming) return existing;
+    if (existing.titleSource && existing.title &&
+        (!existing.titles || typeof existing.titles !== 'object' || !existing.titles[existing.titleSource])) {
+        const cleanedSeed = cleanTitle(existing.title);
+        if (cleanedSeed && (isRealTitle(cleanedSeed, existing.id) || existing.titleSource === 'takeout')) {
+            setTitleBySource(existing, existing.titleSource, existing.title);
+        }
+    }
+    if (incoming.titles && typeof incoming.titles === 'object') {
+        for (const [slot, slotTitle] of Object.entries(incoming.titles)) {
+            if (typeof slotTitle === 'string' && slotTitle) {
+                setTitleBySource(existing, slot, slotTitle);
+            }
+        }
+    }
+    if (incoming.title) {
+        setTitleBySource(existing, incoming.titleSource || 'legacy', incoming.title);
+    }
+    return existing;
+}
+
 export function toTimestampMs(raw: any): number | null {
     if (raw === null || raw === undefined) return null;
     if (typeof raw === 'number') {
@@ -458,6 +484,7 @@ export default {
     resolveTitle,
     resolveDetailTitle,
     setTitleBySource,
+    applyExportTitleWriteback,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
