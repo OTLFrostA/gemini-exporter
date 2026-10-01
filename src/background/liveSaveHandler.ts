@@ -1,5 +1,5 @@
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
-import { setLiveConfig } from '../core/storage/liveStorageManager.js';
+import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { getEffectiveTimestamp } from '../core/utils/utils.js';
@@ -64,6 +64,7 @@ export function withLiveSaveLock<T>(key: string, op: () => Promise<T>): Promise<
 
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
+        if (!await isLiveSaveFormatSupported()) return { ok: false, error: 'live_save_requires_markdown' };
         const { chat, safeTitle, nid, fileName, assets } = payload || {};
         const handle = await getStoredDirHandle();
         if (!handle) {

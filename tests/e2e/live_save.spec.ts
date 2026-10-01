@@ -185,4 +185,35 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
 
     await optionsPage.close();
   });
+  test('non-Markdown formats disable live save across workbench, popup, and reload', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    const toggle = page.locator('#liveSaveDiskToggle');
+    await expect(toggle).toBeEnabled();
+    await page.evaluate(async () => {
+      await chrome.storage.local.set({ live_save_config: { enabledDisk: true, format: 'markdown', includeAssets: true } });
+    });
+    await expect(toggle).toBeChecked();
+    for (const format of ['pdf', 'html', 'json', 'json_openai']) {
+      await page.selectOption('#format', format);
+      await expect(toggle).toBeDisabled();
+      await expect(toggle).not.toBeChecked();
+      await expect.poll(() => page.evaluate(async () => {
+        const data = await chrome.storage.local.get('live_save_config');
+        return (data.live_save_config as { enabledDisk: boolean }).enabledDisk;
+      })).toBe(false);
+    }
+    await page.reload();
+    await expect(toggle).toBeDisabled();
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
+    await popup.locator('[data-value="markdown"]').click();
+    await expect(page.locator('#format')).toHaveValue('markdown');
+    await expect(toggle).toBeEnabled();
+    await expect(toggle).not.toBeChecked();
+    await popup.locator('[data-value="html"]').click();
+    await expect(page.locator('#format')).toHaveValue('html');
+    await expect(toggle).toBeDisabled();
+  });
+
 });
