@@ -64,6 +64,9 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
     });
     expect(isSuppressed).toBe(true);
 
+    // Wait for first export to settle before triggering second export
+    await expect(page.locator('#btnCancel')).toBeHidden({ timeout: 10000 });
+
     // 8. Next time exporting >= 50 items, modal should NEVER appear again
     await page.click('#btnExport');
     await expect(page.locator('#btnCancel')).toBeVisible();
