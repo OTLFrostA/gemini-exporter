@@ -553,7 +553,9 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
         if (listConversation) {
             listConversation.titles = listConversation.titles || {};
             for (const [k, v] of Object.entries(listConversation.titles)) {
-                if (isBrandPlaceholderTitle(v)) delete listConversation.titles[k];
+                if (isBrandPlaceholderTitle(v) || (!utilsNormalizeReliableTitleSource(k) && k !== 'legacy')) {
+                    delete listConversation.titles[k];
+                }
             }
             if (chat.titles && typeof chat.titles === 'object') {
                 for (const [k, v] of Object.entries(chat.titles)) {

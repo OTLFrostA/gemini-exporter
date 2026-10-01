@@ -45,7 +45,13 @@ export function init({
 
     const cleanTitle = (t?: string | null) => (Utils?.cleanTitle ? Utils.cleanTitle(t || '') : (t || '').trim());
     const isRealTitle = (t?: string | null, id?: string) => (Utils?.isRealTitle ? Utils.isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
-    const setTitleBySource = (it: any, src: string, val: string) => (Utils?.setTitleBySource ? Utils.setTitleBySource(it, src, val) : ((it.titles = it.titles || {})[src] = val));
+    const setTitleBySource = (it: any, src: string, val: string) => {
+        if (Utils?.setTitleBySource) return Utils.setTitleBySource(it, src, val);
+        const rel = Utils?.normalizeReliableTitleSource ? Utils.normalizeReliableTitleSource(src) : undefined;
+        if (rel && it) {
+            (it.titles = it.titles || {})[rel] = val;
+        }
+    };
     const resolveDetailTitle = (msgs: any[], id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
 
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;

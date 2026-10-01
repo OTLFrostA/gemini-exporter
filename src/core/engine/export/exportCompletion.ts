@@ -181,14 +181,22 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         }
     }
 
-    // Merge titles map
+    // Merge titles map: strictly gate canonical provenance domain
     const mergedTitles: Record<string, string> = {};
-    if (chat.titles && typeof chat.titles === 'object') {
-        Object.assign(mergedTitles, chat.titles);
-    }
-    if (input.titles && typeof input.titles === 'object') {
-        Object.assign(mergedTitles, input.titles);
-    }
+    const addCanonicalTitles = (srcObj: any) => {
+        if (srcObj && typeof srcObj === 'object') {
+            for (const [k, v] of Object.entries(srcObj)) {
+                const reliableK = normalizeReliableTitleSource(k);
+                if (reliableK && typeof v === 'string' && v) {
+                    mergedTitles[reliableK] = v;
+                } else if (k === 'legacy' && typeof v === 'string' && v) {
+                    mergedTitles.legacy = v;
+                }
+            }
+        }
+    };
+    addCanonicalTitles(chat.titles);
+    addCanonicalTitles(input.titles);
 
     // Resolve provenance: only adopt if reliable (in TITLE_SOURCE_PRIORITY and not default/legacy/export)
     let candidateProvenance: TitleSource | undefined = resolveReliableTitleSource(

@@ -3,7 +3,7 @@ import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { LiveSaveObserver } from './liveSaveObserver.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
-import { TITLE_TIER_RANK, resolveDetailTitle } from '../core/utils/titleUtils.js';
+import { TITLE_TIER_RANK, resolveDetailTitle, normalizeReliableTitleSource } from '../core/utils/titleUtils.js';
 import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 import type {
@@ -233,8 +233,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         const titleObj = (_deps as any).extractActiveChatTitle(nid);
                         if (titleObj && titleObj.title && isRealTitle(titleObj.title, nid)) {
                             item.title = cleanTitle(titleObj.title);
-                            item.titleSource = titleObj.source || 'dom';
-                            item.titles = { [item.titleSource]: item.title };
+                            const sourceTier = normalizeReliableTitleSource(titleObj.source) || 'dom';
+                            item.titleSource = sourceTier;
+                            item.titles = { [sourceTier]: item.title };
                         }
                     }
                     await upsertConversations([item], 'stream-complete', true, targetSlot);

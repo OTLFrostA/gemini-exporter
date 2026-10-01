@@ -10,7 +10,8 @@ import {
     resolveTitle,
     compareConversations,
     mergeConversation,
-    deduplicateConversations
+    deduplicateConversations,
+    normalizeReliableTitleSource
 } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { GeminiProtocol } from '../core/protocol/protocol.js';
@@ -200,7 +201,7 @@ export async function touchActiveConversation(
 
     if (activeTitleObj && activeTitleObj.title && isRealTitle(activeTitleObj.title, nid)) {
         const cleanT = cleanTitle(activeTitleObj.title);
-        const sourceTier = activeTitleObj.source || 'dom';
+        const sourceTier = normalizeReliableTitleSource(activeTitleObj.source) || 'dom';
         item.title = cleanT;
         item.titleSource = sourceTier;
         item.titles = { [sourceTier]: cleanT };

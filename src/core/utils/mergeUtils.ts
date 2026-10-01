@@ -1,5 +1,5 @@
 import { normId, isReservedRoute } from './pathUtils.js';
-import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle } from './titleUtils.js';
+import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle, normalizeReliableTitleSource } from './titleUtils.js';
 
 export interface MergeConversationOptions {
     source?: string;
@@ -41,12 +41,23 @@ export function mergeConversation(
     options?: MergeConversationOptions
 ): MergeConversationResult {
     const id = normId(incoming?.id || old?.id || '');
-    const mergedTitles: Record<string, string> = { ...(old?.titles || {}) };
+    const mergedTitles: Record<string, string> = {};
+    if (old?.titles && typeof old.titles === 'object') {
+        for (const [k, v] of Object.entries(old.titles)) {
+            const relK = normalizeReliableTitleSource(k);
+            if (relK && typeof v === 'string' && v) {
+                mergedTitles[relK] = v;
+            } else if (k === 'legacy' && typeof v === 'string' && v) {
+                mergedTitles.legacy = v;
+            }
+        }
+    }
 
-    if (old && old.titleSource && old.title && !mergedTitles[old.titleSource]) {
+    const reliableOldSource = normalizeReliableTitleSource(old?.titleSource);
+    if (reliableOldSource && old.title && !mergedTitles[reliableOldSource]) {
         const cleanOldT = cleanTitle(old.title);
-        if (cleanOldT && (isRealTitle(cleanOldT, id) || old.titleSource === 'takeout')) {
-            mergedTitles[old.titleSource] = cleanOldT;
+        if (cleanOldT && (isRealTitle(cleanOldT, id) || reliableOldSource === 'takeout')) {
+            mergedTitles[reliableOldSource] = cleanOldT;
         }
     } else if (old && old.title && !mergedTitles.legacy && !hasAuthoritativeTitleSlot(mergedTitles)) {
         const cleanOldT = cleanTitle(old.title);
@@ -57,33 +68,34 @@ export function mergeConversation(
 
     if (incoming?.titles && typeof incoming.titles === 'object') {
         for (const [k, v] of Object.entries(incoming.titles)) {
-            if (typeof v === 'string') {
+            const relK = normalizeReliableTitleSource(k);
+            if (relK && typeof v === 'string') {
                 const cleanV = cleanTitle(v);
-                if (cleanV && (isRealTitle(cleanV, id) || k === 'takeout')) {
-                    if (k === 'sniff' && mergedTitles.sniff && mergedTitles.sniff !== cleanV) {
+                if (cleanV && (isRealTitle(cleanV, id) || relK === 'takeout')) {
+                    if (relK === 'sniff' && mergedTitles.sniff && mergedTitles.sniff !== cleanV) {
                         if (mergedTitles.sniff.startsWith(cleanV) && cleanV.length < mergedTitles.sniff.length) {
                             continue;
                         }
                     }
-                    mergedTitles[k] = cleanV;
+                    mergedTitles[relK] = cleanV;
                 }
             }
         }
     }
 
     // 2. Merge incoming title + titleSource
-    if (incoming?.titleSource && incoming?.title) {
+    const reliableInSrc = normalizeReliableTitleSource(incoming?.titleSource);
+    if (reliableInSrc && incoming?.title) {
         const cleanT = cleanTitle(incoming.title);
-        if (cleanT && (isRealTitle(cleanT, id) || incoming.titleSource === 'takeout')) {
-            const inSrc = incoming.titleSource;
-            if (inSrc === 'sniff' && mergedTitles.sniff && mergedTitles.sniff !== cleanT) {
+        if (cleanT && (isRealTitle(cleanT, id) || reliableInSrc === 'takeout')) {
+            if (reliableInSrc === 'sniff' && mergedTitles.sniff && mergedTitles.sniff !== cleanT) {
                 if (mergedTitles.sniff.startsWith(cleanT) && cleanT.length < mergedTitles.sniff.length) {
                     // Do not overwrite longer sniff with truncated prefix
                 } else {
                     mergedTitles.sniff = cleanT;
                 }
             } else {
-                mergedTitles[inSrc] = cleanT;
+                mergedTitles[reliableInSrc] = cleanT;
             }
         }
     } else if (incoming?.title && !mergedTitles.legacy && !hasAuthoritativeTitleSlot(mergedTitles)) {
@@ -97,7 +109,7 @@ export function mergeConversation(
         id,
         titles: mergedTitles,
         title: incoming?.title || old?.title,
-        titleSource: incoming?.titleSource || old?.titleSource
+        titleSource: reliableInSrc || reliableOldSource || 'legacy'
     };
     const resolved = resolveTitle(tempChat);
     const resolvedTitle = resolved.title;

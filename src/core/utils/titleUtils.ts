@@ -180,7 +180,14 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
 
     const legacyClean = cleanTitle(chat.title);
     if (legacyClean && isRealTitle(legacyClean, id)) {
-        return { title: legacyClean, source: chat.titleSource || 'legacy' };
+        return { title: legacyClean, source: normalizeReliableTitleSource(chat.titleSource) || 'legacy' };
+    }
+
+    if (chat.titles && typeof chat.titles === 'object' && chat.titles.legacy) {
+        const legacyFromTitles = cleanTitle(chat.titles.legacy);
+        if (legacyFromTitles && isRealTitle(legacyFromTitles, id)) {
+            return { title: legacyFromTitles, source: 'legacy' };
+        }
     }
 
     if (chat.titles && chat.titles.takeout) {
@@ -195,11 +202,16 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
 
 export function setTitleBySource(chat: any, source?: string, rawTitle?: string): TitleResolution {
     if (!chat) return { title: '未命名对话', source: 'default' };
+    const reliableSource = normalizeReliableTitleSource(source);
+    if (!reliableSource) {
+        // Unknown or unreliable source: strictly non-influential.
+        // It must NOT write into chat.titles nor mutate chat.title / chat.titleSource.
+        return resolveTitle(chat);
+    }
     chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
     const cleaned = cleanTitle(rawTitle);
-    const reliableSource = normalizeReliableTitleSource(source);
     if (cleaned && isRealTitle(cleaned, chat.id)) {
-        if (reliableSource) chat.titles[reliableSource] = cleaned;
+        chat.titles[reliableSource] = cleaned;
     } else if (reliableSource === 'takeout' && cleaned) {
         chat.titles.takeout = cleaned;
     }
@@ -207,6 +219,38 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
     chat.title = resolved.title;
     chat.titleSource = resolved.source;
     return resolved;
+}
+
+/**
+ * Invariant assertion helper:
+ * Verifies that a conversation's titleSource and titles dictionary keys strictly belong
+ * to the canonical provenance domain (reliable sources ∪ { 'legacy', 'default' }).
+ * 'default' is only permitted as a placeholder titleSource, never as a titles key.
+ * 'export' or any unrecognized strings are strictly forbidden.
+ */
+export function assertCanonicalTitleProvenance(chat: any): void {
+    const validSources = new Set(['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default']);
+    const validTitleKeys = new Set(['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy']);
+
+    if (chat && chat.titleSource !== undefined) {
+        if (!validSources.has(chat.titleSource)) {
+            throw new Error(`titleSource '${chat.titleSource}' is not in canonical domain (${Array.from(validSources).join(', ')})`);
+        }
+    }
+
+    if (chat && chat.titles && typeof chat.titles === 'object') {
+        for (const k of Object.keys(chat.titles)) {
+            if (!validTitleKeys.has(k)) {
+                throw new Error(`titles key '${k}' is not in canonical titles domain (${Array.from(validTitleKeys).join(', ')})`);
+            }
+            if (k === 'export') {
+                throw new Error("titles key must not be 'export'");
+            }
+            if (k === 'default') {
+                throw new Error("titles key must not be 'default'");
+            }
+        }
+    }
 }
 
 /**
@@ -222,6 +266,9 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
  *    the candidate is promoted to existing as a valid title (source: legacy).
  *    If existing already has any real title (rpc, api-detail, dom, takeout, etc.),
  *    an unprovenanced candidate can NEVER overwrite or downgrade it.
+ * 3. Unknown provenance must be completely non-influential:
+ *    Sources that fail normalizeReliableTitleSource() cannot be saved into titles,
+ *    and their values cannot be scanned or used to promote titles.
  */
 export function applyExportTitleWriteback(existing: any, incoming: any): any {
     if (!existing || !incoming) return existing;
@@ -252,38 +299,28 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
     // 3. Adopt incoming title with reliable provenance
     const incomingSource = incoming.titleSource;
     const reliableIncomingSource = normalizeReliableTitleSource(incomingSource);
-    const isReliableSource = !!reliableIncomingSource;
 
     if (incoming.title && reliableIncomingSource) {
         setTitleBySource(existing, reliableIncomingSource, incoming.title);
     }
 
     // 4. Candidate promotion rule for unprovenanced or weak-source export titles:
+    // Candidate promotion MUST ONLY come from explicit incoming.title.
+    // Unknown titles slots have zero influence and cannot promote titles.
     const currentResolved = resolveTitle(existing);
     const existingHasRealTitle = isRealTitle(currentResolved.title, existing.id) ||
         (currentResolved.source === 'takeout' && !isBrandPlaceholderTitle(currentResolved.title));
 
     if (!existingHasRealTitle) {
-        let candidate = '';
         const cleanedIncoming = cleanTitle(incoming.title);
         if (isRealTitle(cleanedIncoming, existing.id)) {
-            candidate = cleanedIncoming;
-        } else if (incoming.titles && typeof incoming.titles === 'object') {
-            for (const t of Object.values(incoming.titles)) {
-                const c = cleanTitle(t as string);
-                if (isRealTitle(c, existing.id)) {
-                    candidate = c;
-                    break;
-                }
-            }
-        }
-
-        if (candidate) {
             existing.titles = (existing.titles && typeof existing.titles === 'object') ? existing.titles : {};
-            existing.title = candidate;
+            existing.title = cleanedIncoming;
             existing.titleSource = reliableIncomingSource || 'legacy';
-            if (existing.titleSource && existing.titleSource !== 'default') {
-                existing.titles[existing.titleSource] = candidate;
+            if (existing.titleSource === 'legacy') {
+                existing.titles.legacy = cleanedIncoming;
+            } else {
+                existing.titles[existing.titleSource] = cleanedIncoming;
             }
         }
     }
@@ -570,6 +607,7 @@ export default {
     resolveDetailTitle,
     setTitleBySource,
     applyExportTitleWriteback,
+    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
