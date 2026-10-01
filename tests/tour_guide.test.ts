@@ -118,14 +118,15 @@ test('tourGuide - module structure and steps', () => {
     assert.strictEqual(typeof TourGuide.finishTour, 'function');
     assert.strictEqual(typeof TourGuide.skipTour, 'function');
 
-    assert.strictEqual(TourGuide.STEPS.length, 6, 'Tour should have exactly 6 streamlined steps');
+    assert.strictEqual(TourGuide.STEPS.length, 7, 'Tour should have exactly 7 streamlined steps');
     assert.strictEqual(TourGuide.STEPS[0].id, 'connect');
     assert.strictEqual(TourGuide.STEPS[1].id, 'sync');
     assert.strictEqual(TourGuide.STEPS[2].id, 'select');
-    assert.strictEqual(TourGuide.STEPS[3].id, 'export');
-    assert.strictEqual(TourGuide.STEPS[4].id, 'live_save');
-    assert.strictEqual(TourGuide.STEPS[5].id, 'feedback');
-    assert.ok(TourGuide.STEPS[5].isFinal, 'Last step should be marked as final');
+    assert.strictEqual(TourGuide.STEPS[3].id, 'format');
+    assert.strictEqual(TourGuide.STEPS[4].id, 'export');
+    assert.strictEqual(TourGuide.STEPS[5].id, 'live_save');
+    assert.strictEqual(TourGuide.STEPS[6].id, 'feedback');
+    assert.ok(TourGuide.STEPS[6].isFinal, 'Last step should be marked as final');
 });
 
 test('tourGuide - step navigation and completion', async () => {
@@ -260,6 +261,8 @@ function createMockElement(id: string) {
 test('tourGuide - action-triggered step advancement across all steps', async () => {
     const mockScanBtn = createMockElement('btnIncrementalScan');
     const mockList = createMockElement('list');
+    const mockFormat = createMockElement('format');
+    mockElements.set('format', mockFormat);
     const mockExportBtn = createMockElement('btnExport');
     const mockLiveSaveToggle = createMockElement('liveSaveDiskToggle');
     const mockFeedbackBtn = createMockElement('btnFeedback');
@@ -285,19 +288,21 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     await waitForStep(3);
     assert.strictEqual(TourGuide.getCurrentStep(), 3, 'Should advance to step 3 after list checkbox toggle');
 
-    // 3. In step 3 (export), simulate clicking export
-    mockExportBtn.click();
+    // Choose a format before exporting.
+    mockFormat.dispatchEvent({ type: 'change' });
     await waitForStep(4);
-    assert.strictEqual(TourGuide.getCurrentStep(), 4, 'Should advance to step 4 (live_save) after export click');
-    assert.strictEqual(TourGuide.isActive(), true);
+    assert.strictEqual(TourGuide.getCurrentStep(), 4);
 
-    // 4. In step 4 (live_save), simulate toggle change
-    mockLiveSaveToggle.dispatchEvent({ type: 'change' });
+    mockExportBtn.click();
     await waitForStep(5);
-    assert.strictEqual(TourGuide.getCurrentStep(), 5, 'Should advance to step 5 (feedback) after live save change');
+    assert.strictEqual(TourGuide.getCurrentStep(), 5, 'Export advances to live save');
     assert.strictEqual(TourGuide.isActive(), true);
 
-    // 5. In step 5 (feedback), simulate clicking feedback
+    mockLiveSaveToggle.dispatchEvent({ type: 'change' });
+    await waitForStep(6);
+    assert.strictEqual(TourGuide.getCurrentStep(), 6, 'Live save advances to feedback');
+    assert.strictEqual(TourGuide.isActive(), true);
+
     mockFeedbackBtn.click();
     await waitForInactive();
     assert.strictEqual(TourGuide.isActive(), false, 'Tour should be completed and inactive after feedback click');

@@ -16,19 +16,29 @@ export const DEFAULT_LIVE_CONFIG: LiveSaveConfig = {
 const KEY_CONFIG = STORAGE_KEYS.LIVE_SAVE_CONFIG;
 let _memConfig: LiveSaveConfig = { ...DEFAULT_LIVE_CONFIG };
 
+export async function isLiveSaveFormatSupported(): Promise<boolean> {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return true;
+    try {
+        const data = await chrome.storage.local.get([STORAGE_KEYS.FORMAT]);
+        return (data[STORAGE_KEYS.FORMAT] || 'markdown') === 'markdown';
+    } catch (err) {
+        console.warn('[LiveStorageManager] Cannot verify live-save format:', err);
+        return false;
+    }
+}
+
 export async function getLiveConfig(): Promise<LiveSaveConfig> {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         try {
             const d = await chrome.storage.local.get([KEY_CONFIG]);
             if (d && d[KEY_CONFIG]) {
                 _memConfig = { ...DEFAULT_LIVE_CONFIG, ...d[KEY_CONFIG] };
-                return { ..._memConfig };
             }
         } catch (err) {
             console.warn('[LiveStorageManager] Failed to read live config from chrome.storage.local:', err);
         }
     }
-    return { ..._memConfig };
+    return { ..._memConfig, enabledDisk: _memConfig.enabledDisk && await isLiveSaveFormatSupported() };
 }
 
 let _configChain: Promise<any> = Promise.resolve();
@@ -42,6 +52,7 @@ export async function setLiveConfig(patch: Partial<LiveSaveConfig>): Promise<Liv
     return withConfigLock(async () => {
         const current = await getLiveConfig();
         const updated: LiveSaveConfig = { ...current, ...patch };
+        if (updated.enabledDisk && !await isLiveSaveFormatSupported()) updated.enabledDisk = false;
 
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             try {

@@ -1,5 +1,5 @@
 import { contentContext } from './contentContext.js';
-import { LiveStorageManager } from '../core/storage/liveStorageManager.js';
+import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
@@ -130,6 +130,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
     _saveQueue = _saveQueue.then(async () => {
         try {
             _isSaving = true;
+            if (!await isLiveSaveFormatSupported()) return false;
 
             // In mockMode (e.g. headless/test environments without native filesystem handles), simulate live save feedback
             if (options.mockMode) {

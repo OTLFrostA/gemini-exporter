@@ -358,6 +358,23 @@ export async function init({
     if (__updateZipUi) __updateZipUi();
 }
 
+export function updateLiveSaveFormatAvailability(): void {
+    const format = ($('format') as HTMLSelectElement | null)?.value || 'markdown';
+    const toggle = $('liveSaveDiskToggle') as HTMLInputElement | null;
+    if (!toggle) return;
+    const disabled = format !== 'markdown';
+    toggle.disabled = disabled;
+    if (disabled) toggle.checked = false;
+    const label = toggle.closest?.('label');
+    if (label) {
+        label.style.opacity = disabled ? '0.45' : '';
+        label.style.cursor = disabled ? 'not-allowed' : 'pointer';
+        label.setAttribute('data-i18n-title', disabled ? 'liveSaveMarkdownOnly' : 'liveSaveDiskTip');
+        label.title = t(disabled ? 'liveSaveMarkdownOnly' : 'liveSaveDiskTip');
+    }
+    if (__updateZipUi) __updateZipUi();
+}
+
 export async function initLiveSaveSettings(): Promise<void> {
     const liveStorage = getLiveStorage();
     if (!liveStorage) return;
@@ -413,9 +430,19 @@ export async function initLiveSaveSettings(): Promise<void> {
         if (typeof console !== 'undefined' && console.debug) console.debug('[OptionsSettings] initLiveSaveSettings error:', e);
     }
 
+    updateLiveSaveFormatAvailability();
+    if (diskToggle?.disabled) await liveStorage.setLiveConfig({ enabledDisk: false });
+    const formatSelect = $('format') as HTMLSelectElement | null;
+    if (formatSelect && !formatSelect.dataset.liveSaveBound) {
+        formatSelect.dataset.liveSaveBound = 'true';
+        formatSelect.addEventListener('change', updateLiveSaveFormatAvailability);
+    }
+
     if (diskToggle && !diskToggle.dataset.bound) {
         diskToggle.dataset.bound = 'true';
         diskToggle.addEventListener('change', async () => {
+            updateLiveSaveFormatAvailability();
+            if (diskToggle.disabled) return;
             if (diskToggle.checked) {
                 let handle = DirHandle ? DirHandle.getDirHandle() : null;
                 if (!handle && DirHandle && typeof DirHandle.restoreSavedDirHandle === 'function') {
@@ -462,6 +489,8 @@ export async function initLiveSaveSettings(): Promise<void> {
         (globalThis as any).__liveSaveStorageWatcherBound = true;
         chrome.storage.onChanged.addListener((changes: any, area: string) => {
             if (area === 'local' && changes[STORAGE_KEYS.LIVE_SAVE_CONFIG]?.newValue) {
+                if (diskToggle) diskToggle.checked = !!changes[STORAGE_KEYS.LIVE_SAVE_CONFIG].newValue.enabledDisk;
+                updateLiveSaveFormatAvailability();
                 const val = changes[STORAGE_KEYS.LIVE_SAVE_CONFIG].newValue;
                 if (val.dirError === 'permission_prompt_needed') {
                     if (dirLabel) {
@@ -497,6 +526,7 @@ export async function initLiveSaveSettings(): Promise<void> {
                 if (fmtSelect && fmtSelect.value !== newFmt) {
                     fmtSelect.value = newFmt;
                 }
+                updateLiveSaveFormatAvailability();
             }
             if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_')))) {
                 const exportCtrl = getExportCtrl();

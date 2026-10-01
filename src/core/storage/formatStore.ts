@@ -1,3 +1,5 @@
+import { setLiveConfig } from './liveStorageManager.js';
+
 export type ExportFormat = 'markdown' | 'html' | 'json_openai' | 'json' | 'json_raw' | string;
 
 export interface FormatStoreLoadResult {
@@ -69,12 +71,18 @@ const DEFAULT = DEFAULT_FORMAT;
         }
     }
 
+    let formatSaveChain: Promise<unknown> = Promise.resolve();
     async function saveFormat(val: string): Promise<string> {
         const toSave = isAllowed(val) ? val : DEFAULT;
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            await chrome.storage.local.set({ [STORAGE_KEYS.FORMAT]: toSave });
-        }
-        return toSave;
+        const operation = formatSaveChain.then(async () => {
+            if (toSave !== 'markdown') await setLiveConfig({ enabledDisk: false });
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                await chrome.storage.local.set({ [STORAGE_KEYS.FORMAT]: toSave });
+            }
+            return toSave;
+        });
+        formatSaveChain = operation.catch(() => undefined);
+        return operation;
     }
 
     function getCurrentFormat(isDev?: boolean, currentVal?: string): string {

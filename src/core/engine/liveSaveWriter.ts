@@ -10,6 +10,7 @@
 // - background side keeps permission checks, dir probing, the base64 asset
 //   loop and export-record bookkeeping.
 
+import { isLiveSaveFormatSupported } from '../storage/liveStorageManager.js';
 import { FsWriter } from './writers/fsWriter.js';
 import { ChatFormatter } from './chatFormatter.js';
 import { buildExportFileName } from '../utils/pathUtils.js';
@@ -72,6 +73,7 @@ export async function writeLiveSaveMarkdown(
 ): Promise<string> {
     const { fileName, markdown } = await formatLiveSaveMarkdown(input, deps);
     const targetFile = opts.fileName || fileName;
+    if (!await isLiveSaveFormatSupported()) throw new Error('Live save only supports Markdown');
     await writer.writeFile('', targetFile, markdown);
     return targetFile;
 }

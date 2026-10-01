@@ -72,6 +72,21 @@ export const STEPS: any[] = [
         }
     },
     {
+        id: 'format',
+        getTarget: () => document.getElementById('format') || null,
+        placement: 'right',
+        titleKey: 'tourStepFormatTitle',
+        descKey: 'tourStepFormatDesc',
+        hintKey: 'tourHintChooseFormat',
+        setupAction: (advance: () => void) => {
+            const format = document.getElementById('format');
+            if (!format) return undefined;
+            const onChange = () => setTimeout(advance, 300);
+            format.addEventListener('change', onChange);
+            return () => format.removeEventListener('change', onChange);
+        }
+    },
+    {
         id: 'export',
         spotlightTarget: () => document.getElementById('format') || null,
         spotlightTitleKey: 'tourExportFormatsTitle',

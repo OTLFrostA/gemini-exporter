@@ -11,7 +11,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     }
   });
 
-  test('should execute 6-step tour with 100% zero-occlusion and physical mouse hit-testing', async ({ context, extensionId }) => {
+  test('should execute 7-step tour with 100% zero-occlusion and physical mouse hit-testing', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -22,9 +22,18 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const popover = page.locator('.tour-popover');
     await expect(popover).toBeVisible({ timeout: 5000 });
 
-    for (let stepIdx = 0; stepIdx < 6; stepIdx++) {
+    for (let stepIdx = 0; stepIdx < 7; stepIdx++) {
       const stepBadge = await page.locator('.tour-step-badge').innerText();
-      expect(stepBadge).toBe(`${stepIdx + 1} / 6`);
+      expect(stepBadge).toBe(`${stepIdx + 1} / 7`);
+      if (stepIdx === 3) {
+        await expect(popover).toContainText('HTML');
+        await expect(popover).toContainText('PDF');
+        await expect(popover).toContainText(/local font|本地字体/);
+      }
+      if (stepIdx === 5) {
+        await expect(popover).toContainText('Markdown');
+        await expect(popover).toContainText(/only supports Markdown|只支持 Markdown/);
+      }
 
       // 1. Capture visual snapshot
       const screenshotPath = path.join(outputDir, `tour_step_${stepIdx + 1}.png`);
@@ -80,9 +89,9 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
         expect(hitTestTag).toMatch(/^(button#tournextbtn|span|div)/i);
 
         // Advance to next step
-        if (stepIdx < 5) {
+        if (stepIdx < 6) {
           await nextBtn.click();
-          await expect(page.locator('.tour-step-badge')).toHaveText(`${stepIdx + 2} / 6`);
+          await expect(page.locator('.tour-step-badge')).toHaveText(`${stepIdx + 2} / 7`);
           await page.locator('.tour-popover').evaluate((el) => {
             return Promise.all(el.getAnimations().map(a => a.finished));
           });
@@ -94,6 +103,29 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
 
     // Tour should be finished and destroyed
     await expect(popover).toBeHidden();
+  });
+
+  test('choosing PDF in onboarding advances without requesting local font permission', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await page.evaluate(() => {
+      (window as any).__fontQueries = 0;
+      (window as any).queryLocalFonts = async () => {
+        (window as any).__fontQueries++;
+        return [];
+      };
+    });
+    await page.click('#btnTourGuide');
+    for (let step = 1; step <= 3; step++) {
+      await expect(page.locator('.tour-step-badge')).toHaveText(`${step} / 7`);
+      await page.click('#tourNextBtn');
+    }
+    await expect(page.locator('.tour-step-badge')).toHaveText('4 / 7');
+    await page.selectOption('#format', 'pdf');
+    await expect(page.locator('.tour-step-badge')).toHaveText('5 / 7');
+    await expect(page.locator('#format')).toHaveValue('pdf');
+    expect(await page.evaluate(() => (window as any).__fontQueries)).toBe(0);
+    await page.click('#tourSkipBtn');
   });
 
   test('should launch tour on clicking header button and dismiss cleanly', async ({ context, extensionId }) => {
@@ -113,7 +145,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
 
     const popover = page.locator('.tour-popover');
     await expect(popover).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 6');
+    await expect(page.locator('.tour-step-badge')).toHaveText('1 / 7');
 
     // Click close/skip
     await page.click('#tourSkipBtn');
