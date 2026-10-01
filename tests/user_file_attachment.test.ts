@@ -162,3 +162,12 @@ test('user_file_attachment: ChatFormatter protects against accidentally leaked U
     assert.ok(res.content.includes('files/273175_leaked.json'), 'Must keep localName path');
     assert.ok(res.content.includes('[273175\\_leaked.json](files/273175_leaked.json)'), 'Must fallback to basename of localName');
 });
+
+
+test('prompt URLs and Google Docs editor links are not downloadable attachments', () => {
+    assert.deepStrictEqual(attachments.extractUserFiles([
+        ['https://docs.google.com/document/d/example/edit?tab=t.0 这个是我drive里面的文档，你能编辑么'],
+        ['https://docs.google.com/document/d/example/edit'],
+        ['https://drive.google.com/file/d/example/view 请帮我读一下']
+    ]), []);
+});

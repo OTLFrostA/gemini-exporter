@@ -469,6 +469,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 if (typeof item === "string") {
                     const trimmed = item.trim();
                     if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                        // A prompt containing a URL is prose, not a file attachment.
+                        // Docs editor/share links also remain links in the prompt.
+                        if (/\s/.test(trimmed) || /^https?:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation)\//i.test(trimmed)) continue;
                         if (isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {
                             googleUrls.push(trimmed);
                         } else if (!isGoogleMediaHost(trimmed) && !isInternalChipUrl(trimmed)) {

@@ -170,6 +170,34 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
 
         private async downloadOnce(targetUrl: string, chat: any, item: any, timeoutMs: number, signal: AbortSignal | null): Promise<any> {
             let r: any = null;
+            // Search thumbnails are public media. Fetch from the extension origin,
+            // whose host permission avoids Gemini page CORS restrictions.
+            let mediaUrl: URL;
+            try { mediaUrl = new URL(targetUrl); } catch { return { success: false, error: 'Invalid asset URL' }; }
+            if (mediaUrl.protocol === 'http:' && /(^|\.)(googleusercontent\.com|gstatic\.com|usercontent\.google\.com)$/.test(mediaUrl.hostname)) {
+                mediaUrl.protocol = 'https:';
+                targetUrl = mediaUrl.href;
+            }
+            if (/^encrypted-tbn[0-3]\.gstatic\.com$/.test(mediaUrl.hostname)
+                && ['http:', 'https:'].includes(mediaUrl.protocol)) {
+                mediaUrl.protocol = 'https:';
+                try {
+                    const timeout = AbortSignal.timeout(timeoutMs);
+                    const response = await fetch(mediaUrl.href, {
+                        credentials: 'omit',
+                        signal: signal ? AbortSignal.any([signal, timeout]) : timeout
+                    });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const blob = await response.blob();
+                    if (!blob.size || !blob.type.startsWith('image/')) throw new Error(`Invalid image response: ${blob.type}`);
+                    return { success: true, dataBuffer: await blob.arrayBuffer(), mimeType: blob.type };
+                } catch (error) {
+                    if (signal?.aborted) return { success: false, error: 'aborted' };
+                    r = { success: false, error: `Extension image fetch failed: ${getErrorMessage(error)}` };
+                }
+            }
+
+            const extensionFailure = r?.error;
             const extra = {
                 fileName: item?.fileName || item?.title,
                 candidates: Array.isArray(item?.candidates) ? item.candidates : undefined
@@ -217,6 +245,9 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
             // If dataBuffer is not a valid ArrayBuffer or lacks byteLength, and no base64 was sent, fall back to requesting Base64
             if (r && (r.success || r.ok) && !hasValidBuffer(r) && !hasValidB64(r) && typeof chrome !== 'undefined' && chrome.tabs) {
                 r = await requestFromTab(false);
+            }
+            if (extensionFailure && !r?.success && !r?.ok) {
+                return { success: false, error: `${extensionFailure}; page fallback: ${r?.error || 'unavailable'}` };
             }
             return r;
         }
