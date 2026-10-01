@@ -62,7 +62,6 @@ export interface StandardConversationUpdate {
     messageCount: number;
     chatTime?: number;
     updatedAt?: number;
-    lastActiveAt?: number;
 }
 
 export interface ExportCompletionResult {
@@ -101,7 +100,6 @@ export function computeExportMessageCount(conversation: any, explicitCount?: num
 export function computeAuthoritativeTimestamp(conversation: any, explicitTime?: number | string | Date | null): number | undefined {
     const tsFromExplicit = toTimestampMs(explicitTime);
     const tsFromEffective = getEffectiveTimestamp(conversation);
-    const tsFromLastActive = toTimestampMs(conversation?.lastActiveAt);
     const tsFromUpdated = toTimestampMs(conversation?.updatedAt);
     const tsFromTimestamp = toTimestampMs(conversation?.timestamp);
     const tsFromCreated = toTimestampMs(conversation?.createdAt);
@@ -109,7 +107,6 @@ export function computeAuthoritativeTimestamp(conversation: any, explicitTime?: 
     const max = Math.max(
         tsFromExplicit ?? 0,
         tsFromEffective ?? 0,
-        tsFromLastActive ?? 0,
         tsFromUpdated ?? 0,
         tsFromTimestamp ?? 0,
         tsFromCreated ?? 0
@@ -248,14 +245,12 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         ...(isTruncated ? { isTruncated: true, truncateReason: input.truncateReason || chat.truncateReason || 'truncated' } : {})
     };
 
-    const activeMs = toTimestampMs(chat.lastActiveAt);
     const conversationUpdate: StandardConversationUpdate = {
         title: candidateTitle,
         ...(candidateProvenance ? { titleSource: candidateProvenance } : {}),
         ...(Object.keys(mergedTitles).length > 0 ? { titles: mergedTitles } : {}),
         messageCount,
-        ...(chatTime ? { chatTime, updatedAt: chatTime } : {}),
-        ...(typeof activeMs === 'number' && activeMs > 0 ? { lastActiveAt: activeMs } : {})
+        ...(chatTime ? { chatTime, updatedAt: chatTime } : {})
     };
 
     return {

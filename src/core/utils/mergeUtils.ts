@@ -182,10 +182,6 @@ export function mergeConversation(
         bestLastSeen = oldSeenMs !== null ? old.lastSeen : (inSeenMs !== null ? incoming.lastSeen : null);
     }
 
-    const oldActiveMs = toMs(old?.lastActiveAt);
-    const inActiveMs = toMs(incoming?.lastActiveAt);
-    const bestActiveMs = Math.max(oldActiveMs ?? 0, inActiveMs ?? 0);
-
     const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
     const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
     const oldBodyLen = Array.isArray(old?.messages) ? old.messages.length : null;
@@ -202,8 +198,7 @@ export function mergeConversation(
         (inMsgCount !== null && (oldMsgCount === null || inMsgCount > oldMsgCount)) ||
         (inBodyLen !== null && (oldBodyLen === null ? (oldMsgLen === 0 && inBodyLen > 0) : inBodyLen > oldBodyLen)) ||
         (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount) ||
-        bestMsgLen > oldMsgLen ||
-        bestActiveMs > (oldActiveMs ?? 0)
+        bestMsgLen > oldMsgLen
     ) {
         isChanged = true;
     }
@@ -239,9 +234,6 @@ export function mergeConversation(
 
     if (bestLastSeen !== null) {
         merged.lastSeen = bestLastSeen;
-    }
-    if (bestActiveMs > 0) {
-        merged.lastActiveAt = bestActiveMs;
     }
     if (incomingShrinksMessages) {
         if (Array.isArray(old.messages)) {

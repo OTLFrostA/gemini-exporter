@@ -179,16 +179,12 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 } else if (typeof upsertConversations === 'function') {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
-                    // touchActiveConversation in syncEngine.ts). lastActiveAt
-                    // carries the client-observed interaction for display
-                    // recency (bump-to-top) only.
-                    const now = Date.now();
+                    // touchActiveConversation in syncEngine.ts).
                     await upsertConversations([{
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
-                        sidebarIndex: 0,
-                        lastActiveAt: now
+                        sidebarIndex: 0
                     }], 'stream-start', true, targetSlot);
                 }
             } catch (err) {
@@ -218,16 +214,12 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 } else if (typeof upsertConversations === 'function') {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
-                    // touchActiveConversation in syncEngine.ts). lastActiveAt
-                    // carries the client-observed interaction for display
-                    // recency (bump-to-top) only.
-                    const now = Date.now();
+                    // touchActiveConversation in syncEngine.ts).
                     const item: any = {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
-                        sidebarIndex: 0,
-                        lastActiveAt: now
+                        sidebarIndex: 0
                     };
                     if (typeof (_deps as any)?.extractActiveChatTitle === 'function') {
                         const titleObj = (_deps as any).extractActiveChatTitle(nid);

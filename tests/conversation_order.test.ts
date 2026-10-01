@@ -153,8 +153,6 @@ test('Conversation sorting - orders by latest server activity; lastSeen-only cha
     // Test 2 (PR-3, core-vocab audit D2): lastSeen no longer feeds
     // getEffectiveTimestamp, so a DOM capture without server timestamps
     // orders below server-timestamped chats in a pure-server-time sort.
-    // Display recency for user-interacted chats is handled via lastActiveAt
-    // inside the real compareConversations, not via lastSeen.
     const sorted2 = sortConversations([chatB, chatC, chatD]);
     assert.strictEqual(sorted2[0].id, 'chat_3days_old');
     assert.strictEqual(sorted2[1].id, 'chat_month_old');
@@ -271,9 +269,7 @@ test('GeminiUtils.compareConversations - authoritative SSoT comparator', () => {
 
 test('mergeConversation - newer incoming server timestamp upgrades updatedAt/timestamp monotonically', () => {
     // Pure merge semantics: an RPC/list entry carrying a newer SERVER
-    // timestamp upgrades the record (Math.max). This is NOT the touch path —
-    // touch carries lastActiveAt instead and never stamps the client clock
-    // (see tests/touch_active_bump.test.ts).
+    // timestamp upgrades the record (Math.max).
     const existingList = [
         { id: 'c_top1', title: 'Top 1', updatedAt: 5000, timestamp: 5000, createdAt: 4500, sidebarIndex: 0 },
         { id: 'c_top2', title: 'Top 2', updatedAt: 4000, timestamp: 4000, createdAt: 3500, sidebarIndex: 1 },

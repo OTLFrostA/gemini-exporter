@@ -372,9 +372,8 @@ export function compareConversations(a?: SortableConversation | null, b?: Sortab
     if (!a) return 1;
     if (!b) return -1;
 
-    // Display recency: bump active chat to top via lastActiveAt without mutating server timestamps
-    const tsA = Math.max(getEffectiveTimestamp(a), toTimestampMs(a.lastActiveAt) ?? 0);
-    const tsB = Math.max(getEffectiveTimestamp(b), toTimestampMs(b.lastActiveAt) ?? 0);
+    const tsA = getEffectiveTimestamp(a);
+    const tsB = getEffectiveTimestamp(b);
     if (tsA !== tsB) return tsB - tsA;
 
     const idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
@@ -491,7 +490,7 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
 function computeHasNewerActivity(c: any, rec: any): boolean {
     if (!c || !rec) return false;
     try {
-        const cTs = Math.max(getEffectiveTimestamp(c), toTimestampMs(c.lastActiveAt) ?? 0);
+        const cTs = getEffectiveTimestamp(c);
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;
         const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
 

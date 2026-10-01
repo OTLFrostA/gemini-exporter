@@ -7,14 +7,13 @@
  *      （lastSeen 是客户端观察到的时间，可能是 seed，不可当作服务端权威时间）。
  *   2. checkIsUpdated 对 lastSeen-only 会话不再误判为 updated（客户端 lastSeen
  *      推进超过导出时间也不能触发"有更新"）。
- *   3. compareConversations 仍能用 lastActiveAt 做展示排序（不因删除而退化）。
  *
  * 运行: node -r ./tests/ts_register.js --test tests/pr3_lastseen_fallback.test.ts
  */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { getEffectiveTimestamp, checkIsUpdated, compareConversations } = require('../src/core/utils/titleUtils.js');
+const { getEffectiveTimestamp, checkIsUpdated } = require('../src/core/utils/titleUtils.js');
 
 // Case 1: lastSeen-only 会话返回 0，不再返回 lastSeen。
 test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {
@@ -39,15 +38,4 @@ test('checkIsUpdated: lastSeen-only chat is not flagged updated by client clock'
         messageCount: 4,
     };
     assert.strictEqual(checkIsUpdated(chat, rec), false, 'client-observed lastSeen must not mark export stale');
-});
-
-// Case 3: compareConversations 仍用 lastActiveAt 做展示置顶（未退化）。
-test('compareConversations: lastActiveAt display bump still works', () => {
-    const recent = { id: 'a', updatedAt: 1000, lastActiveAt: 9999999999999 };
-    const older = { id: 'b', updatedAt: 2000 };
-    // updatedAt 更大的 b 若只看服务端时间会排前面，但 lastActiveAt 的展示热度让 a 置顶
-    assert.ok(compareConversations(recent, older) < 0, 'lastActiveAt should still bump the interacted chat to top');
-
-    // getEffectiveTimestamp 本体不受 lastActiveAt 污染
-    assert.strictEqual(getEffectiveTimestamp(recent), 1000, 'getEffectiveTimestamp stays server-time only');
 });

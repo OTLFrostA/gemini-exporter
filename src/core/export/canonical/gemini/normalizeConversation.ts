@@ -38,7 +38,7 @@ function isStr(v: unknown): v is string {
 
 export const KNOWN_CONVERSATION_FIELDS: ReadonlySet<string> = new Set([
     'id', 'title', 'timestamp', 'updatedAt', 'createdAt', 'chatTime', 'lastSeen',
-    'lastActiveAt', 'source', 'titleSource', 'titles', 'messages', 'turns',
+    'source', 'titleSource', 'titles', 'messages', 'turns',
     'accountSlot', 'isTakeoutOnly', 'hitGoogleLimit', 'url', 'attachmentCount',
     'messageCount', 'href', 'hasExplicitPrompt',
 ]);
