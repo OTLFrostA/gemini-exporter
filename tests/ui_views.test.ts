@@ -839,13 +839,14 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sFailedRec.badge.kind, 'failed');
 });
 
-test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select buttons, and list pointer-events', () => {
+test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select buttons, and list selection without blocking scrolling', () => {
     const { setWorkbenchControlsDisabled, WORKBENCH_ACTION_BUTTON_IDS } = require('../src/ui/uiCommon.js');
     const elements: Record<string, any> = {};
     for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
         elements[id] = { id, disabled: false };
     }
-    const mockList = { id: 'list', style: { pointerEvents: '', opacity: '' } };
+    const checkbox = { disabled: false };
+    const mockList = { id: 'list', dataset: { selectionDisabled: 'false' }, style: { pointerEvents: '', opacity: '' }, querySelectorAll: () => [checkbox] };
     elements['list'] = mockList;
 
     const origDoc = (globalThis as any).document;
@@ -859,7 +860,9 @@ test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select
         for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
             assert.strictEqual(elements[id].disabled, true, `Button ${id} should be disabled`);
         }
-        assert.strictEqual(mockList.style.pointerEvents, 'none', 'List should have pointer-events none');
+        assert.strictEqual(mockList.style.pointerEvents, '', 'List should keep pointer events for scrolling');
+        assert.strictEqual(checkbox.disabled, true);
+        assert.strictEqual(mockList.dataset.selectionDisabled, 'true');
         assert.strictEqual(mockList.style.opacity, '0.7', 'List should be dimmed');
 
         // 2. Enable
@@ -867,7 +870,9 @@ test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select
         for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
             assert.strictEqual(elements[id].disabled, false, `Button ${id} should be enabled`);
         }
-        assert.strictEqual(mockList.style.pointerEvents, '', 'List pointer-events should be restored');
+        assert.strictEqual(mockList.style.pointerEvents, '', 'List should remain scrollable');
+        assert.strictEqual(checkbox.disabled, false);
+        assert.strictEqual(mockList.dataset.selectionDisabled, 'false');
         assert.strictEqual(mockList.style.opacity, '', 'List opacity should be restored');
     } finally {
         (globalThis as any).document = origDoc;

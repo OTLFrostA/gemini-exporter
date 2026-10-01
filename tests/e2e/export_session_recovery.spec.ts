@@ -153,7 +153,10 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     // Seed test conversation
     await optionsPage.evaluate(async () => {
       const convs = [
-        { id: 'chat_delay_001', title: '待导出延迟测试会话', timestamp: 1700000000000 }
+        { id: 'chat_delay_001', title: '待导出延迟测试会话', timestamp: 1700000000000 },
+        ...Array.from({ length: 40 }, (_, i) => ({
+          id: `chat_scroll_${i}`, title: `滚动测试会话 ${i}`, timestamp: 1699999999999 - i
+        }))
       ];
       await chrome.storage.local.set({
         gemini_conversations: convs,
@@ -164,7 +167,8 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
       }
     });
 
-    await optionsPage.click('#btnSelectAll');
+    await optionsPage.click('#btnSelectNone');
+    await optionsPage.locator('[data-chat-id="chat_delay_001"] input[type=checkbox]').check();
     await expect(optionsPage.locator('#list input[type=checkbox]:checked')).toHaveCount(1);
 
     // 3. Trigger real export via clicking #btnExport to naturally enter running state
@@ -181,6 +185,14 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     await expect(btnScan).toBeDisabled();
     await expect(btnDeepScan).toBeDisabled();
     await expect(btnExport).toBeDisabled();
+
+    const list = optionsPage.locator('#list');
+    await expect(list.locator('input[type=checkbox]').first()).toBeDisabled();
+    await list.locator('.chat-title').nth(1).click();
+    await expect(list.locator('input[type=checkbox]:checked')).toHaveCount(1);
+    await list.hover();
+    await optionsPage.mouse.wheel(0, 450);
+    await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
 
     // 4. Trigger loadStore while export is running
     await optionsPage.evaluate(async () => {
@@ -201,6 +213,12 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     // Banner MUST remain hidden while export is running
     await expect(banner).not.toBeVisible();
 
+    // A render during export must preserve the selection lock.
+    await expect(list.locator('input[type=checkbox]').first()).toBeDisabled();
+    const checkedAfterRender = await list.locator('input[type=checkbox]:checked').count();
+    await list.locator('.chat-title').first().click();
+    await expect(list.locator('input[type=checkbox]:checked')).toHaveCount(checkedAfterRender);
+
     // 5. Unblock network gate so export completes cleanly without hanging context teardown
     const downloadPromise = optionsPage.waitForEvent('download', { timeout: 15000 }).catch(() => null);
     resolveRoute();
@@ -210,5 +228,6 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     await expect(btnScan).toBeEnabled({ timeout: 10000 });
     await expect(btnDeepScan).toBeEnabled();
     await expect(btnExport).toBeEnabled();
+    await expect(list.locator('input[type=checkbox]').first()).toBeEnabled();
   });
 });
