@@ -2,6 +2,7 @@ import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHan
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
+import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
 import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/utils.js';
 import { sanitizeFileName, sanitizeRelativePath } from '../core/utils/pathUtils.js';
 
@@ -173,42 +174,24 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             /* best-effort storage update */
         }
 
-        // Mark conversation as exported in exportedIds SSoT and promote title in gemini_conversations.
+        // Shared export completion: builds standardized ExportRecord and promotes title in gemini_conversations.
         // Phase A (P1-2): 主 md 成功即写记录；附件有失败则标 partial（与导出管线
         // sessionRecovery 的 partial 惯例对齐），保证下次增量不跳过、可重试。
         try {
-            const slot = accountSlot || 'u0';
-            const chatTs = Math.max(
-                getEffectiveTimestamp(chat),
-                toTimestampMs((chat as any)?.lastActiveAt) ?? 0,
-                toTimestampMs((chat as any)?.updatedAt) ?? 0,
-                toTimestampMs((chat as any)?.timestamp) ?? 0
+            await completeConversationExport(
+                StorageService,
+                accountSlot || 'u0',
+                {
+                    conversation: chat,
+                    conversationId: nid,
+                    format: 'markdown',
+                    exportedAt: now,
+                    failedAssets,
+                    titleCandidate: safeTitle,
+                    titleProvenance: (chat as any)?.titleSource,
+                    titles: (chat as any)?.titles
+                }
             );
-            const msgCount = (chat as any)?.messageCount || (Array.isArray((chat as any)?.messages) ? (chat as any).messages.length : 0);
-            const exportRecord = {
-                exportedAt: new Date(now).toISOString(),
-                title: safeTitle,
-                format: 'markdown',
-                messageCount: msgCount,
-                status: failedAssets.length > 0 ? 'partial' : 'ok',
-                hasFailedAssets: failedAssets.length > 0,
-                ...(chatTs > 0 ? { chatTime: chatTs } : {})
-            };
-
-            if (StorageService?.finalizeConversationExport) {
-                await StorageService.finalizeConversationExport(slot, nid, exportRecord, {
-                    conversationUpdate: {
-                        title: safeTitle,
-                        titleSource: (chat as any)?.titleSource || 'api-detail',
-                        titles: (chat as any)?.titles,
-                        messageCount: msgCount,
-                        chatTime: chatTs,
-                        lastActiveAt: (chat as any)?.lastActiveAt || now
-                    }
-                });
-            } else if (StorageService?.saveExportRecord) {
-                await StorageService.saveExportRecord(slot, nid, exportRecord);
-            }
         } catch (e) {
             console.warn('[Background:liveSave] Failed to mark conversation as exported:', e);
         }

@@ -1,4 +1,5 @@
 import type { Conversation, TitleSource } from '../../types/index.js';
+export type { TitleSource };
 import { normId } from './pathUtils.js';
 
 export interface TitleResolution {
@@ -183,9 +184,22 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
 /**
  * Adopt titles from incoming conversation per source-tier slot and re-arbitrate
  * so that higher-authority stored titles are never downgraded by weaker sources.
+ *
+ * Rules:
+ * 1. Source-tier arbitration: When incoming carries a reliable source (rpc, api-detail, dom, takeout, etc.),
+ *    it routes through setTitleBySource and canonical resolveTitle arbitration.
+ * 2. Unprovenanced / weak-source export candidate promotion:
+ *    When export/finalize provides a candidate title where isRealTitle(candidate) is true,
+ *    and existing currently resolves only to a generic placeholder (or default),
+ *    the candidate is promoted to existing as a valid title (source: legacy).
+ *    If existing already has any real title (rpc, api-detail, dom, takeout, etc.),
+ *    an unprovenanced candidate can NEVER overwrite or downgrade it.
  */
 export function applyExportTitleWriteback(existing: any, incoming: any): any {
     if (!existing || !incoming) return existing;
+
+    // 1. Seed the stored record's own resolved title into its tier slot first
+    // so legacy-shaped records whose title lives only in title/titleSource are protected by arbitration.
     if (existing.titleSource && existing.title &&
         (!existing.titles || typeof existing.titles !== 'object' || !existing.titles[existing.titleSource])) {
         const cleanedSeed = cleanTitle(existing.title);
@@ -193,16 +207,59 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
             setTitleBySource(existing, existing.titleSource, existing.title);
         }
     }
+
+    // 2. Adopt explicit source tiers if provided by incoming
     if (incoming.titles && typeof incoming.titles === 'object') {
         for (const [slot, slotTitle] of Object.entries(incoming.titles)) {
-            if (typeof slotTitle === 'string' && slotTitle) {
+            if (typeof slotTitle === 'string' && slotTitle && slot !== 'default' && slot !== 'legacy') {
                 setTitleBySource(existing, slot, slotTitle);
             }
         }
     }
-    if (incoming.title) {
-        setTitleBySource(existing, incoming.titleSource || 'legacy', incoming.title);
+
+    // 3. Adopt incoming title with reliable provenance
+    const incomingSource = incoming.titleSource;
+    const isReliableSource = typeof incomingSource === 'string' &&
+        incomingSource !== 'default' &&
+        incomingSource !== 'legacy' &&
+        TITLE_SOURCE_PRIORITY.includes(incomingSource as TitleSource);
+
+    if (incoming.title && isReliableSource) {
+        setTitleBySource(existing, incomingSource, incoming.title);
     }
+
+    // 4. Candidate promotion rule for unprovenanced or weak-source export titles:
+    const currentResolved = resolveTitle(existing);
+    const existingHasRealTitle = isRealTitle(currentResolved.title, existing.id) ||
+        (currentResolved.source === 'takeout' && !isBrandPlaceholderTitle(currentResolved.title));
+
+    if (!existingHasRealTitle) {
+        let candidate = '';
+        const cleanedIncoming = cleanTitle(incoming.title);
+        if (isRealTitle(cleanedIncoming, existing.id)) {
+            candidate = cleanedIncoming;
+        } else if (incoming.titles && typeof incoming.titles === 'object') {
+            for (const t of Object.values(incoming.titles)) {
+                const c = cleanTitle(t as string);
+                if (isRealTitle(c, existing.id)) {
+                    candidate = c;
+                    break;
+                }
+            }
+        }
+
+        if (candidate) {
+            existing.titles = (existing.titles && typeof existing.titles === 'object') ? existing.titles : {};
+            existing.title = candidate;
+            existing.titleSource = isReliableSource
+                ? incomingSource
+                : (incomingSource && incomingSource !== 'default' ? incomingSource : 'legacy');
+            if (existing.titleSource && existing.titleSource !== 'default') {
+                existing.titles[existing.titleSource] = candidate;
+            }
+        }
+    }
+
     return existing;
 }
 
