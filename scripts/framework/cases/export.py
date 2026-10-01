@@ -56,54 +56,123 @@ DESIGNATED_HISTORICAL_CHATS = [
 ]
 
 
+class LiveSaveNewChatCase(FeatureTestCase):
+    def __init__(self):
+        super().__init__(
+            feature_id="feat_live_save_new_chat",
+            domain=FeatureDomain.PAGE_CHAT,
+            name="新会话实时落盘与状态验证",
+            description="开着实时落盘生成新会话（场景一），验证本地磁盘自动落盘非空且工作台直接呈现「已导出」状态",
+            critical=True,
+            prerequisites=["feat_chat_generation"]
+        )
+
+    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        if len(ctx.chat_records) < 2:
+            return False, "会话记录不足 2 个，无法验证新会话实时落盘", None
+
+        s2_id = ctx.chat_records[1].get("chat_id")
+        if not s2_id:
+            return False, "会话 2 ID 无效", None
+
+        print(f"\n   💾 正在验证场景一：新会话 2 ({s2_id}) 实时落盘与状态标签闭环...")
+        cdp_opt = ctx.connect_options()
+        try:
+            # 1. 刷新 OPFS 目录并物理落盘到 output_dir
+            flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
+            print(f"      📁 实时落盘文件已同步到磁盘 (文件总数: {flush_res.get('count', 0)})")
+
+            # 2. 真实物理磁盘断言：必须存在对应的 .md 文件、大小 > 0、mtime >= ctx.start_time
+            disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
+                target_dir=ctx.output_dir,
+                target_chat_ids=[s2_id],
+                min_mtime=ctx.start_time
+            )
+            if not disk_ok:
+                return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
+
+            # 3. Options 工作台状态标签断言：会话 2 刚生成且已落盘，直接呈现「已导出」(.badge-exported) 且未被勾选
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.5)
+            badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s2_id, "exported")
+            if not badge_ok:
+                return False, f"场景一状态标签断言失败: {badge_msg}", {"disk": disk_data, "badge": badge_data}
+
+            return True, f"场景一（新会话实时落盘）断言通过: {disk_msg}; {badge_msg}", {"disk": disk_data, "badge": badge_data}
+        finally:
+            cdp_opt.close()
+
+
 class LiveDiskAutoSaveCase(FeatureTestCase):
     def __init__(self):
         super().__init__(
             feature_id="feat_live_auto_save_disk_write",
-            domain=FeatureDomain.EXPORT_DISK,
-            name="物理磁盘实时落盘与非零字节核验",
-            description="直接扫描本地磁盘 gemini_export/ 目录，验证 .md 文件及 assets/ 所有图片 > 0 字节",
+            domain=FeatureDomain.LIFECYCLE,
+            name="老会话开启实时导出与增量更新落盘",
+            description="已更新的老会话开启实时落盘并继续更新（场景二），验证物理写盘与「已导出」状态跃迁",
             critical=True,
-            prerequisites=[]
+            prerequisites=["feat_updated_badge_display"]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        if len(ctx.chat_records) < 1:
+            return False, "会话记录为空，无法验证老会话继续更新落盘", None
+
+        s1_id = ctx.chat_records[0].get("chat_id")
+        if not s1_id:
+            return False, "会话 1 ID 无效", None
+
+        print(f"\n   🔄 正在执行场景二：老会话 1 ({s1_id}) 开启实时落盘并继续更新...")
+        # 1. 在 Options 工作台重新开启实时导出
         cdp_opt = ctx.connect_options()
         try:
-            live_cfg = cdp_opt.eval("""
-            (() => {
-                return new Promise((resolve) => {
-                    chrome.storage.local.get(['live_save_config'], (data) => {
-                        resolve(data.live_save_config || null);
-                    });
-                });
-            })()
-            """, await_promise=True) or {}
+            setup_ok = CDPActions.setup_live_save(cdp_opt, enabled=True)
+            if not setup_ok:
+                return False, "开启实时导出设置失败", None
+            print("      ✓ 实时落盘已重新开启 (enabledDisk=True)")
+        finally:
+            cdp_opt.close()
 
-            is_live_disk_enabled = bool(live_cfg.get("enabledDisk"))
-            live_dir_name = live_cfg.get("dirName") or ""
+        # 2. 回访会话 1 发送继续追加提问 B
+        cdp_gem = ctx.connect_gemini()
+        try:
+            driver = ctx.get_gemini_driver(cdp_gem)
+            session = driver.open_chat(s1_id, timeout=20.0)
 
-            if not is_live_disk_enabled:
-                return True, "扩展未启用实时磁盘保存，跳过物理磁盘扫描 (live_save_config.enabledDisk != true)", {"skipped_reason": "not_enabled"}
+            follow_up_prompt = "请根据前面讨论的所有方案与避坑建议，提炼一条最核心的架构决策准则，一句话极简总结。"
+            print(f"      ▶️ 场景二：会话 1 继续追加提问: '{follow_up_prompt[:36]}...'")
+            turn_res = session.send_turn(follow_up_prompt, max_wait=120)
+            if not turn_res.success:
+                return False, f"老会话继续追加提问失败: {turn_res.error}", None
+            ctx.chat_records[0]["turns"].append(follow_up_prompt)
+            print("      ✓ 继续追加提问流式回复已落地，等待实时保存落盘...")
+            time.sleep(3.0)
+        finally:
+            cdp_gem.close()
 
-            target_cids = [r["chat_id"] for r in ctx.chat_records if r.get("chat_id")]
-            candidate_dirs = [
-                os.path.join(os.path.expanduser("~"), "Downloads", live_dir_name),
-                os.path.join(os.path.expanduser("~"), "Downloads", "gemini"),
-                os.path.join(os.path.expanduser("~"), "Downloads")
-            ]
-            valid_live_dir = next((d for d in candidate_dirs if os.path.isdir(d)), None)
-            if not valid_live_dir:
-                return False, f"已配置实时落盘但本地目录不存在 (dirName: '{live_dir_name}')", None
+        # 3. 回到 Options 页面，将 OPFS 实时落盘实体回写物理磁盘
+        cdp_opt = ctx.connect_options()
+        try:
+            flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
+            print(f"      📁 实时落盘文件已同步到磁盘 (文件总数: {flush_res.get('count', 0)})")
 
+            # 4. 物理磁盘断言：会话 1 的 .md 必须物理存在、字节非空、mtime 更新
             disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
-                target_dir=valid_live_dir,
-                target_chat_ids=target_cids,
+                target_dir=ctx.output_dir,
+                target_chat_ids=[s1_id],
                 min_mtime=ctx.start_time
             )
-            if disk_ok:
-                return True, disk_msg, disk_data
-            return False, disk_msg, disk_data
+            if not disk_ok:
+                return False, f"场景二物理磁盘落盘断言失败: {disk_msg}", disk_data
+
+            # 5. Options 工作台状态标签断言：会话 1 状态必须由之前的「已更新」跃迁回「已导出」(.badge-exported) 且取消自动勾选
+            CDPActions.clear_search_workbench(cdp_opt)
+            time.sleep(0.5)
+            badge_ok, badge_msg, badge_data = CDPAssertions.assert_badge_status(cdp_opt, s1_id, "exported")
+            if not badge_ok:
+                return False, f"场景二状态标签回写断言失败: {badge_msg}", {"disk": disk_data, "badge": badge_data}
+
+            return True, f"场景二（老会话开启实时导出增量更新落盘）双重断言通过: {disk_msg}; {badge_msg}", {"disk": disk_data, "badge": badge_data}
         finally:
             cdp_opt.close()
 

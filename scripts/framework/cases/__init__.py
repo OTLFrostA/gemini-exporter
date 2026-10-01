@@ -5,6 +5,7 @@ from .lifecycle import ContinuedChatPromotionCase, UpdatedBadgeDisplayCase, Ephe
 from .takeout import TakeoutZipImportCase, DeepScanPaginationCase, AuthoritativeTitleUpgradeCase
 from .workbench import SearchKeywordCase, SearchIdCase, SearchClearCase, SelectionControlsCase, LanguageToggleCase
 from .export import (
+    LiveSaveNewChatCase,
     LiveDiskAutoSaveCase,
     ZipExportDownloadCase,
     MultimodalSpecCase,
@@ -36,6 +37,7 @@ __all__ = [
     "SearchClearCase",
     "SelectionControlsCase",
     "LanguageToggleCase",
+    "LiveSaveNewChatCase",
     "LiveDiskAutoSaveCase",
     "ZipExportDownloadCase",
     "MultimodalSpecCase",

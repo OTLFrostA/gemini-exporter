@@ -34,6 +34,16 @@ class ContinuedChatPromotionCase(FeatureTestCase):
             return False, f"会话 ID 无效或重复 (s1={s1_id}, s2={s2_id})", None
 
         print(f"\n   🔄 回访较早创建的会话 1 ({s1_id}) 进行追加提问...")
+        # 确保实时落盘暂时处于关闭状态，使得本次更新在 Options 呈现「已更新」未同步状态
+        try:
+            cdp_opt_prep = ctx.connect_options()
+            try:
+                CDPActions.setup_live_save(cdp_opt_prep, enabled=False)
+            finally:
+                cdp_opt_prep.close()
+        except Exception as e:
+            print(f"      ⚠️ 临时关闭实时落盘提示: {e}")
+
         cdp_g2 = ctx.connect_gemini()
         try:
             driver = ctx.get_gemini_driver(cdp_g2)

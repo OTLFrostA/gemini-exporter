@@ -107,26 +107,43 @@ class CDPAssertions:
         return True, f"实时置顶顺序正确 (置顶会话 #{idx1} 排在 #{idx2} 之前, ts1={ts1} >= ts2={ts2})", order_info
 
     @staticmethod
-    def assert_badge_status(cdp_opt, chat_id: str, expected_type: str = "updated") -> Tuple[bool, str, Dict[str, Any]]:
-        """断言指定会话卡片的徽章类型 (updated / exported) 及自动勾选状态"""
+    def assert_badge_status(cdp_opt, chat_id: str, expected_type: str = "updated", timeout: float = 6.0) -> Tuple[bool, str, Dict[str, Any]]:
+        """断言指定会话卡片的徽章类型 (updated / exported) 及自动勾选状态 (带确定性异步轮询)"""
         item_sel = WorkbenchSelectors.item_by_chat_id(chat_id)
-        badge_info = cdp_opt.eval(f"""
-        (() => {{
-            const el = document.querySelector('{item_sel}');
-            if (!el) return {{ found: false }};
-            const bUpdated = el.querySelector('{WorkbenchSelectors.BADGE_UPDATED}');
-            const bExported = el.querySelector('{WorkbenchSelectors.BADGE_EXPORTED}');
-            const cb = el.querySelector('{WorkbenchSelectors.CHECKBOX}');
-            return {{
-                found: true,
-                hasUpdated: !!bUpdated,
-                updatedText: bUpdated ? bUpdated.textContent.trim() : '',
-                hasExported: !!bExported,
-                exportedText: bExported ? bExported.textContent.trim() : '',
-                checked: cb ? cb.checked : false
-            }};
-        }})()
-        """) or {}
+        start_time = time.time()
+        badge_info: Dict[str, Any] = {}
+
+        while time.time() - start_time < timeout:
+            badge_info = cdp_opt.eval(f"""
+            (() => {{
+                const el = document.querySelector('{item_sel}');
+                if (!el) return {{ found: false }};
+                const bUpdated = el.querySelector('{WorkbenchSelectors.BADGE_UPDATED}');
+                const bExported = el.querySelector('{WorkbenchSelectors.BADGE_EXPORTED}');
+                const cb = el.querySelector('{WorkbenchSelectors.CHECKBOX}');
+                return {{
+                    found: true,
+                    hasUpdated: !!bUpdated,
+                    updatedText: bUpdated ? bUpdated.textContent.trim() : '',
+                    hasExported: !!bExported,
+                    exportedText: bExported ? bExported.textContent.trim() : '',
+                    checked: cb ? cb.checked : false
+                }};
+            }})()
+            """) or {}
+
+            if badge_info.get("found"):
+                if expected_type == "updated" and badge_info.get("hasUpdated") and badge_info.get("checked"):
+                    return True, f"「已更新」徽章渲染正常且已被自动勾选 ({badge_info.get('updatedText')})", badge_info
+                elif expected_type == "exported" and badge_info.get("hasExported"):
+                    return True, f"「已导出」徽章渲染正常 ({badge_info.get('exportedText')})", badge_info
+
+            time.sleep(0.5)
+            # 若尚未就绪，尝试触发一次 Options 列表视图同步重载
+            try:
+                cdp_opt.eval("if (window.__workbenchLoadStore) window.__workbenchLoadStore(null, true);")
+            except Exception:
+                pass
 
         if not badge_info.get("found"):
             return False, f"未找到会话 ID 为 {chat_id} 的 DOM 节点", badge_info

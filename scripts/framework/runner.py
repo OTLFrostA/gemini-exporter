@@ -35,6 +35,7 @@ from scripts.framework.cases import (
     SearchClearCase,
     SelectionControlsCase,
     LanguageToggleCase,
+    LiveSaveNewChatCase,
     LiveDiskAutoSaveCase,
     ZipExportDownloadCase,
     MultimodalSpecCase,
@@ -151,8 +152,10 @@ class FrameworkRunner:
         dag.register(InpageBadgeCase())
         dag.register(ChatGenerationCase())
         dag.register(ImagenMultimodalCase())
+        dag.register(LiveSaveNewChatCase())
         dag.register(ContinuedChatPromotionCase())
         dag.register(UpdatedBadgeDisplayCase())
+        dag.register(LiveDiskAutoSaveCase())
         dag.register(EphemeralChatPruningCase())
         dag.register(TakeoutZipImportCase())
         dag.register(DeepScanPaginationCase())
@@ -162,7 +165,6 @@ class FrameworkRunner:
         dag.register(SearchClearCase())
         dag.register(SelectionControlsCase())
         dag.register(LanguageToggleCase())
-        dag.register(LiveDiskAutoSaveCase())
         dag.register(ZipExportDownloadCase())
         dag.register(MultimodalSpecCase())
         dag.register(FastSkipExportedCase())
@@ -274,6 +276,13 @@ class FrameworkRunner:
         if self.needs_gemini and not env_ctx.gemini_tab:
             print("❌ 未在 Chrome 中找到或创建 gemini.google.com 页面，请先启动测试浏览器！")
             return False
+
+        # 如果执行计划中不包含向导用例，预先闭合新手向导避免遮挡后续工作台交互
+        if self.target_ids and "feat_tour_guide_interactive" not in self.target_ids:
+            try:
+                CDPActions.verify_onboarding_tour(port=self.port, ext_id=self.ext_id, timeout=5)
+            except Exception:
+                pass
 
         # 执行调度
         return self.dag.run(self.ctx, target_ids=self.target_ids)
