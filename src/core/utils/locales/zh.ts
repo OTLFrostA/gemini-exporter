@@ -251,7 +251,7 @@ const __zhFactory = (): LocaleDictionary => {
             tourBtnDone: "🎉 开始使用",
             tourBtnSkip: "跳过教程",
             tourExportFormatsTitle: "新增 PDF / HTML 导出",
-            tourExportFormatsDesc: "把 Gemini 对话保存成更适合阅读与分享的文件：<br><br><strong>PDF</strong>：在你的设备上直接生成，适合打印与归档。<br><strong>HTML</strong>：保留 Gemini 风格，支持离线浏览、深浅主题切换与代码复制。",
+            tourExportFormatsDesc: "把 Gemini 对话保存成更适合阅读与分享的文件：<br><br><strong>PDF</strong>：在你的设备上直接生成，适合打印与归档。<br><strong>HTML</strong>：独立阅读页面，支持离线浏览、深浅主题切换与代码复制。<br><br><strong>PDF 本地字体权限</strong>：为正确导出中文、日文等非英文字符，请在浏览器提示时允许读取本地字体。拒绝后仍可导出纯英文 PDF，但非英文字符可能缺字。HTML 导出不需要这项授权。",
             tourExportFormatsHint: "勾选会话，在「导出设置 → 格式」中选择 PDF 或 HTML，然后导出。",
             tourExportFormatsAction: "选择导出格式",
             tourFeatureBadge: "版本新功能",
