@@ -14,7 +14,8 @@ const {
     resolveReliableTitleSource
 } = require('../src/core/engine/export/exportCompletion.js');
 const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
-const { applyExportTitleWriteback } = require('../src/core/utils/titleUtils.js');
+const { applyExportTitleWriteback, setTitleBySource, resolveTitle, assertCanonicalTitleProvenance } = require('../src/core/utils/titleUtils.js');
+const { resolveChat } = require('../src/core/engine/export/batchWorker.js');
 
 function createMockChromeStorage(initialData: Record<string, any> = {}) {
     const mockStorage: Record<string, any> = { ...initialData };
@@ -946,121 +947,118 @@ test('20. Adapter Contract F: adapter with neither finalizeConversationExport no
     }, /adapter must implement finalizeConversationExport or saveExportRecord/);
 });
 
-// 21. Provenance Boundary A: export source is demoted to legacy and never enters titles.export
-test('21. Provenance Boundary A: export source is demoted to legacy and never enters titles.export', async () => {
-    // 1. Direct applyExportTitleWriteback boundary test
+// ============================================================================
+// ADVERSARIAL PROVENANCE BOUNDARY TEST MATRIX (Scenarios A through J)
+// ============================================================================
+
+// Matrix A: Unknown titles-only input has zero influence
+test('21. Adversarial Matrix A: unknown titles-only input has zero influence', () => {
     const existing: any = {
-        id: 'c_test_export_src',
-        title: '未命名对话',
-        titleSource: 'default',
-        titles: {}
-    };
-    const incoming: any = {
-        title: 'Real Title From Export',
-        titleSource: 'export'
-    };
-
-    applyExportTitleWriteback(existing, incoming);
-    assert.strictEqual(existing.title, 'Real Title From Export');
-    assert.strictEqual(existing.titleSource, 'legacy', 'export source must be demoted to legacy');
-    assert.strictEqual(existing.titles.export, undefined, 'titles.export must never be written');
-
-    // 2. StorageService.finalizeConversationExport boundary test with dirty update
-    const { mockStorage, chrome } = createMockChromeStorage({
-        gemini_conversations: [
-            { id: 'c_test_export_src', title: '未命名对话', titleSource: 'default', messageCount: 1 }
-        ]
-    });
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = chrome;
-
-    try {
-        await StorageService.finalizeConversationExport(
-            'u0',
-            'test_export_src',
-            { title: 'Real Title From Export', status: 'ok', exportedAt: new Date().toISOString() },
-            {
-                conversationUpdate: {
-                    title: 'Real Title From Export',
-                    titleSource: 'export',
-                    titles: { export: 'Real Title From Export' }
-                }
-            }
-        );
-
-        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === 'test_export_src');
-        assert.ok(saved);
-        assert.strictEqual(saved.title, 'Real Title From Export');
-        assert.strictEqual(saved.titleSource, 'legacy');
-        assert.strictEqual(saved.titles?.export, undefined);
-    } finally {
-        (global as any).chrome = origChrome;
-    }
-});
-
-// 22. Provenance Boundary B: unknown source is demoted to legacy and never enters titles
-test('22. Provenance Boundary B: unknown source is demoted to legacy and never enters titles', async () => {
-    // 1. Direct unit test
-    const existing: any = {
-        id: 'c_test_unknown_src',
-        title: '未命名对话',
-        titleSource: 'default',
-        titles: {}
-    };
-    const incoming: any = {
-        title: 'Real Title From Unknown',
-        titleSource: 'random-source'
-    };
-
-    applyExportTitleWriteback(existing, incoming);
-    assert.strictEqual(existing.title, 'Real Title From Unknown');
-    assert.strictEqual(existing.titleSource, 'legacy');
-    assert.strictEqual(existing.titles['random-source'], undefined);
-
-    // 2. Storage persistence test
-    const { mockStorage, chrome } = createMockChromeStorage({
-        gemini_conversations: [
-            { id: 'c_test_unknown_src', title: '未命名对话', titleSource: 'default', messageCount: 1 }
-        ]
-    });
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = chrome;
-
-    try {
-        await StorageService.finalizeConversationExport(
-            'u0',
-            'test_unknown_src',
-            { title: 'Real Title From Unknown', status: 'ok', exportedAt: new Date().toISOString() },
-            {
-                conversationUpdate: {
-                    title: 'Real Title From Unknown',
-                    titleSource: 'random-source'
-                }
-            }
-        );
-
-        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === 'test_unknown_src');
-        assert.ok(saved);
-        assert.strictEqual(saved.title, 'Real Title From Unknown');
-        assert.strictEqual(saved.titleSource, 'legacy');
-        assert.strictEqual(saved.titles?.['random-source'], undefined);
-    } finally {
-        (global as any).chrome = origChrome;
-    }
-});
-
-// 23. Provenance Boundary C: unknown titles slot is discarded and tier arbitration preserved
-test('23. Provenance Boundary C: unknown titles slot is discarded and tier arbitration preserved', async () => {
-    // 1. Direct applyExportTitleWriteback test
-    const existing: any = {
-        id: 'c_test_slots',
+        id: 'c_adv_a',
         title: '未命名对话',
         titleSource: 'default',
         titles: {}
     };
     const incoming: any = {
         titles: {
-            'random-source': 'Random Title',
+            'random-source': 'Dirty Title'
+        }
+    };
+
+    applyExportTitleWriteback(existing, incoming);
+    assert.strictEqual(existing.title, '未命名对话');
+    assert.strictEqual(existing.titleSource, 'default');
+    assert.strictEqual(existing.titles['random-source'], undefined);
+    assert.strictEqual(existing.titles.legacy, undefined);
+    assertCanonicalTitleProvenance(existing);
+});
+
+// Matrix B: export titles-only input has zero influence
+test('22. Adversarial Matrix B: export titles-only input has zero influence', () => {
+    const existing: any = {
+        id: 'c_adv_b',
+        title: '未命名对话',
+        titleSource: 'default',
+        titles: {}
+    };
+    const incoming: any = {
+        titles: {
+            export: 'Export Title'
+        }
+    };
+
+    applyExportTitleWriteback(existing, incoming);
+    assert.strictEqual(existing.title, '未命名对话');
+    assert.strictEqual(existing.titleSource, 'default');
+    assert.strictEqual(existing.titles.export, undefined);
+    assert.strictEqual(existing.titles.legacy, undefined);
+    assertCanonicalTitleProvenance(existing);
+});
+
+// Matrix C: Unknown titleSource + explicit incoming.title promotes as legacy
+test('23. Adversarial Matrix C: unknown titleSource + explicit incoming.title promotes as legacy', async () => {
+    const existing: any = {
+        id: 'c_adv_c',
+        title: '未命名对话',
+        titleSource: 'default',
+        titles: {}
+    };
+    const incoming: any = {
+        title: 'Real Title',
+        titleSource: 'random-source'
+    };
+
+    applyExportTitleWriteback(existing, incoming);
+    assert.strictEqual(existing.title, 'Real Title');
+    assert.strictEqual(existing.titleSource, 'legacy');
+    assert.strictEqual(existing.titles.legacy, 'Real Title');
+    assert.strictEqual(existing.titles['random-source'], undefined);
+    assertCanonicalTitleProvenance(existing);
+
+    // Also verify persistence in Chrome storage
+    const { mockStorage, chrome } = createMockChromeStorage({
+        gemini_conversations: [
+            { id: 'c_adv_c', title: '未命名对话', titleSource: 'default', messageCount: 1 }
+        ]
+    });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        await StorageService.finalizeConversationExport(
+            'u0',
+            'c_adv_c',
+            { title: 'Real Title', status: 'ok', exportedAt: new Date().toISOString() },
+            {
+                conversationUpdate: {
+                    title: 'Real Title',
+                    titleSource: 'random-source'
+                }
+            }
+        );
+
+        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === normId('c_adv_c'));
+        assert.ok(saved);
+        assert.strictEqual(saved.title, 'Real Title');
+        assert.strictEqual(saved.titleSource, 'legacy');
+        assert.strictEqual(saved.titles?.['random-source'], undefined);
+        assertCanonicalTitleProvenance(saved);
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// Matrix D: Unknown slot + reliable slot
+test('24. Adversarial Matrix D: unknown slot is dropped while reliable slot arbitrates', async () => {
+    const existing: any = {
+        id: 'c_adv_d',
+        title: '未命名对话',
+        titleSource: 'default',
+        titles: {}
+    };
+    const incoming: any = {
+        titles: {
+            'random-source': 'Dirty',
             rpc: 'RPC Title'
         }
     };
@@ -1069,72 +1067,64 @@ test('23. Provenance Boundary C: unknown titles slot is discarded and tier arbit
     assert.strictEqual(existing.title, 'RPC Title');
     assert.strictEqual(existing.titleSource, 'rpc');
     assert.strictEqual(existing.titles.rpc, 'RPC Title');
-    assert.strictEqual(existing.titles['random-source'], undefined, 'unknown slot must be discarded');
-
-    // 2. Storage persistence test with dirty slots in conversationUpdate.titles
-    const { mockStorage, chrome } = createMockChromeStorage({
-        gemini_conversations: [
-            { id: 'c_test_slots', title: '未命名对话', titleSource: 'default', messageCount: 1 }
-        ]
-    });
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = chrome;
-
-    try {
-        await StorageService.finalizeConversationExport(
-            'u0',
-            'test_slots',
-            { title: 'RPC Title', status: 'ok', exportedAt: new Date().toISOString() },
-            {
-                conversationUpdate: {
-                    title: 'RPC Title',
-                    titleSource: 'rpc',
-                    titles: {
-                        'random-source': 'Random Title',
-                        'typo_tier': 'Typo Title',
-                        rpc: 'RPC Title'
-                    }
-                }
-            }
-        );
-
-        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === 'test_slots');
-        assert.ok(saved);
-        assert.strictEqual(saved.title, 'RPC Title');
-        assert.strictEqual(saved.titleSource, 'rpc');
-        assert.strictEqual(saved.titles?.rpc, 'RPC Title');
-        assert.strictEqual(saved.titles?.['random-source'], undefined);
-        assert.strictEqual(saved.titles?.['typo_tier'], undefined);
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+    assert.strictEqual(existing.titles['random-source'], undefined);
+    assertCanonicalTitleProvenance(existing);
 });
 
-// 24. Provenance Boundary D: reliable source is normally preserved in titleSource and titles
-test('24. Provenance Boundary D: reliable source is normally preserved in titleSource and titles', async () => {
+// Matrix E: Reliable source + conflicting explicit title
+test('25. Adversarial Matrix E: reliable source + explicit title preserves canonical arbitration', () => {
     const existing: any = {
-        id: 'c_test_rel',
+        id: 'c_adv_e',
         title: '未命名对话',
         titleSource: 'default',
         titles: {}
     };
     const incoming: any = {
-        title: 'Authoritative RPC Title',
+        title: 'RPC Title',
         titleSource: 'rpc',
-        titles: { rpc: 'Authoritative RPC Title' }
+        titles: {
+            rpc: 'RPC Title'
+        }
     };
 
     applyExportTitleWriteback(existing, incoming);
-    assert.strictEqual(existing.title, 'Authoritative RPC Title');
+    assert.strictEqual(existing.title, 'RPC Title');
     assert.strictEqual(existing.titleSource, 'rpc');
-    assert.strictEqual(existing.titles.rpc, 'Authoritative RPC Title');
+    assert.strictEqual(existing.titles.rpc, 'RPC Title');
+    assertCanonicalTitleProvenance(existing);
 });
 
-// 25. Provenance Boundary E: unprovenanced real candidate promotes generic title with legacy semantics
-test('25. Provenance Boundary E: unprovenanced real candidate promotes generic title with legacy semantics', async () => {
-    // 1. Direct applyExportTitleWriteback
+// Matrix F: Existing real authoritative title not influenced by unknown input
+test('26. Adversarial Matrix F: existing real authoritative title not influenced by unknown input', () => {
     const existing: any = {
-        id: 'c_test_generic',
+        id: 'c_adv_f',
+        title: 'RPC Title',
+        titleSource: 'rpc',
+        titles: {
+            rpc: 'RPC Title'
+        }
+    };
+    const incoming: any = {
+        title: 'Unknown Candidate',
+        titleSource: 'random-source',
+        titles: {
+            'random-source': 'Dirty'
+        }
+    };
+
+    applyExportTitleWriteback(existing, incoming);
+    assert.strictEqual(existing.title, 'RPC Title');
+    assert.strictEqual(existing.titleSource, 'rpc');
+    assert.strictEqual(existing.titles.rpc, 'RPC Title');
+    assert.strictEqual(existing.titles['random-source'], undefined);
+    assert.strictEqual(existing.titles.legacy, undefined);
+    assertCanonicalTitleProvenance(existing);
+});
+
+// Matrix G: Existing generic + plain unprovenanced title promotes as legacy
+test('27. Adversarial Matrix G: existing generic + plain unprovenanced title promotes as legacy', () => {
+    const existing: any = {
+        id: 'c_adv_g',
         title: '未命名对话',
         titleSource: 'default',
         titles: {}
@@ -1147,12 +1137,44 @@ test('25. Provenance Boundary E: unprovenanced real candidate promotes generic t
     assert.strictEqual(existing.title, 'Real Unprovenanced Title');
     assert.strictEqual(existing.titleSource, 'legacy');
     assert.strictEqual(existing.titles.legacy, 'Real Unprovenanced Title');
+    assertCanonicalTitleProvenance(existing);
+});
 
-    // 2. Storage persistence test with unprovenanced title (no titleSource, no titles)
+// Matrix H: setTitleBySource dirty-source direct call is strictly non-polluting
+test('28. Adversarial Matrix H: setTitleBySource dirty-source direct call is strictly non-polluting', () => {
+    // 1. Generic chat
+    const chat: any = {
+        id: 'c_adv_h',
+        title: '未命名对话',
+        titleSource: 'default',
+        titles: {}
+    };
+    const res = setTitleBySource(chat, 'random-source', 'Dirty');
+    assert.strictEqual(chat.titles['random-source'], undefined);
+    assert.strictEqual(chat.titleSource, 'default');
+    assert.strictEqual(chat.title, '未命名对话');
+    assert.strictEqual(res.source, 'default');
+    assertCanonicalTitleProvenance(chat);
+
+    // 2. Real authoritative chat
+    const chat2: any = {
+        id: 'c_adv_h2',
+        title: 'Authoritative RPC',
+        titleSource: 'rpc',
+        titles: { rpc: 'Authoritative RPC' }
+    };
+    const res2 = setTitleBySource(chat2, 'random-source', 'Dirty');
+    assert.strictEqual(chat2.titles['random-source'], undefined);
+    assert.strictEqual(chat2.titleSource, 'rpc');
+    assert.strictEqual(chat2.title, 'Authoritative RPC');
+    assert.strictEqual(res2.source, 'rpc');
+    assertCanonicalTitleProvenance(chat2);
+});
+
+// Matrix I: Fresh conversation registration with dirty metadata purges dirty source
+test('29. Adversarial Matrix I: fresh conversation registration purges dirty metadata and ensures canonical consistency', async () => {
     const { mockStorage, chrome } = createMockChromeStorage({
-        gemini_conversations: [
-            { id: 'c_test_generic', title: '未命名对话', titleSource: 'default', messageCount: 1 }
-        ]
+        gemini_conversations: []
     });
     const origChrome = (global as any).chrome;
     (global as any).chrome = chrome;
@@ -1160,22 +1182,57 @@ test('25. Provenance Boundary E: unprovenanced real candidate promotes generic t
     try {
         await StorageService.finalizeConversationExport(
             'u0',
-            'test_generic',
-            { title: 'Real Unprovenanced Title', status: 'ok', exportedAt: new Date().toISOString() },
+            'fresh_dirty',
+            { title: 'Real', status: 'ok', exportedAt: new Date().toISOString() },
             {
                 conversationUpdate: {
-                    title: 'Real Unprovenanced Title'
+                    title: 'Real',
+                    titleSource: 'random-source',
+                    titles: {
+                        'random-source': 'Dirty',
+                        rpc: 'RPC'
+                    }
                 }
             }
         );
 
-        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === 'test_generic');
-        assert.ok(saved);
-        assert.strictEqual(saved.title, 'Real Unprovenanced Title');
-        assert.strictEqual(saved.titleSource, 'legacy');
+        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === 'fresh_dirty');
+        assert.ok(saved, 'fresh conversation must be registered');
+        assert.strictEqual(saved.titles['random-source'], undefined, 'dirty slot must not exist');
+        assert.strictEqual(saved.titles.rpc, 'RPC', 'reliable rpc must be preserved in titles');
+        assert.strictEqual(saved.title, 'RPC', 'canonical title must arbitrate to rpc');
+        assert.strictEqual(saved.titleSource, 'rpc', 'canonical titleSource must arbitrate to rpc');
+        assertCanonicalTitleProvenance(saved);
     } finally {
         (global as any).chrome = origChrome;
     }
+});
+
+// Matrix J: BatchWorker merge dirty map
+test('30. Adversarial Matrix J: BatchWorker merge dirty map filters non-canonical source slots', async () => {
+    const chat: any = {
+        id: 'c_adv_j',
+        title: 'RPC Title',
+        messages: [{ role: 'user', content: 'hello' }],
+        titles: {
+            'random-source': 'Dirty',
+            rpc: 'RPC Title'
+        }
+    };
+    const listConversation: any = {
+        id: 'c_adv_j',
+        title: '未命名对话',
+        titleSource: 'default',
+        titles: {}
+    };
+
+    await resolveChat(chat, { id: 'c_adv_j' }, listConversation);
+
+    assert.strictEqual(listConversation.titles['random-source'], undefined, 'random-source must be excluded');
+    assert.strictEqual(listConversation.titles.rpc, 'RPC Title', 'rpc slot must be preserved');
+    assert.strictEqual(listConversation.title, 'RPC Title', 'resolved title must be RPC Title');
+    assert.strictEqual(listConversation.titleSource, 'rpc', 'resolved titleSource must be rpc');
+    assertCanonicalTitleProvenance(listConversation);
 });
 
 

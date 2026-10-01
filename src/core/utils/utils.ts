@@ -28,6 +28,7 @@ import {
     resolveDetailTitle,
     setTitleBySource,
     applyExportTitleWriteback,
+    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
@@ -89,6 +90,7 @@ export {
     resolveDetailTitle,
     setTitleBySource,
     applyExportTitleWriteback,
+    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
@@ -145,6 +147,7 @@ export interface GeminiUtilsModule {
     resolveDetailTitle: (messages: any[] | null | undefined, convId?: string | number) => { title: string; source: 'sniff' } | null;
     setTitleBySource: (chat?: any, source?: string, rawTitle?: string) => TitleResolution;
     applyExportTitleWriteback: (existing: any, incoming: any) => any;
+    assertCanonicalTitleProvenance: (chat: any) => void;
     toTimestampMs: (raw: any) => number | null;
     getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
     compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
@@ -199,6 +202,7 @@ export const GeminiUtils: GeminiUtilsModule = {
     resolveDetailTitle,
     setTitleBySource,
     applyExportTitleWriteback,
+    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,

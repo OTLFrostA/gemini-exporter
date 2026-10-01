@@ -1,6 +1,6 @@
 import type { Conversation } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
-import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, toTimestampMs, getEffectiveTimestamp, normalizeReliableTitleSource } from "../utils/titleUtils.js";
+import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, isRealTitle, resolveTitle, toTimestampMs, getEffectiveTimestamp, normalizeReliableTitleSource } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
 
 export interface FinalizeExportOptions {
@@ -514,6 +514,8 @@ export interface ConversationTransaction {
                             }
                             if (initialSource && initialSource !== 'legacy') {
                                 initialTitles[initialSource] = cleanedTitle;
+                            } else if (initialSource === 'legacy' && cleanedTitle && isRealTitle(cleanedTitle, targetId)) {
+                                initialTitles.legacy = cleanedTitle;
                             }
 
                             const newConv: any = {
@@ -525,6 +527,9 @@ export interface ConversationTransaction {
                                 updatedAt: toTimestampMs(convUpdate.updatedAt || convUpdate.timestamp || record?.chatTime) || Date.now(),
                                 lastActiveAt: toTimestampMs(convUpdate.lastActiveAt) || Date.now()
                             };
+                            const resolved = resolveTitle(newConv);
+                            newConv.title = resolved.title;
+                            newConv.titleSource = resolved.source;
                             const nextList = [newConv, ...list];
                             await _setConversationsRaw(slot, nextList);
                         }
