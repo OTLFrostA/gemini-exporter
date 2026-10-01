@@ -377,7 +377,6 @@ test('8. Parity A: Batch / Live canonical record parity given identical input fa
         titles: { rpc: '量子引力理论探究' },
         messages: [{ role: 'user', content: 'q1' }, { role: 'model', content: 'a1' }],
         updatedAt: 1727777777000,
-        lastActiveAt: 1727777778000,
         truncated: false
     };
     const exportedAt = 1727788888000;

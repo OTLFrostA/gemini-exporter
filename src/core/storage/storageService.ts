@@ -15,7 +15,6 @@ export interface FinalizeExportOptions {
         updatedAt?: number | string;
         timestamp?: number | string;
         chatTime?: number | string;
-        lastActiveAt?: number | string;
         [key: string]: any;
     };
     /** Callback invoked after successful write */
@@ -486,12 +485,6 @@ export interface ConversationTransaction {
                             if (existing.timestamp) existing.timestamp = timeMs;
                         }
                     }
-                    if (convUpdate.lastActiveAt) {
-                        const actMs = toTimestampMs(convUpdate.lastActiveAt);
-                        if (actMs && actMs > (toTimestampMs(existing.lastActiveAt) || 0)) {
-                            existing.lastActiveAt = actMs;
-                        }
-                    }
 
                     return existing;
                 });
@@ -524,8 +517,7 @@ export interface ConversationTransaction {
                                 titleSource: initialSource,
                                 titles: initialTitles,
                                 messageCount: convUpdate.messageCount ?? record?.messageCount ?? 1,
-                                updatedAt: toTimestampMs(convUpdate.updatedAt || convUpdate.timestamp || record?.chatTime) || Date.now(),
-                                lastActiveAt: toTimestampMs(convUpdate.lastActiveAt) || Date.now()
+                                updatedAt: toTimestampMs(convUpdate.updatedAt || convUpdate.timestamp || record?.chatTime) || Date.now()
                             };
                             const resolved = resolveTitle(newConv);
                             newConv.title = resolved.title;

@@ -8,9 +8,7 @@ const assert = require('node:assert');
 //    `.timestamp` fallbacks are now routed through toTimestampMs, mirroring
 //    the cUpdated/oldUpdated normalization directly above. (Old code kept
 //    e.g. 'not-a-date' as the authoritative timestamp.)
-// 2. lastActiveAt is a typed Conversation field (no more `as any`); merge
-//    keeps it max-monotonic so a stale reordered touch cannot un-bump a chat.
-// 3. The two previously scattered storage keys live in STORAGE_KEYS.
+// 2. The two previously scattered storage keys live in STORAGE_KEYS.
 
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 const { STORAGE_KEYS } = require('../src/core/utils/constants.js');
@@ -50,22 +48,4 @@ test('bestTimestamp prefers the newest real value across old and incoming', () =
         {}
     );
     assert.strictEqual(res.merged.timestamp, 9000);
-});
-
-test('lastActiveAt is max-monotonic: a stale touch must not un-bump', () => {
-    const res = mergeConversation(
-        conv({ lastActiveAt: 5000 }),
-        conv({ lastActiveAt: 3000 }),
-        {}
-    );
-    assert.strictEqual(res.merged.lastActiveAt, 5000);
-});
-
-test('lastActiveAt advances when the incoming touch is newer', () => {
-    const res = mergeConversation(
-        conv({ lastActiveAt: 3000 }),
-        conv({ lastActiveAt: 7000 }),
-        {}
-    );
-    assert.strictEqual(res.merged.lastActiveAt, 7000);
 });
